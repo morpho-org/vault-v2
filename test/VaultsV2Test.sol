@@ -7,7 +7,6 @@ import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 
 import {Test, console} from "../lib/forge-std/src/Test.sol";
 
-
 contract VaultsV2Test is Test {
     VaultsV2 public vault;
     address immutable guardian = makeAddr("guardian");
