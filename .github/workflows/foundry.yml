@@ -1,0 +1,31 @@
+name: Foundry
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: true
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Run forge fmt
+        run: forge fmt --check
+
+      - name: Run forge build
+        run: forge build --sizes
+
+      - name: Run forge tests
+        run: forge test -vvv
