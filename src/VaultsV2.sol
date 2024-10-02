@@ -72,6 +72,25 @@ contract VaultsV2 is ERC20, IVaultsV2 {
 
     /* ALLOCATION */
 
+    function enableNewMarket(IERC4626 market) external {
+        require(msg.sender == curator);
+        markets.push(market);
+    }
+
+    // TODO: how to handle slippage ? Transferred amount could be different from totalAssets change.
+    function depositFromIdle(uint256 marketIndex, uint256 amount) external {
+        // TODO: extend to be able to hook this
+        require(msg.sender == curator);
+        IERC4626 market = markets[marketIndex];
+        market.deposit(amount, address(this));
+    }
+
+    // TODO: how to handle slippage ? Transferred amount could be different from totalAssets change.
+    function withdrawFromIdle(uint256 marketIndex, uint256 amount) external {
+        require(msg.sender == curator);
+        IERC4626 market = markets[marketIndex];
+        market.withdraw(amount, address(this), address(this));
+    }
 
     /* EXCHANGE RATE */
 
