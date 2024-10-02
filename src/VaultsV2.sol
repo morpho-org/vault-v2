@@ -50,7 +50,8 @@ contract VaultsV2 is ERC20, IVaultsV2 {
 
     function setIRM(address _irm) external {
         require(msg.sender == curator);
-        // Note that the following is error prone, especially in emergency situations (when the guardian takes over notably).
+        // Note that the following is error prone, especially in emergency situations (when the guardian takes over
+        // notably).
         irm = IIRM(_irm);
     }
 
@@ -64,9 +65,10 @@ contract VaultsV2 is ERC20, IVaultsV2 {
     // TODO: compound rate, instead of having a linear interest rate.
     function accrueInterest() public {
         uint256 elapsed = block.timestamp - lastUpdate;
-        // Note that rate could be negative, but this is not always incentive compatible.
+        // Note that rate could be negative, but this is not always incentive compatible: users would want to leave. But
+        // keeping this possible still, as it can make sense in the custody case when withdrawals are disabled.
         // Note that the rate should probably be bounded to give guarantees that it cannot rug users instantly.
-        // Note that irm.rate() reverts if the vault is not initialized and has irm == address(0)
+        // Note that irm.rate() reverts if the vault is not initialized and has irm == address(0).
         lastTotalAssets *= WAD + irm.rate() * elapsed;
         lastUpdate = block.timestamp;
     }
@@ -124,11 +126,13 @@ contract VaultsV2 is ERC20, IVaultsV2 {
 
     // Vault managers would not use this function when taking full custody.
     function realAssets() public view returns (uint256 aum) {
-        for(uint256 i; i < markets.length; i++) aum += markets[i].totalAssets();
+        for (uint256 i; i < markets.length; i++) {
+            aum += markets[i].totalAssets();
+        }
     }
 
     // Vault managers would not use this function when taking full custody.
-    // TODO: make it more realistic, as it should be estimated from the estimates of the markets themselves.
+    // TODO: make it more realistic, as it should be estimated from the rates returned by the markets themselves.
     function realRate() public pure returns (uint256) {
         return uint256(5 ether) / 365 days;
     }

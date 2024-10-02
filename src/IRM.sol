@@ -17,10 +17,12 @@ contract IRM {
     }
 
     // This is most likely O(n) in the number of markets.
-    // Probably manipulable as is, hence the require.
+    // It is manipulable as is, hence the require.
     // Alternatively, this could be computed offchain in the custodial solution.
+    // Note also that the formula for it is totally arbitrary at the moment, and it is only meant to show that the rate
+    // is somewhat controlling totalAssets to target realAssets.
     function setRate() public {
         require(msg.sender == rateManager);
-        rate = vault.realRate() + (vault.realAssets() - vault.totalAssets()) / 30 days;
+        rate = vault.realRate() + vault.realAssets() / 30 days - vault.totalAssets() / 30 days;
     }
 }
