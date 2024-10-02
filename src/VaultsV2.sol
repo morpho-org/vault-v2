@@ -15,6 +15,7 @@ import {IIRM} from "./interfaces/IIRM.sol";
 // TODO: implement an ErrorsLib
 contract VaultsV2 is ERC20, IVaultsV2 {
     using Math for uint256;
+
     /* IMMUTABLE */
 
     address public immutable guardian;
@@ -44,21 +45,38 @@ contract VaultsV2 is ERC20, IVaultsV2 {
     function disown() external {
         require(msg.sender == guardian);
         curator = guardian;
+        irm = IIRM(address(0));
     }
 
-    /* CURATOR FUNCTIONS */
+    /* RATE MANAGEMENT */
 
     function setIRM(address _irm) external {
         require(msg.sender == curator);
-        // Note that the following is error prone, especially in emergency situations (when the guardian takes over
-        // notably).
         irm = IIRM(_irm);
     }
+
+    // Vault managers would not use this function when taking full custody.
+    // Note that donations would be smoothed, which is a nice feature to incentivize the vault directly.
+    function realAssets() public view returns (uint256 aum) {
+        aum = asset.balanceOf(address(this));
+        for (uint256 i; i < markets.length; i++) {
+            aum += markets[i].totalAssets();
+        }
+    }
+
+    // Vault managers would not use this function when taking full custody.
+    // TODO: make it more realistic, as it should be estimated from the rates returned by the markets themselves.
+    function realRate() public pure returns (uint256) {
+        return uint256(5 ether) / 365 days;
+    }
+
+    /* ALLOCATION */
+
 
     /* EXCHANGE RATE */
 
     function totalAssets() public view returns (uint256) {
-        // TODO: could virtually accrue here instead, which would be more precise.
+        // TODO: virtually accrue here instead, which would be more precise.
         return lastTotalAssets;
     }
 
@@ -84,7 +102,7 @@ contract VaultsV2 is ERC20, IVaultsV2 {
 
     /* USER INTERACTION */
 
-    function _deposit(address receiver, uint256 assets, uint256 shares) internal {
+    function _deposit(uint256 assets, uint256 shares, address receiver) internal {
         SafeERC20.safeTransferFrom(asset, msg.sender, address(this), assets);
         _mint(receiver, shares);
         lastTotalAssets += assets;
@@ -94,16 +112,16 @@ contract VaultsV2 is ERC20, IVaultsV2 {
         accrueInterest();
         // Note that it could be made more efficient by caching lastTotalAssets.
         shares = convertToShares(assets, Math.Rounding.Floor);
-        _deposit(receiver, assets, shares);
+        _deposit(assets, shares, receiver);
     }
 
     function mint(uint256 shares, address receiver) public virtual returns (uint256 assets) {
         accrueInterest();
         assets = convertToAssets(shares, Math.Rounding.Ceil);
-        _deposit(receiver, assets, shares);
+        _deposit(assets, shares, receiver);
     }
 
-    function _withdraw(address receiver, address owner, uint256 assets, uint256 shares) internal virtual {
+    function _withdraw(uint256 assets, uint256 shares, address receiver, address owner) internal virtual {
         if (msg.sender != owner) _spendAllowance(owner, msg.sender, shares);
         _burn(owner, shares);
         SafeERC20.safeTransfer(asset, receiver, assets);
@@ -113,27 +131,12 @@ contract VaultsV2 is ERC20, IVaultsV2 {
     function withdraw(uint256 assets, address receiver, address owner) public virtual returns (uint256 shares) {
         accrueInterest();
         shares = convertToShares(assets, Math.Rounding.Ceil);
-        _withdraw(receiver, owner, assets, shares);
+        _withdraw(assets, shares, receiver, owner);
     }
 
-    function redeem(uint256 shares, address receiver, address from) public virtual returns (uint256 assets) {
+    function redeem(uint256 shares, address receiver, address owner) public virtual returns (uint256 assets) {
         accrueInterest();
         assets = convertToAssets(shares, Math.Rounding.Floor);
-        _withdraw(receiver, from, assets, shares);
-    }
-
-    /* RATE MANAGEMENT */
-
-    // Vault managers would not use this function when taking full custody.
-    function realAssets() public view returns (uint256 aum) {
-        for (uint256 i; i < markets.length; i++) {
-            aum += markets[i].totalAssets();
-        }
-    }
-
-    // Vault managers would not use this function when taking full custody.
-    // TODO: make it more realistic, as it should be estimated from the rates returned by the markets themselves.
-    function realRate() public pure returns (uint256) {
-        return uint256(5 ether) / 365 days;
+        _withdraw(assets, shares, receiver, owner);
     }
 }
