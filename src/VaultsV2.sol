@@ -21,18 +21,18 @@ contract VaultsV2 is ERC20, IVaultsV2 {
 
     /* STORAGE */
 
-    // TODO: owner could actually be made immutable.
-    address public owner;
+    // TODO: curator could actually be made immutable.
+    address public curator;
     IERC20 asset;
+    IIRM public irm;
     uint256 public lastUpdate;
     uint256 public lastTotalAssets;
-    IIRM public irm;
     IERC4626[] public markets;
 
     /* CONSTRUCTOR */
 
     constructor(address _guardian, address _asset, string memory _name, string memory _symbol) ERC20(_name, _symbol) {
-        owner = msg.sender;
+        curator = msg.sender;
         guardian = _guardian;
         asset = IERC20(_asset);
     }
@@ -40,10 +40,18 @@ contract VaultsV2 is ERC20, IVaultsV2 {
     /* EMERGENCY */
 
     // Can be seen as an exit to underlying, governed by the guardian.
-    // TODO: restrict guardian more to have better guarantees.
+    // TODO: restrict guardian more to have better guarantees, notably after it has taken over.
     function disown() external {
         require(msg.sender == guardian);
-        owner = guardian;
+        curator = guardian;
+    }
+
+    /* CURATOR FUNCTIONS */
+
+    function setIRM(address _irm) external {
+        require(msg.sender == curator);
+        // Note that the following is error prone, especially in emergency situations (when the guardian takes over notably).
+        irm = IIRM(_irm);
     }
 
     /* EXCHANGE RATE */
@@ -57,11 +65,13 @@ contract VaultsV2 is ERC20, IVaultsV2 {
     function accrueInterest() public {
         uint256 elapsed = block.timestamp - lastUpdate;
         // Note that rate could be negative, but this is not always incentive compatible.
+        // Note that the rate should probably be bounded to give guarantees that it cannot rug users instantly.
+        // Note that irm.rate() reverts if the vault is not initialized and has irm == address(0)
         lastTotalAssets *= WAD + irm.rate() * elapsed;
         lastUpdate = block.timestamp;
     }
 
-    // TODO: extract virtual shares and assets.
+    // TODO: extract virtual shares and assets (= 1).
     function convertToShares(uint256 assets, Math.Rounding rounding) internal view returns (uint256 shares) {
         shares = assets.mulDiv(totalSupply() + 1, lastTotalAssets + 1, rounding);
     }
@@ -70,16 +80,12 @@ contract VaultsV2 is ERC20, IVaultsV2 {
         shares = assets.mulDiv(lastTotalAssets + 1, totalSupply() + 1, rounding);
     }
 
-    // To override to take custody and manage funds.
-    function realAssets() public virtual returns (uint256) {
-        return totalAssets();
-    }
-
     /* USER INTERACTION */
 
     function _deposit(address receiver, uint256 assets, uint256 shares) internal {
         SafeERC20.safeTransferFrom(asset, msg.sender, address(this), assets);
         _mint(receiver, shares);
+        lastTotalAssets += assets;
     }
 
     function deposit(uint256 assets, address receiver) public virtual returns (uint256 shares) {
@@ -87,39 +93,43 @@ contract VaultsV2 is ERC20, IVaultsV2 {
         // Note that it could be made more efficient by caching lastTotalAssets.
         shares = convertToShares(assets, Math.Rounding.Floor);
         _deposit(receiver, assets, shares);
-        lastTotalAssets += assets;
-        lastUpdate = block.timestamp;
     }
 
     function mint(uint256 shares, address receiver) public virtual returns (uint256 assets) {
         accrueInterest();
         assets = convertToAssets(shares, Math.Rounding.Ceil);
         _deposit(receiver, assets, shares);
-        lastTotalAssets += assets;
-        lastUpdate = block.timestamp;
     }
 
-    function _withdraw(address receiver, address _owner, uint256 assets, uint256 shares) internal virtual {
-        if (msg.sender != _owner) _spendAllowance(_owner, msg.sender, shares);
+    function _withdraw(address receiver, address owner, uint256 assets, uint256 shares) internal virtual {
+        if (msg.sender != owner) _spendAllowance(owner, msg.sender, shares);
         _burn(owner, shares);
         SafeERC20.safeTransfer(asset, receiver, assets);
+        lastTotalAssets -= assets;
     }
 
-    function withdraw(uint256 assets, address receiver, address _owner) public virtual returns (uint256 shares) {
+    function withdraw(uint256 assets, address receiver, address owner) public virtual returns (uint256 shares) {
         accrueInterest();
         shares = convertToShares(assets, Math.Rounding.Ceil);
-        _withdraw(receiver, _owner, assets, shares);
-        lastTotalAssets -= assets;
-        lastUpdate = block.timestamp;
+        _withdraw(receiver, owner, assets, shares);
     }
 
-    function redeem(uint256 shares, address receiver, address _owner) public virtual returns (uint256 assets) {
+    function redeem(uint256 shares, address receiver, address from) public virtual returns (uint256 assets) {
         accrueInterest();
         assets = convertToAssets(shares, Math.Rounding.Floor);
-        _withdraw(receiver, _owner, assets, shares);
-        lastTotalAssets -= assets;
-        lastUpdate = block.timestamp;
+        _withdraw(receiver, from, assets, shares);
     }
 
-    /* ALLOCATION */
+    /* RATE MANAGEMENT */
+
+    // Vault managers would not use this function when taking full custody.
+    function realAssets() public view returns (uint256 aum) {
+        for(uint256 i; i < markets.length; i++) aum += markets[i].totalAssets();
+    }
+
+    // Vault managers would not use this function when taking full custody.
+    // TODO: make it more realistic, as it should be estimated from the estimates of the markets themselves.
+    function realRate() public pure returns (uint256) {
+        return uint256(5 ether) / 365 days;
+    }
 }
