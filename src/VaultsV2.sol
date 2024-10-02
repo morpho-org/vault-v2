@@ -29,6 +29,11 @@ contract VaultsV2 is ERC20 {
     // Note that the curator could be a smart contract, so that it is restricted in what it does.
     // In that sense the curator is modularized.
     // Notably, the curator could be restricted in what it can call, and choices it makes could be decentralized.
+    // TODO: implement curator:
+    // - with hooks, to hook on deposit
+    // - MM curator
+    // - curator to granularly permission users
+    // - curator to pause when discrepancy gets too high
     address public curator;
     IERC20 public asset;
     IIRM public irm;
@@ -83,15 +88,16 @@ contract VaultsV2 is ERC20 {
         markets.push(market);
     }
 
-    // BIG OPEN QUESTION: how to handle slippage ? Transferred amount could be different from totalAssets change.
+    // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
+    // it is not reflected in vault.totalAssets() but will have an impact on the rate.
     function depositFromIdle(uint256 marketIndex, uint256 amount) external {
-        // TODO: extend to be able to hook this
         require(msg.sender == curator);
         IERC4626 market = markets[marketIndex];
         market.deposit(amount, address(this));
     }
 
-    // BIG OPEN QUESTION: how to handle slippage ? Transferred amount could be different from totalAssets change.
+    // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
+    // it is not reflected in vault.totalAssets() but will have an impact on the rate.
     function withdrawToIdle(uint256 marketIndex, uint256 amount) external {
         require(msg.sender == curator);
         IERC4626 market = markets[marketIndex];
