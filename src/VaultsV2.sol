@@ -22,6 +22,10 @@ contract VaultsV2 is ERC20 {
     // Note that the guardian could be a smart contract, so that it is restricted in what it does.
     // In that sense the guardian is modularized.
     // Notably, the guardian could be restricted in what it can call, and choices it makes could be decentralized.
+    // TODO: implement guardian:
+    // - allowed to withdraw;
+    // - allowed to swap but according to an oracle;
+    // - potentially governed.
     address public immutable guardian;
 
     /* STORAGE */
@@ -30,10 +34,10 @@ contract VaultsV2 is ERC20 {
     // In that sense the curator is modularized.
     // Notably, the curator could be restricted in what it can call, and choices it makes could be decentralized.
     // TODO: implement curator:
-    // - with hooks, to hook on deposit
-    // - MM curator
-    // - curator to granularly permission users
-    // - curator to pause when discrepancy gets too high
+    // - with hooks, to hook on deposit;
+    // - MM curator;
+    // - curator to granularly permission users;
+    // - curator to pause when discrepancy gets too high.
     address public curator;
     IERC20 public asset;
     IIRM public irm;
