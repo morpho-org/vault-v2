@@ -12,19 +12,25 @@ import {
 import {WAD, IVaultsV2} from "./interfaces/IVaultsV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 
-// TODO: implement an ErrorsLib
-contract VaultsV2 is ERC20, IVaultsV2 {
+// TODO: implement an ErrorsLib.
+// TODO: inherit from a dedicated interface (IVaultsV2).
+contract VaultsV2 is ERC20 {
     using Math for uint256;
 
     /* IMMUTABLE */
 
+    // Note that the guardian could be a smart contract, so that it is restricted in what it does.
+    // In that sense the guardian is modularized.
+    // Notably, the guardian could be restricted in what it can call, and choices it makes could be decentralized.
     address public immutable guardian;
 
     /* STORAGE */
 
-    // TODO: curator could actually be made immutable.
+    // Note that the curator could be a smart contract, so that it is restricted in what it does.
+    // In that sense the curator is modularized.
+    // Notably, the curator could be restricted in what it can call, and choices it makes could be decentralized.
     address public curator;
-    IERC20 asset;
+    IERC20 public asset;
     IIRM public irm;
     uint256 public lastUpdate;
     uint256 public lastTotalAssets;
@@ -36,12 +42,12 @@ contract VaultsV2 is ERC20, IVaultsV2 {
         curator = msg.sender;
         guardian = _guardian;
         asset = IERC20(_asset);
+        lastUpdate = block.timestamp;
     }
 
     /* EMERGENCY */
 
     // Can be seen as an exit to underlying, governed by the guardian.
-    // TODO: restrict guardian more to have better guarantees, notably after it has taken over.
     function disown() external {
         require(msg.sender == guardian);
         curator = guardian;
@@ -77,7 +83,7 @@ contract VaultsV2 is ERC20, IVaultsV2 {
         markets.push(market);
     }
 
-    // TODO: how to handle slippage ? Transferred amount could be different from totalAssets change.
+    // BIG OPEN QUESTION: how to handle slippage ? Transferred amount could be different from totalAssets change.
     function depositFromIdle(uint256 marketIndex, uint256 amount) external {
         // TODO: extend to be able to hook this
         require(msg.sender == curator);
@@ -85,8 +91,8 @@ contract VaultsV2 is ERC20, IVaultsV2 {
         market.deposit(amount, address(this));
     }
 
-    // TODO: how to handle slippage ? Transferred amount could be different from totalAssets change.
-    function withdrawFromIdle(uint256 marketIndex, uint256 amount) external {
+    // BIG OPEN QUESTION: how to handle slippage ? Transferred amount could be different from totalAssets change.
+    function withdrawToIdle(uint256 marketIndex, uint256 amount) external {
         require(msg.sender == curator);
         IERC4626 market = markets[marketIndex];
         market.withdraw(amount, address(this), address(this));
