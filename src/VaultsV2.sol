@@ -39,6 +39,7 @@ contract VaultsV2 is ERC20 {
     // - curator to granularly permission users;
     // - curator to pause when discrepancy gets too high.
     address public curator;
+
     IERC20 public asset;
     IIRM public irm;
     uint256 public lastUpdate;
@@ -94,7 +95,7 @@ contract VaultsV2 is ERC20 {
 
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on the rate.
-    function depositFromIdle(uint256 marketIndex, uint256 amount) external {
+    function reallocateFromIdle(uint256 marketIndex, uint256 amount) external {
         require(msg.sender == curator);
         IERC4626 market = markets[marketIndex];
         market.deposit(amount, address(this));
@@ -102,7 +103,7 @@ contract VaultsV2 is ERC20 {
 
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on the rate.
-    function withdrawToIdle(uint256 marketIndex, uint256 amount) external {
+    function reallocateToIdle(uint256 marketIndex, uint256 amount) external {
         require(msg.sender == curator);
         IERC4626 market = markets[marketIndex];
         market.withdraw(amount, address(this), address(this));
