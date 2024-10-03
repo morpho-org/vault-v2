@@ -4,15 +4,15 @@ pragma solidity 0.8.27;
 import {VaultsV2} from "./VaultsV2.sol";
 
 contract IRM {
-    // Could be made the same as the curator in VaultsV2.
+    // Note that rateManager may be controlled by the curator, if the curator has the ability to change the IRM.
     address public immutable rateManager;
     VaultsV2 public immutable vault;
 
     // Notice how this makes it O(1) in the number of markets.
     uint256 public rate;
 
-    constructor(VaultsV2 _vault) {
-        rateManager = msg.sender;
+    constructor(address _rateManager, VaultsV2 _vault) {
+        rateManager = _rateManager;
         vault = _vault;
     }
 

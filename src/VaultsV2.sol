@@ -11,34 +11,24 @@ import {
 
 import {WAD, IVaultsV2} from "./interfaces/IVaultsV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
+import {ICurator} from "./interfaces/ICurator.sol";
 
 // TODO: implement an ErrorsLib.
 // TODO: inherit from a dedicated interface (IVaultsV2).
 contract VaultsV2 is ERC20 {
     using Math for uint256;
 
-    /* IMMUTABLE */
+    /* STORAGE */
 
     // Note that the guardian could be a smart contract, so that it is restricted in what it does.
     // In that sense the guardian is modularized.
     // Notably, the guardian could be restricted in what it can call, and choices it makes could be decentralized.
-    // TODO: implement guardian:
-    // - allowed to withdraw;
-    // - allowed to swap but according to an oracle;
-    // - potentially governed.
-    address public immutable guardian;
-
-    /* STORAGE */
+    address public guardian;
 
     // Note that the curator could be a smart contract, so that it is restricted in what it does.
     // In that sense the curator is modularized.
     // Notably, the curator could be restricted in what it can call, and choices it makes could be decentralized.
-    // TODO: implement curator:
-    // - with hooks, to hook on deposit;
-    // - MM curator;
-    // - curator to granularly permission users;
-    // - curator to pause when discrepancy gets too high.
-    address public curator;
+    ICurator public curator;
 
     IERC20 public asset;
     IIRM public irm;
@@ -46,28 +36,53 @@ contract VaultsV2 is ERC20 {
     uint256 public lastTotalAssets;
     IERC4626[] public markets;
 
+    // TODO: optimize this with transient storage.
+    bool public unlocked;
+
     /* CONSTRUCTOR */
 
-    constructor(address _guardian, address _asset, string memory _name, string memory _symbol) ERC20(_name, _symbol) {
-        curator = msg.sender;
+    constructor(address _curator, address _guardian, address _asset, string memory _name, string memory _symbol)
+        ERC20(_name, _symbol)
+    {
+        curator = ICurator(_curator);
         guardian = _guardian;
         asset = IERC20(_asset);
         lastUpdate = block.timestamp;
     }
 
+    /* AUTHORIZED MULTICALL */
+
+    function multiCall(bytes[] calldata bundle) external {
+        // Could also make it ok in case msg.sender == curator, to optimize admin calls.
+        require(curator.authorizedMulticall(msg.sender, bundle));
+
+        // Is this safe with reentrant calls ?
+        unlocked = true;
+
+        for (uint256 i = 0; i < bundle.length; i++) {
+            // Note: no need to check that address(this) has code.
+            (bool success,) = address(this).delegatecall(bundle[i]);
+            require(success);
+        }
+
+        unlocked = false;
+    }
+
     /* EMERGENCY */
 
     // Can be seen as an exit to underlying, governed by the guardian.
-    function disown() external {
+    function takeOwnership(ICurator newCurator) external {
         require(msg.sender == guardian);
-        curator = guardian;
+        // No need to set newCurator as an immutable of the vault, as it could be done in the guardian.
+        curator = newCurator;
+        guardian = address(0);
         irm = IIRM(address(0));
     }
 
     /* RATE MANAGEMENT */
 
     function setIRM(address _irm) external {
-        require(msg.sender == curator);
+        require(unlocked);
         irm = IIRM(_irm);
     }
 
@@ -89,14 +104,14 @@ contract VaultsV2 is ERC20 {
     /* ALLOCATION */
 
     function enableNewMarket(IERC4626 market) external {
-        require(msg.sender == curator);
+        require(unlocked);
         markets.push(market);
     }
 
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on the rate.
     function reallocateFromIdle(uint256 marketIndex, uint256 amount) external {
-        require(msg.sender == curator);
+        require(unlocked);
         IERC4626 market = markets[marketIndex];
         market.deposit(amount, address(this));
     }
@@ -104,7 +119,7 @@ contract VaultsV2 is ERC20 {
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on the rate.
     function reallocateToIdle(uint256 marketIndex, uint256 amount) external {
-        require(msg.sender == curator);
+        require(unlocked);
         IERC4626 market = markets[marketIndex];
         market.withdraw(amount, address(this), address(this));
     }
@@ -144,6 +159,7 @@ contract VaultsV2 is ERC20 {
         lastTotalAssets += assets;
     }
 
+    // TODO: how to hook on deposit so that assets are atomically allocated ?
     function deposit(uint256 assets, address receiver) public virtual returns (uint256 shares) {
         accrueInterest();
         // Note that it could be made more efficient by caching lastTotalAssets.
@@ -164,6 +180,8 @@ contract VaultsV2 is ERC20 {
         lastTotalAssets -= assets;
     }
 
+    // Note that it is not callable by default, if there is no liquidity.
+    // This is actually a feature, so that the curator can pause withdrawals if necessary/wanted.
     function withdraw(uint256 assets, address receiver, address owner) public virtual returns (uint256 shares) {
         accrueInterest();
         shares = convertToShares(assets, Math.Rounding.Ceil);
