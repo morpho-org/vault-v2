@@ -4,3 +4,6 @@
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/openzeppelin/openzeppelin-contracts
+[submodule "lib/morpho-blue"]
+	path = lib/morpho-blue
+	url = git@github.com:morpho-org/morpho-blue.git
