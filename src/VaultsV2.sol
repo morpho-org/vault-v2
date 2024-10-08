@@ -138,7 +138,7 @@ contract VaultsV2 is ERC20 {
         // keeping this possible still, as it can make sense in the custody case when withdrawals are disabled.
         // Note that the rate should probably be bounded to give guarantees that it cannot rug users instantly.
         // Note that irm.rate() reverts if the vault is not initialized and has irm == address(0).
-        lastTotalAssets *= WAD + irm.rate() * elapsed;
+        lastTotalAssets += irm.interestPerSecond() * elapsed;
         lastUpdate = block.timestamp;
     }
 
