@@ -10,7 +10,7 @@ contract IRM is IIRM {
     VaultsV2 public immutable vault;
 
     // Notice how this makes it O(1) in the number of markets.
-    uint256 public interestPerSecond;
+    int256 public interestPerSecond;
 
     constructor(address _owner, VaultsV2 _vault) {
         owner = _owner;
@@ -24,6 +24,7 @@ contract IRM is IIRM {
     // it only illustrates that interestPerSecond is meant to be controlling totalAssets to target realAssets.
     function setInterest() public {
         require(msg.sender == owner);
-        interestPerSecond = vault.realRate() + vault.realAssets() / 30 days - vault.totalAssets() / 30 days;
+        int256 excessAssets = int256(vault.realAssets()) - int256(vault.totalAssets());
+        interestPerSecond = vault.realInterestPerSecond() + excessAssets / 30 days;
     }
 }

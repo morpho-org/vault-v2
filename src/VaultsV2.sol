@@ -79,7 +79,7 @@ contract VaultsV2 is ERC20 {
         irm = IIRM(address(0));
     }
 
-    /* RATE MANAGEMENT */
+    /* INTEREST MANAGEMENT */
 
     function setIRM(address _irm) external {
         require(unlocked);
@@ -96,9 +96,9 @@ contract VaultsV2 is ERC20 {
     }
 
     // Vault managers would not use this function when taking full custody.
-    // TODO: make it more realistic, as it should be estimated from the rates returned by the markets themselves.
-    function realRate() public pure returns (uint256) {
-        return uint256(5 ether) / 365 days;
+    // TODO: make it more realistic, as it should be estimated from the interest per second returned by the markets themselves.
+    function realInterestPerSecond() public pure returns (int256) {
+        return int256(5 ether) / 365 days;
     }
 
     /* ALLOCATION */
@@ -109,7 +109,7 @@ contract VaultsV2 is ERC20 {
     }
 
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
-    // it is not reflected in vault.totalAssets() but will have an impact on the rate.
+    // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateFromIdle(uint256 marketIndex, uint256 amount) external {
         require(unlocked);
         IERC4626 market = markets[marketIndex];
@@ -117,7 +117,7 @@ contract VaultsV2 is ERC20 {
     }
 
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
-    // it is not reflected in vault.totalAssets() but will have an impact on the rate.
+    // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateToIdle(uint256 marketIndex, uint256 amount) external {
         require(unlocked);
         IERC4626 market = markets[marketIndex];
@@ -131,14 +131,14 @@ contract VaultsV2 is ERC20 {
         return lastTotalAssets;
     }
 
-    // TODO: compound rate, instead of having a linear interest rate.
     function accrueInterest() public {
         uint256 elapsed = block.timestamp - lastUpdate;
-        // Note that rate could be negative, but this is not always incentive compatible: users would want to leave. But
+        // Note that interest could be negative, but this is not always incentive compatible: users would want to leave. But
         // keeping this possible still, as it can make sense in the custody case when withdrawals are disabled.
-        // Note that the rate should probably be bounded to give guarantees that it cannot rug users instantly.
-        // Note that irm.rate() reverts if the vault is not initialized and has irm == address(0).
-        lastTotalAssets += irm.interestPerSecond() * elapsed;
+        // Note that the interestPerSecond should probably be bounded to give guarantees that it cannot rug users instantly.
+        // Note that irm.interestPerSecond() reverts if the vault is not initialized and has irm == address(0).
+        int256 newTotalAssets = int256(lastTotalAssets) + irm.interestPerSecond() * int256(elapsed);
+        lastTotalAssets = newTotalAssets >= 0 ? uint256(newTotalAssets) : 0;
         lastUpdate = block.timestamp;
     }
 

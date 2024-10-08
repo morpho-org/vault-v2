@@ -11,7 +11,7 @@ import {Test, console} from "../lib/forge-std/src/Test.sol";
 
 contract VaultsV2Test is Test {
     address immutable guardian = makeAddr("guardian");
-    address immutable rateManager = makeAddr("rate manager");
+    address immutable interestManager = makeAddr("interest manager");
     CustodialCurator curator;
     ERC20Mock underlyingToken;
     VaultsV2 vault;
@@ -24,7 +24,7 @@ contract VaultsV2Test is Test {
         curator = new CustodialCurator();
 
         vault = new VaultsV2(address(curator), guardian, address(underlyingToken), "VaultToken", "VAULT");
-        // initialIRM = new IRM(rateManager, vault);
+        // initialIRM = new IRM(interestManager, vault);
 
         // Should make a bundle instead:
         // vault.setIRM(address(initialIRM));
