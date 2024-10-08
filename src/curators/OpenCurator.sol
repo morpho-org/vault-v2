@@ -12,7 +12,7 @@ import {VaultsV2} from "../VaultsV2.sol";
 // - it could allow whitelisted users to manage the vault;
 // - pause the withdrawals when the bank run is too likely (realAssets << totalAssets), by ensuring idle is empty;
 // - pause the reallocationFromIdle, which is especially useful for the emergency curator, to allow maximum liquidity.
-contract CustodialCurator is ICurator {
+contract OpenCurator is ICurator {
     address public immutable owner;
 
     constructor() {
