@@ -91,12 +91,13 @@ contract VaultsV2 is ERC20 {
     function realAssets() public view returns (uint256 aum) {
         aum = asset.balanceOf(address(this));
         for (uint256 i; i < markets.length; i++) {
-            aum += markets[i].totalAssets();
+            aum += markets[i].convertToAssets(markets[i].balanceOf(address(this)));
         }
     }
 
     // Vault managers would not use this function when taking full custody.
-    // TODO: make it more realistic, as it should be estimated from the interest per second returned by the markets themselves.
+    // TODO: make it more realistic, as it should be estimated from the interest per second returned by the markets
+    // themselves.
     function realInterestPerSecond() public pure returns (int256) {
         return int256(5 ether) / 365 days;
     }
@@ -105,6 +106,7 @@ contract VaultsV2 is ERC20 {
 
     function enableNewMarket(IERC4626 market) external {
         require(unlocked);
+        asset.approve(address(market), type(uint256).max);
         markets.push(market);
     }
 
@@ -133,9 +135,9 @@ contract VaultsV2 is ERC20 {
 
     function accrueInterest() public {
         uint256 elapsed = block.timestamp - lastUpdate;
-        // Note that interest could be negative, but this is not always incentive compatible: users would want to leave. But
-        // keeping this possible still, as it can make sense in the custody case when withdrawals are disabled.
-        // Note that the interestPerSecond should probably be bounded to give guarantees that it cannot rug users instantly.
+        // Note that interest could be negative, but this is not always incentive compatible: users would want to leave.
+        // But keeping this possible still, as it can make sense in the custody case when withdrawals are disabled.
+        // Note that interestPerSecond should probably be bounded to give guarantees that it cannot rug users instantly.
         // Note that irm.interestPerSecond() reverts if the vault is not initialized and has irm == address(0).
         int256 newTotalAssets = int256(lastTotalAssets) + irm.interestPerSecond() * int256(elapsed);
         lastTotalAssets = newTotalAssets >= 0 ? uint256(newTotalAssets) : 0;
