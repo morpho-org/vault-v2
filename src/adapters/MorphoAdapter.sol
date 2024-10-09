@@ -39,6 +39,8 @@ contract MorphoAdapter is ERC4626 {
         ORACLE = _marketParams.oracle;
         IRM = _marketParams.irm;
         LLTV = _marketParams.lltv;
+
+        IERC20(_marketParams.loanToken).approve(_morpho, type(uint256).max);
     }
 
     function totalAssets() public view override returns (uint256) {
