@@ -96,8 +96,7 @@ contract VaultsV2 is ERC20 {
     }
 
     // Vault managers would not use this function when taking full custody.
-    // TODO: make it more realistic, as it should be estimated from the interest per second returned by the markets
-    // themselves.
+    // TODO: make it more realistic, as it should be estimated from the interest per second returned by the markets.
     function realInterestPerSecond() public pure returns (int256) {
         return int256(5 ether) / 365 days;
     }
