@@ -36,8 +36,20 @@ contract VaultsV2 is ERC20 {
     uint256 public lastTotalAssets;
     IERC4626[] public markets;
 
-    // TODO: optimize this with transient storage.
-    bool public unlocked;
+    // keccak256(abi.encode(uint256(keccak256("morpho.vaultsV2.unlocked")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 constant UNLOCKED_SLOT = 0x99ba1fe4c6889aab9c8272f5ca5958d5dedb1cd5c4a03616899e55505bf76900;
+
+    function unlocked() internal view returns(bool isUnlocked) {
+        assembly ("memory-safe") {
+            isUnlocked := tload(UNLOCKED_SLOT)
+        }
+    }
+
+    function setUnlock(bool unlock) internal {
+        assembly ("memory-safe") {
+            tstore(UNLOCKED_SLOT, unlock)
+        }
+    }
 
     /* CONSTRUCTOR */
 
@@ -57,7 +69,7 @@ contract VaultsV2 is ERC20 {
         require(curator.authorizedMulticall(msg.sender, bundle));
 
         // Is this safe with reentrant calls ?
-        unlocked = true;
+        setUnlock(true);
 
         for (uint256 i = 0; i < bundle.length; i++) {
             // Note: no need to check that address(this) has code.
@@ -65,7 +77,7 @@ contract VaultsV2 is ERC20 {
             require(success);
         }
 
-        unlocked = false;
+        setUnlock(false);
     }
 
     /* EMERGENCY */
@@ -82,7 +94,7 @@ contract VaultsV2 is ERC20 {
     /* INTEREST MANAGEMENT */
 
     function setIRM(address _irm) external {
-        require(unlocked);
+        require(unlocked());
         irm = IIRM(_irm);
     }
 
@@ -104,7 +116,7 @@ contract VaultsV2 is ERC20 {
     /* ALLOCATION */
 
     function enableNewMarket(IERC4626 market) external {
-        require(unlocked);
+        require(unlocked());
         asset.approve(address(market), type(uint256).max);
         markets.push(market);
     }
@@ -112,7 +124,7 @@ contract VaultsV2 is ERC20 {
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateFromIdle(uint256 marketIndex, uint256 amount) external {
-        require(unlocked);
+        require(unlocked());
         IERC4626 market = markets[marketIndex];
         market.deposit(amount, address(this));
     }
@@ -120,7 +132,7 @@ contract VaultsV2 is ERC20 {
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateToIdle(uint256 marketIndex, uint256 amount) external {
-        require(unlocked);
+        require(unlocked());
         IERC4626 market = markets[marketIndex];
         market.withdraw(amount, address(this), address(this));
     }
