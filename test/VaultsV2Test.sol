@@ -10,30 +10,36 @@ import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {Test, console} from "../lib/forge-std/src/Test.sol";
 
 contract VaultsV2Test is Test {
+    address immutable manager = makeAddr("manager");
     address immutable guardian = makeAddr("guardian");
-    address immutable interestManager = makeAddr("interest manager");
-    CustodialCurator curator;
-    ERC20Mock underlyingToken;
-    VaultsV2 vault;
-    // IRM initialIRM;
 
-    // bytes[] bundle;
+    ERC20Mock underlyingToken;
+    CustodialCurator curator;
+    VaultsV2 vault;
+    IRM irm;
 
     function setUp() public {
         underlyingToken = new ERC20Mock("UnderlyingToken", "UND");
+
+        vm.prank(manager);
         curator = new CustodialCurator();
 
         vault = new VaultsV2(address(curator), guardian, address(underlyingToken), "VaultToken", "VAULT");
-        // initialIRM = new IRM(interestManager, vault);
 
-        // Should make a bundle instead:
-        // vault.setIRM(address(initialIRM));
+        irm = new IRM(manager, vault);
+        bytes[] memory bundle = new bytes[](1);
+        bytes memory setIRMCall = abi.encodeWithSelector(VaultsV2.setIRM.selector, address(irm));
+        bundle[0] = setIRMCall;
+        vm.prank(manager);
+        vault.multiCall(bundle);
     }
 
     function testConstructor() public view {
         assertEq(vault.guardian(), guardian);
-        assertEq(address(vault.curator()), address(curator));
-        // assertEq(address(vault.irm()), address(initialIRM));
         assertEq(address(vault.asset()), address(underlyingToken));
+        assertEq(address(vault.curator()), address(curator));
+        assertEq(address(vault.irm()), address(irm));
+        assertEq(curator.owner(), manager);
+        assertEq(irm.owner(), manager);
     }
 }

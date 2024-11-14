@@ -8,7 +8,7 @@ contract CustodialCurator is ICurator {
     address public immutable owner;
 
     constructor() {
-        owner == msg.sender;
+        owner = msg.sender;
     }
 
     function authorizedMulticall(address sender, bytes[] calldata) external view returns (bool) {
