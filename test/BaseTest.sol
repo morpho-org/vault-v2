@@ -6,11 +6,12 @@ import {IRM} from "../src/IRM.sol";
 import {CustodialCurator} from "../src/curators/CustodialCurator.sol";
 import {EncodeLib} from "../src/libraries/EncodeLib.sol";
 
+import {VaultsV2Mock} from "./mocks/VaultsV2Mock.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 
 import {Test, console} from "../lib/forge-std/src/Test.sol";
 
-contract VaultsV2Test is Test {
+contract BaseTest is Test {
     address immutable manager = makeAddr("manager");
     address immutable guardian = makeAddr("guardian");
 
@@ -26,12 +27,15 @@ contract VaultsV2Test is Test {
 
         curator = new CustodialCurator(manager);
 
-        vault = new VaultsV2(address(curator), guardian, address(underlyingToken), "VaultToken", "VAULT");
+        vault = VaultsV2(
+            address(new VaultsV2Mock(address(curator), guardian, address(underlyingToken), "VaultToken", "VAULT"))
+        );
 
         irm = new IRM(manager, vault);
-        bundle.push(EncodeLib.setIRMCall(address(irm)));
+        bytes[] memory setIRMBundle = new bytes[](1);
+        setIRMBundle[0] = EncodeLib.setIRMCall(address(irm));
         vm.prank(manager);
-        vault.multiCall(bundle);
+        vault.multiCall(setIRMBundle);
     }
 
     function testConstructor() public view {

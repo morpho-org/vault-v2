@@ -18,6 +18,8 @@ import {ICurator} from "./interfaces/ICurator.sol";
 contract VaultsV2 is ERC20 {
     using Math for uint256;
 
+    error UnauthorizedMulticall();
+
     /* STORAGE */
 
     // Note that the guardian could be a smart contract, so that it is restricted in what it does.
@@ -66,7 +68,7 @@ contract VaultsV2 is ERC20 {
 
     function multiCall(bytes[] calldata bundle) external {
         // Could also make it ok in case msg.sender == curator, to optimize admin calls.
-        require(curator.authorizedMulticall(msg.sender, bundle));
+        require(curator.authorizedMulticall(msg.sender, bundle), UnauthorizedMulticall());
 
         // Is this safe with reentrant calls ?
         setUnlock(true);
@@ -115,10 +117,10 @@ contract VaultsV2 is ERC20 {
 
     /* ALLOCATION */
 
-    function enableNewMarket(IERC4626 market) external {
+    function enableNewMarket(address market) external {
         require(unlocked());
-        asset.approve(address(market), type(uint256).max);
-        markets.push(market);
+        asset.approve(market, type(uint256).max);
+        markets.push(IERC4626(market));
     }
 
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
