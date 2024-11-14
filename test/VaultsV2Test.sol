@@ -24,8 +24,7 @@ contract VaultsV2Test is Test {
     function setUp() public {
         underlyingToken = new ERC20Mock("UnderlyingToken", "UND");
 
-        vm.prank(manager);
-        curator = new CustodialCurator();
+        curator = new CustodialCurator(manager);
 
         vault = new VaultsV2(address(curator), guardian, address(underlyingToken), "VaultToken", "VAULT");
 

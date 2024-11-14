@@ -7,8 +7,8 @@ import {ICurator} from "../interfaces/ICurator.sol";
 contract CustodialCurator is ICurator {
     address public immutable owner;
 
-    constructor() {
-        owner = msg.sender;
+    constructor(address _owner) {
+        owner = _owner;
     }
 
     function authorizedMulticall(address sender, bytes[] calldata) external view returns (bool) {

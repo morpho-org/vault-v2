@@ -15,8 +15,8 @@ import {VaultsV2} from "../VaultsV2.sol";
 contract OpenCurator is ICurator {
     address public immutable owner;
 
-    constructor() {
-        owner = msg.sender;
+    constructor(address _owner) {
+        owner = _owner;
     }
 
     function authorizedMulticall(address sender, bytes[] calldata bundle) external view returns (bool) {
