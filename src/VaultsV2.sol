@@ -39,7 +39,7 @@ contract VaultsV2 is ERC20 {
     // keccak256(abi.encode(uint256(keccak256("morpho.vaultsV2.unlocked")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 constant UNLOCKED_SLOT = 0x99ba1fe4c6889aab9c8272f5ca5958d5dedb1cd5c4a03616899e55505bf76900;
 
-    function unlocked() internal view returns(bool isUnlocked) {
+    function unlocked() internal view returns (bool isUnlocked) {
         assembly ("memory-safe") {
             isUnlocked := tload(UNLOCKED_SLOT)
         }
