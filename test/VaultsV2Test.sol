@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {VaultsV2} from "../src/VaultsV2.sol";
 import {IRM} from "../src/IRM.sol";
 import {CustodialCurator} from "../src/curators/CustodialCurator.sol";
+import {EncodeLib} from "../src/libraries/EncodeLib.sol";
 
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 
@@ -18,6 +19,8 @@ contract VaultsV2Test is Test {
     VaultsV2 vault;
     IRM irm;
 
+    bytes[] bundle;
+
     function setUp() public {
         underlyingToken = new ERC20Mock("UnderlyingToken", "UND");
 
@@ -27,9 +30,7 @@ contract VaultsV2Test is Test {
         vault = new VaultsV2(address(curator), guardian, address(underlyingToken), "VaultToken", "VAULT");
 
         irm = new IRM(manager, vault);
-        bytes[] memory bundle = new bytes[](1);
-        bytes memory setIRMCall = abi.encodeWithSelector(VaultsV2.setIRM.selector, address(irm));
-        bundle[0] = setIRMCall;
+        bundle.push(EncodeLib.setIRMCall(address(irm)));
         vm.prank(manager);
         vault.multiCall(bundle);
     }
@@ -41,5 +42,6 @@ contract VaultsV2Test is Test {
         assertEq(address(vault.irm()), address(irm));
         assertEq(curator.owner(), manager);
         assertEq(irm.owner(), manager);
+        assertEq(address(irm.vault()), address(vault));
     }
 }
