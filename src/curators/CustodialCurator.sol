@@ -11,7 +11,7 @@ contract CustodialCurator is ICurator {
         owner = _owner;
     }
 
-    function authorizedMulticall(address sender, bytes[] calldata) external view returns (bool) {
-        return sender == owner;
+    function authorizeMulticall(address sender, bytes[] calldata) external view {
+        require(sender == owner);
     }
 }

@@ -68,7 +68,7 @@ contract VaultsV2 is ERC20 {
 
     function multiCall(bytes[] calldata bundle) external {
         // Could also make it ok in case msg.sender == curator, to optimize admin calls.
-        require(curator.authorizedMulticall(msg.sender, bundle), UnauthorizedMulticall());
+        curator.authorizeMulticall(msg.sender, bundle);
 
         // Is this safe with reentrant calls ?
         setUnlock(true);

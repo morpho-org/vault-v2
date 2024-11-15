@@ -19,15 +19,14 @@ contract OpenCurator is ICurator {
         owner = _owner;
     }
 
-    function authorizedMulticall(address sender, bytes[] calldata bundle) external view returns (bool) {
-        if (sender == owner) return true;
+    function authorizeMulticall(address sender, bytes[] calldata bundle) external view {
+        if (sender == owner) return;
         for (uint256 i = 0; i < bundle.length; i++) {
-            if (restrictedFunction(bytes4(bundle[i]))) return false;
+            checkRestrictedFunction(bytes4(bundle[i]));
         }
-        return true;
     }
 
-    function restrictedFunction(bytes4 selector) internal pure returns (bool) {
-        return selector == VaultsV2.setIRM.selector || selector == VaultsV2.enableNewMarket.selector;
+    function checkRestrictedFunction(bytes4 selector) internal pure {
+        require(selector != VaultsV2.setIRM.selector && selector != VaultsV2.enableNewMarket.selector);
     }
 }
