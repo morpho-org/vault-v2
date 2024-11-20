@@ -21,6 +21,12 @@ struct ReallocateToIdleData {
     uint256 amount;
 }
 
+struct WithdrawData {
+    uint256 assets;
+    address receiver;
+    address owner;
+}
+
 library DecodeLib {
     using DecodeLib for bytes;
     using DecodeLib for bytes32;
@@ -66,5 +72,15 @@ library DecodeLib {
         require(_call.length == 68);
         require(_call.selector_() == VaultsV2.reallocateToIdle.selector);
         return ReallocateToIdleData({marketIndex: _call.field_(0).uint256_(), amount: _call.field_(1).uint256_()});
+    }
+
+    function decodeAsWithdrawData(bytes memory _call) internal pure returns (WithdrawData memory) {
+        require(_call.length == 100);
+        require(_call.selector_() == VaultsV2.withdraw.selector);
+        return WithdrawData({
+            assets: _call.field_(0).uint256_(),
+            receiver: _call.field_(1).address_(),
+            owner: _call.field_(2).address_()
+        });
     }
 }

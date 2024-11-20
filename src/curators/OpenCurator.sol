@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.27;
 
-import {ICurator} from "../interfaces/ICurator.sol";
-import {VaultsV2} from "../VaultsV2.sol";
+import {BaseCurator} from "./BaseCurator.sol";
 
 // This curator completely opens up the reallocations to the public.
 // It still restricts functions that could rug other users.
@@ -12,21 +11,17 @@ import {VaultsV2} from "../VaultsV2.sol";
 // - it could allow whitelisted users to manage the vault;
 // - pause the withdrawals when the bank run is too likely (realAssets << totalAssets), by ensuring idle is empty;
 // - pause the reallocationFromIdle, which is especially useful for the emergency curator, to allow maximum liquidity.
-contract OpenCurator is ICurator {
+contract OpenCurator is BaseCurator {
     address public immutable owner;
 
     constructor(address _owner) {
         owner = _owner;
     }
 
-    function authorizeMulticall(address sender, bytes[] calldata bundle) external view {
+    function authorizeMulticall(address sender, bytes[] calldata bundle) external view override {
         if (sender == owner) return;
         for (uint256 i = 0; i < bundle.length; i++) {
             checkRestrictedFunction(bytes4(bundle[i]));
         }
-    }
-
-    function checkRestrictedFunction(bytes4 selector) internal pure {
-        require(selector != VaultsV2.setIRM.selector && selector != VaultsV2.enableNewMarket.selector);
     }
 }
