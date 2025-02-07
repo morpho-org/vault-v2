@@ -35,7 +35,7 @@ contract VaultsV2 is ERC20 {
     uint256 public lastTotalAssets;
     IERC4626[] public markets;
 
-    bool transient internal unlocked;
+    bool public transient unlocked;
 
     /* CONSTRUCTOR */
 
