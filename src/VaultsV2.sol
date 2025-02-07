@@ -188,24 +188,24 @@ contract VaultsV2 is ERC20 {
         _deposit(assets, shares, receiver);
     }
 
-    function _withdraw(uint256 assets, uint256 shares, address receiver, address owner) internal virtual {
-        if (msg.sender != owner) _spendAllowance(owner, msg.sender, shares);
-        _burn(owner, shares);
+    function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal virtual {
+        if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
+        _burn(supplier, shares);
         SafeERC20.safeTransfer(asset, receiver, assets);
         lastTotalAssets -= assets;
     }
 
     // Note that it is not callable by default, if there is no liquidity.
     // This is actually a feature, so that the curator can pause withdrawals if necessary/wanted.
-    function withdraw(uint256 assets, address receiver, address owner) public virtual returns (uint256 shares) {
+    function withdraw(uint256 assets, address receiver, address supplier) public virtual returns (uint256 shares) {
         accrueInterest();
         shares = convertToShares(assets, Math.Rounding.Ceil);
-        _withdraw(assets, shares, receiver, owner);
+        _withdraw(assets, shares, receiver, supplier);
     }
 
-    function redeem(uint256 shares, address receiver, address owner) public virtual returns (uint256 assets) {
+    function redeem(uint256 shares, address receiver, address supplier) public virtual returns (uint256 assets) {
         accrueInterest();
         assets = convertToAssets(shares, Math.Rounding.Floor);
-        _withdraw(assets, shares, receiver, owner);
+        _withdraw(assets, shares, receiver, supplier);
     }
 }
