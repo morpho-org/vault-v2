@@ -22,10 +22,10 @@ contract VaultsV2 is ERC20 {
 
     /* STORAGE */
 
-    // Note that the guardian could be a smart contract, so that it is restricted in what it does.
-    // In that sense the guardian is modularized.
-    // Notably, the guardian could be restricted in what it can call, and choices it makes could be decentralized.
-    address public guardian;
+    // Note that the owner could be a smart contract, so that it is restricted in what it does.
+    // In that sense the owner is modularized.
+    // Notably, the owner could be restricted in what it can call, and choices it makes could be decentralized.
+    address public owner;
 
     // Note that the curator could be a smart contract, so that it is restricted in what it does.
     // In that sense the curator is modularized.
@@ -55,11 +55,11 @@ contract VaultsV2 is ERC20 {
 
     /* CONSTRUCTOR */
 
-    constructor(address _curator, address _guardian, address _asset, string memory _name, string memory _symbol)
+    constructor(address _curator, address _owner, address _asset, string memory _name, string memory _symbol)
         ERC20(_name, _symbol)
     {
         curator = ICurator(_curator);
-        guardian = _guardian;
+        owner = _owner;
         asset = IERC20(_asset);
         lastUpdate = block.timestamp;
     }
@@ -84,12 +84,12 @@ contract VaultsV2 is ERC20 {
 
     /* EMERGENCY */
 
-    // Can be seen as an exit to underlying, governed by the guardian.
+    // Can be seen as an exit to underlying, governed by the owner.
     function takeOwnership(ICurator newCurator) external {
-        require(msg.sender == guardian);
-        // No need to set newCurator as an immutable of the vault, as it could be done in the guardian.
+        require(msg.sender == owner);
+        // No need to set newCurator as an immutable of the vault, as it could be done in the owner.
         curator = newCurator;
-        guardian = address(0);
+        owner = address(0);
         irm = IIRM(address(0));
     }
 
