@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {BaseTest, VaultsV2, EncodeLib} from "./BaseTest.sol";
 import {ERC4626Mock} from "./mocks/ERC4626Mock.sol";
 
-contract CustodialVaultTest is BaseTest {
+contract ManagedVaultTest is BaseTest {
     address public immutable supplier = makeAddr("supplier");
 
     function setUp() public override {

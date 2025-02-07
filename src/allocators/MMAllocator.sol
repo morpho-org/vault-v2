@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.27;
 
-import {BaseCurator} from "./BaseCurator.sol";
+import {BaseAllocator} from "./BaseAllocator.sol";
 import {IERC20, IERC4626} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC4626.sol";
 
 import {UtilsLib} from "../libraries/UtilsLib.sol";
 import "../libraries/DecodeLib.sol";
 
-contract MMCurator is BaseCurator {
+contract MMAllocator is BaseAllocator {
     using DecodeLib for bytes;
     using UtilsLib for uint256;
 

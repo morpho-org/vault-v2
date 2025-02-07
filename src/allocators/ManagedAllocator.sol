@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.27;
 
-import {BaseCurator} from "./BaseCurator.sol";
+import {BaseAllocator} from "./BaseAllocator.sol";
 
-// This curator completely controls the assets of the vault.
-contract CustodialCurator is BaseCurator {
+// This allocator makes an account completely manage the allocation of the vault.
+contract ManagedAllocator is BaseAllocator {
     address public immutable owner;
 
     constructor(address _owner) {

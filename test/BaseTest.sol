@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {VaultsV2} from "../src/VaultsV2.sol";
 import {IRM} from "../src/IRM.sol";
-import {CustodialCurator} from "../src/curators/CustodialCurator.sol";
+import {ManagedAllocator} from "../src/allocators/ManagedAllocator.sol";
 import {EncodeLib} from "../src/libraries/EncodeLib.sol";
 
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
@@ -16,7 +16,7 @@ contract BaseTest is Test {
     address immutable curator = makeAddr("curator");
 
     ERC20Mock underlyingToken;
-    CustodialCurator allocator;
+    ManagedAllocator allocator;
     VaultsV2 vault;
     IRM irm;
 
@@ -25,7 +25,7 @@ contract BaseTest is Test {
     function setUp() public virtual {
         underlyingToken = new ERC20Mock("UnderlyingToken", "UND");
 
-        allocator = new CustodialCurator(manager);
+        allocator = new ManagedAllocator(manager);
 
         vault = new VaultsV2(owner, curator, address(allocator), address(underlyingToken), "VaultToken", "VAULT");
 

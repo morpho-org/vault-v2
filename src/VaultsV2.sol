@@ -11,7 +11,7 @@ import {
 
 import {WAD, IVaultsV2} from "./interfaces/IVaultsV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
-import {ICurator} from "./interfaces/ICurator.sol";
+import {IAllocator} from "./interfaces/IAllocator.sol";
 
 // TODO: implement an ErrorsLib.
 // TODO: inherit from a dedicated interface (IVaultsV2).
@@ -27,7 +27,7 @@ contract VaultsV2 is ERC20 {
 
     address public owner;
     address public curator;
-    ICurator public allocator;
+    IAllocator public allocator;
 
     IERC20 public asset;
     IIRM public irm;
@@ -62,7 +62,7 @@ contract VaultsV2 is ERC20 {
     ) ERC20(_name, _symbol) {
         owner = _owner;
         curator = _curator;
-        allocator = ICurator(_allocator);
+        allocator = IAllocator(_allocator);
         owner = _owner;
         asset = IERC20(_asset);
         lastUpdate = block.timestamp;
@@ -113,7 +113,7 @@ contract VaultsV2 is ERC20 {
 
     function setAllocator(address newAllocator) external {
         require(msg.sender == curator || msg.sender == address(allocator));
-        allocator = ICurator(newAllocator);
+        allocator = IAllocator(newAllocator);
     }
 
     function newMarket(address market) external {
