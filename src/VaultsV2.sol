@@ -22,15 +22,12 @@ contract VaultsV2 is ERC20 {
 
     /* STORAGE */
 
-    // Note that the owner could be a smart contract, so that it is restricted in what it does.
-    // In that sense the owner is modularized.
-    // Notably, the owner could be restricted in what it can call, and choices it makes could be decentralized.
-    address public owner;
+    // Note that each role could be a smart contract: the owner, curator and allocator.
+    // This way, roles are modularized, and notably restricting their capabilities could be done on top.
 
-    // Note that the curator could be a smart contract, so that it is restricted in what it does.
-    // In that sense the curator is modularized.
-    // Notably, the curator could be restricted in what it can call, and choices it makes could be decentralized.
-    ICurator public curator;
+    address public owner;
+    address public curator;
+    ICurator public allocator;
 
     IERC20 public asset;
     IIRM public irm;
@@ -55,10 +52,17 @@ contract VaultsV2 is ERC20 {
 
     /* CONSTRUCTOR */
 
-    constructor(address _curator, address _owner, address _asset, string memory _name, string memory _symbol)
-        ERC20(_name, _symbol)
-    {
-        curator = ICurator(_curator);
+    constructor(
+        address _owner,
+        address _curator,
+        address _allocator,
+        address _asset,
+        string memory _name,
+        string memory _symbol
+    ) ERC20(_name, _symbol) {
+        owner = _owner;
+        curator = _curator;
+        allocator = ICurator(_allocator);
         owner = _owner;
         asset = IERC20(_asset);
         lastUpdate = block.timestamp;
@@ -67,8 +71,7 @@ contract VaultsV2 is ERC20 {
     /* AUTHORIZED MULTICALL */
 
     function multiCall(bytes[] calldata bundle) external {
-        // Could also make it ok in case msg.sender == curator, to optimize admin calls.
-        curator.authorizeMulticall(msg.sender, bundle);
+        allocator.authorizeMulticall(msg.sender, bundle);
 
         // Is this safe with reentrant calls ?
         setUnlock(true);
@@ -80,24 +83,6 @@ contract VaultsV2 is ERC20 {
         }
 
         setUnlock(false);
-    }
-
-    /* EMERGENCY */
-
-    // Can be seen as an exit to underlying, governed by the owner.
-    function takeOwnership(ICurator newCurator) external {
-        require(msg.sender == owner);
-        // No need to set newCurator as an immutable of the vault, as it could be done in the owner.
-        curator = newCurator;
-        owner = address(0);
-        irm = IIRM(address(0));
-    }
-
-    /* INTEREST MANAGEMENT */
-
-    function setIRM(address _irm) external {
-        require(unlocked());
-        irm = IIRM(_irm);
     }
 
     // Vault managers would not use this function when taking full custody.
@@ -115,13 +100,42 @@ contract VaultsV2 is ERC20 {
         return int256(5 ether) / 365 days;
     }
 
-    /* ALLOCATION */
+    /* ONWER ACTIONS */
 
-    function enableNewMarket(address market) external {
-        require(unlocked());
+    // Can be seen as an exit to underlying, governed by the owner.
+    function setCurator(address newCurator) external {
+        require(msg.sender == owner);
+        // No need to set newCurator as an immutable of the vault, as it could be done in the owner.
+        curator = newCurator;
+    }
+
+    /* CURATOR ACTIONS */
+
+    function setAllocator(address newAllocator) external {
+        require(msg.sender == curator || msg.sender == address(allocator));
+        allocator = ICurator(newAllocator);
+    }
+
+    function newMarket(address market) external {
+        require(msg.sender == curator);
         asset.approve(market, type(uint256).max);
         markets.push(IERC4626(market));
     }
+
+    function dropMarket(uint256 index) external {
+        require(msg.sender == curator);
+        asset.approve(address(markets[index]), 0);
+        IERC4626 lastMarket = markets[markets.length - 1];
+        markets.pop();
+        markets[index] = lastMarket;
+    }
+
+    function setIRM(address _irm) external {
+        require(msg.sender == curator);
+        irm = IIRM(_irm);
+    }
+
+    /* ALLOCATOR ACTIONS */
 
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.

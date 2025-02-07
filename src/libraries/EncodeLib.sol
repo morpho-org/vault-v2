@@ -4,14 +4,6 @@ pragma solidity ^0.8.0;
 import {VaultsV2} from "../VaultsV2.sol";
 
 library EncodeLib {
-    function setIRMCall(address irm) internal pure returns (bytes memory) {
-        return abi.encodeCall(VaultsV2.setIRM, (address(irm)));
-    }
-
-    function enableNewMarketCall(address market) internal pure returns (bytes memory) {
-        return abi.encodeCall(VaultsV2.enableNewMarket, (market));
-    }
-
     function reallocateToIdleCall(uint256 marketIndex, uint256 amount) internal pure returns (bytes memory) {
         return abi.encodeCall(VaultsV2.reallocateToIdle, (marketIndex, amount));
     }

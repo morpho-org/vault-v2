@@ -18,10 +18,5 @@ contract OpenCurator is BaseCurator {
         owner = _owner;
     }
 
-    function authorizeMulticall(address sender, bytes[] calldata bundle) external view override {
-        if (sender == owner) return;
-        for (uint256 i = 0; i < bundle.length; i++) {
-            checkRestrictedFunction(bytes4(bundle[i]));
-        }
-    }
+    function authorizeMulticall(address sender, bytes[] calldata bundle) external view override {}
 }

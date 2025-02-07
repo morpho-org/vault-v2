@@ -50,18 +50,6 @@ library DecodeLib {
         return uint256(data);
     }
 
-    function decodeAsSetIRMData(bytes memory _call) internal pure returns (SetIRMData memory) {
-        require(_call.length == 36);
-        require(_call.selector_() == VaultsV2.setIRM.selector);
-        return SetIRMData({irm: _call.field_(0).address_()});
-    }
-
-    function decodeAsEnableNewMarketData(bytes memory _call) internal pure returns (EnableNewMarketData memory) {
-        require(_call.length == 36);
-        require(_call.selector_() == VaultsV2.enableNewMarket.selector);
-        return EnableNewMarketData({market: _call.field_(0).address_()});
-    }
-
     function decodeAsReallocateFromIdleData(bytes memory _call) internal pure returns (ReallocateFromIdleData memory) {
         require(_call.length == 68);
         require(_call.selector_() == VaultsV2.reallocateFromIdle.selector);

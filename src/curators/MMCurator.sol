@@ -21,23 +21,23 @@ contract MMCurator is BaseCurator {
         asset = vault.asset();
     }
 
-    mapping(address => bool) public isAllocator;
+    address public publicAllocator;
 
-    function setAllocator(address allocator, bool enabled) public {
+    function setPublicAllocator(address newPublicAllocator) public {
         require(msg.sender == owner);
-        isAllocator[allocator] = enabled;
+        publicAllocator = newPublicAllocator;
     }
 
     function authorizeMulticall(address sender, bytes[] calldata bundle) external view override {
         if (sender == owner) return;
-        if (isAllocator[sender]) {
+        if (sender == publicAllocator) {
+            // This implements the public allocator.
             require(bundle.length == 2);
             ReallocateToIdleData memory toIdle = bundle[0].decodeAsReallocateToIdleData();
             ReallocateFromIdleData memory fromIdle = bundle[1].decodeAsReallocateFromIdleData();
             require(toIdle.amount == fromIdle.amount);
-        } else if (bundle.length == 1) {
-            checkRestrictedFunction(bundle[0].selector_());
         } else {
+            // This implements the withdraw queue.
             WithdrawData memory withdraw = bundle[bundle.length - 1].decodeAsWithdrawData();
             // Should probably have internal accounting for idle here.
             uint256 missingLiquidity = withdraw.assets.zeroFloorSub(asset.balanceOf(address(vault)));
