@@ -13,7 +13,7 @@ import {Test, console} from "../lib/forge-std/src/Test.sol";
 
 contract BaseTest is Test {
     address immutable manager = makeAddr("manager");
-    address immutable guardian = makeAddr("guardian");
+    address immutable owner = makeAddr("owner");
 
     ERC20Mock underlyingToken;
     CustodialCurator curator;
@@ -28,7 +28,7 @@ contract BaseTest is Test {
         curator = new CustodialCurator(manager);
 
         vault = VaultsV2(
-            address(new VaultsV2Mock(address(curator), guardian, address(underlyingToken), "VaultToken", "VAULT"))
+            address(new VaultsV2Mock(address(curator), owner, address(underlyingToken), "VaultToken", "VAULT"))
         );
 
         irm = new IRM(manager, vault);
@@ -39,7 +39,7 @@ contract BaseTest is Test {
     }
 
     function testConstructor() public view {
-        assertEq(vault.guardian(), guardian);
+        assertEq(vault.owner(), owner);
         assertEq(address(vault.asset()), address(underlyingToken));
         assertEq(address(vault.curator()), address(curator));
         assertEq(address(vault.irm()), address(irm));

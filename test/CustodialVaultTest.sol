@@ -8,7 +8,7 @@ contract CustodialVaultTest is BaseTest {
         vm.assume(caller != manager);
         bundle.push(EncodeLib.setIRMCall(address(0)));
         vm.prank(caller);
-        vm.expectRevert(VaultsV2.UnauthorizedMulticall.selector);
+        vm.expectRevert();
         vault.multiCall(bundle);
     }
 

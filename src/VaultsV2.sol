@@ -22,10 +22,10 @@ contract VaultsV2 is ERC20 {
 
     /* STORAGE */
 
-    // Note that the guardian could be a smart contract, so that it is restricted in what it does.
-    // In that sense the guardian is modularized.
-    // Notably, the guardian could be restricted in what it can call, and choices it makes could be decentralized.
-    address public guardian;
+    // Note that the owner could be a smart contract, so that it is restricted in what it does.
+    // In that sense the owner is modularized.
+    // Notably, the owner could be restricted in what it can call, and choices it makes could be decentralized.
+    address public owner;
 
     // Note that the curator could be a smart contract, so that it is restricted in what it does.
     // In that sense the curator is modularized.
@@ -55,11 +55,11 @@ contract VaultsV2 is ERC20 {
 
     /* CONSTRUCTOR */
 
-    constructor(address _curator, address _guardian, address _asset, string memory _name, string memory _symbol)
+    constructor(address _curator, address _owner, address _asset, string memory _name, string memory _symbol)
         ERC20(_name, _symbol)
     {
         curator = ICurator(_curator);
-        guardian = _guardian;
+        owner = _owner;
         asset = IERC20(_asset);
         lastUpdate = block.timestamp;
     }
@@ -68,7 +68,7 @@ contract VaultsV2 is ERC20 {
 
     function multiCall(bytes[] calldata bundle) external {
         // Could also make it ok in case msg.sender == curator, to optimize admin calls.
-        require(curator.authorizedMulticall(msg.sender, bundle), UnauthorizedMulticall());
+        curator.authorizeMulticall(msg.sender, bundle);
 
         // Is this safe with reentrant calls ?
         setUnlock(true);
@@ -84,12 +84,12 @@ contract VaultsV2 is ERC20 {
 
     /* EMERGENCY */
 
-    // Can be seen as an exit to underlying, governed by the guardian.
+    // Can be seen as an exit to underlying, governed by the owner.
     function takeOwnership(ICurator newCurator) external {
-        require(msg.sender == guardian);
-        // No need to set newCurator as an immutable of the vault, as it could be done in the guardian.
+        require(msg.sender == owner);
+        // No need to set newCurator as an immutable of the vault, as it could be done in the owner.
         curator = newCurator;
-        guardian = address(0);
+        owner = address(0);
         irm = IIRM(address(0));
     }
 
@@ -188,24 +188,24 @@ contract VaultsV2 is ERC20 {
         _deposit(assets, shares, receiver);
     }
 
-    function _withdraw(uint256 assets, uint256 shares, address receiver, address owner) internal virtual {
-        if (msg.sender != owner) _spendAllowance(owner, msg.sender, shares);
-        _burn(owner, shares);
+    function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal virtual {
+        if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
+        _burn(supplier, shares);
         SafeERC20.safeTransfer(asset, receiver, assets);
         lastTotalAssets -= assets;
     }
 
     // Note that it is not callable by default, if there is no liquidity.
     // This is actually a feature, so that the curator can pause withdrawals if necessary/wanted.
-    function withdraw(uint256 assets, address receiver, address owner) public virtual returns (uint256 shares) {
+    function withdraw(uint256 assets, address receiver, address supplier) public virtual returns (uint256 shares) {
         accrueInterest();
         shares = convertToShares(assets, Math.Rounding.Ceil);
-        _withdraw(assets, shares, receiver, owner);
+        _withdraw(assets, shares, receiver, supplier);
     }
 
-    function redeem(uint256 shares, address receiver, address owner) public virtual returns (uint256 assets) {
+    function redeem(uint256 shares, address receiver, address supplier) public virtual returns (uint256 assets) {
         accrueInterest();
         assets = convertToAssets(shares, Math.Rounding.Floor);
-        _withdraw(assets, shares, receiver, owner);
+        _withdraw(assets, shares, receiver, supplier);
     }
 }
