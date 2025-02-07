@@ -11,11 +11,5 @@ import {BaseAllocator} from "./BaseAllocator.sol";
 // - pause the withdrawals when the bank run is too likely (realAssets << totalAssets), by ensuring idle is empty;
 // - pause the reallocationFromIdle, which is especially useful for the emergency allocator, to allow maximum liquidity.
 contract OpenAllocator is BaseAllocator {
-    address public immutable owner;
-
-    constructor(address _owner) {
-        owner = _owner;
-    }
-
     function authorizeMulticall(address sender, bytes[] calldata bundle) external view override {}
 }
