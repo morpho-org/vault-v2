@@ -24,7 +24,6 @@ contract VaultsV2 is ERC20 {
 
     // Note that each role could be a smart contract: the owner, curator and allocator.
     // This way, roles are modularized, and notably restricting their capabilities could be done on top.
-
     address public owner;
     address public curator;
     IAllocator public allocator;
@@ -34,6 +33,8 @@ contract VaultsV2 is ERC20 {
     uint256 public lastUpdate;
     uint256 public lastTotalAssets;
     IERC4626[] public markets;
+
+    /* TRANSIENT */
 
     bool public transient unlocked;
 
@@ -70,21 +71,6 @@ contract VaultsV2 is ERC20 {
         }
 
         unlocked = false;
-    }
-
-    // Vault managers would not use this function when taking full custody.
-    // Note that donations would be smoothed, which is a nice feature to incentivize the vault directly.
-    function realAssets() public view returns (uint256 aum) {
-        aum = asset.balanceOf(address(this));
-        for (uint256 i; i < markets.length; i++) {
-            aum += markets[i].convertToAssets(markets[i].balanceOf(address(this)));
-        }
-    }
-
-    // Vault managers would not use this function when taking full custody.
-    // TODO: make it more realistic, as it should be estimated from the interest per second returned by the markets.
-    function realInterestPerSecond() public pure returns (int256) {
-        return int256(5 ether) / 365 days;
     }
 
     /* ONWER ACTIONS */
@@ -142,9 +128,24 @@ contract VaultsV2 is ERC20 {
 
     /* EXCHANGE RATE */
 
+    // Vault managers would not use this function when taking full custody.
+    // Note that donations would be smoothed, which is a nice feature to incentivize the vault directly.
+    function realAssets() public view returns (uint256 aum) {
+        aum = asset.balanceOf(address(this));
+        for (uint256 i; i < markets.length; i++) {
+            aum += markets[i].convertToAssets(markets[i].balanceOf(address(this)));
+        }
+    }
+
     function totalAssets() public view returns (uint256) {
         // TODO: virtually accrue here instead, which would be more precise.
         return lastTotalAssets;
+    }
+
+    // Vault managers would not use this function when taking full custody.
+    // TODO: make it more realistic, as it should be estimated from the interest per second returned by the markets.
+    function realInterestPerSecond() public pure returns (int256) {
+        return int256(5 ether) / 365 days;
     }
 
     function accrueInterest() public {
