@@ -75,6 +75,11 @@ contract VaultsV2 is ERC20 {
 
     /* ONWER ACTIONS */
 
+    function setOwner(address newOwner) external {
+        require(msg.sender == owner);
+        curator = newOwner;
+    }
+
     // Can be seen as an exit to underlying, governed by the owner.
     function setCurator(address newCurator) external {
         require(msg.sender == owner);
