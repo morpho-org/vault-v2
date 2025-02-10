@@ -26,12 +26,12 @@ contract ManagedVaultTest is BaseTest {
         bundle.push(EncodeLib.reallocateFromIdleCall({marketIndex: 0, amount: 1}));
         vm.prank(caller);
         vm.expectRevert();
-        vault.multiCall(bundle);
+        vault.multicall(bundle);
     }
 
     function testManager() public {
         bundle.push(EncodeLib.reallocateFromIdleCall({marketIndex: 0, amount: 1}));
         vm.prank(manager);
-        vault.multiCall(bundle);
+        vault.multicall(bundle);
     }
 }

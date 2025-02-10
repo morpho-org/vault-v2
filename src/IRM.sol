@@ -25,6 +25,6 @@ contract IRM is IIRM {
     function setInterest() public {
         require(msg.sender == owner);
         int256 excessAssets = int256(vault.realAssets()) - int256(vault.totalAssets());
-        interestPerSecond = vault.realInterestPerSecond() + excessAssets / 30 days;
+        interestPerSecond = excessAssets / 30 days;
     }
 }

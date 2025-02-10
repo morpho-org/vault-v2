@@ -58,7 +58,7 @@ contract VaultsV2 is ERC20 {
 
     /* AUTHORIZED MULTICALL */
 
-    function multiCall(bytes[] calldata bundle) external {
+    function multicall(bytes[] calldata bundle) external {
         allocator.authorizeMulticall(msg.sender, bundle);
 
         // Is this safe with reentrant calls ?
@@ -140,12 +140,6 @@ contract VaultsV2 is ERC20 {
     function totalAssets() public view returns (uint256) {
         // TODO: virtually accrue here instead, which would be more precise.
         return lastTotalAssets;
-    }
-
-    // Vault managers would not use this function when taking full custody.
-    // TODO: make it more realistic, as it should be estimated from the interest per second returned by the markets.
-    function realInterestPerSecond() public pure returns (int256) {
-        return int256(5 ether) / 365 days;
     }
 
     function accrueInterest() public {
