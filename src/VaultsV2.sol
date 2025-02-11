@@ -20,6 +20,10 @@ contract VaultsV2 is ERC20 {
 
     error UnauthorizedMulticall();
 
+    /* IMMUTABLE */
+
+    IERC20 public immutable asset;
+
     /* STORAGE */
 
     // Note that each role could be a smart contract: the owner, curator and allocator.
@@ -28,10 +32,10 @@ contract VaultsV2 is ERC20 {
     address public curator;
     IAllocator public allocator;
 
-    IERC20 public asset;
     IIRM public irm;
     uint256 public lastUpdate;
     uint256 public lastTotalAssets;
+
     IERC4626[] public markets;
 
     /* TRANSIENT */
