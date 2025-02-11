@@ -1,21 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {
-    IERC4626,
-    ERC20,
-    IERC20,
-    SafeERC20,
-    Math
-} from "../lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC4626.sol";
+import {ERC20, IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
+import {SafeERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {WAD, IVaultsV2} from "./interfaces/IVaultsV2.sol";
+import {WAD, IMarket} from "./interfaces/IMarket.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {IAllocator} from "./interfaces/IAllocator.sol";
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 
-// TODO: inherit from a dedicated interface (IVaultsV2).
-contract VaultsV2 is ERC20 {
+contract VaultsV2 is ERC20, IMarket {
     using Math for uint256;
 
     /* IMMUTABLE */
@@ -34,7 +29,7 @@ contract VaultsV2 is ERC20 {
     uint256 public lastUpdate;
     uint256 public lastTotalAssets;
 
-    IERC4626[] public markets;
+    IMarket[] public markets;
 
     /* TRANSIENT */
 
@@ -99,13 +94,13 @@ contract VaultsV2 is ERC20 {
     function newMarket(address market) external {
         require(msg.sender == curator, ErrorsLib.Unautorized());
         asset.approve(market, type(uint256).max);
-        markets.push(IERC4626(market));
+        markets.push(IMarket(market));
     }
 
     function dropMarket(uint256 index) external {
         require(msg.sender == curator, ErrorsLib.Unautorized());
         asset.approve(address(markets[index]), 0);
-        IERC4626 lastMarket = markets[markets.length - 1];
+        IMarket lastMarket = markets[markets.length - 1];
         markets.pop();
         markets[index] = lastMarket;
     }
@@ -121,7 +116,7 @@ contract VaultsV2 is ERC20 {
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateFromIdle(uint256 marketIndex, uint256 amount) external {
         require(unlocked, ErrorsLib.Locked());
-        IERC4626 market = markets[marketIndex];
+        IMarket market = markets[marketIndex];
         market.deposit(amount, address(this));
     }
 
@@ -129,7 +124,7 @@ contract VaultsV2 is ERC20 {
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateToIdle(uint256 marketIndex, uint256 amount) external {
         require(unlocked, ErrorsLib.Locked());
-        IERC4626 market = markets[marketIndex];
+        IMarket market = markets[marketIndex];
         market.withdraw(amount, address(this), address(this));
     }
 
@@ -153,7 +148,7 @@ contract VaultsV2 is ERC20 {
         lastUpdate = block.timestamp;
     }
 
-    function _accruedInterest() internal view returns(uint256) {
+    function _accruedInterest() internal view returns (uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         // Note that interest could be negative, but this is not always incentive compatible: users would want to leave.
         // But keeping this possible still, as it can make sense in the custody case when withdrawals are disabled.
@@ -164,12 +159,12 @@ contract VaultsV2 is ERC20 {
     }
 
     // TODO: extract virtual shares and assets (= 1).
-    function _convertToShares(uint256 assets, Math.Rounding rounding) internal view returns (uint256 shares) {
+    function convertToShares(uint256 assets, Math.Rounding rounding) public view returns (uint256 shares) {
         shares = assets.mulDiv(totalSupply() + 1, lastTotalAssets + 1, rounding);
     }
 
-    function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view returns (uint256 assets) {
-        shares = assets.mulDiv(lastTotalAssets + 1, totalSupply() + 1, rounding);
+    function convertToAssets(uint256 shares, Math.Rounding rounding) public view returns (uint256 assets) {
+        assets = shares.mulDiv(lastTotalAssets + 1, totalSupply() + 1, rounding);
     }
 
     /* USER INTERACTION */
@@ -184,13 +179,13 @@ contract VaultsV2 is ERC20 {
     function deposit(uint256 assets, address receiver) public virtual returns (uint256 shares) {
         accrueInterest();
         // Note that it could be made more efficient by caching lastTotalAssets.
-        shares = _convertToShares(assets, Math.Rounding.Floor);
+        shares = convertToShares(assets, Math.Rounding.Floor);
         _deposit(assets, shares, receiver);
     }
 
     function mint(uint256 shares, address receiver) public virtual returns (uint256 assets) {
         accrueInterest();
-        assets = _convertToAssets(shares, Math.Rounding.Ceil);
+        assets = convertToShares(shares, Math.Rounding.Ceil);
         _deposit(assets, shares, receiver);
     }
 
@@ -205,13 +200,17 @@ contract VaultsV2 is ERC20 {
     // This is actually a feature, so that the curator can pause withdrawals if necessary/wanted.
     function withdraw(uint256 assets, address receiver, address supplier) public virtual returns (uint256 shares) {
         accrueInterest();
-        shares = _convertToShares(assets, Math.Rounding.Ceil);
+        shares = convertToShares(assets, Math.Rounding.Ceil);
         _withdraw(assets, shares, receiver, supplier);
     }
 
     function redeem(uint256 shares, address receiver, address supplier) public virtual returns (uint256 assets) {
         accrueInterest();
-        assets = _convertToAssets(shares, Math.Rounding.Floor);
+        assets = convertToShares(shares, Math.Rounding.Floor);
         _withdraw(assets, shares, receiver, supplier);
+    }
+
+    function balanceOf(address user) public view override(ERC20, IMarket) returns(uint256) {
+        return super.balanceOf(user);
     }
 }
