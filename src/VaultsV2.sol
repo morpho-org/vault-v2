@@ -12,13 +12,11 @@ import {
 import {WAD, IVaultsV2} from "./interfaces/IVaultsV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {IAllocator} from "./interfaces/IAllocator.sol";
+import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 
-// TODO: implement an ErrorsLib.
 // TODO: inherit from a dedicated interface (IVaultsV2).
 contract VaultsV2 is ERC20 {
     using Math for uint256;
-
-    error UnauthorizedMulticall();
 
     /* IMMUTABLE */
 
@@ -71,7 +69,7 @@ contract VaultsV2 is ERC20 {
         for (uint256 i = 0; i < bundle.length; i++) {
             // Note: no need to check that address(this) has code.
             (bool success,) = address(this).delegatecall(bundle[i]);
-            require(success);
+            require(success, ErrorsLib.FailedDelegateCall());
         }
 
         unlocked = false;
@@ -80,13 +78,13 @@ contract VaultsV2 is ERC20 {
     /* ONWER ACTIONS */
 
     function setOwner(address newOwner) external {
-        require(msg.sender == owner);
+        require(msg.sender == owner, ErrorsLib.Unautorized());
         curator = newOwner;
     }
 
     // Can be seen as an exit to underlying, governed by the owner.
     function setCurator(address newCurator) external {
-        require(msg.sender == owner);
+        require(msg.sender == owner, ErrorsLib.Unautorized());
         // No need to set newCurator as an immutable of the vault, as it could be done in the owner.
         curator = newCurator;
     }
@@ -94,18 +92,18 @@ contract VaultsV2 is ERC20 {
     /* CURATOR ACTIONS */
 
     function setAllocator(address newAllocator) external {
-        require(msg.sender == curator || msg.sender == address(allocator));
+        require(msg.sender == curator || msg.sender == address(allocator), ErrorsLib.Unautorized());
         allocator = IAllocator(newAllocator);
     }
 
     function newMarket(address market) external {
-        require(msg.sender == curator);
+        require(msg.sender == curator, ErrorsLib.Unautorized());
         asset.approve(market, type(uint256).max);
         markets.push(IERC4626(market));
     }
 
     function dropMarket(uint256 index) external {
-        require(msg.sender == curator);
+        require(msg.sender == curator, ErrorsLib.Unautorized());
         asset.approve(address(markets[index]), 0);
         IERC4626 lastMarket = markets[markets.length - 1];
         markets.pop();
@@ -113,7 +111,7 @@ contract VaultsV2 is ERC20 {
     }
 
     function setIRM(address _irm) external {
-        require(msg.sender == curator);
+        require(msg.sender == curator, ErrorsLib.Unautorized());
         irm = IIRM(_irm);
     }
 
@@ -122,7 +120,7 @@ contract VaultsV2 is ERC20 {
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateFromIdle(uint256 marketIndex, uint256 amount) external {
-        require(unlocked);
+        require(unlocked, ErrorsLib.Locked());
         IERC4626 market = markets[marketIndex];
         market.deposit(amount, address(this));
     }
@@ -130,7 +128,7 @@ contract VaultsV2 is ERC20 {
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateToIdle(uint256 marketIndex, uint256 amount) external {
-        require(unlocked);
+        require(unlocked, ErrorsLib.Locked());
         IERC4626 market = markets[marketIndex];
         market.withdraw(amount, address(this), address(this));
     }
