@@ -139,7 +139,7 @@ contract VaultsV2 is ERC20 {
 
     // Vault managers would not use this function when taking full custody.
     // Note that donations would be smoothed, which is a nice feature to incentivize the vault directly.
-    function realAssets() public view returns (uint256 aum) {
+    function realAssets() external view returns (uint256 aum) {
         aum = asset.balanceOf(address(this));
         for (uint256 i; i < markets.length; i++) {
             aum += markets[i].convertToAssets(markets[i].balanceOf(address(this)));
@@ -147,27 +147,30 @@ contract VaultsV2 is ERC20 {
     }
 
     function totalAssets() public view returns (uint256) {
-        // TODO: virtually accrue here instead, which would be more precise.
-        return lastTotalAssets;
+        return _accruedInterest();
     }
 
     function accrueInterest() public {
+        lastTotalAssets = _accruedInterest();
+        lastUpdate = block.timestamp;
+    }
+
+    function _accruedInterest() internal view returns(uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         // Note that interest could be negative, but this is not always incentive compatible: users would want to leave.
         // But keeping this possible still, as it can make sense in the custody case when withdrawals are disabled.
         // Note that interestPerSecond should probably be bounded to give guarantees that it cannot rug users instantly.
         // Note that irm.interestPerSecond() reverts if the vault is not initialized and has irm == address(0).
         int256 newTotalAssets = int256(lastTotalAssets) + irm.interestPerSecond() * int256(elapsed);
-        lastTotalAssets = newTotalAssets >= 0 ? uint256(newTotalAssets) : 0;
-        lastUpdate = block.timestamp;
+        return newTotalAssets >= 0 ? uint256(newTotalAssets) : 0;
     }
 
     // TODO: extract virtual shares and assets (= 1).
-    function convertToShares(uint256 assets, Math.Rounding rounding) internal view returns (uint256 shares) {
+    function _convertToShares(uint256 assets, Math.Rounding rounding) internal view returns (uint256 shares) {
         shares = assets.mulDiv(totalSupply() + 1, lastTotalAssets + 1, rounding);
     }
 
-    function convertToAssets(uint256 shares, Math.Rounding rounding) internal view returns (uint256 assets) {
+    function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view returns (uint256 assets) {
         shares = assets.mulDiv(lastTotalAssets + 1, totalSupply() + 1, rounding);
     }
 
@@ -183,13 +186,13 @@ contract VaultsV2 is ERC20 {
     function deposit(uint256 assets, address receiver) public virtual returns (uint256 shares) {
         accrueInterest();
         // Note that it could be made more efficient by caching lastTotalAssets.
-        shares = convertToShares(assets, Math.Rounding.Floor);
+        shares = _convertToShares(assets, Math.Rounding.Floor);
         _deposit(assets, shares, receiver);
     }
 
     function mint(uint256 shares, address receiver) public virtual returns (uint256 assets) {
         accrueInterest();
-        assets = convertToAssets(shares, Math.Rounding.Ceil);
+        assets = _convertToAssets(shares, Math.Rounding.Ceil);
         _deposit(assets, shares, receiver);
     }
 
@@ -204,13 +207,13 @@ contract VaultsV2 is ERC20 {
     // This is actually a feature, so that the curator can pause withdrawals if necessary/wanted.
     function withdraw(uint256 assets, address receiver, address supplier) public virtual returns (uint256 shares) {
         accrueInterest();
-        shares = convertToShares(assets, Math.Rounding.Ceil);
+        shares = _convertToShares(assets, Math.Rounding.Ceil);
         _withdraw(assets, shares, receiver, supplier);
     }
 
     function redeem(uint256 shares, address receiver, address supplier) public virtual returns (uint256 assets) {
         accrueInterest();
-        assets = convertToAssets(shares, Math.Rounding.Floor);
+        assets = _convertToAssets(shares, Math.Rounding.Floor);
         _withdraw(assets, shares, receiver, supplier);
     }
 }
