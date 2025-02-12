@@ -5,12 +5,12 @@ import {ERC20, IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20
 import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {SafeERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {WAD, IMarket} from "./interfaces/IMarket.sol";
+import {WAD, IMarket, IVaultV2} from "./interfaces/IMarket.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {IAllocator} from "./interfaces/IAllocator.sol";
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 
-contract VaultsV2 is ERC20, IMarket {
+contract VaultsV2 is ERC20, IVaultV2 {
     using Math for uint256;
 
     /* IMMUTABLE */
@@ -158,9 +158,17 @@ contract VaultsV2 is ERC20, IMarket {
         return newTotalAssets >= 0 ? uint256(newTotalAssets) : 0;
     }
 
+    function convertToShares(uint256 assets) external view returns(uint256) {
+        return convertToShares(assets, Math.Rounding.Floor);
+    }
+
     // TODO: extract virtual shares and assets (= 1).
     function convertToShares(uint256 assets, Math.Rounding rounding) public view returns (uint256 shares) {
         shares = assets.mulDiv(totalSupply() + 1, lastTotalAssets + 1, rounding);
+    }
+
+    function convertToAssets(uint256 shares) external view returns(uint256) {
+        return convertToAssets(shares, Math.Rounding.Floor);
     }
 
     function convertToAssets(uint256 shares, Math.Rounding rounding) public view returns (uint256 assets) {
@@ -210,7 +218,17 @@ contract VaultsV2 is ERC20, IMarket {
         _withdraw(assets, shares, receiver, supplier);
     }
 
+    /* INTERFACE */
+
     function balanceOf(address user) public view override(ERC20, IMarket) returns(uint256) {
         return super.balanceOf(user);
+    }
+
+    function maxWithdraw(address) external view returns(uint256) {
+        return asset.balanceOf(address(this));
+    }
+
+    function marketsLength() external view returns(uint256) {
+        return markets.length;
     }
 }

@@ -1,21 +1,23 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {BaseAllocator} from "./BaseAllocator.sol";
-import {IERC20, IERC4626} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC4626.sol";
+import {IERC20} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 
 import {UtilsLib} from "../libraries/UtilsLib.sol";
-import "../libraries/DecodeLib.sol";
+import {DecodeLib, ReallocateFromIdleData, ReallocateToIdleData, WithdrawData} from "../libraries/DecodeLib.sol";
+
+import {IMarket, IVaultV2} from "../VaultsV2.sol";
+import {BaseAllocator} from "./BaseAllocator.sol";
 
 contract MMAllocator is BaseAllocator {
     using DecodeLib for bytes;
     using UtilsLib for uint256;
 
     address public immutable owner;
-    VaultsV2 public immutable vault;
+    IVaultV2 public immutable vault;
     IERC20 public immutable asset;
 
-    constructor(address _owner, VaultsV2 _vault) {
+    constructor(address _owner, IVaultV2 _vault) {
         owner = _owner;
         vault = _vault;
         asset = vault.asset();
@@ -39,14 +41,14 @@ contract MMAllocator is BaseAllocator {
         } else {
             // This implements the withdraw queue.
             WithdrawData memory withdraw = bundle[bundle.length - 1].decodeAsWithdrawData();
-            // Should probably have internal accounting for idle here.
             uint256 missingLiquidity = withdraw.assets.zeroFloorSub(asset.balanceOf(address(vault)));
             for (uint256 i; i < bundle.length - 1; i++) {
                 ReallocateToIdleData memory toIdle = bundle[i].decodeAsReallocateToIdleData();
                 require(toIdle.marketIndex == i);
                 require(missingLiquidity > 0);
-                IERC4626 market = vault.markets(i);
+                IMarket market = vault.markets(i);
                 require(toIdle.amount == UtilsLib.min(missingLiquidity, market.maxWithdraw(address(vault))));
+                missingLiquidity -= toIdle.amount;
             }
         }
     }
