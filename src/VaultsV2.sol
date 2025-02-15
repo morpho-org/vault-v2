@@ -158,7 +158,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
         return newTotalAssets >= 0 ? uint256(newTotalAssets) : 0;
     }
 
-    function convertToShares(uint256 assets) external view returns(uint256) {
+    function convertToShares(uint256 assets) external view returns (uint256) {
         return convertToShares(assets, Math.Rounding.Floor);
     }
 
@@ -167,7 +167,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
         shares = assets.mulDiv(totalSupply() + 1, lastTotalAssets + 1, rounding);
     }
 
-    function convertToAssets(uint256 shares) external view returns(uint256) {
+    function convertToAssets(uint256 shares) external view returns (uint256) {
         return convertToAssets(shares, Math.Rounding.Floor);
     }
 
@@ -220,15 +220,15 @@ contract VaultsV2 is ERC20, IVaultV2 {
 
     /* INTERFACE */
 
-    function balanceOf(address user) public view override(ERC20, IMarket) returns(uint256) {
+    function balanceOf(address user) public view override(ERC20, IMarket) returns (uint256) {
         return super.balanceOf(user);
     }
 
-    function maxWithdraw(address) external view returns(uint256) {
+    function maxWithdraw(address) external view returns (uint256) {
         return asset.balanceOf(address(this));
     }
 
-    function marketsLength() external view returns(uint256) {
+    function marketsLength() external view returns (uint256) {
         return markets.length;
     }
 }
