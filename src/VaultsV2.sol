@@ -236,10 +236,12 @@ contract VaultsV2 is ERC20, IVaultV2 {
     /* TIMELOCKS */
 
     function setTimelock(bytes4 id, TimelockConfig memory config) external {
+        // using true instead of timelockConfig[id].canIncrease is an optimization
+        uint256 oldValue = uint256(bytes32(abi.encodePacked(id, true, timelockConfig[id].duration)));
         uint256 serializedNewValue =
-            uint256(bytes32(abi.encodePacked(id, config.canIncrease, config.canDecrease, config.duration)));
+            uint256(bytes32(abi.encodePacked(id, config.canIncrease, config.duration)));
         bool authorizedToSubmit = msg.sender == curator && pendingTimelocks.length == 0;
-        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) timelockConfig[id] = config;
+        if (submittedToTimelock(oldValue, serializedNewValue, authorizedToSubmit)) timelockConfig[id] = config;
     }
 
     function submittedToTimelock(uint256 newValue, bool authorizedToSubmit) internal returns (bool canBeUpdated) {
@@ -253,7 +255,6 @@ contract VaultsV2 is ERC20, IVaultV2 {
         bytes4 id = bytes4(msg.data[:4]);
         if (
             timelockConfig[id].canIncrease && newValue > oldValue
-                || timelockConfig[id].canDecrease && newValue < oldValue
         ) {
             return true;
         } else if (timelockData[id].validAt != 0) {

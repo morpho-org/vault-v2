@@ -13,7 +13,6 @@ struct TimelockData {
 // Optimize: packing.
 struct TimelockConfig {
     bool canIncrease;
-    bool canDecrease;
     uint256 duration; // Can be shrunk to 64 bits.
 }
 
@@ -32,5 +31,5 @@ interface IVaultV2 is IMarket {
     function marketsLength() external view returns (uint256);
     // Use trick to make a nice interface returning `TimelockData memory`.
     function timelockData(bytes4) external view returns (uint256, uint256, uint256);
-    function timelockConfig(bytes4) external view returns (bool, bool, uint256);
+    function timelockConfig(bytes4) external view returns (bool, uint256);
 }
