@@ -20,7 +20,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
 
     /* TRANSIENT */
 
-    bool public transient unlocked;
+    bool public unlocked;
 
     /* STORAGE */
 
@@ -42,6 +42,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
     mapping(bytes4 => TimelockConfig) public timelockConfig;
     // Can be made much more efficient, storing it all in one slot that does not get reset.
     bytes4[] internal pendingTimelocks;
+    uint256 internal maxTimelocks;
 
     /* CONSTRUCTOR */
 
@@ -261,8 +262,16 @@ contract VaultsV2 is ERC20, IVaultV2 {
         // The encoded value should hold in one word so that comparison is meaningful.
         uint256 oldValue = uint256(bytes32(abi.encodePacked(id, true, timelockConfig[id].duration)));
         uint256 serializedNewValue = uint256(bytes32(abi.encodePacked(id, config.canIncrease, config.duration)));
-        bool authorizedToSubmit = msg.sender == curator && pendingTimelocks.length == 0;
-        if (submittedToTimelock(oldValue, serializedNewValue, authorizedToSubmit)) timelockConfig[id] = config;
+        bool greaterThanOtherTimelocks = id == IVaultV2.setTimelock.selector
+            ? config.duration >= maxTimelocks
+            : config.duration <= timelockConfig[IVaultV2.setTimelock.selector].duration;
+        bool authorizedToSubmit = msg.sender == curator && pendingTimelocks.length == 0 && timelockData[id].validAt == 0
+            && greaterThanOtherTimelocks;
+        if (submittedToTimelock(oldValue, serializedNewValue, authorizedToSubmit)) {
+            timelockConfig[id] = config;
+            maxTimelocks =
+                id != IVaultV2.setTimelock.selector && config.duration > maxTimelocks ? config.duration : maxTimelocks;
+        }
     }
 
     function submittedToTimelock(uint256 newValue, bool authorizedToSubmit) internal returns (bool) {
