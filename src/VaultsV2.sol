@@ -74,7 +74,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
 
     function setOwner(address newOwner) external {
         require(msg.sender == owner, ErrorsLib.Unautorized());
-        curator = newOwner;
+        owner = newOwner;
     }
 
     // Can be seen as an exit to underlying, governed by the owner.
