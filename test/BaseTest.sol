@@ -23,13 +23,18 @@ contract BaseTest is Test {
     bytes[] bundle;
 
     function setUp() public virtual {
+        vm.label(address(this), "testContract");
+
         underlyingToken = new ERC20Mock("UnderlyingToken", "UND");
+        vm.label(address(underlyingToken), "underlying");
 
         allocator = new ManagedAllocator(manager);
+        vm.label(address(allocator), "allocator");
 
         vault = new VaultsV2(owner, curator, address(allocator), address(underlyingToken), "VaultToken", "VAULT");
-
+        vm.label(address(vault), "vault");
         irm = new IRM(manager, vault);
+        vm.label(address(irm), "IRM");
         vm.prank(curator);
         vault.setIRM(address(irm));
     }

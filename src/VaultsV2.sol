@@ -5,9 +5,10 @@ import {ERC20, IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20
 import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {SafeERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {WAD, IMarket, IVaultV2} from "./interfaces/IMarket.sol";
+import {TimelockData, TimelockConfig, IMarket, IVaultV2} from "./interfaces/IMarket.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {IAllocator} from "./interfaces/IAllocator.sol";
+
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 
 contract VaultsV2 is ERC20, IVaultV2 {
@@ -28,12 +29,19 @@ contract VaultsV2 is ERC20, IVaultV2 {
     address public owner;
     address public curator;
     IAllocator public allocator;
+    address public guardian;
 
     IIRM public irm;
     uint256 public lastUpdate;
     uint256 public lastTotalAssets;
 
     IMarket[] public markets;
+    mapping(address => uint256) public cap;
+
+    mapping(bytes4 => TimelockData) public timelockData;
+    mapping(bytes4 => TimelockConfig) public timelockConfig;
+    // Can be made much more efficient, storing it all in one slot that does not get reset.
+    bytes4[] internal pendingTimelocks;
 
     /* CONSTRUCTOR */
 
@@ -50,6 +58,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
         curator = _curator;
         allocator = IAllocator(_allocator);
         lastUpdate = block.timestamp;
+        timelockConfig[IVaultV2.setGuardian.selector].canIncrease = true;
         // The vault starts with no IRM, no markets and no assets. To be configured afterwards.
     }
 
@@ -73,41 +82,66 @@ contract VaultsV2 is ERC20, IVaultV2 {
     /* ONWER ACTIONS */
 
     function setOwner(address newOwner) external {
-        require(msg.sender == owner, ErrorsLib.Unautorized());
-        owner = newOwner;
+        uint256 serializedNewValue = uint256(uint160(newOwner));
+        bool authorizedToSubmit = msg.sender == owner;
+        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) owner = newOwner;
     }
 
     // Can be seen as an exit to underlying, governed by the owner.
     function setCurator(address newCurator) external {
-        require(msg.sender == owner, ErrorsLib.Unautorized());
+        uint256 serializedNewValue = uint256(uint160(newCurator));
+        bool authorizedToSubmit = msg.sender == owner;
         // No need to set newCurator as an immutable of the vault, as it could be done in the owner.
-        curator = newCurator;
+        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) curator = newCurator;
+    }
+
+    function setGuardian(address newGuardian) external {
+        // Maybe not necessary to have this along with
+        uint256 abstractedOldValue = guardian == address(0) ? 0 : type(uint256).max;
+        uint256 serializedNewValue = uint256(uint160(newGuardian));
+        bool authorizedToSubmit = msg.sender == owner;
+        if (submittedToTimelock(abstractedOldValue, serializedNewValue, authorizedToSubmit)) owner = newGuardian;
     }
 
     /* CURATOR ACTIONS */
 
     function setAllocator(address newAllocator) external {
-        require(msg.sender == curator || msg.sender == address(allocator), ErrorsLib.Unautorized());
-        allocator = IAllocator(newAllocator);
+        uint256 serializedNewValue = uint256(uint160(newAllocator));
+        bool authorizedToSubmit = msg.sender == curator || msg.sender == address(allocator);
+        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) allocator = IAllocator(newAllocator);
     }
 
+    // Could set cap right when adding a market, to avoid having to wait the timelock twice.
     function newMarket(address market) external {
-        require(msg.sender == curator, ErrorsLib.Unautorized());
-        asset.approve(market, type(uint256).max);
-        markets.push(IMarket(market));
+        uint256 serializedNewValue = uint256(uint160(market));
+        bool authorizedToSubmit = msg.sender == curator;
+        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) {
+            asset.approve(market, type(uint256).max);
+            markets.push(IMarket(market));
+        }
     }
 
     function dropMarket(uint256 index) external {
-        require(msg.sender == curator, ErrorsLib.Unautorized());
-        asset.approve(address(markets[index]), 0);
-        IMarket lastMarket = markets[markets.length - 1];
-        markets.pop();
-        markets[index] = lastMarket;
+        bool authorizedToSubmit = msg.sender == curator;
+        if (submittedToTimelock(index, authorizedToSubmit)) {
+            asset.approve(address(markets[index]), 0);
+            markets[index] = markets[markets.length - 1];
+            markets.pop();
+        }
     }
 
-    function setIRM(address _irm) external {
-        require(msg.sender == curator, ErrorsLib.Unautorized());
-        irm = IIRM(_irm);
+    function setCap(address market, uint256 newCap) external {
+        // This makes so decreasing the cap does not have to go through the timelock (if canIncrease is enabled).
+        uint256 oldValue = type(uint256).max - cap[market];
+        uint256 serializedNewValue = type(uint256).max - uint256(uint160(newCap));
+        bool authorizedToSubmit = msg.sender == curator;
+        if (submittedToTimelock(oldValue, serializedNewValue, authorizedToSubmit)) cap[market] = newCap;
+    }
+
+    function setIRM(address newIRM) external {
+        uint256 serializedNewValue = uint256(uint160(newIRM));
+        bool authorizedToSubmit = msg.sender == curator;
+        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) irm = IIRM(newIRM);
     }
 
     /* ALLOCATOR ACTIONS */
@@ -117,6 +151,8 @@ contract VaultsV2 is ERC20, IVaultV2 {
     function reallocateFromIdle(uint256 marketIndex, uint256 amount) external {
         require(unlocked, ErrorsLib.Locked());
         IMarket market = markets[marketIndex];
+        // Interest accrual can make the supplied amount go over the cap.
+        require(amount + market.balanceOf(address(this)) <= cap[address(market)], ErrorsLib.CapExceeded());
         market.deposit(amount, address(this));
     }
 
@@ -163,7 +199,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
     }
 
     // TODO: extract virtual shares and assets (= 1).
-    function convertToShares(uint256 assets, Math.Rounding rounding) public view returns (uint256 shares) {
+    function convertToShares(uint256 assets, Math.Rounding rounding) internal view returns (uint256 shares) {
         shares = assets.mulDiv(totalSupply() + 1, lastTotalAssets + 1, rounding);
     }
 
@@ -171,7 +207,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
         return convertToAssets(shares, Math.Rounding.Floor);
     }
 
-    function convertToAssets(uint256 shares, Math.Rounding rounding) public view returns (uint256 assets) {
+    function convertToAssets(uint256 shares, Math.Rounding rounding) internal view returns (uint256 assets) {
         assets = shares.mulDiv(lastTotalAssets + 1, totalSupply() + 1, rounding);
     }
 
@@ -216,6 +252,57 @@ contract VaultsV2 is ERC20, IVaultV2 {
         accrueInterest();
         assets = convertToShares(shares, Math.Rounding.Floor);
         _withdraw(assets, shares, receiver, supplier);
+    }
+
+    /* TIMELOCKS */
+
+    function setTimelock(bytes4 id, TimelockConfig memory config) external {
+        // Using true instead of timelockConfig[id].canIncrease is an optimization.
+        // The encoded value should hold in one word so that comparison is meaningful.
+        uint256 oldValue = uint256(bytes32(abi.encodePacked(id, true, timelockConfig[id].duration)));
+        uint256 serializedNewValue = uint256(bytes32(abi.encodePacked(id, config.canIncrease, config.duration)));
+        bool authorizedToSubmit = msg.sender == curator && pendingTimelocks.length == 0;
+        if (submittedToTimelock(oldValue, serializedNewValue, authorizedToSubmit)) timelockConfig[id] = config;
+    }
+
+    function submittedToTimelock(uint256 newValue, bool authorizedToSubmit) internal returns (bool) {
+        return submittedToTimelock(newValue, newValue, authorizedToSubmit);
+    }
+
+    function submittedToTimelock(uint256 oldValue, uint256 newValue, bool authorizedToSubmit) internal returns (bool) {
+        bytes4 id = bytes4(msg.data[:4]);
+        if (timelockConfig[id].canIncrease && newValue > oldValue || timelockConfig[id].duration == 0) {
+            return true;
+        } else if (timelockData[id].validAt != 0) {
+            require(block.timestamp >= timelockData[id].validAt, ErrorsLib.TimelockNotExpired());
+            require(newValue == timelockData[id].value, ErrorsLib.WrongValue());
+            clearTimelock(id);
+
+            return true;
+        } else {
+            require(authorizedToSubmit, ErrorsLib.Unauthorized());
+            require(timelockData[IVaultV2.setTimelock.selector].validAt == 0, ErrorsLib.TimelockIsChanging());
+            timelockData[id].validAt = block.timestamp + timelockConfig[id].duration;
+            timelockData[id].value = newValue;
+            timelockData[id].index = pendingTimelocks.length;
+            pendingTimelocks.push(id);
+
+            return false;
+        }
+    }
+
+    function clearTimelock(bytes4 id) internal {
+        timelockData[id].validAt = 0;
+        timelockData[id].value = 0;
+        pendingTimelocks[timelockData[id].index] = pendingTimelocks[pendingTimelocks.length - 1];
+        pendingTimelocks.pop();
+        // Could omit to clear index.
+        timelockData[id].index = 0;
+    }
+
+    function revokeTimelock(bytes4 id) external {
+        require(msg.sender == guardian, ErrorsLib.Unauthorized());
+        clearTimelock(id);
     }
 
     /* INTERFACE */
