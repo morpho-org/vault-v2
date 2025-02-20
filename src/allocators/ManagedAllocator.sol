@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import {BaseAllocator} from "./BaseAllocator.sol";
+import {ErrorsLib} from "../libraries/ErrorsLib.sol";
 
 // This allocator makes an account completely manage the allocation of the vault.
 contract ManagedAllocator is BaseAllocator {
@@ -12,6 +13,6 @@ contract ManagedAllocator is BaseAllocator {
     }
 
     function authorizeMulticall(address sender, bytes[] calldata) external view override {
-        require(sender == owner);
+        require(sender == owner, ErrorsLib.Unauthorized());
     }
 }

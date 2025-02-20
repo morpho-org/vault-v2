@@ -35,7 +35,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
     uint256 public lastTotalAssets;
 
     IMarket[] public markets;
-    mapping(address => uint256) cap;
+    mapping(address => uint256) public cap;
 
     mapping(bytes4 => TimelockData) public timelockData;
     mapping(bytes4 => TimelockConfig) public timelockConfig;
@@ -142,7 +142,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
         require(unlocked, ErrorsLib.Locked());
         IMarket market = markets[marketIndex];
         // Interest accrual can make the supplied amount go over the cap.
-        require(amount + market.balanceOf(address(this)) < cap[address(market)]);
+        require(amount + market.balanceOf(address(this)) <= cap[address(market)], ErrorsLib.CapExceeded());
         market.deposit(amount, address(this));
     }
 
@@ -261,11 +261,11 @@ contract VaultsV2 is ERC20, IVaultV2 {
 
     function submittedToTimelock(uint256 oldValue, uint256 newValue, bool authorizedToSubmit) internal returns (bool) {
         bytes4 id = bytes4(msg.data[:4]);
-        if (timelockConfig[id].canIncrease && newValue > oldValue) {
+        if (timelockConfig[id].canIncrease && newValue > oldValue || timelockConfig[id].duration == 0) {
             return true;
         } else if (timelockData[id].validAt != 0) {
-            require(block.timestamp >= timelockData[id].validAt);
-            require(newValue == timelockData[id].value);
+            require(block.timestamp >= timelockData[id].validAt, ErrorsLib.TimelockNotExpired());
+            require(newValue == timelockData[id].value, ErrorsLib.WrongValue());
             timelockData[id].validAt = 0;
             timelockData[id].value = 0;
             pendingTimelocks[timelockData[id].index] = pendingTimelocks[pendingTimelocks.length - 1];
@@ -275,8 +275,8 @@ contract VaultsV2 is ERC20, IVaultV2 {
 
             return true;
         } else {
-            require(authorizedToSubmit, ErrorsLib.Unautorized());
-            require(timelockData[this.setTimelock.selector].validAt == 0);
+            require(authorizedToSubmit, ErrorsLib.Unauthorized());
+            require(timelockData[this.setTimelock.selector].validAt == 0, ErrorsLib.TimelockIsChanging());
             timelockData[id].validAt = block.timestamp + timelockConfig[id].duration;
             timelockData[id].value = newValue;
             timelockData[id].index = pendingTimelocks.length;

@@ -2,7 +2,11 @@
 pragma solidity ^0.8.0;
 
 library ErrorsLib {
-    error Unautorized();
+    error Unauthorized();
     error Locked();
     error FailedDelegateCall();
+    error TimelockIsChanging();
+    error TimelockNotExpired();
+    error WrongValue();
+    error CapExceeded();
 }

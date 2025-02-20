@@ -29,6 +29,7 @@ interface IMarket {
 interface IVaultV2 is IMarket {
     function markets(uint256) external view returns (IMarket);
     function marketsLength() external view returns (uint256);
+    function cap(address) external view returns (uint256);
     // Use trick to make a nice interface returning structs in memory.
     function timelockData(bytes4) external view returns (uint256, uint256, uint256);
     function timelockConfig(bytes4) external view returns (bool, uint64);
