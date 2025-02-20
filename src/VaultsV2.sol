@@ -5,9 +5,10 @@ import {ERC20, IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20
 import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {SafeERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {WAD, IMarket, IVaultV2} from "./interfaces/IMarket.sol";
+import {TimelockData, TimelockConfig, IMarket, IVaultV2} from "./interfaces/IMarket.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {IAllocator} from "./interfaces/IAllocator.sol";
+
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 
 contract VaultsV2 is ERC20, IVaultV2 {
@@ -34,6 +35,10 @@ contract VaultsV2 is ERC20, IVaultV2 {
     uint256 public lastTotalAssets;
 
     IMarket[] public markets;
+
+    mapping(bytes4 => TimelockData) public timelockData;
+    mapping(bytes4 => TimelockConfig) public timelockConfig;
+    bytes4[] internal pendingTimelocks;
 
     /* CONSTRUCTOR */
 
@@ -73,15 +78,34 @@ contract VaultsV2 is ERC20, IVaultV2 {
     /* ONWER ACTIONS */
 
     function setOwner(address newOwner) external {
-        require(msg.sender == owner, ErrorsLib.Unautorized());
-        owner = newOwner;
+        bytes4 id = bytes4(msg.data[:4]);
+        uint256 serializedNewValue = uint256(uint160(newOwner));
+        if (timelockData[id].validAt != 0) {
+            require(block.timestamp >= timelockData[id].validAt);
+            require(serializedNewValue == timelockData[id].value);
+            clearPendingTimelock(id);
+            owner = newOwner;
+        } else {
+            require(msg.sender == owner, ErrorsLib.Unautorized());
+            // Should we require that newOwner != owner ?
+            setPendingTimelock(id, serializedNewValue);
+        }
     }
 
     // Can be seen as an exit to underlying, governed by the owner.
     function setCurator(address newCurator) external {
-        require(msg.sender == owner, ErrorsLib.Unautorized());
-        // No need to set newCurator as an immutable of the vault, as it could be done in the owner.
-        curator = newCurator;
+        bytes4 id = bytes4(msg.data[:4]);
+        uint256 serializedNewValue = uint256(uint160(newCurator));
+        if (timelockData[id].validAt != 0) {
+            require(block.timestamp >= timelockData[id].validAt);
+            require(serializedNewValue == timelockData[id].value);
+            clearPendingTimelock(id);
+            // No need to set newCurator as an immutable of the vault, as it could be done in the owner.
+            curator = newCurator;
+        } else {
+            require(msg.sender == owner, ErrorsLib.Unautorized());
+            setPendingTimelock(id, serializedNewValue);
+        }
     }
 
     /* CURATOR ACTIONS */
@@ -217,6 +241,41 @@ contract VaultsV2 is ERC20, IVaultV2 {
         assets = convertToShares(shares, Math.Rounding.Floor);
         _withdraw(assets, shares, receiver, supplier);
     }
+
+    /* TIMELOCKS */
+
+    function setTimelock(TimelockConfig memory config) external {
+        bytes4 id = bytes4(msg.data[:4]);
+        uint256 serializedNewValue = uint256(bytes32(abi.encodePacked(config.canIncrease, config.canDecrease, config.duration)));
+        if (timelockData[id].validAt != 0) {
+            require(block.timestamp >= timelockData[id].validAt);
+            require(serializedNewValue == timelockData[id].value);
+            clearPendingTimelock(id);
+            timelockConfig[id] = config;
+        } else {
+            require(msg.sender == curator, ErrorsLib.Unautorized());
+            require(pendingTimelocks.length == 0);
+            setPendingTimelock(id, serializedNewValue);
+        }
+    }
+
+    function clearPendingTimelock(bytes4 id) internal {
+        timelockData[id].validAt = 0;
+        timelockData[id].value = 0;
+        bytes4 lastTimelock = pendingTimelocks[pendingTimelocks.length - 1];
+        pendingTimelocks.pop();
+        pendingTimelocks[timelockData[id].index] = lastTimelock;
+        // Could omit to clear index.
+        timelockData[id].index = 0;
+    }
+
+    function setPendingTimelock(bytes4 id, uint256 newValue) internal {
+        require(timelockData[this.setTimelock.selector].validAt == 0);
+        timelockData[id].validAt = block.timestamp + timelockConfig[id].duration;
+        timelockData[id].value = newValue;
+        pendingTimelocks.push(id);
+    }
+
 
     /* INTERFACE */
 
