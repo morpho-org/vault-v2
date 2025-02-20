@@ -78,60 +78,50 @@ contract VaultsV2 is ERC20, IVaultV2 {
     /* ONWER ACTIONS */
 
     function setOwner(address newOwner) external {
-        bytes4 id = bytes4(msg.data[:4]);
         uint256 serializedNewValue = uint256(uint160(newOwner));
-        if (timelockData[id].validAt != 0) {
-            require(block.timestamp >= timelockData[id].validAt);
-            require(serializedNewValue == timelockData[id].value);
-            clearPendingTimelock(id);
-            owner = newOwner;
-        } else {
-            require(msg.sender == owner, ErrorsLib.Unautorized());
-            // Should we require that newOwner != owner ?
-            setPendingTimelock(id, serializedNewValue);
-        }
+        bool authorizedToSubmit = msg.sender == owner;
+        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) owner = newOwner;
     }
 
     // Can be seen as an exit to underlying, governed by the owner.
     function setCurator(address newCurator) external {
-        bytes4 id = bytes4(msg.data[:4]);
         uint256 serializedNewValue = uint256(uint160(newCurator));
-        if (timelockData[id].validAt != 0) {
-            require(block.timestamp >= timelockData[id].validAt);
-            require(serializedNewValue == timelockData[id].value);
-            clearPendingTimelock(id);
-            // No need to set newCurator as an immutable of the vault, as it could be done in the owner.
-            curator = newCurator;
-        } else {
-            require(msg.sender == owner, ErrorsLib.Unautorized());
-            setPendingTimelock(id, serializedNewValue);
-        }
+        bool authorizedToSubmit = msg.sender == owner;
+        // No need to set newCurator as an immutable of the vault, as it could be done in the owner.
+        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) curator = newCurator;
     }
 
     /* CURATOR ACTIONS */
 
     function setAllocator(address newAllocator) external {
-        require(msg.sender == curator || msg.sender == address(allocator), ErrorsLib.Unautorized());
-        allocator = IAllocator(newAllocator);
+        uint256 serializedNewValue = uint256(uint160(newAllocator));
+        bool authorizedToSubmit = msg.sender == curator || msg.sender == address(allocator);
+        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) allocator = IAllocator(newAllocator);
     }
 
     function newMarket(address market) external {
-        require(msg.sender == curator, ErrorsLib.Unautorized());
-        asset.approve(market, type(uint256).max);
-        markets.push(IMarket(market));
+        uint256 serializedNewValue = uint256(uint160(market));
+        bool authorizedToSubmit = msg.sender == curator;
+        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) {
+            asset.approve(market, type(uint256).max);
+            markets.push(IMarket(market));
+        }
     }
 
     function dropMarket(uint256 index) external {
-        require(msg.sender == curator, ErrorsLib.Unautorized());
-        asset.approve(address(markets[index]), 0);
-        IMarket lastMarket = markets[markets.length - 1];
-        markets.pop();
-        markets[index] = lastMarket;
+        bool authorizedToSubmit = msg.sender == curator;
+        if (submittedToTimelock(index, authorizedToSubmit)) {
+            asset.approve(address(markets[index]), 0);
+            IMarket lastMarket = markets[markets.length - 1];
+            markets.pop();
+            markets[index] = lastMarket;
+        }
     }
 
-    function setIRM(address _irm) external {
-        require(msg.sender == curator, ErrorsLib.Unautorized());
-        irm = IIRM(_irm);
+    function setIRM(address newIRM) external {
+        uint256 serializedNewValue = uint256(uint160(newIRM));
+        bool authorizedToSubmit = msg.sender == curator;
+        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) irm = IIRM(newIRM);
     }
 
     /* ALLOCATOR ACTIONS */
@@ -244,37 +234,50 @@ contract VaultsV2 is ERC20, IVaultV2 {
 
     /* TIMELOCKS */
 
-    function setTimelock(TimelockConfig memory config) external {
-        bytes4 id = bytes4(msg.data[:4]);
+    function setTimelock(bytes4 id, TimelockConfig memory config) external {
         uint256 serializedNewValue =
             uint256(bytes32(abi.encodePacked(config.canIncrease, config.canDecrease, config.duration)));
-        if (timelockData[id].validAt != 0) {
+        bool authorized = msg.sender == curator && pendingTimelocks.length == 0;
+        if (submittedToTimelock(serializedNewValue, authorized)) timelockConfig[id] = config;
+    }
+
+    function submittedToTimelock(uint256 newValue, bool authorizedToSubmit) internal returns (bool canBeUpdated) {
+        return submittedToTimelock(newValue, newValue, authorizedToSubmit);
+    }
+
+    function submittedToTimelock(uint256 oldValue, uint256 newValue, bool authorizedToSubmit)
+        internal
+        returns (bool canBeUpdated)
+    {
+        bytes4 id = bytes4(msg.data[:4]);
+        if (
+            timelockConfig[id].canIncrease && newValue > oldValue
+                || timelockConfig[id].canDecrease && newValue < oldValue
+        ) {
+            return true;
+        } else if (timelockData[id].validAt != 0) {
             require(block.timestamp >= timelockData[id].validAt);
-            require(serializedNewValue == timelockData[id].value);
-            clearPendingTimelock(id);
-            timelockConfig[id] = config;
+            require(newValue == timelockData[id].value);
+            timelockData[id].validAt = 0;
+            timelockData[id].value = 0;
+            bytes4 lastTimelock = pendingTimelocks[pendingTimelocks.length - 1];
+            pendingTimelocks[timelockData[id].index] = lastTimelock;
+            pendingTimelocks.pop();
+            // Could omit to clear index.
+            timelockData[id].index = 0;
+
+            return true;
         } else {
-            require(msg.sender == curator, ErrorsLib.Unautorized());
-            require(pendingTimelocks.length == 0);
-            setPendingTimelock(id, serializedNewValue);
+            require(authorizedToSubmit, ErrorsLib.Unautorized());
+            require(timelockData[this.setTimelock.selector].validAt == 0);
+            require(timelockData[id].value != newValue);
+            timelockData[id].validAt = block.timestamp + timelockConfig[id].duration;
+            timelockData[id].value = newValue;
+            timelockData[id].index = pendingTimelocks.length;
+            pendingTimelocks.push(id);
+
+            return false;
         }
-    }
-
-    function clearPendingTimelock(bytes4 id) internal {
-        timelockData[id].validAt = 0;
-        timelockData[id].value = 0;
-        bytes4 lastTimelock = pendingTimelocks[pendingTimelocks.length - 1];
-        pendingTimelocks.pop();
-        pendingTimelocks[timelockData[id].index] = lastTimelock;
-        // Could omit to clear index.
-        timelockData[id].index = 0;
-    }
-
-    function setPendingTimelock(bytes4 id, uint256 newValue) internal {
-        require(timelockData[this.setTimelock.selector].validAt == 0);
-        timelockData[id].validAt = block.timestamp + timelockConfig[id].duration;
-        timelockData[id].value = newValue;
-        pendingTimelocks.push(id);
     }
 
     /* INTERFACE */

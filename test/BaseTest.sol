@@ -28,10 +28,11 @@ contract BaseTest is Test {
         allocator = new ManagedAllocator(manager);
 
         vault = new VaultsV2(owner, curator, address(allocator), address(underlyingToken), "VaultToken", "VAULT");
-
         irm = new IRM(manager, vault);
-        vm.prank(curator);
+        vm.startPrank(curator);
         vault.setIRM(address(irm));
+        vault.setIRM(address(irm));
+        vm.stopPrank();
     }
 
     function testConstructor() public view {

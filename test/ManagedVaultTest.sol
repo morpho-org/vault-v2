@@ -11,8 +11,10 @@ contract ManagedVaultTest is BaseTest {
         super.setUp();
 
         ERC4626Mock market = new ERC4626Mock(underlyingToken, "LendingMarket", "MKT");
-        vm.prank(curator);
+        vm.startPrank(curator);
         vault.newMarket(address(market));
+        vault.newMarket(address(market));
+        vm.stopPrank();
         deal(address(underlyingToken), supplier, 1);
 
         vm.startPrank(supplier);
