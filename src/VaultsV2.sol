@@ -58,7 +58,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
     function multicall(bytes[] calldata bundle) external {
         allocator.authorizeMulticall(msg.sender, bundle);
 
-        // The allocator is responsible to make sure that bundles cannot reenter, which would allow arbitrary reallocations.
+        // The allocator is responsible for making sure that bundles cannot reenter.
         unlocked = true;
 
         for (uint256 i = 0; i < bundle.length; i++) {
