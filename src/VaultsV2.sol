@@ -13,10 +13,6 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 contract VaultsV2 is ERC20, IVaultV2 {
     using Math for uint256;
 
-    /* IMMUTABLE */
-
-    IERC20 public immutable asset;
-
     /* STORAGE */
 
     // Note that each role could be a smart contract: the owner, curator and allocator.
@@ -30,6 +26,10 @@ contract VaultsV2 is ERC20, IVaultV2 {
     uint256 public lastTotalAssets;
 
     IMarket[] public markets;
+
+    /* IMMUTABLE */
+
+    IERC20 public immutable asset;
 
     /* TRANSIENT */
 

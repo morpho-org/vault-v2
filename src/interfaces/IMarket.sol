@@ -5,7 +5,6 @@ import {IERC20} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/ERC
 
 uint256 constant WAD = 1e18;
 
-// TODO: complete this interface. Should it be IERC4626 ?
 interface IMarket {
     function asset() external view returns (IERC20);
     function totalAssets() external view returns (uint256);
