@@ -50,7 +50,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
         curator = _curator;
         allocator = IAllocator(_allocator);
         lastUpdate = block.timestamp;
-        // The vault starts with no IRM and no assets, to be configured afterwards.
+        // The vault starts with no IRM, no markets and no assets. To be configured afterwards.
     }
 
     /* AUTHORIZED MULTICALL */
@@ -58,7 +58,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
     function multicall(bytes[] calldata bundle) external {
         allocator.authorizeMulticall(msg.sender, bundle);
 
-        // Is this safe with reentrant calls ?
+        // The allocator is responsible to make sure that bundles cannot reenter, which would allow arbitrary reallocations.
         unlocked = true;
 
         for (uint256 i = 0; i < bundle.length; i++) {
