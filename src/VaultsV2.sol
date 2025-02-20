@@ -13,6 +13,14 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 contract VaultsV2 is ERC20, IVaultV2 {
     using Math for uint256;
 
+    /* IMMUTABLE */
+
+    IERC20 public immutable asset;
+
+    /* TRANSIENT */
+
+    bool public transient unlocked;
+
     /* STORAGE */
 
     // Note that each role could be a smart contract: the owner, curator and allocator.
@@ -27,14 +35,6 @@ contract VaultsV2 is ERC20, IVaultV2 {
 
     IMarket[] public markets;
 
-    /* IMMUTABLE */
-
-    IERC20 public immutable asset;
-
-    /* TRANSIENT */
-
-    bool public transient unlocked;
-
     /* CONSTRUCTOR */
 
     constructor(
@@ -45,12 +45,12 @@ contract VaultsV2 is ERC20, IVaultV2 {
         string memory _name,
         string memory _symbol
     ) ERC20(_name, _symbol) {
+        asset = IERC20(_asset);
         owner = _owner;
         curator = _curator;
         allocator = IAllocator(_allocator);
-        owner = _owner;
-        asset = IERC20(_asset);
         lastUpdate = block.timestamp;
+        // The vault starts with no IRM and no assets, to be configured afterwards.
     }
 
     /* AUTHORIZED MULTICALL */
