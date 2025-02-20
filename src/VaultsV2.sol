@@ -275,7 +275,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
     }
 
     function submittedToTimelock(uint256 newValue, bool authorizedToSubmit) internal returns (bool) {
-        return submittedToTimelock(newValue, newValue, authorizedToSubmit);
+        return submittedToTimelock(type(uint256).max, newValue, authorizedToSubmit);
     }
 
     function submittedToTimelock(uint256 oldValue, uint256 newValue, bool authorizedToSubmit) internal returns (bool) {
