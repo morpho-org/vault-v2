@@ -38,6 +38,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
 
     mapping(bytes4 => TimelockData) public timelockData;
     mapping(bytes4 => TimelockConfig) public timelockConfig;
+    // Can be made much more efficient, storing it all in one slot that does not get reset.
     bytes4[] internal pendingTimelocks;
 
     /* CONSTRUCTOR */
@@ -113,8 +114,8 @@ contract VaultsV2 is ERC20, IVaultV2 {
         if (submittedToTimelock(index, authorizedToSubmit)) {
             asset.approve(address(markets[index]), 0);
             IMarket lastMarket = markets[markets.length - 1];
-            markets.pop();
             markets[index] = lastMarket;
+            markets.pop();
         }
     }
 
@@ -236,9 +237,9 @@ contract VaultsV2 is ERC20, IVaultV2 {
 
     function setTimelock(bytes4 id, TimelockConfig memory config) external {
         uint256 serializedNewValue =
-            uint256(bytes32(abi.encodePacked(config.canIncrease, config.canDecrease, config.duration)));
-        bool authorized = msg.sender == curator && pendingTimelocks.length == 0;
-        if (submittedToTimelock(serializedNewValue, authorized)) timelockConfig[id] = config;
+            uint256(bytes32(abi.encodePacked(id, config.canIncrease, config.canDecrease, config.duration)));
+        bool authorizedToSubmit = msg.sender == curator && pendingTimelocks.length == 0;
+        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) timelockConfig[id] = config;
     }
 
     function submittedToTimelock(uint256 newValue, bool authorizedToSubmit) internal returns (bool canBeUpdated) {
