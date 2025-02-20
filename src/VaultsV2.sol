@@ -29,6 +29,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
     address public owner;
     address public curator;
     IAllocator public allocator;
+    address public guardian;
 
     IIRM public irm;
     uint256 public lastUpdate;
@@ -57,6 +58,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
         curator = _curator;
         allocator = IAllocator(_allocator);
         lastUpdate = block.timestamp;
+        timelockConfig[IVaultV2.setGuardian.selector].canIncrease = true;
         // The vault starts with no IRM, no markets and no assets. To be configured afterwards.
     }
 
@@ -91,6 +93,14 @@ contract VaultsV2 is ERC20, IVaultV2 {
         bool authorizedToSubmit = msg.sender == owner;
         // No need to set newCurator as an immutable of the vault, as it could be done in the owner.
         if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) curator = newCurator;
+    }
+
+    function setGuardian(address newGuardian) external {
+        // Maybe not necessary to have this along with
+        uint256 abstractedOldValue = guardian == address(0) ? 0 : type(uint256).max;
+        uint256 serializedNewValue = uint256(uint160(newGuardian));
+        bool authorizedToSubmit = msg.sender == owner;
+        if (submittedToTimelock(abstractedOldValue, serializedNewValue, authorizedToSubmit)) owner = newGuardian;
     }
 
     /* CURATOR ACTIONS */
@@ -189,7 +199,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
     }
 
     // TODO: extract virtual shares and assets (= 1).
-    function convertToShares(uint256 assets, Math.Rounding rounding) public view returns (uint256 shares) {
+    function convertToShares(uint256 assets, Math.Rounding rounding) internal view returns (uint256 shares) {
         shares = assets.mulDiv(totalSupply() + 1, lastTotalAssets + 1, rounding);
     }
 
@@ -197,7 +207,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
         return convertToAssets(shares, Math.Rounding.Floor);
     }
 
-    function convertToAssets(uint256 shares, Math.Rounding rounding) public view returns (uint256 assets) {
+    function convertToAssets(uint256 shares, Math.Rounding rounding) internal view returns (uint256 assets) {
         assets = shares.mulDiv(lastTotalAssets + 1, totalSupply() + 1, rounding);
     }
 
@@ -266,17 +276,12 @@ contract VaultsV2 is ERC20, IVaultV2 {
         } else if (timelockData[id].validAt != 0) {
             require(block.timestamp >= timelockData[id].validAt, ErrorsLib.TimelockNotExpired());
             require(newValue == timelockData[id].value, ErrorsLib.WrongValue());
-            timelockData[id].validAt = 0;
-            timelockData[id].value = 0;
-            pendingTimelocks[timelockData[id].index] = pendingTimelocks[pendingTimelocks.length - 1];
-            pendingTimelocks.pop();
-            // Could omit to clear index.
-            timelockData[id].index = 0;
+            clearTimelock(id);
 
             return true;
         } else {
             require(authorizedToSubmit, ErrorsLib.Unauthorized());
-            require(timelockData[this.setTimelock.selector].validAt == 0, ErrorsLib.TimelockIsChanging());
+            require(timelockData[IVaultV2.setTimelock.selector].validAt == 0, ErrorsLib.TimelockIsChanging());
             timelockData[id].validAt = block.timestamp + timelockConfig[id].duration;
             timelockData[id].value = newValue;
             timelockData[id].index = pendingTimelocks.length;
@@ -284,6 +289,20 @@ contract VaultsV2 is ERC20, IVaultV2 {
 
             return false;
         }
+    }
+
+    function clearTimelock(bytes4 id) internal {
+        timelockData[id].validAt = 0;
+        timelockData[id].value = 0;
+        pendingTimelocks[timelockData[id].index] = pendingTimelocks[pendingTimelocks.length - 1];
+        pendingTimelocks.pop();
+        // Could omit to clear index.
+        timelockData[id].index = 0;
+    }
+
+    function revokeTimelock(bytes4 id) external {
+        require(msg.sender == guardian, ErrorsLib.Unauthorized());
+        clearTimelock(id);
     }
 
     /* INTERFACE */
