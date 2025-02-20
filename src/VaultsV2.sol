@@ -35,6 +35,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
     uint256 public lastTotalAssets;
 
     IMarket[] public markets;
+    mapping(address => uint256) cap;
 
     mapping(bytes4 => TimelockData) public timelockData;
     mapping(bytes4 => TimelockConfig) public timelockConfig;
@@ -100,6 +101,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
         if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) allocator = IAllocator(newAllocator);
     }
 
+    // Could set cap right when adding a market, to avoid having to wait the timelock twice.
     function newMarket(address market) external {
         uint256 serializedNewValue = uint256(uint160(market));
         bool authorizedToSubmit = msg.sender == curator;
@@ -113,10 +115,17 @@ contract VaultsV2 is ERC20, IVaultV2 {
         bool authorizedToSubmit = msg.sender == curator;
         if (submittedToTimelock(index, authorizedToSubmit)) {
             asset.approve(address(markets[index]), 0);
-            IMarket lastMarket = markets[markets.length - 1];
-            markets[index] = lastMarket;
+            markets[index] = markets[markets.length - 1];
             markets.pop();
         }
+    }
+
+    function setCap(address market, uint256 newCap) external {
+        // This makes so decreasing the cap does not have to go through the timelock (if canIncrease is enabled).
+        uint256 oldValue = type(uint256).max - cap[market];
+        uint256 serializedNewValue = type(uint256).max - uint256(uint160(newCap));
+        bool authorizedToSubmit = msg.sender == curator;
+        if (submittedToTimelock(oldValue, serializedNewValue, authorizedToSubmit)) cap[market] = newCap;
     }
 
     function setIRM(address newIRM) external {
@@ -132,6 +141,8 @@ contract VaultsV2 is ERC20, IVaultV2 {
     function reallocateFromIdle(uint256 marketIndex, uint256 amount) external {
         require(unlocked, ErrorsLib.Locked());
         IMarket market = markets[marketIndex];
+        // Interest accrual can make the supplied amount go over the cap.
+        require(amount + market.balanceOf(address(this)) < cap[address(market)]);
         market.deposit(amount, address(this));
     }
 
@@ -236,21 +247,19 @@ contract VaultsV2 is ERC20, IVaultV2 {
     /* TIMELOCKS */
 
     function setTimelock(bytes4 id, TimelockConfig memory config) external {
-        // using true instead of timelockConfig[id].canIncrease is an optimization
+        // Using true instead of timelockConfig[id].canIncrease is an optimization.
+        // The encoded value should hold in one word so that comparison is meaningful.
         uint256 oldValue = uint256(bytes32(abi.encodePacked(id, true, timelockConfig[id].duration)));
         uint256 serializedNewValue = uint256(bytes32(abi.encodePacked(id, config.canIncrease, config.duration)));
         bool authorizedToSubmit = msg.sender == curator && pendingTimelocks.length == 0;
         if (submittedToTimelock(oldValue, serializedNewValue, authorizedToSubmit)) timelockConfig[id] = config;
     }
 
-    function submittedToTimelock(uint256 newValue, bool authorizedToSubmit) internal returns (bool canBeUpdated) {
+    function submittedToTimelock(uint256 newValue, bool authorizedToSubmit) internal returns (bool) {
         return submittedToTimelock(newValue, newValue, authorizedToSubmit);
     }
 
-    function submittedToTimelock(uint256 oldValue, uint256 newValue, bool authorizedToSubmit)
-        internal
-        returns (bool canBeUpdated)
-    {
+    function submittedToTimelock(uint256 oldValue, uint256 newValue, bool authorizedToSubmit) internal returns (bool) {
         bytes4 id = bytes4(msg.data[:4]);
         if (timelockConfig[id].canIncrease && newValue > oldValue) {
             return true;
@@ -259,8 +268,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
             require(newValue == timelockData[id].value);
             timelockData[id].validAt = 0;
             timelockData[id].value = 0;
-            bytes4 lastTimelock = pendingTimelocks[pendingTimelocks.length - 1];
-            pendingTimelocks[timelockData[id].index] = lastTimelock;
+            pendingTimelocks[timelockData[id].index] = pendingTimelocks[pendingTimelocks.length - 1];
             pendingTimelocks.pop();
             // Could omit to clear index.
             timelockData[id].index = 0;
@@ -269,7 +277,6 @@ contract VaultsV2 is ERC20, IVaultV2 {
         } else {
             require(authorizedToSubmit, ErrorsLib.Unautorized());
             require(timelockData[this.setTimelock.selector].validAt == 0);
-            require(timelockData[id].value != newValue);
             timelockData[id].validAt = block.timestamp + timelockConfig[id].duration;
             timelockData[id].value = newValue;
             timelockData[id].index = pendingTimelocks.length;
