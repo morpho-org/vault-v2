@@ -246,7 +246,8 @@ contract VaultsV2 is ERC20, IVaultV2 {
 
     function setTimelock(TimelockConfig memory config) external {
         bytes4 id = bytes4(msg.data[:4]);
-        uint256 serializedNewValue = uint256(bytes32(abi.encodePacked(config.canIncrease, config.canDecrease, config.duration)));
+        uint256 serializedNewValue =
+            uint256(bytes32(abi.encodePacked(config.canIncrease, config.canDecrease, config.duration)));
         if (timelockData[id].validAt != 0) {
             require(block.timestamp >= timelockData[id].validAt);
             require(serializedNewValue == timelockData[id].value);
@@ -275,7 +276,6 @@ contract VaultsV2 is ERC20, IVaultV2 {
         timelockData[id].value = newValue;
         pendingTimelocks.push(id);
     }
-
 
     /* INTERFACE */
 
