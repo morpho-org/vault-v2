@@ -28,8 +28,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     // This way, roles are modularized, and notably restricting their capabilities could be done on top.
     address public owner;
     address public curator;
-    IAllocator public allocator;
     address public guardian;
+    IAllocator public allocator;
 
     IIRM public irm;
     uint256 public lastUpdate;
@@ -89,36 +89,21 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function submitOwner(address newOwner) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        
-        uint256 slot;
-        assembly ("memory-safe") {
-            slot := owner.slot
-        }
 
-        submit(IVaultV2.submitOwner.selector, slot, uint160(owner), uint160(newOwner));
+        submit(IVaultV2.submitOwner.selector, 5, uint160(owner), uint160(newOwner));
     }
 
     // Can be seen as an exit to underlying, governed by the owner.
     function submitCurator(address newCurator) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        
-        uint256 slot;
-        assembly ("memory-safe") {
-            slot := curator.slot
-        }
 
-        submit(IVaultV2.submitCurator.selector, slot, uint160(curator), uint160(newCurator));
+        submit(IVaultV2.submitCurator.selector, 6, uint160(curator), uint160(newCurator));
     }
 
     function submitGuardian(address newGuardian) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        
-        uint256 slot;
-        assembly ("memory-safe") {
-            slot := guardian.slot
-        }
 
-        submit(IVaultV2.submitGuardian.selector, slot, uint160(guardian), uint160(newGuardian));
+        submit(IVaultV2.submitGuardian.selector, 7, uint160(guardian), uint160(newGuardian));
     }
 
     function setTimelock(bytes4 id, TimelockConfig memory config) external {
@@ -132,36 +117,54 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function submitAllocator(address newAllocator) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        
-        uint256 slot;
-        assembly ("memory-safe") {
-            slot := allocator.slot
-        }
 
-        submit(IVaultV2.submitAllocator.selector, slot, uint160(address(allocator)), uint160(newAllocator));
+        submit(IVaultV2.submitAllocator.selector, 8, uint160(address(allocator)), uint160(newAllocator));
     }
 
     function submitCap(address market, uint160 newCap) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        
-        uint256 mappingSlot;
-        assembly ("memory-safe") {
-            mappingSlot := cap.slot
-        }
-        uint256 slot = uint256(keccak256(abi.encode(market, mappingSlot)));
 
+        uint256 slot = uint256(keccak256(abi.encode(market, 12)));
         submit(IVaultV2.submitCap.selector, slot, cap[market], newCap);
     }
 
     function submitIRM(address newIRM) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        
-        uint256 slot;
-        assembly ("memory-safe") {
-            slot := irm.slot
+
+        submit(IVaultV2.submitIRM.selector, 9, uint160(address(irm)), uint160(newIRM));
+    }
+
+    /* TIMELOCKS */
+
+    function submit(bytes4 id, uint256 slot, uint160 oldValue, uint160 newValue) internal {
+        if (oldValue == 0) {
+            timelockData[slot].validAt = uint64(block.timestamp) + timelockConfig[id].timelockToUnzero;
+        } else if (newValue > oldValue) {
+            timelockData[slot].validAt = uint64(block.timestamp) + timelockConfig[id].timelockToIncrease;
+        } else {
+            timelockData[slot].validAt = uint64(block.timestamp) + timelockConfig[id].timelockToDecrease;
         }
 
-        submit(IVaultV2.submitIRM.selector, slot, uint160(address(irm)), uint160(newIRM));
+        timelockData[slot].value = newValue;
+        pendingTimelocks++;
+    }
+
+    function revoke(uint256 slot) external {
+        require(msg.sender == guardian, ErrorsLib.Unauthorized());
+
+        delete timelockData[slot];
+        pendingTimelocks--;
+    }
+
+    function accept(uint256 slot) external {
+        require(timelockData[slot].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= timelockData[slot].validAt, ErrorsLib.TimelockNotExpired());
+
+        uint256 value = timelockData[slot].value;
+
+        assembly {
+            sstore(slot, value)
+        }
     }
 
     /* ALLOCATOR ACTIONS */
@@ -262,39 +265,6 @@ contract VaultV2 is ERC20, IVaultV2 {
         accrueInterest();
         assets = convertToShares(shares, Math.Rounding.Floor);
         _withdraw(assets, shares, receiver, supplier);
-    }
-
-    /* TIMELOCKS */
-
-    function submit(bytes4 id, uint256 slot, uint160 oldValue, uint160 newValue) internal {
-        if (oldValue == 0) {
-            timelockData[slot].validAt = uint64(block.timestamp) + timelockConfig[id].timelockToUnzero;
-        } else if (newValue > oldValue) {
-            timelockData[slot].validAt = uint64(block.timestamp) + timelockConfig[id].timelockToIncrease;
-        } else {
-            timelockData[slot].validAt = uint64(block.timestamp) + timelockConfig[id].timelockToDecrease;
-        }
-
-        timelockData[slot].value = newValue;
-        pendingTimelocks++;
-    }
-
-    function revoke(uint256 slot) external {
-        require(msg.sender == guardian, ErrorsLib.Unauthorized());
-
-        delete timelockData[slot];
-        pendingTimelocks--;
-    }
-
-    function accept(uint256 slot) external {
-        require(timelockData[slot].validAt != 0, ErrorsLib.TimelockNotSet());
-        require(block.timestamp >= timelockData[slot].validAt, ErrorsLib.TimelockNotExpired());
-
-        uint256 value = timelockData[slot].value;
-
-        assembly {
-            sstore(slot, value)
-        }
     }
 
     /* INTERFACE */
