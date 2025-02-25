@@ -41,7 +41,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
     mapping(bytes4 => TimelockData) public timelockData;
     mapping(bytes4 => TimelockConfig) public timelockConfig;
     // Can be made much more efficient, storing it all in one slot that does not get reset.
-    bytes4[] internal pendingTimelocks;
+    uint256 internal pendingTimelocksCount;
     uint256 internal maxTimelocks;
 
     /* CONSTRUCTOR */
@@ -265,7 +265,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
         bool greaterThanOtherTimelocks = id == IVaultV2.setTimelock.selector
             ? config.duration >= maxTimelocks
             : config.duration <= timelockConfig[IVaultV2.setTimelock.selector].duration;
-        bool authorizedToSubmit = msg.sender == curator && pendingTimelocks.length == 0 && timelockData[id].validAt == 0
+        bool authorizedToSubmit = msg.sender == curator && pendingTimelocksCount == 0 && timelockData[id].validAt == 0
             && greaterThanOtherTimelocks;
         if (submittedToTimelock(oldValue, serializedNewValue, authorizedToSubmit)) {
             timelockConfig[id] = config;
@@ -293,9 +293,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
             require(timelockData[IVaultV2.setTimelock.selector].validAt == 0, ErrorsLib.TimelockIsChanging());
             timelockData[id].validAt = uint64(block.timestamp) + timelockConfig[id].duration;
             timelockData[id].value = newValue;
-            timelockData[id].index = uint8(pendingTimelocks.length);
-            pendingTimelocks.push(id);
-            require(pendingTimelocks.length < 256);
+            pendingTimelocksCount++;
 
             return false;
         }
@@ -304,14 +302,12 @@ contract VaultsV2 is ERC20, IVaultV2 {
     function clearTimelock(bytes4 id) internal {
         timelockData[id].validAt = 0;
         timelockData[id].value = 0;
-        pendingTimelocks[timelockData[id].index] = pendingTimelocks[pendingTimelocks.length - 1];
-        pendingTimelocks.pop();
-        // Could omit to clear index.
-        timelockData[id].index = 0;
+        pendingTimelocksCount--;
     }
 
     function revokeTimelock(bytes4 id) external {
         require(msg.sender == guardian, ErrorsLib.Unauthorized());
+        require(timelockData[id].validAt != 0);
         clearTimelock(id);
     }
 
