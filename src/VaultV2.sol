@@ -5,7 +5,7 @@ import {ERC20, IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20
 import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {SafeERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {TimelockData, TimelockConfig, IMarket, IVaultV2} from "./interfaces/IVaultV2.sol";
+import {TimelockData, IMarket, IVaultV2} from "./interfaces/IVaultV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {IAllocator} from "./interfaces/IAllocator.sol";
 
@@ -38,10 +38,20 @@ contract VaultV2 is ERC20, IVaultV2 {
     mapping(address => uint160) public cap;
 
     mapping(uint256 => TimelockData) public timelockData;
-    mapping(bytes4 => TimelockConfig) public timelockConfig;
+    mapping(bytes4 => uint64) public timelockToUnzero;
+    mapping(bytes4 => uint64) public timelockToIncrease;
+    mapping(bytes4 => uint64) public timelockToDecrease;
     // Can be made much more efficient, storing it all in one slot that does not get reset.
     uint256 internal pendingTimelocks;
-    uint256 internal maxTimelock;
+
+    bytes4[] internal submitSelectorsList = [
+        IVaultV2.submitAllocator.selector,
+        IVaultV2.submitCap.selector,
+        IVaultV2.submitIRM.selector,
+        IVaultV2.submitOwner.selector,
+        IVaultV2.submitCurator.selector,
+        IVaultV2.submitGuardian.selector
+    ];
 
     /* CONSTRUCTOR */
 
@@ -106,11 +116,36 @@ contract VaultV2 is ERC20, IVaultV2 {
         submit(IVaultV2.submitGuardian.selector, 7, uint160(guardian), uint160(newGuardian));
     }
 
-    function setTimelock(bytes4 id, TimelockConfig memory config) external {
+    function submitTimelockToUnzero(bytes4 id, uint64 newTimelockToUnzero) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
+        require(newTimelockToUnzero >= computeMaxTimelock(), ErrorsLib.TimelockTooSmall());
+        require(pendingTimelocks == 0, ErrorsLib.TimelockPending());
 
-        // TODO
-        timelockConfig[id] = config;
+        submit(IVaultV2.submitTimelockToUnzero.selector, 0, timelockToUnzero[id], newTimelockToUnzero);
+    }
+
+    function submitTimelockToIncrease(bytes4 id, uint64 newTimelockToIncrease) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        require(newTimelockToIncrease >= computeMaxTimelock(), ErrorsLib.TimelockTooSmall());
+        require(pendingTimelocks == 0, ErrorsLib.TimelockPending());
+
+        submit(IVaultV2.submitTimelockToIncrease.selector, 0, timelockToUnzero[id], newTimelockToIncrease);
+    }
+
+    function submitTimelockToDecrease(bytes4 id, uint64 newTimelockToDecrease) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        require(newTimelockToDecrease >= computeMaxTimelock(), ErrorsLib.TimelockTooSmall());
+        require(pendingTimelocks == 0, ErrorsLib.TimelockPending());
+
+        submit(IVaultV2.submitTimelockToIncrease.selector, 0, timelockToUnzero[id], newTimelockToDecrease);
+    }
+
+    function computeMaxTimelock() internal view returns (uint256 max) {
+        for (uint256 i = 0; i < submitSelectorsList.length; i++) {
+            max = timelockToUnzero[submitSelectorsList[i]] > max ? timelockToUnzero[submitSelectorsList[i]] : max;
+            max = timelockToIncrease[submitSelectorsList[i]] > max ? timelockToIncrease[submitSelectorsList[i]] : max;
+            max = timelockToDecrease[submitSelectorsList[i]] > max ? timelockToDecrease[submitSelectorsList[i]] : max;
+        }
     }
 
     /* CURATOR ACTIONS */
@@ -138,11 +173,11 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function submit(bytes4 id, uint256 slot, uint160 oldValue, uint160 newValue) internal {
         if (oldValue == 0) {
-            timelockData[slot].validAt = uint64(block.timestamp) + timelockConfig[id].timelockToUnzero;
+            timelockData[slot].validAt = uint64(block.timestamp) + timelockToUnzero[id];
         } else if (newValue > oldValue) {
-            timelockData[slot].validAt = uint64(block.timestamp) + timelockConfig[id].timelockToIncrease;
+            timelockData[slot].validAt = uint64(block.timestamp) + timelockToIncrease[id];
         } else {
-            timelockData[slot].validAt = uint64(block.timestamp) + timelockConfig[id].timelockToDecrease;
+            timelockData[slot].validAt = uint64(block.timestamp) + timelockToDecrease[id];
         }
 
         timelockData[slot].value = newValue;
@@ -165,6 +200,9 @@ contract VaultV2 is ERC20, IVaultV2 {
         assembly {
             sstore(slot, value)
         }
+
+        delete timelockData[slot];
+        pendingTimelocks--;
     }
 
     /* ALLOCATOR ACTIONS */

@@ -8,12 +8,6 @@ struct TimelockData {
     uint160 value;
 }
 
-struct TimelockConfig {
-    uint64 timelockToUnzero;
-    uint64 timelockToIncrease;
-    uint64 timelockToDecrease;
-}
-
 interface IMarket {
     function asset() external view returns (IERC20);
     function totalAssets() external view returns (uint256);
@@ -35,7 +29,9 @@ interface IVaultV2 is IMarket {
     function reallocateFromIdle(address, uint256) external;
     function reallocateToIdle(address, uint256) external;
     function accrueInterest() external;
-    // function setTimelock(bytes4, TimelockConfig memory) external;
+    function submitTimelockToUnzero(bytes4, uint64) external;
+    function submitTimelockToIncrease(bytes4, uint64) external;
+    function submitTimelockToDecrease(bytes4, uint64) external;
 
     function revoke(uint256) external;
     function accept(uint256) external;
