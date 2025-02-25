@@ -38,7 +38,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
     IMarket[] public markets;
     mapping(address => uint160) public cap;
 
-    mapping(bytes21 => TimelockData) public timelockData;
+    mapping(bytes24 => TimelockData) public timelockData;
     mapping(bytes4 => TimelockConfig) public timelockConfig;
     // Can be made much more efficient, storing it all in one slot that does not get reset.
     uint256 internal pendingTimelocksCount;
@@ -287,7 +287,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
         returns (bool)
     {
         bytes4 sel = bytes4(msg.data[:4]);
-        bytes21 id = bytes21(abi.encodePacked(sel, field));
+        bytes24 id = bytes24(abi.encodePacked(sel, field));
         if (timelockConfig[sel].canIncrease && newValue > oldValue || timelockConfig[sel].duration == 0) {
             return true;
         } else if (timelockData[id].validAt != 0) {
