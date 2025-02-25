@@ -40,6 +40,6 @@ interface IVaultV2 is IMarket {
     function revokeTimelock(bytes4) external;
     function setCap(address, uint160) external;
     // Use trick to make a nice interface returning structs in memory.
-    function timelockData(bytes4) external view returns (uint64, uint160);
+    function timelockData(bytes21) external view returns (uint64, uint160);
     function timelockConfig(bytes4) external view returns (bool, uint64);
 }

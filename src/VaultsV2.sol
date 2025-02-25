@@ -38,7 +38,7 @@ contract VaultsV2 is ERC20, IVaultV2 {
     IMarket[] public markets;
     mapping(address => uint160) public cap;
 
-    mapping(bytes4 => TimelockData) public timelockData;
+    mapping(bytes21 => TimelockData) public timelockData;
     mapping(bytes4 => TimelockConfig) public timelockConfig;
     // Can be made much more efficient, storing it all in one slot that does not get reset.
     uint256 internal pendingTimelocksCount;
@@ -97,11 +97,11 @@ contract VaultsV2 is ERC20, IVaultV2 {
     }
 
     function setGuardian(address newGuardian) external {
-        // Maybe not necessary to have this along with
+        // Maybe not necessary to have this but it allows to bypass timelock in case of unzero of the guardian.
         uint160 abstractedOldValue = guardian == address(0) ? 0 : type(uint160).max;
         uint160 serializedNewValue = uint160(newGuardian);
         bool authorizedToSubmit = msg.sender == owner;
-        if (submittedToTimelock(abstractedOldValue, serializedNewValue, authorizedToSubmit)) owner = newGuardian;
+        if (submittedToTimelock(0, abstractedOldValue, serializedNewValue, authorizedToSubmit)) owner = newGuardian;
     }
 
     /* CURATOR ACTIONS */
@@ -116,16 +116,18 @@ contract VaultsV2 is ERC20, IVaultV2 {
     function newMarket(address market) external {
         uint160 serializedNewValue = uint160(market);
         bool authorizedToSubmit = msg.sender == curator;
-        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) {
+        if (submittedToTimelock(serializedNewValue, type(uint160).max, serializedNewValue, authorizedToSubmit)) {
             asset.approve(market, type(uint256).max);
             markets.push(IMarket(market));
         }
     }
 
     function dropMarket(uint8 index) external {
+        address market = address(markets[index]);
+        uint160 serializedNewValue = uint160(market);
         bool authorizedToSubmit = msg.sender == curator;
-        if (submittedToTimelock(index, authorizedToSubmit)) {
-            asset.approve(address(markets[index]), 0);
+        if (submittedToTimelock(serializedNewValue, type(uint160).max, serializedNewValue, authorizedToSubmit)) {
+            asset.approve(market, 0);
             markets[index] = markets[markets.length - 1];
             markets.pop();
         }
@@ -136,7 +138,9 @@ contract VaultsV2 is ERC20, IVaultV2 {
         uint160 oldValue = type(uint160).max - cap[market];
         uint160 serializedNewValue = type(uint160).max - newCap;
         bool authorizedToSubmit = msg.sender == curator;
-        if (submittedToTimelock(oldValue, serializedNewValue, authorizedToSubmit)) cap[market] = newCap;
+        if (submittedToTimelock(uint160(market), oldValue, serializedNewValue, authorizedToSubmit)) {
+            cap[market] = newCap;
+        }
     }
 
     function setIRM(address newIRM) external {
@@ -257,41 +261,45 @@ contract VaultsV2 is ERC20, IVaultV2 {
 
     /* TIMELOCKS */
 
-    function setTimelock(bytes4 id, TimelockConfig memory config) external {
+    function setTimelock(bytes4 sel, TimelockConfig memory config) external {
         // Using true instead of config.canIncrease is an optimization.
         // The encoded value should hold in 160 bits so that comparison is meaningful.
-        uint160 oldValue = uint160(bytes20(abi.encodePacked(id, true, timelockConfig[id].duration)));
-        uint160 serializedNewValue = uint160(bytes20(abi.encodePacked(id, config.canIncrease, config.duration)));
-        bool greaterThanOtherTimelocks = id == IVaultV2.setTimelock.selector
+        uint160 oldValue = uint160(bytes20(abi.encodePacked(sel, true, timelockConfig[sel].duration)));
+        uint160 serializedNewValue = uint160(bytes20(abi.encodePacked(sel, config.canIncrease, config.duration)));
+        bool greaterThanOtherTimelocks = sel == IVaultV2.setTimelock.selector
             ? config.duration >= maxTimelocks
             : config.duration <= timelockConfig[IVaultV2.setTimelock.selector].duration;
-        bool authorizedToSubmit = msg.sender == curator && pendingTimelocksCount == 0 && timelockData[id].validAt == 0
+        bool authorizedToSubmit = msg.sender == curator && pendingTimelocksCount == 0 && timelockData[sel].validAt == 0
             && greaterThanOtherTimelocks;
-        if (submittedToTimelock(oldValue, serializedNewValue, authorizedToSubmit)) {
-            timelockConfig[id] = config;
+        if (submittedToTimelock(uint32(sel), oldValue, serializedNewValue, authorizedToSubmit)) {
+            timelockConfig[sel] = config;
             maxTimelocks =
-                id != IVaultV2.setTimelock.selector && config.duration > maxTimelocks ? config.duration : maxTimelocks;
+                sel != IVaultV2.setTimelock.selector && config.duration > maxTimelocks ? config.duration : maxTimelocks;
         }
     }
 
     function submittedToTimelock(uint160 newValue, bool authorizedToSubmit) internal returns (bool) {
-        return submittedToTimelock(type(uint160).max, newValue, authorizedToSubmit);
+        return submittedToTimelock(0, type(uint160).max, newValue, authorizedToSubmit);
     }
 
-    function submittedToTimelock(uint160 oldValue, uint160 newValue, bool authorizedToSubmit) internal returns (bool) {
-        bytes4 id = bytes4(msg.data[:4]);
-        if (timelockConfig[id].canIncrease && newValue > oldValue || timelockConfig[id].duration == 0) {
+    function submittedToTimelock(uint160 field, uint160 oldValue, uint160 newValue, bool authorizedToSubmit)
+        internal
+        returns (bool)
+    {
+        bytes4 sel = bytes4(msg.data[:4]);
+        bytes21 id = bytes21(abi.encodePacked(sel, field));
+        if (timelockConfig[sel].canIncrease && newValue > oldValue || timelockConfig[sel].duration == 0) {
             return true;
         } else if (timelockData[id].validAt != 0) {
             require(block.timestamp >= timelockData[id].validAt, ErrorsLib.TimelockNotExpired());
             require(newValue == timelockData[id].value, ErrorsLib.WrongValue());
-            clearTimelock(id);
+            clearTimelock(sel);
 
             return true;
         } else {
             require(authorizedToSubmit, ErrorsLib.Unauthorized());
             require(timelockData[IVaultV2.setTimelock.selector].validAt == 0, ErrorsLib.TimelockIsChanging());
-            timelockData[id].validAt = uint64(block.timestamp) + timelockConfig[id].duration;
+            timelockData[id].validAt = uint64(block.timestamp) + timelockConfig[sel].duration;
             timelockData[id].value = newValue;
             pendingTimelocksCount++;
 
@@ -299,16 +307,16 @@ contract VaultsV2 is ERC20, IVaultV2 {
         }
     }
 
-    function clearTimelock(bytes4 id) internal {
-        timelockData[id].validAt = 0;
-        timelockData[id].value = 0;
+    function clearTimelock(bytes4 sel) internal {
+        timelockData[sel].validAt = 0;
+        timelockData[sel].value = 0;
         pendingTimelocksCount--;
     }
 
-    function revokeTimelock(bytes4 id) external {
+    function revokeTimelock(bytes4 sel) external {
         require(msg.sender == guardian, ErrorsLib.Unauthorized());
-        require(timelockData[id].validAt != 0);
-        clearTimelock(id);
+        require(timelockData[sel].validAt != 0);
+        clearTimelock(sel);
     }
 
     /* INTERFACE */
