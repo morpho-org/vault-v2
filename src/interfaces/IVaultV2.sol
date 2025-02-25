@@ -6,7 +6,6 @@ import {IERC20} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/ERC
 struct TimelockData {
     uint64 validAt;
     uint160 value;
-    uint8 index;
 }
 
 struct TimelockConfig {
@@ -41,6 +40,6 @@ interface IVaultV2 is IMarket {
     function revokeTimelock(bytes4) external;
     function setCap(address, uint160) external;
     // Use trick to make a nice interface returning structs in memory.
-    function timelockData(bytes4) external view returns (uint64, uint160, uint8);
+    function timelockData(bytes24) external view returns (uint64, uint160);
     function timelockConfig(bytes4) external view returns (bool, uint64);
 }
