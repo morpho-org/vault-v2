@@ -38,15 +38,13 @@ contract VaultV2 is ERC20, IVaultV2 {
     mapping(address => uint160) public cap;
 
     mapping(uint256 => TimelockData) public timelockData;
-    mapping(bytes4 => uint64) public timelockToUnzero;
-    mapping(bytes4 => uint64) public timelockToIncrease;
-    mapping(bytes4 => uint64) public timelockToDecrease;
-    // Can be made much more efficient, storing it all in one slot that does not get reset.
-    uint256 internal pendingTimelocks;
+    mapping(bytes4 => uint64) public timelock;
 
     bytes4[] internal submitSelectorsList = [
         IVaultV2.submitAllocator.selector,
-        IVaultV2.submitCap.selector,
+        IVaultV2.submitCapUnzero.selector,
+        IVaultV2.submitCapIncrease.selector,
+        IVaultV2.submitCapDecrease.selector,
         IVaultV2.submitIRM.selector,
         IVaultV2.submitOwner.selector,
         IVaultV2.submitCurator.selector,
@@ -116,35 +114,21 @@ contract VaultV2 is ERC20, IVaultV2 {
         submit(IVaultV2.submitGuardian.selector, 7, uint160(guardian), uint160(newGuardian));
     }
 
-    function submitTimelockToUnzero(bytes4 id, uint64 newTimelockToUnzero) external {
+    function submitTimelock(bytes4 id, uint64 newTimelock) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        require(newTimelockToUnzero >= computeMaxTimelock(), ErrorsLib.TimelockTooSmall());
-        require(pendingTimelocks == 0, ErrorsLib.TimelockPending());
+        if (id == IVaultV2.submitTimelock.selector) require(newTimelock >= computeMaxTimelock());
+        else require(newTimelock <= timelock[IVaultV2.submitTimelock.selector]);
 
-        submit(IVaultV2.submitTimelockToUnzero.selector, 0, timelockToUnzero[id], newTimelockToUnzero);
-    }
-
-    function submitTimelockToIncrease(bytes4 id, uint64 newTimelockToIncrease) external {
-        require(msg.sender == owner, ErrorsLib.Unauthorized());
-        require(newTimelockToIncrease >= computeMaxTimelock(), ErrorsLib.TimelockTooSmall());
-        require(pendingTimelocks == 0, ErrorsLib.TimelockPending());
-
-        submit(IVaultV2.submitTimelockToIncrease.selector, 0, timelockToUnzero[id], newTimelockToIncrease);
-    }
-
-    function submitTimelockToDecrease(bytes4 id, uint64 newTimelockToDecrease) external {
-        require(msg.sender == owner, ErrorsLib.Unauthorized());
-        require(newTimelockToDecrease >= computeMaxTimelock(), ErrorsLib.TimelockTooSmall());
-        require(pendingTimelocks == 0, ErrorsLib.TimelockPending());
-
-        submit(IVaultV2.submitTimelockToIncrease.selector, 0, timelockToUnzero[id], newTimelockToDecrease);
+        submit(IVaultV2.submitTimelock.selector, 0, timelock[id], newTimelock);
     }
 
     function computeMaxTimelock() internal view returns (uint256 max) {
         for (uint256 i = 0; i < submitSelectorsList.length; i++) {
-            max = timelockToUnzero[submitSelectorsList[i]] > max ? timelockToUnzero[submitSelectorsList[i]] : max;
-            max = timelockToIncrease[submitSelectorsList[i]] > max ? timelockToIncrease[submitSelectorsList[i]] : max;
-            max = timelockToDecrease[submitSelectorsList[i]] > max ? timelockToDecrease[submitSelectorsList[i]] : max;
+            if (submitSelectorsList[i] != IVaultV2.submitTimelock.selector) {
+                max = timelock[submitSelectorsList[i]] > max ? timelock[submitSelectorsList[i]] : max;
+                // TODO use the right slot.
+                max = timelockData[0].value > max ? timelockData[0].value : max;
+            }
         }
     }
 
@@ -156,11 +140,25 @@ contract VaultV2 is ERC20, IVaultV2 {
         submit(IVaultV2.submitAllocator.selector, 8, uint160(address(allocator)), uint160(newAllocator));
     }
 
-    function submitCap(address market, uint160 newCap) external {
+    function submitCapUnzero(address market, uint160 newCap) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
 
         uint256 slot = uint256(keccak256(abi.encode(market, 12)));
-        submit(IVaultV2.submitCap.selector, slot, cap[market], newCap);
+        submit(IVaultV2.submitCapUnzero.selector, slot, cap[market], newCap);
+    }
+
+    function submitCapDecrease(address market, uint160 newCap) external {
+        require(msg.sender == curator, ErrorsLib.Unauthorized());
+
+        uint256 slot = uint256(keccak256(abi.encode(market, 12)));
+        submit(IVaultV2.submitCapDecrease.selector, slot, cap[market], newCap);
+    }
+
+    function submitCapIncrease(address market, uint160 newCap) external {
+        require(msg.sender == curator, ErrorsLib.Unauthorized());
+
+        uint256 slot = uint256(keccak256(abi.encode(market, 12)));
+        submit(IVaultV2.submitCapIncrease.selector, slot, cap[market], newCap);
     }
 
     function submitIRM(address newIRM) external {
@@ -172,23 +170,14 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* TIMELOCKS */
 
     function submit(bytes4 id, uint256 slot, uint160 oldValue, uint160 newValue) internal {
-        if (oldValue == 0) {
-            timelockData[slot].validAt = uint64(block.timestamp) + timelockToUnzero[id];
-        } else if (newValue > oldValue) {
-            timelockData[slot].validAt = uint64(block.timestamp) + timelockToIncrease[id];
-        } else {
-            timelockData[slot].validAt = uint64(block.timestamp) + timelockToDecrease[id];
-        }
-
+        timelockData[slot].validAt = uint64(block.timestamp) + timelock[id];
         timelockData[slot].value = newValue;
-        pendingTimelocks++;
     }
 
     function revoke(uint256 slot) external {
         require(msg.sender == guardian, ErrorsLib.Unauthorized());
 
         delete timelockData[slot];
-        pendingTimelocks--;
     }
 
     function accept(uint256 slot) external {
@@ -202,7 +191,6 @@ contract VaultV2 is ERC20, IVaultV2 {
         }
 
         delete timelockData[slot];
-        pendingTimelocks--;
     }
 
     /* ALLOCATOR ACTIONS */
