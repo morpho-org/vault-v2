@@ -38,7 +38,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     mapping(address => uint160) public cap;
 
     mapping(uint256 => TimelockData) public pending;
-    
+
     mapping(bytes4 => uint64) public timelockToUnzero;
     mapping(bytes4 => uint64) public timelockToIncrease;
     mapping(bytes4 => uint64) public timelockToDecrease;
@@ -127,31 +127,48 @@ contract VaultV2 is ERC20, IVaultV2 {
         guardian = address(pending[7].value);
     }
 
-    function submitTimelock(bytes4 id, uint64 newTimelockToUnzero, uint64 newTimelockToIncrease, uint64 newTimelockToDecrease) external {
+    function submitTimelock(
+        bytes4 id,
+        uint64 newTimelockToUnzero,
+        uint64 newTimelockToIncrease,
+        uint64 newTimelockToDecrease
+    ) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
         require(pendingTimelocks == 0, ErrorsLib.TimelockPending());
         require(newTimelockToUnzero >= maxTimelock, ErrorsLib.SmallerThanMaxTimelock());
         require(newTimelockToIncrease >= maxTimelock, ErrorsLib.SmallerThanMaxTimelock());
         require(newTimelockToDecrease >= maxTimelock, ErrorsLib.SmallerThanMaxTimelock());
 
-        submit(IVaultV2.submitTimelock.selector, uint256(keccak256(abi.encode(id, 14))), timelockToUnzero[id], newTimelockToUnzero);
-        submit(IVaultV2.submitTimelock.selector, uint256(keccak256(abi.encode(id, 15))), timelockToIncrease[id], newTimelockToIncrease);
-        submit(IVaultV2.submitTimelock.selector, uint256(keccak256(abi.encode(id, 16))), timelockToDecrease[id], newTimelockToDecrease);
+        submit(
+            IVaultV2.submitTimelock.selector,
+            uint256(keccak256(abi.encode(id, 14))),
+            timelockToUnzero[id],
+            newTimelockToUnzero
+        );
+        submit(
+            IVaultV2.submitTimelock.selector,
+            uint256(keccak256(abi.encode(id, 15))),
+            timelockToIncrease[id],
+            newTimelockToIncrease
+        );
+        submit(
+            IVaultV2.submitTimelock.selector,
+            uint256(keccak256(abi.encode(id, 16))),
+            timelockToDecrease[id],
+            newTimelockToDecrease
+        );
     }
 
     function acceptTimelock(bytes4 id) external {
         require(pending[uint256(keccak256(abi.encode(id, 14)))].validAt != 0, ErrorsLib.TimelockNotSet());
         require(
-            block.timestamp >= pending[uint256(keccak256(abi.encode(id, 14)))].validAt,
-            ErrorsLib.TimelockNotExpired()
+            block.timestamp >= pending[uint256(keccak256(abi.encode(id, 14)))].validAt, ErrorsLib.TimelockNotExpired()
         );
         require(
-            block.timestamp >= pending[uint256(keccak256(abi.encode(id, 15)))].validAt,
-            ErrorsLib.TimelockNotExpired()
+            block.timestamp >= pending[uint256(keccak256(abi.encode(id, 15)))].validAt, ErrorsLib.TimelockNotExpired()
         );
         require(
-            block.timestamp >= pending[uint256(keccak256(abi.encode(id, 16)))].validAt,
-            ErrorsLib.TimelockNotExpired()
+            block.timestamp >= pending[uint256(keccak256(abi.encode(id, 16)))].validAt, ErrorsLib.TimelockNotExpired()
         );
 
         timelockToUnzero[id] = uint64(pending[uint256(keccak256(abi.encode(id, 14)))].value);
