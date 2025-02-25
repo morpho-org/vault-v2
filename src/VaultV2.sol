@@ -72,14 +72,11 @@ contract VaultV2 is ERC20, IVaultV2 {
         for (uint256 i = 0; i < bundle.length; i++) {
             // Note: no need to check that address(this) has code.
             (bool success, bytes memory data) = address(this).delegatecall(bundle[i]);
-            // revert with data if delegatecall failed.
             if (!success) {
                 assembly {
                     revert(add(data, 32), mload(data))
                 }
             }
-
-            // require(success, ErrorsLib.FailedDelegateCall());
         }
 
         unlocked = false;
@@ -93,11 +90,24 @@ contract VaultV2 is ERC20, IVaultV2 {
         submit(IVaultV2.submitOwner.selector, 5, uint160(owner), uint160(newOwner));
     }
 
-    // Can be seen as an exit to underlying, governed by the owner.
+    function acceptOwner() external {
+        require(timelockData[5].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= timelockData[5].validAt, ErrorsLib.TimelockNotExpired());
+
+        owner = address(timelockData[5].value);
+    }
+
     function submitCurator(address newCurator) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
 
         submit(IVaultV2.submitCurator.selector, 6, uint160(curator), uint160(newCurator));
+    }
+
+    function acceptCurator() external {
+        require(timelockData[6].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= timelockData[6].validAt, ErrorsLib.TimelockNotExpired());
+
+        curator = address(timelockData[6].value);
     }
 
     function submitGuardian(address newGuardian) external {
@@ -106,10 +116,43 @@ contract VaultV2 is ERC20, IVaultV2 {
         submit(IVaultV2.submitGuardian.selector, 7, uint160(guardian), uint160(newGuardian));
     }
 
-    function setTimelock(bytes4 id, TimelockConfig memory config) external {
-        require(msg.sender == owner, ErrorsLib.Unauthorized());
+    function acceptGuardian() external {
+        require(timelockData[7].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= timelockData[7].validAt, ErrorsLib.TimelockNotExpired());
 
-        // TODO
+        guardian = address(timelockData[7].value);
+    }
+
+    function submitTimelock(bytes4 id, TimelockConfig memory config) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        require(pendingTimelocks == 0, ErrorsLib.TimelockPending());
+        require(config.timelockToUnzero >= maxTimelock, ErrorsLib.SmallerThanMaxTimelock());
+        require(config.timelockToIncrease >= maxTimelock, ErrorsLib.SmallerThanMaxTimelock());
+        require(config.timelockToDecrease >= maxTimelock, ErrorsLib.SmallerThanMaxTimelock());
+
+        uint160 oldValue = uint160(timelockConfig[id].timelockToUnzero)
+            | (uint160(timelockConfig[id].timelockToIncrease) << 32)
+            | (uint160(timelockConfig[id].timelockToDecrease) << 64);
+        uint160 newValue = uint160(config.timelockToUnzero) | (uint160(config.timelockToIncrease) << 32)
+            | (uint160(config.timelockToDecrease) << 64);
+
+        uint256 slot = uint256(keccak256(abi.encode(id, 14)));
+        submit(IVaultV2.submitTimelock.selector, slot, oldValue, newValue);
+    }
+
+    function acceptTimelock(bytes4 id) external {
+        require(timelockData[uint256(keccak256(abi.encode(id, 14)))].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(
+            block.timestamp >= timelockData[uint256(keccak256(abi.encode(id, 14)))].validAt,
+            ErrorsLib.TimelockNotExpired()
+        );
+
+        TimelockConfig memory config;
+        uint256 value = uint256(timelockData[uint256(keccak256(abi.encode(id, 14)))].value);
+        config.timelockToUnzero = uint32(value);
+        config.timelockToIncrease = uint32(value >> 32);
+        config.timelockToDecrease = uint32(value >> 64);
+
         timelockConfig[id] = config;
     }
 
@@ -121,6 +164,13 @@ contract VaultV2 is ERC20, IVaultV2 {
         submit(IVaultV2.submitAllocator.selector, 8, uint160(address(allocator)), uint160(newAllocator));
     }
 
+    function acceptAllocator() external {
+        require(timelockData[8].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= timelockData[8].validAt, ErrorsLib.TimelockNotExpired());
+
+        allocator = IAllocator(address(timelockData[8].value));
+    }
+
     function submitCap(address market, uint160 newCap) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
 
@@ -128,10 +178,27 @@ contract VaultV2 is ERC20, IVaultV2 {
         submit(IVaultV2.submitCap.selector, slot, cap[market], newCap);
     }
 
+    function acceptCap(address market) external {
+        require(timelockData[uint256(keccak256(abi.encode(market, 12)))].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(
+            block.timestamp >= timelockData[uint256(keccak256(abi.encode(market, 12)))].validAt,
+            ErrorsLib.TimelockNotExpired()
+        );
+
+        cap[market] = uint160(timelockData[uint256(keccak256(abi.encode(market, 12)))].value);
+    }
+
     function submitIRM(address newIRM) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
 
         submit(IVaultV2.submitIRM.selector, 9, uint160(address(irm)), uint160(newIRM));
+    }
+
+    function acceptIRM() external {
+        require(timelockData[9].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= timelockData[9].validAt, ErrorsLib.TimelockNotExpired());
+
+        irm = IIRM(address(timelockData[9].value));
     }
 
     /* TIMELOCKS */
@@ -154,17 +221,6 @@ contract VaultV2 is ERC20, IVaultV2 {
 
         delete timelockData[slot];
         pendingTimelocks--;
-    }
-
-    function accept(uint256 slot) external {
-        require(timelockData[slot].validAt != 0, ErrorsLib.TimelockNotSet());
-        require(block.timestamp >= timelockData[slot].validAt, ErrorsLib.TimelockNotExpired());
-
-        uint256 value = timelockData[slot].value;
-
-        assembly {
-            sstore(slot, value)
-        }
     }
 
     /* ALLOCATOR ACTIONS */

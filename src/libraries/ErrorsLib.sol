@@ -9,6 +9,7 @@ library ErrorsLib {
     error TimelockNotExpired();
     error TimelockNotSet();
     error TimelockPending();
+    error SmallerThanMaxTimelock();
     error WrongValue();
     error CapExceeded();
 }

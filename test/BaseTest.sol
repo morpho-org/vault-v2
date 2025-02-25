@@ -37,7 +37,7 @@ contract BaseTest is Test {
         vm.label(address(irm), "IRM");
         vm.prank(curator);
         vault.submitIRM(address(irm));
-        vault.accept(9);
+        vault.acceptIRM();
     }
 
     function testConstructor() public view {
