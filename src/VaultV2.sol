@@ -5,13 +5,13 @@ import {ERC20, IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20
 import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {SafeERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {TimelockData, TimelockConfig, IMarket, IVaultV2} from "./interfaces/IMarket.sol";
+import {TimelockData, TimelockConfig, IMarket, IVaultV2} from "./interfaces/IVaultV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {IAllocator} from "./interfaces/IAllocator.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 
-contract VaultsV2 is ERC20, IVaultV2 {
+contract VaultV2 is ERC20, IVaultV2 {
     using Math for uint256;
 
     /* IMMUTABLE */

@@ -1,4 +1,4 @@
-# Vaults v2
+# Vault v2
 
 ## Overview
 

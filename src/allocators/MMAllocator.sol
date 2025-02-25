@@ -6,7 +6,7 @@ import {IERC20} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/ERC
 import {UtilsLib} from "../libraries/UtilsLib.sol";
 import {DecodeLib, ReallocateFromIdleData, ReallocateToIdleData, WithdrawData} from "../libraries/DecodeLib.sol";
 
-import {IMarket, IVaultV2} from "../VaultsV2.sol";
+import {IMarket, IVaultV2} from "../VaultV2.sol";
 import {BaseAllocator} from "./BaseAllocator.sol";
 
 contract MMAllocator is BaseAllocator {
