@@ -92,7 +92,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         assembly ("memory-safe") {
             slot := owner.slot
         }
-        
+
         submit(IVaultV2.submitOwner.selector, slot, uint160(owner), uint160(newOwner));
     }
 
@@ -102,7 +102,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         assembly ("memory-safe") {
             slot := curator.slot
         }
-        
+
         submit(IVaultV2.submitCurator.selector, slot, uint160(curator), uint160(newCurator));
     }
 
