@@ -41,14 +41,15 @@ contract VaultV2 is ERC20, IVaultV2 {
     mapping(bytes4 => uint64) public timelock;
 
     bytes4[] internal submitSelectorsList = [
+        IVaultV2.submitOwner.selector,
+        IVaultV2.submitCurator.selector,
+        IVaultV2.submitGuardian.selector,
+        IVaultV2.submitTimelock.selector,
         IVaultV2.submitAllocator.selector,
         IVaultV2.submitCapUnzero.selector,
         IVaultV2.submitCapIncrease.selector,
         IVaultV2.submitCapDecrease.selector,
-        IVaultV2.submitIRM.selector,
-        IVaultV2.submitOwner.selector,
-        IVaultV2.submitCurator.selector,
-        IVaultV2.submitGuardian.selector
+        IVaultV2.submitIRM.selector
     ];
 
     /* CONSTRUCTOR */
@@ -80,14 +81,11 @@ contract VaultV2 is ERC20, IVaultV2 {
         for (uint256 i = 0; i < bundle.length; i++) {
             // Note: no need to check that address(this) has code.
             (bool success, bytes memory data) = address(this).delegatecall(bundle[i]);
-            // revert with data if delegatecall failed.
             if (!success) {
                 assembly {
                     revert(add(data, 32), mload(data))
                 }
             }
-
-            // require(success, ErrorsLib.FailedDelegateCall());
         }
 
         unlocked = false;
@@ -131,8 +129,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         for (uint256 i = 0; i < submitSelectorsList.length; i++) {
             if (submitSelectorsList[i] != IVaultV2.submitTimelock.selector) {
                 max = timelock[submitSelectorsList[i]] > max ? timelock[submitSelectorsList[i]] : max;
-                // TODO use the right slot.
-                max = timelockData[0].value > max ? timelockData[0].value : max;
+                uint256 slot = uint256(keccak256(abi.encode(submitSelectorsList[i], 14)));
+                max = timelockData[slot].value > max ? timelockData[slot].value : max;
             }
         }
     }
