@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity 0.8.28;
+pragma solidity 0.8.24;
 
 import {ERC20, IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
@@ -24,28 +24,44 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* STORAGE */
 
+    // Configuration.
+
     // Note that each role could be a smart contract: the owner, curator and allocator.
     // This way, roles are modularized, and notably restricting their capabilities could be done on top.
     address public owner;
+    address public pendingOwner;
+    uint64 public pendingOwnerValidAt;
+    // --
     address public curator;
+    address public pendingCurator;
+    uint64 public pendingCuratorValidAt;
+    // --
     address public guardian;
-    IAllocator public allocator;
+    address public pendingGuardian;
+    uint64 public pendingGuardianValidAt;
+    // --
+    address public allocator;
+    address public pendingAllocator;
+    uint64 public pendingAllocatorValidAt;
+    // --
+    address public irm;
+    address public pendingIrm;
+    uint64 public pendingIrmValidAt;
+    // --
+    mapping(address => uint160) public cap;
+    mapping(address => uint160) public pendingCap;
+    mapping(address => uint64) public pendingCapValidAt;
+    // --
+    mapping(string => uint64) public timelock;
+    mapping(string => uint64) public pendingTimelock;
+    mapping(string => uint64) public pendingTimelockValidAt;
+    // --
+    uint256 internal pendingTimelocks;
 
-    IIRM public irm;
+    // Non configuration.
+
     uint256 public lastUpdate;
     uint256 public lastTotalAssets;
-
-    mapping(address => uint160) public cap;
-
-    mapping(uint256 => TimelockData) public pending;
-
-    mapping(bytes4 => uint64) public timelockToUnzero;
-    mapping(bytes4 => uint64) public timelockToIncrease;
-    mapping(bytes4 => uint64) public timelockToDecrease;
-
-    // Can be made much more efficient, storing it all in one slot that does not get reset.
-    uint256 internal pendingTimelocks;
-    uint256 internal maxTimelock;
 
     /* CONSTRUCTOR */
 
@@ -60,7 +76,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         asset = IERC20(_asset);
         owner = _owner;
         curator = _curator;
-        allocator = IAllocator(_allocator);
+        allocator = _allocator;
         lastUpdate = block.timestamp;
         // The vault starts with no IRM, no markets and no assets. To be configured afterwards.
     }
@@ -68,7 +84,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* AUTHORIZED MULTICALL */
 
     function multicall(bytes[] calldata bundle) external {
-        allocator.authorizeMulticall(msg.sender, bundle);
+        IAllocator(allocator).authorizeMulticall(msg.sender, bundle);
 
         // The allocator is responsible for making sure that bundles cannot reenter.
         unlocked = true;
@@ -91,89 +107,96 @@ contract VaultV2 is ERC20, IVaultV2 {
     function submitOwner(address newOwner) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
 
-        submit(IVaultV2.submitOwner.selector, 5, uint160(owner), uint160(newOwner));
+        pendingOwner = newOwner;
+        pendingOwnerValidAt = uint64(block.timestamp + timelock["owner"]);
+        pendingTimelocks += 1;
+    }
+
+    function revokeOwner() external {
+        require(msg.sender == guardian, ErrorsLib.Unauthorized());
+        require(pendingOwnerValidAt != 0, ErrorsLib.TimelockNotSet());
+
+        delete pendingOwner;
+        delete pendingOwnerValidAt;
+        pendingTimelocks -= 1;
     }
 
     function acceptOwner() external {
-        require(pending[5].validAt != 0, ErrorsLib.TimelockNotSet());
-        require(block.timestamp >= pending[5].validAt, ErrorsLib.TimelockNotExpired());
+        require(pendingOwnerValidAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= pendingOwnerValidAt, ErrorsLib.TimelockNotExpired());
 
-        owner = address(pending[5].value);
+        owner = pendingOwner;
     }
 
     function submitCurator(address newCurator) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
 
-        submit(IVaultV2.submitCurator.selector, 6, uint160(curator), uint160(newCurator));
+        pendingCurator = newCurator;
+        pendingCuratorValidAt = uint64(block.timestamp + timelock["curator"]);
+        pendingTimelocks += 1;
+    }
+
+    function revokeCurator() external {
+        require(msg.sender == guardian, ErrorsLib.Unauthorized());
+        require(pendingCuratorValidAt != 0, ErrorsLib.TimelockNotSet());
+
+        delete pendingCurator;
+        delete pendingCuratorValidAt;
+        pendingTimelocks -= 1;
     }
 
     function acceptCurator() external {
-        require(pending[6].validAt != 0, ErrorsLib.TimelockNotSet());
-        require(block.timestamp >= pending[6].validAt, ErrorsLib.TimelockNotExpired());
+        require(pendingCuratorValidAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= pendingCuratorValidAt, ErrorsLib.TimelockNotExpired());
 
-        curator = address(pending[6].value);
+        curator = pendingCurator;
     }
 
     function submitGuardian(address newGuardian) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
 
-        submit(IVaultV2.submitGuardian.selector, 7, uint160(guardian), uint160(newGuardian));
+        pendingGuardian = newGuardian;
+        pendingGuardianValidAt = uint64(block.timestamp + timelock["guardian"]);
+        pendingTimelocks += 1;
+    }
+
+    function revokeGuardian() external {
+        require(msg.sender == guardian, ErrorsLib.Unauthorized());
+        require(pendingGuardianValidAt != 0, ErrorsLib.TimelockNotSet());
+
+        delete pendingGuardian;
+        delete pendingGuardianValidAt;
+        pendingTimelocks -= 1;
     }
 
     function acceptGuardian() external {
-        require(pending[7].validAt != 0, ErrorsLib.TimelockNotSet());
-        require(block.timestamp >= pending[7].validAt, ErrorsLib.TimelockNotExpired());
+        require(pendingGuardianValidAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= pendingGuardianValidAt, ErrorsLib.TimelockNotExpired());
 
-        guardian = address(pending[7].value);
+        guardian = pendingGuardian;
     }
 
-    function submitTimelock(
-        bytes4 id,
-        uint64 newTimelockToUnzero,
-        uint64 newTimelockToIncrease,
-        uint64 newTimelockToDecrease
-    ) external {
+    function submitTimelock(string memory name, uint64 value) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        require(pendingTimelocks == 0, ErrorsLib.TimelockPending());
-        require(newTimelockToUnzero >= maxTimelock, ErrorsLib.SmallerThanMaxTimelock());
-        require(newTimelockToIncrease >= maxTimelock, ErrorsLib.SmallerThanMaxTimelock());
-        require(newTimelockToDecrease >= maxTimelock, ErrorsLib.SmallerThanMaxTimelock());
+        require(pendingTimelocks == 0);
 
-        submit(
-            IVaultV2.submitTimelock.selector,
-            uint256(keccak256(abi.encode(id, 14))),
-            timelockToUnzero[id],
-            newTimelockToUnzero
-        );
-        submit(
-            IVaultV2.submitTimelock.selector,
-            uint256(keccak256(abi.encode(id, 15))),
-            timelockToIncrease[id],
-            newTimelockToIncrease
-        );
-        submit(
-            IVaultV2.submitTimelock.selector,
-            uint256(keccak256(abi.encode(id, 16))),
-            timelockToDecrease[id],
-            newTimelockToDecrease
-        );
+        pendingTimelock[name] = value;
+        pendingTimelockValidAt[name] = uint64(block.timestamp + timelock["timelock"]);
     }
 
-    function acceptTimelock(bytes4 id) external {
-        require(pending[uint256(keccak256(abi.encode(id, 14)))].validAt != 0, ErrorsLib.TimelockNotSet());
-        require(
-            block.timestamp >= pending[uint256(keccak256(abi.encode(id, 14)))].validAt, ErrorsLib.TimelockNotExpired()
-        );
-        require(
-            block.timestamp >= pending[uint256(keccak256(abi.encode(id, 15)))].validAt, ErrorsLib.TimelockNotExpired()
-        );
-        require(
-            block.timestamp >= pending[uint256(keccak256(abi.encode(id, 16)))].validAt, ErrorsLib.TimelockNotExpired()
-        );
+    function revokeTimelock(string memory name) external {
+        require(msg.sender == guardian, ErrorsLib.Unauthorized());
+        require(pendingTimelockValidAt[name] != 0, ErrorsLib.TimelockNotSet());
 
-        timelockToUnzero[id] = uint64(pending[uint256(keccak256(abi.encode(id, 14)))].value);
-        timelockToIncrease[id] = uint64(pending[uint256(keccak256(abi.encode(id, 15)))].value);
-        timelockToDecrease[id] = uint64(pending[uint256(keccak256(abi.encode(id, 16)))].value);
+        delete pendingTimelock[name];
+        delete pendingTimelockValidAt[name];
+    }
+
+    function acceptTimelock(string memory name) external {
+        require(pendingTimelockValidAt[name] != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= pendingTimelockValidAt[name], ErrorsLib.TimelockNotExpired());
+
+        timelock[name] = pendingTimelock[name];
     }
 
     /* CURATOR ACTIONS */
@@ -181,67 +204,77 @@ contract VaultV2 is ERC20, IVaultV2 {
     function submitAllocator(address newAllocator) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
 
-        submit(IVaultV2.submitAllocator.selector, 8, uint160(address(allocator)), uint160(newAllocator));
+        pendingAllocator = newAllocator;
+        pendingAllocatorValidAt = uint64(block.timestamp + timelock["allocator"]);
+        pendingTimelocks += 1;
+    }
+
+    function revokeAllocator() external {
+        require(msg.sender == guardian, ErrorsLib.Unauthorized());
+        require(pendingAllocatorValidAt != 0, ErrorsLib.TimelockNotSet());
+
+        delete pendingAllocator;
+        delete pendingAllocatorValidAt;
+        pendingTimelocks -= 1;
     }
 
     function acceptAllocator() external {
-        require(pending[8].validAt != 0, ErrorsLib.TimelockNotSet());
-        require(block.timestamp >= pending[8].validAt, ErrorsLib.TimelockNotExpired());
+        require(pendingAllocatorValidAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= pendingAllocatorValidAt, ErrorsLib.TimelockNotExpired());
 
-        allocator = IAllocator(address(pending[8].value));
+        allocator = pendingAllocator;
     }
 
     function submitCap(address market, uint160 newCap) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
 
-        uint256 slot = uint256(keccak256(abi.encode(market, 12)));
-        submit(IVaultV2.submitCap.selector, slot, cap[market], newCap);
+        pendingCap[market] = newCap;
+        if (cap[market] == 0) {
+            pendingCapValidAt[market] = uint64(block.timestamp + timelock["caps unzero"]);
+        } else {
+            pendingCapValidAt[market] = uint64(block.timestamp + timelock["caps change"]);
+        }
+        pendingTimelocks += 1;
+    }
+
+    function revokeCap(address market) external {
+        require(msg.sender == guardian, ErrorsLib.Unauthorized());
+        require(pendingCapValidAt[market] != 0, ErrorsLib.TimelockNotSet());
+
+        delete pendingCap[market];
+        delete pendingCapValidAt[market];
+        pendingTimelocks -= 1;
     }
 
     function acceptCap(address market) external {
-        require(pending[uint256(keccak256(abi.encode(market, 12)))].validAt != 0, ErrorsLib.TimelockNotSet());
-        require(
-            block.timestamp >= pending[uint256(keccak256(abi.encode(market, 12)))].validAt,
-            ErrorsLib.TimelockNotExpired()
-        );
+        require(pendingCapValidAt[market] != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= pendingCapValidAt[market], ErrorsLib.TimelockNotExpired());
 
-        cap[market] = uint160(pending[uint256(keccak256(abi.encode(market, 12)))].value);
+        cap[market] = pendingCap[market];
     }
 
     function submitIRM(address newIRM) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
 
-        submit(IVaultV2.submitIRM.selector, 9, uint160(address(irm)), uint160(newIRM));
+        pendingIrm = newIRM;
+        pendingIrmValidAt = uint64(block.timestamp + timelock["irm"]);
+        pendingTimelocks += 1;
+    }
+
+    function revokeIRM() external {
+        require(msg.sender == guardian, ErrorsLib.Unauthorized());
+        require(pendingIrmValidAt != 0, ErrorsLib.TimelockNotSet());
+
+        delete pendingIrm;
+        delete pendingIrmValidAt;
+        pendingTimelocks -= 1;
     }
 
     function acceptIRM() external {
-        require(pending[9].validAt != 0, ErrorsLib.TimelockNotSet());
-        require(block.timestamp >= pending[9].validAt, ErrorsLib.TimelockNotExpired());
+        require(pendingIrmValidAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= pendingIrmValidAt, ErrorsLib.TimelockNotExpired());
 
-        irm = IIRM(address(pending[9].value));
-    }
-
-    /* TIMELOCKS */
-
-    function submit(bytes4 id, uint256 slot, uint160 oldValue, uint160 newValue) internal {
-        if (oldValue == 0) {
-            pending[slot].validAt = uint64(block.timestamp) + timelockToUnzero[id];
-        } else if (newValue > oldValue) {
-            pending[slot].validAt = uint64(block.timestamp) + timelockToIncrease[id];
-        } else {
-            pending[slot].validAt = uint64(block.timestamp) + timelockToDecrease[id];
-        }
-
-        pending[slot].value = newValue;
-        pendingTimelocks++;
-    }
-
-    function revoke(uint256 slot) external {
-        require(msg.sender == guardian, ErrorsLib.Unauthorized());
-        require(pending[slot].validAt != 0, ErrorsLib.TimelockNotSet());
-
-        delete pending[slot];
-        pendingTimelocks--;
+        irm = pendingIrm;
     }
 
     /* ALLOCATOR ACTIONS */
@@ -280,7 +313,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         // But keeping this possible still, as it can make sense in the custody case when withdrawals are disabled.
         // Note that interestPerSecond should probably be bounded to give guarantees that it cannot rug users instantly.
         // Note that irm.interestPerSecond() reverts if the vault is not initialized and has irm == address(0).
-        int256 newTotalAssets = int256(lastTotalAssets) + irm.interestPerSecond() * int256(elapsed);
+        int256 newTotalAssets = int256(lastTotalAssets) + IIRM(irm).interestPerSecond() * int256(elapsed);
         return newTotalAssets >= 0 ? uint256(newTotalAssets) : 0;
     }
 
