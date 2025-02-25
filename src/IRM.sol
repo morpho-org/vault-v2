@@ -22,9 +22,9 @@ contract IRM is IIRM {
     // Alternatively, this could be computed offchain in the custodial solution.
     // Note also that the formula and its coefficients are arbitrary at the moment:
     // it only illustrates that interestPerSecond is meant to be controlling totalAssets to target realAssets.
-    function setInterest() public {
+    function setInterest(int256 interest) public {
         require(msg.sender == owner);
-        int256 excessAssets = int256(vault.realAssets()) - int256(vault.totalAssets());
-        interestPerSecond = excessAssets / 30 days;
+
+        interestPerSecond = interest;
     }
 }

@@ -6,12 +6,12 @@ import {IERC20} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/ERC
 struct TimelockData {
     uint64 validAt;
     uint160 value;
-    uint8 index;
 }
 
 struct TimelockConfig {
-    bool canIncrease;
-    uint64 duration;
+    uint64 timelockToUnzero;
+    uint64 timelockToIncrease;
+    uint64 timelockToDecrease;
 }
 
 interface IMarket {
@@ -25,22 +25,22 @@ interface IMarket {
 }
 
 interface IVaultV2 is IMarket {
-    function markets(uint256) external view returns (IMarket);
-    function marketsLength() external view returns (uint256);
     function cap(address) external view returns (uint160);
-    function setOwner(address) external;
-    function setCurator(address) external;
-    function setGuardian(address) external;
-    function newMarket(address) external;
-    function dropMarket(uint8) external;
-    function reallocateFromIdle(uint256, uint256) external;
-    function reallocateToIdle(uint256, uint256) external;
-    function realAssets() external view returns (uint256);
+    function submitOwner(address) external;
+    function submitCurator(address) external;
+    function submitGuardian(address) external;
+    function submitAllocator(address) external;
+    function submitIRM(address) external;
+    function submitCap(address, uint160) external;
+    function reallocateFromIdle(address, uint256) external;
+    function reallocateToIdle(address, uint256) external;
     function accrueInterest() external;
-    function setTimelock(bytes4, TimelockConfig memory) external;
-    function revokeTimelock(bytes4) external;
-    function setCap(address, uint160) external;
+    // function setTimelock(bytes4, TimelockConfig memory) external;
+    
+    function revoke(uint256) external;
+    function accept(uint256) external;
+
     // Use trick to make a nice interface returning structs in memory.
-    function timelockData(bytes4) external view returns (uint64, uint160, uint8);
-    function timelockConfig(bytes4) external view returns (bool, uint64);
+    // function timelockData(uint256) external view returns (uint64, uint160);
+    // function timelockConfig(bytes4) external view returns (uint64, uint64, uint64);
 }

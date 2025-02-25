@@ -39,17 +39,17 @@ contract MMAllocator is BaseAllocator {
             ReallocateFromIdleData memory fromIdle = bundle[1].decodeAsReallocateFromIdleData();
             require(toIdle.amount == fromIdle.amount);
         } else {
-            // This implements the withdraw queue.
-            WithdrawData memory withdraw = bundle[bundle.length - 1].decodeAsWithdrawData();
-            uint256 missingLiquidity = withdraw.assets.zeroFloorSub(asset.balanceOf(address(vault)));
-            for (uint256 i; i < bundle.length - 1; i++) {
-                ReallocateToIdleData memory toIdle = bundle[i].decodeAsReallocateToIdleData();
-                require(toIdle.marketIndex == i);
-                require(missingLiquidity > 0);
-                IMarket market = vault.markets(i);
-                require(toIdle.amount == UtilsLib.min(missingLiquidity, market.maxWithdraw(address(vault))));
-                missingLiquidity -= toIdle.amount;
-            }
+            // // This implements the withdraw queue.
+            // WithdrawData memory withdraw = bundle[bundle.length - 1].decodeAsWithdrawData();
+            // uint256 missingLiquidity = withdraw.assets.zeroFloorSub(asset.balanceOf(address(vault)));
+            // for (uint256 i; i < bundle.length - 1; i++) {
+            //     ReallocateToIdleData memory toIdle = bundle[i].decodeAsReallocateToIdleData();
+            //     require(toIdle.marketIndex == i);
+            //     require(missingLiquidity > 0);
+            //     IMarket market = vault.markets(i);
+            //     require(toIdle.amount == UtilsLib.min(missingLiquidity, market.maxWithdraw(address(vault))));
+            //     missingLiquidity -= toIdle.amount;
+            // }
         }
     }
 }

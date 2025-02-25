@@ -15,8 +15,8 @@ contract ManagedVaultTest is BaseTest {
         market = address(new ERC4626Mock(underlyingToken, "LendingMarket", "MKT"));
         vm.label(market, "market");
         vm.startPrank(curator);
-        vault.newMarket(market);
-        vault.setCap(market, 1);
+        vault.submitCap(market, 1);
+        vault.accept(uint256(keccak256(abi.encode(market, 12))));
         vm.stopPrank();
         deal(address(underlyingToken), supplier, 1);
 
@@ -28,14 +28,14 @@ contract ManagedVaultTest is BaseTest {
 
     function testRevertNonManager(address caller) public {
         vm.assume(caller != manager);
-        bundle.push(EncodeLib.reallocateFromIdleCall({marketIndex: 0, amount: 1}));
+        bundle.push(EncodeLib.reallocateFromIdleCall({market: market, amount: 1}));
         vm.prank(caller);
         vm.expectRevert();
         vault.multicall(bundle);
     }
 
     function testManager() public {
-        bundle.push(EncodeLib.reallocateFromIdleCall({marketIndex: 0, amount: 1}));
+        bundle.push(EncodeLib.reallocateFromIdleCall({market: market, amount: 1}));
         vm.prank(manager);
         vault.multicall(bundle);
     }
