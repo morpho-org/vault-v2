@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import {IAllocator} from "../interfaces/IAllocator.sol";
-import {VaultsV2} from "../VaultsV2.sol";
+import {VaultV2} from "../VaultV2.sol";
 
 abstract contract BaseAllocator is IAllocator {
     function authorizeMulticall(address sender, bytes[] calldata bundle) external view virtual;

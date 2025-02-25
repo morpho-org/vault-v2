@@ -2,17 +2,17 @@
 pragma solidity 0.8.28;
 
 import {IIRM} from "./interfaces/IIRM.sol";
-import {VaultsV2} from "./VaultsV2.sol";
+import {VaultV2} from "./VaultV2.sol";
 
 contract IRM is IIRM {
     // Note that owner may be controlled by the curator, if the curator has the ability to change the IRM.
     address public immutable owner;
-    VaultsV2 public immutable vault;
+    VaultV2 public immutable vault;
 
     // Notice how this makes it O(1) in the number of markets.
     int256 public interestPerSecond;
 
-    constructor(address _owner, VaultsV2 _vault) {
+    constructor(address _owner, VaultV2 _vault) {
         owner = _owner;
         vault = _vault;
     }

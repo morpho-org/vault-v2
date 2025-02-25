@@ -6,7 +6,7 @@ import {ERC4626, ERC20, IERC20} from "../../lib/openzeppelin-contracts/contracts
 import {IMorpho, MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 
-// To use to create a new market in VaultsV2.
+// To use to create a new market in VaultV2.
 contract MorphoAdapter is ERC4626 {
     using MorphoBalancesLib for IMorpho;
 

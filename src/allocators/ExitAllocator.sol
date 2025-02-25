@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import {BaseAllocator} from "./BaseAllocator.sol";
-import {VaultsV2} from "../VaultsV2.sol";
+import {VaultV2} from "../VaultV2.sol";
 import {DecodeLib} from "../libraries/DecodeLib.sol";
 
 // This allocator allows reallocation to idle.
@@ -12,7 +12,7 @@ contract ExitAllocator is BaseAllocator {
 
     function authorizeMulticall(address, bytes[] calldata bundle) external pure override {
         for (uint256 i; i < bundle.length; i++) {
-            require(bundle[i].selector_() != VaultsV2.reallocateFromIdle.selector);
+            require(bundle[i].selector_() != VaultV2.reallocateFromIdle.selector);
         }
     }
 }

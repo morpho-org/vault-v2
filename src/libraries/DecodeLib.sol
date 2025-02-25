@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
-import {VaultsV2} from "../VaultsV2.sol";
+import {VaultV2} from "../VaultV2.sol";
 
 struct SetIRMData {
     address irm;
@@ -52,19 +52,19 @@ library DecodeLib {
 
     function decodeAsReallocateFromIdleData(bytes memory _call) internal pure returns (ReallocateFromIdleData memory) {
         require(_call.length == 68);
-        require(_call.selector_() == VaultsV2.reallocateFromIdle.selector);
+        require(_call.selector_() == VaultV2.reallocateFromIdle.selector);
         return ReallocateFromIdleData({marketIndex: _call.field_(0).uint256_(), amount: _call.field_(1).uint256_()});
     }
 
     function decodeAsReallocateToIdleData(bytes memory _call) internal pure returns (ReallocateToIdleData memory) {
         require(_call.length == 68);
-        require(_call.selector_() == VaultsV2.reallocateToIdle.selector);
+        require(_call.selector_() == VaultV2.reallocateToIdle.selector);
         return ReallocateToIdleData({marketIndex: _call.field_(0).uint256_(), amount: _call.field_(1).uint256_()});
     }
 
     function decodeAsWithdrawData(bytes memory _call) internal pure returns (WithdrawData memory) {
         require(_call.length == 100);
-        require(_call.selector_() == VaultsV2.withdraw.selector);
+        require(_call.selector_() == VaultV2.withdraw.selector);
         return WithdrawData({
             assets: _call.field_(0).uint256_(),
             receiver: _call.field_(1).address_(),
