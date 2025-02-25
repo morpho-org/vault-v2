@@ -88,6 +88,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* ONWER ACTIONS */
 
     function submitOwner(address newOwner) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        
         uint256 slot;
         assembly ("memory-safe") {
             slot := owner.slot
@@ -98,6 +100,8 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     // Can be seen as an exit to underlying, governed by the owner.
     function submitCurator(address newCurator) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        
         uint256 slot;
         assembly ("memory-safe") {
             slot := curator.slot
@@ -107,6 +111,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function submitGuardian(address newGuardian) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        
         uint256 slot;
         assembly ("memory-safe") {
             slot := guardian.slot
@@ -117,7 +123,6 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setTimelock(bytes4 id, TimelockConfig memory config) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        require(pendingTimelocks == 0, ErrorsLib.TimelockPending());
 
         // TODO
         timelockConfig[id] = config;
@@ -126,6 +131,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* CURATOR ACTIONS */
 
     function submitAllocator(address newAllocator) external {
+        require(msg.sender == curator, ErrorsLib.Unauthorized());
+        
         uint256 slot;
         assembly ("memory-safe") {
             slot := allocator.slot
@@ -135,6 +142,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function submitCap(address market, uint160 newCap) external {
+        require(msg.sender == curator, ErrorsLib.Unauthorized());
+        
         uint256 mappingSlot;
         assembly ("memory-safe") {
             mappingSlot := cap.slot
@@ -145,6 +154,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function submitIRM(address newIRM) external {
+        require(msg.sender == curator, ErrorsLib.Unauthorized());
+        
         uint256 slot;
         assembly ("memory-safe") {
             slot := irm.slot
