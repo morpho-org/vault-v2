@@ -10,6 +10,7 @@ import {IIRM} from "./interfaces/IIRM.sol";
 import {IAllocator} from "./interfaces/IAllocator.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
+import {ConstantsLib} from "./libraries/ConstantsLib.sol";
 
 contract VaultV2 is ERC20, IVaultV2 {
     using Math for uint256;
@@ -30,6 +31,9 @@ contract VaultV2 is ERC20, IVaultV2 {
     address public curator;
     IAllocator public allocator;
     address public guardian;
+
+    uint160 public fee;
+    address public feeRecipient;
 
     IIRM public irm;
     uint256 public lastUpdate;
@@ -102,6 +106,17 @@ contract VaultV2 is ERC20, IVaultV2 {
         uint160 serializedNewValue = uint160(newGuardian);
         bool authorizedToSubmit = msg.sender == owner;
         if (submittedToTimelock(0, abstractedOldValue, serializedNewValue, authorizedToSubmit)) owner = newGuardian;
+    }
+
+    function setFee(uint160 newFee) external {
+        bool authorizedToSubmit = msg.sender == owner;
+        if (submittedToTimelock(newFee, authorizedToSubmit)) fee = newFee;
+    }
+
+    function setFeeRecipient(address newFeeRecipient) external {
+        uint160 serializedNewValue = uint160(newFeeRecipient);
+        bool authorizedToSubmit = msg.sender == owner;
+        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) feeRecipient = newFeeRecipient;
     }
 
     /* CURATOR ACTIONS */
@@ -181,22 +196,36 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function totalAssets() public view returns (uint256) {
-        return _accruedInterest();
+        (, uint256 newTotalAssets) = _accruedFeeShares();
+        return newTotalAssets;
     }
 
     function accrueInterest() public {
-        lastTotalAssets = _accruedInterest();
+        (uint256 feeShares, uint256 newTotalAssets) = _accruedFeeShares();
+
+        lastTotalAssets = newTotalAssets;
+
+        if (feeShares != 0) _mint(feeRecipient, feeShares);
+
         lastUpdate = block.timestamp;
     }
 
-    function _accruedInterest() internal view returns (uint256) {
+    function _accruedFeeShares() internal view returns (uint256 feeShares, uint256 newTotalAssets) {
         uint256 elapsed = block.timestamp - lastUpdate;
         // Note that interest could be negative, but this is not always incentive compatible: users would want to leave.
         // But keeping this possible still, as it can make sense in the custody case when withdrawals are disabled.
         // Note that interestPerSecond should probably be bounded to give guarantees that it cannot rug users instantly.
         // Note that irm.interestPerSecond() reverts if the vault is not initialized and has irm == address(0).
-        int256 newTotalAssets = int256(lastTotalAssets) + irm.interestPerSecond() * int256(elapsed);
-        return newTotalAssets >= 0 ? uint256(newTotalAssets) : 0;
+        int256 interest = irm.interestPerSecond() * int256(elapsed);
+        int256 rawTotalAssets = int256(lastTotalAssets) + interest;
+        newTotalAssets = rawTotalAssets >= 0 ? uint256(rawTotalAssets) : 0;
+        if (interest > 0 && fee != 0) {
+            // It is acknowledged that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
+            uint256 feeAssets = uint256(interest).mulDiv(fee, ConstantsLib.WAD, Math.Rounding.Floor);
+            // The fee assets is subtracted from the total assets in this calculation to compensate for the fact
+            // that total assets is already increased by the total interest (including the fee assets).
+            feeShares = feeAssets.mulDiv(totalSupply() + 1, lastTotalAssets + 1 - feeAssets, Math.Rounding.Floor);
+        }
     }
 
     function convertToShares(uint256 assets) external view returns (uint256) {
