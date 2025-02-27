@@ -111,72 +111,65 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function submitChangeOwnerTimelock(uint64 newTimelock) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        require(newTimelock >= 2 weeks);
+        require(newTimelock <= 2 weeks);
 
         if (newTimelock >= changeOwnerTimelock) pending[5].validAt = uint64(block.timestamp);
         else pending[5].validAt = uint64(block.timestamp) + 2 weeks;
         pending[5].value = newTimelock;
-        changeOwnerTimelock = newTimelock;
     }
 
     function submitChangeCuratorTimelock(uint64 newTimelock) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        require(newTimelock >= 2 weeks);
+        require(newTimelock <= 2 weeks);
 
         if (newTimelock >= changeCuratorTimelock) pending[6].validAt = uint64(block.timestamp);
         else pending[6].validAt = uint64(block.timestamp) + 2 weeks;
         pending[6].value = newTimelock;
-        changeCuratorTimelock = newTimelock;
     }
 
     function submitChangeGuardianTimelock(uint64 newTimelock) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        require(newTimelock >= 2 weeks);
+        require(newTimelock <= 2 weeks);
 
         if (newTimelock >= changeGuardianTimelock) pending[7].validAt = uint64(block.timestamp);
         else pending[7].validAt = uint64(block.timestamp) + 2 weeks;
         pending[7].value = newTimelock;
-        changeGuardianTimelock = newTimelock;
     }
 
     function submitChangeAllocatorTimelock(uint64 newTimelock) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        require(newTimelock >= 2 weeks);
+        require(newTimelock <= 2 weeks);
 
         if (newTimelock >= changeAllocatorTimelock) pending[8].validAt = uint64(block.timestamp);
         else pending[8].validAt = uint64(block.timestamp) + 2 weeks;
         pending[8].value = newTimelock;
-        changeAllocatorTimelock = newTimelock;
     }
 
     function submitChangeIRMTimelock(uint64 newTimelock) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        require(newTimelock >= 2 weeks);
+        require(newTimelock <= 2 weeks);
 
         if (newTimelock >= changeIRMTimelock) pending[9].validAt = uint64(block.timestamp);
         else pending[9].validAt = uint64(block.timestamp) + 2 weeks;
         pending[9].value = newTimelock;
-        changeIRMTimelock = newTimelock;
     }
 
     function submitUnzeroCapTimelock(uint64 newTimelock) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        require(newTimelock >= 2 weeks);
+        require(newTimelock <= 2 weeks);
 
         if (newTimelock >= unzeroCapTimelock) pending[10].validAt = uint64(block.timestamp);
         else pending[10].validAt = uint64(block.timestamp) + 2 weeks;
         pending[10].value = newTimelock;
-        unzeroCapTimelock = newTimelock;
     }
 
     function submitIncreaseCapTimelock(uint64 newTimelock) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        require(newTimelock >= 2 weeks);
+        require(newTimelock <= 2 weeks);
 
         if (newTimelock >= increaseCapTimelock) pending[11].validAt = uint64(block.timestamp);
         else pending[11].validAt = uint64(block.timestamp) + 2 weeks;
         pending[11].value = newTimelock;
-        increaseCapTimelock = newTimelock;
     }
 
     /* CURATOR ACTIONS */
