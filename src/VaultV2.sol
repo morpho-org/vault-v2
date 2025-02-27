@@ -14,6 +14,10 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 contract VaultV2 is ERC20, IVaultV2 {
     using Math for uint256;
 
+    /* CONSTANT */
+
+    uint64 public constant TIMELOCKS_TIMELOCK = 2 weeks;
+
     /* IMMUTABLE */
 
     IERC20 public immutable asset;
@@ -88,7 +92,6 @@ contract VaultV2 is ERC20, IVaultV2 {
         pending[5].value = uint160(newOwner);
     }
 
-    // Can be seen as an exit to underlying, governed by the owner.
     function submitCurator(address newCurator) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
 
@@ -105,32 +108,13 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function submitTimelock(bytes4 id, uint64 newTimelock) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        if (id == IVaultV2.submitTimelock.selector) require(newTimelock >= computeMaxTimelock());
-        else require(newTimelock <= timelock[IVaultV2.submitTimelock.selector]);
+        // Timelocks must be smaller than the timelocks timelock, in order to have the property: a value cannot change
+        // before min(pending value, timelock).
+        require(newTimelock <= TIMELOCKS_TIMELOCK);
 
         uint256 slot = uint256(keccak256(abi.encode(id, 14)));
-        pending[slot].validAt = uint64(block.timestamp) + timelock[IVaultV2.submitTimelock.selector];
+        pending[slot].validAt = uint64(block.timestamp) + TIMELOCKS_TIMELOCK;
         pending[slot].value = newTimelock;
-    }
-
-    function computeMaxTimelock() internal view returns (uint256 max) {
-        bytes4[7] memory submitSelectorsList = [
-            IVaultV2.submitOwner.selector,
-            IVaultV2.submitCurator.selector,
-            IVaultV2.submitGuardian.selector,
-            IVaultV2.submitAllocator.selector,
-            IVaultV2.submitCapUnzero.selector,
-            IVaultV2.submitCapIncrease.selector,
-            IVaultV2.submitIRM.selector
-        ];
-
-        for (uint256 i = 0; i < submitSelectorsList.length; i++) {
-            if (submitSelectorsList[i] != IVaultV2.submitTimelock.selector) {
-                max = timelock[submitSelectorsList[i]] > max ? timelock[submitSelectorsList[i]] : max;
-                uint256 slot = uint256(keccak256(abi.encode(submitSelectorsList[i], 14)));
-                max = pending[slot].value > max ? pending[slot].value : max;
-            }
-        }
     }
 
     /* CURATOR ACTIONS */
