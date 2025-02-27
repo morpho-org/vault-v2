@@ -86,6 +86,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* ONWER ACTIONS */
 
     function setFee(uint160 newFee) external {
+        // Probably can require lower fees.
+        require(newFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
         bool authorizedToSubmit = msg.sender == owner;
         if (submittedToTimelock(newFee, authorizedToSubmit)) fee = newFee;
     }
