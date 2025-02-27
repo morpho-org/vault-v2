@@ -126,7 +126,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
         guardian = address(pending[7].value);
     }
-    
+
     function submitTimelock(bytes4 id, uint64 newTimelock) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
         // Timelocks must be smaller than the timelocks timelock, in order to have the property: a value cannot change
@@ -140,7 +140,9 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function acceptTimelock(bytes4 id) external {
         require(pending[uint256(keccak256(abi.encode(id, 14)))].validAt != 0, ErrorsLib.TimelockNotSet());
-        require(block.timestamp >= pending[uint256(keccak256(abi.encode(id, 14)))].validAt, ErrorsLib.TimelockNotExpired());
+        require(
+            block.timestamp >= pending[uint256(keccak256(abi.encode(id, 14)))].validAt, ErrorsLib.TimelockNotExpired()
+        );
 
         uint256 slot = uint256(keccak256(abi.encode(id, 14)));
         timelock[id] = uint64(pending[slot].value);
