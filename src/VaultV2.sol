@@ -8,6 +8,7 @@ import {SafeERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/uti
 import {TimelockData, TimelockConfig, IMarket, IVaultV2} from "./interfaces/IVaultV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {IAllocator} from "./interfaces/IAllocator.sol";
+import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {ConstantsLib} from "./libraries/ConstantsLib.sol";
@@ -17,6 +18,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* IMMUTABLE */
 
+    address public immutable factory;
     IERC20 public immutable asset;
 
     /* TRANSIENT */
@@ -29,13 +31,13 @@ contract VaultV2 is ERC20, IVaultV2 {
     // This way, roles are modularized, and notably restricting their capabilities could be done on top.
     address public owner;
     address public curator;
-    IAllocator public allocator;
+    address public allocator;
     address public guardian;
 
     uint160 public fee;
     address public feeRecipient;
 
-    IIRM public irm;
+    address public irm;
     uint256 public lastUpdate;
     uint256 public lastTotalAssets;
 
@@ -50,6 +52,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* CONSTRUCTOR */
 
     constructor(
+        address _factory,
         address _owner,
         address _curator,
         address _allocator,
@@ -57,10 +60,11 @@ contract VaultV2 is ERC20, IVaultV2 {
         string memory _name,
         string memory _symbol
     ) ERC20(_name, _symbol) {
+        factory = _factory;
         asset = IERC20(_asset);
         owner = _owner;
         curator = _curator;
-        allocator = IAllocator(_allocator);
+        allocator = _allocator;
         lastUpdate = block.timestamp;
         timelockConfig[IVaultV2.setGuardian.selector].canIncrease = true;
         // The vault starts with no IRM, no markets and no assets. To be configured afterwards.
@@ -69,7 +73,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* AUTHORIZED MULTICALL */
 
     function multicall(bytes[] calldata bundle) external {
-        allocator.authorizeMulticall(msg.sender, bundle);
+        IAllocator(allocator).authorizeMulticall(msg.sender, bundle);
 
         // The allocator is responsible for making sure that bundles cannot reenter.
         unlocked = true;
@@ -125,7 +129,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function setAllocator(address newAllocator) external {
         uint160 serializedNewValue = uint160(newAllocator);
         bool authorizedToSubmit = msg.sender == curator || msg.sender == address(allocator);
-        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) allocator = IAllocator(newAllocator);
+        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) allocator = newAllocator;
     }
 
     // Could set cap right when adding a market, to avoid having to wait the timelock twice.
@@ -162,7 +166,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function setIRM(address newIRM) external {
         uint160 serializedNewValue = uint160(newIRM);
         bool authorizedToSubmit = msg.sender == curator;
-        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) irm = IIRM(newIRM);
+        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) irm = newIRM;
     }
 
     /* ALLOCATOR ACTIONS */
@@ -206,7 +210,12 @@ contract VaultV2 is ERC20, IVaultV2 {
 
         lastTotalAssets = newTotalAssets;
 
-        if (feeShares != 0) _mint(feeRecipient, feeShares);
+        if (feeShares != 0) {
+            ProtocolFee memory protocolFee = IVaultV2Factory(factory).protocolFee();
+            uint256 protocolFeeShares = feeShares.mulDiv(protocolFee.fee, ConstantsLib.WAD, Math.Rounding.Floor);
+            _mint(protocolFee.feeRecipient, protocolFeeShares);
+            _mint(feeRecipient, feeShares - protocolFeeShares);
+        }
 
         lastUpdate = block.timestamp;
     }
@@ -217,7 +226,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         // But keeping this possible still, as it can make sense in the custody case when withdrawals are disabled.
         // Note that interestPerSecond should probably be bounded to give guarantees that it cannot rug users instantly.
         // Note that irm.interestPerSecond() reverts if the vault is not initialized and has irm == address(0).
-        int256 interest = irm.interestPerSecond() * int256(elapsed);
+        int256 interest = IIRM(irm).interestPerSecond() * int256(elapsed);
         int256 rawTotalAssets = int256(lastTotalAssets) + interest;
         newTotalAssets = rawTotalAssets >= 0 ? uint256(rawTotalAssets) : 0;
         if (interest > 0 && fee != 0) {

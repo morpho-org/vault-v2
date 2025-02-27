@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
+import {IVaultV2Factory} from "../src/interfaces/IVaultV2Factory.sol";
+import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
+
+import {VaultV2Factory} from "../src/VaultV2Factory.sol";
 import {VaultV2} from "../src/VaultV2.sol";
 import {IRM} from "../src/IRM.sol";
 import {ManagedAllocator} from "../src/allocators/ManagedAllocator.sol";
@@ -17,7 +21,8 @@ contract BaseTest is Test {
 
     ERC20Mock underlyingToken;
     ManagedAllocator allocator;
-    VaultV2 vault;
+    IVaultV2Factory vaultFactory;
+    IVaultV2 vault;
     IRM irm;
 
     bytes[] bundle;
@@ -31,7 +36,13 @@ contract BaseTest is Test {
         allocator = new ManagedAllocator(manager);
         vm.label(address(allocator), "allocator");
 
-        vault = new VaultV2(owner, curator, address(allocator), address(underlyingToken), "VaultToken", "VAULT");
+        vaultFactory = IVaultV2Factory(address(new VaultV2Factory(address(this))));
+
+        vault = IVaultV2(
+            vaultFactory.createVaultV2(
+                owner, curator, address(allocator), address(underlyingToken), "VaultToken", "VAULT"
+            )
+        );
         vm.label(address(vault), "vault");
         irm = new IRM(manager, vault);
         vm.label(address(irm), "IRM");

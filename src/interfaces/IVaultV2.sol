@@ -24,9 +24,16 @@ interface IMarket {
 }
 
 interface IVaultV2 is IMarket {
+    function owner() external view returns (address);
+    function curator() external view returns (address);
+    function allocator() external view returns (address);
+    function guardian() external view returns (address);
+    function irm() external view returns (address);
     function markets(uint256) external view returns (IMarket);
     function marketsLength() external view returns (uint256);
     function cap(address) external view returns (uint160);
+
+    function multicall(bytes[] calldata bundle) external;
     function setFee(uint160) external;
     function setFeeRecipient(address) external;
     function setOwner(address) external;
