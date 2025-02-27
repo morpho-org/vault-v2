@@ -25,13 +25,11 @@ interface IVaultV2 is IMarket {
     function submitGuardian(address) external;
     function submitAllocator(address) external;
     function submitIRM(address) external;
-    function submitCapUnzero(address, uint160) external;
-    function submitCapIncrease(address, uint160) external;
-    function submitCapDecrease(address, uint160) external;
+    function submitCap(address, uint160) external;
     function reallocateFromIdle(address, uint256) external;
     function reallocateToIdle(address, uint256) external;
     function accrueInterest() external;
-    function submitTimelock(bytes4, uint64) external;
+    function submitTimelock(bytes32, uint64) external;
 
     function revoke(uint256) external;
     function accept(uint256) external;
