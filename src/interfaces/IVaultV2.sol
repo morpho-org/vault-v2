@@ -30,6 +30,7 @@ interface IVaultV2 is IMarket {
     function setOwner(address) external;
     function setCurator(address) external;
     function setGuardian(address) external;
+    function setAllocator(address) external;
     function newMarket(address) external;
     function dropMarket(uint8) external;
     function reallocateFromIdle(uint256, uint256) external;
@@ -39,6 +40,7 @@ interface IVaultV2 is IMarket {
     function setTimelock(bytes4, TimelockConfig memory) external;
     function revokeTimelock(bytes4) external;
     function setCap(address, uint160) external;
+    function setIRM(address) external;
     // Use trick to make a nice interface returning structs in memory.
     function timelockData(bytes24) external view returns (uint64, uint160);
     function timelockConfig(bytes4) external view returns (bool, uint64);
