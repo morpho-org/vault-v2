@@ -85,6 +85,17 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* ONWER ACTIONS */
 
+    function setFee(uint160 newFee) external {
+        bool authorizedToSubmit = msg.sender == owner;
+        if (submittedToTimelock(newFee, authorizedToSubmit)) fee = newFee;
+    }
+
+    function setFeeRecipient(address newFeeRecipient) external {
+        uint160 serializedNewValue = uint160(newFeeRecipient);
+        bool authorizedToSubmit = msg.sender == owner;
+        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) feeRecipient = newFeeRecipient;
+    }
+
     function setOwner(address newOwner) external {
         uint160 serializedNewValue = uint160(newOwner);
         bool authorizedToSubmit = msg.sender == owner;
@@ -105,17 +116,6 @@ contract VaultV2 is ERC20, IVaultV2 {
         uint160 serializedNewValue = uint160(newGuardian);
         bool authorizedToSubmit = msg.sender == owner;
         if (submittedToTimelock(0, abstractedOldValue, serializedNewValue, authorizedToSubmit)) owner = newGuardian;
-    }
-
-    function setFee(uint160 newFee) external {
-        bool authorizedToSubmit = msg.sender == owner;
-        if (submittedToTimelock(newFee, authorizedToSubmit)) fee = newFee;
-    }
-
-    function setFeeRecipient(address newFeeRecipient) external {
-        uint160 serializedNewValue = uint160(newFeeRecipient);
-        bool authorizedToSubmit = msg.sender == owner;
-        if (submittedToTimelock(serializedNewValue, authorizedToSubmit)) feeRecipient = newFeeRecipient;
     }
 
     /* CURATOR ACTIONS */
@@ -290,7 +290,9 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* TIMELOCKS */
 
     function maxTimelockDuration() internal view returns (uint256 max) {
-        bytes4[8] memory selectorsList = [
+        bytes4[10] memory selectorsList = [
+            IVaultV2.setFee.selector,
+            IVaultV2.setFeeRecipient.selector,
             IVaultV2.setOwner.selector,
             IVaultV2.setCurator.selector,
             IVaultV2.setGuardian.selector,
