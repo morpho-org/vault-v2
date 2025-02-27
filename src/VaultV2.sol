@@ -14,6 +14,10 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 contract VaultV2 is ERC20, IVaultV2 {
     using Math for uint256;
 
+    /* CONSTANT */
+
+    uint64 public constant TIMELOCKS_TIMELOCK = 2 weeks;
+
     /* IMMUTABLE */
 
     IERC20 public immutable asset;
@@ -95,7 +99,6 @@ contract VaultV2 is ERC20, IVaultV2 {
         pending[5].value = uint160(newOwner);
     }
 
-    // Can be seen as an exit to underlying, governed by the owner.
     function submitCurator(address newCurator) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
 
@@ -112,11 +115,12 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function submitTimelock(bytes32 timelockKey, uint64 newTimelock) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        require(newTimelock >= 2 weeks);
+        // Timelocks must be smaller than the timelocks timelock, in order to have the property: a value cannot change
+        // before min(pending value, timelock).
+        require(newTimelock <= TIMELOCKS_TIMELOCK);
 
-        uint256 slot = uint256(keccak256(abi.encode(timelockKey, 14)));
-        if (newTimelock >= timelock[timelockKey]) pending[slot].validAt = uint64(block.timestamp);
-        else pending[slot].validAt = uint64(block.timestamp) + 2 weeks;
+        uint256 slot = uint256(keccak256(abi.encode(id, 14)));
+        pending[slot].validAt = uint64(block.timestamp) + TIMELOCKS_TIMELOCK;
         pending[slot].value = newTimelock;
     }
 
