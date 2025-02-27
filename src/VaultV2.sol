@@ -114,8 +114,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(newTimelock <= 2 weeks);
 
         if (newTimelock >= changeOwnerTimelock) pending[5].validAt = uint64(block.timestamp);
-        else pending[5].validAt = uint64(block.timestamp) + 2 weeks;
-        pending[5].value = newTimelock;
+        else pending[14].validAt = uint64(block.timestamp) + 2 weeks;
+        pending[14].value = newTimelock;
     }
 
     function submitChangeCuratorTimelock(uint64 newTimelock) external {
@@ -123,8 +123,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(newTimelock <= 2 weeks);
 
         if (newTimelock >= changeCuratorTimelock) pending[6].validAt = uint64(block.timestamp);
-        else pending[6].validAt = uint64(block.timestamp) + 2 weeks;
-        pending[6].value = newTimelock;
+        else pending[15].validAt = uint64(block.timestamp) + 2 weeks;
+        pending[15].value = newTimelock;
     }
 
     function submitChangeGuardianTimelock(uint64 newTimelock) external {
@@ -132,8 +132,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(newTimelock <= 2 weeks);
 
         if (newTimelock >= changeGuardianTimelock) pending[7].validAt = uint64(block.timestamp);
-        else pending[7].validAt = uint64(block.timestamp) + 2 weeks;
-        pending[7].value = newTimelock;
+        else pending[16].validAt = uint64(block.timestamp) + 2 weeks;
+        pending[16].value = newTimelock;
     }
 
     function submitChangeAllocatorTimelock(uint64 newTimelock) external {
@@ -141,8 +141,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(newTimelock <= 2 weeks);
 
         if (newTimelock >= changeAllocatorTimelock) pending[8].validAt = uint64(block.timestamp);
-        else pending[8].validAt = uint64(block.timestamp) + 2 weeks;
-        pending[8].value = newTimelock;
+        else pending[17].validAt = uint64(block.timestamp) + 2 weeks;
+        pending[17].value = newTimelock;
     }
 
     function submitChangeIRMTimelock(uint64 newTimelock) external {
@@ -150,8 +150,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(newTimelock <= 2 weeks);
 
         if (newTimelock >= changeIRMTimelock) pending[9].validAt = uint64(block.timestamp);
-        else pending[9].validAt = uint64(block.timestamp) + 2 weeks;
-        pending[9].value = newTimelock;
+        else pending[18].validAt = uint64(block.timestamp) + 2 weeks;
+        pending[18].value = newTimelock;
     }
 
     function submitUnzeroCapTimelock(uint64 newTimelock) external {
@@ -159,8 +159,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(newTimelock <= 2 weeks);
 
         if (newTimelock >= unzeroCapTimelock) pending[10].validAt = uint64(block.timestamp);
-        else pending[10].validAt = uint64(block.timestamp) + 2 weeks;
-        pending[10].value = newTimelock;
+        else pending[19].validAt = uint64(block.timestamp) + 2 weeks;
+        pending[19].value = newTimelock;
     }
 
     function submitIncreaseCapTimelock(uint64 newTimelock) external {
@@ -168,8 +168,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(newTimelock <= 2 weeks);
 
         if (newTimelock >= increaseCapTimelock) pending[11].validAt = uint64(block.timestamp);
-        else pending[11].validAt = uint64(block.timestamp) + 2 weeks;
-        pending[11].value = newTimelock;
+        else pending[20].validAt = uint64(block.timestamp) + 2 weeks;
+        pending[20].value = newTimelock;
     }
 
     /* CURATOR ACTIONS */
