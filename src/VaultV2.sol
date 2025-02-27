@@ -17,13 +17,6 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* IMMUTABLE */
 
     IERC20 public immutable asset;
-    bytes32 private constant CHANGE_OWNER_TIMELOCK_KEY = keccak256("change owner");
-    bytes32 private constant CHANGE_CURATOR_TIMELOCK_KEY = keccak256("change curator");
-    bytes32 private constant CHANGE_GUARDIAN_TIMELOCK_KEY = keccak256("change guardian");
-    bytes32 private constant CHANGE_ALLOCATOR_TIMELOCK_KEY = keccak256("change allocator");
-    bytes32 private constant UNZERO_CAP_TIMELOCK_KEY = keccak256("unzero cap");
-    bytes32 private constant INCREASE_CAP_TIMELOCK_KEY = keccak256("increase capy");
-    bytes32 private constant CHANGE_IRM_TIMELOCK_KEY = keccak256("change irm");
 
     /* TRANSIENT */
 
@@ -45,7 +38,13 @@ contract VaultV2 is ERC20, IVaultV2 {
     mapping(address => uint160) public cap;
 
     mapping(uint256 => Pending) public pending;
-    mapping(bytes32 => uint64) public timelock;
+    uint256 public changeOwnerTimelock;
+    uint256 public changeCuratorTimelock;
+    uint256 public changeGuardianTimelock;
+    uint256 public changeAllocatorTimelock;
+    uint256 public changeIRMTimelock;
+    uint256 public unzeroCapTimelock;
+    uint256 public increaseCapTimelock;
 
     /* CONSTRUCTOR */
 
@@ -91,7 +90,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function submitOwner(address newOwner) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
 
-        pending[5].validAt = uint64(block.timestamp) + timelock[CHANGE_OWNER_TIMELOCK_KEY];
+        pending[5].validAt = uint64(block.timestamp) + uint64(changeOwnerTimelock);
         pending[5].value = uint160(newOwner);
     }
 
@@ -99,23 +98,37 @@ contract VaultV2 is ERC20, IVaultV2 {
     function submitCurator(address newCurator) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
 
-        pending[6].validAt = uint64(block.timestamp) + timelock[CHANGE_CURATOR_TIMELOCK_KEY];
+        pending[6].validAt = uint64(block.timestamp) + uint64(changeCuratorTimelock);
         pending[6].value = uint160(newCurator);
     }
 
     function submitGuardian(address newGuardian) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
 
-        pending[7].validAt = uint64(block.timestamp) + timelock[CHANGE_GUARDIAN_TIMELOCK_KEY];
+        pending[7].validAt = uint64(block.timestamp) + uint64(changeGuardianTimelock);
         pending[7].value = uint160(newGuardian);
     }
 
-    function submitTimelock(bytes32 timelockKey, uint64 newTimelock) external {
+    function submitTimelock(string memory timelockKey, uint64 newTimelock) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
         require(newTimelock >= 2 weeks);
 
-        uint256 slot = uint256(keccak256(abi.encode(timelockKey, 14)));
-        if (newTimelock >= timelock[timelockKey]) pending[slot].validAt = uint64(block.timestamp);
+        uint256 slot;
+        if (keccak256(abi.encode(timelockKey)) == keccak256(abi.encode("changeOwner"))) slot = 14;
+        else if (keccak256(abi.encode(timelockKey)) == keccak256(abi.encode("changeCurator"))) slot = 15;
+        else if (keccak256(abi.encode(timelockKey)) == keccak256(abi.encode("changeGuardian"))) slot = 16;
+        else if (keccak256(abi.encode(timelockKey)) == keccak256(abi.encode("changeAllocator"))) slot = 17;
+        else if (keccak256(abi.encode(timelockKey)) == keccak256(abi.encode("changeIRM"))) slot = 18;
+        else if (keccak256(abi.encode(timelockKey)) == keccak256(abi.encode("unzeroCap"))) slot = 19;
+        else if (keccak256(abi.encode(timelockKey)) == keccak256(abi.encode("increaseCap"))) slot = 20;
+        else revert("unknown timelock key");
+
+        uint256 currentTimelock;
+        assembly {
+            currentTimelock := sload(slot)
+        }
+
+        if (newTimelock >= currentTimelock) pending[slot].validAt = uint64(block.timestamp);
         else pending[slot].validAt = uint64(block.timestamp) + 2 weeks;
         pending[slot].value = newTimelock;
     }
@@ -125,7 +138,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function submitAllocator(address newAllocator) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
 
-        pending[8].validAt = uint64(block.timestamp) + timelock[CHANGE_ALLOCATOR_TIMELOCK_KEY];
+        pending[8].validAt = uint64(block.timestamp) + uint64(changeAllocatorTimelock);
         pending[8].value = uint160(newAllocator);
     }
 
@@ -135,9 +148,9 @@ contract VaultV2 is ERC20, IVaultV2 {
 
         uint256 slot = uint256(keccak256(abi.encode(market, 12)));
         if (cap[market] == 0) {
-            pending[slot].validAt = uint64(block.timestamp) + timelock[UNZERO_CAP_TIMELOCK_KEY];
+            pending[slot].validAt = uint64(block.timestamp) + uint64(unzeroCapTimelock);
         } else if (newCap > cap[market]) {
-            pending[slot].validAt = uint64(block.timestamp) + timelock[INCREASE_CAP_TIMELOCK_KEY];
+            pending[slot].validAt = uint64(block.timestamp) + uint64(increaseCapTimelock);
         } else {
             pending[slot].validAt = uint64(block.timestamp);
         }
@@ -147,7 +160,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function submitIRM(address newIRM) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
 
-        pending[9].validAt = uint64(block.timestamp) + timelock[CHANGE_IRM_TIMELOCK_KEY];
+        pending[9].validAt = uint64(block.timestamp) + uint64(changeIRMTimelock);
         pending[9].value = uint160(newIRM);
     }
 

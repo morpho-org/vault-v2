@@ -29,7 +29,7 @@ interface IVaultV2 is IMarket {
     function reallocateFromIdle(address, uint256) external;
     function reallocateToIdle(address, uint256) external;
     function accrueInterest() external;
-    function submitTimelock(bytes32, uint64) external;
+    // function submitTimelock(bytes32, uint64) external;
 
     function revoke(uint256) external;
     function accept(uint256) external;
