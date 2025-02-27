@@ -3,7 +3,7 @@ pragma solidity >=0.5.0;
 
 import {IERC20} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 
-struct TimelockData {
+struct Pending {
     uint64 validAt;
     uint160 value;
 }
