@@ -119,8 +119,9 @@ contract VaultV2 is ERC20, IVaultV2 {
         // before min(pending value, timelock).
         require(newTimelock <= TIMELOCKS_TIMELOCK);
 
-        uint256 slot = uint256(keccak256(abi.encode(id, 14)));
-        pending[slot].validAt = uint64(block.timestamp) + TIMELOCKS_TIMELOCK;
+        uint256 slot = uint256(keccak256(abi.encode(timelockKey, 14)));
+        if (newTimelock > timelock[timelockKey]) pending[slot].validAt = uint64(block.timestamp) + TIMELOCKS_TIMELOCK;
+        else pending[slot].validAt = uint64(block.timestamp);
         pending[slot].value = newTimelock;
     }
 
