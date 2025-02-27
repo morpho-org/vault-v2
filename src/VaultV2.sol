@@ -40,9 +40,8 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     mapping(bytes24 => TimelockData) public timelockData;
     mapping(bytes4 => TimelockConfig) public timelockConfig;
-    // Can be made much more efficient, storing it all in one slot that does not get reset.
+    // Can be made more efficient by not resetting the slot.
     uint256 internal pendingTimelocksCount;
-    uint256 internal maxTimelocks;
 
     /* CONSTRUCTOR */
 
@@ -261,20 +260,36 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* TIMELOCKS */
 
+    function maxTimelockDuration() internal view returns (uint256 max) {
+        bytes4[8] memory selectorsList = [
+            IVaultV2.setOwner.selector,
+            IVaultV2.setCurator.selector,
+            IVaultV2.setGuardian.selector,
+            IVaultV2.setAllocator.selector,
+            IVaultV2.newMarket.selector,
+            IVaultV2.dropMarket.selector,
+            IVaultV2.setCap.selector,
+            IVaultV2.setIRM.selector
+        ];
+        for (uint256 i; i < 8; i++) {
+            bytes4 sel = selectorsList[i];
+            uint256 currentDuration = timelockConfig[sel].duration;
+            max = currentDuration > max ? currentDuration : max;
+        }
+    }
+
     function setTimelock(bytes4 sel, TimelockConfig memory config) external {
         // Using true instead of config.canIncrease is an optimization.
         // The encoded value should hold in 160 bits so that comparison is meaningful.
         uint160 oldValue = uint160(bytes20(abi.encodePacked(sel, true, timelockConfig[sel].duration)));
         uint160 serializedNewValue = uint160(bytes20(abi.encodePacked(sel, config.canIncrease, config.duration)));
         bool greaterThanOtherTimelocks = sel == IVaultV2.setTimelock.selector
-            ? config.duration >= maxTimelocks
+            ? config.duration >= maxTimelockDuration()
             : config.duration <= timelockConfig[IVaultV2.setTimelock.selector].duration;
         bool authorizedToSubmit = msg.sender == curator && pendingTimelocksCount == 0 && timelockData[sel].validAt == 0
             && greaterThanOtherTimelocks;
         if (submittedToTimelock(uint32(sel), oldValue, serializedNewValue, authorizedToSubmit)) {
             timelockConfig[sel] = config;
-            maxTimelocks =
-                sel != IVaultV2.setTimelock.selector && config.duration > maxTimelocks ? config.duration : maxTimelocks;
         }
     }
 
