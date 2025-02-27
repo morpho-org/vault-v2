@@ -9,11 +9,8 @@ library ErrorsLib {
     error TimelockNotExpired();
     error TimelockNotSet();
     error TimelockPending();
-<<<<<<< HEAD
     error SmallerThanMaxTimelock();
-=======
     error TimelockTooSmall();
->>>>>>> feat/timelock-slot
     error WrongValue();
     error CapExceeded();
 }
