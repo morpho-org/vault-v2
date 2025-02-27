@@ -3,7 +3,7 @@ pragma solidity >=0.5.0;
 
 import {IERC20} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 
-struct TimelockData {
+struct Pending {
     uint64 validAt;
     uint160 value;
 }
@@ -25,11 +25,13 @@ interface IVaultV2 is IMarket {
     function submitGuardian(address) external;
     function submitAllocator(address) external;
     function submitIRM(address) external;
-    function submitCap(address, uint160) external;
+    function submitCapUnzero(address, uint160) external;
+    function submitCapIncrease(address, uint160) external;
+    function submitCapDecrease(address, uint160) external;
     function reallocateFromIdle(address, uint256) external;
     function reallocateToIdle(address, uint256) external;
     function accrueInterest() external;
-    function submitTimelock(bytes4, uint64, uint64, uint64) external;
+    function submitTimelock(bytes4, uint64) external;
 
     function revoke(uint256) external;
 
