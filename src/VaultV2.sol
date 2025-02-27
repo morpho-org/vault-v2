@@ -20,7 +20,6 @@ contract VaultV2 is ERC20, IVaultV2 {
     bytes32 private constant CHANGE_OWNER_TIMELOCK_KEY = keccak256("change owner");
     bytes32 private constant CHANGE_CURATOR_TIMELOCK_KEY = keccak256("change curator");
     bytes32 private constant CHANGE_GUARDIAN_TIMELOCK_KEY = keccak256("change guardian");
-    bytes32 private constant DECREASE_TIMELOCK_TIMELOCK_KEY = keccak256("decrease timelock");
     bytes32 private constant CHANGE_ALLOCATOR_TIMELOCK_KEY = keccak256("change allocator");
     bytes32 private constant UNZERO_CAP_TIMELOCK_KEY = keccak256("unzero cap");
     bytes32 private constant INCREASE_CAP_TIMELOCK_KEY = keccak256("increase capy");
@@ -113,12 +112,11 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function submitTimelock(bytes32 timelockKey, uint64 newTimelock) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        if (timelockKey == INCREASE_CAP_TIMELOCK_KEY) require(newTimelock >= 2 weeks);
-        else require(newTimelock <= 2 weeks);
+        require(newTimelock >= 2 weeks);
 
         uint256 slot = uint256(keccak256(abi.encode(timelockKey, 14)));
         if (newTimelock >= timelock[timelockKey]) pending[slot].validAt = uint64(block.timestamp);
-        else pending[slot].validAt = uint64(block.timestamp) + timelock[DECREASE_TIMELOCK_TIMELOCK_KEY];
+        else pending[slot].validAt = uint64(block.timestamp) + 2 weeks;
         pending[slot].value = newTimelock;
     }
 
