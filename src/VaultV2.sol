@@ -213,7 +213,8 @@ contract VaultV2 is ERC20, IVaultV2 {
 
         if (feeShares != 0) {
             ProtocolFee memory protocolFee = IVaultV2Factory(factory).protocolFee();
-            uint256 protocolFeeShares = feeShares.mulDiv(protocolFee.fee, ConstantsLib.WAD, Math.Rounding.Floor);
+            // Todo: verify that this computation can't return something greater than feeShares.
+            uint256 protocolFeeShares = feeShares.mulDiv(protocolFee.fee, ConstantsLib.WAD, Math.Rounding.Ceil);
             _mint(protocolFee.feeRecipient, protocolFeeShares);
             _mint(feeRecipient, feeShares - protocolFeeShares);
         }
