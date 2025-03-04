@@ -17,10 +17,6 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* CONSTANT */
 
     uint64 public constant TIMELOCKS_TIMELOCK = 2 weeks;
-
-    /* IMMUTABLE */
-
-    IERC20 public immutable asset;
     bytes32 private constant CHANGE_OWNER_TIMELOCK_KEY = keccak256("change owner");
     bytes32 private constant CHANGE_CURATOR_TIMELOCK_KEY = keccak256("change curator");
     bytes32 private constant CHANGE_GUARDIAN_TIMELOCK_KEY = keccak256("change guardian");
@@ -28,6 +24,10 @@ contract VaultV2 is ERC20, IVaultV2 {
     bytes32 private constant UNZERO_CAP_TIMELOCK_KEY = keccak256("unzero cap");
     bytes32 private constant INCREASE_CAP_TIMELOCK_KEY = keccak256("increase cap");
     bytes32 private constant CHANGE_IRM_TIMELOCK_KEY = keccak256("change irm");
+
+    /* IMMUTABLE */
+
+    IERC20 public immutable asset;
 
     /* TRANSIENT */
 
@@ -90,20 +90,13 @@ contract VaultV2 is ERC20, IVaultV2 {
         unlocked = false;
     }
 
-    /* ONWER ACTIONS */
+    /* SUBMIT ACTIONS */
 
     function submitOwner(address newOwner) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
 
         pending["owner"].validAt = uint64(block.timestamp) + timelock[CHANGE_OWNER_TIMELOCK_KEY];
         pending["owner"].value = uint160(newOwner);
-    }
-
-    function acceptOwner() external {
-        require(pending["owner"].validAt != 0, ErrorsLib.TimelockNotSet());
-        require(block.timestamp >= pending["owner"].validAt, ErrorsLib.TimelockNotExpired());
-
-        owner = address(pending["owner"].value);
     }
 
     function submitCurator(address newCurator) external {
@@ -113,25 +106,11 @@ contract VaultV2 is ERC20, IVaultV2 {
         pending["curator"].value = uint160(newCurator);
     }
 
-    function acceptCurator() external {
-        require(pending["curator"].validAt != 0, ErrorsLib.TimelockNotSet());
-        require(block.timestamp >= pending["curator"].validAt, ErrorsLib.TimelockNotExpired());
-
-        curator = address(pending["curator"].value);
-    }
-
     function submitGuardian(address newGuardian) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
 
         pending["guardian"].validAt = uint64(block.timestamp) + timelock[CHANGE_GUARDIAN_TIMELOCK_KEY];
         pending["guardian"].value = uint160(newGuardian);
-    }
-
-    function acceptGuardian() external {
-        require(pending["guardian"].validAt != 0, ErrorsLib.TimelockNotSet());
-        require(block.timestamp >= pending["guardian"].validAt, ErrorsLib.TimelockNotExpired());
-
-        guardian = address(pending["guardian"].value);
     }
 
     function submitTimelock(bytes32 timelockKey, uint64 newTimelock) external {
@@ -143,17 +122,6 @@ contract VaultV2 is ERC20, IVaultV2 {
         pending[key].value = newTimelock;
     }
 
-    function acceptTimelock(bytes32 timelockKey) external {
-        bytes32 key = keccak256(abi.encode("timelock", timelockKey));
-        require(pending[key].validAt != 0, ErrorsLib.TimelockNotSet());
-        require(block.timestamp >= pending[key].validAt, ErrorsLib.TimelockNotExpired());
-
-        timelock[timelockKey] = uint64(pending[key].value);
-        delete pending[key];
-    }
-
-    /* CURATOR ACTIONS */
-
     function submitAllocator(address newAllocator) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
 
@@ -161,11 +129,11 @@ contract VaultV2 is ERC20, IVaultV2 {
         pending["allocator"].value = uint160(newAllocator);
     }
 
-    function acceptAllocator() external {
-        require(pending["allocator"].validAt != 0, ErrorsLib.TimelockNotSet());
-        require(block.timestamp >= pending["allocator"].validAt, ErrorsLib.TimelockNotExpired());
+    function submitIRM(address newIRM) external {
+        require(msg.sender == curator, ErrorsLib.Unauthorized());
 
-        allocator = IAllocator(address(pending["allocator"].value));
+        pending["irm"].validAt = uint64(block.timestamp) + timelock[CHANGE_IRM_TIMELOCK_KEY];
+        pending["irm"].value = uint160(newIRM);
     }
 
     function submitCap(address market, uint160 newCap) external {
@@ -183,6 +151,52 @@ contract VaultV2 is ERC20, IVaultV2 {
         pending[key].value = newCap;
     }
 
+    /* ACCEPT ACTIONS */
+
+    function acceptOwner() external {
+        require(pending["owner"].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= pending["owner"].validAt, ErrorsLib.TimelockNotExpired());
+
+        owner = address(pending["owner"].value);
+    }
+
+    function acceptCurator() external {
+        require(pending["curator"].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= pending["curator"].validAt, ErrorsLib.TimelockNotExpired());
+
+        curator = address(pending["curator"].value);
+    }
+
+    function acceptGuardian() external {
+        require(pending["guardian"].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= pending["guardian"].validAt, ErrorsLib.TimelockNotExpired());
+
+        guardian = address(pending["guardian"].value);
+    }
+
+    function acceptTimelock(bytes32 timelockKey) external {
+        bytes32 key = keccak256(abi.encode("timelock", timelockKey));
+        require(pending[key].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= pending[key].validAt, ErrorsLib.TimelockNotExpired());
+
+        timelock[timelockKey] = uint64(pending[key].value);
+        delete pending[key];
+    }
+
+    function acceptAllocator() external {
+        require(pending["allocator"].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= pending["allocator"].validAt, ErrorsLib.TimelockNotExpired());
+
+        allocator = IAllocator(address(pending["allocator"].value));
+    }
+
+    function acceptIRM() external {
+        require(pending["irm"].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= pending["irm"].validAt, ErrorsLib.TimelockNotExpired());
+
+        irm = IIRM(address(pending["irm"].value));
+    }
+    
     function acceptCap(address market) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         bytes32 key = keccak256(abi.encode("cap", market));
@@ -193,21 +207,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         delete pending[key];
     }
 
-    function submitIRM(address newIRM) external {
-        require(msg.sender == curator, ErrorsLib.Unauthorized());
 
-        pending["irm"].validAt = uint64(block.timestamp) + timelock[CHANGE_IRM_TIMELOCK_KEY];
-        pending["irm"].value = uint160(newIRM);
-    }
-
-    function acceptIRM() external {
-        require(pending["irm"].validAt != 0, ErrorsLib.TimelockNotSet());
-        require(block.timestamp >= pending["irm"].validAt, ErrorsLib.TimelockNotExpired());
-
-        irm = IIRM(address(pending["irm"].value));
-    }
-
-    /* TIMELOCKS */
+    /* REVOKE ACTION */
 
     function revoke(bytes32 key) external {
         require(msg.sender == guardian, ErrorsLib.Unauthorized());
