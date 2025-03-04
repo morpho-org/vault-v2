@@ -92,6 +92,13 @@ contract VaultV2 is ERC20, IVaultV2 {
         pending[5].value = uint160(newOwner);
     }
 
+    function acceptOwner() external {
+        require(pending[5].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= pending[5].validAt, ErrorsLib.TimelockNotExpired());
+
+        owner = address(pending[5].value);
+    }
+
     function submitCurator(address newCurator) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
 
@@ -99,11 +106,25 @@ contract VaultV2 is ERC20, IVaultV2 {
         pending[6].value = uint160(newCurator);
     }
 
+    function acceptCurator() external {
+        require(pending[6].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= pending[6].validAt, ErrorsLib.TimelockNotExpired());
+
+        curator = address(pending[6].value);
+    }
+
     function submitGuardian(address newGuardian) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
 
         pending[7].validAt = uint64(block.timestamp) + timelock[IVaultV2.submitGuardian.selector];
         pending[7].value = uint160(newGuardian);
+    }
+
+    function acceptGuardian() external {
+        require(pending[7].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= pending[7].validAt, ErrorsLib.TimelockNotExpired());
+
+        guardian = address(pending[7].value);
     }
 
     function submitTimelock(bytes4 id, uint64 newTimelock) external {
@@ -117,6 +138,17 @@ contract VaultV2 is ERC20, IVaultV2 {
         pending[slot].value = newTimelock;
     }
 
+    function acceptTimelock(bytes4 id) external {
+        require(pending[uint256(keccak256(abi.encode(id, 14)))].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(
+            block.timestamp >= pending[uint256(keccak256(abi.encode(id, 14)))].validAt, ErrorsLib.TimelockNotExpired()
+        );
+
+        uint256 slot = uint256(keccak256(abi.encode(id, 14)));
+        timelock[id] = uint64(pending[slot].value);
+        delete pending[slot];
+    }
+
     /* CURATOR ACTIONS */
 
     function submitAllocator(address newAllocator) external {
@@ -124,6 +156,13 @@ contract VaultV2 is ERC20, IVaultV2 {
 
         pending[8].validAt = uint64(block.timestamp) + timelock[IVaultV2.submitAllocator.selector];
         pending[8].value = uint160(newAllocator);
+    }
+
+    function acceptAllocator() external {
+        require(pending[8].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= pending[8].validAt, ErrorsLib.TimelockNotExpired());
+
+        allocator = IAllocator(address(pending[8].value));
     }
 
     function submitCapUnzero(address market, uint160 newCap) external {
@@ -150,6 +189,16 @@ contract VaultV2 is ERC20, IVaultV2 {
         pending[slot].value = newCap;
     }
 
+    function acceptCap(address market) external {
+        require(pending[uint256(keccak256(abi.encode(market, 12)))].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(
+            block.timestamp >= pending[uint256(keccak256(abi.encode(market, 12)))].validAt,
+            ErrorsLib.TimelockNotExpired()
+        );
+
+        cap[market] = uint160(pending[uint256(keccak256(abi.encode(market, 12)))].value);
+    }
+
     function submitIRM(address newIRM) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
 
@@ -157,23 +206,18 @@ contract VaultV2 is ERC20, IVaultV2 {
         pending[9].value = uint160(newIRM);
     }
 
+    function acceptIRM() external {
+        require(pending[9].validAt != 0, ErrorsLib.TimelockNotSet());
+        require(block.timestamp >= pending[9].validAt, ErrorsLib.TimelockNotExpired());
+
+        irm = IIRM(address(pending[9].value));
+    }
+
     /* TIMELOCKS */
 
     function revoke(uint256 slot) external {
         require(msg.sender == guardian, ErrorsLib.Unauthorized());
-
-        delete pending[slot];
-    }
-
-    function accept(uint256 slot) external {
         require(pending[slot].validAt != 0, ErrorsLib.TimelockNotSet());
-        require(block.timestamp >= pending[slot].validAt, ErrorsLib.TimelockNotExpired());
-
-        uint256 value = pending[slot].value;
-
-        assembly {
-            sstore(slot, value)
-        }
 
         delete pending[slot];
     }

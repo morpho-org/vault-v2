@@ -34,7 +34,6 @@ interface IVaultV2 is IMarket {
     function submitTimelock(bytes4, uint64) external;
 
     function revoke(uint256) external;
-    function accept(uint256) external;
 
     // Use trick to make a nice interface returning structs in memory.
     // function timelockData(uint256) external view returns (uint64, uint160);
