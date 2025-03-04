@@ -16,7 +16,7 @@ contract ManagedVaultTest is BaseTest {
         vm.label(market, "market");
         vm.startPrank(curator);
         vault.submitCap(market, 1);
-        vault.accept(uint256(keccak256(abi.encode(market, 12))));
+        vault.acceptCap(market);
         vm.stopPrank();
         deal(address(underlyingToken), supplier, 1);
 
