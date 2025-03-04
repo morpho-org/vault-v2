@@ -163,6 +163,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function submitCapUnzero(address market, uint160 newCap) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
+        require(cap[market] == 0, "must unzero");
 
         bytes32 key = keccak256(abi.encode("cap", market));
         pending[key].validAt = uint64(block.timestamp) + timelock[IVaultV2.submitCapUnzero.selector];
@@ -171,6 +172,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function submitCapDecrease(address market, uint160 newCap) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
+        require(newCap < cap[market], "must decrease");
 
         bytes32 key = keccak256(abi.encode("cap", market));
         pending[key].validAt = uint64(block.timestamp) + timelock[IVaultV2.submitCapDecrease.selector];
@@ -179,6 +181,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function submitCapIncrease(address market, uint160 newCap) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
+        require(newCap > cap[market], "must increase");
 
         bytes32 key = keccak256(abi.encode("cap", market));
         pending[key].validAt = uint64(block.timestamp) + timelock[IVaultV2.submitCapIncrease.selector];
