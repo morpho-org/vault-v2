@@ -14,6 +14,9 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 contract VaultV2 is ERC20, IVaultV2 {
     using Math for uint256;
 
+    /* CONSTANT */
+    uint64 public constant MIN_TIMELOCKS_TIMELOCK = 2 weeks;
+
     /* IMMUTABLE */
 
     IERC20 public immutable asset;
@@ -41,8 +44,6 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     mapping(bytes24 => TimelockData) public timelockData;
     mapping(bytes4 => uint64) public timelockDuration;
-    // Can be made more efficient by not resetting the slot.
-    uint256 internal pendingTimelocksCount;
 
     /* CONSTRUCTOR */
 
@@ -255,32 +256,12 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* TIMELOCKS */
 
-    function maxTimelockDuration() internal view returns (uint256 max) {
-        bytes4[8] memory selectorsList = [
-            IVaultV2.setOwner.selector,
-            IVaultV2.setCurator.selector,
-            IVaultV2.setGuardian.selector,
-            IVaultV2.setAllocator.selector,
-            IVaultV2.newMarket.selector,
-            IVaultV2.dropMarket.selector,
-            IVaultV2.setCap.selector,
-            IVaultV2.setIRM.selector
-        ];
-        for (uint256 i; i < 8; i++) {
-            bytes4 sel = selectorsList[i];
-            uint256 currentDuration = timelockDuration[sel];
-            max = currentDuration > max ? currentDuration : max;
-        }
-    }
-
     function setTimelock(bytes4 sel, uint64 newDuration) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        bool greaterThanOtherTimelocks = sel == IVaultV2.setTimelock.selector
-            ? newDuration >= maxTimelockDuration()
-            : newDuration <= timelockDuration[IVaultV2.setTimelock.selector];
-        bool authorizedToSubmit =
-            pendingTimelocksCount == 0 && timelockData[sel].validAt == 0 && greaterThanOtherTimelocks;
-        require(authorizedToSubmit);
+        require(
+            sel == bytes4(msg.data[:4]) ? newDuration >= MIN_TIMELOCKS_TIMELOCK : newDuration <= MIN_TIMELOCKS_TIMELOCK,
+            ErrorsLib.WrongTimelockDuration()
+        );
         if (submittedToTimelock(uint32(sel), newDuration)) {
             timelockDuration[sel] = newDuration;
         }
@@ -298,29 +279,24 @@ contract VaultV2 is ERC20, IVaultV2 {
         } else if (timelockData[id].validAt != 0) {
             require(block.timestamp >= timelockData[id].validAt, ErrorsLib.TimelockNotExpired());
             require(newValue == timelockData[id].value, ErrorsLib.WrongValue());
-            clearTimelock(sel);
+            timelockData[sel].validAt = 0;
+            timelockData[sel].value = 0;
 
             return true;
         } else {
             require(timelockData[IVaultV2.setTimelock.selector].validAt == 0, ErrorsLib.TimelockIsChanging());
             timelockData[id].validAt = uint64(block.timestamp) + timelockDuration[sel];
             timelockData[id].value = newValue;
-            pendingTimelocksCount++;
 
             return false;
         }
     }
 
-    function clearTimelock(bytes4 sel) internal {
-        timelockData[sel].validAt = 0;
-        timelockData[sel].value = 0;
-        pendingTimelocksCount--;
-    }
-
     function revokeTimelock(bytes4 sel) external {
         require(msg.sender == guardian, ErrorsLib.Unauthorized());
         require(timelockData[sel].validAt != 0);
-        clearTimelock(sel);
+        timelockData[sel].validAt = 0;
+        timelockData[sel].value = 0;
     }
 
     /* INTERFACE */
