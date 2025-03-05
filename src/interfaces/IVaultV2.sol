@@ -8,11 +8,6 @@ struct TimelockData {
     uint160 value;
 }
 
-struct TimelockConfig {
-    bool canIncrease;
-    uint64 duration;
-}
-
 interface IMarket {
     function asset() external view returns (IERC20);
     function totalAssets() external view returns (uint256);
@@ -37,11 +32,10 @@ interface IVaultV2 is IMarket {
     function reallocateToIdle(uint256, uint256) external;
     function realAssets() external view returns (uint256);
     function accrueInterest() external;
-    function setTimelock(bytes4, TimelockConfig memory) external;
+    function setTimelock(bytes4, uint64) external;
     function revokeTimelock(bytes4) external;
     function setCap(address, uint160) external;
     function setIRM(address) external;
     // Use trick to make a nice interface returning structs in memory.
     function timelockData(bytes24) external view returns (uint64, uint160);
-    function timelockConfig(bytes4) external view returns (bool, uint64);
 }
