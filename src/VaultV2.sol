@@ -269,8 +269,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         if (timelockDuration[sel] == 0) {
             updateValue = true;
         } else if (pending[id].validAt != 0) {
-            require(block.timestamp >= pending[id].validAt, ErrorsLib.TimelockNotExpired());
-            updateValue = pending[id].value == newValue;
+            require(newValue == pending[id].value, ErrorsLib.WrongPendingValue());
+            updateValue = block.timestamp >= pending[id].validAt;
             delete pending[id];
         } else {
             pending[id].validAt = uint64(block.timestamp) + timelockDuration[sel];
