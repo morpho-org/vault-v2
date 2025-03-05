@@ -5,7 +5,7 @@ import {ERC20, IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20
 import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {SafeERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {TimelockData, IMarket, IVaultV2} from "./interfaces/IVaultV2.sol";
+import {Pending, IMarket, IVaultV2} from "./interfaces/IVaultV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {IAllocator} from "./interfaces/IAllocator.sol";
 
@@ -42,7 +42,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     IMarket[] public markets;
     mapping(address => uint160) public cap;
 
-    mapping(bytes24 => TimelockData) public timelockData;
+    mapping(bytes24 => Pending) public pending;
     mapping(bytes4 => uint64) public timelockDuration;
 
     /* CONSTRUCTOR */
@@ -132,8 +132,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setCap(address market, uint160 newCap) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        uint160 serializedNewValue = type(uint160).max - newCap;
-        if (newCap < cap[market] || submittedToTimelock(uint160(market), serializedNewValue)) {
+        if (newCap < cap[market] || submittedToTimelock(uint160(market), newCap)) {
             cap[market] = newCap;
         }
     }
@@ -276,27 +275,24 @@ contract VaultV2 is ERC20, IVaultV2 {
         bytes24 id = bytes24(abi.encodePacked(sel, field));
         if (timelockDuration[sel] == 0) {
             return true;
-        } else if (timelockData[id].validAt != 0) {
-            require(block.timestamp >= timelockData[id].validAt, ErrorsLib.TimelockNotExpired());
-            require(newValue == timelockData[id].value, ErrorsLib.WrongValue());
-            timelockData[sel].validAt = 0;
-            timelockData[sel].value = 0;
+        } else if (pending[id].validAt != 0) {
+            require(block.timestamp >= pending[id].validAt, ErrorsLib.TimelockNotExpired());
+            require(newValue == pending[id].value, ErrorsLib.WrongTimelockValue());
+            delete pending[id];
 
             return true;
         } else {
-            require(timelockData[IVaultV2.setTimelock.selector].validAt == 0, ErrorsLib.TimelockIsChanging());
-            timelockData[id].validAt = uint64(block.timestamp) + timelockDuration[sel];
-            timelockData[id].value = newValue;
+            pending[id].validAt = uint64(block.timestamp) + timelockDuration[sel];
+            pending[id].value = newValue;
 
             return false;
         }
     }
 
-    function revokeTimelock(bytes4 sel) external {
+    function revokePending(bytes24 id) external {
         require(msg.sender == guardian, ErrorsLib.Unauthorized());
-        require(timelockData[sel].validAt != 0);
-        timelockData[sel].validAt = 0;
-        timelockData[sel].value = 0;
+        require(pending[id].validAt != 0);
+        delete pending[id];
     }
 
     /* INTERFACE */
