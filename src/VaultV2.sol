@@ -254,7 +254,7 @@ contract VaultV2 is ERC20, IVaultV2 {
             sel == bytes4(msg.data[:4]) ? newDuration >= TIMELOCK_CAP : newDuration <= TIMELOCK_CAP,
             ErrorsLib.WrongTimelockDuration()
         );
-        if (submittedToTimelock(uint32(sel), newDuration)) {
+        if (newDuration > timelockDuration[sel] || submittedToTimelock(uint32(sel), newDuration)) {
             timelockDuration[sel] = newDuration;
         }
     }
