@@ -84,36 +84,31 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setOwner(address newOwner) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        uint160 serializedNewValue = uint160(newOwner);
-        if (submittedToTimelock(serializedNewValue)) owner = newOwner;
+        if (submittedToTimelock(uint160(newOwner))) owner = newOwner;
     }
 
     // Can be seen as an exit to underlying, governed by the owner.
     function setCurator(address newCurator) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        uint160 serializedNewValue = uint160(newCurator);
-        if (submittedToTimelock(serializedNewValue)) curator = newCurator;
+        if (submittedToTimelock(uint160(newCurator))) curator = newCurator;
     }
 
     function setGuardian(address newGuardian) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        uint160 serializedNewValue = uint160(newGuardian);
-        if (submittedToTimelock(serializedNewValue)) owner = newGuardian;
+        if (submittedToTimelock(uint160(newGuardian))) owner = newGuardian;
     }
 
     /* CURATOR ACTIONS */
 
     function setAllocator(address newAllocator) external {
         require(msg.sender == owner || msg.sender == address(allocator), ErrorsLib.Unauthorized());
-        uint160 serializedNewValue = uint160(newAllocator);
-        if (submittedToTimelock(serializedNewValue)) allocator = IAllocator(newAllocator);
+        if (submittedToTimelock(uint160(newAllocator))) allocator = IAllocator(newAllocator);
     }
 
     // Could set cap right when adding a market, to avoid having to wait the timelock twice.
     function newMarket(address market) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        uint160 serializedNewValue = uint160(market);
-        if (submittedToTimelock(serializedNewValue, serializedNewValue)) {
+        if (submittedToTimelock(uint160(market), uint160(market))) {
             asset.approve(market, type(uint256).max);
             markets.push(IMarket(market));
         }
@@ -122,8 +117,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function dropMarket(uint8 index) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         address market = address(markets[index]);
-        uint160 serializedNewValue = uint160(market);
-        if (submittedToTimelock(serializedNewValue, serializedNewValue)) {
+        if (submittedToTimelock(uint160(market), uint160(market))) {
             asset.approve(market, 0);
             markets[index] = markets[markets.length - 1];
             markets.pop();
@@ -139,8 +133,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setIRM(address newIRM) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        uint160 serializedNewValue = uint160(newIRM);
-        if (submittedToTimelock(serializedNewValue)) irm = IIRM(newIRM);
+        if (submittedToTimelock(uint160(newIRM))) irm = IIRM(newIRM);
     }
 
     /* ALLOCATOR ACTIONS */
