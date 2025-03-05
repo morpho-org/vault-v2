@@ -15,7 +15,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     using Math for uint256;
 
     /* CONSTANT */
-    uint64 public constant MIN_TIMELOCKS_TIMELOCK = 2 weeks;
+    uint64 public constant TIMELOCK_CAP = 2 weeks;
 
     /* IMMUTABLE */
 
@@ -258,7 +258,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function setTimelock(bytes4 sel, uint64 newDuration) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(
-            sel == bytes4(msg.data[:4]) ? newDuration >= MIN_TIMELOCKS_TIMELOCK : newDuration <= MIN_TIMELOCKS_TIMELOCK,
+            sel == bytes4(msg.data[:4]) ? newDuration >= TIMELOCK_CAP : newDuration <= TIMELOCK_CAP,
             ErrorsLib.WrongTimelockDuration()
         );
         if (submittedToTimelock(uint32(sel), newDuration)) {
@@ -270,22 +270,18 @@ contract VaultV2 is ERC20, IVaultV2 {
         return submittedToTimelock(0, newValue);
     }
 
-    function submittedToTimelock(uint160 field, uint160 newValue) internal returns (bool) {
+    function submittedToTimelock(uint160 field, uint160 newValue) internal returns (bool updateValue) {
         bytes4 sel = bytes4(msg.data[:4]);
         bytes24 id = bytes24(abi.encodePacked(sel, field));
         if (timelockDuration[sel] == 0) {
-            return true;
+            updateValue = true;
         } else if (pending[id].validAt != 0) {
             require(block.timestamp >= pending[id].validAt, ErrorsLib.TimelockNotExpired());
-            require(newValue == pending[id].value, ErrorsLib.WrongTimelockValue());
+            updateValue = pending[id].value == newValue;
             delete pending[id];
-
-            return true;
         } else {
             pending[id].validAt = uint64(block.timestamp) + timelockDuration[sel];
             pending[id].value = newValue;
-
-            return false;
         }
     }
 
