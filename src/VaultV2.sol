@@ -197,7 +197,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
         irm = IIRM(address(pending["irm"].value));
     }
-    
+
     function acceptCap(address market) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         bytes32 key = keccak256(abi.encode("cap", market));
@@ -207,7 +207,6 @@ contract VaultV2 is ERC20, IVaultV2 {
         cap[market] = uint160(pending[key].value);
         delete pending[key];
     }
-
 
     /* REVOKE ACTION */
 
