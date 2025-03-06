@@ -31,6 +31,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* TRANSIENT */
 
+    // TODO: make this actually transient.
     bool public unlocked;
 
     /* STORAGE */
