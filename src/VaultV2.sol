@@ -251,7 +251,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function setTimelock(bytes4 sel, uint64 newDuration) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(
-            sel == bytes4(msg.data[:4]) ? newDuration >= TIMELOCK_CAP : newDuration <= TIMELOCK_CAP,
+            sel == IVaultV2.setTimelock.selector ? newDuration >= TIMELOCK_CAP : newDuration <= TIMELOCK_CAP,
             ErrorsLib.WrongTimelockDuration()
         );
         if (newDuration > timelockDuration[sel] || submittedToTimelock(uint32(sel), newDuration)) {
@@ -268,19 +268,18 @@ contract VaultV2 is ERC20, IVaultV2 {
         bytes24 id = bytes24(abi.encodePacked(sel, field));
         if (timelockDuration[sel] == 0) {
             updateValue = true;
-        } else if (pending[id].validAt != 0) {
+        } else if (pending[id].validAt == 0) {
+            pending[id].validAt = uint64(block.timestamp) + timelockDuration[sel];
+            pending[id].value = newValue;
+        } else {
             require(newValue == pending[id].value, ErrorsLib.WrongPendingValue());
             updateValue = block.timestamp >= pending[id].validAt;
             delete pending[id];
-        } else {
-            pending[id].validAt = uint64(block.timestamp) + timelockDuration[sel];
-            pending[id].value = newValue;
         }
     }
 
     function revokePending(bytes24 id) external {
         require(msg.sender == guardian, ErrorsLib.Unauthorized());
-        require(pending[id].validAt != 0);
         delete pending[id];
     }
 
