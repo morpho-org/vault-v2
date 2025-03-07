@@ -93,7 +93,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     function setFee(Action action, uint160 newFee) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
         require(newFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
-        if (action == Action.Set && newFee < fee || submittedToTimelock(action, newFee)) fee = newFee;
+        bool canSet = newFee < fee;
+        if (submittedToTimelock(action, canSet, 0, newFee)) fee = newFee;
     }
 
     function setFeeRecipient(address newFeeRecipient) external {
@@ -127,7 +128,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     // Could set cap right when adding a market, to avoid having to wait the timelock twice.
     function newMarket(Action action, address market) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(action, uint160(market), uint160(market))) {
+        if (submittedToTimelock(action, false, uint160(market), uint160(market))) {
             asset.approve(market, type(uint256).max);
             markets.push(IMarket(market));
         }
@@ -136,7 +137,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function dropMarket(Action action, uint8 index) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         address market = address(markets[index]);
-        if (submittedToTimelock(action, uint160(market), uint160(market))) {
+        if (submittedToTimelock(action, false, uint160(market), uint160(market))) {
             asset.approve(market, 0);
             markets[index] = markets[markets.length - 1];
             markets.pop();
@@ -145,7 +146,8 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setCap(Action action, address market, uint160 newCap) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        if (action == Action.Set && newCap < cap[market] || submittedToTimelock(action, uint160(market), newCap)) {
+        bool canSet = newCap < cap[market];
+        if (submittedToTimelock(action, canSet, uint160(market), newCap)) {
             cap[market] = newCap;
         }
     }
@@ -288,23 +290,24 @@ contract VaultV2 is ERC20, IVaultV2 {
             sel == IVaultV2.setTimelock.selector ? newDuration >= TIMELOCK_CAP : newDuration <= TIMELOCK_CAP,
             ErrorsLib.WrongTimelockDuration()
         );
-        if (
-            action == Action.Set && newDuration > timelockDuration[sel]
-                || submittedToTimelock(action, uint32(sel), newDuration)
-        ) {
+        bool canSet = newDuration > timelockDuration[sel];
+        if (submittedToTimelock(action, canSet, uint32(sel), newDuration)) {
             timelockDuration[sel] = newDuration;
         }
     }
 
     function submittedToTimelock(Action action, uint160 newValue) internal returns (bool) {
-        return submittedToTimelock(action, 0, newValue);
+        return submittedToTimelock(action, false, 0, newValue);
     }
 
-    function submittedToTimelock(Action action, uint160 field, uint160 newValue) internal returns (bool updateValue) {
+    function submittedToTimelock(Action action, bool canSet, uint160 field, uint160 newValue)
+        internal
+        returns (bool updateValue)
+    {
         bytes4 sel = bytes4(msg.data[:4]);
         bytes24 id = bytes24(abi.encodePacked(sel, field));
         if (action == Action.Set) {
-            require(timelockDuration[sel] == 0);
+            require(canSet || timelockDuration[sel] == 0, ErrorsLib.CantSet());
             updateValue = true;
         } else if (action == Action.Submit) {
             require(pending[id].validAt == 0);
