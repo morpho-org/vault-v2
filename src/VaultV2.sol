@@ -98,7 +98,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setFeeRecipient(address newFeeRecipient) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(uint160(newFeeRecipient))) feeRecipient = newFeeRecipient;
+        feeRecipient = newFeeRecipient;
     }
 
     function setOwner(address newOwner) external {
