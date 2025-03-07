@@ -68,6 +68,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         curator = _curator;
         allocator = _allocator;
         lastUpdate = block.timestamp;
+        timelockDuration[IVaultV2.setTimelock.selector] = TIMELOCK_CAP;
         // The vault starts with no IRM, no markets and no assets. To be configured afterwards.
     }
 
@@ -286,10 +287,8 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setTimelock(Action action, bytes4 sel, uint64 newDuration) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        require(
-            sel == IVaultV2.setTimelock.selector ? newDuration >= TIMELOCK_CAP : newDuration <= TIMELOCK_CAP,
-            ErrorsLib.WrongTimelockDuration()
-        );
+        require(sel != IVaultV2.setTimelock.selector, ErrorsLib.TimelockCapIsFixed());
+        require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
         bool canSet = newDuration > timelockDuration[sel];
         if (submittedToTimelock(action, canSet, uint32(sel), newDuration)) {
             timelockDuration[sel] = newDuration;
