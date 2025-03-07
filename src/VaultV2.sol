@@ -5,7 +5,7 @@ import {ERC20, IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20
 import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {SafeERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {Pending, IMarket, IVaultV2} from "./interfaces/IVaultV2.sol";
+import {Pending, Action, IMarket, IVaultV2} from "./interfaces/IVaultV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {IAllocator} from "./interfaces/IAllocator.sol";
 import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
@@ -90,10 +90,11 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* ONWER ACTIONS */
 
-    function setFee(uint160 newFee) external {
+    function setFee(Action action, uint160 newFee) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
         require(newFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
-        if (newFee < fee || submittedToTimelock(newFee)) fee = newFee;
+        bool canSet = newFee < fee;
+        if (submittedToTimelock(action, canSet, 0, newFee)) fee = newFee;
     }
 
     function setFeeRecipient(address newFeeRecipient) external {
@@ -101,58 +102,59 @@ contract VaultV2 is ERC20, IVaultV2 {
         feeRecipient = newFeeRecipient;
     }
 
-    function setOwner(address newOwner) external {
+    function setOwner(Action action, address newOwner) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(uint160(newOwner))) owner = newOwner;
+        if (submittedToTimelock(action, uint160(newOwner))) owner = newOwner;
     }
 
     // Can be seen as an exit to underlying, governed by the owner.
-    function setCurator(address newCurator) external {
+    function setCurator(Action action, address newCurator) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(uint160(newCurator))) curator = newCurator;
+        if (submittedToTimelock(action, uint160(newCurator))) curator = newCurator;
     }
 
-    function setGuardian(address newGuardian) external {
+    function setGuardian(Action action, address newGuardian) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(uint160(newGuardian))) owner = newGuardian;
+        if (submittedToTimelock(action, uint160(newGuardian))) owner = newGuardian;
     }
 
     /* CURATOR ACTIONS */
 
-    function setAllocator(address newAllocator) external {
+    function setAllocator(Action action, address newAllocator) external {
         require(msg.sender == owner || msg.sender == address(allocator), ErrorsLib.Unauthorized());
-        if (submittedToTimelock(uint160(newAllocator))) allocator = newAllocator;
+        if (submittedToTimelock(action, uint160(newAllocator))) allocator = newAllocator;
     }
 
     // Could set cap right when adding a market, to avoid having to wait the timelock twice.
-    function newMarket(address market) external {
+    function newMarket(Action action, address market) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(uint160(market), uint160(market))) {
+        if (submittedToTimelock(action, false, uint160(market), uint160(market))) {
             asset.approve(market, type(uint256).max);
             markets.push(IMarket(market));
         }
     }
 
-    function dropMarket(uint8 index) external {
+    function dropMarket(Action action, uint8 index) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         address market = address(markets[index]);
-        if (submittedToTimelock(uint160(market), uint160(market))) {
+        if (submittedToTimelock(action, false, uint160(market), uint160(market))) {
             asset.approve(market, 0);
             markets[index] = markets[markets.length - 1];
             markets.pop();
         }
     }
 
-    function setCap(address market, uint160 newCap) external {
+    function setCap(Action action, address market, uint160 newCap) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        if (newCap < cap[market] || submittedToTimelock(uint160(market), newCap)) {
+        bool canSet = newCap < cap[market];
+        if (submittedToTimelock(action, canSet, uint160(market), newCap)) {
             cap[market] = newCap;
         }
     }
 
-    function setIRM(address newIRM) external {
+    function setIRM(Action action, address newIRM) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(uint160(newIRM))) irm = newIRM;
+        if (submittedToTimelock(action, uint160(newIRM))) irm = newIRM;
     }
 
     /* ALLOCATOR ACTIONS */
@@ -282,33 +284,44 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* TIMELOCKS */
 
-    function setTimelock(bytes4 sel, uint64 newDuration) external {
+    function setTimelock(Action action, bytes4 sel, uint64 newDuration) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(
             sel == IVaultV2.setTimelock.selector ? newDuration >= TIMELOCK_CAP : newDuration <= TIMELOCK_CAP,
             ErrorsLib.WrongTimelockDuration()
         );
-        if (newDuration > timelockDuration[sel] || submittedToTimelock(uint32(sel), newDuration)) {
+        bool canSet = newDuration > timelockDuration[sel];
+        if (submittedToTimelock(action, canSet, uint32(sel), newDuration)) {
             timelockDuration[sel] = newDuration;
         }
     }
 
-    function submittedToTimelock(uint160 newValue) internal returns (bool) {
-        return submittedToTimelock(0, newValue);
+    function submittedToTimelock(Action action, uint160 newValue) internal returns (bool) {
+        return submittedToTimelock(action, false, 0, newValue);
     }
 
-    function submittedToTimelock(uint160 field, uint160 newValue) internal returns (bool updateValue) {
+    function submittedToTimelock(Action action, bool canSet, uint160 field, uint160 newValue)
+        internal
+        returns (bool updateValue)
+    {
         bytes4 sel = bytes4(msg.data[:4]);
         bytes24 id = bytes24(abi.encodePacked(sel, field));
-        if (timelockDuration[sel] == 0) {
+        if (action == Action.Set) {
+            require(canSet || timelockDuration[sel] == 0, ErrorsLib.CantSet());
             updateValue = true;
-        } else if (pending[id].validAt == 0) {
+        } else if (action == Action.Submit) {
+            require(pending[id].validAt == 0);
             pending[id].validAt = uint64(block.timestamp) + timelockDuration[sel];
             pending[id].value = newValue;
-        } else {
+        } else if (action == Action.Accept) {
             require(newValue == pending[id].value, ErrorsLib.WrongPendingValue());
-            updateValue = block.timestamp >= pending[id].validAt;
+            require(block.timestamp >= pending[id].validAt, ErrorsLib.TimelockNotExpired());
             delete pending[id];
+        } else if (action == Action.Revoke) {
+            require(newValue == pending[id].value, ErrorsLib.WrongPendingValue());
+            delete pending[id];
+        } else {
+            revert("Invalid action");
         }
     }
 

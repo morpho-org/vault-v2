@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {IVaultV2Factory} from "../src/interfaces/IVaultV2Factory.sol";
-import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
+import {Action, IVaultV2} from "../src/interfaces/IVaultV2.sol";
 
 import {VaultV2Factory} from "../src/VaultV2Factory.sol";
 import {VaultV2} from "../src/VaultV2.sol";
@@ -47,7 +47,7 @@ contract BaseTest is Test {
         irm = new IRM(manager, vault);
         vm.label(address(irm), "IRM");
         vm.prank(curator);
-        vault.setIRM(address(irm));
+        vault.setIRM(Action.Set, address(irm));
     }
 
     function testConstructor() public view {
