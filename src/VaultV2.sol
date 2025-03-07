@@ -125,7 +125,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         } else if (id == "fee recipient") {
             require(msg.sender == owner, ErrorsLib.Unauthorized());
             pending[id].value = value;
-            pending[id].validAt = uint64(block.timestamp) + timelock[CHANGE_GUARDIAN_TIMELOCK_KEY];
+            pending[id].validAt = uint64(block.timestamp);
         } else if (id == "allocator") {
             require(msg.sender == curator, ErrorsLib.Unauthorized());
             pending[id].value = value;
