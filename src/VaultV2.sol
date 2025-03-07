@@ -15,7 +15,15 @@ contract VaultV2 is ERC20, IVaultV2 {
     using Math for uint256;
 
     /* CONSTANT */
-    uint64 public constant TIMELOCK_CAP = 2 weeks;
+
+    uint64 public constant TIMELOCKS_TIMELOCK = 2 weeks;
+    address private constant CHANGE_OWNER_TIMELOCK_KEY = address(uint160(uint256(keccak256("change owner"))));
+    address private constant CHANGE_CURATOR_TIMELOCK_KEY = address(uint160(uint256(keccak256("change curator"))));
+    address private constant CHANGE_GUARDIAN_TIMELOCK_KEY = address(uint160(uint256(keccak256("change guardian"))));
+    address private constant CHANGE_ALLOCATOR_TIMELOCK_KEY = address(uint160(uint256(keccak256("change allocator"))));
+    address private constant UNZERO_CAP_TIMELOCK_KEY = address(uint160(uint256(keccak256("unzero cap"))));
+    address private constant INCREASE_CAP_TIMELOCK_KEY = address(uint160(uint256(keccak256("increase cap"))));
+    address private constant CHANGE_IRM_TIMELOCK_KEY = address(uint160(uint256(keccak256("change irm"))));
 
     /* IMMUTABLE */
 
@@ -42,8 +50,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     IMarket[] public markets;
     mapping(address => uint160) public cap;
 
-    mapping(bytes24 => Pending) public pending;
-    mapping(bytes4 => uint64) public timelockDuration;
+    mapping(bytes32 => Pending) public pending;
+    mapping(address => uint64) public timelock;
 
     /* CONSTRUCTOR */
 
@@ -73,67 +81,114 @@ contract VaultV2 is ERC20, IVaultV2 {
 
         for (uint256 i = 0; i < bundle.length; i++) {
             // Note: no need to check that address(this) has code.
-            (bool success,) = address(this).delegatecall(bundle[i]);
-            require(success, ErrorsLib.FailedDelegateCall());
+            (bool success, bytes memory data) = address(this).delegatecall(bundle[i]);
+            // Bubble up the revert message from the delegatecall
+            if (!success) {
+                assembly {
+                    revert(add(data, 32), mload(data))
+                }
+            }
         }
 
         unlocked = false;
     }
 
-    /* ONWER ACTIONS */
+    /* SUBMIT ACTIONS */
 
-    function setOwner(address newOwner) external {
-        require(msg.sender == owner, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(uint160(newOwner))) owner = newOwner;
-    }
-
-    // Can be seen as an exit to underlying, governed by the owner.
-    function setCurator(address newCurator) external {
-        require(msg.sender == owner, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(uint160(newCurator))) curator = newCurator;
-    }
-
-    function setGuardian(address newGuardian) external {
-        require(msg.sender == owner, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(uint160(newGuardian))) owner = newGuardian;
-    }
-
-    /* CURATOR ACTIONS */
-
-    function setAllocator(address newAllocator) external {
-        require(msg.sender == owner || msg.sender == address(allocator), ErrorsLib.Unauthorized());
-        if (submittedToTimelock(uint160(newAllocator))) allocator = IAllocator(newAllocator);
-    }
-
-    // Could set cap right when adding a market, to avoid having to wait the timelock twice.
-    function newMarket(address market) external {
-        require(msg.sender == curator, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(uint160(market), uint160(market))) {
-            asset.approve(market, type(uint256).max);
-            markets.push(IMarket(market));
+    function submit(bytes32 id, address key, uint160 value) external {
+        if (id == "owner") {
+            require(msg.sender == owner, ErrorsLib.Unauthorized());
+            pending[id].value = value;
+            pending[id].validAt = uint64(block.timestamp) + timelock[CHANGE_OWNER_TIMELOCK_KEY];
+        } else if (id == "curator") {
+            require(msg.sender == owner, ErrorsLib.Unauthorized());
+            pending[id].value = value;
+            pending[id].validAt = uint64(block.timestamp) + timelock[CHANGE_CURATOR_TIMELOCK_KEY];
+        } else if (id == "guardian") {
+            require(msg.sender == owner, ErrorsLib.Unauthorized());
+            pending[id].value = value;
+            pending[id].validAt = uint64(block.timestamp) + timelock[CHANGE_GUARDIAN_TIMELOCK_KEY];
+        } else if (id == "allocator") {
+            require(msg.sender == curator, ErrorsLib.Unauthorized());
+            pending[id].value = value;
+            pending[id].validAt = uint64(block.timestamp) + timelock[CHANGE_ALLOCATOR_TIMELOCK_KEY];
+        } else if (id == "irm") {
+            require(msg.sender == curator, ErrorsLib.Unauthorized());
+            pending[id].value = value;
+            pending[id].validAt = uint64(block.timestamp) + timelock[CHANGE_IRM_TIMELOCK_KEY];
+        } else if (keccak256(abi.encode("timelock", key)) == id) {
+            require(msg.sender == owner, ErrorsLib.Unauthorized());
+            require(uint64(value) <= TIMELOCKS_TIMELOCK, "Timelock too long");
+            pending[id].value = value;
+            pending[id].validAt = uint64(block.timestamp) + TIMELOCKS_TIMELOCK;
+        } else if (keccak256(abi.encode("cap", key)) == id) {
+            require(msg.sender == curator, ErrorsLib.Unauthorized());
+            require(value != cap[key], "Cap unchanged");
+            if (cap[key] == 0) {
+                pending[id].validAt = uint64(block.timestamp) + timelock[UNZERO_CAP_TIMELOCK_KEY];
+            } else if (value > cap[key]) {
+                pending[id].validAt = uint64(block.timestamp) + timelock[INCREASE_CAP_TIMELOCK_KEY];
+            } else {
+                pending[id].validAt = uint64(block.timestamp);
+            }
+            pending[id].value = value;
+        } else {
+            revert("Invalid key");
         }
     }
 
-    function dropMarket(uint8 index) external {
-        require(msg.sender == curator, ErrorsLib.Unauthorized());
-        address market = address(markets[index]);
-        if (submittedToTimelock(uint160(market), uint160(market))) {
-            asset.approve(market, 0);
-            markets[index] = markets[markets.length - 1];
-            markets.pop();
+    /* ACCEPT ACTIONS */
+
+    function accept(bytes32 id, address key) external {
+        require(pending[id].validAt != 0, "not pending");
+        require(block.timestamp >= pending[id].validAt, "not valid");
+
+        if (id == "owner") {
+            owner = address(pending[id].value);
+        } else if (id == "curator") {
+            curator = address(pending[id].value);
+        } else if (id == "guardian") {
+            guardian = address(pending[id].value);
+        } else if (id == "allocator") {
+            allocator = IAllocator(address(pending[id].value));
+        } else if (id == "irm") {
+            irm = IIRM(address(pending[id].value));
+        } else if (keccak256(abi.encode("timelock", key)) == id) {
+            timelock[key] = uint64(pending[id].value);
+        } else if (keccak256(abi.encode("cap", key)) == id) {
+            cap[key] = uint160(pending[id].value);
+            markets.push(IMarket(key));
+        } else {
+            revert("Invalid key");
         }
+
+        delete pending[id];
     }
 
-    function setCap(address market, uint160 newCap) external {
-        require(msg.sender == curator, ErrorsLib.Unauthorized());
-        if (newCap < cap[market] || submittedToTimelock(uint160(market), newCap)) {
-            cap[market] = newCap;
-        }
-    }
+    /* REVOKE ACTION */
 
-    function setIRM(address newIRM) external {
-        require(msg.sender == curator, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(uint160(newIRM))) irm = IIRM(newIRM);
+    function revoke(bytes32 id) external {
+        require(pending[id].validAt != 0, "not pending");
+
+        if (id == "owner") {
+            require(msg.sender == owner || msg.sender == guardian, ErrorsLib.Unauthorized());
+        } else if (id == "curator") {
+            require(msg.sender == owner || msg.sender == guardian, ErrorsLib.Unauthorized());
+        } else if (id == "guardian") {
+            require(msg.sender == owner || msg.sender == guardian, ErrorsLib.Unauthorized());
+        } else if (keccak256(abi.encode("timelock", address(pending[id].value))) == id) {
+            require(msg.sender == owner || msg.sender == guardian, ErrorsLib.Unauthorized());
+        } else if (id == "allocator") {
+            require(msg.sender == curator || msg.sender == owner || msg.sender == guardian, ErrorsLib.Unauthorized());
+        } else if (id == "irm") {
+            require(msg.sender == curator || msg.sender == owner || msg.sender == guardian, ErrorsLib.Unauthorized());
+        } else if (keccak256(abi.encode("cap", address(pending[id].value))) == id) {
+            require(msg.sender == curator || msg.sender == owner || msg.sender == guardian, ErrorsLib.Unauthorized());
+        } else {
+            revert("Invalid id");
+        }
+
+        delete pending[id];
     }
 
     /* ALLOCATOR ACTIONS */
@@ -145,6 +200,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         IMarket market = markets[marketIndex];
         // Interest accrual can make the supplied amount go over the cap.
         require(amount + market.balanceOf(address(this)) <= cap[address(market)], ErrorsLib.CapExceeded());
+        asset.approve(address(market), amount);
         market.deposit(amount, address(this));
     }
 
@@ -244,43 +300,6 @@ contract VaultV2 is ERC20, IVaultV2 {
         accrueInterest();
         assets = convertToShares(shares, Math.Rounding.Floor);
         _withdraw(assets, shares, receiver, supplier);
-    }
-
-    /* TIMELOCKS */
-
-    function setTimelock(bytes4 sel, uint64 newDuration) external {
-        require(msg.sender == curator, ErrorsLib.Unauthorized());
-        require(
-            sel == IVaultV2.setTimelock.selector ? newDuration >= TIMELOCK_CAP : newDuration <= TIMELOCK_CAP,
-            ErrorsLib.WrongTimelockDuration()
-        );
-        if (newDuration > timelockDuration[sel] || submittedToTimelock(uint32(sel), newDuration)) {
-            timelockDuration[sel] = newDuration;
-        }
-    }
-
-    function submittedToTimelock(uint160 newValue) internal returns (bool) {
-        return submittedToTimelock(0, newValue);
-    }
-
-    function submittedToTimelock(uint160 field, uint160 newValue) internal returns (bool updateValue) {
-        bytes4 sel = bytes4(msg.data[:4]);
-        bytes24 id = bytes24(abi.encodePacked(sel, field));
-        if (timelockDuration[sel] == 0) {
-            updateValue = true;
-        } else if (pending[id].validAt == 0) {
-            pending[id].validAt = uint64(block.timestamp) + timelockDuration[sel];
-            pending[id].value = newValue;
-        } else {
-            require(newValue == pending[id].value, ErrorsLib.WrongPendingValue());
-            updateValue = block.timestamp >= pending[id].validAt;
-            delete pending[id];
-        }
-    }
-
-    function revokePending(bytes24 id) external {
-        require(msg.sender == guardian, ErrorsLib.Unauthorized());
-        delete pending[id];
     }
 
     /* INTERFACE */

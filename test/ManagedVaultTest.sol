@@ -15,8 +15,8 @@ contract ManagedVaultTest is BaseTest {
         market = address(new ERC4626Mock(underlyingToken, "LendingMarket", "MKT"));
         vm.label(market, "market");
         vm.startPrank(curator);
-        vault.newMarket(market);
-        vault.setCap(market, 1);
+        vault.submit(keccak256(abi.encode("cap", market)), market, 1);
+        vault.accept(keccak256(abi.encode("cap", market)), market);
         vm.stopPrank();
         deal(address(underlyingToken), supplier, 1);
 

@@ -36,7 +36,8 @@ contract BaseTest is Test {
         irm = new IRM(manager, vault);
         vm.label(address(irm), "IRM");
         vm.prank(curator);
-        vault.setIRM(address(irm));
+        vault.submit("irm", address(0), uint160(address(irm)));
+        vault.accept("irm", address(0));
     }
 
     function testConstructor() public view {

@@ -31,25 +31,25 @@ contract MMAllocator is BaseAllocator {
     }
 
     function authorizeMulticall(address sender, bytes[] calldata bundle) external view override {
-        if (sender == owner) return;
-        if (sender == publicAllocator) {
-            // This implements the public allocator.
-            require(bundle.length == 2);
-            ReallocateToIdleData memory toIdle = bundle[0].decodeAsReallocateToIdleData();
-            ReallocateFromIdleData memory fromIdle = bundle[1].decodeAsReallocateFromIdleData();
-            require(toIdle.amount == fromIdle.amount);
-        } else {
-            // This implements the withdraw queue.
-            WithdrawData memory withdraw = bundle[bundle.length - 1].decodeAsWithdrawData();
-            uint256 missingLiquidity = withdraw.assets.zeroFloorSub(asset.balanceOf(address(vault)));
-            for (uint256 i; i < bundle.length - 1; i++) {
-                ReallocateToIdleData memory toIdle = bundle[i].decodeAsReallocateToIdleData();
-                require(toIdle.marketIndex == i);
-                require(missingLiquidity > 0);
-                IMarket market = vault.markets(i);
-                require(toIdle.amount == UtilsLib.min(missingLiquidity, market.maxWithdraw(address(vault))));
-                missingLiquidity -= toIdle.amount;
-            }
-        }
+        // if (sender == owner) return;
+        // if (sender == publicAllocator) {
+        //     // This implements the public allocator.
+        //     require(bundle.length == 2);
+        //     ReallocateToIdleData memory toIdle = bundle[0].decodeAsReallocateToIdleData();
+        //     ReallocateFromIdleData memory fromIdle = bundle[1].decodeAsReallocateFromIdleData();
+        //     require(toIdle.amount == fromIdle.amount);
+        // } else {
+        //     This implements the withdraw queue.
+        //     WithdrawData memory withdraw = bundle[bundle.length - 1].decodeAsWithdrawData();
+        //     uint256 missingLiquidity = withdraw.assets.zeroFloorSub(asset.balanceOf(address(vault)));
+        //     for (uint256 i; i < bundle.length - 1; i++) {
+        //         ReallocateToIdleData memory toIdle = bundle[i].decodeAsReallocateToIdleData();
+        //         require(toIdle.marketIndex == i);
+        //         require(missingLiquidity > 0);
+        //         IMarket market = vault.markets(i);
+        //         require(toIdle.amount == UtilsLib.min(missingLiquidity, market.maxWithdraw(address(vault))));
+        //         missingLiquidity -= toIdle.amount;
+        //     }
+        // }
     }
 }
