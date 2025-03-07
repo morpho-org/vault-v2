@@ -8,8 +8,10 @@ import {SafeERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/uti
 import {Pending, IMarket, IVaultV2} from "./interfaces/IVaultV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {IAllocator} from "./interfaces/IAllocator.sol";
+import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
+import {ConstantsLib} from "./libraries/ConstantsLib.sol";
 
 contract VaultV2 is ERC20, IVaultV2 {
     using Math for uint256;
@@ -19,6 +21,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* IMMUTABLE */
 
+    address public immutable factory;
     IERC20 public immutable asset;
 
     /* TRANSIENT */
@@ -32,12 +35,15 @@ contract VaultV2 is ERC20, IVaultV2 {
     // This way, roles are modularized, and notably restricting their capabilities could be done on top.
     address public owner;
     address public curator;
-    IAllocator public allocator;
+    address public allocator;
     address public guardian;
 
-    IIRM public irm;
+    uint160 public fee;
+    address public feeRecipient;
+
+    address public irm;
     uint256 public lastUpdate;
-    uint256 public lastTotalAssets;
+    uint256 public totalAssets;
 
     IMarket[] public markets;
     mapping(address => uint160) public cap;
@@ -48,6 +54,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* CONSTRUCTOR */
 
     constructor(
+        address _factory,
         address _owner,
         address _curator,
         address _allocator,
@@ -55,10 +62,11 @@ contract VaultV2 is ERC20, IVaultV2 {
         string memory _name,
         string memory _symbol
     ) ERC20(_name, _symbol) {
+        factory = _factory;
         asset = IERC20(_asset);
         owner = _owner;
         curator = _curator;
-        allocator = IAllocator(_allocator);
+        allocator = _allocator;
         lastUpdate = block.timestamp;
         // The vault starts with no IRM, no markets and no assets. To be configured afterwards.
     }
@@ -66,7 +74,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* AUTHORIZED MULTICALL */
 
     function multicall(bytes[] calldata bundle) external {
-        allocator.authorizeMulticall(msg.sender, bundle);
+        IAllocator(allocator).authorizeMulticall(msg.sender, bundle);
 
         // The allocator is responsible for making sure that bundles cannot reenter.
         unlocked = true;
@@ -81,6 +89,17 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     /* ONWER ACTIONS */
+
+    function setFee(uint160 newFee) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        require(newFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
+        if (newFee < fee || submittedToTimelock(newFee)) fee = newFee;
+    }
+
+    function setFeeRecipient(address newFeeRecipient) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        if (submittedToTimelock(uint160(newFeeRecipient))) feeRecipient = newFeeRecipient;
+    }
 
     function setOwner(address newOwner) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
@@ -102,7 +121,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setAllocator(address newAllocator) external {
         require(msg.sender == owner || msg.sender == address(allocator), ErrorsLib.Unauthorized());
-        if (submittedToTimelock(uint160(newAllocator))) allocator = IAllocator(newAllocator);
+        if (submittedToTimelock(uint160(newAllocator))) allocator = newAllocator;
     }
 
     // Could set cap right when adding a market, to avoid having to wait the timelock twice.
@@ -133,7 +152,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setIRM(address newIRM) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(uint160(newIRM))) irm = IIRM(newIRM);
+        if (submittedToTimelock(uint160(newIRM))) irm = newIRM;
     }
 
     /* ALLOCATOR ACTIONS */
@@ -167,23 +186,38 @@ contract VaultV2 is ERC20, IVaultV2 {
         }
     }
 
-    function totalAssets() public view returns (uint256) {
-        return _accruedInterest();
-    }
-
     function accrueInterest() public {
-        lastTotalAssets = _accruedInterest();
+        (uint256 feeShares, uint256 newTotalAssets) = accruedFeeShares();
+
+        totalAssets = newTotalAssets;
+
+        if (feeShares != 0) {
+            ProtocolFee memory protocolFee = IVaultV2Factory(factory).protocolFee();
+            // Todo: verify that this computation can't return something greater than feeShares.
+            uint256 protocolFeeShares = feeShares.mulDiv(protocolFee.fee, ConstantsLib.WAD, Math.Rounding.Ceil);
+            _mint(protocolFee.feeRecipient, protocolFeeShares);
+            _mint(feeRecipient, feeShares - protocolFeeShares);
+        }
+
         lastUpdate = block.timestamp;
     }
 
-    function _accruedInterest() internal view returns (uint256) {
+    function accruedFeeShares() public view returns (uint256 feeShares, uint256 newTotalAssets) {
         uint256 elapsed = block.timestamp - lastUpdate;
         // Note that interest could be negative, but this is not always incentive compatible: users would want to leave.
         // But keeping this possible still, as it can make sense in the custody case when withdrawals are disabled.
         // Note that interestPerSecond should probably be bounded to give guarantees that it cannot rug users instantly.
         // Note that irm.interestPerSecond() reverts if the vault is not initialized and has irm == address(0).
-        int256 newTotalAssets = int256(lastTotalAssets) + irm.interestPerSecond() * int256(elapsed);
-        return newTotalAssets >= 0 ? uint256(newTotalAssets) : 0;
+        int256 interest = IIRM(irm).interestPerSecond() * int256(elapsed);
+        int256 rawTotalAssets = int256(totalAssets) + interest;
+        newTotalAssets = rawTotalAssets >= 0 ? uint256(rawTotalAssets) : 0;
+        if (interest > 0 && fee != 0) {
+            // It is acknowledged that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
+            uint256 feeAssets = uint256(interest).mulDiv(fee, ConstantsLib.WAD, Math.Rounding.Floor);
+            // The fee assets is subtracted from the total assets in this calculation to compensate for the fact
+            // that total assets is already increased by the total interest (including the fee assets).
+            feeShares = feeAssets.mulDiv(totalSupply() + 1, totalAssets + 1 - feeAssets, Math.Rounding.Floor);
+        }
     }
 
     function convertToShares(uint256 assets) external view returns (uint256) {
@@ -192,7 +226,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     // TODO: extract virtual shares and assets (= 1).
     function convertToShares(uint256 assets, Math.Rounding rounding) internal view returns (uint256 shares) {
-        shares = assets.mulDiv(totalSupply() + 1, lastTotalAssets + 1, rounding);
+        shares = assets.mulDiv(totalSupply() + 1, totalAssets + 1, rounding);
     }
 
     function convertToAssets(uint256 shares) external view returns (uint256) {
@@ -200,7 +234,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function convertToAssets(uint256 shares, Math.Rounding rounding) internal view returns (uint256 assets) {
-        assets = shares.mulDiv(lastTotalAssets + 1, totalSupply() + 1, rounding);
+        assets = shares.mulDiv(totalAssets + 1, totalSupply() + 1, rounding);
     }
 
     /* USER INTERACTION */
@@ -208,13 +242,13 @@ contract VaultV2 is ERC20, IVaultV2 {
     function _deposit(uint256 assets, uint256 shares, address receiver) internal {
         SafeERC20.safeTransferFrom(asset, msg.sender, address(this), assets);
         _mint(receiver, shares);
-        lastTotalAssets += assets;
+        totalAssets += assets;
     }
 
     // TODO: how to hook on deposit so that assets are atomically allocated ?
     function deposit(uint256 assets, address receiver) public virtual returns (uint256 shares) {
         accrueInterest();
-        // Note that it could be made more efficient by caching lastTotalAssets.
+        // Note that it could be made more efficient by caching totalAssets.
         shares = convertToShares(assets, Math.Rounding.Floor);
         _deposit(assets, shares, receiver);
     }
@@ -229,7 +263,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
         _burn(supplier, shares);
         SafeERC20.safeTransfer(asset, receiver, assets);
-        lastTotalAssets -= assets;
+        totalAssets -= assets;
     }
 
     // Note that it is not callable by default, if there is no liquidity.
