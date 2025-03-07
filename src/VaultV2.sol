@@ -23,7 +23,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     address private constant CHANGE_CURATOR_TIMELOCK_KEY = address(uint160(uint256(keccak256("change curator"))));
     address private constant CHANGE_GUARDIAN_TIMELOCK_KEY = address(uint160(uint256(keccak256("change guardian"))));
     address private constant CHANGE_FEE_TIMELOCK_KEY = address(uint160(uint256(keccak256("change fee"))));
-    address private constant CHANGE_FEE_RECIPIENT_TIMELOCK_KEY = address(uint160(uint256(keccak256("change fee recipient"))));
+    address private constant CHANGE_FEE_RECIPIENT_TIMELOCK_KEY =
+        address(uint160(uint256(keccak256("change fee recipient"))));
     address private constant CHANGE_ALLOCATOR_TIMELOCK_KEY = address(uint160(uint256(keccak256("change allocator"))));
     address private constant UNZERO_CAP_TIMELOCK_KEY = address(uint160(uint256(keccak256("unzero cap"))));
     address private constant INCREASE_CAP_TIMELOCK_KEY = address(uint160(uint256(keccak256("increase cap"))));
