@@ -19,23 +19,24 @@ interface IMarket {
 }
 
 interface IVaultV2 is IMarket {
+    function owner() external view returns (address);
+    function curator() external view returns (address);
+    function allocator() external view returns (address);
+    function guardian() external view returns (address);
+    function irm() external view returns (address);
     function markets(uint256) external view returns (IMarket);
     function marketsLength() external view returns (uint256);
-    // function cap(address) external view returns (uint160);
-    // function setOwner(address) external;
-    // function setCurator(address) external;
-    // function setGuardian(address) external;
-    // function setAllocator(address) external;
-    // function newMarket(address) external;
-    // function dropMarket(uint8) external;
-    // function reallocateFromIdle(uint256, uint256) external;
-    // function reallocateToIdle(uint256, uint256) external;
-    // function realAssets() external view returns (uint256);
-    // function accrueInterest() external;
-    // function setTimelock(bytes4, uint64) external;
-    // function revokePending(bytes24) external;
-    // function setCap(address, uint160) external;
-    // function setIRM(address) external;
-    // // Use trick to make a nice interface returning structs in memory.
+    function cap(address) external view returns (uint160);
+
+    function multicall(bytes[] calldata bundle) external;
+    function submit(bytes32, address, uint160) external;
+    function accept(bytes32, address) external;
+    function revoke(bytes32) external;
+    function reallocateFromIdle(uint256, uint256) external;
+    function reallocateToIdle(uint256, uint256) external;
+    function realAssets() external view returns (uint256);
+    function accrueInterest() external;
+    function accruedFeeShares() external returns (uint256 feeShares, uint256 newTotalAssets);
+    // Use trick to make a nice interface returning structs in memory.
     // function pending(bytes24) external view returns (uint64, uint160);
 }
