@@ -3,14 +3,9 @@ pragma solidity >=0.5.0;
 
 import {IERC20} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 
-struct TimelockData {
+struct Pending {
     uint64 validAt;
     uint160 value;
-}
-
-struct TimelockConfig {
-    bool canIncrease;
-    uint64 duration;
 }
 
 interface IMarket {
@@ -46,11 +41,10 @@ interface IVaultV2 is IMarket {
     function reallocateToIdle(uint256, uint256) external;
     function realAssets() external view returns (uint256);
     function accrueInterest() external;
-    function setTimelock(bytes4, TimelockConfig memory) external;
-    function revokeTimelock(bytes4) external;
+    function setTimelock(bytes4, uint64) external;
+    function revokePending(bytes24) external;
     function setCap(address, uint160) external;
     function setIRM(address) external;
     // Use trick to make a nice interface returning structs in memory.
-    function timelockData(bytes24) external view returns (uint64, uint160);
-    function timelockConfig(bytes4) external view returns (bool, uint64);
+    function pending(bytes24) external view returns (uint64, uint160);
 }

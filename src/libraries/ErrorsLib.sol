@@ -7,8 +7,7 @@ library ErrorsLib {
     error Unauthorized();
     error Locked();
     error FailedDelegateCall();
-    error TimelockIsChanging();
-    error TimelockNotExpired();
-    error WrongValue();
+    error WrongTimelockDuration();
+    error WrongPendingValue();
     error CapExceeded();
 }
