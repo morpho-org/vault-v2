@@ -89,13 +89,12 @@ contract VaultV2 is ERC20, IVaultV2 {
         unlocked = false;
     }
 
-    /* ONWER ACTIONS */
+    /* OWNER ACTIONS */
 
-    function setFee(Action action, uint160 newFee) external {
+    function setFee(uint160 newFee) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
         require(newFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
-        bool canSet = newFee < fee;
-        if (submittedToTimelock(action, canSet, 0, newFee)) fee = newFee;
+        fee = newFee;
     }
 
     function setFeeRecipient(address newFeeRecipient) external {
@@ -105,57 +104,89 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setOwner(Action action, address newOwner) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(action, uint160(newOwner))) owner = newOwner;
+        if (action == Action.Submit) {
+            submitTimelock(0, uint160(newOwner));
+        } else if (action == Action.Accept && acceptableTimelock(0, uint160(newOwner))) {
+            owner = newOwner;
+            delete pending[bytes24(IVaultV2.setOwner.selector)];
+        }
     }
 
-    // Can be seen as an exit to underlying, governed by the owner.
     function setCurator(Action action, address newCurator) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(action, uint160(newCurator))) curator = newCurator;
+        if (action == Action.Submit) {
+            submitTimelock(0, uint160(newCurator));
+        } else if (action == Action.Accept && acceptableTimelock(0, uint160(newCurator))) {
+            curator = newCurator;
+            delete pending[bytes24(IVaultV2.setCurator.selector)];
+        }
     }
 
     function setGuardian(Action action, address newGuardian) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(action, uint160(newGuardian))) owner = newGuardian;
+        if (action == Action.Submit) {
+            submitTimelock(0, uint160(newGuardian));
+        } else if (action == Action.Accept && acceptableTimelock(0, uint160(newGuardian))) {
+            guardian = newGuardian;
+            delete pending[bytes24(IVaultV2.setGuardian.selector)];
+        }
     }
 
     /* CURATOR ACTIONS */
 
     function setAllocator(Action action, address newAllocator) external {
-        require(msg.sender == owner || msg.sender == address(allocator), ErrorsLib.Unauthorized());
-        if (submittedToTimelock(action, uint160(newAllocator))) allocator = newAllocator;
+        require(msg.sender == curator, ErrorsLib.Unauthorized());
+        if (action == Action.Submit) {
+            submitTimelock(0, uint160(newAllocator));
+        } else if (action == Action.Accept && acceptableTimelock(0, uint160(newAllocator))) {
+            allocator = newAllocator;
+            delete pending[bytes24(IVaultV2.setAllocator.selector)];
+        }
     }
 
     // Could set cap right when adding a market, to avoid having to wait the timelock twice.
     function newMarket(Action action, address market) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(action, false, uint160(market), uint160(market))) {
+        if (action == Action.Submit) {
+            submitTimelock(0, uint160(market));
+        } else if (action == Action.Accept && acceptableTimelock(0, uint160(market))) {
             asset.approve(market, type(uint256).max);
             markets.push(IMarket(market));
+            delete pending[bytes24(abi.encodePacked(IVaultV2.newMarket.selector))];
         }
     }
 
     function dropMarket(Action action, uint8 index) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         address market = address(markets[index]);
-        if (submittedToTimelock(action, false, uint160(market), uint160(market))) {
+        if (action == Action.Submit) {
+            submitTimelock(uint160(index), uint160(market));
+        } else if (action == Action.Accept && acceptableTimelock(uint160(index), uint160(market))) {
             asset.approve(market, 0);
             markets[index] = markets[markets.length - 1];
             markets.pop();
-        }
-    }
-
-    function setCap(Action action, address market, uint160 newCap) external {
-        require(msg.sender == curator, ErrorsLib.Unauthorized());
-        bool canSet = newCap < cap[market];
-        if (submittedToTimelock(action, canSet, uint160(market), newCap)) {
-            cap[market] = newCap;
+            delete pending[bytes24(abi.encodePacked(IVaultV2.dropMarket.selector, uint160(index)))];
         }
     }
 
     function setIRM(Action action, address newIRM) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(action, uint160(newIRM))) irm = newIRM;
+        if (action == Action.Submit) {
+            submitTimelock(0, uint160(newIRM));
+        } else if (action == Action.Accept && acceptableTimelock(0, uint160(newIRM))) {
+            irm = newIRM;
+            delete pending[bytes24(IVaultV2.setIRM.selector)];
+        }
+    }
+
+    function setCap(Action action, address market, uint160 newCap) external {
+        require(msg.sender == curator, ErrorsLib.Unauthorized());
+        if (action == Action.Submit) {
+            submitTimelock(uint160(market), newCap);
+        } else if (action == Action.Accept && acceptableTimelock(uint160(market), newCap)) {
+            cap[market] = newCap;
+            delete pending[bytes24(abi.encodePacked(IVaultV2.setCap.selector, uint160(market)))];
+        }
     }
 
     /* ALLOCATOR ACTIONS */
@@ -285,43 +316,42 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* TIMELOCKS */
 
-    function setTimelock(Action action, bytes4 sel, uint64 newDuration) external {
+    function setTimelock(Action action, bytes4 setterSelector, uint64 newDuration) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        require(sel != IVaultV2.setTimelock.selector, ErrorsLib.TimelockCapIsFixed());
+        require(setterSelector != IVaultV2.setTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
-        bool canSet = newDuration > timelockDuration[sel];
-        if (submittedToTimelock(action, canSet, uint32(sel), newDuration)) {
-            timelockDuration[sel] = newDuration;
+        if (action == Action.Submit) {
+            if (newDuration > timelockDuration[setterSelector]) {
+                submitTimelockNoTime(uint32(setterSelector), uint160(newDuration));
+            } else {
+                submitTimelock(uint32(setterSelector), uint160(newDuration));
+            }
+        } else if (action == Action.Accept && acceptableTimelock(uint32(setterSelector), uint160(newDuration))) {
+            timelockDuration[setterSelector] = newDuration;
+            delete pending[bytes24(abi.encodePacked(setterSelector))];
         }
     }
 
-    function submittedToTimelock(Action action, uint160 newValue) internal returns (bool) {
-        return submittedToTimelock(action, false, 0, newValue);
+    function submitTimelockNoTime(uint160 field, uint160 newValue) internal {
+        bytes24 id = bytes24(abi.encodePacked(bytes4(msg.data[:4]), field));
+        require(pending[id].validAt == 0);
+        pending[id].validAt = uint64(block.timestamp);
+        pending[id].value = newValue;
     }
 
-    function submittedToTimelock(Action action, bool canSet, uint160 field, uint160 newValue)
-        internal
-        returns (bool updateValue)
-    {
+    function submitTimelock(uint160 field, uint160 newValue) internal {
         bytes4 sel = bytes4(msg.data[:4]);
         bytes24 id = bytes24(abi.encodePacked(sel, field));
-        if (action == Action.Set) {
-            require(canSet || timelockDuration[sel] == 0, ErrorsLib.CantSet());
-            updateValue = true;
-        } else if (action == Action.Submit) {
-            require(pending[id].validAt == 0);
-            pending[id].validAt = uint64(block.timestamp) + timelockDuration[sel];
-            pending[id].value = newValue;
-        } else if (action == Action.Accept) {
-            require(newValue == pending[id].value, ErrorsLib.WrongPendingValue());
-            require(block.timestamp >= pending[id].validAt, ErrorsLib.TimelockNotExpired());
-            delete pending[id];
-        } else if (action == Action.Revoke) {
-            require(newValue == pending[id].value, ErrorsLib.WrongPendingValue());
-            delete pending[id];
-        } else {
-            revert("Invalid action");
-        }
+        require(pending[id].validAt == 0);
+        pending[id].validAt = uint64(block.timestamp) + timelockDuration[sel];
+        pending[id].value = newValue;
+    }
+
+    function acceptableTimelock(uint160 field, uint160 newValue) internal view returns (bool) {
+        bytes24 id = bytes24(abi.encodePacked(bytes4(msg.data[:4]), field));
+        require(newValue == pending[id].value, ErrorsLib.WrongPendingValue());
+        require(block.timestamp >= pending[id].validAt, ErrorsLib.TimelockNotExpired());
+        return true;
     }
 
     function revokePending(bytes24 id) external {

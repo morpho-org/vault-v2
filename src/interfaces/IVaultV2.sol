@@ -9,10 +9,8 @@ struct Pending {
 }
 
 enum Action {
-    Set,
     Submit,
-    Accept,
-    Revoke
+    Accept
 }
 
 interface IMarket {
@@ -36,7 +34,7 @@ interface IVaultV2 is IMarket {
     function cap(address) external view returns (uint160);
 
     function multicall(bytes[] calldata bundle) external;
-    function setFee(Action, uint160) external;
+    function setFee(uint160) external;
     function setFeeRecipient(address) external;
     function setOwner(Action, address) external;
     function setCurator(Action, address) external;
