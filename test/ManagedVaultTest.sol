@@ -15,10 +15,10 @@ contract ManagedVaultTest is BaseTest {
         market = address(new ERC4626Mock(underlyingToken, "LendingMarket", "MKT"));
         vm.label(market, "market");
         vm.startPrank(curator);
-        vault.newMarket(Action.Submit, market);
-        vault.newMarket(Action.Accept, market);
-        vault.setCap(Action.Submit, market, 1);
-        vault.setCap(Action.Accept, market, 1);
+        vault.submit(abi.encodeWithSelector(IVaultV2.newMarket.selector, market));
+        vault.accept(abi.encodeWithSelector(IVaultV2.newMarket.selector, market));
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseCap.selector, market, 1));
+        vault.accept(abi.encodeWithSelector(IVaultV2.increaseCap.selector, market, 1));
         vm.stopPrank();
         deal(address(underlyingToken), supplier, 1);
 

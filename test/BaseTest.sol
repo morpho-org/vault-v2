@@ -47,9 +47,8 @@ contract BaseTest is Test {
         irm = new IRM(manager, vault);
         vm.label(address(irm), "IRM");
         vm.prank(curator);
-        vault.setIRM(Action.Submit, address(irm));
-        vm.prank(curator);
-        vault.setIRM(Action.Accept, address(irm));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, address(irm)));
+        vault.accept(abi.encodeWithSelector(IVaultV2.setIRM.selector, address(irm)));
     }
 
     function testConstructor() public view {
