@@ -16,9 +16,9 @@ contract ManagedVaultTest is BaseTest {
         vm.label(market, "market");
         vm.startPrank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.newMarket.selector, market));
-        vault.accept(abi.encodeWithSelector(IVaultV2.newMarket.selector, market));
+        vault.newMarket(market);
         vault.submit(abi.encodeWithSelector(IVaultV2.increaseCap.selector, market, 1));
-        vault.accept(abi.encodeWithSelector(IVaultV2.increaseCap.selector, market, 1));
+        vault.increaseCap(market, 1);
         vm.stopPrank();
         deal(address(underlyingToken), supplier, 1);
 

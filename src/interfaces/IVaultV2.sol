@@ -3,16 +3,6 @@ pragma solidity >=0.5.0;
 
 import {IERC20} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 
-struct Pending {
-    uint64 validAt;
-    uint160 value;
-}
-
-enum Action {
-    Submit,
-    Accept
-}
-
 interface IMarket {
     function asset() external view returns (IERC20);
     function totalAssets() external view returns (uint256);
@@ -47,10 +37,10 @@ interface IVaultV2 is IMarket {
     function realAssets() external view returns (uint256);
     function accrueInterest() external;
     function accruedFeeShares() external returns (uint256 feeShares, uint256 newTotalAssets);
-    function setTimelock(bytes4, uint64) external;
+    function increaseTimelock(bytes4, uint64) external;
+    function decreaseTimelock(bytes4, uint64) external;
     function increaseCap(address, uint256) external;
     function decreaseCap(address, uint256) external;
     function setIRM(address) external;
     function submit(bytes calldata) external;
-    function accept(bytes calldata) external;
 }

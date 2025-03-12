@@ -5,7 +5,7 @@ import {ERC20, IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20
 import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {SafeERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {Pending, Action, IMarket, IVaultV2} from "./interfaces/IVaultV2.sol";
+import {IMarket, IVaultV2} from "./interfaces/IVaultV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {IAllocator} from "./interfaces/IAllocator.sol";
 import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
@@ -68,7 +68,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         curator = _curator;
         allocator = _allocator;
         lastUpdate = block.timestamp;
-        timelockDuration[IVaultV2.setTimelock.selector] = TIMELOCK_CAP;
+        timelockDuration[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         // The vault starts with no IRM, no markets and no assets. To be configured afterwards.
     }
 
@@ -91,60 +91,75 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* OWNER ACTIONS */
 
-    function setFee(uint160 newFee) external onlySelf {
+    function setFee(uint160 newFee) external timelocked {
         require(newFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
+
         fee = newFee;
     }
 
-    function setFeeRecipient(address newFeeRecipient) external onlySelf {
+    function setFeeRecipient(address newFeeRecipient) external timelocked {
         feeRecipient = newFeeRecipient;
     }
 
-    function setOwner(address newOwner) external onlySelf {
+    function setOwner(address newOwner) external timelocked {
         owner = newOwner;
     }
 
-    function setCurator(address newCurator) external onlySelf {
+    function setCurator(address newCurator) external timelocked {
         curator = newCurator;
     }
 
-    function setGuardian(address newGuardian) external onlySelf {
+    function setGuardian(address newGuardian) external timelocked {
         guardian = newGuardian;
     }
 
-    function setTimelock(bytes4 functionSelector, uint64 newDuration) external onlySelf {
-        require(functionSelector != IVaultV2.setTimelock.selector, ErrorsLib.TimelockCapIsFixed());
+    function increaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
+        require(functionSelector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
+        require(newDuration > timelockDuration[functionSelector], "timelock not increasing");
+
+        timelockDuration[functionSelector] = newDuration;
+    }
+
+    function decreaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
+        require(functionSelector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
+        require(newDuration >= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
+        require(newDuration < timelockDuration[functionSelector], "timelock not decreasing");
+
         timelockDuration[functionSelector] = newDuration;
     }
 
     /* CURATOR ACTIONS */
 
-    function setAllocator(address newAllocator) external onlySelf {
+    function setAllocator(address newAllocator) external timelocked {
         allocator = newAllocator;
     }
 
-    function newMarket(address market) external onlySelf {
+    function newMarket(address market) external timelocked {
         asset.approve(market, type(uint256).max);
         markets.push(IMarket(market));
     }
 
-    function dropMarket(uint8 index) external onlySelf {
+    function dropMarket(uint8 index) external timelocked {
         asset.approve(address(markets[index]), 0);
         markets[index] = markets[markets.length - 1];
         markets.pop();
     }
 
-    function setIRM(address newIRM) external onlySelf {
+    function setIRM(address newIRM) external timelocked {
         irm = newIRM;
     }
 
-    function increaseCap(address market, uint256 by) external onlySelf {
-        cap[market] = cap[market] + by;
+    function increaseCap(address market, uint256 newCap) external timelocked {
+        require(newCap > cap[market], "cap not increasing");
+
+        cap[market] = newCap;
     }
 
-    function decreaseCap(address market, uint256 by) external onlySelf {
-        cap[market] = cap[market] - by;
+    function decreaseCap(address market, uint256 newCap) external timelocked {
+        require(newCap < cap[market], "cap not decreasing");
+
+        cap[market] = newCap;
     }
 
     /* ALLOCATOR ACTIONS */
@@ -274,45 +289,40 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* TIMELOCKS */
 
-    modifier onlySelf() {
-        require(msg.sender == address(this), ErrorsLib.Unauthorized());
-        _;
-    }
-
     function submit(bytes calldata data) external {
         bytes4 functionSelector = bytes4(data);
-        if (
-            functionSelector == IVaultV2.setOwner.selector || functionSelector == IVaultV2.setCurator.selector
-                || functionSelector == IVaultV2.setGuardian.selector || functionSelector == IVaultV2.setFee.selector
-                || functionSelector == IVaultV2.setFeeRecipient.selector
-        ) require(msg.sender == owner, ErrorsLib.Unauthorized());
-        else if (
-            functionSelector == IVaultV2.setAllocator.selector || functionSelector == IVaultV2.setIRM.selector
-                || functionSelector == IVaultV2.increaseCap.selector || functionSelector == IVaultV2.decreaseCap.selector
-                || functionSelector == IVaultV2.newMarket.selector || functionSelector == IVaultV2.dropMarket.selector
-                || functionSelector == IVaultV2.setTimelock.selector
-        ) require(msg.sender == curator, ErrorsLib.Unauthorized());
-        else revert("unknown function selector");
+        require(isAuthorized(msg.sender, functionSelector), ErrorsLib.Unauthorized());
 
         require(validAt[data] == 0, "data already pending");
 
         validAt[data] = block.timestamp + timelockDuration[functionSelector];
     }
 
-    function accept(bytes calldata data) external {
+    modifier timelocked() {
+        require(validAt[msg.data] != 0 && block.timestamp >= validAt[msg.data], "data not timelocked");
+        validAt[msg.data] = 0;
+        _;
+    }
+
+    // authorize owners to revoke their things.
+    function revoke(bytes calldata data) external {
+        require(isAuthorized(msg.sender, bytes4(data)) || msg.sender == guardian, ErrorsLib.Unauthorized());
         require(validAt[data] != 0);
-        require(block.timestamp >= validAt[data]);
-
-        (bool success,) = address(this).call(data);
-        require(success, "failed to self call");
-
         validAt[data] = 0;
     }
 
-    function revoke(bytes calldata data) external {
-        require(msg.sender == guardian, ErrorsLib.Unauthorized());
-        require(validAt[data] != 0);
-        validAt[data] = 0;
+    function isAuthorized(address sender, bytes4 functionSelector) internal view returns (bool) {
+        if (
+            functionSelector == IVaultV2.setOwner.selector || functionSelector == IVaultV2.setCurator.selector
+                || functionSelector == IVaultV2.setGuardian.selector || functionSelector == IVaultV2.setFee.selector
+                || functionSelector == IVaultV2.setFeeRecipient.selector
+        ) return sender == owner;
+        else if (
+            functionSelector == IVaultV2.setAllocator.selector || functionSelector == IVaultV2.setIRM.selector
+                || functionSelector == IVaultV2.increaseCap.selector || functionSelector == IVaultV2.decreaseCap.selector
+                || functionSelector == IVaultV2.newMarket.selector || functionSelector == IVaultV2.dropMarket.selector
+        ) return sender == curator;
+        else return false;
     }
 
     /* INTERFACE */
