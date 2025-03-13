@@ -15,10 +15,8 @@ contract ManagedVaultTest is BaseTest {
         market = address(new ERC4626Mock(underlyingToken, "LendingMarket", "MKT"));
         vm.label(market, "market");
         vm.startPrank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.newMarket.selector, market));
-        vault.newMarket(market);
-        vault.submit(abi.encodeWithSelector(IVaultV2.increaseCap.selector, market, 1));
-        vault.increaseCap(market, 1);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, bytes32(bytes20(market)), 1));
+        vault.increaseAbsoluteCap(bytes32(bytes20(market)), 1);
         vm.stopPrank();
         deal(address(underlyingToken), supplier, 1);
 
@@ -26,19 +24,5 @@ contract ManagedVaultTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
         vault.deposit(1, supplier);
         vm.stopPrank();
-    }
-
-    function testRevertNonManager(address caller) public {
-        vm.assume(caller != manager);
-        bundle.push(EncodeLib.reallocateFromIdleCall({marketIndex: 0, amount: 1}));
-        vm.prank(caller);
-        vm.expectRevert();
-        vault.multicall(bundle);
-    }
-
-    function testManager() public {
-        bundle.push(EncodeLib.reallocateFromIdleCall({marketIndex: 0, amount: 1}));
-        vm.prank(manager);
-        vault.multicall(bundle);
     }
 }

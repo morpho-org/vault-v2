@@ -5,7 +5,7 @@ import {ERC20, IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20
 import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {SafeERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {IMarket, IVaultV2} from "./interfaces/IVaultV2.sol";
+import {IVaultV2} from "./interfaces/IVaultV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {IAllocator} from "./interfaces/IAllocator.sol";
 import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
@@ -47,8 +47,14 @@ contract VaultV2 is ERC20, IVaultV2 {
     uint256 public lastUpdate;
     uint256 public totalAssets;
 
-    IMarket[] public markets;
-    mapping(address => uint256) public cap;
+    // Adapter is trusted to pass the expected ids when supplying assets.
+    mapping(address => bool) public isAdapter;
+
+    // Key is an abstract id.
+    // It can represent a protocol, a collateral, a maturity etc.
+    mapping(bytes32 => uint256) public absoluteCap; // todo how to handle interest ?
+    mapping(bytes32 => uint256) public relativeCap; // todo how to handle withdrawals ?
+    mapping(bytes32 => uint256) public allocation; // by design double counting some stuff.
 
     mapping(bytes => uint256) public validAt;
     mapping(bytes4 => uint64) public timelockDuration;
@@ -147,63 +153,69 @@ contract VaultV2 is ERC20, IVaultV2 {
         allocator = newAllocator;
     }
 
-    function newMarket(address market) external timelocked {
-        asset.approve(market, type(uint256).max);
-        markets.push(IMarket(market));
-    }
-
-    function dropMarket(uint8 index) external timelocked {
-        asset.approve(address(markets[index]), 0);
-        markets[index] = markets[markets.length - 1];
-        markets.pop();
-    }
-
     function setIRM(address newIRM) external timelocked {
         irm = newIRM;
     }
 
-    function increaseCap(address market, uint256 newCap) external timelocked {
-        require(newCap > cap[market], "cap not increasing");
+    function increaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
+        require(newCap > absoluteCap[id], "absolute cap not increasing");
 
-        cap[market] = newCap;
+        absoluteCap[id] = newCap;
     }
 
-    function decreaseCap(address market, uint256 newCap) external timelocked {
-        require(newCap < cap[market], "cap not decreasing");
+    function decreaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
+        require(newCap < absoluteCap[id], "absolute cap not decreasing");
 
-        cap[market] = newCap;
+        absoluteCap[id] = newCap;
+    }
+
+    function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
+        require(newRelativeCap > relativeCap[id], "relative cap not increasing");
+
+        relativeCap[id] = newRelativeCap;
+    }
+
+    function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
+        require(newRelativeCap < relativeCap[id], "relative cap not decreasing");
+
+        relativeCap[id] = newRelativeCap;
     }
 
     /* ALLOCATOR ACTIONS */
 
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
-    function reallocateFromIdle(uint256 marketIndex, uint256 amount) external {
-        require(unlocked, ErrorsLib.Locked());
-        IMarket market = markets[marketIndex];
-        // Interest accrual can make the supplied amount go over the cap.
-        require(amount + market.balanceOf(address(this)) <= cap[address(market)], ErrorsLib.CapExceeded());
-        market.deposit(amount, address(this));
+    function reallocateFromIdle(bytes32[] memory ids, uint256 amount) external {
+        require(isAdapter[msg.sender], "not an adapter");
+
+        asset.transfer(msg.sender, amount);
+
+        for (uint256 i; i < ids.length; i++) {
+            allocation[ids[i]] += amount;
+
+            require(allocation[ids[i]] <= absoluteCap[ids[i]], "absolute cap exceeded");
+            require(
+                allocation[ids[i]] <= totalAssets.mulDiv(relativeCap[ids[i]], ConstantsLib.WAD, Math.Rounding.Floor),
+                "relative cap exceeded"
+            );
+        }
     }
 
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
-    function reallocateToIdle(uint256 marketIndex, uint256 amount) external {
-        require(unlocked, ErrorsLib.Locked());
-        IMarket market = markets[marketIndex];
-        market.withdraw(amount, address(this), address(this));
+    function reallocateToIdle(bytes32[] memory ids, uint256 amount) external {
+        require(isAdapter[msg.sender], "not an adapter");
+
+        for (uint256 i; i < ids.length; i++) {
+            allocation[ids[i]] -= amount;
+
+            // No need to check caps here.
+        }
+
+        asset.transferFrom(msg.sender, address(this), amount);
     }
 
     /* EXCHANGE RATE */
-
-    // Vault managers would not use this function when taking full custody.
-    // Note that donations would be smoothed, which is a nice feature to incentivize the vault directly.
-    function realAssets() external view returns (uint256 aum) {
-        aum = asset.balanceOf(address(this));
-        for (uint256 i; i < markets.length; i++) {
-            aum += markets[i].convertToAssets(markets[i].balanceOf(address(this)));
-        }
-    }
 
     function accrueInterest() public {
         (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 newTotalAssets) = accruedFeeShares();
@@ -342,23 +354,20 @@ contract VaultV2 is ERC20, IVaultV2 {
         ) return sender == owner;
         else if (
             functionSelector == IVaultV2.setAllocator.selector || functionSelector == IVaultV2.setIRM.selector
-                || functionSelector == IVaultV2.increaseCap.selector || functionSelector == IVaultV2.decreaseCap.selector
-                || functionSelector == IVaultV2.newMarket.selector || functionSelector == IVaultV2.dropMarket.selector
+                || functionSelector == IVaultV2.increaseAbsoluteCap.selector || functionSelector == IVaultV2.decreaseAbsoluteCap.selector
+                || functionSelector == IVaultV2.increaseRelativeCap.selector
+                || functionSelector == IVaultV2.decreaseRelativeCap.selector
         ) return sender == curator;
         else return false;
     }
 
     /* INTERFACE */
 
-    function balanceOf(address user) public view override(ERC20, IMarket) returns (uint256) {
+    function balanceOf(address user) public view override(ERC20, IVaultV2) returns (uint256) {
         return super.balanceOf(user);
     }
 
     function maxWithdraw(address) external view returns (uint256) {
         return asset.balanceOf(address(this));
-    }
-
-    function marketsLength() external view returns (uint256) {
-        return markets.length;
     }
 }

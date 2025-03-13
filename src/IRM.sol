@@ -24,7 +24,6 @@ contract IRM is IIRM {
     // it only illustrates that interestPerSecond is meant to be controlling totalAssets to target realAssets.
     function setInterest() public {
         require(msg.sender == owner);
-        int256 excessAssets = int256(vault.realAssets()) - int256(vault.totalAssets());
-        interestPerSecond = excessAssets / 30 days;
+        interestPerSecond = 1;
     }
 }
