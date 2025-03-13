@@ -30,6 +30,8 @@ interface IVaultV2 {
     function setAllocator(address) external;
     function reallocateFromIdle(bytes32[] memory, uint256) external;
     function reallocateToIdle(bytes32[] memory, uint256) external;
+    function addAdapter(address) external;
+    function removeAdapter(address) external;
     function accrueInterest() external;
     function accruedFeeShares()
         external
@@ -39,7 +41,7 @@ interface IVaultV2 {
     function increaseAbsoluteCap(bytes32, uint256) external;
     function decreaseAbsoluteCap(bytes32, uint256) external;
     function increaseRelativeCap(bytes32, uint256) external;
-    function decreaseRelativeCap(bytes32, uint256) external;
+    function decreaseRelativeCap(bytes32, uint256, uint256  ) external;
     function setIRM(address) external;
     function submit(bytes calldata) external;
 }

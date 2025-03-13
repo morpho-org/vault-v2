@@ -52,8 +52,10 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     // Key is an abstract id.
     // It can represent a protocol, a collateral, a maturity etc.
+    // Maybe it could be bigger to contain more data.
     mapping(bytes32 => uint256) public absoluteCap; // todo how to handle interest ?
-    mapping(bytes32 => uint256) public relativeCap; // todo how to handle withdrawals ?
+    mapping(bytes32 => uint256) public relativeCap;
+    bytes32[] public idsWithRelativeCap; // useful to iterate over all ids with relative cap in withdrawals.
     mapping(bytes32 => uint256) public allocation; // by design double counting some stuff.
 
     mapping(bytes => uint256) public validAt;
@@ -147,6 +149,14 @@ contract VaultV2 is ERC20, IVaultV2 {
         timelockDuration[functionSelector] = newDuration;
     }
 
+    function addAdapter(address adapter) external timelocked {
+        isAdapter[adapter] = true;
+    }
+
+    function removeAdapter(address adapter) external timelocked {
+        isAdapter[adapter] = false;
+    }
+
     /* CURATOR ACTIONS */
 
     function setAllocator(address newAllocator) external timelocked {
@@ -172,13 +182,20 @@ contract VaultV2 is ERC20, IVaultV2 {
     function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
         require(newRelativeCap > relativeCap[id], "relative cap not increasing");
 
+        if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
         relativeCap[id] = newRelativeCap;
     }
 
-    function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
+    function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
         require(newRelativeCap < relativeCap[id], "relative cap not decreasing");
+        require(index < idsWithRelativeCap.length, "index out of bounds");
+        require(idsWithRelativeCap[index] == id, "id not found");
 
         relativeCap[id] = newRelativeCap;
+        if (relativeCap[id] == 0) {
+            idsWithRelativeCap[index] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
+            idsWithRelativeCap.pop();
+        }
     }
 
     /* ALLOCATOR ACTIONS */
@@ -303,6 +320,11 @@ contract VaultV2 is ERC20, IVaultV2 {
         _burn(supplier, shares);
         SafeERC20.safeTransfer(asset, receiver, assets);
         totalAssets -= assets;
+
+        for (uint256 i; i < idsWithRelativeCap.length; i++) {
+            bytes32 id = idsWithRelativeCap[i];
+            require(allocation[id] <= totalAssets.mulDiv(relativeCap[id], ConstantsLib.WAD, Math.Rounding.Floor), "relative cap exceeded");
+        }
     }
 
     // Note that it is not callable by default, if there is no liquidity.
@@ -351,10 +373,12 @@ contract VaultV2 is ERC20, IVaultV2 {
                 || functionSelector == IVaultV2.setPerformanceFeeRecipient.selector
                 || functionSelector == IVaultV2.setManagementFee.selector
                 || functionSelector == IVaultV2.setManagementFeeRecipient.selector
+                || functionSelector == IVaultV2.addAdapter.selector || functionSelector == IVaultV2.removeAdapter.selector
         ) return sender == owner;
         else if (
             functionSelector == IVaultV2.setAllocator.selector || functionSelector == IVaultV2.setIRM.selector
-                || functionSelector == IVaultV2.increaseAbsoluteCap.selector || functionSelector == IVaultV2.decreaseAbsoluteCap.selector
+                || functionSelector == IVaultV2.increaseAbsoluteCap.selector
+                || functionSelector == IVaultV2.decreaseAbsoluteCap.selector
                 || functionSelector == IVaultV2.increaseRelativeCap.selector
                 || functionSelector == IVaultV2.decreaseRelativeCap.selector
         ) return sender == curator;
