@@ -41,7 +41,7 @@ interface IVaultV2 {
     function increaseAbsoluteCap(bytes32, uint256) external;
     function decreaseAbsoluteCap(bytes32, uint256) external;
     function increaseRelativeCap(bytes32, uint256) external;
-    function decreaseRelativeCap(bytes32, uint256, uint256  ) external;
+    function decreaseRelativeCap(bytes32, uint256, uint256) external;
     function setIRM(address) external;
     function submit(bytes calldata) external;
 }

@@ -323,7 +323,10 @@ contract VaultV2 is ERC20, IVaultV2 {
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
-            require(allocation[id] <= totalAssets.mulDiv(relativeCap[id], ConstantsLib.WAD, Math.Rounding.Floor), "relative cap exceeded");
+            require(
+                allocation[id] <= totalAssets.mulDiv(relativeCap[id], ConstantsLib.WAD, Math.Rounding.Floor),
+                "relative cap exceeded"
+            );
         }
     }
 
