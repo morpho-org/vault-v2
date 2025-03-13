@@ -140,8 +140,9 @@ contract VaultV2 is ERC20, IVaultV2 {
         markets.push(IMarket(market));
     }
 
-    function dropMarket(uint8 index) external timelocked {
-        asset.approve(address(markets[index]), 0);
+    function dropMarket(uint8 index, address market) external timelocked {
+        require(market == address(markets[index]), "inconsistent input");
+        asset.approve(market, 0);
         markets[index] = markets[markets.length - 1];
         markets.pop();
     }
