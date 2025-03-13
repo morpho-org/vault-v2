@@ -31,7 +31,7 @@ interface IVaultV2 is IMarket {
     function setGuardian(address) external;
     function setAllocator(address) external;
     function newMarket(address) external;
-    function dropMarket(uint8) external;
+    function dropMarket(uint8, address) external;
     function reallocateFromIdle(uint256, uint256) external;
     function reallocateToIdle(uint256, uint256) external;
     function realAssets() external view returns (uint256);
