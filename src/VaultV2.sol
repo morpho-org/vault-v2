@@ -31,11 +31,10 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* STORAGE */
 
-    // Note that each role could be a smart contract: the owner, curator and allocator.
+    // Note that each role could be a smart contract: the owner, curator and guardian.
     // This way, roles are modularized, and notably restricting their capabilities could be done on top.
     address public owner;
     address public curator;
-    address public allocator;
     address public guardian;
 
     uint256 public performanceFee;
@@ -67,7 +66,6 @@ contract VaultV2 is ERC20, IVaultV2 {
         address _factory,
         address _owner,
         address _curator,
-        address _allocator,
         address _asset,
         string memory _name,
         string memory _symbol
@@ -76,27 +74,9 @@ contract VaultV2 is ERC20, IVaultV2 {
         asset = IERC20(_asset);
         owner = _owner;
         curator = _curator;
-        allocator = _allocator;
         lastUpdate = block.timestamp;
         timelockDuration[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         // The vault starts with no IRM, no markets and no assets. To be configured afterwards.
-    }
-
-    /* AUTHORIZED MULTICALL */
-
-    function multicall(bytes[] calldata bundle) external {
-        IAllocator(allocator).authorizeMulticall(msg.sender, bundle);
-
-        // The allocator is responsible for making sure that bundles cannot reenter.
-        unlocked = true;
-
-        for (uint256 i = 0; i < bundle.length; i++) {
-            // Note: no need to check that address(this) has code.
-            (bool success,) = address(this).delegatecall(bundle[i]);
-            require(success, ErrorsLib.FailedDelegateCall());
-        }
-
-        unlocked = false;
     }
 
     /* OWNER ACTIONS */
@@ -159,10 +139,6 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* CURATOR ACTIONS */
 
-    function setAllocator(address newAllocator) external timelocked {
-        allocator = newAllocator;
-    }
-
     function setIRM(address newIRM) external timelocked {
         irm = newIRM;
     }
@@ -188,14 +164,13 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
         require(newRelativeCap < relativeCap[id], "relative cap not decreasing");
-        require(index < idsWithRelativeCap.length, "index out of bounds");
         require(idsWithRelativeCap[index] == id, "id not found");
 
-        relativeCap[id] = newRelativeCap;
-        if (relativeCap[id] == 0) {
+        if (newRelativeCap == 0) {
             idsWithRelativeCap[index] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
             idsWithRelativeCap.pop();
         }
+        relativeCap[id] = newRelativeCap;
     }
 
     /* ALLOCATOR ACTIONS */
@@ -204,8 +179,6 @@ contract VaultV2 is ERC20, IVaultV2 {
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateFromIdle(bytes32[] memory ids, uint256 amount) external {
         require(isAdapter[msg.sender], "not an adapter");
-
-        asset.transfer(msg.sender, amount);
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] += amount;
@@ -216,6 +189,8 @@ contract VaultV2 is ERC20, IVaultV2 {
                 "relative cap exceeded"
             );
         }
+
+        asset.transfer(msg.sender, amount);
     }
 
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
@@ -225,8 +200,6 @@ contract VaultV2 is ERC20, IVaultV2 {
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] -= amount;
-
-            // No need to check caps here.
         }
 
         asset.transferFrom(msg.sender, address(this), amount);
@@ -379,8 +352,7 @@ contract VaultV2 is ERC20, IVaultV2 {
                 || functionSelector == IVaultV2.addAdapter.selector || functionSelector == IVaultV2.removeAdapter.selector
         ) return sender == owner;
         else if (
-            functionSelector == IVaultV2.setAllocator.selector || functionSelector == IVaultV2.setIRM.selector
-                || functionSelector == IVaultV2.increaseAbsoluteCap.selector
+            functionSelector == IVaultV2.setIRM.selector || functionSelector == IVaultV2.increaseAbsoluteCap.selector
                 || functionSelector == IVaultV2.decreaseAbsoluteCap.selector
                 || functionSelector == IVaultV2.increaseRelativeCap.selector
                 || functionSelector == IVaultV2.decreaseRelativeCap.selector

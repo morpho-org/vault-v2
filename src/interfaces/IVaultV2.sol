@@ -13,13 +13,12 @@ interface IVaultV2 {
     function maxWithdraw(address) external view returns (uint256);
     function owner() external view returns (address);
     function curator() external view returns (address);
-    function allocator() external view returns (address);
     function guardian() external view returns (address);
     function irm() external view returns (address);
     function absoluteCap(bytes32) external view returns (uint256);
     function relativeCap(bytes32) external view returns (uint256);
     function allocation(bytes32) external view returns (uint256);
-    function multicall(bytes[] calldata bundle) external;
+    function submit(bytes calldata) external;
     function setPerformanceFee(uint256) external;
     function setPerformanceFeeRecipient(address) external;
     function setManagementFee(uint256) external;
@@ -27,7 +26,6 @@ interface IVaultV2 {
     function setOwner(address) external;
     function setCurator(address) external;
     function setGuardian(address) external;
-    function setAllocator(address) external;
     function reallocateFromIdle(bytes32[] memory, uint256) external;
     function reallocateToIdle(bytes32[] memory, uint256) external;
     function addAdapter(address) external;
@@ -43,5 +41,4 @@ interface IVaultV2 {
     function increaseRelativeCap(bytes32, uint256) external;
     function decreaseRelativeCap(bytes32, uint256, uint256) external;
     function setIRM(address) external;
-    function submit(bytes calldata) external;
 }

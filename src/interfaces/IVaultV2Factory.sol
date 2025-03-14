@@ -11,9 +11,7 @@ interface IVaultV2FactoryBase {
     function isVaultV2(address) external view returns (bool);
     function setOwner(address) external;
     function setProtocolFee(ProtocolFee memory) external;
-    function createVaultV2(address, address, address, address, string memory, string memory)
-        external
-        returns (address);
+    function createVaultV2(address, address, address, string memory, string memory) external returns (address);
 }
 
 interface IVaultV2FactoryStaticTyping is IVaultV2FactoryBase {
