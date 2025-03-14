@@ -19,17 +19,19 @@ contract VaultV2Factory is IVaultV2Factory {
         owner = _owner;
     }
 
-    // This function will be de facto timelocked because owner should be timelocked.
     function setOwner(address newOwner) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
         owner = newOwner;
     }
 
-    // This function will be de facto timelocked because owner should be timelocked.
-    function setProtocolFee(uint96 newProtocolFee, address newProtocolFeeRecipient) external {
+    function setProtocolFee(uint96 newProtocolFee) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
         require(newProtocolFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
         protocolFee = newProtocolFee;
+    }
+
+    function setProtocolFeeRecipient(address newProtocolFeeRecipient) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
         protocolFeeRecipient = newProtocolFeeRecipient;
     }
 
