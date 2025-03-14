@@ -219,8 +219,9 @@ contract VaultV2 is ERC20, IVaultV2 {
         address protocolFeeRecipient = IVaultV2Factory(factory).protocolFeeRecipient();
         if (ownerPerformanceFeeShares != 0) _mint(performanceFeeRecipient, ownerPerformanceFeeShares);
         if (ownerManagementFeeShares != 0) _mint(managementFeeRecipient, ownerManagementFeeShares);
-        if (protocolPerformanceFeeShares != 0) _mint(protocolFeeRecipient, protocolPerformanceFeeShares);
-        if (protocolManagementFeeShares != 0) _mint(protocolFeeRecipient, protocolManagementFeeShares);
+        if (protocolPerformanceFeeShares + protocolManagementFeeShares != 0) {
+            _mint(protocolFeeRecipient, protocolPerformanceFeeShares + protocolManagementFeeShares);
+        }
 
         lastUpdate = block.timestamp;
     }
