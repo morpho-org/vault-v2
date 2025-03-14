@@ -5,11 +5,12 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {ConstantsLib} from "./libraries/ConstantsLib.sol";
 
 import {VaultV2} from "./VaultV2.sol";
-import {ProtocolFee, IVaultV2FactoryStaticTyping} from "./interfaces/IVaultV2Factory.sol";
+import {IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
-contract VaultV2Factory is IVaultV2FactoryStaticTyping {
+contract VaultV2Factory is IVaultV2Factory {
     address public owner;
-    ProtocolFee public protocolFee;
+    uint96 public protocolFee;
+    address public protocolFeeRecipient;
     mapping(address => bool) public isVaultV2;
 
     constructor(address _owner) {
@@ -25,10 +26,11 @@ contract VaultV2Factory is IVaultV2FactoryStaticTyping {
     }
 
     // This function will be de facto timelocked because owner should be timelocked.
-    function setProtocolFee(ProtocolFee calldata newProtocolFee) external {
+    function setProtocolFee(uint96 newProtocolFee, address newProtocolFeeRecipient) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        require(newProtocolFee.fee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
+        require(newProtocolFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
         protocolFee = newProtocolFee;
+        protocolFeeRecipient = newProtocolFeeRecipient;
     }
 
     function createVaultV2(address _owner, address _curator, address _asset, string memory _name, string memory _symbol)

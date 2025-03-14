@@ -208,12 +208,22 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
-        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 newTotalAssets) = accruedFeeShares();
+        (
+            uint256 ownerPerformanceFeeShares,
+            uint256 ownerManagementFeeShares,
+            uint256 protocolPerformanceFeeShares,
+            uint256 protocolManagementFeeShares,
+            uint256 newTotalAssets
+        ) = accruedFeeShares();
 
         totalAssets = newTotalAssets;
 
-        if (performanceFeeShares != 0) _mint(performanceFeeRecipient, performanceFeeShares);
-        if (managementFeeShares != 0) _mint(managementFeeRecipient, managementFeeShares);
+        address protocolFeeRecipient = IVaultV2Factory(factory).protocolFeeRecipient();
+        if (ownerPerformanceFeeShares != 0) _mint(performanceFeeRecipient, ownerPerformanceFeeShares);
+        if (ownerManagementFeeShares != 0) _mint(managementFeeRecipient, ownerManagementFeeShares);
+        if (protocolPerformanceFeeShares + protocolManagementFeeShares != 0) {
+            _mint(protocolFeeRecipient, protocolPerformanceFeeShares + protocolManagementFeeShares);
+        }
 
         lastUpdate = block.timestamp;
     }
@@ -221,7 +231,13 @@ contract VaultV2 is ERC20, IVaultV2 {
     function accruedFeeShares()
         public
         view
-        returns (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 newTotalAssets)
+        returns (
+            uint256 ownerPerformanceFeeShares,
+            uint256 ownerManagementFeeShares,
+            uint256 protocolPerformanceFeeShares,
+            uint256 protocolManagementFeeShares,
+            uint256 newTotalAssets
+        )
     {
         uint256 elapsed = block.timestamp - lastUpdate;
         // Note that interest could be negative, but this is not always incentive compatible: users would want to leave.
@@ -230,22 +246,31 @@ contract VaultV2 is ERC20, IVaultV2 {
         // Note that irm.interestPerSecond() reverts if the vault is not initialized and has irm == address(0).
         int256 interest = IIRM(irm).interestPerSecond() * int256(elapsed);
         newTotalAssets = uint256(int256(totalAssets) + interest >= 0 ? int256(totalAssets) + interest : int256(0));
+
+        uint256 protocolFee = IVaultV2Factory(factory).protocolFee();
+
+        // Note that the fee assets is subtracted from the total assets in the fee shares calculation to compensate for
+        // the fact that total assets is already increased by the total interest (including the fee assets).
+        // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
         if (interest > 0 && performanceFee != 0) {
-            // It is acknowledged that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
             uint256 performanceFeeAssets =
                 uint256(interest).mulDiv(performanceFee, ConstantsLib.WAD, Math.Rounding.Floor);
-            // The fee assets is subtracted from the total assets in this calculation to compensate for the fact
-            // that total assets is already increased by the total interest (including the fee assets).
-            performanceFeeShares = performanceFeeAssets.mulDiv(
+            uint256 totalProtocolPerformanceFeeShares = performanceFeeAssets.mulDiv(
                 totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets, Math.Rounding.Floor
             );
+            protocolPerformanceFeeShares =
+                totalProtocolPerformanceFeeShares.mulDiv(protocolFee, ConstantsLib.WAD, Math.Rounding.Floor);
+            ownerPerformanceFeeShares = totalProtocolPerformanceFeeShares - protocolPerformanceFeeShares;
         }
-        if (interest > 0 && managementFee != 0) {
+        if (managementFee != 0) {
             uint256 managementFeeAssets =
                 (totalAssets * elapsed).mulDiv(managementFee, ConstantsLib.WAD, Math.Rounding.Floor);
-            managementFeeShares = managementFeeAssets.mulDiv(
-                totalSupply() + performanceFeeShares + 1, totalAssets + 1 - managementFeeAssets, Math.Rounding.Floor
+            uint256 totalProtocolManagementFeeShares = managementFeeAssets.mulDiv(
+                totalSupply() + 1, newTotalAssets + 1 - managementFeeAssets, Math.Rounding.Floor
             );
+            protocolManagementFeeShares =
+                totalProtocolManagementFeeShares.mulDiv(protocolFee, ConstantsLib.WAD, Math.Rounding.Floor);
+            ownerManagementFeeShares = totalProtocolManagementFeeShares - protocolManagementFeeShares;
         }
     }
 
