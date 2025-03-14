@@ -38,9 +38,7 @@ interface IVaultV2 is IMarket {
     function reallocateToIdle(uint256, uint256) external;
     function realAssets() external view returns (uint256);
     function accrueInterest() external;
-    function accruedFeeShares()
-        external
-        returns (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 newTotalAssets);
+    function accruedFeeShares() external returns (uint256, uint256, uint256, uint256, uint256);
     function increaseTimelock(bytes4, uint64) external;
     function decreaseTimelock(bytes4, uint64) external;
     function increaseCap(address, uint256) external;
