@@ -5,13 +5,12 @@ import {ERC20, IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20
 import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {SafeERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {IVaultV2} from "./interfaces/IVaultV2.sol";
+import {IVaultV2, IAdapter} from "./interfaces/IVaultV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
-import {IAllocator} from "./interfaces/IAllocator.sol";
 import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
-import {ConstantsLib} from "./libraries/ConstantsLib.sol";
+import {WAD} from "./libraries/ConstantsLib.sol";
 
 contract VaultV2 is ERC20, IVaultV2 {
     using Math for uint256;
@@ -36,6 +35,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     address public owner;
     address public curator;
     address public guardian;
+    mapping(address => bool) public isAllocator;
 
     uint256 public performanceFee;
     address public performanceFeeRecipient;
@@ -82,7 +82,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* OWNER ACTIONS */
 
     function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
-        require(newPerformanceFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
+        require(newPerformanceFee < WAD, ErrorsLib.FeeTooHigh());
 
         performanceFee = newPerformanceFee;
     }
@@ -92,7 +92,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function setManagementFee(uint256 newManagementFee) external timelocked {
-        require(newManagementFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
+        require(newManagementFee < WAD, ErrorsLib.FeeTooHigh());
 
         managementFee = newManagementFee;
     }
@@ -111,6 +111,10 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setGuardian(address newGuardian) external timelocked {
         guardian = newGuardian;
+    }
+
+    function setIsAllocator(address newAllocator, bool newIsAllocator) external timelocked {
+        isAllocator[newAllocator] = newIsAllocator;
     }
 
     function increaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
@@ -177,32 +181,36 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
-    function reallocateFromIdle(bytes32[] memory ids, uint256 amount) external {
-        require(isAdapter[msg.sender], "not an adapter");
+    function reallocateFromIdle(address adapter, bytes memory data, uint256 amount) external {
+        require(isAllocator[msg.sender], "not an allocator");
+        require(isAdapter[adapter], "not an adapter");
+
+        asset.transfer(adapter, amount);
+        bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] += amount;
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], "absolute cap exceeded");
             require(
-                allocation[ids[i]] <= totalAssets.mulDiv(relativeCap[ids[i]], ConstantsLib.WAD, Math.Rounding.Floor),
+                allocation[ids[i]] <= totalAssets.mulDiv(relativeCap[ids[i]], WAD, Math.Rounding.Floor),
                 "relative cap exceeded"
             );
         }
-
-        asset.transfer(msg.sender, amount);
     }
 
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
-    function reallocateToIdle(bytes32[] memory ids, uint256 amount) external {
-        require(isAdapter[msg.sender], "not an adapter");
+    function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
+        require(isAllocator[msg.sender], "not an allocator");
+        require(isAdapter[adapter], "not an adapter");
+
+        asset.transferFrom(adapter, address(this), amount);
+        bytes32[] memory ids = IAdapter(adapter).allocateOut(data, amount);
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] -= amount;
         }
-
-        asset.transferFrom(msg.sender, address(this), amount);
     }
 
     /* EXCHANGE RATE */
@@ -253,23 +261,20 @@ contract VaultV2 is ERC20, IVaultV2 {
         // the fact that total assets is already increased by the total interest (including the fee assets).
         // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
         if (interest > 0 && performanceFee != 0) {
-            uint256 performanceFeeAssets =
-                uint256(interest).mulDiv(performanceFee, ConstantsLib.WAD, Math.Rounding.Floor);
+            uint256 performanceFeeAssets = uint256(interest).mulDiv(performanceFee, WAD, Math.Rounding.Floor);
             uint256 totalProtocolPerformanceFeeShares = performanceFeeAssets.mulDiv(
                 totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets, Math.Rounding.Floor
             );
             protocolPerformanceFeeShares =
-                totalProtocolPerformanceFeeShares.mulDiv(protocolFee, ConstantsLib.WAD, Math.Rounding.Floor);
+                totalProtocolPerformanceFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
             ownerPerformanceFeeShares = totalProtocolPerformanceFeeShares - protocolPerformanceFeeShares;
         }
         if (managementFee != 0) {
-            uint256 managementFeeAssets =
-                (totalAssets * elapsed).mulDiv(managementFee, ConstantsLib.WAD, Math.Rounding.Floor);
+            uint256 managementFeeAssets = (totalAssets * elapsed).mulDiv(managementFee, WAD, Math.Rounding.Floor);
             uint256 totalProtocolManagementFeeShares = managementFeeAssets.mulDiv(
                 totalSupply() + 1, newTotalAssets + 1 - managementFeeAssets, Math.Rounding.Floor
             );
-            protocolManagementFeeShares =
-                totalProtocolManagementFeeShares.mulDiv(protocolFee, ConstantsLib.WAD, Math.Rounding.Floor);
+            protocolManagementFeeShares = totalProtocolManagementFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
             ownerManagementFeeShares = totalProtocolManagementFeeShares - protocolManagementFeeShares;
         }
     }
@@ -322,8 +327,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
             require(
-                allocation[id] <= totalAssets.mulDiv(relativeCap[id], ConstantsLib.WAD, Math.Rounding.Floor),
-                "relative cap exceeded"
+                allocation[id] <= totalAssets.mulDiv(relativeCap[id], WAD, Math.Rounding.Floor), "relative cap exceeded"
             );
         }
     }

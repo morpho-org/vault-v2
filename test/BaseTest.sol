@@ -7,7 +7,6 @@ import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 import {VaultV2Factory} from "../src/VaultV2Factory.sol";
 import {VaultV2} from "../src/VaultV2.sol";
 import {IRM} from "../src/IRM.sol";
-import {ManagedAllocator} from "../src/allocators/ManagedAllocator.sol";
 import {EncodeLib} from "../src/libraries/EncodeLib.sol";
 
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
@@ -20,7 +19,6 @@ contract BaseTest is Test {
     address immutable curator = makeAddr("curator");
 
     ERC20Mock underlyingToken;
-    ManagedAllocator allocator;
     IVaultV2Factory vaultFactory;
     IVaultV2 vault;
     IRM irm;
@@ -32,9 +30,6 @@ contract BaseTest is Test {
 
         underlyingToken = new ERC20Mock("UnderlyingToken", "UND");
         vm.label(address(underlyingToken), "underlying");
-
-        allocator = new ManagedAllocator(manager);
-        vm.label(address(allocator), "allocator");
 
         vaultFactory = IVaultV2Factory(address(new VaultV2Factory(address(this))));
 
@@ -52,7 +47,6 @@ contract BaseTest is Test {
         assertEq(address(vault.asset()), address(underlyingToken));
         assertEq(address(vault.curator()), curator);
         assertEq(address(vault.irm()), address(irm));
-        assertEq(allocator.owner(), manager);
         assertEq(irm.owner(), manager);
         assertEq(address(irm.vault()), address(vault));
     }

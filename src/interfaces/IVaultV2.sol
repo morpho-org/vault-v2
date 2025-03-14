@@ -3,6 +3,11 @@ pragma solidity >=0.5.0;
 
 import {IERC20} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 
+interface IAdapter {
+    function allocateIn(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
+    function allocateOut(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
+}
+
 interface IVaultV2 {
     function asset() external view returns (IERC20);
     function totalAssets() external view returns (uint256);
@@ -26,8 +31,8 @@ interface IVaultV2 {
     function setOwner(address) external;
     function setCurator(address) external;
     function setGuardian(address) external;
-    function reallocateFromIdle(bytes32[] memory, uint256) external;
-    function reallocateToIdle(bytes32[] memory, uint256) external;
+    function reallocateFromIdle(address, bytes memory, uint256) external;
+    function reallocateToIdle(address, bytes memory, uint256) external;
     function addAdapter(address) external;
     function removeAdapter(address) external;
     function accrueInterest() external;
