@@ -5,7 +5,7 @@ import {ERC20, IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20
 import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {SafeERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {Pending, Action, IMarket, IVaultV2} from "./interfaces/IVaultV2.sol";
+import {IMarket, IVaultV2} from "./interfaces/IVaultV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {IAllocator} from "./interfaces/IAllocator.sol";
 import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
@@ -46,9 +46,9 @@ contract VaultV2 is ERC20, IVaultV2 {
     uint256 public totalAssets;
 
     IMarket[] public markets;
-    mapping(address => uint160) public cap;
+    mapping(address => uint256) public cap;
 
-    mapping(bytes24 => Pending) public pending;
+    mapping(bytes => uint256) public validAt;
     mapping(bytes4 => uint64) public timelockDuration;
 
     /* CONSTRUCTOR */
@@ -68,7 +68,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         curator = _curator;
         allocator = _allocator;
         lastUpdate = block.timestamp;
-        timelockDuration[IVaultV2.setTimelock.selector] = TIMELOCK_CAP;
+        timelockDuration[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         // The vault starts with no IRM, no markets and no assets. To be configured afterwards.
     }
 
@@ -89,73 +89,78 @@ contract VaultV2 is ERC20, IVaultV2 {
         unlocked = false;
     }
 
-    /* ONWER ACTIONS */
+    /* OWNER ACTIONS */
 
-    function setFee(Action action, uint160 newFee) external {
-        require(msg.sender == owner, ErrorsLib.Unauthorized());
+    function setFee(uint160 newFee) external timelocked {
         require(newFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
-        bool canSet = newFee < fee;
-        if (submittedToTimelock(action, canSet, 0, newFee)) fee = newFee;
+
+        fee = newFee;
     }
 
-    function setFeeRecipient(address newFeeRecipient) external {
-        require(msg.sender == owner, ErrorsLib.Unauthorized());
+    function setFeeRecipient(address newFeeRecipient) external timelocked {
         feeRecipient = newFeeRecipient;
     }
 
-    function setOwner(Action action, address newOwner) external {
-        require(msg.sender == owner, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(action, uint160(newOwner))) owner = newOwner;
+    function setOwner(address newOwner) external timelocked {
+        owner = newOwner;
     }
 
-    // Can be seen as an exit to underlying, governed by the owner.
-    function setCurator(Action action, address newCurator) external {
-        require(msg.sender == owner, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(action, uint160(newCurator))) curator = newCurator;
+    function setCurator(address newCurator) external timelocked {
+        curator = newCurator;
     }
 
-    function setGuardian(Action action, address newGuardian) external {
-        require(msg.sender == owner, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(action, uint160(newGuardian))) owner = newGuardian;
+    function setGuardian(address newGuardian) external timelocked {
+        guardian = newGuardian;
+    }
+
+    function increaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
+        require(functionSelector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
+        require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
+        require(newDuration > timelockDuration[functionSelector], "timelock not increasing");
+
+        timelockDuration[functionSelector] = newDuration;
+    }
+
+    function decreaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
+        require(functionSelector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
+        require(newDuration >= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
+        require(newDuration < timelockDuration[functionSelector], "timelock not decreasing");
+
+        timelockDuration[functionSelector] = newDuration;
     }
 
     /* CURATOR ACTIONS */
 
-    function setAllocator(Action action, address newAllocator) external {
-        require(msg.sender == owner || msg.sender == address(allocator), ErrorsLib.Unauthorized());
-        if (submittedToTimelock(action, uint160(newAllocator))) allocator = newAllocator;
+    function setAllocator(address newAllocator) external timelocked {
+        allocator = newAllocator;
     }
 
-    // Could set cap right when adding a market, to avoid having to wait the timelock twice.
-    function newMarket(Action action, address market) external {
-        require(msg.sender == curator, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(action, false, uint160(market), uint160(market))) {
-            asset.approve(market, type(uint256).max);
-            markets.push(IMarket(market));
-        }
+    function newMarket(address market) external timelocked {
+        asset.approve(market, type(uint256).max);
+        markets.push(IMarket(market));
     }
 
-    function dropMarket(Action action, uint8 index) external {
-        require(msg.sender == curator, ErrorsLib.Unauthorized());
-        address market = address(markets[index]);
-        if (submittedToTimelock(action, false, uint160(market), uint160(market))) {
-            asset.approve(market, 0);
-            markets[index] = markets[markets.length - 1];
-            markets.pop();
-        }
+    function dropMarket(uint8 index, address market) external timelocked {
+        require(market == address(markets[index]), "inconsistent input");
+        asset.approve(market, 0);
+        markets[index] = markets[markets.length - 1];
+        markets.pop();
     }
 
-    function setCap(Action action, address market, uint160 newCap) external {
-        require(msg.sender == curator, ErrorsLib.Unauthorized());
-        bool canSet = newCap < cap[market];
-        if (submittedToTimelock(action, canSet, uint160(market), newCap)) {
-            cap[market] = newCap;
-        }
+    function setIRM(address newIRM) external timelocked {
+        irm = newIRM;
     }
 
-    function setIRM(Action action, address newIRM) external {
-        require(msg.sender == curator, ErrorsLib.Unauthorized());
-        if (submittedToTimelock(action, uint160(newIRM))) irm = newIRM;
+    function increaseCap(address market, uint256 newCap) external timelocked {
+        require(newCap > cap[market], "cap not increasing");
+
+        cap[market] = newCap;
+    }
+
+    function decreaseCap(address market, uint256 newCap) external timelocked {
+        require(newCap < cap[market], "cap not decreasing");
+
+        cap[market] = newCap;
     }
 
     /* ALLOCATOR ACTIONS */
@@ -285,48 +290,40 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* TIMELOCKS */
 
-    function setTimelock(Action action, bytes4 sel, uint64 newDuration) external {
-        require(msg.sender == curator, ErrorsLib.Unauthorized());
-        require(sel != IVaultV2.setTimelock.selector, ErrorsLib.TimelockCapIsFixed());
-        require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
-        bool canSet = newDuration > timelockDuration[sel];
-        if (submittedToTimelock(action, canSet, uint32(sel), newDuration)) {
-            timelockDuration[sel] = newDuration;
-        }
+    function submit(bytes calldata data) external {
+        bytes4 functionSelector = bytes4(data);
+        require(isAuthorized(msg.sender, functionSelector), ErrorsLib.Unauthorized());
+
+        require(validAt[data] == 0, "data already pending");
+
+        validAt[data] = block.timestamp + timelockDuration[functionSelector];
     }
 
-    function submittedToTimelock(Action action, uint160 newValue) internal returns (bool) {
-        return submittedToTimelock(action, false, 0, newValue);
+    modifier timelocked() {
+        require(validAt[msg.data] != 0 && block.timestamp >= validAt[msg.data], "data not timelocked");
+        validAt[msg.data] = 0;
+        _;
     }
 
-    function submittedToTimelock(Action action, bool canSet, uint160 field, uint160 newValue)
-        internal
-        returns (bool updateValue)
-    {
-        bytes4 sel = bytes4(msg.data[:4]);
-        bytes24 id = bytes24(abi.encodePacked(sel, field));
-        if (action == Action.Set) {
-            require(canSet || timelockDuration[sel] == 0, ErrorsLib.CantSet());
-            updateValue = true;
-        } else if (action == Action.Submit) {
-            require(pending[id].validAt == 0);
-            pending[id].validAt = uint64(block.timestamp) + timelockDuration[sel];
-            pending[id].value = newValue;
-        } else if (action == Action.Accept) {
-            require(newValue == pending[id].value, ErrorsLib.WrongPendingValue());
-            require(block.timestamp >= pending[id].validAt, ErrorsLib.TimelockNotExpired());
-            delete pending[id];
-        } else if (action == Action.Revoke) {
-            require(newValue == pending[id].value, ErrorsLib.WrongPendingValue());
-            delete pending[id];
-        } else {
-            revert("Invalid action");
-        }
+    // authorize owners to revoke their things.
+    function revoke(bytes calldata data) external {
+        require(isAuthorized(msg.sender, bytes4(data)) || msg.sender == guardian, ErrorsLib.Unauthorized());
+        require(validAt[data] != 0);
+        validAt[data] = 0;
     }
 
-    function revokePending(bytes24 id) external {
-        require(msg.sender == guardian, ErrorsLib.Unauthorized());
-        delete pending[id];
+    function isAuthorized(address sender, bytes4 functionSelector) internal view returns (bool) {
+        if (
+            functionSelector == IVaultV2.setOwner.selector || functionSelector == IVaultV2.setCurator.selector
+                || functionSelector == IVaultV2.setGuardian.selector || functionSelector == IVaultV2.setFee.selector
+                || functionSelector == IVaultV2.setFeeRecipient.selector
+        ) return sender == owner;
+        else if (
+            functionSelector == IVaultV2.setAllocator.selector || functionSelector == IVaultV2.setIRM.selector
+                || functionSelector == IVaultV2.increaseCap.selector || functionSelector == IVaultV2.decreaseCap.selector
+                || functionSelector == IVaultV2.newMarket.selector || functionSelector == IVaultV2.dropMarket.selector
+        ) return sender == curator;
+        else return false;
     }
 
     /* INTERFACE */
