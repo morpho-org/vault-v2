@@ -111,7 +111,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         curator = newCurator;
     }
 
-    function setSentinel(address newSentinel, bool newIsSentinel) external timelocked {
+    function setIsSentinel(address newSentinel, bool newIsSentinel) external timelocked {
         isSentinel[newSentinel] = newIsSentinel;
     }
 
@@ -317,7 +317,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function revoke(bytes calldata data) external {
         require(msg.sender == guardian || isSentinel[msg.sender], "unauthorized");
-        require(bytes4(data) != IVaultV2.setSentinel.selector, "unrevokable");
+        require(bytes4(data) != IVaultV2.setIsSentinel.selector, "unrevokable");
         require(validAt[data] != 0);
         validAt[data] = 0;
     }
@@ -327,7 +327,7 @@ contract VaultV2 is ERC20, IVaultV2 {
             return (
                 functionSelector == IVaultV2.setOwner.selector || functionSelector == IVaultV2.setCurator.selector
                     || functionSelector == IVaultV2.setGuardian.selector
-                    || functionSelector == IVaultV2.setSentinel.selector
+                    || functionSelector == IVaultV2.setIsSentinel.selector
                     || functionSelector == IVaultV2.setFeeRecipient.selector
                     || functionSelector == IVaultV2.setAllocator.selector
             );

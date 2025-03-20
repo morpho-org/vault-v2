@@ -28,7 +28,7 @@ interface IVaultV2 is IMarket {
     function setFeeRecipient(address) external;
     function setOwner(address) external;
     function setCurator(address) external;
-    function setSentinel(address, bool) external;
+    function setIsSentinel(address, bool) external;
     function setGuardian(address) external;
     function setTreasurer(address) external;
     function setAllocator(address) external;
