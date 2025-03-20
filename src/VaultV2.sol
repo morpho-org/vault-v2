@@ -316,6 +316,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function revoke(bytes calldata data) external {
+        require(msg.sender == guardian || isSentinel[msg.sender], "unauthorized");
         require(bytes4(data) != IVaultV2.setSentinel.selector, "unrevokable");
         require(validAt[data] != 0);
         validAt[data] = 0;
