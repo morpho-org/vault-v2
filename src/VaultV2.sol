@@ -37,6 +37,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     address public curator;
     address public allocator;
     address public guardian;
+    address public treasurer;
+    mapping(address => bool) public isSentinel;
 
     uint160 public fee;
     address public feeRecipient;
@@ -109,8 +111,16 @@ contract VaultV2 is ERC20, IVaultV2 {
         curator = newCurator;
     }
 
+    function setSentinel(address newSentinel, bool newIsSentinel) external timelocked {
+        isSentinel[newSentinel] = newIsSentinel;
+    }
+
     function setGuardian(address newGuardian) external timelocked {
         guardian = newGuardian;
+    }
+
+    function setTreasurer(address newTreasurer) external timelocked {
+        treasurer = newTreasurer;
     }
 
     function increaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
@@ -292,7 +302,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function submit(bytes calldata data) external {
         bytes4 functionSelector = bytes4(data);
-        require(isAuthorized(msg.sender, functionSelector), ErrorsLib.Unauthorized());
+        require(isAuthorizedToSubmit(msg.sender, functionSelector), ErrorsLib.Unauthorized());
 
         require(validAt[data] == 0, "data already pending");
 
@@ -305,25 +315,34 @@ contract VaultV2 is ERC20, IVaultV2 {
         _;
     }
 
-    // authorize owners to revoke their things.
     function revoke(bytes calldata data) external {
-        require(isAuthorized(msg.sender, bytes4(data)) || msg.sender == guardian, ErrorsLib.Unauthorized());
+        require(bytes4(data) != IVaultV2.setSentinel.selector, "unrevokable");
         require(validAt[data] != 0);
         validAt[data] = 0;
     }
 
-    function isAuthorized(address sender, bytes4 functionSelector) internal view returns (bool) {
-        if (
-            functionSelector == IVaultV2.setOwner.selector || functionSelector == IVaultV2.setCurator.selector
-                || functionSelector == IVaultV2.setGuardian.selector || functionSelector == IVaultV2.setFee.selector
-                || functionSelector == IVaultV2.setFeeRecipient.selector
-        ) return sender == owner;
-        else if (
-            functionSelector == IVaultV2.setAllocator.selector || functionSelector == IVaultV2.setIRM.selector
-                || functionSelector == IVaultV2.increaseCap.selector || functionSelector == IVaultV2.decreaseCap.selector
-                || functionSelector == IVaultV2.newMarket.selector || functionSelector == IVaultV2.dropMarket.selector
-        ) return sender == curator;
-        else return false;
+    function isAuthorizedToSubmit(address sender, bytes4 functionSelector) internal view returns (bool) {
+        if (sender == owner) {
+            return (
+                functionSelector == IVaultV2.setOwner.selector || functionSelector == IVaultV2.setCurator.selector
+                    || functionSelector == IVaultV2.setGuardian.selector
+                    || functionSelector == IVaultV2.setSentinel.selector
+                    || functionSelector == IVaultV2.setFeeRecipient.selector
+                    || functionSelector == IVaultV2.setAllocator.selector
+            );
+        } else if (sender == curator) {
+            return (
+                functionSelector == IVaultV2.setIRM.selector || functionSelector == IVaultV2.increaseCap.selector
+                    || functionSelector == IVaultV2.decreaseCap.selector || functionSelector == IVaultV2.newMarket.selector
+                    || functionSelector == IVaultV2.dropMarket.selector
+            );
+        } else if (isSentinel[sender]) {
+            return functionSelector == IVaultV2.decreaseCap.selector;
+        } else if (sender == treasurer) {
+            return functionSelector == IVaultV2.setFee.selector;
+        } else {
+            return false;
+        }
     }
 
     /* INTERFACE */
