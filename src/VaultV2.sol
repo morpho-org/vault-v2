@@ -317,7 +317,10 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function revoke(bytes calldata data) external {
         // Sentinels can't revoke setIsSentinel timelocks.
-        require(msg.sender == guardian || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector), "unauthorized");
+        require(
+            msg.sender == guardian || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector),
+            "unauthorized"
+        );
         require(validAt[data] != 0);
         validAt[data] = 0;
     }
