@@ -318,10 +318,13 @@ contract VaultV2 is ERC20, IVaultV2 {
         _;
     }
 
+    /// @dev Guardian can revoke everything.
+    /// @dev Sentinels can revoke everything except can't revoke setIsSentinel timelocks.
+    /// @dev Authorized to submit can revoke.
     function revoke(bytes calldata data) external {
-        // Sentinels can't revoke setIsSentinel timelocks.
         require(
-            msg.sender == guardian || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector),
+            msg.sender == guardian || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector)
+                || isAuthorizedToSubmit(msg.sender, bytes4(data)),
             "unauthorized"
         );
         require(validAt[data] != 0);
@@ -333,7 +336,9 @@ contract VaultV2 is ERC20, IVaultV2 {
         else if (functionSelector == IVaultV2.setOwner.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setCurator.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setGuardian.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.setTreasurer.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setFeeRecipient.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setAllocator.selector) return sender == owner;
         else if (functionSelector == IVaultV2.unsetAllocator.selector) return isSentinel[sender];
         else if (functionSelector == IVaultV2.setIRM.selector) return sender == curator;
