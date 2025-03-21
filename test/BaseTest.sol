@@ -56,6 +56,7 @@ contract BaseTest is Test {
         assertEq(vault.owner(), owner);
         assertEq(address(vault.asset()), address(underlyingToken));
         assertEq(address(vault.curator()), curator);
+        assertTrue(vault.isAllocator(address(allocator)));
         assertEq(address(vault.irm()), address(irm));
         assertEq(allocator.owner(), manager);
         assertEq(irm.owner(), manager);
