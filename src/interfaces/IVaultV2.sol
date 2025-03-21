@@ -31,6 +31,7 @@ interface IVaultV2 is IMarket {
     function setIsSentinel(address, bool) external;
     function setGuardian(address) external;
     function setTreasurer(address) external;
+    function unsetAllocator() external;
     function setAllocator(address) external;
     function newMarket(address) external;
     function dropMarket(uint8, address) external;
