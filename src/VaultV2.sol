@@ -141,7 +141,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function setAllocator(address allocator) external timelocked {
         isAllocator[allocator] = true;
     }
-    
+
     function unsetAllocator(address allocator) external timelocked {
         isAllocator[allocator] = false;
     }
