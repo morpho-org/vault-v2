@@ -335,7 +335,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         else if (functionSelector == IVaultV2.setGuardian.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setFeeRecipient.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setAllocator.selector) return sender == owner;
-        else if (functionSelector == IVaultV2.unsetAllocator.selector) return isSentinel[sender];
+        else if (functionSelector == IVaultV2.unsetAllocator.selector) return sender == owner || isSentinel[sender];
         else if (functionSelector == IVaultV2.setIRM.selector) return sender == curator;
         else if (functionSelector == IVaultV2.increaseCap.selector) return sender == curator;
         else if (functionSelector == IVaultV2.decreaseCap.selector) return sender == curator || isSentinel[sender];
