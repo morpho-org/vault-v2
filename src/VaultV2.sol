@@ -301,11 +301,11 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* TIMELOCKS */
 
     function submit(bytes calldata data) external {
-        bytes4 functionSelector = bytes4(data);
-        require(isAuthorizedToSubmit(msg.sender, functionSelector), ErrorsLib.Unauthorized());
+        require(isAuthorizedToSubmit(msg.sender, data), ErrorsLib.Unauthorized());
 
         require(validAt[data] == 0, "data already pending");
 
+        bytes4 functionSelector = bytes4(data);
         validAt[data] = block.timestamp + timelockDuration[functionSelector];
     }
 
@@ -325,20 +325,35 @@ contract VaultV2 is ERC20, IVaultV2 {
         validAt[data] = 0;
     }
 
-    function isAuthorizedToSubmit(address sender, bytes4 functionSelector) internal view returns (bool) {
-        if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
-        else if (functionSelector == IVaultV2.setOwner.selector) return sender == owner;
-        else if (functionSelector == IVaultV2.setCurator.selector) return sender == owner;
-        else if (functionSelector == IVaultV2.setGuardian.selector) return sender == owner;
-        else if (functionSelector == IVaultV2.setFeeRecipient.selector) return sender == owner;
-        else if (functionSelector == IVaultV2.setAllocator.selector) return sender == owner || isSentinel[sender];
-        else if (functionSelector == IVaultV2.setIRM.selector) return sender == curator;
-        else if (functionSelector == IVaultV2.increaseCap.selector) return sender == curator;
-        else if (functionSelector == IVaultV2.decreaseCap.selector) return sender == curator || isSentinel[sender];
-        else if (functionSelector == IVaultV2.newMarket.selector) return sender == curator;
-        else if (functionSelector == IVaultV2.dropMarket.selector) return sender == curator;
-        else if (functionSelector == IVaultV2.setFee.selector) return sender == treasurer;
-        else return false;
+    function isAuthorizedToSubmit(address sender, bytes calldata data) internal view returns (bool) {
+        bytes4 functionSelector = bytes4(data);
+        if (functionSelector == IVaultV2.setIsSentinel.selector) {
+            return sender == owner;
+        } else if (functionSelector == IVaultV2.setOwner.selector) {
+            return sender == owner;
+        } else if (functionSelector == IVaultV2.setCurator.selector) {
+            return sender == owner;
+        } else if (functionSelector == IVaultV2.setGuardian.selector) {
+            return sender == owner;
+        } else if (functionSelector == IVaultV2.setFeeRecipient.selector) {
+            return sender == owner;
+        } else if (functionSelector == IVaultV2.setAllocator.selector) {
+            return sender == owner || (isSentinel[sender] && bytes32(data[4:36]) == 0);
+        } else if (functionSelector == IVaultV2.setIRM.selector) {
+            return sender == curator;
+        } else if (functionSelector == IVaultV2.increaseCap.selector) {
+            return sender == curator;
+        } else if (functionSelector == IVaultV2.decreaseCap.selector) {
+            return sender == curator || isSentinel[sender];
+        } else if (functionSelector == IVaultV2.newMarket.selector) {
+            return sender == curator;
+        } else if (functionSelector == IVaultV2.dropMarket.selector) {
+            return sender == curator;
+        } else if (functionSelector == IVaultV2.setFee.selector) {
+            return sender == treasurer;
+        } else {
+            return false;
+        }
     }
 
     /* INTERFACE */
