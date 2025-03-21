@@ -319,7 +319,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     /// @dev Guardian can revoke everything.
-    /// @dev Sentinels can revoke everything except can't revoke setIsSentinel timelocks.
+    /// @dev Sentinels can revoke everything except setIsSentinel timelocks.
     /// @dev Authorized to submit can revoke.
     function revoke(bytes calldata data) external {
         require(
