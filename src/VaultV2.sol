@@ -35,10 +35,10 @@ contract VaultV2 is ERC20, IVaultV2 {
     // This way, roles are modularized, and notably restricting their capabilities could be done on top.
     address public owner;
     address public curator;
-    address public allocator;
     address public guardian;
     address public treasurer;
     mapping(address => bool) public isSentinel;
+    mapping(address => bool) public isAllocator;
 
     uint160 public fee;
     address public feeRecipient;
@@ -59,7 +59,6 @@ contract VaultV2 is ERC20, IVaultV2 {
         address _factory,
         address _owner,
         address _curator,
-        address _allocator,
         address _asset,
         string memory _name,
         string memory _symbol
@@ -68,7 +67,6 @@ contract VaultV2 is ERC20, IVaultV2 {
         asset = IERC20(_asset);
         owner = _owner;
         curator = _curator;
-        allocator = _allocator;
         lastUpdate = block.timestamp;
         timelockDuration[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         // The vault starts with no IRM, no markets and no assets. To be configured afterwards.
@@ -76,7 +74,8 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* AUTHORIZED MULTICALL */
 
-    function multicall(bytes[] calldata bundle) external {
+    function multicall(address allocator, bytes[] calldata bundle) external {
+        require(isAllocator[allocator], ErrorsLib.Unauthorized());
         IAllocator(allocator).authorizeMulticall(msg.sender, bundle);
 
         // The allocator is responsible for making sure that bundles cannot reenter.
@@ -139,17 +138,15 @@ contract VaultV2 is ERC20, IVaultV2 {
         timelockDuration[functionSelector] = newDuration;
     }
 
-    /* SENTINEL ACTIONS */
-
-    function unsetAllocator() external timelocked {
-        allocator = address(0);
+    function setAllocator(address allocator) external timelocked {
+        isAllocator[allocator] = true;
+    }
+    
+    function unsetAllocator(address allocator) external timelocked {
+        isAllocator[allocator] = false;
     }
 
     /* CURATOR ACTIONS */
-
-    function setAllocator(address newAllocator) external timelocked {
-        allocator = newAllocator;
-    }
 
     function newMarket(address market) external timelocked {
         asset.approve(market, type(uint256).max);
