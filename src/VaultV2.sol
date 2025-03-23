@@ -92,12 +92,6 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* OWNER ACTIONS */
 
-    function setFee(uint160 newFee) external timelocked {
-        require(newFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
-
-        fee = newFee;
-    }
-
     function setFeeRecipient(address newFeeRecipient) external timelocked {
         feeRecipient = newFeeRecipient;
     }
@@ -144,6 +138,14 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function unsetAllocator(address allocator) external timelocked {
         isAllocator[allocator] = false;
+    }
+
+    /* TREASURER ACTIONS */
+
+    function setFee(uint160 newFee) external timelocked {
+        require(newFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
+
+        fee = newFee;
     }
 
     /* CURATOR ACTIONS */
@@ -332,21 +334,23 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function isAuthorizedToSubmit(address sender, bytes4 functionSelector) internal view returns (bool) {
+        // Owner actions.
         if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setOwner.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setCurator.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setGuardian.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setTreasurer.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setFeeRecipient.selector) return sender == owner;
-        else if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setAllocator.selector) return sender == owner;
         else if (functionSelector == IVaultV2.unsetAllocator.selector) return sender == owner || isSentinel[sender];
+        // Treasurer actions.
+        else if (functionSelector == IVaultV2.setFee.selector) return sender == treasurer;
+        // Curator actions.
         else if (functionSelector == IVaultV2.setIRM.selector) return sender == curator;
         else if (functionSelector == IVaultV2.increaseCap.selector) return sender == curator;
         else if (functionSelector == IVaultV2.decreaseCap.selector) return sender == curator || isSentinel[sender];
         else if (functionSelector == IVaultV2.newMarket.selector) return sender == curator;
         else if (functionSelector == IVaultV2.dropMarket.selector) return sender == curator;
-        else if (functionSelector == IVaultV2.setFee.selector) return sender == treasurer;
         else return false;
     }
 
