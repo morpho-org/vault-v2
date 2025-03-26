@@ -381,7 +381,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function isAuthorizedToSubmit(address sender, bytes4 functionSelector) internal view returns (bool) {
         // Owner actions.
         if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setOwner.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setCurator.selector) return sender == owner;
