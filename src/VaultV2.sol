@@ -35,8 +35,10 @@ contract VaultV2 is ERC20, IVaultV2 {
     // This way, roles are modularized, and notably restricting their capabilities could be done on top.
     address public owner;
     address public curator;
-    address public allocator;
     address public guardian;
+    address public treasurer;
+    mapping(address => bool) public isSentinel;
+    mapping(address => bool) public isAllocator;
 
     uint256 public performanceFee;
     address public performanceFeeRecipient;
@@ -59,7 +61,6 @@ contract VaultV2 is ERC20, IVaultV2 {
         address _factory,
         address _owner,
         address _curator,
-        address _allocator,
         address _asset,
         string memory _name,
         string memory _symbol
@@ -68,7 +69,6 @@ contract VaultV2 is ERC20, IVaultV2 {
         asset = IERC20(_asset);
         owner = _owner;
         curator = _curator;
-        allocator = _allocator;
         lastUpdate = block.timestamp;
         timelockDuration[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         // The vault starts with no IRM, no markets and no assets. To be configured afterwards.
@@ -76,7 +76,8 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* AUTHORIZED MULTICALL */
 
-    function multicall(bytes[] calldata bundle) external {
+    function multicall(address allocator, bytes[] calldata bundle) external {
+        require(isAllocator[allocator], ErrorsLib.Unauthorized());
         IAllocator(allocator).authorizeMulticall(msg.sender, bundle);
 
         // The allocator is responsible for making sure that bundles cannot reenter.
@@ -93,20 +94,8 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* OWNER ACTIONS */
 
-    function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
-        require(newPerformanceFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
-
-        performanceFee = newPerformanceFee;
-    }
-
     function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
         performanceFeeRecipient = newPerformanceFeeRecipient;
-    }
-
-    function setManagementFee(uint256 newManagementFee) external timelocked {
-        require(newManagementFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
-
-        managementFee = newManagementFee;
     }
 
     function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
@@ -121,8 +110,16 @@ contract VaultV2 is ERC20, IVaultV2 {
         curator = newCurator;
     }
 
+    function setIsSentinel(address newSentinel, bool newIsSentinel) external timelocked {
+        isSentinel[newSentinel] = newIsSentinel;
+    }
+
     function setGuardian(address newGuardian) external timelocked {
         guardian = newGuardian;
+    }
+
+    function setTreasurer(address newTreasurer) external timelocked {
+        treasurer = newTreasurer;
     }
 
     function increaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
@@ -141,19 +138,38 @@ contract VaultV2 is ERC20, IVaultV2 {
         timelockDuration[functionSelector] = newDuration;
     }
 
-    /* CURATOR ACTIONS */
-
-    function setAllocator(address newAllocator) external timelocked {
-        allocator = newAllocator;
+    function setAllocator(address allocator) external timelocked {
+        isAllocator[allocator] = true;
     }
+
+    function unsetAllocator(address allocator) external timelocked {
+        isAllocator[allocator] = false;
+    }
+
+    /* TREASURER ACTIONS */
+
+    function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
+        require(newPerformanceFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
+
+        performanceFee = newPerformanceFee;
+    }
+    
+    function setManagementFee(uint256 newManagementFee) external timelocked {
+        require(newManagementFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
+
+        managementFee = newManagementFee;
+    }
+
+    /* CURATOR ACTIONS */
 
     function newMarket(address market) external timelocked {
         asset.approve(market, type(uint256).max);
         markets.push(IMarket(market));
     }
 
-    function dropMarket(uint8 index) external timelocked {
-        asset.approve(address(markets[index]), 0);
+    function dropMarket(uint8 index, address market) external timelocked {
+        require(market == address(markets[index]), "inconsistent input");
+        asset.approve(market, 0);
         markets[index] = markets[markets.length - 1];
         markets.pop();
     }
@@ -336,7 +352,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function submit(bytes calldata data) external {
         bytes4 functionSelector = bytes4(data);
-        require(isAuthorized(msg.sender, functionSelector), ErrorsLib.Unauthorized());
+        require(isAuthorizedToSubmit(msg.sender, functionSelector), ErrorsLib.Unauthorized());
 
         require(validAt[data] == 0, "data already pending");
 
@@ -349,27 +365,39 @@ contract VaultV2 is ERC20, IVaultV2 {
         _;
     }
 
-    // authorize owners to revoke their things.
+    /// @dev Guardian can revoke everything.
+    /// @dev Sentinels can revoke everything except setIsSentinel timelocks.
+    /// @dev Authorized to submit can revoke.
     function revoke(bytes calldata data) external {
-        require(isAuthorized(msg.sender, bytes4(data)) || msg.sender == guardian, ErrorsLib.Unauthorized());
-        require(validAt[data] != 0, "data not timelocked");
+        require(
+            msg.sender == guardian || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector)
+                || isAuthorizedToSubmit(msg.sender, bytes4(data)),
+            "unauthorized"
+        );
+        require(validAt[data] != 0);
         validAt[data] = 0;
     }
 
-    function isAuthorized(address sender, bytes4 functionSelector) internal view returns (bool) {
-        if (
-            functionSelector == IVaultV2.setOwner.selector || functionSelector == IVaultV2.setCurator.selector
-                || functionSelector == IVaultV2.setGuardian.selector
-                || functionSelector == IVaultV2.setPerformanceFee.selector
-                || functionSelector == IVaultV2.setPerformanceFeeRecipient.selector
-                || functionSelector == IVaultV2.setManagementFee.selector
-                || functionSelector == IVaultV2.setManagementFeeRecipient.selector
-        ) return sender == owner;
-        else if (
-            functionSelector == IVaultV2.setAllocator.selector || functionSelector == IVaultV2.setIRM.selector
-                || functionSelector == IVaultV2.increaseCap.selector || functionSelector == IVaultV2.decreaseCap.selector
-                || functionSelector == IVaultV2.newMarket.selector || functionSelector == IVaultV2.dropMarket.selector
-        ) return sender == curator;
+    function isAuthorizedToSubmit(address sender, bytes4 functionSelector) internal view returns (bool) {
+        // Owner actions.
+        if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.setOwner.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.setCurator.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.setGuardian.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.setTreasurer.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.setAllocator.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.unsetAllocator.selector) return sender == owner || isSentinel[sender];
+        // Treasurer actions.
+        else if (functionSelector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
+        else if (functionSelector == IVaultV2.setManagementFee.selector) return sender == treasurer;
+        // Curator actions.
+        else if (functionSelector == IVaultV2.setIRM.selector) return sender == curator;
+        else if (functionSelector == IVaultV2.increaseCap.selector) return sender == curator;
+        else if (functionSelector == IVaultV2.decreaseCap.selector) return sender == curator || isSentinel[sender];
+        else if (functionSelector == IVaultV2.newMarket.selector) return sender == curator;
+        else if (functionSelector == IVaultV2.dropMarket.selector) return sender == curator;
         else return false;
     }
 

@@ -38,14 +38,15 @@ contract BaseTest is Test {
 
         vaultFactory = IVaultV2Factory(address(new VaultV2Factory(address(this))));
 
-        vault = IVaultV2(
-            vaultFactory.createVaultV2(
-                owner, curator, address(allocator), address(underlyingToken), "VaultToken", "VAULT"
-            )
-        );
+        vault = IVaultV2(vaultFactory.createVaultV2(owner, curator, address(underlyingToken), "VaultToken", "VAULT"));
         vm.label(address(vault), "vault");
         irm = new IRM(manager, vault);
         vm.label(address(irm), "IRM");
+
+        vm.prank(owner);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setAllocator.selector, address(allocator)));
+        vault.setAllocator(address(allocator));
+
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, address(irm)));
         vault.setIRM(address(irm));
@@ -55,7 +56,7 @@ contract BaseTest is Test {
         assertEq(vault.owner(), owner);
         assertEq(address(vault.asset()), address(underlyingToken));
         assertEq(address(vault.curator()), curator);
-        assertEq(address(vault.allocator()), address(allocator));
+        assertTrue(vault.isAllocator(address(allocator)));
         assertEq(address(vault.irm()), address(irm));
         assertEq(allocator.owner(), manager);
         assertEq(irm.owner(), manager);
