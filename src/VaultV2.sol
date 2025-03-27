@@ -225,8 +225,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         (
             uint256 ownerPerformanceFeeShares,
             uint256 ownerManagementFeeShares,
-            uint256 protocolPerformanceFeeShares,
-            uint256 protocolManagementFeeShares,
+            uint256 protocolFeeShares,
             uint256 newTotalAssets
         ) = accruedFeeShares();
 
@@ -235,9 +234,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         address protocolFeeRecipient = IVaultV2Factory(factory).protocolFeeRecipient();
         if (ownerPerformanceFeeShares != 0) _mint(performanceFeeRecipient, ownerPerformanceFeeShares);
         if (ownerManagementFeeShares != 0) _mint(managementFeeRecipient, ownerManagementFeeShares);
-        if (protocolPerformanceFeeShares + protocolManagementFeeShares != 0) {
-            _mint(protocolFeeRecipient, protocolPerformanceFeeShares + protocolManagementFeeShares);
-        }
+        if (protocolFeeShares != 0) _mint(protocolFeeRecipient, protocolFeeShares);
 
         lastUpdate = block.timestamp;
     }
@@ -248,8 +245,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         returns (
             uint256 ownerPerformanceFeeShares,
             uint256 ownerManagementFeeShares,
-            uint256 protocolPerformanceFeeShares,
-            uint256 protocolManagementFeeShares,
+            uint256 protocolFeeShares,
             uint256 newTotalAssets
         )
     {
@@ -272,19 +268,22 @@ contract VaultV2 is ERC20, IVaultV2 {
             uint256 totalProtocolPerformanceFeeShares = performanceFeeAssets.mulDiv(
                 totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets, Math.Rounding.Floor
             );
-            protocolPerformanceFeeShares =
+            uint256 protocolPerformanceFeeShares =
                 totalProtocolPerformanceFeeShares.mulDiv(protocolFee, ConstantsLib.WAD, Math.Rounding.Floor);
             ownerPerformanceFeeShares = totalProtocolPerformanceFeeShares - protocolPerformanceFeeShares;
+            protocolFeeShares += protocolPerformanceFeeShares;
         }
         if (managementFee != 0) {
+            // Using newTotalAssets to make all approximations consistent.
             uint256 managementFeeAssets =
-                (totalAssets * elapsed).mulDiv(managementFee, ConstantsLib.WAD, Math.Rounding.Floor);
+                (newTotalAssets * elapsed).mulDiv(managementFee, ConstantsLib.WAD, Math.Rounding.Floor);
             uint256 totalProtocolManagementFeeShares = managementFeeAssets.mulDiv(
                 totalSupply() + 1, newTotalAssets + 1 - managementFeeAssets, Math.Rounding.Floor
             );
-            protocolManagementFeeShares =
+            uint256 protocolManagementFeeShares =
                 totalProtocolManagementFeeShares.mulDiv(protocolFee, ConstantsLib.WAD, Math.Rounding.Floor);
             ownerManagementFeeShares = totalProtocolManagementFeeShares - protocolManagementFeeShares;
+            protocolFeeShares += protocolManagementFeeShares;
         }
     }
 
