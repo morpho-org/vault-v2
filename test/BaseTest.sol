@@ -40,7 +40,7 @@ contract BaseTest is Test {
 
         vault = IVaultV2(vaultFactory.createVaultV2(owner, curator, address(underlyingToken), "VaultToken", "VAULT"));
         vm.label(address(vault), "vault");
-        irm = new IRM(manager, vault);
+        irm = new IRM(manager);
         vm.label(address(irm), "IRM");
 
         vm.prank(owner);
@@ -60,6 +60,5 @@ contract BaseTest is Test {
         assertEq(address(vault.irm()), address(irm));
         assertEq(allocator.owner(), manager);
         assertEq(irm.owner(), manager);
-        assertEq(address(irm.vault()), address(vault));
     }
 }

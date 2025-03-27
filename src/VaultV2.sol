@@ -250,12 +250,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         )
     {
         uint256 elapsed = block.timestamp - lastUpdate;
-        // Note that interest could be negative, but this is not always incentive compatible: users would want to leave.
-        // But keeping this possible still, as it can make sense in the custody case when withdrawals are disabled.
-        // Note that interestPerSecond should probably be bounded to give guarantees that it cannot rug users instantly.
-        // Note that irm.interestPerSecond() reverts if the vault is not initialized and has irm == address(0).
-        int256 interest = IIRM(irm).interestPerSecond() * int256(elapsed);
-        newTotalAssets = uint256(int256(totalAssets) + interest >= 0 ? int256(totalAssets) + interest : int256(0));
+        uint256 interest = IIRM(irm).interestPerSecond() * elapsed;
+        newTotalAssets += interest;
 
         uint256 protocolFee = IVaultV2Factory(factory).protocolFee();
 
@@ -263,8 +259,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         // the fact that total assets is already increased by the total interest (including the fee assets).
         // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
         if (interest > 0 && performanceFee != 0) {
-            uint256 performanceFeeAssets =
-                uint256(interest).mulDiv(performanceFee, ConstantsLib.WAD, Math.Rounding.Floor);
+            uint256 performanceFeeAssets = interest.mulDiv(performanceFee, ConstantsLib.WAD, Math.Rounding.Floor);
             uint256 totalProtocolPerformanceFeeShares = performanceFeeAssets.mulDiv(
                 totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets, Math.Rounding.Floor
             );
