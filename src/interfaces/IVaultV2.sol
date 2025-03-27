@@ -59,7 +59,7 @@ interface IVaultV2 {
 
     // Exchange rate
     function accrueInterest() external;
-    function accruedFeeShares() external returns (uint256, uint256, uint256, uint256, uint256);
+    function accruedFeeShares() external returns (uint256, uint256, uint256, uint256);
     function convertToShares(uint256) external view returns (uint256);
     function convertToAssets(uint256) external view returns (uint256);
 
