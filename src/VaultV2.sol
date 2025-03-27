@@ -153,7 +153,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
         performanceFee = newPerformanceFee;
     }
-    
+
     function setManagementFee(uint256 newManagementFee) external timelocked {
         require(newManagementFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
 

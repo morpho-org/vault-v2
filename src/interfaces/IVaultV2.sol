@@ -48,7 +48,7 @@ interface IVaultV2 is IMarket {
     function decreaseTimelock(bytes4, uint64) external;
     function setAllocator(address) external;
     function unsetAllocator(address) external;
-    
+
     // Treasurer actions
     function setPerformanceFee(uint256) external;
     function setManagementFee(uint256) external;

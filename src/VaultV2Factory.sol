@@ -34,7 +34,7 @@ contract VaultV2Factory is IVaultV2Factory {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
         protocolFeeRecipient = newProtocolFeeRecipient;
     }
-    
+
     function createVaultV2(address _owner, address _curator, address _asset, string memory _name, string memory _symbol)
         external
         returns (address)
