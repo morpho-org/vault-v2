@@ -35,6 +35,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     address public owner;
     address public curator;
     address public guardian;
+    address public treasurer;
+    mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
 
     uint256 public performanceFee;
@@ -50,7 +52,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     mapping(address => bool) public isAdapter;
 
     // Key is an abstract id.
-    // It can represent a protocol, a collateral, a maturity etc.
+    // It can represent a protocol, a collateral, a duration etc.
     // Maybe it could be bigger to contain more data.
     mapping(bytes32 => uint256) public absoluteCap; // todo how to handle interest ?
     mapping(bytes32 => uint256) public relativeCap;
@@ -81,20 +83,8 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* OWNER ACTIONS */
 
-    function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
-        require(newPerformanceFee < WAD, ErrorsLib.FeeTooHigh());
-
-        performanceFee = newPerformanceFee;
-    }
-
     function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
         performanceFeeRecipient = newPerformanceFeeRecipient;
-    }
-
-    function setManagementFee(uint256 newManagementFee) external timelocked {
-        require(newManagementFee < WAD, ErrorsLib.FeeTooHigh());
-
-        managementFee = newManagementFee;
     }
 
     function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
@@ -109,12 +99,16 @@ contract VaultV2 is ERC20, IVaultV2 {
         curator = newCurator;
     }
 
+    function setIsSentinel(address newSentinel, bool newIsSentinel) external timelocked {
+        isSentinel[newSentinel] = newIsSentinel;
+    }
+
     function setGuardian(address newGuardian) external timelocked {
         guardian = newGuardian;
     }
 
-    function setIsAllocator(address newAllocator, bool newIsAllocator) external timelocked {
-        isAllocator[newAllocator] = newIsAllocator;
+    function setTreasurer(address newTreasurer) external timelocked {
+        treasurer = newTreasurer;
     }
 
     function increaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
@@ -139,6 +133,28 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function removeAdapter(address adapter) external timelocked {
         isAdapter[adapter] = false;
+    }
+
+    function setAllocator(address allocator) external timelocked {
+        isAllocator[allocator] = true;
+    }
+
+    function unsetAllocator(address allocator) external timelocked {
+        isAllocator[allocator] = false;
+    }
+
+    /* TREASURER ACTIONS */
+
+    function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
+        require(newPerformanceFee < WAD, ErrorsLib.FeeTooHigh());
+
+        performanceFee = newPerformanceFee;
+    }
+
+    function setManagementFee(uint256 newManagementFee) external timelocked {
+        require(newManagementFee < WAD, ErrorsLib.FeeTooHigh());
+
+        managementFee = newManagementFee;
     }
 
     /* CURATOR ACTIONS */
@@ -350,7 +366,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function submit(bytes calldata data) external {
         bytes4 functionSelector = bytes4(data);
-        require(isAuthorized(msg.sender, functionSelector), ErrorsLib.Unauthorized());
+        require(isAuthorizedToSubmit(msg.sender, functionSelector), ErrorsLib.Unauthorized());
 
         require(validAt[data] == 0, "data already pending");
 
@@ -363,35 +379,45 @@ contract VaultV2 is ERC20, IVaultV2 {
         _;
     }
 
-    // authorize owners to revoke their things.
+    /// @dev Guardian can revoke everything.
+    /// @dev Sentinels can revoke everything except setIsSentinel timelocks.
+    /// @dev Authorized to submit can revoke.
     function revoke(bytes calldata data) external {
-        require(isAuthorized(msg.sender, bytes4(data)) || msg.sender == guardian, ErrorsLib.Unauthorized());
-        require(validAt[data] != 0, "data not timelocked");
+        require(
+            msg.sender == guardian || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector)
+                || isAuthorizedToSubmit(msg.sender, bytes4(data)),
+            "unauthorized"
+        );
+        require(validAt[data] != 0);
         validAt[data] = 0;
     }
 
-    function isAuthorized(address sender, bytes4 functionSelector) internal view returns (bool) {
-        if (
-            functionSelector == IVaultV2.setOwner.selector || functionSelector == IVaultV2.setCurator.selector
-                || functionSelector == IVaultV2.setGuardian.selector
-                || functionSelector == IVaultV2.setPerformanceFee.selector
-                || functionSelector == IVaultV2.setPerformanceFeeRecipient.selector
-                || functionSelector == IVaultV2.setManagementFee.selector
-                || functionSelector == IVaultV2.setManagementFeeRecipient.selector
-                || functionSelector == IVaultV2.addAdapter.selector || functionSelector == IVaultV2.removeAdapter.selector
-        ) return sender == owner;
-        else if (
-            functionSelector == IVaultV2.setIRM.selector || functionSelector == IVaultV2.increaseAbsoluteCap.selector
-                || functionSelector == IVaultV2.decreaseAbsoluteCap.selector
-                || functionSelector == IVaultV2.increaseRelativeCap.selector
-                || functionSelector == IVaultV2.decreaseRelativeCap.selector
-        ) return sender == curator;
+    function isAuthorizedToSubmit(address sender, bytes4 functionSelector) internal view returns (bool) {
+        // Owner actions.
+        if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.setOwner.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.setCurator.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.setGuardian.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.setTreasurer.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.setAllocator.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.unsetAllocator.selector) return sender == owner || isSentinel[sender];
+        // Treasurer actions.
+        else if (functionSelector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
+        else if (functionSelector == IVaultV2.setManagementFee.selector) return sender == treasurer;
+        // Curator actions.
+        else if (functionSelector == IVaultV2.setIRM.selector) return sender == curator;
+        else if (functionSelector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
+        else if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
+        else if (functionSelector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
+        else if (functionSelector == IVaultV2.decreaseRelativeCap.selector) return sender == curator || isSentinel[sender];
         else return false;
     }
 
     /* INTERFACE */
 
-    function balanceOf(address user) public view override(ERC20, IVaultV2) returns (uint256) {
+    function balanceOf(address user) public view override(ERC20) returns (uint256) {
         return super.balanceOf(user);
     }
 

@@ -17,6 +17,7 @@ contract BaseTest is Test {
     address immutable manager = makeAddr("manager");
     address immutable owner = makeAddr("owner");
     address immutable curator = makeAddr("curator");
+    address immutable allocator = makeAddr("allocator");
 
     ERC20Mock underlyingToken;
     IVaultV2Factory vaultFactory;
@@ -37,6 +38,11 @@ contract BaseTest is Test {
         vm.label(address(vault), "vault");
         irm = new IRM(manager, vault);
         vm.label(address(irm), "IRM");
+
+        vm.prank(owner);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setAllocator.selector, allocator));
+        vault.setAllocator(allocator);
+
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, address(irm)));
         vault.setIRM(address(irm));
@@ -46,6 +52,7 @@ contract BaseTest is Test {
         assertEq(vault.owner(), owner);
         assertEq(address(vault.asset()), address(underlyingToken));
         assertEq(address(vault.curator()), curator);
+        assertTrue(vault.isAllocator(address(allocator)));
         assertEq(address(vault.irm()), address(irm));
         assertEq(irm.owner(), manager);
         assertEq(address(irm.vault()), address(vault));

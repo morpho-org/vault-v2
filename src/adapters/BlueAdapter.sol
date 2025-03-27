@@ -18,15 +18,11 @@ contract BlueAdapter {
 
     function allocateIn(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {
         require(msg.sender == VAULT, "not authorized");
-        (address loanToken, address collateralToken, address oracle, address irm, uint256 lltv) = abi.decode(data, (address, address, address, address, uint256));
+        (address loanToken, address collateralToken, address oracle, address irm, uint256 lltv) =
+            abi.decode(data, (address, address, address, address, uint256));
 
-        MarketParams memory marketParams = MarketParams({
-            loanToken: loanToken,
-            collateralToken: collateralToken,
-            oracle: oracle,
-            irm: irm,
-            lltv: lltv
-        });
+        MarketParams memory marketParams =
+            MarketParams({loanToken: loanToken, collateralToken: collateralToken, oracle: oracle, irm: irm, lltv: lltv});
 
         ids = new bytes32[](2);
         ids[0] = keccak256(abi.encode("collateral", collateralToken, oracle, lltv));
@@ -37,15 +33,11 @@ contract BlueAdapter {
 
     function allocateOut(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {
         require(msg.sender == VAULT, "not authorized");
-        (address loanToken, address collateralToken, address oracle, address irm, uint256 lltv) = abi.decode(data, (address, address, address, address, uint256));
+        (address loanToken, address collateralToken, address oracle, address irm, uint256 lltv) =
+            abi.decode(data, (address, address, address, address, uint256));
 
-        MarketParams memory marketParams = MarketParams({
-            loanToken: loanToken,
-            collateralToken: collateralToken,
-            oracle: oracle,
-            irm: irm,
-            lltv: lltv
-        });
+        MarketParams memory marketParams =
+            MarketParams({loanToken: loanToken, collateralToken: collateralToken, oracle: oracle, irm: irm, lltv: lltv});
 
         ids = new bytes32[](2);
         ids[0] = keccak256(abi.encode("collateral", collateralToken, oracle, lltv));
