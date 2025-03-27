@@ -8,7 +8,7 @@ interface IAdapter {
     function allocateOut(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
 }
 
-interface IVaultV2 {    
+interface IVaultV2 {
     // State variables
     function asset() external view returns (IERC20);
     function owner() external view returns (address);
