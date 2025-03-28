@@ -135,12 +135,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         isAdapter[adapter] = false;
     }
 
-    function setAllocator(address allocator) external timelocked {
-        isAllocator[allocator] = true;
-    }
-
-    function unsetAllocator(address allocator) external timelocked {
-        isAllocator[allocator] = false;
+    function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
+        isAllocator[allocator] = newIsAllocator;
     }
 
     /* TREASURER ACTIONS */
@@ -390,45 +386,24 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function isAuthorizedToSubmit(address sender, bytes4 functionSelector) internal view returns (bool) {
         // Owner actions.
-        if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector) {
-            return sender == owner;
-        } else if (functionSelector == IVaultV2.setManagementFeeRecipient.selector) {
-            return sender == owner;
-        } else if (functionSelector == IVaultV2.setIsSentinel.selector) {
-            return sender == owner;
-        } else if (functionSelector == IVaultV2.setOwner.selector) {
-            return sender == owner;
-        } else if (functionSelector == IVaultV2.setCurator.selector) {
-            return sender == owner;
-        } else if (functionSelector == IVaultV2.setGuardian.selector) {
-            return sender == owner;
-        } else if (functionSelector == IVaultV2.setTreasurer.selector) {
-            return sender == owner;
-        } else if (functionSelector == IVaultV2.setAllocator.selector) {
-            return sender == owner;
-        } else if (functionSelector == IVaultV2.unsetAllocator.selector) {
-            return sender == owner || isSentinel[sender];
-        }
+        if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector)   return sender == owner;
+        if (functionSelector == IVaultV2.setManagementFeeRecipient.selector)    return sender == owner;
+        if (functionSelector == IVaultV2.setIsSentinel.selector)                return sender == owner;
+        if (functionSelector == IVaultV2.setOwner.selector)                     return sender == owner;
+        if (functionSelector == IVaultV2.setCurator.selector)                   return sender == owner;
+        if (functionSelector == IVaultV2.setGuardian.selector)                  return sender == owner;
+        if (functionSelector == IVaultV2.setTreasurer.selector)                 return sender == owner;
+        if (functionSelector == IVaultV2.setIsAllocator.selector)               return sender == owner || isSentinel[sender];
         // Treasurer actions.
-        else if (functionSelector == IVaultV2.setPerformanceFee.selector) {
-            return sender == treasurer;
-        } else if (functionSelector == IVaultV2.setManagementFee.selector) {
-            return sender == treasurer;
-        }
+        if (functionSelector == IVaultV2.setPerformanceFee.selector)            return sender == treasurer;
+        if (functionSelector == IVaultV2.setManagementFee.selector)             return sender == treasurer;
         // Curator actions.
-        else if (functionSelector == IVaultV2.setIRM.selector) {
-            return sender == curator;
-        } else if (functionSelector == IVaultV2.increaseAbsoluteCap.selector) {
-            return sender == curator;
-        } else if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector) {
-            return sender == curator || isSentinel[sender];
-        } else if (functionSelector == IVaultV2.increaseRelativeCap.selector) {
-            return sender == curator;
-        } else if (functionSelector == IVaultV2.decreaseRelativeCap.selector) {
-            return sender == curator || isSentinel[sender];
-        } else {
-            return false;
-        }
+        if (functionSelector == IVaultV2.setIRM.selector)                       return sender == curator;
+        if (functionSelector == IVaultV2.increaseAbsoluteCap.selector)          return sender == curator;
+        if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector)          return sender == curator || isSentinel[sender];
+        if (functionSelector == IVaultV2.increaseRelativeCap.selector)          return sender == curator;
+        if (functionSelector == IVaultV2.decreaseRelativeCap.selector)          return sender == curator || isSentinel[sender];
+        return false;
     }
 
     /* INTERFACE */
