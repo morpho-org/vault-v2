@@ -56,6 +56,8 @@ interface IVaultV2 {
     // Allocator actions
     function reallocateFromIdle(address, bytes memory, uint256) external;
     function reallocateToIdle(address, bytes memory, uint256) external;
+    function setDepositData(address, bytes memory) external;
+    function setWithdrawData(address, bytes memory) external;
 
     // Exchange rate
     function accrueInterest() external;

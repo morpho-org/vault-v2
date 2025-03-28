@@ -59,6 +59,11 @@ contract VaultV2 is ERC20, IVaultV2 {
     bytes32[] public idsWithRelativeCap; // useful to iterate over all ids with relative cap in withdrawals.
     mapping(bytes32 => uint256) public allocation; // by design double counting some stuff.
 
+    address public depositAdapter;
+    bytes public depositData;
+    address public withdrawAdapter;
+    bytes public withdrawData;
+
     mapping(bytes => uint256) public validAt;
     mapping(bytes4 => uint64) public timelockDuration;
 
@@ -198,7 +203,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateFromIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(isAllocator[msg.sender], "not an allocator");
+        require(isAllocator[msg.sender] || msg.sender == address(this), "not an allocator");
         require(isAdapter[adapter], "not an adapter");
 
         asset.transfer(adapter, amount);
@@ -218,7 +223,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(isAllocator[msg.sender], "not an allocator");
+        require(isAllocator[msg.sender] || msg.sender == address(this), "not an allocator");
         require(isAdapter[adapter], "not an adapter");
 
         asset.transferFrom(adapter, address(this), amount);
@@ -227,6 +232,16 @@ contract VaultV2 is ERC20, IVaultV2 {
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] -= amount;
         }
+    }
+
+    function setDepositData(address newDepositAdapter, bytes memory newDepositData) external timelocked {
+        depositAdapter = newDepositAdapter;
+        depositData = newDepositData;
+    }
+
+    function setWithdrawData(address newWithdrawAdapter, bytes memory newWithdrawData) external timelocked {
+        withdrawAdapter = newWithdrawAdapter;
+        withdrawData = newWithdrawData;
     }
 
     /* EXCHANGE RATE */
@@ -314,6 +329,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         SafeERC20.safeTransferFrom(asset, msg.sender, address(this), assets);
         _mint(receiver, shares);
         totalAssets += assets;
+
+        try this.reallocateFromIdle(depositAdapter, depositData, assets) {} catch {}
     }
 
     // TODO: how to hook on deposit so that assets are atomically allocated ?
@@ -331,6 +348,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal virtual {
+        try this.reallocateToIdle(withdrawAdapter, withdrawData, assets) {} catch {}
+
         if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
         _burn(supplier, shares);
         SafeERC20.safeTransfer(asset, receiver, assets);
@@ -389,46 +408,31 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function isAuthorizedToSubmit(address sender, bytes4 functionSelector) internal view returns (bool) {
+        // forgefmt: disable-start
         // Owner actions.
-        if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector) {
-            return sender == owner;
-        } else if (functionSelector == IVaultV2.setManagementFeeRecipient.selector) {
-            return sender == owner;
-        } else if (functionSelector == IVaultV2.setIsSentinel.selector) {
-            return sender == owner;
-        } else if (functionSelector == IVaultV2.setOwner.selector) {
-            return sender == owner;
-        } else if (functionSelector == IVaultV2.setCurator.selector) {
-            return sender == owner;
-        } else if (functionSelector == IVaultV2.setGuardian.selector) {
-            return sender == owner;
-        } else if (functionSelector == IVaultV2.setTreasurer.selector) {
-            return sender == owner;
-        } else if (functionSelector == IVaultV2.setAllocator.selector) {
-            return sender == owner;
-        } else if (functionSelector == IVaultV2.unsetAllocator.selector) {
-            return sender == owner || isSentinel[sender];
-        }
+        if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector)   return sender == owner;
+        if (functionSelector == IVaultV2.setManagementFeeRecipient.selector)    return sender == owner;
+        if (functionSelector == IVaultV2.setIsSentinel.selector)                return sender == owner;
+        if (functionSelector == IVaultV2.setOwner.selector)                     return sender == owner;
+        if (functionSelector == IVaultV2.setCurator.selector)                   return sender == owner;
+        if (functionSelector == IVaultV2.setGuardian.selector)                  return sender == owner;
+        if (functionSelector == IVaultV2.setTreasurer.selector)                 return sender == owner;
+        if (functionSelector == IVaultV2.setAllocator.selector)                 return sender == owner;
+        if (functionSelector == IVaultV2.unsetAllocator.selector)               return sender == owner || isSentinel[sender];
         // Treasurer actions.
-        else if (functionSelector == IVaultV2.setPerformanceFee.selector) {
-            return sender == treasurer;
-        } else if (functionSelector == IVaultV2.setManagementFee.selector) {
-            return sender == treasurer;
-        }
+        if (functionSelector == IVaultV2.setPerformanceFee.selector)            return sender == treasurer;
+        if (functionSelector == IVaultV2.setManagementFee.selector)             return sender == treasurer;
         // Curator actions.
-        else if (functionSelector == IVaultV2.setIRM.selector) {
-            return sender == curator;
-        } else if (functionSelector == IVaultV2.increaseAbsoluteCap.selector) {
-            return sender == curator;
-        } else if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector) {
-            return sender == curator || isSentinel[sender];
-        } else if (functionSelector == IVaultV2.increaseRelativeCap.selector) {
-            return sender == curator;
-        } else if (functionSelector == IVaultV2.decreaseRelativeCap.selector) {
-            return sender == curator || isSentinel[sender];
-        } else {
-            return false;
-        }
+        if (functionSelector == IVaultV2.setIRM.selector)                       return sender == curator;
+        if (functionSelector == IVaultV2.increaseAbsoluteCap.selector)          return sender == curator;
+        if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector)          return sender == curator || isSentinel[sender];
+        if (functionSelector == IVaultV2.increaseRelativeCap.selector)          return sender == curator;
+        if (functionSelector == IVaultV2.decreaseRelativeCap.selector)          return sender == curator || isSentinel[sender];
+        // Allocator actions.
+        if (functionSelector == IVaultV2.setDepositData.selector)               return isAllocator[sender];
+        if (functionSelector == IVaultV2.setWithdrawData.selector)              return isAllocator[sender];
+        // forgefmt: disable-end
+        return false;
     }
 
     /* INTERFACE */
