@@ -260,24 +260,24 @@ contract VaultV2 is ERC20, IVaultV2 {
         // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
         if (interest > 0 && performanceFee != 0) {
             uint256 performanceFeeAssets = interest.mulDiv(performanceFee, ConstantsLib.WAD, Math.Rounding.Floor);
-            uint256 totalProtocolPerformanceFeeShares = performanceFeeAssets.mulDiv(
+            uint256 totalPerformanceFeeShares = performanceFeeAssets.mulDiv(
                 totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets, Math.Rounding.Floor
             );
             uint256 protocolPerformanceFeeShares =
-                totalProtocolPerformanceFeeShares.mulDiv(protocolFee, ConstantsLib.WAD, Math.Rounding.Floor);
-            ownerPerformanceFeeShares = totalProtocolPerformanceFeeShares - protocolPerformanceFeeShares;
+                totalPerformanceFeeShares.mulDiv(protocolFee, ConstantsLib.WAD, Math.Rounding.Floor);
+            ownerPerformanceFeeShares = totalPerformanceFeeShares - protocolPerformanceFeeShares;
             protocolFeeShares += protocolPerformanceFeeShares;
         }
         if (managementFee != 0) {
             // Using newTotalAssets to make all approximations consistent.
             uint256 managementFeeAssets =
                 (newTotalAssets * elapsed).mulDiv(managementFee, ConstantsLib.WAD, Math.Rounding.Floor);
-            uint256 totalProtocolManagementFeeShares = managementFeeAssets.mulDiv(
+            uint256 totalManagementFeeShares = managementFeeAssets.mulDiv(
                 totalSupply() + 1, newTotalAssets + 1 - managementFeeAssets, Math.Rounding.Floor
             );
             uint256 protocolManagementFeeShares =
-                totalProtocolManagementFeeShares.mulDiv(protocolFee, ConstantsLib.WAD, Math.Rounding.Floor);
-            ownerManagementFeeShares = totalProtocolManagementFeeShares - protocolManagementFeeShares;
+                totalManagementFeeShares.mulDiv(protocolFee, ConstantsLib.WAD, Math.Rounding.Floor);
+            ownerManagementFeeShares = totalManagementFeeShares - protocolManagementFeeShares;
             protocolFeeShares += protocolManagementFeeShares;
         }
     }
