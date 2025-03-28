@@ -251,7 +251,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     {
         uint256 elapsed = block.timestamp - lastUpdate;
         uint256 interest = IIRM(irm).interestPerSecond() * elapsed;
-        newTotalAssets += interest;
+        newTotalAssets = totalAssets + interest;
 
         uint256 protocolFee = IVaultV2Factory(factory).protocolFee();
 
