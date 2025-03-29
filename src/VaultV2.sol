@@ -126,7 +126,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function decreaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
         require(functionSelector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
-        require(newDuration >= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
+        require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
         require(newDuration < timelockDuration[functionSelector], "timelock not decreasing");
 
         timelockDuration[functionSelector] = newDuration;
