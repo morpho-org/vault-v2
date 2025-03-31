@@ -7,7 +7,6 @@ import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 import {VaultV2Factory} from "../src/VaultV2Factory.sol";
 import {VaultV2} from "../src/VaultV2.sol";
 import {IRM} from "../src/IRM.sol";
-import {EncodeLib} from "../src/libraries/EncodeLib.sol";
 
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 
