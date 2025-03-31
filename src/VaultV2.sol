@@ -70,8 +70,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     mapping(address account => mapping(address exiter => bool)) public canRequestExit;
     mapping(address account => uint256) public exitBalances;
-    uint public totalExitSupply;
-
+    uint256 public totalExitSupply;
 
     /* CONSTRUCTOR */
 
@@ -214,8 +213,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(isAllocator[msg.sender] || msg.sender == address(this), "not an allocator");
         require(isAdapter[adapter], "not an adapter");
 
-        uint totalExitAssets = convertToAssets(totalExitSupply,Math.Rounding.Floor);
-        require(totalExitAssets >= asset.balanceOf(address(this))-amount, "not enough exit assets to withdraw");
+        uint256 totalExitAssets = convertToAssets(totalExitSupply, Math.Rounding.Floor);
+        require(totalExitAssets >= asset.balanceOf(address(this)) - amount, "not enough exit assets to withdraw");
 
         asset.transfer(adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
@@ -232,20 +231,20 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     // Do not try to redeem normally first
-    function requestExit(uint shares, address supplier) external {
+    function requestExit(uint256 shares, address supplier) external {
         if (msg.sender != supplier) require(canRequestExit[supplier][msg.sender], "not allowed to exit");
         _burn(supplier, shares);
-        uint exitShares = shares * (WAD - exitPremium) / WAD;
+        uint256 exitShares = shares * (WAD - exitPremium) / WAD;
         exitBalances[supplier] += exitShares;
         totalExitSupply += exitShares;
     }
 
-    function claimExit(uint shares, address receiver, address supplier) external {
-      if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
-      exitBalances[supplier] -= shares;
-      totalExitSupply -= shares;
-      uint claimedAmount = convertToAssets(shares,Math.Rounding.Floor);
-      asset.transfer(receiver, claimedAmount);
+    function claimExit(uint256 shares, address receiver, address supplier) external {
+        if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
+        exitBalances[supplier] -= shares;
+        totalExitSupply -= shares;
+        uint256 claimedAmount = convertToAssets(shares, Math.Rounding.Floor);
+        asset.transfer(receiver, claimedAmount);
     }
 
     function approveExit(address spender, bool allowed) external {
@@ -385,8 +384,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
         _burn(supplier, shares);
 
-        uint totalExitAssets = convertToAssets(totalExitSupply,Math.Rounding.Floor);
-        require(totalExitAssets >= asset.balanceOf(address(this))-assets, "not enough exit assets to withdraw");
+        uint256 totalExitAssets = convertToAssets(totalExitSupply, Math.Rounding.Floor);
+        require(totalExitAssets >= asset.balanceOf(address(this)) - assets, "not enough exit assets to withdraw");
         SafeERC20.safeTransfer(asset, receiver, assets);
         totalAssets -= assets;
 
