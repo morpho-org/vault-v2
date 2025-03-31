@@ -40,7 +40,7 @@ interface IVaultV2 {
     function increaseTimelock(bytes4, uint64) external;
     function decreaseTimelock(bytes4, uint64) external;
     function setIsAllocator(address, bool) external;
-
+    function setIsAdapter(address, bool) external;
     // Treasurer actions
     function setPerformanceFee(uint256) external;
     function setManagementFee(uint256) external;

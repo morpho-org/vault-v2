@@ -51,13 +51,19 @@ contract VaultV2 is ERC20, IVaultV2 {
     // Adapter is trusted to pass the expected ids when supplying assets.
     mapping(address => bool) public isAdapter;
 
-    // Key is an abstract id.
-    // It can represent a protocol, a collateral, a duration etc.
-    // Maybe it could be bigger to contain more data.
-    mapping(bytes32 => uint256) public absoluteCap; // todo how to handle interest ?
+    /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
+    mapping(bytes32 => uint256) public absoluteCap;
+
+    /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
+    /// @dev Relative cap = 0 is interpreted as no relative cap.
     mapping(bytes32 => uint256) public relativeCap;
-    bytes32[] public idsWithRelativeCap; // useful to iterate over all ids with relative cap in withdrawals.
-    mapping(bytes32 => uint256) public allocation; // by design double counting some stuff.
+
+    /// @dev Useful to iterate over all ids with relative cap in withdrawals.
+    bytes32[] public idsWithRelativeCap;
+
+    /// @dev Interests are not counted in the allocation.
+    /// @dev By design, double counting some stuff.
+    mapping(bytes32 => uint256) public allocation;
 
     address public depositAdapter;
     bytes public depositData;
@@ -132,12 +138,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         timelockDuration[functionSelector] = newDuration;
     }
 
-    function addAdapter(address adapter) external timelocked {
-        isAdapter[adapter] = true;
-    }
-
-    function removeAdapter(address adapter) external timelocked {
-        isAdapter[adapter] = false;
+    function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
+        isAdapter[adapter] = newIsAdapter;
     }
 
     function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
@@ -186,6 +188,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
         require(newRelativeCap < relativeCap[id], "relative cap not decreasing");
         require(idsWithRelativeCap[index] == id, "id not found");
+        require(allocation[id] <= totalAssets.mulDiv(newRelativeCap, WAD, Math.Rounding.Floor), "relative cap exceeded");
 
         if (newRelativeCap == 0) {
             idsWithRelativeCap[index] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
@@ -243,18 +246,14 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
-        (
-            uint256 ownerPerformanceFeeShares,
-            uint256 ownerManagementFeeShares,
-            uint256 protocolFeeShares,
-            uint256 newTotalAssets
-        ) = accruedFeeShares();
+        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 protocolFeeShares, uint256 newTotalAssets) =
+            accruedFeeShares();
 
         totalAssets = newTotalAssets;
 
         address protocolFeeRecipient = IVaultV2Factory(factory).protocolFeeRecipient();
-        if (ownerPerformanceFeeShares != 0) _mint(performanceFeeRecipient, ownerPerformanceFeeShares);
-        if (ownerManagementFeeShares != 0) _mint(managementFeeRecipient, ownerManagementFeeShares);
+        if (performanceFeeShares != 0) _mint(performanceFeeRecipient, performanceFeeShares);
+        if (managementFeeShares != 0) _mint(managementFeeRecipient, managementFeeShares);
         if (protocolFeeShares != 0) _mint(protocolFeeRecipient, protocolFeeShares);
 
         lastUpdate = block.timestamp;
@@ -264,15 +263,15 @@ contract VaultV2 is ERC20, IVaultV2 {
         public
         view
         returns (
-            uint256 ownerPerformanceFeeShares,
-            uint256 ownerManagementFeeShares,
+            uint256 performanceFeeShares,
+            uint256 managementFeeShares,
             uint256 protocolFeeShares,
             uint256 newTotalAssets
         )
     {
         uint256 elapsed = block.timestamp - lastUpdate;
         uint256 interest = IIRM(irm).interestPerSecond() * elapsed;
-        newTotalAssets += interest;
+        newTotalAssets = totalAssets + interest;
 
         uint256 protocolFee = IVaultV2Factory(factory).protocolFee();
 
@@ -281,23 +280,22 @@ contract VaultV2 is ERC20, IVaultV2 {
         // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
         if (interest > 0 && performanceFee != 0) {
             uint256 performanceFeeAssets = interest.mulDiv(performanceFee, WAD, Math.Rounding.Floor);
-            uint256 totalProtocolPerformanceFeeShares = performanceFeeAssets.mulDiv(
+            uint256 totalPerformanceFeeShares = performanceFeeAssets.mulDiv(
                 totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets, Math.Rounding.Floor
             );
             uint256 protocolPerformanceFeeShares =
-                totalProtocolPerformanceFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
-            ownerPerformanceFeeShares = totalProtocolPerformanceFeeShares - protocolPerformanceFeeShares;
+                totalPerformanceFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
+            performanceFeeShares = totalPerformanceFeeShares - protocolPerformanceFeeShares;
             protocolFeeShares += protocolPerformanceFeeShares;
         }
         if (managementFee != 0) {
             // Using newTotalAssets to make all approximations consistent.
             uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDiv(managementFee, WAD, Math.Rounding.Floor);
-            uint256 totalProtocolManagementFeeShares = managementFeeAssets.mulDiv(
-                totalSupply() + 1, newTotalAssets + 1 - managementFeeAssets, Math.Rounding.Floor
+            uint256 totalManagementFeeShares = managementFeeAssets.mulDiv(
+                totalSupply() + 1 + protocolFeeShares, newTotalAssets + 1 - managementFeeAssets, Math.Rounding.Floor
             );
-            uint256 protocolManagementFeeShares =
-                totalProtocolManagementFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
-            ownerManagementFeeShares = totalProtocolManagementFeeShares - protocolManagementFeeShares;
+            uint256 protocolManagementFeeShares = totalManagementFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
+            managementFeeShares = totalManagementFeeShares - protocolManagementFeeShares;
             protocolFeeShares += protocolManagementFeeShares;
         }
     }
@@ -406,26 +404,27 @@ contract VaultV2 is ERC20, IVaultV2 {
     function isAuthorizedToSubmit(address sender, bytes4 functionSelector) internal view returns (bool) {
         // forgefmt: disable-start
         // Owner actions.
-        if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector)   return sender == owner;
-        if (functionSelector == IVaultV2.setManagementFeeRecipient.selector)    return sender == owner;
-        if (functionSelector == IVaultV2.setIsSentinel.selector)                return sender == owner;
-        if (functionSelector == IVaultV2.setOwner.selector)                     return sender == owner;
-        if (functionSelector == IVaultV2.setCurator.selector)                   return sender == owner;
-        if (functionSelector == IVaultV2.setGuardian.selector)                  return sender == owner;
-        if (functionSelector == IVaultV2.setTreasurer.selector)                 return sender == owner;
-        if (functionSelector == IVaultV2.setIsAllocator.selector)               return sender == owner || isSentinel[sender];
+        if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setOwner.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setCurator.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setGuardian.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setTreasurer.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setIsAllocator.selector) return sender == owner || isSentinel[sender];
+        if (functionSelector == IVaultV2.setIsAdapter.selector) return sender == owner;
         // Treasurer actions.
-        if (functionSelector == IVaultV2.setPerformanceFee.selector)            return sender == treasurer;
-        if (functionSelector == IVaultV2.setManagementFee.selector)             return sender == treasurer;
+        if (functionSelector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
+        if (functionSelector == IVaultV2.setManagementFee.selector) return sender == treasurer;
         // Curator actions.
-        if (functionSelector == IVaultV2.setIRM.selector)                       return sender == curator;
-        if (functionSelector == IVaultV2.increaseAbsoluteCap.selector)          return sender == curator;
-        if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector)          return sender == curator || isSentinel[sender];
-        if (functionSelector == IVaultV2.increaseRelativeCap.selector)          return sender == curator;
-        if (functionSelector == IVaultV2.decreaseRelativeCap.selector)          return sender == curator || isSentinel[sender];
+        if (functionSelector == IVaultV2.setIRM.selector) return sender == curator;
+        if (functionSelector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
+        if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
+        if (functionSelector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
+        if (functionSelector == IVaultV2.decreaseRelativeCap.selector) return sender == curator || isSentinel[sender];
         // Allocator actions.
-        if (functionSelector == IVaultV2.setDepositData.selector)               return isAllocator[sender];
-        if (functionSelector == IVaultV2.setWithdrawData.selector)              return isAllocator[sender];
+        if (functionSelector == IVaultV2.setDepositData.selector) return isAllocator[sender];
+        if (functionSelector == IVaultV2.setWithdrawData.selector) return isAllocator[sender];
         // forgefmt: disable-end
         return false;
     }
