@@ -68,8 +68,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     mapping(bytes => uint256) public validAt;
     mapping(bytes4 => uint64) public timelockDuration;
 
-    mapping(address account => mapping(address exiter => bool)) public canRequestExit;
-    mapping(address account => uint256) public exitBalances;
+    mapping(address => mapping(address => bool)) public canRequestExit;
+    mapping(address => uint256) public exitBalances;
     uint256 public totalExitSupply;
 
     /* CONSTRUCTOR */
