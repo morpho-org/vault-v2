@@ -45,6 +45,7 @@ interface IVaultV2 {
     // Treasurer actions
     function setPerformanceFee(uint256) external;
     function setManagementFee(uint256) external;
+    function setExitPremium(uint256) external;
 
     // Curator actions
     function setIRM(address) external;

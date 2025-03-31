@@ -43,6 +43,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     address public performanceFeeRecipient;
     uint256 public managementFee;
     address public managementFeeRecipient;
+    uint256 public exitPremium;
 
     address public irm;
     uint256 public lastUpdate;
@@ -66,6 +67,11 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     mapping(bytes => uint256) public validAt;
     mapping(bytes4 => uint64) public timelockDuration;
+
+    mapping(address account => mapping(address exiter => bool)) public canRequestExit;
+    mapping(address account => uint256) public exitBalances;
+    uint public totalExitSupply;
+
 
     /* CONSTRUCTOR */
 
@@ -162,6 +168,12 @@ contract VaultV2 is ERC20, IVaultV2 {
         managementFee = newManagementFee;
     }
 
+    function setExitPremium(uint256 newExitPremium) external timelocked {
+        require(newExitPremium < WAD, ErrorsLib.ExitPremiumTooHigh());
+
+        exitPremium = newExitPremium;
+    }
+
     /* CURATOR ACTIONS */
 
     function setIRM(address newIRM) external timelocked {
@@ -206,6 +218,9 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(isAllocator[msg.sender] || msg.sender == address(this), "not an allocator");
         require(isAdapter[adapter], "not an adapter");
 
+        uint totalExitAssets = convertToAssets(totalExitSupply,Math.Rounding.Floor);
+        require(totalExitAssets >= asset.balanceOf(address(this))-amount, "not enough exit assets to withdraw");
+
         asset.transfer(adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
 
@@ -218,6 +233,27 @@ contract VaultV2 is ERC20, IVaultV2 {
                 "relative cap exceeded"
             );
         }
+    }
+
+    // Do not try to redeem normally first
+    function requestExit(uint shares, address supplier) external {
+        if (msg.sender != supplier) require(canRequestExit[supplier][msg.sender], "not allowed to exit");
+        _burn(supplier, shares);
+        uint exitShares = shares * (WAD - exitPremium) / WAD;
+        exitBalances[supplier] += exitShares;
+        totalExitSupply += exitShares;
+    }
+
+    function claimExit(uint shares, address receiver, address supplier) external {
+      if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
+      exitBalances[supplier] -= shares;
+      totalExitSupply -= shares;
+      uint claimedAmount = convertToAssets(shares,Math.Rounding.Floor);
+      asset.transfer(receiver, claimedAmount);
+    }
+
+    function approveExit(address spender, bool allowed) external {
+        canRequestExit[msg.sender][spender] = allowed;
     }
 
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
@@ -352,6 +388,9 @@ contract VaultV2 is ERC20, IVaultV2 {
 
         if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
         _burn(supplier, shares);
+
+        uint totalExitAssets = convertToAssets(totalExitSupply,Math.Rounding.Floor);
+        require(totalExitAssets >= asset.balanceOf(address(this))-assets, "not enough exit assets to withdraw");
         SafeERC20.safeTransfer(asset, receiver, assets);
         totalAssets -= assets;
 
@@ -422,6 +461,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         // Treasurer actions.
         if (functionSelector == IVaultV2.setPerformanceFee.selector)            return sender == treasurer;
         if (functionSelector == IVaultV2.setManagementFee.selector)             return sender == treasurer;
+        if (functionSelector == IVaultV2.setExitPremium.selector)               return sender == treasurer;
         // Curator actions.
         if (functionSelector == IVaultV2.setIRM.selector)                       return sender == curator;
         if (functionSelector == IVaultV2.increaseAbsoluteCap.selector)          return sender == curator;
