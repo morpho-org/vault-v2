@@ -40,8 +40,8 @@ contract BaseTest is Test {
         vm.label(address(irm), "IRM");
 
         vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setAllocator.selector, allocator));
-        vault.setAllocator(allocator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, allocator, true));
+        vault.setIsAllocator(allocator, true);
 
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, address(irm)));

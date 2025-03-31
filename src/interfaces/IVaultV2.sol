@@ -39,8 +39,7 @@ interface IVaultV2 {
     function setTreasurer(address) external;
     function increaseTimelock(bytes4, uint64) external;
     function decreaseTimelock(bytes4, uint64) external;
-    function setAllocator(address) external;
-    function unsetAllocator(address) external;
+    function setIsAllocator(address, bool) external;
 
     // Treasurer actions
     function setPerformanceFee(uint256) external;
