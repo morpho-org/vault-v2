@@ -51,13 +51,19 @@ contract VaultV2 is ERC20, IVaultV2 {
     // Adapter is trusted to pass the expected ids when supplying assets.
     mapping(address => bool) public isAdapter;
 
-    // Key is an abstract id.
-    // It can represent a protocol, a collateral, a duration etc.
-    // Maybe it could be bigger to contain more data.
-    mapping(bytes32 => uint256) public absoluteCap; // todo how to handle interest ?
+    /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
+    mapping(bytes32 => uint256) public absoluteCap;
+
+    /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
+    /// @dev Relative cap = 0 is interpreted as no relative cap.
     mapping(bytes32 => uint256) public relativeCap;
-    bytes32[] public idsWithRelativeCap; // useful to iterate over all ids with relative cap in withdrawals.
-    mapping(bytes32 => uint256) public allocation; // by design double counting some stuff.
+
+    /// @dev Useful to iterate over all ids with relative cap in withdrawals.
+    bytes32[] public idsWithRelativeCap;
+
+    /// @dev Interests are not counted in the allocation.
+    /// @dev By design, double counting some stuff.
+    mapping(bytes32 => uint256) public allocation;
 
     mapping(bytes => uint256) public validAt;
     mapping(bytes4 => uint64) public timelockDuration;
@@ -127,12 +133,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         timelockDuration[functionSelector] = newDuration;
     }
 
-    function addAdapter(address adapter) external timelocked {
-        isAdapter[adapter] = true;
-    }
-
-    function removeAdapter(address adapter) external timelocked {
-        isAdapter[adapter] = false;
+    function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
+        isAdapter[adapter] = newIsAdapter;
     }
 
     function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
@@ -390,6 +392,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         if (functionSelector == IVaultV2.setGuardian.selector) return sender == owner;
         if (functionSelector == IVaultV2.setTreasurer.selector) return sender == owner;
         if (functionSelector == IVaultV2.setIsAllocator.selector) return sender == owner || isSentinel[sender];
+        if (functionSelector == IVaultV2.setIsAdapter.selector) return sender == owner;
         // Treasurer actions.
         if (functionSelector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
         if (functionSelector == IVaultV2.setManagementFee.selector) return sender == treasurer;
