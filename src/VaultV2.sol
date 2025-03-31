@@ -269,7 +269,7 @@ contract VaultV2 is ERC20, IVaultV2 {
             uint256 managementFeeAssets =
                 (newTotalAssets * elapsed).mulDiv(managementFee, ConstantsLib.WAD, Math.Rounding.Floor);
             uint256 totalManagementFeeShares = managementFeeAssets.mulDiv(
-                totalSupply() + 1, newTotalAssets + 1 - managementFeeAssets, Math.Rounding.Floor
+                totalSupply() + 1 + protocolFeeShares, newTotalAssets + 1 - managementFeeAssets, Math.Rounding.Floor
             );
             uint256 protocolManagementFeeShares =
                 totalManagementFeeShares.mulDiv(protocolFee, ConstantsLib.WAD, Math.Rounding.Floor);
