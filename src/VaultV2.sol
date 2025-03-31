@@ -126,7 +126,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function decreaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
         require(functionSelector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
-        require(newDuration >= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
+        require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
         require(newDuration < timelockDuration[functionSelector], "timelock not decreasing");
 
         timelockDuration[functionSelector] = newDuration;
@@ -140,12 +140,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         isAdapter[adapter] = false;
     }
 
-    function setAllocator(address allocator) external timelocked {
-        isAllocator[allocator] = true;
-    }
-
-    function unsetAllocator(address allocator) external timelocked {
-        isAllocator[allocator] = false;
+    function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
+        isAllocator[allocator] = newIsAllocator;
     }
 
     /* TREASURER ACTIONS */
@@ -417,8 +413,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         if (functionSelector == IVaultV2.setCurator.selector)                   return sender == owner;
         if (functionSelector == IVaultV2.setGuardian.selector)                  return sender == owner;
         if (functionSelector == IVaultV2.setTreasurer.selector)                 return sender == owner;
-        if (functionSelector == IVaultV2.setAllocator.selector)                 return sender == owner;
-        if (functionSelector == IVaultV2.unsetAllocator.selector)               return sender == owner || isSentinel[sender];
+        if (functionSelector == IVaultV2.setIsAllocator.selector)               return sender == owner || isSentinel[sender];
         // Treasurer actions.
         if (functionSelector == IVaultV2.setPerformanceFee.selector)            return sender == treasurer;
         if (functionSelector == IVaultV2.setManagementFee.selector)             return sender == treasurer;
