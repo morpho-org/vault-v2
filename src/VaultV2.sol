@@ -181,6 +181,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
         require(newRelativeCap < relativeCap[id], "relative cap not decreasing");
         require(idsWithRelativeCap[index] == id, "id not found");
+        require(allocation[id] <= totalAssets.mulDiv(newRelativeCap, WAD, Math.Rounding.Floor), "relative cap exceeded");
 
         if (newRelativeCap == 0) {
             idsWithRelativeCap[index] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
