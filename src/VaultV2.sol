@@ -222,18 +222,14 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function accrueInterest() public {
-        (
-            uint256 ownerPerformanceFeeShares,
-            uint256 ownerManagementFeeShares,
-            uint256 protocolFeeShares,
-            uint256 newTotalAssets
-        ) = accruedFeeShares();
+        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 protocolFeeShares, uint256 newTotalAssets) =
+            accruedFeeShares();
 
         totalAssets = newTotalAssets;
 
         address protocolFeeRecipient = IVaultV2Factory(factory).protocolFeeRecipient();
-        if (ownerPerformanceFeeShares != 0) _mint(performanceFeeRecipient, ownerPerformanceFeeShares);
-        if (ownerManagementFeeShares != 0) _mint(managementFeeRecipient, ownerManagementFeeShares);
+        if (performanceFeeShares != 0) _mint(performanceFeeRecipient, performanceFeeShares);
+        if (managementFeeShares != 0) _mint(managementFeeRecipient, managementFeeShares);
         if (protocolFeeShares != 0) _mint(protocolFeeRecipient, protocolFeeShares);
 
         lastUpdate = block.timestamp;
@@ -243,8 +239,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         public
         view
         returns (
-            uint256 ownerPerformanceFeeShares,
-            uint256 ownerManagementFeeShares,
+            uint256 performanceFeeShares,
+            uint256 managementFeeShares,
             uint256 protocolFeeShares,
             uint256 newTotalAssets
         )
@@ -265,7 +261,7 @@ contract VaultV2 is ERC20, IVaultV2 {
             );
             uint256 protocolPerformanceFeeShares =
                 totalPerformanceFeeShares.mulDiv(protocolFee, ConstantsLib.WAD, Math.Rounding.Floor);
-            ownerPerformanceFeeShares = totalPerformanceFeeShares - protocolPerformanceFeeShares;
+            performanceFeeShares = totalPerformanceFeeShares - protocolPerformanceFeeShares;
             protocolFeeShares += protocolPerformanceFeeShares;
         }
         if (managementFee != 0) {
@@ -277,7 +273,7 @@ contract VaultV2 is ERC20, IVaultV2 {
             );
             uint256 protocolManagementFeeShares =
                 totalManagementFeeShares.mulDiv(protocolFee, ConstantsLib.WAD, Math.Rounding.Floor);
-            ownerManagementFeeShares = totalManagementFeeShares - protocolManagementFeeShares;
+            managementFeeShares = totalManagementFeeShares - protocolManagementFeeShares;
             protocolFeeShares += protocolManagementFeeShares;
         }
     }

@@ -9,8 +9,8 @@ import {IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 contract VaultV2Factory is IVaultV2Factory {
     address public owner;
-    uint96 public protocolFee;
     address public protocolFeeRecipient;
+    uint96 public protocolFee;
     mapping(address => bool) public isVaultV2;
 
     constructor(address _owner) {
