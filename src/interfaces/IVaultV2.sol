@@ -75,4 +75,6 @@ interface IVaultV2 {
     function mint(uint256, address) external returns (uint256);
     function withdraw(uint256, address, address) external returns (uint256);
     function redeem(uint256, address, address) external returns (uint256);
+    function requestExit(uint, address) external;
+    function claimExit(uint, address,address) external returns (uint);
 }

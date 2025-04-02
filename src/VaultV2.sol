@@ -12,6 +12,8 @@ import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {WAD} from "./libraries/ConstantsLib.sol";
 
+bytes32 constant EXIT_ACCOUNT_PREFIX = keccak256("Morpho Vault V2 Exit Account Prefix");
+
 contract VaultV2 is ERC20, IVaultV2 {
     using Math for uint256;
 
@@ -235,28 +237,24 @@ contract VaultV2 is ERC20, IVaultV2 {
         }
     }
 
-    function totalSupply() public view override returns (uint256) {
-        return super.totalSupply() + totalExitSupply;
-    }
-
     // Do not try to redeem normally first
-    function requestExit(uint256 shares, address supplier) external returns (uint256) {
+    function requestExit(uint256 shares, address supplier) external {
         if (msg.sender != supplier) require(canRequestExit[supplier][msg.sender], "not allowed to exit");
-        uint256 exitShares = shares * (WAD - exitFee) / WAD;
-        _burn(supplier, exitShares);
-        // exits can be blocked until exitFee > 0 <-> recipient!=0 is enforced
-        _update(supplier, exitFeeRecipient, shares - exitShares);
-        exitBalances[supplier] += exitShares;
-        totalExitSupply += exitShares;
-        return exitShares;
+        address exitAccount = address(bytes20(keccak256(abi.encodePacked(EXIT_ACCOUNT_PREFIX,supplier))));
+        _update(supplier, exitAccount, shares);
     }
 
-    function claimExit(uint256 shares, address receiver, address supplier) external {
+    function claimExit(uint256 shares, address receiver, address supplier) external returns (uint) {
         if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
-        exitBalances[supplier] -= shares;
-        totalExitSupply -= shares;
-        uint256 claimedAmount = convertToAssets(shares, Math.Rounding.Floor);
+        address exitAccount = address(bytes20(keccak256(abi.encodePacked(EXIT_ACCOUNT_PREFIX,supplier))));
+        uint256 exitShares = shares * (WAD - exitFee) / WAD;
+        uint256 claimedAmount = convertToAssets(exitShares, Math.Rounding.Floor);
+        _burn(exitAccount, exitShares);
+        // exits can be blocked until exitFee > 0 <-> recipient!=0 is enforced
+        _update(exitAccount, exitFeeRecipient, shares - exitShares);
         asset.transfer(receiver, claimedAmount);
+
+        return exitShares;
     }
 
     function approveExit(address spender, bool allowed) external {
