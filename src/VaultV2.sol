@@ -43,7 +43,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     address public performanceFeeRecipient;
     uint256 public managementFee;
     address public managementFeeRecipient;
-    uint256 public exitPremium;
+    uint256 public exitFee;
+    address public exitFeeRecipient;
 
     address public irm;
     uint256 public lastUpdate;
@@ -99,6 +100,10 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
         managementFeeRecipient = newManagementFeeRecipient;
+    }
+
+    function setExitFeeRecipient(address newExitFeeRecipient) external timelocked {
+        exitFeeRecipient = newExitFeeRecipient;
     }
 
     function setOwner(address newOwner) external timelocked {
@@ -163,10 +168,10 @@ contract VaultV2 is ERC20, IVaultV2 {
         managementFee = newManagementFee;
     }
 
-    function setExitPremium(uint256 newExitPremium) external timelocked {
-        require(newExitPremium < WAD, ErrorsLib.ExitPremiumTooHigh());
+    function setExitFee(uint256 newExitFee) external timelocked {
+        require(newExitFee < WAD, ErrorsLib.ExitFeeTooHigh());
 
-        exitPremium = newExitPremium;
+        exitFee = newExitFee;
     }
 
     /* CURATOR ACTIONS */
@@ -230,11 +235,17 @@ contract VaultV2 is ERC20, IVaultV2 {
         }
     }
 
+    function totalSupply() public view override returns (uint256) {
+        return super.totalSupply() + totalExitSupply;
+    }
+
     // Do not try to redeem normally first
     function requestExit(uint256 shares, address supplier) external {
         if (msg.sender != supplier) require(canRequestExit[supplier][msg.sender], "not allowed to exit");
-        _burn(supplier, shares);
-        uint256 exitShares = shares * (WAD - exitPremium) / WAD;
+        uint256 exitShares = shares * (WAD - exitFee) / WAD;
+        _burn(supplier, exitShares);
+        // exits can be blocked until exitFee > 0 <-> recipient!=0 is enforced
+        _update(supplier,exitFeeRecipient,shares-exitShares);
         exitBalances[supplier] += exitShares;
         totalExitSupply += exitShares;
     }
@@ -446,6 +457,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         // Owner actions.
         if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector)   return sender == owner;
         if (functionSelector == IVaultV2.setManagementFeeRecipient.selector)    return sender == owner;
+        if (functionSelector == IVaultV2.setExitFeeRecipient.selector)    return sender == owner;
         if (functionSelector == IVaultV2.setIsSentinel.selector)                return sender == owner;
         if (functionSelector == IVaultV2.setOwner.selector)                     return sender == owner;
         if (functionSelector == IVaultV2.setCurator.selector)                   return sender == owner;
@@ -455,7 +467,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         // Treasurer actions.
         if (functionSelector == IVaultV2.setPerformanceFee.selector)            return sender == treasurer;
         if (functionSelector == IVaultV2.setManagementFee.selector)             return sender == treasurer;
-        if (functionSelector == IVaultV2.setExitPremium.selector)               return sender == treasurer;
+        if (functionSelector == IVaultV2.setExitFee.selector)               return sender == treasurer;
         // Curator actions.
         if (functionSelector == IVaultV2.setIRM.selector)                       return sender == curator;
         if (functionSelector == IVaultV2.increaseAbsoluteCap.selector)          return sender == curator;

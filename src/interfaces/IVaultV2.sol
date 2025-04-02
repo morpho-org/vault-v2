@@ -32,6 +32,7 @@ interface IVaultV2 {
     // Owner actions
     function setPerformanceFeeRecipient(address) external;
     function setManagementFeeRecipient(address) external;
+    function setExitFeeRecipient(address) external;
     function setOwner(address) external;
     function setCurator(address) external;
     function setIsSentinel(address, bool) external;
@@ -44,7 +45,7 @@ interface IVaultV2 {
     // Treasurer actions
     function setPerformanceFee(uint256) external;
     function setManagementFee(uint256) external;
-    function setExitPremium(uint256) external;
+    function setExitFee(uint256) external;
 
     // Curator actions
     function setIRM(address) external;
