@@ -240,14 +240,15 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     // Do not try to redeem normally first
-    function requestExit(uint256 shares, address supplier) external {
+    function requestExit(uint256 shares, address supplier) external returns (uint256) {
         if (msg.sender != supplier) require(canRequestExit[supplier][msg.sender], "not allowed to exit");
         uint256 exitShares = shares * (WAD - exitFee) / WAD;
         _burn(supplier, exitShares);
         // exits can be blocked until exitFee > 0 <-> recipient!=0 is enforced
-        _update(supplier,exitFeeRecipient,shares-exitShares);
+        _update(supplier, exitFeeRecipient, shares - exitShares);
         exitBalances[supplier] += exitShares;
         totalExitSupply += exitShares;
+        return exitShares;
     }
 
     function claimExit(uint256 shares, address receiver, address supplier) external {
