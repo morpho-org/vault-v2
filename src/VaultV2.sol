@@ -214,7 +214,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(isAdapter[adapter], "not an adapter");
 
         uint256 totalExitAssets = convertToAssets(totalExitSupply, Math.Rounding.Floor);
-        require(totalExitAssets >= asset.balanceOf(address(this)) - amount, "not enough exit assets to withdraw");
+        require(totalExitAssets <= asset.balanceOf(address(this)) - amount, "not enough exit assets to withdraw");
 
         asset.transfer(adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
