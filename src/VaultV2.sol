@@ -385,7 +385,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         _burn(supplier, shares);
 
         uint256 totalExitAssets = convertToAssets(totalExitSupply, Math.Rounding.Floor);
-        require(totalExitAssets >= asset.balanceOf(address(this)) - assets, "not enough exit assets to withdraw");
+        require(totalExitAssets <= asset.balanceOf(address(this)) - assets, "not enough exit assets to withdraw");
         SafeERC20.safeTransfer(asset, receiver, assets);
         totalAssets -= assets;
 
