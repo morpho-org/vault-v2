@@ -218,11 +218,11 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(isAllocator[msg.sender] || msg.sender == address(this), "not an allocator");
         require(isAdapter[adapter], "not an adapter");
 
-        uint256 totalExitAssets = convertToAssets(totalExitSupply, Math.Rounding.Floor);
-        require(totalExitAssets <= asset.balanceOf(address(this)) - amount, "not enough exit assets to withdraw");
-
         asset.transfer(adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
+
+        uint256 totalExitAssets = convertToAssets(totalExitSupply, Math.Rounding.Floor);
+        require(totalExitAssets <= asset.balanceOf(address(this)), "not enough exit assets to withdraw");
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] += amount;
@@ -247,7 +247,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         totalExitSupply += shares;
     }
 
-    function claimExit(uint256 shares, address receiver, address supplier) external returns(uint claimedAssets) {
+    function claimExit(uint256 shares, address receiver, address supplier) external returns (uint256 claimedAssets) {
         if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
         exitBalances[supplier] -= shares;
         totalExitSupply -= shares;
