@@ -249,9 +249,10 @@ contract VaultV2 is ERC20, IVaultV2 {
         // Note that the fee assets is subtracted from the total assets in the fee shares calculation to compensate for
         // the fact that total assets is already increased by the total interest (including the fee assets).
         // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
+        uint256 totalPerformanceFeeShares;
         if (interest > 0 && performanceFee != 0) {
             uint256 performanceFeeAssets = interest.mulDiv(performanceFee, ConstantsLib.WAD, Math.Rounding.Floor);
-            uint256 totalPerformanceFeeShares = performanceFeeAssets.mulDiv(
+            totalPerformanceFeeShares = performanceFeeAssets.mulDiv(
                 totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets, Math.Rounding.Floor
             );
             protocolPerformanceFeeShares =
@@ -263,7 +264,7 @@ contract VaultV2 is ERC20, IVaultV2 {
             uint256 managementFeeAssets =
                 (newTotalAssets * elapsed).mulDiv(managementFee, ConstantsLib.WAD, Math.Rounding.Floor);
             uint256 totalManagementFeeShares = managementFeeAssets.mulDiv(
-                totalSupply() + 1 + performanceFeeShares + protocolPerformanceFeeShares,
+                totalSupply() + 1 + totalPerformanceFeeShares,
                 newTotalAssets + 1 - managementFeeAssets,
                 Math.Rounding.Floor
             );
