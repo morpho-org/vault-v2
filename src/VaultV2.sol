@@ -244,15 +244,15 @@ contract VaultV2 is ERC20, IVaultV2 {
         _update(supplier, exitAccount, shares);
     }
 
-    function claimExit(uint256 shares, address receiver, address supplier) external returns (uint) {
+    function claimExit(uint256 shares, address receiver, address supplier) external returns (uint claimedAssets) {
         if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
         address exitAccount = address(bytes20(keccak256(abi.encodePacked(EXIT_ACCOUNT_PREFIX,supplier))));
         uint256 exitShares = shares * (WAD - exitFee) / WAD;
-        uint256 claimedAmount = convertToAssets(exitShares, Math.Rounding.Floor);
+        uint256 claimedAssets = convertToAssets(exitShares, Math.Rounding.Floor);
         _burn(exitAccount, exitShares);
         // exits can be blocked until exitFee > 0 <-> recipient!=0 is enforced
         _update(exitAccount, exitFeeRecipient, shares - exitShares);
-        asset.transfer(receiver, claimedAmount);
+        asset.transfer(receiver, claimedAssets);
 
         return exitShares;
     }
