@@ -245,7 +245,6 @@ contract VaultV2 is ERC20, IVaultV2 {
         _burn(supplier, shares);
         exitBalances[supplier] += shares;
         totalExitSupply += shares;
-        return exitShares;
     }
 
     function claimExit(uint256 shares, address receiver, address supplier) external returns(uint claimedAssets) {
