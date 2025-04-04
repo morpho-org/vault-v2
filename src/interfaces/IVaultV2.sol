@@ -20,8 +20,10 @@ interface IVaultV2 is IMarket {
     function guardian() external view returns (address);
     function isSentinel(address) external view returns (bool);
     function isAllocator(address) external view returns (bool);
-    function fee() external view returns (uint160);
-    function feeRecipient() external view returns (address);
+    function performanceFee() external view returns (uint256);
+    function managementFee() external view returns (uint256);
+    function performanceFeeRecipient() external view returns (address);
+    function managementFeeRecipient() external view returns (address);
     function irm() external view returns (address);
     function lastUpdate() external view returns (uint256);
     function totalAssets() external view returns (uint256);
@@ -35,8 +37,8 @@ interface IVaultV2 is IMarket {
     function multicall(address allocator, bytes[] calldata bundle) external;
 
     // Owner actions
-    function setFee(uint160) external;
-    function setFeeRecipient(address) external;
+    function setPerformanceFeeRecipient(address) external;
+    function setManagementFeeRecipient(address) external;
     function setOwner(address) external;
     function setCurator(address) external;
     function setIsSentinel(address, bool) external;
@@ -46,6 +48,10 @@ interface IVaultV2 is IMarket {
     function decreaseTimelock(bytes4, uint64) external;
     function setAllocator(address) external;
     function unsetAllocator(address) external;
+
+    // Treasurer actions
+    function setPerformanceFee(uint256) external;
+    function setManagementFee(uint256) external;
 
     // Curator actions
     function newMarket(address) external;
@@ -61,7 +67,7 @@ interface IVaultV2 is IMarket {
     // Exchange rate
     function realAssets() external view returns (uint256);
     function accrueInterest() external;
-    function accruedFeeShares() external returns (uint256 feeShares, uint256 newTotalAssets);
+    function accruedFeeShares() external returns (uint256, uint256, uint256, uint256);
     function convertToShares(uint256) external view returns (uint256);
     function convertToAssets(uint256) external view returns (uint256);
 

@@ -40,8 +40,10 @@ contract VaultV2 is ERC20, IVaultV2 {
     mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
 
-    uint160 public fee;
-    address public feeRecipient;
+    uint256 public performanceFee;
+    address public performanceFeeRecipient;
+    uint256 public managementFee;
+    address public managementFeeRecipient;
 
     address public irm;
     uint256 public lastUpdate;
@@ -92,8 +94,12 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* OWNER ACTIONS */
 
-    function setFeeRecipient(address newFeeRecipient) external timelocked {
-        feeRecipient = newFeeRecipient;
+    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
+        performanceFeeRecipient = newPerformanceFeeRecipient;
+    }
+
+    function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
+        managementFeeRecipient = newManagementFeeRecipient;
     }
 
     function setOwner(address newOwner) external timelocked {
@@ -142,10 +148,16 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* TREASURER ACTIONS */
 
-    function setFee(uint160 newFee) external timelocked {
-        require(newFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
+    function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
+        require(newPerformanceFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
 
-        fee = newFee;
+        performanceFee = newPerformanceFee;
+    }
+
+    function setManagementFee(uint256 newManagementFee) external timelocked {
+        require(newManagementFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
+
+        managementFee = newManagementFee;
     }
 
     /* CURATOR ACTIONS */
@@ -210,37 +222,58 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function accrueInterest() public {
-        (uint256 feeShares, uint256 newTotalAssets) = accruedFeeShares();
+        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 protocolFeeShares, uint256 newTotalAssets) =
+            accruedFeeShares();
 
         totalAssets = newTotalAssets;
 
-        if (feeShares != 0) {
-            ProtocolFee memory protocolFee = IVaultV2Factory(factory).protocolFee();
-            // Todo: verify that this computation can't return something greater than feeShares.
-            uint256 protocolFeeShares = feeShares.mulDiv(protocolFee.fee, ConstantsLib.WAD, Math.Rounding.Ceil);
-            _mint(protocolFee.feeRecipient, protocolFeeShares);
-            _mint(feeRecipient, feeShares - protocolFeeShares);
-        }
+        address protocolFeeRecipient = IVaultV2Factory(factory).protocolFeeRecipient();
+        if (performanceFeeShares != 0) _mint(performanceFeeRecipient, performanceFeeShares);
+        if (managementFeeShares != 0) _mint(managementFeeRecipient, managementFeeShares);
+        if (protocolFeeShares != 0) _mint(protocolFeeRecipient, protocolFeeShares);
 
         lastUpdate = block.timestamp;
     }
 
-    function accruedFeeShares() public view returns (uint256 feeShares, uint256 newTotalAssets) {
+    function accruedFeeShares() public view returns (uint256, uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        // Note that interest could be negative, but this is not always incentive compatible: users would want to leave.
-        // But keeping this possible still, as it can make sense in the custody case when withdrawals are disabled.
-        // Note that interestPerSecond should probably be bounded to give guarantees that it cannot rug users instantly.
-        // Note that irm.interestPerSecond() reverts if the vault is not initialized and has irm == address(0).
-        int256 interest = IIRM(irm).interestPerSecond() * int256(elapsed);
-        int256 rawTotalAssets = int256(totalAssets) + interest;
-        newTotalAssets = rawTotalAssets >= 0 ? uint256(rawTotalAssets) : 0;
-        if (interest > 0 && fee != 0) {
-            // It is acknowledged that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
-            uint256 feeAssets = uint256(interest).mulDiv(fee, ConstantsLib.WAD, Math.Rounding.Floor);
-            // The fee assets is subtracted from the total assets in this calculation to compensate for the fact
-            // that total assets is already increased by the total interest (including the fee assets).
-            feeShares = feeAssets.mulDiv(totalSupply() + 1, totalAssets + 1 - feeAssets, Math.Rounding.Floor);
+        uint256 interest = IIRM(irm).interestPerSecond() * elapsed;
+        uint256 newTotalAssets = totalAssets + interest;
+
+        uint256 protocolFee = IVaultV2Factory(factory).protocolFee();
+
+        uint256 performanceFeeShares;
+        uint256 managementFeeShares;
+        uint256 protocolPerformanceFeeShares;
+        uint256 protocolManagementFeeShares;
+        // Note that the fee assets is subtracted from the total assets in the fee shares calculation to compensate for
+        // the fact that total assets is already increased by the total interest (including the fee assets).
+        // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
+        uint256 totalPerformanceFeeShares;
+        if (interest > 0 && performanceFee != 0) {
+            uint256 performanceFeeAssets = interest.mulDiv(performanceFee, ConstantsLib.WAD, Math.Rounding.Floor);
+            totalPerformanceFeeShares = performanceFeeAssets.mulDiv(
+                totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets, Math.Rounding.Floor
+            );
+            protocolPerformanceFeeShares =
+                totalPerformanceFeeShares.mulDiv(protocolFee, ConstantsLib.WAD, Math.Rounding.Floor);
+            performanceFeeShares = totalPerformanceFeeShares - protocolPerformanceFeeShares;
         }
+        if (managementFee != 0) {
+            // Using newTotalAssets to make all approximations consistent.
+            uint256 managementFeeAssets =
+                (newTotalAssets * elapsed).mulDiv(managementFee, ConstantsLib.WAD, Math.Rounding.Floor);
+            uint256 totalManagementFeeShares = managementFeeAssets.mulDiv(
+                totalSupply() + 1 + totalPerformanceFeeShares,
+                newTotalAssets + 1 - managementFeeAssets,
+                Math.Rounding.Floor
+            );
+            protocolManagementFeeShares =
+                totalManagementFeeShares.mulDiv(protocolFee, ConstantsLib.WAD, Math.Rounding.Floor);
+            managementFeeShares = totalManagementFeeShares - protocolManagementFeeShares;
+        }
+        uint256 protocolFeeShares = protocolPerformanceFeeShares + protocolManagementFeeShares;
+        return (performanceFeeShares, managementFeeShares, protocolFeeShares, newTotalAssets);
     }
 
     function convertToShares(uint256 assets) external view returns (uint256) {
@@ -335,16 +368,18 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function isAuthorizedToSubmit(address sender, bytes4 functionSelector) internal view returns (bool) {
         // Owner actions.
-        if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
+        else if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setOwner.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setCurator.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setGuardian.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setTreasurer.selector) return sender == owner;
-        else if (functionSelector == IVaultV2.setFeeRecipient.selector) return sender == owner;
         else if (functionSelector == IVaultV2.setAllocator.selector) return sender == owner;
         else if (functionSelector == IVaultV2.unsetAllocator.selector) return sender == owner || isSentinel[sender];
         // Treasurer actions.
-        else if (functionSelector == IVaultV2.setFee.selector) return sender == treasurer;
+        else if (functionSelector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
+        else if (functionSelector == IVaultV2.setManagementFee.selector) return sender == treasurer;
         // Curator actions.
         else if (functionSelector == IVaultV2.setIRM.selector) return sender == curator;
         else if (functionSelector == IVaultV2.increaseCap.selector) return sender == curator;
