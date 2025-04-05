@@ -252,9 +252,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         return super.totalSupply() + totalExitSupply;
     }
 
-    // Try to redeem the full amount first.
-    // If it fails, add the requested amount to the exit supply.
-    // Do not try to partially redeem, it is too surprising.
+    // Do not try to redeem normally first
     function requestExit(uint256 shares, address supplier) external {
         if (msg.sender != supplier) require(canRequestExit[supplier][msg.sender], "not allowed to exit");
         _burn(supplier, shares);
