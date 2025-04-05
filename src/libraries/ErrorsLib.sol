@@ -14,4 +14,5 @@ library ErrorsLib {
     error TimelockDurationTooHigh();
     error WrongPendingValue();
     error CapExceeded();
+    error MissingExitAssets();
 }

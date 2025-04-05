@@ -18,8 +18,10 @@ interface IVaultV2 {
     function isAllocator(address) external view returns (bool);
     function performanceFee() external view returns (uint256);
     function managementFee() external view returns (uint256);
+    function exitFee() external view returns (uint256);
     function performanceFeeRecipient() external view returns (address);
     function managementFeeRecipient() external view returns (address);
+    function exitFeeRecipient() external view returns (address);
     function irm() external view returns (address);
     function allocation(bytes32) external view returns (uint256);
     function lastUpdate() external view returns (uint256);
@@ -28,6 +30,10 @@ interface IVaultV2 {
     function relativeCap(bytes32) external view returns (uint256);
     function validAt(bytes calldata) external view returns (uint256);
     function timelockDuration(bytes4) external view returns (uint64);
+    function canRequestExit(address, address) external view returns (bool);
+    function exitBalances(address) external view returns (uint256);
+    function maxMissingExitAssetsDuration() external view returns (uint256);
+    function missingExitAssetsSince() external view returns (uint256);
 
     // Owner actions
     function setPerformanceFeeRecipient(address) external;
@@ -53,6 +59,7 @@ interface IVaultV2 {
     function increaseRelativeCap(bytes32, uint256) external;
     function decreaseAbsoluteCap(bytes32, uint256) external;
     function decreaseRelativeCap(bytes32, uint256, uint256) external;
+    function setMaxMissingExitAssetsDuration(uint256) external;
 
     // Allocator actions
     function reallocateFromIdle(address, bytes memory, uint256) external;
@@ -75,6 +82,6 @@ interface IVaultV2 {
     function mint(uint256, address) external returns (uint256);
     function withdraw(uint256, address, address) external returns (uint256);
     function redeem(uint256, address, address) external returns (uint256);
-    function requestExit(uint, address) external;
-    function claimExit(uint, address,address) external returns (uint);
+    function requestExit(uint256, address) external;
+    function claimExit(uint256, address, address) external returns (uint256);
 }
