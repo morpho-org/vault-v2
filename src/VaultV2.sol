@@ -175,7 +175,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function setExitFee(uint256 newExitFee) external timelocked {
         require(newExitFee < WAD, ErrorsLib.ExitFeeTooHigh());
 
-        if (newExitFee > exitFee) require(!updateMissingExitAssets(), ErrorsLib.MissingExitAssets());
+        if (newExitFee > exitFee) require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
 
         exitFee = newExitFee;
     }
@@ -218,7 +218,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setMaxMissingExitAssetsDuration(uint256 newMaxMissingExitAssetsDuration) external timelocked {
         if (newMaxMissingExitAssetsDuration > maxMissingExitAssetsDuration) {
-            require(!updateMissingExitAssets(), ErrorsLib.MissingExitAssets());
+            require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
         }
 
         maxMissingExitAssetsDuration = newMaxMissingExitAssetsDuration;
@@ -235,7 +235,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         asset.transfer(adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
 
-        require(!updateMissingExitAssets(), ErrorsLib.MissingExitAssets());
+        require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] += amount;
@@ -252,7 +252,9 @@ contract VaultV2 is ERC20, IVaultV2 {
         return super.totalSupply() + totalExitSupply;
     }
 
-    // Do not try to redeem normally first
+    // Try to redeem the full amount first.
+    // If it fails, add the requested amount to the exit supply.
+    // Do not try to partially redeem, it is too surprising.
     function requestExit(uint256 shares, address supplier) external {
         if (msg.sender != supplier) require(canRequestExit[supplier][msg.sender], "not allowed to exit");
         _burn(supplier, shares);
@@ -266,6 +268,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         totalExitSupply -= shares;
         uint256 exitShares = shares * (WAD - exitFee) / WAD;
         _update(supplier, exitFeeRecipient, shares - exitShares);
+        accrueInterest();
         claimedAssets = convertToAssets(exitShares, Math.Rounding.Floor);
         asset.transfer(receiver, claimedAssets);
 
@@ -385,11 +388,13 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* USER INTERACTION */
 
-    function updateMissingExitAssets() public returns (bool hasMissingExitAssets) {
-        uint256 totalExitAssets = convertToAssets(totalExitSupply, Math.Rounding.Floor);
-        hasMissingExitAssets = totalExitAssets > asset.balanceOf(address(this));
+    // Negative value means idle assets availabel for withdrawal.
+    function updateMissingExitAssets() public returns (int256 missingExitAssets) {
+        int256 totalExitAssets = int256(convertToAssets(totalExitSupply, Math.Rounding.Floor));
+        int256 idleAssets = int256(asset.balanceOf(address(this)));
+        missingExitAssets = totalExitAssets - idleAssets;
 
-        if (!hasMissingExitAssets) {
+        if (missingExitAssets <= 0) {
             missingExitAssetsSince = 0;
         } else if (missingExitAssetsSince == 0) {
             missingExitAssetsSince = block.timestamp;
@@ -422,15 +427,17 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal virtual {
-        try this.reallocateToIdle(withdrawAdapter, withdrawData, assets) {} catch {}
+        int256 missingAssets = int256(assets) + updateMissingExitAssets();
+
+        if (missingAssets > 0) {
+            try this.reallocateToIdle(withdrawAdapter, withdrawData, uint256(missingAssets)) {} catch {}
+        }
 
         if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
         _burn(supplier, shares);
 
         SafeERC20.safeTransfer(asset, receiver, assets);
         totalAssets -= assets;
-
-        require(!updateMissingExitAssets(), ErrorsLib.MissingExitAssets());
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
