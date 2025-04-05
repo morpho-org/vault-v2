@@ -253,18 +253,17 @@ contract VaultV2 is ERC20, IVaultV2 {
     // Do not try to redeem normally first
     function requestExit(uint256 shares, address supplier) external {
         if (msg.sender != supplier) require(canRequestExit[supplier][msg.sender], "not allowed to exit");
-        address exitAccount = address(bytes20(keccak256(abi.encodePacked(EXIT_ACCOUNT_PREFIX, supplier))));
-        _update(supplier, exitAccount, shares);
+        _update(supplier, exitAccount(supplier), shares);
         totalExitSupply += shares;
     }
 
     function claimExit(uint256 shares, address receiver, address supplier) external returns (uint256 claimedAssets) {
         if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
-        address exitAccount = address(bytes20(keccak256(abi.encodePacked(EXIT_ACCOUNT_PREFIX, supplier))));
         totalExitSupply -= shares;
         uint256 exitShares = shares * (WAD - exitFee) / WAD;
-        _burn(exitAccount, exitShares);
-        _update(exitAccount, exitFeeRecipient, shares - exitShares);
+        address supplierExitAccount = exitAccount(supplier);
+        _burn(supplierExitAccount, exitShares);
+        _update(supplierExitAccount, exitFeeRecipient, shares - exitShares);
         accrueInterest();
         claimedAssets = convertToAssets(exitShares, Math.Rounding.Floor);
         asset.transfer(receiver, claimedAssets);
@@ -527,5 +526,16 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function maxWithdraw(address) external view returns (uint256) {
         return asset.balanceOf(address(this));
+    }
+
+    function transferFrom(address from, address to, uint256 value) public override returns (bool) {
+        require(to != exitAccount(from), "cannot transfer to exit account");
+        return super.transferFrom(from, to, value);
+    }
+
+    /* INTERNAL */
+
+    function exitAccount(address account) internal pure returns (address) {
+        return address(bytes20(keccak256(abi.encodePacked(EXIT_ACCOUNT_PREFIX, account))));
     }
 }
