@@ -73,6 +73,10 @@ contract VaultV2 is ERC20, IVaultV2 {
     mapping(address => uint256) public exitBalances;
     uint256 public totalExitSupply;
 
+    uint256 public maxMissingExitAssetsDuration = 1 weeks;
+    // Can become incorrect as share price moves.
+    uint256 public missingExitAssetsSince;
+
     /* CONSTRUCTOR */
 
     constructor(
@@ -171,6 +175,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     function setExitFee(uint256 newExitFee) external timelocked {
         require(newExitFee < WAD, ErrorsLib.ExitFeeTooHigh());
 
+        if (newExitFee > exitFee) require(!updateMissingExitAssets(), ErrorsLib.MissingExitAssets());
+
         exitFee = newExitFee;
     }
 
@@ -210,6 +216,14 @@ contract VaultV2 is ERC20, IVaultV2 {
         relativeCap[id] = newRelativeCap;
     }
 
+    function setMaxMissingExitAssetsDuration(uint256 newMaxMissingExitAssetsDuration) external timelocked {
+        if (newMaxMissingExitAssetsDuration > maxMissingExitAssetsDuration) {
+            require(!updateMissingExitAssets(), ErrorsLib.MissingExitAssets());
+        }
+
+        maxMissingExitAssetsDuration = newMaxMissingExitAssetsDuration;
+    }
+
     /* ALLOCATOR ACTIONS */
 
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
@@ -221,8 +235,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         asset.transfer(adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
 
-        uint256 totalExitAssets = convertToAssets(totalExitSupply, Math.Rounding.Floor);
-        require(totalExitAssets <= asset.balanceOf(address(this)), "not enough exit assets to withdraw");
+        require(!updateMissingExitAssets(), ErrorsLib.MissingExitAssets());
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] += amount;
@@ -255,6 +268,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         _update(supplier, exitFeeRecipient, shares - exitShares);
         claimedAssets = convertToAssets(exitShares, Math.Rounding.Floor);
         asset.transfer(receiver, claimedAssets);
+
+        updateMissingExitAssets();
     }
 
     function approveExit(address spender, bool allowed) external {
@@ -264,11 +279,15 @@ contract VaultV2 is ERC20, IVaultV2 {
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(isAllocator[msg.sender] || msg.sender == address(this), "not an allocator");
+        if (missingExitAssetsSince != 0 && block.timestamp - missingExitAssetsSince <= maxMissingExitAssetsDuration) {
+            require(isAllocator[msg.sender] || msg.sender == address(this), "not an allocator");
+        }
         require(isAdapter[adapter], "not an adapter");
 
         asset.transferFrom(adapter, address(this), amount);
         bytes32[] memory ids = IAdapter(adapter).allocateOut(data, amount);
+
+        updateMissingExitAssets();
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] -= amount;
@@ -366,12 +385,26 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* USER INTERACTION */
 
+    function updateMissingExitAssets() public returns (bool hasMissingExitAssets) {
+        uint256 totalExitAssets = convertToAssets(totalExitSupply, Math.Rounding.Floor);
+        hasMissingExitAssets = totalExitAssets > asset.balanceOf(address(this));
+
+        if (!hasMissingExitAssets) {
+            missingExitAssetsSince = 0;
+        } else if (missingExitAssetsSince == 0) {
+            missingExitAssetsSince = block.timestamp;
+        }
+    }
+
     function _deposit(uint256 assets, uint256 shares, address receiver) internal {
         SafeERC20.safeTransferFrom(asset, msg.sender, address(this), assets);
         _mint(receiver, shares);
         totalAssets += assets;
 
-        try this.reallocateFromIdle(depositAdapter, depositData, assets) {} catch {}
+        try this.reallocateFromIdle(depositAdapter, depositData, assets) {}
+        catch {
+            updateMissingExitAssets();
+        }
     }
 
     // TODO: how to hook on deposit so that assets are atomically allocated ?
@@ -397,8 +430,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         SafeERC20.safeTransfer(asset, receiver, assets);
         totalAssets -= assets;
 
-        uint256 totalExitAssets = convertToAssets(totalExitSupply, Math.Rounding.Floor);
-        require(totalExitAssets <= asset.balanceOf(address(this)), "not enough exit assets to withdraw");
+        require(!updateMissingExitAssets(), ErrorsLib.MissingExitAssets());
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
@@ -457,7 +489,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         // Owner actions.
         if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector)   return sender == owner;
         if (functionSelector == IVaultV2.setManagementFeeRecipient.selector)    return sender == owner;
-        if (functionSelector == IVaultV2.setExitFeeRecipient.selector)    return sender == owner;
+        if (functionSelector == IVaultV2.setExitFeeRecipient.selector)          return sender == owner;
         if (functionSelector == IVaultV2.setIsSentinel.selector)                return sender == owner;
         if (functionSelector == IVaultV2.setOwner.selector)                     return sender == owner;
         if (functionSelector == IVaultV2.setCurator.selector)                   return sender == owner;
@@ -467,13 +499,15 @@ contract VaultV2 is ERC20, IVaultV2 {
         // Treasurer actions.
         if (functionSelector == IVaultV2.setPerformanceFee.selector)            return sender == treasurer;
         if (functionSelector == IVaultV2.setManagementFee.selector)             return sender == treasurer;
-        if (functionSelector == IVaultV2.setExitFee.selector)               return sender == treasurer;
+        if (functionSelector == IVaultV2.setExitFee.selector)                   return sender == treasurer;
         // Curator actions.
         if (functionSelector == IVaultV2.setIRM.selector)                       return sender == curator;
         if (functionSelector == IVaultV2.increaseAbsoluteCap.selector)          return sender == curator;
         if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector)          return sender == curator || isSentinel[sender];
         if (functionSelector == IVaultV2.increaseRelativeCap.selector)          return sender == curator;
         if (functionSelector == IVaultV2.decreaseRelativeCap.selector)          return sender == curator || isSentinel[sender];
+        if (functionSelector == IVaultV2.setMaxMissingExitAssetsDuration.selector)
+            return sender == curator;
         // Allocator actions.
         if (functionSelector == IVaultV2.setDepositData.selector)               return isAllocator[sender];
         if (functionSelector == IVaultV2.setWithdrawData.selector)              return isAllocator[sender];
