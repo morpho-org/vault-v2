@@ -311,7 +311,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function mint(uint256 shares, address receiver) public virtual returns (uint256 assets) {
         accrueInterest();
-        assets = convertToShares(shares, Math.Rounding.Ceil);
+        assets = convertToAssets(shares, Math.Rounding.Ceil);
         _deposit(assets, shares, receiver);
     }
 
