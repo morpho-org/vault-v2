@@ -20,7 +20,7 @@ contract MMAllocator is BaseAllocator {
     constructor(address _owner, IVaultV2 _vault) {
         owner = _owner;
         vault = _vault;
-        asset = vault.asset();
+        asset = IERC20(vault.asset());
     }
 
     address public publicAllocator;

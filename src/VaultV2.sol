@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {ERC20, IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
-import {SafeERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {IMarket, IVaultV2} from "./interfaces/IVaultV2.sol";
+import {IMarket, IVaultV2, IERC20} from "./interfaces/IVaultV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {IAllocator} from "./interfaces/IAllocator.sol";
 import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
@@ -13,7 +11,7 @@ import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {ConstantsLib} from "./libraries/ConstantsLib.sol";
 
-contract VaultV2 is ERC20, IVaultV2 {
+contract VaultV2 is IVaultV2 {
     using Math for uint256;
 
     /* CONSTANT */
@@ -21,8 +19,10 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* IMMUTABLE */
 
+    string public name;
+    string public symbol;
     address public immutable factory;
-    IERC20 public immutable asset;
+    address public immutable asset;
 
     /* TRANSIENT */
 
@@ -55,6 +55,10 @@ contract VaultV2 is ERC20, IVaultV2 {
     mapping(bytes => uint256) public validAt;
     mapping(bytes4 => uint64) public timelockDuration;
 
+    uint256 public totalSupply;
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+
     /* CONSTRUCTOR */
 
     constructor(
@@ -64,9 +68,11 @@ contract VaultV2 is ERC20, IVaultV2 {
         address _asset,
         string memory _name,
         string memory _symbol
-    ) ERC20(_name, _symbol) {
+    ) {
         factory = _factory;
-        asset = IERC20(_asset);
+        asset = _asset;
+        name = _name;
+        symbol = _symbol;
         owner = _owner;
         curator = _curator;
         lastUpdate = block.timestamp;
@@ -163,13 +169,13 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* CURATOR ACTIONS */
 
     function newMarket(address market) external timelocked {
-        asset.approve(market, type(uint256).max);
+        IERC20(asset).approve(market, type(uint256).max);
         markets.push(IMarket(market));
     }
 
     function dropMarket(uint8 index, address market) external timelocked {
         require(market == address(markets[index]), "inconsistent input");
-        asset.approve(market, 0);
+        IERC20(asset).approve(market, 0);
         markets[index] = markets[markets.length - 1];
         markets.pop();
     }
@@ -215,7 +221,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     // Vault managers would not use this function when taking full custody.
     // Note that donations would be smoothed, which is a nice feature to incentivize the vault directly.
     function realAssets() external view returns (uint256 aum) {
-        aum = asset.balanceOf(address(this));
+        aum = IERC20(asset).balanceOf(address(this));
         for (uint256 i; i < markets.length; i++) {
             aum += markets[i].convertToAssets(markets[i].balanceOf(address(this)));
         }
@@ -253,7 +259,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         if (interest > 0 && performanceFee != 0) {
             uint256 performanceFeeAssets = interest.mulDiv(performanceFee, ConstantsLib.WAD, Math.Rounding.Floor);
             totalPerformanceFeeShares = performanceFeeAssets.mulDiv(
-                totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets, Math.Rounding.Floor
+                totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets, Math.Rounding.Floor
             );
             protocolPerformanceFeeShares =
                 totalPerformanceFeeShares.mulDiv(protocolFee, ConstantsLib.WAD, Math.Rounding.Floor);
@@ -264,7 +270,7 @@ contract VaultV2 is ERC20, IVaultV2 {
             uint256 managementFeeAssets =
                 (newTotalAssets * elapsed).mulDiv(managementFee, ConstantsLib.WAD, Math.Rounding.Floor);
             uint256 totalManagementFeeShares = managementFeeAssets.mulDiv(
-                totalSupply() + 1 + totalPerformanceFeeShares,
+                totalSupply + 1 + totalPerformanceFeeShares,
                 newTotalAssets + 1 - managementFeeAssets,
                 Math.Rounding.Floor
             );
@@ -282,7 +288,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     // TODO: extract virtual shares and assets (= 1).
     function convertToShares(uint256 assets, Math.Rounding rounding) internal view returns (uint256 shares) {
-        shares = assets.mulDiv(totalSupply() + 1, totalAssets + 1, rounding);
+        shares = assets.mulDiv(totalSupply + 1, totalAssets + 1, rounding);
     }
 
     function convertToAssets(uint256 shares) external view returns (uint256) {
@@ -290,13 +296,13 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function convertToAssets(uint256 shares, Math.Rounding rounding) internal view returns (uint256 assets) {
-        assets = shares.mulDiv(totalAssets + 1, totalSupply() + 1, rounding);
+        assets = shares.mulDiv(totalAssets + 1, totalSupply + 1, rounding);
     }
 
     /* USER INTERACTION */
 
     function _deposit(uint256 assets, uint256 shares, address receiver) internal {
-        SafeERC20.safeTransferFrom(asset, msg.sender, address(this), assets);
+        IERC20(asset).transferFrom(msg.sender, address(this), assets);
         _mint(receiver, shares);
         totalAssets += assets;
     }
@@ -311,14 +317,14 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function mint(uint256 shares, address receiver) public virtual returns (uint256 assets) {
         accrueInterest();
-        assets = convertToShares(shares, Math.Rounding.Ceil);
+        assets = convertToAssets(shares, Math.Rounding.Ceil);
         _deposit(assets, shares, receiver);
     }
 
     function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal virtual {
-        if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
+        if (msg.sender != supplier) allowance[supplier][msg.sender] -= shares;
         _burn(supplier, shares);
-        SafeERC20.safeTransfer(asset, receiver, assets);
+        IERC20(asset).transfer(receiver, assets);
         totalAssets -= assets;
     }
 
@@ -332,7 +338,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function redeem(uint256 shares, address receiver, address supplier) public virtual returns (uint256 assets) {
         accrueInterest();
-        assets = convertToShares(shares, Math.Rounding.Floor);
+        assets = convertToAssets(shares, Math.Rounding.Floor);
         _withdraw(assets, shares, receiver, supplier);
     }
 
@@ -391,15 +397,46 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* INTERFACE */
 
-    function balanceOf(address user) public view override(ERC20, IMarket) returns (uint256) {
-        return super.balanceOf(user);
+    function transfer(address to, uint256 amount) public returns (bool) {
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) public returns (bool) {
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        allowance[from][msg.sender] -= amount;
+        return true;
+    }
+
+    function approve(address spender, uint256 amount) public returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
     }
 
     function maxWithdraw(address) external view returns (uint256) {
-        return asset.balanceOf(address(this));
+        return IERC20(asset).balanceOf(address(this));
     }
 
     function marketsLength() external view returns (uint256) {
         return markets.length;
+    }
+
+    /* ERC20 INTERNAL */
+
+    function _transfer(address from, address to, uint256 amount) internal {
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+    }
+
+    function _mint(address to, uint256 amount) internal {
+        balanceOf[to] += amount;
+        totalSupply += amount;
+    }
+
+    function _burn(address from, uint256 amount) internal {
+        balanceOf[from] -= amount;
+        totalSupply -= amount;
     }
 }
