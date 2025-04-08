@@ -332,7 +332,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function redeem(uint256 shares, address receiver, address supplier) public virtual returns (uint256 assets) {
         accrueInterest();
-        assets = convertToShares(shares, Math.Rounding.Floor);
+        assets = convertToAssets(shares, Math.Rounding.Floor);
         _withdraw(assets, shares, receiver, supplier);
     }
 
