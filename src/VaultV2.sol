@@ -11,9 +11,11 @@ import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {WAD} from "./libraries/ConstantsLib.sol";
+import {MathLib} from "./libraries/MathLib.sol";
 
 contract VaultV2 is ERC20, IVaultV2 {
     using Math for uint256;
+    using MathLib for uint256;
 
     /* CONSTANT */
     uint64 public constant TIMELOCK_CAP = 2 weeks;
@@ -218,7 +220,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         bytes32[] memory ids = IAdapter(adapter).allocateOut(data, amount);
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] -= amount;
+            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(amount);
         }
 
         asset.transferFrom(adapter, address(this), amount);
