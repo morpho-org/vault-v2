@@ -70,32 +70,16 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* CONSTRUCTOR */
 
-    constructor(
-        address _factory,
-        address _owner,
-        address _curator,
-        address _asset,
-        string memory _name,
-        string memory _symbol
-    ) ERC20(_name, _symbol) {
-        factory = _factory;
+    constructor(address _owner, address _asset, string memory _name, string memory _symbol) ERC20(_name, _symbol) {
+        factory = msg.sender;
         asset = IERC20(_asset);
         owner = _owner;
-        curator = _curator;
         lastUpdate = block.timestamp;
         timelockDuration[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         // The vault starts with no IRM, no markets and no assets. To be configured afterwards.
     }
 
     /* OWNER ACTIONS */
-
-    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
-        performanceFeeRecipient = newPerformanceFeeRecipient;
-    }
-
-    function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
-        managementFeeRecipient = newManagementFeeRecipient;
-    }
 
     function setOwner(address newOwner) external timelocked {
         owner = newOwner;
@@ -105,16 +89,32 @@ contract VaultV2 is ERC20, IVaultV2 {
         curator = newCurator;
     }
 
-    function setIsSentinel(address newSentinel, bool newIsSentinel) external timelocked {
-        isSentinel[newSentinel] = newIsSentinel;
-    }
-
     function setGuardian(address newGuardian) external timelocked {
         guardian = newGuardian;
     }
 
     function setTreasurer(address newTreasurer) external timelocked {
         treasurer = newTreasurer;
+    }
+
+    function setIsSentinel(address newSentinel, bool newIsSentinel) external timelocked {
+        isSentinel[newSentinel] = newIsSentinel;
+    }
+
+    function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
+        isAllocator[allocator] = newIsAllocator;
+    }
+
+    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
+        performanceFeeRecipient = newPerformanceFeeRecipient;
+    }
+
+    function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
+        managementFeeRecipient = newManagementFeeRecipient;
+    }
+
+    function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
+        isAdapter[adapter] = newIsAdapter;
     }
 
     function increaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
@@ -131,14 +131,6 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(newDuration < timelockDuration[functionSelector], "timelock not decreasing");
 
         timelockDuration[functionSelector] = newDuration;
-    }
-
-    function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
-        isAdapter[adapter] = newIsAdapter;
-    }
-
-    function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
-        isAllocator[allocator] = newIsAllocator;
     }
 
     /* TREASURER ACTIONS */
@@ -197,7 +189,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateFromIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(isAllocator[msg.sender], "not an allocator");
+        require(isAllocator[msg.sender] || isSentinel[msg.sender], "not an allocator");
         require(isAdapter[adapter], "not an adapter");
 
         asset.transfer(adapter, amount);
@@ -217,15 +209,16 @@ contract VaultV2 is ERC20, IVaultV2 {
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(isAllocator[msg.sender], "not an allocator");
+        require(isAllocator[msg.sender] || isSentinel[msg.sender], "not an allocator");
         require(isAdapter[adapter], "not an adapter");
 
-        asset.transferFrom(adapter, address(this), amount);
         bytes32[] memory ids = IAdapter(adapter).allocateOut(data, amount);
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] -= amount;
         }
+
+        asset.transferFrom(adapter, address(this), amount);
     }
 
     /* EXCHANGE RATE */
@@ -388,8 +381,10 @@ contract VaultV2 is ERC20, IVaultV2 {
         if (functionSelector == IVaultV2.setCurator.selector) return sender == owner;
         if (functionSelector == IVaultV2.setGuardian.selector) return sender == owner;
         if (functionSelector == IVaultV2.setTreasurer.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setIsAllocator.selector) return sender == owner || isSentinel[sender];
+        if (functionSelector == IVaultV2.setIsAllocator.selector) return sender == owner;
         if (functionSelector == IVaultV2.setIsAdapter.selector) return sender == owner;
+        if (functionSelector == IVaultV2.increaseTimelock.selector) return sender == owner;
+        if (functionSelector == IVaultV2.decreaseTimelock.selector) return sender == owner;
         // Treasurer actions.
         if (functionSelector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
         if (functionSelector == IVaultV2.setManagementFee.selector) return sender == treasurer;
@@ -398,15 +393,11 @@ contract VaultV2 is ERC20, IVaultV2 {
         if (functionSelector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
         if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
         if (functionSelector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
-        if (functionSelector == IVaultV2.decreaseRelativeCap.selector) return sender == curator || isSentinel[sender];
+        if (functionSelector == IVaultV2.decreaseRelativeCap.selector) return sender == curator;
         return false;
     }
 
     /* INTERFACE */
-
-    function balanceOf(address user) public view override(ERC20) returns (uint256) {
-        return super.balanceOf(user);
-    }
 
     function maxWithdraw(address) external view returns (uint256) {
         return asset.balanceOf(address(this));
