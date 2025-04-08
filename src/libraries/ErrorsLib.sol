@@ -5,12 +5,22 @@ library ErrorsLib {
     error FeeTooHigh();
     error ZeroAddress();
     error Unauthorized();
-    error Locked();
-    error FailedDelegateCall();
-    error CantSet();
     error TimelockNotExpired();
     error TimelockCapIsFixed();
     error TimelockDurationTooHigh();
     error WrongPendingValue();
     error CapExceeded();
+    error DataNotTimelocked();
+    error DataAlreadyPending();
+    error TimelockNotIncreasing();
+    error TimelockNotDecreasing();
+    error AbsoluteCapNotIncreasing();
+    error AbsoluteCapNotDecreasing();
+    error RelativeCapNotIncreasing();
+    error RelativeCapNotDecreasing();
+    error AbsoluteCapExceeded();
+    error RelativeCapExceeded();
+    error IdNotFound();
+    error NotAllocator();
+    error NotAdapter();
 }

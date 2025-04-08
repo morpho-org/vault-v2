@@ -120,7 +120,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function increaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
         require(functionSelector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
-        require(newDuration > timelockDuration[functionSelector], "timelock not increasing");
+        require(newDuration > timelockDuration[functionSelector], ErrorsLib.TimelockNotIncreasing());
 
         timelockDuration[functionSelector] = newDuration;
     }
@@ -128,7 +128,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function decreaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
         require(functionSelector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
-        require(newDuration < timelockDuration[functionSelector], "timelock not decreasing");
+        require(newDuration < timelockDuration[functionSelector], ErrorsLib.TimelockNotDecreasing());
 
         timelockDuration[functionSelector] = newDuration;
     }
@@ -154,28 +154,28 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function increaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
-        require(newCap > absoluteCap[id], "absolute cap not increasing");
+        require(newCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
 
         absoluteCap[id] = newCap;
     }
 
     function decreaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
-        require(newCap < absoluteCap[id], "absolute cap not decreasing");
+        require(newCap < absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
 
         absoluteCap[id] = newCap;
     }
 
     function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
-        require(newRelativeCap > relativeCap[id], "relative cap not increasing");
+        require(newRelativeCap > relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
 
         if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
         relativeCap[id] = newRelativeCap;
     }
 
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
-        require(newRelativeCap < relativeCap[id], "relative cap not decreasing");
-        require(idsWithRelativeCap[index] == id, "id not found");
-        require(allocation[id] <= totalAssets.mulDiv(newRelativeCap, WAD, Math.Rounding.Floor), "relative cap exceeded");
+        require(newRelativeCap < relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
+        require(idsWithRelativeCap[index] == id, ErrorsLib.IdNotFound());
+        require(allocation[id] <= totalAssets.mulDiv(newRelativeCap, WAD, Math.Rounding.Floor), ErrorsLib.RelativeCapExceeded());
 
         if (newRelativeCap == 0) {
             idsWithRelativeCap[index] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
@@ -189,8 +189,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateFromIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(isAllocator[msg.sender] || isSentinel[msg.sender], "not an allocator");
-        require(isAdapter[adapter], "not an adapter");
+        require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.NotAllocator());
+        require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         asset.transfer(adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
@@ -198,10 +198,10 @@ contract VaultV2 is ERC20, IVaultV2 {
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] += amount;
 
-            require(allocation[ids[i]] <= absoluteCap[ids[i]], "absolute cap exceeded");
+            require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
             require(
                 allocation[ids[i]] <= totalAssets.mulDiv(relativeCap[ids[i]], WAD, Math.Rounding.Floor),
-                "relative cap exceeded"
+                ErrorsLib.RelativeCapExceeded()
             );
         }
     }
@@ -209,8 +209,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(isAllocator[msg.sender] || isSentinel[msg.sender], "not an allocator");
-        require(isAdapter[adapter], "not an adapter");
+        require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.NotAllocator());
+        require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         bytes32[] memory ids = IAdapter(adapter).allocateOut(data, amount);
 
@@ -323,7 +323,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
             require(
-                allocation[id] <= totalAssets.mulDiv(relativeCap[id], WAD, Math.Rounding.Floor), "relative cap exceeded"
+                allocation[id] <= totalAssets.mulDiv(relativeCap[id], WAD, Math.Rounding.Floor),
+                ErrorsLib.RelativeCapExceeded()
             );
         }
     }
@@ -348,13 +349,13 @@ contract VaultV2 is ERC20, IVaultV2 {
         bytes4 functionSelector = bytes4(data);
         require(isAuthorizedToSubmit(msg.sender, functionSelector), ErrorsLib.Unauthorized());
 
-        require(validAt[data] == 0, "data already pending");
+        require(validAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
         validAt[data] = block.timestamp + timelockDuration[functionSelector];
     }
 
     modifier timelocked() {
-        require(validAt[msg.data] != 0 && block.timestamp >= validAt[msg.data], "data not timelocked");
+        require(validAt[msg.data] != 0 && block.timestamp >= validAt[msg.data], ErrorsLib.DataNotTimelocked());
         validAt[msg.data] = 0;
         _;
     }
@@ -366,7 +367,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(
             msg.sender == guardian || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector)
                 || isAuthorizedToSubmit(msg.sender, bytes4(data)),
-            "unauthorized"
+            ErrorsLib.Unauthorized()
         );
         require(validAt[data] != 0);
         validAt[data] = 0;

@@ -17,7 +17,7 @@ contract SettersTest is BaseTest {
         address newOwner = makeAddr("newOwner");
 
         // Nobody can set directly
-        vm.expectRevert("data not timelocked");
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setOwner(newOwner);
 
         // Only owner can submit
@@ -36,7 +36,7 @@ contract SettersTest is BaseTest {
         address newCurator = makeAddr("newCurator");
 
         // Nobody can set directly
-        vm.expectRevert("data not timelocked");
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setCurator(newCurator);
 
         // Only owner can submit
@@ -56,7 +56,7 @@ contract SettersTest is BaseTest {
         address newIRM = address(new IRM(manager));
 
         // Nobody can set directly
-        vm.expectRevert("data not timelocked");
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setIRM(newIRM);
 
         // Only curator can submit
@@ -75,7 +75,7 @@ contract SettersTest is BaseTest {
         address newAllocator = makeAddr("newAllocator");
 
         // Nobody can set directly
-        vm.expectRevert("data not timelocked");
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setIsAllocator(newAllocator, true);
 
         // Only owner can submit
@@ -101,7 +101,7 @@ contract SettersTest is BaseTest {
         uint256 newPerformanceFee = 500; // 5%
 
         // Nobody can set directly
-        vm.expectRevert("data not timelocked");
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setPerformanceFee(newPerformanceFee);
 
         // Only owner can submit
@@ -126,7 +126,7 @@ contract SettersTest is BaseTest {
         address newPerformanceFeeRecipient = makeAddr("newPerformanceFeeRecipient");
 
         // Nobody can set directly
-        vm.expectRevert("data not timelocked");
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setPerformanceFeeRecipient(newPerformanceFeeRecipient);
 
         // Only owner can submit
@@ -145,7 +145,7 @@ contract SettersTest is BaseTest {
         uint256 newManagementFee = 500; // 5%
 
         // Nobody can set directly
-        vm.expectRevert("data not timelocked");
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setManagementFee(newManagementFee);
 
         // Only owner can submit
@@ -170,7 +170,7 @@ contract SettersTest is BaseTest {
         address newManagementFeeRecipient = makeAddr("newManagementFeeRecipient");
 
         // Nobody can set directly
-        vm.expectRevert("data not timelocked");
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setManagementFeeRecipient(newManagementFeeRecipient);
 
         // Only owner can submit
