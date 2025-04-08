@@ -244,45 +244,42 @@ contract VaultV2 is ERC20, IVaultV2 {
         lastUpdate = block.timestamp;
     }
 
-    function accruedFeeShares()
-        public
-        view
-        returns (
-            uint256 performanceFeeShares,
-            uint256 managementFeeShares,
-            uint256 protocolFeeShares,
-            uint256 newTotalAssets
-        )
-    {
+    function accruedFeeShares() public view returns (uint256, uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         uint256 interest = IIRM(irm).interestPerSecond() * elapsed;
-        newTotalAssets = totalAssets + interest;
+        uint256 newTotalAssets = totalAssets + interest;
 
         uint256 protocolFee = IVaultV2Factory(factory).protocolFee();
 
+        uint256 performanceFeeShares;
+        uint256 managementFeeShares;
+        uint256 protocolPerformanceFeeShares;
+        uint256 protocolManagementFeeShares;
         // Note that the fee assets is subtracted from the total assets in the fee shares calculation to compensate for
         // the fact that total assets is already increased by the total interest (including the fee assets).
         // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
+        uint256 totalPerformanceFeeShares;
         if (interest > 0 && performanceFee != 0) {
             uint256 performanceFeeAssets = interest.mulDiv(performanceFee, WAD, Math.Rounding.Floor);
-            uint256 totalPerformanceFeeShares = performanceFeeAssets.mulDiv(
+            totalPerformanceFeeShares = performanceFeeAssets.mulDiv(
                 totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets, Math.Rounding.Floor
             );
-            uint256 protocolPerformanceFeeShares =
-                totalPerformanceFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
+            protocolPerformanceFeeShares = totalPerformanceFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
             performanceFeeShares = totalPerformanceFeeShares - protocolPerformanceFeeShares;
-            protocolFeeShares += protocolPerformanceFeeShares;
         }
         if (managementFee != 0) {
             // Using newTotalAssets to make all approximations consistent.
             uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDiv(managementFee, WAD, Math.Rounding.Floor);
             uint256 totalManagementFeeShares = managementFeeAssets.mulDiv(
-                totalSupply() + 1 + protocolFeeShares, newTotalAssets + 1 - managementFeeAssets, Math.Rounding.Floor
+                totalSupply() + 1 + totalPerformanceFeeShares,
+                newTotalAssets + 1 - managementFeeAssets,
+                Math.Rounding.Floor
             );
-            uint256 protocolManagementFeeShares = totalManagementFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
+            protocolManagementFeeShares = totalManagementFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
             managementFeeShares = totalManagementFeeShares - protocolManagementFeeShares;
-            protocolFeeShares += protocolManagementFeeShares;
         }
+        uint256 protocolFeeShares = protocolPerformanceFeeShares + protocolManagementFeeShares;
+        return (performanceFeeShares, managementFeeShares, protocolFeeShares, newTotalAssets);
     }
 
     function convertToShares(uint256 assets) external view returns (uint256) {
