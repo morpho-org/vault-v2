@@ -2,5 +2,5 @@
 pragma solidity >=0.5.0;
 
 interface IIRM {
-    function interestPerSecond() external view returns (uint256);
+    function interestPerSecond(uint256 elapsed) external view returns (uint256);
 }

@@ -237,7 +237,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function accruedFeeShares() public view returns (uint256, uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        uint256 interest = IIRM(irm).interestPerSecond() * elapsed;
+        uint256 interest = IIRM(irm).interestPerSecond(elapsed) * elapsed;
         uint256 newTotalAssets = totalAssets + interest;
 
         uint256 protocolFee = IVaultV2Factory(factory).protocolFee();
