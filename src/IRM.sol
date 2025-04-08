@@ -19,7 +19,7 @@ contract IRM is IIRM {
         _interestPerSecond = newInterestPerSecond;
     }
 
-    function interestPerSecond(uint256) external view returns (uint256) {
+    function interestPerSecond(uint256, uint256) external view returns (uint256) {
         return _interestPerSecond;
     }
 }
