@@ -34,7 +34,6 @@ contract VaultV2 is ERC20, IVaultV2 {
     // This way, roles are modularized, and notably restricting their capabilities could be done on top.
     address public owner;
     address public curator;
-    address public guardian;
     address public treasurer;
     mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
@@ -87,10 +86,6 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setCurator(address newCurator) external timelocked {
         curator = newCurator;
-    }
-
-    function setGuardian(address newGuardian) external timelocked {
-        guardian = newGuardian;
     }
 
     function setTreasurer(address newTreasurer) external timelocked {
@@ -175,7 +170,10 @@ contract VaultV2 is ERC20, IVaultV2 {
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
         require(newRelativeCap < relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
         require(idsWithRelativeCap[index] == id, ErrorsLib.IdNotFound());
-        require(allocation[id] <= totalAssets.mulDiv(newRelativeCap, WAD, Math.Rounding.Floor), ErrorsLib.RelativeCapExceeded());
+        require(
+            allocation[id] <= totalAssets.mulDiv(newRelativeCap, WAD, Math.Rounding.Floor),
+            ErrorsLib.RelativeCapExceeded()
+        );
 
         if (newRelativeCap == 0) {
             idsWithRelativeCap[index] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
@@ -360,13 +358,11 @@ contract VaultV2 is ERC20, IVaultV2 {
         _;
     }
 
-    /// @dev Guardian can revoke everything.
-    /// @dev Sentinels can revoke everything except setIsSentinel timelocks.
     /// @dev Authorized to submit can revoke.
     function revoke(bytes calldata data) external {
         require(
-            msg.sender == guardian || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector)
-                || isAuthorizedToSubmit(msg.sender, bytes4(data)),
+            isAuthorizedToSubmit(msg.sender, bytes4(data))
+                || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector),
             ErrorsLib.Unauthorized()
         );
         require(validAt[data] != 0);
@@ -380,7 +376,6 @@ contract VaultV2 is ERC20, IVaultV2 {
         if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
         if (functionSelector == IVaultV2.setOwner.selector) return sender == owner;
         if (functionSelector == IVaultV2.setCurator.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setGuardian.selector) return sender == owner;
         if (functionSelector == IVaultV2.setTreasurer.selector) return sender == owner;
         if (functionSelector == IVaultV2.setIsAllocator.selector) return sender == owner;
         if (functionSelector == IVaultV2.setIsAdapter.selector) return sender == owner;
