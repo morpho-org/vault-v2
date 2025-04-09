@@ -10,6 +10,7 @@ import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {ConstantsLib} from "./libraries/ConstantsLib.sol";
+import {EventsLib} from "./libraries/EventsLib.sol";
 
 contract VaultV2 is IVaultV2 {
     using Math for uint256;
@@ -398,20 +399,16 @@ contract VaultV2 is IVaultV2 {
     /* INTERFACE */
 
     function transfer(address to, uint256 amount) public returns (bool) {
-        balanceOf[msg.sender] -= amount;
-        balanceOf[to] += amount;
-        return true;
+        return _transfer(msg.sender, to, amount);
     }
 
     function transferFrom(address from, address to, uint256 amount) public returns (bool) {
-        balanceOf[from] -= amount;
-        balanceOf[to] += amount;
-        allowance[from][msg.sender] -= amount;
-        return true;
+        return _transfer(from, to, amount);
     }
 
     function approve(address spender, uint256 amount) public returns (bool) {
         allowance[msg.sender][spender] = amount;
+        emit EventsLib.Approval(msg.sender, spender, amount);
         return true;
     }
 
@@ -425,18 +422,26 @@ contract VaultV2 is IVaultV2 {
 
     /* ERC20 INTERNAL */
 
-    function _transfer(address from, address to, uint256 amount) internal {
+    function _transfer(address from, address to, uint256 amount) internal returns (bool) {
+        require(from != address(0), "address zero");
+        require(to != address(0), "address zero");
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
+        emit EventsLib.Transfer(from, to, amount);
+        return true;
     }
 
     function _mint(address to, uint256 amount) internal {
+        require(to != address(0), "address zero");
         balanceOf[to] += amount;
         totalSupply += amount;
+        emit EventsLib.Transfer(address(0), to, amount);
     }
 
     function _burn(address from, uint256 amount) internal {
+        require(from != address(0), "address zero");
         balanceOf[from] -= amount;
         totalSupply -= amount;
+        emit EventsLib.Transfer(from, address(0), amount);
     }
 }
