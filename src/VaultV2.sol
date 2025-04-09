@@ -9,8 +9,8 @@ import {IAllocator} from "./interfaces/IAllocator.sol";
 import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
-import {ConstantsLib} from "./libraries/ConstantsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
+import "./libraries/ConstantsLib.sol";
 
 contract VaultV2 is IVaultV2 {
     using Math for uint256;
@@ -59,6 +59,7 @@ contract VaultV2 is IVaultV2 {
     uint256 public totalSupply;
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
+    mapping(address => uint256) public nonces;
 
     /* CONSTRUCTOR */
 
@@ -156,13 +157,13 @@ contract VaultV2 is IVaultV2 {
     /* TREASURER ACTIONS */
 
     function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
-        require(newPerformanceFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
+        require(newPerformanceFee < WAD, ErrorsLib.FeeTooHigh());
 
         performanceFee = newPerformanceFee;
     }
 
     function setManagementFee(uint256 newManagementFee) external timelocked {
-        require(newManagementFee < ConstantsLib.WAD, ErrorsLib.FeeTooHigh());
+        require(newManagementFee < WAD, ErrorsLib.FeeTooHigh());
 
         managementFee = newManagementFee;
     }
@@ -258,25 +259,22 @@ contract VaultV2 is IVaultV2 {
         // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
         uint256 totalPerformanceFeeShares;
         if (interest > 0 && performanceFee != 0) {
-            uint256 performanceFeeAssets = interest.mulDiv(performanceFee, ConstantsLib.WAD, Math.Rounding.Floor);
+            uint256 performanceFeeAssets = interest.mulDiv(performanceFee, WAD, Math.Rounding.Floor);
             totalPerformanceFeeShares = performanceFeeAssets.mulDiv(
                 totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets, Math.Rounding.Floor
             );
-            protocolPerformanceFeeShares =
-                totalPerformanceFeeShares.mulDiv(protocolFee, ConstantsLib.WAD, Math.Rounding.Floor);
+            protocolPerformanceFeeShares = totalPerformanceFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
             performanceFeeShares = totalPerformanceFeeShares - protocolPerformanceFeeShares;
         }
         if (managementFee != 0) {
             // Using newTotalAssets to make all approximations consistent.
-            uint256 managementFeeAssets =
-                (newTotalAssets * elapsed).mulDiv(managementFee, ConstantsLib.WAD, Math.Rounding.Floor);
+            uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDiv(managementFee, WAD, Math.Rounding.Floor);
             uint256 totalManagementFeeShares = managementFeeAssets.mulDiv(
                 totalSupply + 1 + totalPerformanceFeeShares,
                 newTotalAssets + 1 - managementFeeAssets,
                 Math.Rounding.Floor
             );
-            protocolManagementFeeShares =
-                totalManagementFeeShares.mulDiv(protocolFee, ConstantsLib.WAD, Math.Rounding.Floor);
+            protocolManagementFeeShares = totalManagementFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
             managementFeeShares = totalManagementFeeShares - protocolManagementFeeShares;
         }
         uint256 protocolFeeShares = protocolPerformanceFeeShares + protocolManagementFeeShares;
@@ -410,7 +408,7 @@ contract VaultV2 is IVaultV2 {
 
         if (_allowance < type(uint256).max) allowance[from][msg.sender] = _allowance - amount;
 
-        balanceOf[msg.sender] -= amount;
+        balanceOf[from] -= amount;
         balanceOf[to] += amount;
         emit EventsLib.Transfer(msg.sender, to, amount);
 
@@ -423,53 +421,23 @@ contract VaultV2 is IVaultV2 {
         return true;
     }
 
-    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+    function permit(address _owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         public
         virtual
     {
-        require(deadline >= block.timestamp, "PERMIT_DEADLINE_EXPIRED");
+        bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonces[_owner]++, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
+        address recoveredAddress = ecrecover(digest, v, r, s);
 
-        // Unchecked because the only math done is incrementing
-        // the owner's nonce which cannot realistically overflow.
-        unchecked {
-            address recoveredAddress = ecrecover(
-                keccak256(
-                    abi.encodePacked(
-                        "\x19\x01",
-                        DOMAIN_SEPARATOR(),
-                        keccak256(
-                            abi.encode(
-                                keccak256(
-                                    "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
-                                ),
-                                owner,
-                                spender,
-                                value,
-                                nonces[owner]++,
-                                deadline
-                            )
-                        )
-                    )
-                ),
-                v,
-                r,
-                s
-            );
+        require(deadline >= block.timestamp, "permit deadline expired");
+        require(recoveredAddress != address(0) && recoveredAddress == _owner, "invalid signer");
 
-            require(recoveredAddress != address(0) && recoveredAddress == owner, "INVALID_SIGNER");
-
-            allowance[recoveredAddress][spender] = value;
-        }
-
-        emit Approval(owner, spender, value);
+        allowance[recoveredAddress][spender] = value;
+        emit EventsLib.Approval(recoveredAddress, spender, value);
     }
 
     function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                keccak256("EIP712Domain(uint256 chainId,address verifyingContract)"), block.chainid, address(this)
-            )
-        );
+        return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
     }
 
     function maxWithdraw(address) external view returns (uint256) {

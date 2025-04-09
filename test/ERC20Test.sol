@@ -42,6 +42,7 @@ contract ERC20Test is BaseTest {
     function testTransferFrom(address to, uint256 amount) public {
         vm.assume(amount <= MAX_DEPOSIT);
         vault.mint(amount, address(this));
+        assertEq(vault.balanceOf(address(this)), amount);
         vault.approve(to, amount);
         vm.prank(to);
         vault.transferFrom(address(this), to, amount);
