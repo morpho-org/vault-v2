@@ -43,14 +43,12 @@ contract BaseTest is Test {
         vault.submit(abi.encodeWithSelector(IVaultV2.setCurator.selector, curator));
         vault.submit(abi.encodeWithSelector(IVaultV2.setTreasurer.selector, treasurer));
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, allocator, true));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, address(irm)));
         vm.stopPrank();
 
         vault.setCurator(curator);
         vault.setTreasurer(treasurer);
         vault.setIsAllocator(allocator, true);
-
-        vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, address(irm)));
         vault.setIRM(address(irm));
     }
 }

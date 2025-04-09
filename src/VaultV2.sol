@@ -11,9 +11,11 @@ import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {WAD} from "./libraries/ConstantsLib.sol";
+import {MathLib} from "./libraries/MathLib.sol";
 
 contract VaultV2 is ERC20, IVaultV2 {
     using Math for uint256;
+    using MathLib for uint256;
 
     /* CONSTANT */
     uint64 public constant TIMELOCK_CAP = 2 weeks;
@@ -35,6 +37,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     address public owner;
     address public curator;
     address public treasurer;
+    address public irm;
     mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
 
@@ -43,7 +46,6 @@ contract VaultV2 is ERC20, IVaultV2 {
     uint256 public managementFee;
     address public managementFeeRecipient;
 
-    address public irm;
     uint256 public lastUpdate;
     uint256 public totalAssets;
 
@@ -90,6 +92,10 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setTreasurer(address newTreasurer) external timelocked {
         treasurer = newTreasurer;
+    }
+
+    function setIRM(address newIRM) external timelocked {
+        irm = newIRM;
     }
 
     function setIsSentinel(address newSentinel, bool newIsSentinel) external timelocked {
@@ -143,10 +149,6 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     /* CURATOR ACTIONS */
-
-    function setIRM(address newIRM) external timelocked {
-        irm = newIRM;
-    }
 
     function increaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
         require(newCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
@@ -213,7 +215,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         bytes32[] memory ids = IAdapter(adapter).allocateOut(data, amount);
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] -= amount;
+            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(amount);
         }
 
         asset.transferFrom(adapter, address(this), amount);
@@ -376,6 +378,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
         if (functionSelector == IVaultV2.setOwner.selector) return sender == owner;
         if (functionSelector == IVaultV2.setCurator.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setIRM.selector) return sender == owner;
         if (functionSelector == IVaultV2.setTreasurer.selector) return sender == owner;
         if (functionSelector == IVaultV2.setIsAllocator.selector) return sender == owner;
         if (functionSelector == IVaultV2.setIsAdapter.selector) return sender == owner;
@@ -385,7 +388,6 @@ contract VaultV2 is ERC20, IVaultV2 {
         if (functionSelector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
         if (functionSelector == IVaultV2.setManagementFee.selector) return sender == treasurer;
         // Curator actions.
-        if (functionSelector == IVaultV2.setIRM.selector) return sender == curator;
         if (functionSelector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
         if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
         if (functionSelector == IVaultV2.increaseRelativeCap.selector) return sender == curator;

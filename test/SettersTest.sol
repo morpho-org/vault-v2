@@ -52,19 +52,19 @@ contract SettersTest is BaseTest {
     }
 
     function testSetIRM(address rdm) public {
-        vm.assume(rdm != curator);
+        vm.assume(rdm != owner);
         address newIRM = address(new IRM(manager));
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setIRM(newIRM);
 
-        // Only curator can submit
+        // Only owner can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, newIRM));
 
-        vm.prank(curator);
+        vm.prank(owner);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, newIRM));
         vault.setIRM(newIRM);
 
