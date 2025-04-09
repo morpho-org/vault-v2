@@ -36,7 +36,6 @@ contract VaultV2 is ERC20, IVaultV2 {
     // This way, roles are modularized, and notably restricting their capabilities could be done on top.
     address public owner;
     address public curator;
-    address public guardian;
     address public treasurer;
     address public irm;
     mapping(address => bool) public isSentinel;
@@ -89,10 +88,6 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setCurator(address newCurator) external timelocked {
         curator = newCurator;
-    }
-
-    function setGuardian(address newGuardian) external timelocked {
-        guardian = newGuardian;
     }
 
     function setTreasurer(address newTreasurer) external timelocked {
@@ -365,13 +360,11 @@ contract VaultV2 is ERC20, IVaultV2 {
         _;
     }
 
-    /// @dev Guardian can revoke everything.
-    /// @dev Sentinels can revoke everything except setIsSentinel timelocks.
     /// @dev Authorized to submit can revoke.
     function revoke(bytes calldata data) external {
         require(
-            msg.sender == guardian || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector)
-                || isAuthorizedToSubmit(msg.sender, bytes4(data)),
+            isAuthorizedToSubmit(msg.sender, bytes4(data))
+                || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector),
             ErrorsLib.Unauthorized()
         );
         require(validAt[data] != 0);
@@ -385,7 +378,6 @@ contract VaultV2 is ERC20, IVaultV2 {
         if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
         if (functionSelector == IVaultV2.setOwner.selector) return sender == owner;
         if (functionSelector == IVaultV2.setCurator.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setGuardian.selector) return sender == owner;
         if (functionSelector == IVaultV2.setIRM.selector) return sender == owner;
         if (functionSelector == IVaultV2.setTreasurer.selector) return sender == owner;
         if (functionSelector == IVaultV2.setIsAllocator.selector) return sender == owner;
