@@ -399,17 +399,77 @@ contract VaultV2 is IVaultV2 {
     /* INTERFACE */
 
     function transfer(address to, uint256 amount) public returns (bool) {
-        return _transfer(msg.sender, to, amount);
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        emit EventsLib.Transfer(msg.sender, to, amount);
+        return true;
     }
 
     function transferFrom(address from, address to, uint256 amount) public returns (bool) {
-        return _transfer(from, to, amount);
+        uint256 _allowance = allowance[from][msg.sender];
+
+        if (_allowance < type(uint256).max) allowance[from][msg.sender] = _allowance - amount;
+
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        emit EventsLib.Transfer(msg.sender, to, amount);
+
+        return true;
     }
 
     function approve(address spender, uint256 amount) public returns (bool) {
         allowance[msg.sender][spender] = amount;
         emit EventsLib.Approval(msg.sender, spender, amount);
         return true;
+    }
+
+    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        public
+        virtual
+    {
+        require(deadline >= block.timestamp, "PERMIT_DEADLINE_EXPIRED");
+
+        // Unchecked because the only math done is incrementing
+        // the owner's nonce which cannot realistically overflow.
+        unchecked {
+            address recoveredAddress = ecrecover(
+                keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+                                ),
+                                owner,
+                                spender,
+                                value,
+                                nonces[owner]++,
+                                deadline
+                            )
+                        )
+                    )
+                ),
+                v,
+                r,
+                s
+            );
+
+            require(recoveredAddress != address(0) && recoveredAddress == owner, "INVALID_SIGNER");
+
+            allowance[recoveredAddress][spender] = value;
+        }
+
+        emit Approval(owner, spender, value);
+    }
+
+    function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(uint256 chainId,address verifyingContract)"), block.chainid, address(this)
+            )
+        );
     }
 
     function maxWithdraw(address) external view returns (uint256) {
@@ -421,15 +481,6 @@ contract VaultV2 is IVaultV2 {
     }
 
     /* ERC20 INTERNAL */
-
-    function _transfer(address from, address to, uint256 amount) internal returns (bool) {
-        require(from != address(0), "address zero");
-        require(to != address(0), "address zero");
-        balanceOf[from] -= amount;
-        balanceOf[to] += amount;
-        emit EventsLib.Transfer(from, to, amount);
-        return true;
-    }
 
     function _mint(address to, uint256 amount) internal {
         require(to != address(0), "address zero");
