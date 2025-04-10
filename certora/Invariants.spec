@@ -21,12 +21,6 @@ strong invariant performanceFeeRecipient()
 strong invariant managementFeeRecipient()
     managementFee() != 0 => managementFeeRecipient() != 0;
 
-strong invariant relativeCaps(bytes32 id)
-    allocation(id) <= totalAssets() * relativeCap(id) / 1000000000000000000;
-
-strong invariant relativeCapsList(bytes32 id)
-    relativeCap(id) != 0 => idsWithRelativeCap.contains(id);
-
 strong invariant absoluteCaps(bytes32 id)
     allocation(id) <= absoluteCap(id)
 {
