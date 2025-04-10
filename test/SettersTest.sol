@@ -112,20 +112,25 @@ contract SettersTest is BaseTest {
         uint256 tooHighFee = 1 ether + 1;
         vm.prank(treasurer);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, tooHighFee));
-        
+
         vm.expectRevert(ErrorsLib.FeeTooHigh.selector);
         vault.setPerformanceFee(tooHighFee);
 
         vm.prank(treasurer);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, newPerformanceFee));
-        
-        assertEq(vault.validAt(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, newPerformanceFee)), block.timestamp);
-        
+
+        assertEq(
+            vault.validAt(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, newPerformanceFee)),
+            block.timestamp
+        );
+
         vm.expectRevert(ErrorsLib.NoRecipient.selector);
         vault.setPerformanceFee(newPerformanceFee);
 
         vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFeeRecipient.selector, makeAddr("newPerformanceFeeRecipient")));
+        vault.submit(
+            abi.encodeWithSelector(IVaultV2.setPerformanceFeeRecipient.selector, makeAddr("newPerformanceFeeRecipient"))
+        );
         vault.setPerformanceFeeRecipient(makeAddr("newPerformanceFeeRecipient"));
 
         vault.setPerformanceFee(newPerformanceFee);
@@ -183,13 +188,17 @@ contract SettersTest is BaseTest {
         vm.prank(treasurer);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, newManagementFee));
 
-        assertEq(vault.validAt(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, newManagementFee)), block.timestamp);
+        assertEq(
+            vault.validAt(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, newManagementFee)), block.timestamp
+        );
 
         vm.expectRevert(ErrorsLib.NoRecipient.selector);
         vault.setManagementFee(newManagementFee);
 
         vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, makeAddr("newManagementFeeRecipient")));
+        vault.submit(
+            abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, makeAddr("newManagementFeeRecipient"))
+        );
         vault.setManagementFeeRecipient(makeAddr("newManagementFeeRecipient"));
 
         vault.setManagementFee(newManagementFee);

@@ -41,8 +41,10 @@ contract VaultV2 is ERC20, IVaultV2 {
     mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
 
+    /// @dev invariant: performanceFee != 0 => performanceFeeRecipient != address(0)
     uint256 public performanceFee;
     address public performanceFeeRecipient;
+    /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint256 public managementFee;
     address public managementFeeRecipient;
 
@@ -108,13 +110,13 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
         require(newPerformanceFeeRecipient != address(0) || performanceFee == 0, ErrorsLib.NoRecipient());
-        
+
         performanceFeeRecipient = newPerformanceFeeRecipient;
     }
 
     function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
         require(newManagementFeeRecipient != address(0) || managementFee == 0, ErrorsLib.NoRecipient());
-        
+
         managementFeeRecipient = newManagementFeeRecipient;
     }
 
@@ -150,7 +152,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function setManagementFee(uint256 newManagementFee) external timelocked {
         require(newManagementFee < WAD, ErrorsLib.FeeTooHigh());
         require(managementFeeRecipient != address(0), ErrorsLib.NoRecipient());
-        
+
         managementFee = newManagementFee;
     }
 
