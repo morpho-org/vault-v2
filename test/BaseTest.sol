@@ -5,10 +5,8 @@ import {IVaultV2Factory} from "../src/interfaces/IVaultV2Factory.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 
 import {VaultV2Factory} from "../src/VaultV2Factory.sol";
-import {VaultV2} from "../src/VaultV2.sol";
+import {VaultV2, ErrorsLib} from "../src/VaultV2.sol";
 import {IRM} from "../src/IRM.sol";
-import {ManagedAllocator} from "../src/allocators/ManagedAllocator.sol";
-import {EncodeLib} from "../src/libraries/EncodeLib.sol";
 
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 
@@ -18,9 +16,10 @@ contract BaseTest is Test {
     address immutable manager = makeAddr("manager");
     address immutable owner = makeAddr("owner");
     address immutable curator = makeAddr("curator");
+    address immutable allocator = makeAddr("allocator");
+    address immutable treasurer = makeAddr("treasurer");
 
     ERC20Mock underlyingToken;
-    ManagedAllocator allocator;
     IVaultV2Factory vaultFactory;
     IVaultV2 vault;
     IRM irm;
@@ -33,32 +32,23 @@ contract BaseTest is Test {
         underlyingToken = new ERC20Mock("UnderlyingToken", "UND");
         vm.label(address(underlyingToken), "underlying");
 
-        allocator = new ManagedAllocator(manager);
-        vm.label(address(allocator), "allocator");
-
         vaultFactory = IVaultV2Factory(address(new VaultV2Factory(address(this))));
 
-        vault = IVaultV2(vaultFactory.createVaultV2(owner, curator, address(underlyingToken), "VaultToken", "VAULT"));
+        vault = IVaultV2(vaultFactory.createVaultV2(owner, address(underlyingToken), "VaultToken", "VAULT"));
         vm.label(address(vault), "vault");
         irm = new IRM(manager);
         vm.label(address(irm), "IRM");
 
-        vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setAllocator.selector, address(allocator)));
-        vault.setAllocator(address(allocator));
-
-        vm.prank(curator);
+        vm.startPrank(owner);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setCurator.selector, curator));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setTreasurer.selector, treasurer));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, allocator, true));
         vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, address(irm)));
-        vault.setIRM(address(irm));
-    }
+        vm.stopPrank();
 
-    function testConstructor() public view {
-        assertEq(vault.owner(), owner);
-        assertEq(address(vault.asset()), address(underlyingToken));
-        assertEq(address(vault.curator()), curator);
-        assertTrue(vault.isAllocator(address(allocator)));
-        assertEq(address(vault.irm()), address(irm));
-        assertEq(allocator.owner(), manager);
-        assertEq(irm.owner(), manager);
+        vault.setCurator(curator);
+        vault.setTreasurer(treasurer);
+        vault.setIsAllocator(allocator, true);
+        vault.setIRM(address(irm));
     }
 }
