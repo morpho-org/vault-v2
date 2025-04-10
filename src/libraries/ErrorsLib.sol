@@ -23,4 +23,5 @@ library ErrorsLib {
     error IdNotFound();
     error NotAllocator();
     error NotAdapter();
+    error NoRecipient();
 }

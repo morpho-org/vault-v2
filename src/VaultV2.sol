@@ -107,10 +107,14 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
+        require(newPerformanceFeeRecipient != address(0) || performanceFee == 0, ErrorsLib.NoRecipient());
+        
         performanceFeeRecipient = newPerformanceFeeRecipient;
     }
 
     function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
+        require(newManagementFeeRecipient != address(0) || managementFee == 0, ErrorsLib.NoRecipient());
+        
         managementFeeRecipient = newManagementFeeRecipient;
     }
 
@@ -138,13 +142,15 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
         require(newPerformanceFee < WAD, ErrorsLib.FeeTooHigh());
+        require(performanceFeeRecipient != address(0), ErrorsLib.NoRecipient());
 
         performanceFee = newPerformanceFee;
     }
 
     function setManagementFee(uint256 newManagementFee) external timelocked {
         require(newManagementFee < WAD, ErrorsLib.FeeTooHigh());
-
+        require(managementFeeRecipient != address(0), ErrorsLib.NoRecipient());
+        
         managementFee = newManagementFee;
     }
 
@@ -372,26 +378,25 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function isAuthorizedToSubmit(address sender, bytes4 functionSelector) internal view returns (bool) {
-        // Owner actions.
-        if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setOwner.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setCurator.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setIRM.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setTreasurer.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setIsAllocator.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setIsAdapter.selector) return sender == owner;
-        if (functionSelector == IVaultV2.increaseTimelock.selector) return sender == owner;
-        if (functionSelector == IVaultV2.decreaseTimelock.selector) return sender == owner;
-        // Treasurer actions.
-        if (functionSelector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
-        if (functionSelector == IVaultV2.setManagementFee.selector) return sender == treasurer;
-        // Curator actions.
-        if (functionSelector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
-        if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
-        if (functionSelector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
-        if (functionSelector == IVaultV2.decreaseRelativeCap.selector) return sender == curator;
+        // forgefmt: disable-start
+        if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector)   return sender == owner;
+        if (functionSelector == IVaultV2.setManagementFeeRecipient.selector)    return sender == owner;
+        if (functionSelector == IVaultV2.setIsSentinel.selector)                return sender == owner;
+        if (functionSelector == IVaultV2.setOwner.selector)                     return sender == owner;
+        if (functionSelector == IVaultV2.setCurator.selector)                   return sender == owner;
+        if (functionSelector == IVaultV2.setIRM.selector)                       return sender == owner;
+        if (functionSelector == IVaultV2.setTreasurer.selector)                 return sender == owner;
+        if (functionSelector == IVaultV2.setIsAllocator.selector)               return sender == owner;
+        if (functionSelector == IVaultV2.setIsAdapter.selector)                 return sender == owner;
+        if (functionSelector == IVaultV2.increaseTimelock.selector)             return sender == owner;
+        if (functionSelector == IVaultV2.decreaseTimelock.selector)             return sender == owner;
+        if (functionSelector == IVaultV2.setPerformanceFee.selector)            return sender == treasurer;
+        if (functionSelector == IVaultV2.setManagementFee.selector)             return sender == treasurer;
+        if (functionSelector == IVaultV2.increaseAbsoluteCap.selector)          return sender == curator;
+        if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector)          return sender == curator || isSentinel[sender];
+        if (functionSelector == IVaultV2.increaseRelativeCap.selector)          return sender == curator;
+        if (functionSelector == IVaultV2.decreaseRelativeCap.selector)          return sender == curator;
+        // forgefmt: disable-end
         return false;
     }
 
