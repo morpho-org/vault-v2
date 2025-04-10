@@ -13,7 +13,6 @@ interface IVaultV2 {
     function asset() external view returns (IERC20);
     function owner() external view returns (address);
     function curator() external view returns (address);
-    function guardian() external view returns (address);
     function isSentinel(address) external view returns (bool);
     function isAllocator(address) external view returns (bool);
     function performanceFee() external view returns (uint256);
@@ -35,7 +34,6 @@ interface IVaultV2 {
     function setOwner(address) external;
     function setCurator(address) external;
     function setIsSentinel(address, bool) external;
-    function setGuardian(address) external;
     function setTreasurer(address) external;
     function increaseTimelock(bytes4, uint64) external;
     function decreaseTimelock(bytes4, uint64) external;

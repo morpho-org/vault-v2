@@ -11,9 +11,11 @@ import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {WAD} from "./libraries/ConstantsLib.sol";
+import {MathLib} from "./libraries/MathLib.sol";
 
 contract VaultV2 is ERC20, IVaultV2 {
     using Math for uint256;
+    using MathLib for uint256;
 
     /* CONSTANT */
     uint64 public constant TIMELOCK_CAP = 2 weeks;
@@ -34,8 +36,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     // This way, roles are modularized, and notably restricting their capabilities could be done on top.
     address public owner;
     address public curator;
-    address public guardian;
     address public treasurer;
+    address public irm;
     mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
 
@@ -44,7 +46,6 @@ contract VaultV2 is ERC20, IVaultV2 {
     uint256 public managementFee;
     address public managementFeeRecipient;
 
-    address public irm;
     uint256 public lastUpdate;
     uint256 public totalAssets;
 
@@ -75,32 +76,16 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* CONSTRUCTOR */
 
-    constructor(
-        address _factory,
-        address _owner,
-        address _curator,
-        address _asset,
-        string memory _name,
-        string memory _symbol
-    ) ERC20(_name, _symbol) {
-        factory = _factory;
+    constructor(address _owner, address _asset, string memory _name, string memory _symbol) ERC20(_name, _symbol) {
+        factory = msg.sender;
         asset = IERC20(_asset);
         owner = _owner;
-        curator = _curator;
         lastUpdate = block.timestamp;
         timelockDuration[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         // The vault starts with no IRM, no markets and no assets. To be configured afterwards.
     }
 
     /* OWNER ACTIONS */
-
-    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
-        performanceFeeRecipient = newPerformanceFeeRecipient;
-    }
-
-    function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
-        managementFeeRecipient = newManagementFeeRecipient;
-    }
 
     function setOwner(address newOwner) external timelocked {
         owner = newOwner;
@@ -110,22 +95,38 @@ contract VaultV2 is ERC20, IVaultV2 {
         curator = newCurator;
     }
 
+    function setTreasurer(address newTreasurer) external timelocked {
+        treasurer = newTreasurer;
+    }
+
+    function setIRM(address newIRM) external timelocked {
+        irm = newIRM;
+    }
+
     function setIsSentinel(address newSentinel, bool newIsSentinel) external timelocked {
         isSentinel[newSentinel] = newIsSentinel;
     }
 
-    function setGuardian(address newGuardian) external timelocked {
-        guardian = newGuardian;
+    function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
+        isAllocator[allocator] = newIsAllocator;
     }
 
-    function setTreasurer(address newTreasurer) external timelocked {
-        treasurer = newTreasurer;
+    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
+        performanceFeeRecipient = newPerformanceFeeRecipient;
+    }
+
+    function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
+        managementFeeRecipient = newManagementFeeRecipient;
+    }
+
+    function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
+        isAdapter[adapter] = newIsAdapter;
     }
 
     function increaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
         require(functionSelector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
-        require(newDuration > timelockDuration[functionSelector], "timelock not increasing");
+        require(newDuration > timelockDuration[functionSelector], ErrorsLib.TimelockNotIncreasing());
 
         timelockDuration[functionSelector] = newDuration;
     }
@@ -133,17 +134,9 @@ contract VaultV2 is ERC20, IVaultV2 {
     function decreaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
         require(functionSelector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
-        require(newDuration < timelockDuration[functionSelector], "timelock not decreasing");
+        require(newDuration < timelockDuration[functionSelector], ErrorsLib.TimelockNotDecreasing());
 
         timelockDuration[functionSelector] = newDuration;
-    }
-
-    function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
-        isAdapter[adapter] = newIsAdapter;
-    }
-
-    function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
-        isAllocator[allocator] = newIsAllocator;
     }
 
     /* TREASURER ACTIONS */
@@ -162,33 +155,32 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* CURATOR ACTIONS */
 
-    function setIRM(address newIRM) external timelocked {
-        irm = newIRM;
-    }
-
     function increaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
-        require(newCap > absoluteCap[id], "absolute cap not increasing");
+        require(newCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
 
         absoluteCap[id] = newCap;
     }
 
     function decreaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
-        require(newCap < absoluteCap[id], "absolute cap not decreasing");
+        require(newCap < absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
 
         absoluteCap[id] = newCap;
     }
 
     function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
-        require(newRelativeCap > relativeCap[id], "relative cap not increasing");
+        require(newRelativeCap > relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
 
         if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
         relativeCap[id] = newRelativeCap;
     }
 
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
-        require(newRelativeCap < relativeCap[id], "relative cap not decreasing");
-        require(idsWithRelativeCap[index] == id, "id not found");
-        require(allocation[id] <= totalAssets.mulDiv(newRelativeCap, WAD, Math.Rounding.Floor), "relative cap exceeded");
+        require(newRelativeCap < relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
+        require(idsWithRelativeCap[index] == id, ErrorsLib.IdNotFound());
+        require(
+            allocation[id] <= totalAssets.mulDiv(newRelativeCap, WAD, Math.Rounding.Floor),
+            ErrorsLib.RelativeCapExceeded()
+        );
 
         if (newRelativeCap == 0) {
             idsWithRelativeCap[index] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
@@ -202,8 +194,10 @@ contract VaultV2 is ERC20, IVaultV2 {
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateFromIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(isAllocator[msg.sender] || msg.sender == address(this), "not an allocator");
-        require(isAdapter[adapter], "not an adapter");
+        require(
+            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
+        );
+        require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         asset.transfer(adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
@@ -211,10 +205,10 @@ contract VaultV2 is ERC20, IVaultV2 {
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] += amount;
 
-            require(allocation[ids[i]] <= absoluteCap[ids[i]], "absolute cap exceeded");
+            require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
             require(
                 allocation[ids[i]] <= totalAssets.mulDiv(relativeCap[ids[i]], WAD, Math.Rounding.Floor),
-                "relative cap exceeded"
+                ErrorsLib.RelativeCapExceeded()
             );
         }
     }
@@ -222,15 +216,18 @@ contract VaultV2 is ERC20, IVaultV2 {
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(isAllocator[msg.sender] || msg.sender == address(this), "not an allocator");
-        require(isAdapter[adapter], "not an adapter");
+        require(
+            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
+        );
+        require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        asset.transferFrom(adapter, address(this), amount);
         bytes32[] memory ids = IAdapter(adapter).allocateOut(data, amount);
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] -= amount;
+            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(amount);
         }
+
+        asset.transferFrom(adapter, address(this), amount);
     }
 
     function setDepositData(address newDepositAdapter, bytes memory newDepositData) external timelocked {
@@ -259,45 +256,42 @@ contract VaultV2 is ERC20, IVaultV2 {
         lastUpdate = block.timestamp;
     }
 
-    function accruedFeeShares()
-        public
-        view
-        returns (
-            uint256 performanceFeeShares,
-            uint256 managementFeeShares,
-            uint256 protocolFeeShares,
-            uint256 newTotalAssets
-        )
-    {
+    function accruedFeeShares() public view returns (uint256, uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         uint256 interest = IIRM(irm).interestPerSecond() * elapsed;
-        newTotalAssets = totalAssets + interest;
+        uint256 newTotalAssets = totalAssets + interest;
 
         uint256 protocolFee = IVaultV2Factory(factory).protocolFee();
 
+        uint256 performanceFeeShares;
+        uint256 managementFeeShares;
+        uint256 protocolPerformanceFeeShares;
+        uint256 protocolManagementFeeShares;
         // Note that the fee assets is subtracted from the total assets in the fee shares calculation to compensate for
         // the fact that total assets is already increased by the total interest (including the fee assets).
         // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
+        uint256 totalPerformanceFeeShares;
         if (interest > 0 && performanceFee != 0) {
             uint256 performanceFeeAssets = interest.mulDiv(performanceFee, WAD, Math.Rounding.Floor);
-            uint256 totalPerformanceFeeShares = performanceFeeAssets.mulDiv(
+            totalPerformanceFeeShares = performanceFeeAssets.mulDiv(
                 totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets, Math.Rounding.Floor
             );
-            uint256 protocolPerformanceFeeShares =
-                totalPerformanceFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
+            protocolPerformanceFeeShares = totalPerformanceFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
             performanceFeeShares = totalPerformanceFeeShares - protocolPerformanceFeeShares;
-            protocolFeeShares += protocolPerformanceFeeShares;
         }
         if (managementFee != 0) {
             // Using newTotalAssets to make all approximations consistent.
             uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDiv(managementFee, WAD, Math.Rounding.Floor);
             uint256 totalManagementFeeShares = managementFeeAssets.mulDiv(
-                totalSupply() + 1 + protocolFeeShares, newTotalAssets + 1 - managementFeeAssets, Math.Rounding.Floor
+                totalSupply() + 1 + totalPerformanceFeeShares,
+                newTotalAssets + 1 - managementFeeAssets,
+                Math.Rounding.Floor
             );
-            uint256 protocolManagementFeeShares = totalManagementFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
+            protocolManagementFeeShares = totalManagementFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
             managementFeeShares = totalManagementFeeShares - protocolManagementFeeShares;
-            protocolFeeShares += protocolManagementFeeShares;
         }
+        uint256 protocolFeeShares = protocolPerformanceFeeShares + protocolManagementFeeShares;
+        return (performanceFeeShares, managementFeeShares, protocolFeeShares, newTotalAssets);
     }
 
     function convertToShares(uint256 assets) external view returns (uint256) {
@@ -337,7 +331,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function mint(uint256 shares, address receiver) public virtual returns (uint256 assets) {
         accrueInterest();
-        assets = convertToShares(shares, Math.Rounding.Ceil);
+        assets = convertToAssets(shares, Math.Rounding.Ceil);
         _deposit(assets, shares, receiver);
     }
 
@@ -352,7 +346,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
             require(
-                allocation[id] <= totalAssets.mulDiv(relativeCap[id], WAD, Math.Rounding.Floor), "relative cap exceeded"
+                allocation[id] <= totalAssets.mulDiv(relativeCap[id], WAD, Math.Rounding.Floor),
+                ErrorsLib.RelativeCapExceeded()
             );
         }
     }
@@ -367,7 +362,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function redeem(uint256 shares, address receiver, address supplier) public virtual returns (uint256 assets) {
         accrueInterest();
-        assets = convertToShares(shares, Math.Rounding.Floor);
+        assets = convertToAssets(shares, Math.Rounding.Floor);
         _withdraw(assets, shares, receiver, supplier);
     }
 
@@ -377,25 +372,23 @@ contract VaultV2 is ERC20, IVaultV2 {
         bytes4 functionSelector = bytes4(data);
         require(isAuthorizedToSubmit(msg.sender, functionSelector), ErrorsLib.Unauthorized());
 
-        require(validAt[data] == 0, "data already pending");
+        require(validAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
         validAt[data] = block.timestamp + timelockDuration[functionSelector];
     }
 
     modifier timelocked() {
-        require(validAt[msg.data] != 0 && block.timestamp >= validAt[msg.data], "data not timelocked");
+        require(validAt[msg.data] != 0 && block.timestamp >= validAt[msg.data], ErrorsLib.DataNotTimelocked());
         validAt[msg.data] = 0;
         _;
     }
 
-    /// @dev Guardian can revoke everything.
-    /// @dev Sentinels can revoke everything except setIsSentinel timelocks.
     /// @dev Authorized to submit can revoke.
     function revoke(bytes calldata data) external {
         require(
-            msg.sender == guardian || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector)
-                || isAuthorizedToSubmit(msg.sender, bytes4(data)),
-            "unauthorized"
+            isAuthorizedToSubmit(msg.sender, bytes4(data))
+                || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector),
+            ErrorsLib.Unauthorized()
         );
         require(validAt[data] != 0);
         validAt[data] = 0;
@@ -409,15 +402,16 @@ contract VaultV2 is ERC20, IVaultV2 {
         if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
         if (functionSelector == IVaultV2.setOwner.selector) return sender == owner;
         if (functionSelector == IVaultV2.setCurator.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setGuardian.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setIRM.selector) return sender == owner;
         if (functionSelector == IVaultV2.setTreasurer.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setIsAllocator.selector) return sender == owner || isSentinel[sender];
+        if (functionSelector == IVaultV2.setIsAllocator.selector) return sender == owner;
         if (functionSelector == IVaultV2.setIsAdapter.selector) return sender == owner;
+        if (functionSelector == IVaultV2.increaseTimelock.selector) return sender == owner;
+        if (functionSelector == IVaultV2.decreaseTimelock.selector) return sender == owner;
         // Treasurer actions.
         if (functionSelector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
         if (functionSelector == IVaultV2.setManagementFee.selector) return sender == treasurer;
         // Curator actions.
-        if (functionSelector == IVaultV2.setIRM.selector) return sender == curator;
         if (functionSelector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
         if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
         if (functionSelector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
@@ -430,10 +424,6 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     /* INTERFACE */
-
-    function balanceOf(address user) public view override(ERC20) returns (uint256) {
-        return super.balanceOf(user);
-    }
 
     function maxWithdraw(address) external view returns (uint256) {
         return asset.balanceOf(address(this));
