@@ -11,11 +11,11 @@ import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {WAD} from "./libraries/ConstantsLib.sol";
-import {MathLib} from "./libraries/MathLib.sol";
+import {UtilsLib} from "./libraries/UtilsLib.sol";
 
 contract VaultV2 is ERC20, IVaultV2 {
     using Math for uint256;
-    using MathLib for uint256;
+    using UtilsLib for uint256;
 
     /* CONSTANT */
     uint64 public constant TIMELOCK_CAP = 2 weeks;
