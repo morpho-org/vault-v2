@@ -14,6 +14,7 @@ contract SettersTest is BaseTest {
     }
 
     function testSetOwner(address rdm) public {
+        vm.assume(rdm != owner);
         address newOwner = makeAddr("newOwner");
 
         // Nobody can set directly
@@ -33,6 +34,7 @@ contract SettersTest is BaseTest {
     }
 
     function testSetCurator(address rdm) public {
+        vm.assume(rdm != owner);
         address newCurator = makeAddr("newCurator");
 
         // Nobody can set directly
@@ -99,13 +101,14 @@ contract SettersTest is BaseTest {
     }
 
     function testSetPerformanceFee(address rdm) public {
+        vm.assume(rdm != treasurer);
         uint256 newPerformanceFee = 500; // 5%
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setPerformanceFee(newPerformanceFee);
 
-        // Only owner can submit
+        // Only treasurer can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, newPerformanceFee));
@@ -124,6 +127,7 @@ contract SettersTest is BaseTest {
     }
 
     function testSetPerformanceFeeRecipient(address rdm) public {
+        vm.assume(rdm != owner);
         address newPerformanceFeeRecipient = makeAddr("newPerformanceFeeRecipient");
 
         // Nobody can set directly
@@ -143,13 +147,14 @@ contract SettersTest is BaseTest {
     }
 
     function testSetManagementFee(address rdm) public {
+        vm.assume(rdm != treasurer);
         uint256 newManagementFee = 500; // 5%
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setManagementFee(newManagementFee);
 
-        // Only owner can submit
+        // Only treasurer can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, newManagementFee));
@@ -168,6 +173,7 @@ contract SettersTest is BaseTest {
     }
 
     function testSetManagementFeeRecipient(address rdm) public {
+        vm.assume(rdm != owner);
         address newManagementFeeRecipient = makeAddr("newManagementFeeRecipient");
 
         // Nobody can set directly
