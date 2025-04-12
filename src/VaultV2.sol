@@ -380,25 +380,26 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function isAuthorizedToSubmit(address sender, bytes4 functionSelector) internal view returns (bool) {
-        // forgefmt: disable-start
-        if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector)   return sender == owner;
-        if (functionSelector == IVaultV2.setManagementFeeRecipient.selector)    return sender == owner;
-        if (functionSelector == IVaultV2.setIsSentinel.selector)                return sender == owner;
-        if (functionSelector == IVaultV2.setOwner.selector)                     return sender == owner;
-        if (functionSelector == IVaultV2.setCurator.selector)                   return sender == owner;
-        if (functionSelector == IVaultV2.setIRM.selector)                       return sender == owner;
-        if (functionSelector == IVaultV2.setTreasurer.selector)                 return sender == owner;
-        if (functionSelector == IVaultV2.setIsAllocator.selector)               return sender == owner;
-        if (functionSelector == IVaultV2.setIsAdapter.selector)                 return sender == owner;
-        if (functionSelector == IVaultV2.increaseTimelock.selector)             return sender == owner;
-        if (functionSelector == IVaultV2.decreaseTimelock.selector)             return sender == owner;
-        if (functionSelector == IVaultV2.setPerformanceFee.selector)            return sender == treasurer;
-        if (functionSelector == IVaultV2.setManagementFee.selector)             return sender == treasurer;
-        if (functionSelector == IVaultV2.increaseAbsoluteCap.selector)          return sender == curator;
-        if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector)          return sender == curator || isSentinel[sender];
-        if (functionSelector == IVaultV2.increaseRelativeCap.selector)          return sender == curator;
-        if (functionSelector == IVaultV2.decreaseRelativeCap.selector)          return sender == curator;
-        // forgefmt: disable-end
+        // Owner functions
+        if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setOwner.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setCurator.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setIRM.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setTreasurer.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setIsAllocator.selector) return sender == owner;
+        if (functionSelector == IVaultV2.setIsAdapter.selector) return sender == owner;
+        if (functionSelector == IVaultV2.increaseTimelock.selector) return sender == owner;
+        if (functionSelector == IVaultV2.decreaseTimelock.selector) return sender == owner;
+        // Treasurer functions
+        if (functionSelector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
+        if (functionSelector == IVaultV2.setManagementFee.selector) return sender == treasurer;
+        // Curator functions
+        if (functionSelector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
+        if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
+        if (functionSelector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
+        if (functionSelector == IVaultV2.decreaseRelativeCap.selector) return sender == curator;
         return false;
     }
 
