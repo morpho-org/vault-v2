@@ -240,7 +240,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function accruedFeeShares() public view returns (uint256, uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         uint256 interestPerSecond = IIRM(irm).interestPerSecond(totalAssets, elapsed);
-        require(interestPerSecond <= MAX_RATE_PER_SECOND, ErrorsLib.InvalidRate());
+        require(interestPerSecond <= totalAssets.mulDiv(MAX_RATE_PER_SECOND, WAD, Math.Rounding.Floor), ErrorsLib.InvalidRate());
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssets + interest;
 
