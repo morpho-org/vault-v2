@@ -323,7 +323,8 @@ contract VaultV2 is IVaultV2 {
     }
 
     function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal virtual {
-        if (msg.sender != supplier) allowance[supplier][msg.sender] -= shares;
+        uint256 _allowance = allowance[supplier][msg.sender];
+        if (msg.sender != supplier && _allowance != type(uint256).max) allowance[supplier][msg.sender] = _allowance - shares;
         _burn(supplier, shares);
         IERC20(asset).transfer(receiver, assets);
         totalAssets -= assets;
