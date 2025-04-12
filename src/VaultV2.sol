@@ -9,12 +9,14 @@ import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
-import {WAD} from "./libraries/ConstantsLib.sol";
+import {WAD, PERMIT_TYPEHASH, DOMAIN_TYPEHASH} from "./libraries/ConstantsLib.sol";
 import {UtilsLib} from "./libraries/UtilsLib.sol";
+import {SafeTransferLib} from "./libraries/SafeTransferLib.sol";
 
 contract VaultV2 is IVaultV2 {
     using Math for uint256;
     using UtilsLib for uint256;
+    using SafeTransferLib for IERC20;
 
     /* CONSTANT */
     uint64 public constant TIMELOCK_CAP = 2 weeks;
@@ -200,7 +202,7 @@ contract VaultV2 is IVaultV2 {
         require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.NotAllocator());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        IERC20(asset).transfer(adapter, amount);
+        IERC20(asset).safeTransfer(adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
 
         for (uint256 i; i < ids.length; i++) {
@@ -226,7 +228,7 @@ contract VaultV2 is IVaultV2 {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(amount);
         }
 
-        IERC20(asset).transferFrom(adapter, address(this), amount);
+        IERC20(asset).safeTransferFrom(adapter, address(this), amount);
     }
 
     /* EXCHANGE RATE */
@@ -303,7 +305,7 @@ contract VaultV2 is IVaultV2 {
     /* USER INTERACTION */
 
     function _deposit(uint256 assets, uint256 shares, address receiver) internal {
-        IERC20(asset).transferFrom(msg.sender, address(this), assets);
+        IERC20(asset).safeTransferFrom(msg.sender, address(this), assets);
         _mint(receiver, shares);
         totalAssets += assets;
     }
@@ -326,7 +328,7 @@ contract VaultV2 is IVaultV2 {
         uint256 _allowance = allowance[supplier][msg.sender];
         if (msg.sender != supplier && _allowance != type(uint256).max) allowance[supplier][msg.sender] = _allowance - shares;
         _burn(supplier, shares);
-        IERC20(asset).transfer(receiver, assets);
+        IERC20(asset).safeTransfer(receiver, assets);
         totalAssets -= assets;
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
