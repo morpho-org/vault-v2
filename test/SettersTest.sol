@@ -14,6 +14,7 @@ contract SettersTest is BaseTest {
     }
 
     function testSetOwner(address rdm) public {
+        vm.assume(rdm != owner);
         address newOwner = makeAddr("newOwner");
 
         // Nobody can set directly
@@ -33,6 +34,7 @@ contract SettersTest is BaseTest {
     }
 
     function testSetCurator(address rdm) public {
+        vm.assume(rdm != owner);
         address newCurator = makeAddr("newCurator");
 
         // Nobody can set directly
@@ -72,6 +74,7 @@ contract SettersTest is BaseTest {
     }
 
     function testSetIsAllocator(address rdm) public {
+        vm.assume(rdm != owner);
         address newAllocator = makeAddr("newAllocator");
 
         // Nobody can set directly
@@ -98,6 +101,7 @@ contract SettersTest is BaseTest {
     }
 
     function testSetPerformanceFee(address rdm) public {
+        vm.assume(rdm != treasurer);
         uint256 newPerformanceFee = 500; // 5%
 
         // Nobody can set directly
@@ -123,6 +127,7 @@ contract SettersTest is BaseTest {
     }
 
     function testSetPerformanceFeeRecipient(address rdm) public {
+        vm.assume(rdm != owner);
         address newPerformanceFeeRecipient = makeAddr("newPerformanceFeeRecipient");
 
         // Nobody can set directly
@@ -142,6 +147,7 @@ contract SettersTest is BaseTest {
     }
 
     function testSetManagementFee(address rdm) public {
+        vm.assume(rdm != treasurer);
         uint256 newManagementFee = 500; // 5%
 
         // Nobody can set directly
@@ -167,6 +173,7 @@ contract SettersTest is BaseTest {
     }
 
     function testSetManagementFeeRecipient(address rdm) public {
+        vm.assume(rdm != owner);
         address newManagementFeeRecipient = makeAddr("newManagementFeeRecipient");
 
         // Nobody can set directly
