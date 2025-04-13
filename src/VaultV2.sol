@@ -109,13 +109,13 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
-        require(newPerformanceFeeRecipient != address(0) || performanceFee == 0, ErrorsLib.NoRecipient());
+        require(newPerformanceFeeRecipient != address(0) || performanceFee == 0, ErrorsLib.FeeInvariantBroken());
 
         performanceFeeRecipient = newPerformanceFeeRecipient;
     }
 
     function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
-        require(newManagementFeeRecipient != address(0) || managementFee == 0, ErrorsLib.NoRecipient());
+        require(newManagementFeeRecipient != address(0) || managementFee == 0, ErrorsLib.FeeInvariantBroken());
 
         managementFeeRecipient = newManagementFeeRecipient;
     }
@@ -144,14 +144,14 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
         require(newPerformanceFee < WAD, ErrorsLib.FeeTooHigh());
-        require(performanceFeeRecipient != address(0), ErrorsLib.NoRecipient());
+        require(performanceFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
 
         performanceFee = newPerformanceFee;
     }
 
     function setManagementFee(uint256 newManagementFee) external timelocked {
         require(newManagementFee < WAD, ErrorsLib.FeeTooHigh());
-        require(managementFeeRecipient != address(0), ErrorsLib.NoRecipient());
+        require(managementFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
 
         managementFee = newManagementFee;
     }

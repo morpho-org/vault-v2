@@ -124,7 +124,7 @@ contract SettersTest is BaseTest {
             block.timestamp
         );
 
-        vm.expectRevert(ErrorsLib.NoRecipient.selector);
+        vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
         vault.setPerformanceFee(newPerformanceFee);
 
         vm.prank(owner);
@@ -163,7 +163,7 @@ contract SettersTest is BaseTest {
 
         vm.prank(owner);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFeeRecipient.selector, address(0)));
-        vm.expectRevert(ErrorsLib.NoRecipient.selector);
+        vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
         vault.setPerformanceFeeRecipient(address(0));
     }
 
@@ -192,7 +192,7 @@ contract SettersTest is BaseTest {
             vault.validAt(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, newManagementFee)), block.timestamp
         );
 
-        vm.expectRevert(ErrorsLib.NoRecipient.selector);
+        vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
         vault.setManagementFee(newManagementFee);
 
         vm.prank(owner);
@@ -231,7 +231,7 @@ contract SettersTest is BaseTest {
 
         vm.prank(owner);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, address(0)));
-        vm.expectRevert(ErrorsLib.NoRecipient.selector);
+        vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
         vault.setManagementFeeRecipient(address(0));
     }
 }
