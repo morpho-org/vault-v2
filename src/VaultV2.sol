@@ -2,7 +2,6 @@
 pragma solidity 0.8.28;
 
 import {ERC20, IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
-import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {SafeERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {IVaultV2, IAdapter} from "./interfaces/IVaultV2.sol";
@@ -11,11 +10,10 @@ import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {WAD} from "./libraries/ConstantsLib.sol";
-import {UtilsLib} from "./libraries/UtilsLib.sol";
+import {MathLib} from "./libraries/MathLib.sol";
 
 contract VaultV2 is ERC20, IVaultV2 {
-    using Math for uint256;
-    using UtilsLib for uint256;
+    using MathLib for uint256;
 
     /* CONSTANT */
     uint64 public constant TIMELOCK_CAP = 2 weeks;
@@ -173,7 +171,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(newRelativeCap < relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
         require(idsWithRelativeCap[index] == id, ErrorsLib.IdNotFound());
         require(
-            allocation[id] <= totalAssets.mulDiv(newRelativeCap, WAD, Math.Rounding.Floor),
+            allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD),
             ErrorsLib.RelativeCapExceeded()
         );
 
@@ -200,7 +198,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
             require(
-                allocation[ids[i]] <= totalAssets.mulDiv(relativeCap[ids[i]], WAD, Math.Rounding.Floor),
+                allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
@@ -253,22 +251,21 @@ contract VaultV2 is ERC20, IVaultV2 {
         // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
         uint256 totalPerformanceFeeShares;
         if (interest > 0 && performanceFee != 0) {
-            uint256 performanceFeeAssets = interest.mulDiv(performanceFee, WAD, Math.Rounding.Floor);
-            totalPerformanceFeeShares = performanceFeeAssets.mulDiv(
-                totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets, Math.Rounding.Floor
+            uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
+            totalPerformanceFeeShares = performanceFeeAssets.mulDivDown(
+                totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets
             );
-            protocolPerformanceFeeShares = totalPerformanceFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
+            protocolPerformanceFeeShares = totalPerformanceFeeShares.mulDivDown(protocolFee, WAD);
             performanceFeeShares = totalPerformanceFeeShares - protocolPerformanceFeeShares;
         }
         if (managementFee != 0) {
             // Using newTotalAssets to make all approximations consistent.
-            uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDiv(managementFee, WAD, Math.Rounding.Floor);
-            uint256 totalManagementFeeShares = managementFeeAssets.mulDiv(
+            uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
+            uint256 totalManagementFeeShares = managementFeeAssets.mulDivDown(
                 totalSupply() + 1 + totalPerformanceFeeShares,
-                newTotalAssets + 1 - managementFeeAssets,
-                Math.Rounding.Floor
+                newTotalAssets + 1 - managementFeeAssets
             );
-            protocolManagementFeeShares = totalManagementFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
+            protocolManagementFeeShares = totalManagementFeeShares.mulDivDown(protocolFee, WAD);
             managementFeeShares = totalManagementFeeShares - protocolManagementFeeShares;
         }
         uint256 protocolFeeShares = protocolPerformanceFeeShares + protocolManagementFeeShares;
@@ -276,20 +273,27 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function convertToShares(uint256 assets) external view returns (uint256) {
-        return convertToShares(assets, Math.Rounding.Floor);
-    }
-
-    // TODO: extract virtual shares and assets (= 1).
-    function convertToShares(uint256 assets, Math.Rounding rounding) internal view returns (uint256 shares) {
-        shares = assets.mulDiv(totalSupply() + 1, totalAssets + 1, rounding);
+        return convertToSharesDown(assets);
     }
 
     function convertToAssets(uint256 shares) external view returns (uint256) {
-        return convertToAssets(shares, Math.Rounding.Floor);
+        return convertToAssetsDown(shares);
+    }
+    
+    function convertToSharesDown(uint256 assets) internal view returns (uint256) {
+        return assets.mulDivDown(totalSupply() + 1, totalAssets + 1);
     }
 
-    function convertToAssets(uint256 shares, Math.Rounding rounding) internal view returns (uint256 assets) {
-        assets = shares.mulDiv(totalAssets + 1, totalSupply() + 1, rounding);
+    function convertToSharesUp(uint256 assets) internal view returns (uint256) {
+        return assets.mulDivUp(totalSupply() + 1, totalAssets + 1);
+    }
+
+    function convertToAssetsDown(uint256 shares) internal view returns (uint256) {
+        return shares.mulDivDown(totalAssets + 1, totalSupply() + 1);
+    }
+
+    function convertToAssetsUp(uint256 shares) internal view returns (uint256) {
+        return shares.mulDivUp(totalAssets + 1, totalSupply() + 1);
     }
 
     /* USER INTERACTION */
@@ -304,13 +308,13 @@ contract VaultV2 is ERC20, IVaultV2 {
     function deposit(uint256 assets, address receiver) public virtual returns (uint256 shares) {
         accrueInterest();
         // Note that it could be made more efficient by caching totalAssets.
-        shares = convertToShares(assets, Math.Rounding.Floor);
+        shares = convertToSharesDown(assets);
         _deposit(assets, shares, receiver);
     }
 
     function mint(uint256 shares, address receiver) public virtual returns (uint256 assets) {
         accrueInterest();
-        assets = convertToAssets(shares, Math.Rounding.Ceil);
+        assets = convertToAssetsUp(shares);
         _deposit(assets, shares, receiver);
     }
 
@@ -323,7 +327,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
             require(
-                allocation[id] <= totalAssets.mulDiv(relativeCap[id], WAD, Math.Rounding.Floor),
+                allocation[id] <= totalAssets.mulDivDown(relativeCap[id], WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
@@ -333,13 +337,13 @@ contract VaultV2 is ERC20, IVaultV2 {
     // This is actually a feature, so that the curator can pause withdrawals if necessary/wanted.
     function withdraw(uint256 assets, address receiver, address supplier) public virtual returns (uint256 shares) {
         accrueInterest();
-        shares = convertToShares(assets, Math.Rounding.Ceil);
+        shares = convertToSharesUp(assets);
         _withdraw(assets, shares, receiver, supplier);
     }
 
     function redeem(uint256 shares, address receiver, address supplier) public virtual returns (uint256 assets) {
         accrueInterest();
-        assets = convertToAssets(shares, Math.Rounding.Floor);
+        assets = convertToAssetsDown(shares);
         _withdraw(assets, shares, receiver, supplier);
     }
 
