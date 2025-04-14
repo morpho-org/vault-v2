@@ -75,8 +75,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     mapping(address account => bytes32) internal roles;
     mapping(string roleName => bytes32) internal roleIds;
 
-    mapping(bytes32 => uint) internal validAt;
-    mapping(bytes32 => bytes32) internal dataHash;
+    mapping(bytes => uint) internal validAt;
+    mapping(bytes => bytes32) internal dataHash;
     mapping(bytes4 => uint64) public timelockDuration;
 
     /* CONSTRUCTOR */
@@ -394,22 +394,18 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* TIMELOCKS */
 
     function timelock(bool canSubmit, bool canRevoke) internal returns (bool) {
-        return timelock(msg.sig, canSubmit, canRevoke);
-    }
-
-    function timelock(bytes memory keyData, bool canSubmit, bool canRevoke) internal returns (bool) {
-        return timelock(keccak256(keyData), canSubmit, canRevoke);
+        return timelock(bytes.concat(msg.sig), canSubmit, canRevoke);
     }
 
     function timelock(bytes memory keyData, bool canSubmit) internal returns (bool) {
-        return timelock(keccak256(keyData), canSubmit, canSubmit);
+        return timelock(keyData, canSubmit, canSubmit);
     }
 
     function timelock(bool canSubmit) internal returns (bool) {
-        return timelock(msg.sig, canSubmit, canSubmit);
+        return timelock(bytes.concat(msg.sig), canSubmit, canSubmit);
     }
 
-    function timelock(bytes32 key, bool canSubmit, bool canRevoke) internal returns (bool) {
+    function timelock(bytes memory key, bool canSubmit, bool canRevoke) internal returns (bool) {
         if (willRevoke == true) {
             require(canRevoke, ErrorsLib.Unauthorized());
             require(validAt[key] != 0);
