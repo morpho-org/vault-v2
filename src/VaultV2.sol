@@ -9,7 +9,7 @@ import {IIRM} from "./interfaces/IIRM.sol";
 import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
-import {WAD} from "./libraries/ConstantsLib.sol";
+import {WAD, MAX_RATE_PER_SECOND} from "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 
 contract VaultV2 is ERC20, IVaultV2 {
@@ -39,8 +39,10 @@ contract VaultV2 is ERC20, IVaultV2 {
     mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
 
+    /// @dev invariant: performanceFee != 0 => performanceFeeRecipient != address(0)
     uint256 public performanceFee;
     address public performanceFeeRecipient;
+    /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint256 public managementFee;
     address public managementFeeRecipient;
 
@@ -105,10 +107,14 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
+        require(newPerformanceFeeRecipient != address(0) || performanceFee == 0, ErrorsLib.FeeInvariantBroken());
+
         performanceFeeRecipient = newPerformanceFeeRecipient;
     }
 
     function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
+        require(newManagementFeeRecipient != address(0) || managementFee == 0, ErrorsLib.FeeInvariantBroken());
+
         managementFeeRecipient = newManagementFeeRecipient;
     }
 
@@ -136,12 +142,14 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
         require(newPerformanceFee < WAD, ErrorsLib.FeeTooHigh());
+        require(performanceFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
 
         performanceFee = newPerformanceFee;
     }
 
     function setManagementFee(uint256 newManagementFee) external timelocked {
         require(newManagementFee < WAD, ErrorsLib.FeeTooHigh());
+        require(managementFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
 
         managementFee = newManagementFee;
     }
@@ -231,7 +239,12 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function accruedFeeShares() public view returns (uint256, uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        uint256 interest = IIRM(irm).interestPerSecond(totalAssets, elapsed) * elapsed;
+        uint256 interestPerSecond = IIRM(irm).interestPerSecond(totalAssets, elapsed);
+        require(
+            interestPerSecond <= totalAssets.mulDiv(MAX_RATE_PER_SECOND, WAD, Math.Rounding.Floor),
+            ErrorsLib.InvalidRate()
+        );
+        uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssets + interest;
 
         uint256 protocolFee = IVaultV2Factory(factory).protocolFee();
@@ -365,7 +378,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function isAuthorizedToSubmit(address sender, bytes4 functionSelector) internal view returns (bool) {
-        // Owner actions.
+        // Owner functions
         if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
         if (functionSelector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
         if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
@@ -377,10 +390,10 @@ contract VaultV2 is ERC20, IVaultV2 {
         if (functionSelector == IVaultV2.setIsAdapter.selector) return sender == owner;
         if (functionSelector == IVaultV2.increaseTimelock.selector) return sender == owner;
         if (functionSelector == IVaultV2.decreaseTimelock.selector) return sender == owner;
-        // Treasurer actions.
+        // Treasurer functions
         if (functionSelector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
         if (functionSelector == IVaultV2.setManagementFee.selector) return sender == treasurer;
-        // Curator actions.
+        // Curator functions
         if (functionSelector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
         if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
         if (functionSelector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
