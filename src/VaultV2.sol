@@ -10,12 +10,12 @@ import {IIRM} from "./interfaces/IIRM.sol";
 import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
-import {WAD} from "./libraries/ConstantsLib.sol";
-import {MathLib} from "./libraries/MathLib.sol";
+import {WAD, MAX_RATE_PER_SECOND} from "./libraries/ConstantsLib.sol";
+import {UtilsLib} from "./libraries/UtilsLib.sol";
 
 contract VaultV2 is ERC20, IVaultV2 {
     using Math for uint256;
-    using MathLib for uint256;
+    using UtilsLib for uint256;
 
     /* CONSTANT */
     uint64 public constant TIMELOCK_CAP = 2 weeks;
@@ -247,7 +247,12 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function accruedFeeShares() public view returns (uint256, uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        uint256 interest = IIRM(irm).interestPerSecond() * elapsed;
+        uint256 interestPerSecond = IIRM(irm).interestPerSecond(totalAssets, elapsed);
+        require(
+            interestPerSecond <= totalAssets.mulDiv(MAX_RATE_PER_SECOND, WAD, Math.Rounding.Floor),
+            ErrorsLib.InvalidRate()
+        );
+        uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssets + interest;
 
         uint256 protocolFee = IVaultV2Factory(factory).protocolFee();

@@ -24,4 +24,5 @@ library ErrorsLib {
     error NotAllocator();
     error NotAdapter();
     error NoRecipient();
+    error InvalidRate();
 }
