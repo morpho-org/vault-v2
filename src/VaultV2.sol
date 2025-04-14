@@ -427,6 +427,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function transferFrom(address from, address to, uint256 amount) public returns (bool) {
+        require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
         uint256 _allowance = allowance[from][msg.sender];
 
