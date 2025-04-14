@@ -21,3 +21,5 @@ strong invariant performanceFeeRecipient()
 strong invariant managementFeeRecipient()
     managementFee() != 0 => managementFeeRecipient() != 0;
 
+strong invariant balanceOfZero() 
+    balanceOf(0) == 0;
