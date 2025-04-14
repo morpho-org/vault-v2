@@ -108,7 +108,7 @@ contract SettersTest is BaseTest {
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setPerformanceFee(newPerformanceFee);
 
-        // Only owner can submit
+        // Only treasurer can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, newPerformanceFee));
@@ -154,7 +154,7 @@ contract SettersTest is BaseTest {
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setManagementFee(newManagementFee);
 
-        // Only owner can submit
+        // Only treasurer can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, newManagementFee));
