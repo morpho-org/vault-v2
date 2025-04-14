@@ -19,7 +19,7 @@ contract VaultV2 is IVaultV2 {
     using SafeTransferLib for IERC20;
 
     /* CONSTANT */
-    
+
     uint64 public constant TIMELOCK_CAP = 2 weeks;
 
     /* IMMUTABLE */
