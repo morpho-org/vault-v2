@@ -170,10 +170,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
         require(newRelativeCap < relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
         require(idsWithRelativeCap[index] == id, ErrorsLib.IdNotFound());
-        require(
-            allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD),
-            ErrorsLib.RelativeCapExceeded()
-        );
+        require(allocation[id] <= totalAssets.wDivDown(newRelativeCap), ErrorsLib.RelativeCapExceeded());
 
         if (newRelativeCap == 0) {
             idsWithRelativeCap[index] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
@@ -197,10 +194,7 @@ contract VaultV2 is ERC20, IVaultV2 {
             allocation[ids[i]] += amount;
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
-            require(
-                allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD),
-                ErrorsLib.RelativeCapExceeded()
-            );
+            require(allocation[ids[i]] <= totalAssets.wDivDown(relativeCap[ids[i]]), ErrorsLib.RelativeCapExceeded());
         }
     }
 
@@ -251,21 +245,19 @@ contract VaultV2 is ERC20, IVaultV2 {
         // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
         uint256 totalPerformanceFeeShares;
         if (interest > 0 && performanceFee != 0) {
-            uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
-            totalPerformanceFeeShares = performanceFeeAssets.mulDivDown(
-                totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets
-            );
-            protocolPerformanceFeeShares = totalPerformanceFeeShares.mulDivDown(protocolFee, WAD);
+            uint256 performanceFeeAssets = interest.wDivDown(performanceFee);
+            totalPerformanceFeeShares =
+                performanceFeeAssets.mulDivDown(totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets);
+            protocolPerformanceFeeShares = totalPerformanceFeeShares.wDivDown(protocolFee);
             performanceFeeShares = totalPerformanceFeeShares - protocolPerformanceFeeShares;
         }
         if (managementFee != 0) {
             // Using newTotalAssets to make all approximations consistent.
-            uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
+            uint256 managementFeeAssets = (newTotalAssets * elapsed).wDivDown(managementFee);
             uint256 totalManagementFeeShares = managementFeeAssets.mulDivDown(
-                totalSupply() + 1 + totalPerformanceFeeShares,
-                newTotalAssets + 1 - managementFeeAssets
+                totalSupply() + 1 + totalPerformanceFeeShares, newTotalAssets + 1 - managementFeeAssets
             );
-            protocolManagementFeeShares = totalManagementFeeShares.mulDivDown(protocolFee, WAD);
+            protocolManagementFeeShares = totalManagementFeeShares.wDivDown(protocolFee);
             managementFeeShares = totalManagementFeeShares - protocolManagementFeeShares;
         }
         uint256 protocolFeeShares = protocolPerformanceFeeShares + protocolManagementFeeShares;
@@ -279,7 +271,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function convertToAssets(uint256 shares) external view returns (uint256) {
         return convertToAssetsDown(shares);
     }
-    
+
     function convertToSharesDown(uint256 assets) internal view returns (uint256) {
         return assets.mulDivDown(totalSupply() + 1, totalAssets + 1);
     }
@@ -326,10 +318,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
-            require(
-                allocation[id] <= totalAssets.mulDivDown(relativeCap[id], WAD),
-                ErrorsLib.RelativeCapExceeded()
-            );
+            require(allocation[id] <= totalAssets.wDivDown(relativeCap[id]), ErrorsLib.RelativeCapExceeded());
         }
     }
 
