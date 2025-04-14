@@ -21,7 +21,7 @@ interface IVaultV2 {
     function totalAssets() external view returns (uint256);
     function absoluteCap(bytes32) external view returns (uint256);
     function relativeCap(bytes32) external view returns (uint256);
-    function validAt(bytes calldata) external view returns (uint256);
+    // function validAt(bytes calldata) external view returns (ValidAt memory);
     function timelockDuration(bytes4) external view returns (uint64);
 
     // Owner actions

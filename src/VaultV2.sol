@@ -75,7 +75,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     mapping(address account => bytes32) internal roles;
     mapping(string roleName => bytes32) internal roleIds;
 
-    mapping(bytes => uint256) public validAt;
+    mapping(bytes32 => uint) internal validAt;
+    mapping(bytes32 => bytes32) internal dataHash;
     mapping(bytes4 => uint64) public timelockDuration;
 
     /* CONSTRUCTOR */
@@ -111,7 +112,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(functionSelector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
 
-        if (timelock(hasRole(OWNER_ROLE))) {
+        if (timelock(abi.encode("timelock",functionSelector),hasRole(OWNER_ROLE))) {
             require(newDuration > timelockDuration[functionSelector],ErrorsLib.TimelockNotIncreasing());
             timelockDuration[functionSelector] = newDuration;
         }
@@ -121,7 +122,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(functionSelector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
 
-        if (timelock(hasRole(OWNER_ROLE))) {
+        if (timelock(abi.encode("timelock",functionSelector), hasRole(OWNER_ROLE))) {
             require(newDuration < timelockDuration[functionSelector],ErrorsLib.TimelockNotDecreasing());
             timelockDuration[functionSelector] = newDuration;
         }
@@ -141,7 +142,7 @@ contract VaultV2 is ERC20, IVaultV2 {
                      || (hasRole(SENTINEL_ROLE) && role != SENTINEL_ROLE);
         // forgefmt: disable-end
 
-        if (timelock(canSubmit, canRevoke)) _setRole(account, role, on);
+        if (timelock(abi.encode(msg.sig,role), canSubmit, canRevoke)) _setRole(account, role, on);
     }
 
     function _setRole(address account, bytes32 role, bool on) internal {
@@ -187,13 +188,13 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setAbsoluteCap(bytes32 id, uint256 newCap) external {
         bool canSubmit = hasRole(CURATOR_ROLE) || (hasRole(SENTINEL_ROLE) && newCap < absoluteCap[id]);
-        if (timelock(canSubmit)) absoluteCap[id] = newCap;
+        if (timelock(abi.encode(msg.sig,id),canSubmit)) absoluteCap[id] = newCap;
     }
 
     function setRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external {
         uint256 currentRelativeCap = relativeCap[id];
         bool canSubmit = hasRole(CURATOR_ROLE) || (hasRole(SENTINEL_ROLE) && newRelativeCap < currentRelativeCap);
-        if (timelock(canSubmit)) {
+        if (timelock(abi.encode(msg.sig,id),canSubmit)) {
             if (newRelativeCap > currentRelativeCap) {
                 if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
                 relativeCap[id] = newRelativeCap;
@@ -392,24 +393,38 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* TIMELOCKS */
 
-    function timelock(bool canSubmit) internal returns (bool) {
-        return timelock(canSubmit, canSubmit);
+    function timelock(bool canSubmit, bool canRevoke) internal returns (bool) {
+        return timelock(msg.sig, canSubmit, canRevoke);
     }
 
-    function timelock(bool canSubmit, bool canRevoke) internal returns (bool immediatelyCallable) {
+    function timelock(bytes memory keyData, bool canSubmit, bool canRevoke) internal returns (bool) {
+        return timelock(keccak256(keyData), canSubmit, canRevoke);
+    }
+
+    function timelock(bytes memory keyData, bool canSubmit) internal returns (bool) {
+        return timelock(keccak256(keyData), canSubmit, canSubmit);
+    }
+
+    function timelock(bool canSubmit) internal returns (bool) {
+        return timelock(msg.sig, canSubmit, canSubmit);
+    }
+
+    function timelock(bytes32 key, bool canSubmit, bool canRevoke) internal returns (bool) {
         if (willRevoke == true) {
             require(canRevoke, ErrorsLib.Unauthorized());
-            require(validAt[msg.data] != 0);
-            validAt[msg.data] = 0;
+            require(validAt[key] != 0);
+            validAt[key] = 0;
             return false;
         } else {
-            if (validAt[msg.data] != 0) {
-                require(block.timestamp >= validAt[msg.data], ErrorsLib.DataAlreadyPending());
-                validAt[msg.data] = 0;
+            if (validAt[key] != 0) {
+                require(block.timestamp >= validAt[key], ErrorsLib.DataAlreadyPending());
+                require(dataHash[key] == keccak256(msg.data), ErrorsLib.Unauthorized());
+                validAt[key] = 0;
                 return true;
             } else {
                 require(canSubmit, ErrorsLib.Unauthorized());
-                validAt[msg.data] = block.timestamp + timelockDuration[msg.sig];
+                validAt[key] = block.timestamp + timelockDuration[msg.sig];
+                dataHash[key] = keccak256(msg.data);
                 return false;
             }
         }
