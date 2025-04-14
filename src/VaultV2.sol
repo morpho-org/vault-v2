@@ -112,7 +112,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
 
         if (timelock(hasRole(OWNER_ROLE))) {
-            require(newDuration > timelockDuration[functionSelector], "timelock not increasing");
+            require(newDuration > timelockDuration[functionSelector],ErrorsLib.TimelockNotIncreasing());
             timelockDuration[functionSelector] = newDuration;
         }
     }
@@ -122,7 +122,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
 
         if (timelock(hasRole(OWNER_ROLE))) {
-            require(newDuration < timelockDuration[functionSelector], "timelock not decreasing");
+            require(newDuration < timelockDuration[functionSelector],ErrorsLib.TimelockNotDecreasing());
             timelockDuration[functionSelector] = newDuration;
         }
     }
