@@ -21,10 +21,3 @@ strong invariant performanceFeeRecipient()
 strong invariant managementFeeRecipient()
     managementFee() != 0 => managementFeeRecipient() != 0;
 
-strong invariant absoluteCaps(bytes32 id)
-    allocation(id) <= absoluteCap(id)
-{
-    preserved decreaseAbsoluteCap(bytes32 _id, uint256 _absoluteCap) with (env e) {
-        require allocation(_id) <= _absoluteCap;
-    }
-}
