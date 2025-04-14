@@ -29,4 +29,6 @@ library ErrorsLib {
     error NotAllocator();
     error NotAdapter();
     error InvalidRate();
+    error PermitDeadlineExpired();
+    error InvalidSigner();
 }

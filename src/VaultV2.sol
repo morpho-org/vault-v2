@@ -416,6 +416,7 @@ contract VaultV2 is IVaultV2 {
     /* INTERFACE */
 
     function transfer(address to, uint256 amount) public returns (bool) {
+        require(to != address(0), ErrorsLib.ZeroAddress());
         balanceOf[msg.sender] -= amount;
         balanceOf[to] += amount;
         emit EventsLib.Transfer(msg.sender, to, amount);
@@ -423,6 +424,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function transferFrom(address from, address to, uint256 amount) public returns (bool) {
+        require(to != address(0), ErrorsLib.ZeroAddress());
         uint256 _allowance = allowance[from][msg.sender];
 
         if (_allowance < type(uint256).max) allowance[from][msg.sender] = _allowance - amount;
@@ -448,8 +450,8 @@ contract VaultV2 is IVaultV2 {
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
         address recoveredAddress = ecrecover(digest, v, r, s);
 
-        require(deadline >= block.timestamp, "permit deadline expired");
-        require(recoveredAddress != address(0) && recoveredAddress == _owner, "invalid signer");
+        require(deadline >= block.timestamp, ErrorsLib.PermitDeadlineExpired());
+        require(recoveredAddress != address(0) && recoveredAddress == _owner, ErrorsLib.InvalidSigner());
 
         allowance[recoveredAddress][spender] = value;
         emit EventsLib.Approval(recoveredAddress, spender, value);
@@ -466,14 +468,14 @@ contract VaultV2 is IVaultV2 {
     /* ERC20 INTERNAL */
 
     function _mint(address to, uint256 amount) internal {
-        require(to != address(0), "address zero");
+        require(to != address(0), ErrorsLib.ZeroAddress());
         balanceOf[to] += amount;
         totalSupply += amount;
         emit EventsLib.Transfer(address(0), to, amount);
     }
 
     function _burn(address from, uint256 amount) internal {
-        require(from != address(0), "address zero");
+        require(from != address(0), ErrorsLib.ZeroAddress());
         balanceOf[from] -= amount;
         totalSupply -= amount;
         emit EventsLib.Transfer(from, address(0), amount);

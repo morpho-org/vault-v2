@@ -34,6 +34,7 @@ contract ERC20Test is BaseTest {
 
     function testTransfer(address to, uint256 amount) public {
         vm.assume(amount <= MAX_DEPOSIT);
+        vm.assume(to != address(0));
         vault.mint(amount, address(this));
         vault.transfer(to, amount);
         assertEq(vault.balanceOf(to), amount);
@@ -41,6 +42,7 @@ contract ERC20Test is BaseTest {
 
     function testTransferFrom(address to, uint256 amount) public {
         vm.assume(amount <= MAX_DEPOSIT);
+        vm.assume(to != address(0));
         vault.mint(amount, address(this));
         assertEq(vault.balanceOf(address(this)), amount);
         vault.approve(to, amount);
