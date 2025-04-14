@@ -11,10 +11,6 @@ interface IAdapter {
 interface IVaultV2 {
     // State variables
     function asset() external view returns (IERC20);
-    function owner() external view returns (address);
-    function curator() external view returns (address);
-    function isSentinel(address) external view returns (bool);
-    function isAllocator(address) external view returns (bool);
     function performanceFee() external view returns (uint256);
     function managementFee() external view returns (uint256);
     function performanceFeeRecipient() external view returns (address);
@@ -31,24 +27,18 @@ interface IVaultV2 {
     // Owner actions
     function setPerformanceFeeRecipient(address) external;
     function setManagementFeeRecipient(address) external;
-    function setOwner(address) external;
-    function setCurator(address) external;
-    function setIsSentinel(address, bool) external;
-    function setTreasurer(address) external;
     function increaseTimelock(bytes4, uint64) external;
     function decreaseTimelock(bytes4, uint64) external;
-    function setIsAllocator(address, bool) external;
-    function setIsAdapter(address, bool) external;
+    function setRole(address, string calldata, bool) external;
+    function hasRole(address, string calldata) external returns (bool);
     // Treasurer actions
     function setPerformanceFee(uint256) external;
     function setManagementFee(uint256) external;
 
     // Curator actions
     function setIRM(address) external;
-    function increaseAbsoluteCap(bytes32, uint256) external;
-    function increaseRelativeCap(bytes32, uint256) external;
-    function decreaseAbsoluteCap(bytes32, uint256) external;
-    function decreaseRelativeCap(bytes32, uint256, uint256) external;
+    function setAbsoluteCap(bytes32, uint256) external;
+    function setRelativeCap(bytes32, uint256, uint256) external;
 
     // Allocator actions
     function reallocateFromIdle(address, bytes memory, uint256) external;
@@ -63,7 +53,6 @@ interface IVaultV2 {
     function convertToAssets(uint256) external view returns (uint256);
 
     // Timelocks
-    function submit(bytes calldata) external;
     function revoke(bytes calldata) external;
 
     // User actions

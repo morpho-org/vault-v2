@@ -13,6 +13,17 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {WAD} from "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 
+// forgefmt: disable-start
+bytes32 constant ONE            = bytes32(uint256(1));
+
+bytes32 constant SENTINEL_ROLE  = ONE << 0;
+bytes32 constant TREASURER_ROLE = ONE << 2;
+bytes32 constant CURATOR_ROLE   = ONE << 3;
+bytes32 constant ALLOCATOR_ROLE = ONE << 4;
+bytes32 constant OWNER_ROLE     = ONE << 5;
+bytes32 constant ADAPTER_ROLE   = ONE << 6;
+// forgefmt: disable-end
+
 contract VaultV2 is ERC20, IVaultV2 {
     using Math for uint256;
     using MathLib for uint256;
@@ -29,17 +40,10 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     // TODO: make this actually transient.
     bool public unlocked;
+    bool willRevoke;
 
     /* STORAGE */
-
-    // Note that each role could be a smart contract: the owner, curator and guardian.
-    // This way, roles are modularized, and notably restricting their capabilities could be done on top.
-    address public owner;
-    address public curator;
-    address public treasurer;
     address public irm;
-    mapping(address => bool) public isSentinel;
-    mapping(address => bool) public isAllocator;
 
     uint256 public performanceFee;
     address public performanceFeeRecipient;
@@ -48,9 +52,6 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     uint256 public lastUpdate;
     uint256 public totalAssets;
-
-    // Adapter is trusted to pass the expected ids when supplying assets.
-    mapping(address => bool) public isAdapter;
 
     /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
     mapping(bytes32 => uint256) public absoluteCap;
@@ -71,6 +72,9 @@ contract VaultV2 is ERC20, IVaultV2 {
     address public withdrawAdapter;
     bytes public withdrawData;
 
+    mapping(address account => bytes32) internal roles;
+    mapping(string roleName => bytes32) internal roleIds;
+
     mapping(bytes => uint256) public validAt;
     mapping(bytes4 => uint64) public timelockDuration;
 
@@ -79,125 +83,143 @@ contract VaultV2 is ERC20, IVaultV2 {
     constructor(address _owner, address _asset, string memory _name, string memory _symbol) ERC20(_name, _symbol) {
         factory = msg.sender;
         asset = IERC20(_asset);
-        owner = _owner;
         lastUpdate = block.timestamp;
         timelockDuration[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
+
+        roleIds["sentinel"] = SENTINEL_ROLE;
+        roleIds["treasurer"] = TREASURER_ROLE;
+        roleIds["curator"] = CURATOR_ROLE;
+        roleIds["allocator"] = ALLOCATOR_ROLE;
+        roleIds["owner"] = OWNER_ROLE;
+        roleIds["adapter"] = ADAPTER_ROLE;
+
+        _setRole(_owner, OWNER_ROLE, true);
         // The vault starts with no IRM, no markets and no assets. To be configured afterwards.
     }
 
     /* OWNER ACTIONS */
 
-    function setOwner(address newOwner) external timelocked {
-        owner = newOwner;
+    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external {
+        if (timelock(hasRole(OWNER_ROLE))) performanceFeeRecipient = newPerformanceFeeRecipient;
     }
 
-    function setCurator(address newCurator) external timelocked {
-        curator = newCurator;
+    function setManagementFeeRecipient(address newManagementFeeRecipient) external {
+        if (timelock(hasRole(OWNER_ROLE))) managementFeeRecipient = newManagementFeeRecipient;
     }
 
-    function setTreasurer(address newTreasurer) external timelocked {
-        treasurer = newTreasurer;
-    }
-
-    function setIRM(address newIRM) external timelocked {
-        irm = newIRM;
-    }
-
-    function setIsSentinel(address newSentinel, bool newIsSentinel) external timelocked {
-        isSentinel[newSentinel] = newIsSentinel;
-    }
-
-    function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
-        isAllocator[allocator] = newIsAllocator;
-    }
-
-    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
-        performanceFeeRecipient = newPerformanceFeeRecipient;
-    }
-
-    function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
-        managementFeeRecipient = newManagementFeeRecipient;
-    }
-
-    function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
-        isAdapter[adapter] = newIsAdapter;
-    }
-
-    function increaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
+    function increaseTimelock(bytes4 functionSelector, uint64 newDuration) external {
         require(functionSelector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
-        require(newDuration > timelockDuration[functionSelector], ErrorsLib.TimelockNotIncreasing());
 
-        timelockDuration[functionSelector] = newDuration;
+        if (timelock(hasRole(OWNER_ROLE))) {
+            require(newDuration > timelockDuration[functionSelector], "timelock not increasing");
+            timelockDuration[functionSelector] = newDuration;
+        }
     }
 
-    function decreaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
+    function decreaseTimelock(bytes4 functionSelector, uint64 newDuration) external {
         require(functionSelector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
-        require(newDuration < timelockDuration[functionSelector], ErrorsLib.TimelockNotDecreasing());
 
-        timelockDuration[functionSelector] = newDuration;
+        if (timelock(hasRole(OWNER_ROLE))) {
+            require(newDuration < timelockDuration[functionSelector], "timelock not decreasing");
+            timelockDuration[functionSelector] = newDuration;
+        }
+    }
+
+    /* ROLE MANAGEMENT */
+
+    function setRole(address account, string calldata roleName, bool on) external {
+        bytes32 role = roleIds[roleName];
+        require(role != bytes32(0), ErrorsLib.InvalidRole());
+
+        // forgefmt: disable-start
+        bool canSubmit = hasRole(OWNER_ROLE)
+                   || (hasRole(CURATOR_ROLE) && role == ADAPTER_ROLE)
+                   || (hasRole(SENTINEL_ROLE) && role == ALLOCATOR_ROLE);
+        bool canRevoke = canSubmit
+                     || (hasRole(SENTINEL_ROLE) && role != SENTINEL_ROLE);
+        // forgefmt: disable-end
+
+        if (timelock(canSubmit, canRevoke)) _setRole(account, role, on);
+    }
+
+    function _setRole(address account, bytes32 role, bool on) internal {
+        if (on) roles[account] |= role;
+        else roles[account] &= ~role;
+    }
+
+    function hasRole(bytes32 role) internal view returns (bool) {
+        return hasRole(msg.sender, role);
+    }
+
+    function hasRole(address account, bytes32 role) internal view returns (bool) {
+        return roles[account] & role != 0;
+    }
+
+    function hasRole(address account, string calldata roleName) external view returns (bool) {
+        bytes32 role = roleIds[roleName];
+        require(role != bytes32(0), ErrorsLib.InvalidRole());
+        return hasRole(account, role);
     }
 
     /* TREASURER ACTIONS */
 
-    function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
+    function setPerformanceFee(uint256 newPerformanceFee) external {
         require(newPerformanceFee < WAD, ErrorsLib.FeeTooHigh());
 
-        performanceFee = newPerformanceFee;
+        if (timelock(hasRole(TREASURER_ROLE))) performanceFee = newPerformanceFee;
     }
 
-    function setManagementFee(uint256 newManagementFee) external timelocked {
+    function setManagementFee(uint256 newManagementFee) external {
         require(newManagementFee < WAD, ErrorsLib.FeeTooHigh());
 
-        managementFee = newManagementFee;
+        if (timelock(hasRole(TREASURER_ROLE))) managementFee = newManagementFee;
     }
 
     /* CURATOR ACTIONS */
 
-    function increaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
-        require(newCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
-
-        absoluteCap[id] = newCap;
+    function setIRM(address newIRM) external {
+        if (timelock(hasRole(CURATOR_ROLE))) irm = newIRM;
     }
 
-    function decreaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
-        require(newCap < absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
+    /* CAP MANAGEMENT */
 
-        absoluteCap[id] = newCap;
+    function setAbsoluteCap(bytes32 id, uint256 newCap) external {
+        bool canSubmit = hasRole(CURATOR_ROLE) || (hasRole(SENTINEL_ROLE) && newCap < absoluteCap[id]);
+        if (timelock(canSubmit)) absoluteCap[id] = newCap;
     }
 
-    function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
-        require(newRelativeCap > relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
+    function setRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external {
+        uint256 currentRelativeCap = relativeCap[id];
+        bool canSubmit = hasRole(CURATOR_ROLE) || (hasRole(SENTINEL_ROLE) && newRelativeCap < currentRelativeCap);
+        if (timelock(canSubmit)) {
+            if (newRelativeCap > currentRelativeCap) {
+                if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
+                relativeCap[id] = newRelativeCap;
+            } else if (newRelativeCap < currentRelativeCap) {
+                require(idsWithRelativeCap[index] == id,ErrorsLib.IdNotFound());
+                require(
+                    allocation[id] <= totalAssets.mulDiv(newRelativeCap, WAD, Math.Rounding.Floor),
+                    ErrorsLib.RelativeCapExceeded()
+                );
 
-        if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
-        relativeCap[id] = newRelativeCap;
-    }
-
-    function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
-        require(newRelativeCap < relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
-        require(idsWithRelativeCap[index] == id, ErrorsLib.IdNotFound());
-        require(
-            allocation[id] <= totalAssets.mulDiv(newRelativeCap, WAD, Math.Rounding.Floor),
-            ErrorsLib.RelativeCapExceeded()
-        );
-
-        if (newRelativeCap == 0) {
-            idsWithRelativeCap[index] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
-            idsWithRelativeCap.pop();
+                if (newRelativeCap == 0) {
+                    idsWithRelativeCap[index] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
+                    idsWithRelativeCap.pop();
+                }
+                relativeCap[id] = newRelativeCap;
+            }
         }
-        relativeCap[id] = newRelativeCap;
     }
 
-    /* ALLOCATOR ACTIONS */
+    /* ALLOCATION ACTIONS */
 
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateFromIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(
-            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
-        );
-        require(isAdapter[adapter], ErrorsLib.NotAdapter());
+        require(hasRole(ALLOCATOR_ROLE | SENTINEL_ROLE) || msg.sender == address(this), ErrorsLib.NotAllocator());
+        require(hasRole(adapter, ADAPTER_ROLE), ErrorsLib.NotAdapter());
 
         asset.transfer(adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
@@ -216,10 +238,8 @@ contract VaultV2 is ERC20, IVaultV2 {
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(
-            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
-        );
-        require(isAdapter[adapter], ErrorsLib.NotAdapter());
+        require(hasRole(ALLOCATOR_ROLE | SENTINEL_ROLE) || msg.sender == address(this), ErrorsLib.NotAllocator());
+        require(hasRole(adapter, ADAPTER_ROLE), ErrorsLib.NotAdapter());
 
         bytes32[] memory ids = IAdapter(adapter).allocateOut(data, amount);
 
@@ -230,14 +250,18 @@ contract VaultV2 is ERC20, IVaultV2 {
         asset.transferFrom(adapter, address(this), amount);
     }
 
-    function setDepositData(address newDepositAdapter, bytes memory newDepositData) external timelocked {
-        depositAdapter = newDepositAdapter;
-        depositData = newDepositData;
+    function setDepositData(address newDepositAdapter, bytes memory newDepositData) external {
+        if (timelock(hasRole(ALLOCATOR_ROLE))) {
+            depositAdapter = newDepositAdapter;
+            depositData = newDepositData;
+        }
     }
 
-    function setWithdrawData(address newWithdrawAdapter, bytes memory newWithdrawData) external timelocked {
-        withdrawAdapter = newWithdrawAdapter;
-        withdrawData = newWithdrawData;
+    function setWithdrawData(address newWithdrawAdapter, bytes memory newWithdrawData) external {
+        if (timelock(hasRole(ALLOCATOR_ROLE))) {
+            withdrawAdapter = newWithdrawAdapter;
+            withdrawData = newWithdrawData;
+        }
     }
 
     /* EXCHANGE RATE */
@@ -368,59 +392,33 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* TIMELOCKS */
 
-    function submit(bytes calldata data) external {
-        bytes4 functionSelector = bytes4(data);
-        require(isAuthorizedToSubmit(msg.sender, functionSelector), ErrorsLib.Unauthorized());
-
-        require(validAt[data] == 0, ErrorsLib.DataAlreadyPending());
-
-        validAt[data] = block.timestamp + timelockDuration[functionSelector];
+    function timelock(bool canSubmit) internal returns (bool) {
+        return timelock(canSubmit, canSubmit);
     }
 
-    modifier timelocked() {
-        require(validAt[msg.data] != 0 && block.timestamp >= validAt[msg.data], ErrorsLib.DataNotTimelocked());
-        validAt[msg.data] = 0;
-        _;
+    function timelock(bool canSubmit, bool canRevoke) internal returns (bool immediatelyCallable) {
+        if (willRevoke == true) {
+            require(canRevoke, ErrorsLib.Unauthorized());
+            require(validAt[msg.data] != 0);
+            validAt[msg.data] = 0;
+            return false;
+        } else {
+            if (validAt[msg.data] != 0) {
+                require(block.timestamp >= validAt[msg.data], ErrorsLib.DataAlreadyPending());
+                validAt[msg.data] = 0;
+                return true;
+            } else {
+                require(canSubmit, ErrorsLib.Unauthorized());
+                validAt[msg.data] = block.timestamp + timelockDuration[msg.sig];
+                return false;
+            }
+        }
     }
 
-    /// @dev Authorized to submit can revoke.
     function revoke(bytes calldata data) external {
-        require(
-            isAuthorizedToSubmit(msg.sender, bytes4(data))
-                || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector),
-            ErrorsLib.Unauthorized()
-        );
-        require(validAt[data] != 0);
-        validAt[data] = 0;
-    }
-
-    function isAuthorizedToSubmit(address sender, bytes4 functionSelector) internal view returns (bool) {
-        // forgefmt: disable-start
-        // Owner actions.
-        if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setOwner.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setCurator.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setIRM.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setTreasurer.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setIsAllocator.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setIsAdapter.selector) return sender == owner;
-        if (functionSelector == IVaultV2.increaseTimelock.selector) return sender == owner;
-        if (functionSelector == IVaultV2.decreaseTimelock.selector) return sender == owner;
-        // Treasurer actions.
-        if (functionSelector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
-        if (functionSelector == IVaultV2.setManagementFee.selector) return sender == treasurer;
-        // Curator actions.
-        if (functionSelector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
-        if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
-        if (functionSelector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
-        if (functionSelector == IVaultV2.decreaseRelativeCap.selector) return sender == curator || isSentinel[sender];
-        // Allocator actions.
-        if (functionSelector == IVaultV2.setDepositData.selector) return isAllocator[sender];
-        if (functionSelector == IVaultV2.setWithdrawData.selector) return isAllocator[sender];
-        // forgefmt: disable-end
-        return false;
+        willRevoke = true;
+        address(this).delegatecall(data);
+        willRevoke = false;
     }
 
     /* INTERFACE */

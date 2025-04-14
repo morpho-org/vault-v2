@@ -40,15 +40,13 @@ contract BaseTest is Test {
         vm.label(address(irm), "IRM");
 
         vm.startPrank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setCurator.selector, curator));
-        vault.submit(abi.encodeWithSelector(IVaultV2.setTreasurer.selector, treasurer));
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, allocator, true));
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, address(irm)));
+        vault.setRole(curator, "curator", true);
+        vault.setRole(treasurer, "treasurer", true);
+        vault.setRole(allocator, "allocator", true);
         vm.stopPrank();
 
-        vault.setCurator(curator);
-        vault.setTreasurer(treasurer);
-        vault.setIsAllocator(allocator, true);
-        vault.setIRM(address(irm));
+        vault.setRole(curator, "curator", true);
+        vault.setRole(treasurer, "treasurer", true);
+        vault.setRole(allocator, "allocator", true);
     }
 }
