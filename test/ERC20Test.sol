@@ -32,7 +32,7 @@ contract ERC20Test is BaseTest {
         vault.mint(amount, address(0));
     }
 
-    function testBurn(uint256 amount, uint amountRedeemed) public {
+    function testBurn(uint256 amount, uint256 amountRedeemed) public {
         vm.assume(amount <= MAX_DEPOSIT);
         amountRedeemed = bound(amountRedeemed, 0, amount);
 
@@ -60,7 +60,7 @@ contract ERC20Test is BaseTest {
         assertEq(vault.allowance(address(this), spender), amount);
     }
 
-    function testTransfer(address to, uint256 amount, uint amountTransferred) public {
+    function testTransfer(address to, uint256 amount, uint256 amountTransferred) public {
         vm.assume(amount <= MAX_DEPOSIT);
         vm.assume(to != address(0));
         amountTransferred = bound(amountTransferred, 0, amount);
@@ -87,7 +87,13 @@ contract ERC20Test is BaseTest {
         vault.transfer(address(0), amount);
     }
 
-    function testTransferFrom(address from, address to, uint256 amount, uint amountTransferred, uint amountApproved) public {
+    function testTransferFrom(
+        address from,
+        address to,
+        uint256 amount,
+        uint256 amountTransferred,
+        uint256 amountApproved
+    ) public {
         vm.assume(amount <= MAX_DEPOSIT);
         amountApproved = bound(amountApproved, 0, amount);
         amountTransferred = bound(amountTransferred, 0, amountApproved);
@@ -100,7 +106,7 @@ contract ERC20Test is BaseTest {
         vault.approve(address(this), amountApproved);
 
         vm.expectEmit();
-        emit EventsLib.Transfer(from,to, amountTransferred);
+        emit EventsLib.Transfer(from, to, amountTransferred);
         vault.transferFrom(from, to, amountTransferred);
 
         assertEq(vault.allowance(from, address(this)), amountApproved - amountTransferred, "allowance");
@@ -115,7 +121,7 @@ contract ERC20Test is BaseTest {
     function testTransferFromSenderZeroAddress(address to, uint256 amount) public {
         vm.assume(to != address(0));
         vm.startPrank(address(0));
-        vault.approve(address(this),type(uint).max);
+        vault.approve(address(this), type(uint256).max);
         vm.expectRevert(ErrorsLib.ZeroAddress.selector);
         vault.transferFrom(address(0), to, amount);
         vm.stopPrank();
@@ -125,12 +131,14 @@ contract ERC20Test is BaseTest {
         vm.assume(from != address(0));
         vault.mint(amount, from);
         vm.prank(from);
-        vault.approve(address(this), type(uint).max);
+        vault.approve(address(this), type(uint256).max);
         vm.expectRevert(ErrorsLib.ZeroAddress.selector);
         vault.transferFrom(from, address(0), amount);
     }
 
-    function testInfiniteApproveTransferFrom(address from, address to, uint256 amount, uint amountTransferred) public {
+    function testInfiniteApproveTransferFrom(address from, address to, uint256 amount, uint256 amountTransferred)
+        public
+    {
         vm.assume(amount <= MAX_DEPOSIT);
         amountTransferred = bound(amountTransferred, 0, amount);
 
@@ -145,7 +153,7 @@ contract ERC20Test is BaseTest {
         emit EventsLib.Transfer(from, to, amountTransferred);
 
         vault.transferFrom(from, to, amountTransferred);
-        assertEq(vault.allowance(from, address(this)), type(uint).max, "allowance");
+        assertEq(vault.allowance(from, address(this)), type(uint256).max, "allowance");
         if (from == to) {
             assertEq(vault.balanceOf(from), amount, "balance");
         } else {
@@ -160,19 +168,19 @@ contract ERC20Test is BaseTest {
         vault.mint(1, address(this));
     }
 
-    function testTransferInsufficientBalanceReverts(address to, uint amount) public {
-        amount = bound(amount, 0, type(uint).max-1);
+    function testTransferInsufficientBalanceReverts(address to, uint256 amount) public {
+        amount = bound(amount, 0, type(uint256).max - 1);
         vm.assume(to != address(0));
         vault.mint(amount, address(this));
         vm.expectRevert(stdError.arithmeticError);
         vault.transfer(to, amount + 1);
     }
 
-    function testTransferFromInsufficientAllowanceReverts(address from, address to, uint allowance) public {
+    function testTransferFromInsufficientAllowanceReverts(address from, address to, uint256 allowance) public {
         vm.assume(from != address(0));
         vm.assume(to != address(0));
 
-        allowance = bound(allowance, 0, type(uint).max - 1);
+        allowance = bound(allowance, 0, type(uint256).max - 1);
         vault.mint(allowance, from);
 
         vm.prank(from);
@@ -182,10 +190,10 @@ contract ERC20Test is BaseTest {
         vault.transferFrom(from, to, allowance + 1);
     }
 
-    function testTransferFromInsufficientBalanceReverts(address from, address to, uint allowance) public {
+    function testTransferFromInsufficientBalanceReverts(address from, address to, uint256 allowance) public {
         vm.assume(from != address(0));
         vm.assume(to != address(0));
-        allowance = bound(allowance, 1, type(uint).max);
+        allowance = bound(allowance, 1, type(uint256).max);
         vault.mint(allowance - 1, from);
 
         vm.prank(from);
@@ -195,11 +203,9 @@ contract ERC20Test is BaseTest {
         vault.transferFrom(from, to, allowance);
     }
 
-    function testBurnInsufficientBalanceReverts(address to, uint256 mintAmount, uint256 burnAmount)
-        public
-    {
+    function testBurnInsufficientBalanceReverts(address to, uint256 mintAmount, uint256 burnAmount) public {
         vm.assume(to != address(0));
-        mintAmount = bound(mintAmount, 0, type(uint).max - 1);
+        mintAmount = bound(mintAmount, 0, type(uint256).max - 1);
         burnAmount = _bound(burnAmount, mintAmount + 1, type(uint256).max);
 
         vault.mint(mintAmount, to);
