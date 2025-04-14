@@ -28,6 +28,7 @@ library ErrorsLib {
     error IdNotFound();
     error NotAllocator();
     error NotAdapter();
+    error FeeInvariantBroken();
     error InvalidRate();
     error PermitDeadlineExpired();
     error InvalidSigner();
