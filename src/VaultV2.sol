@@ -19,12 +19,14 @@ contract VaultV2 is IVaultV2 {
     using SafeTransferLib for IERC20;
 
     /* CONSTANT */
+    
     uint64 public constant TIMELOCK_CAP = 2 weeks;
 
     /* IMMUTABLE */
 
     string public name;
     string public symbol;
+    uint8 public decimals;
     address public immutable factory;
     address public immutable asset;
 
@@ -82,6 +84,7 @@ contract VaultV2 is IVaultV2 {
     constructor(address _owner, address _asset, string memory _name, string memory _symbol) {
         name = _name;
         symbol = _symbol;
+        decimals = IERC20(_asset).decimals();
         factory = msg.sender;
         asset = _asset;
         owner = _owner;
