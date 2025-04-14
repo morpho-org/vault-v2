@@ -198,7 +198,7 @@ contract VaultV2 is ERC20, IVaultV2 {
                 if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
                 relativeCap[id] = newRelativeCap;
             } else if (newRelativeCap < currentRelativeCap) {
-                require(idsWithRelativeCap[index] == id,ErrorsLib.IdNotFound());
+                require(idsWithRelativeCap[index] == id, ErrorsLib.IdNotFound());
                 require(
                     allocation[id] <= totalAssets.mulDiv(newRelativeCap, WAD, Math.Rounding.Floor),
                     ErrorsLib.RelativeCapExceeded()
