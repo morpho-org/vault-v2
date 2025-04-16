@@ -13,14 +13,18 @@ These roles are primarily responsible for enabling and disabling markets on Morp
 One Morpho Vault V2 is related to one loan asset.
 The [VaultV2Factory](https://github.com/morpho-org/vaults-v2/blob/main/src/VaultV2Factory.sol) is deploying immutable onchain instances of Vaults V2.
 
+TODO: mention liquidity markets
 Users can supply or withdraw assets at any time, depending on the available liquidity on the underlying markets.
 Each market has a supply cap and a relative cap that guarantees lenders both a maximum absolute and a maximum relative exposure to the specific market.
 
 There are 5 different roles for a MetaMorpho vault: owner, curator, sentinel, treasurer and allocator.
 
-All actions that may be against users' interests (e.g. enabling a market with a high exposure) is subject to a timelock.
-To make vault setup easier, the initial timelock can be either 0 or anywhere between 24 hours and 2 weeks.
-The `owner`, or the `sentinel`, if set, can revoke the action during the timelock. After the timelock, the action can be executed by anyone.
+In Vault V2, all actions are potentially subject to a timelock.
+Owners are encouraged to subect actions that may be against users' interests (e.g. enabling a market with a high exposure) to a timelock.
+Timelocks change must set the value between 0 and 2 weeks.
+
+The `sentinel`, if set, can revoke the actions taken by other roles during the timelock, with the exception of the action setting the sentinel.
+After the timelock, the action can be executed by anyone.
 
 ### Roles
 
@@ -79,6 +83,7 @@ It can:
 
 - Reallocate funds from the “idle market” to enabled markets.
 - Reallocate funds from enabled markets to the “idle market”.
+- [Timelocked] Decrease the absolute supply cap of any market.
 - Revoke actions from other roles, except the `setSentinel` action (contrary to Vault V1, the sentinel cannot revoke any attempt to change the sentinel).
 
 ### Main differences with Vault V1
@@ -87,6 +92,7 @@ It can:
 - The `Guardian` role of Vault V1 has been replaced by a `Sentinel` role. The scope of the
 - The `Treasurer` role has been introduced. This role can set the performance and management fees. Separating the treasurer role from the cura
 - Contrary to Vault V1, the `Owner` does not inherit the other roles.
+- All actions are timelockable, except `reallocateIn` and `reallocateOut` and timelocks are not constrained anymore.
 
 ## Getting started
 
