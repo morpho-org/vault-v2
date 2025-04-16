@@ -2,5 +2,7 @@
 pragma solidity >=0.5.0;
 
 interface IIRM {
-    function interestPerSecond(uint256 totalAssets, uint256 elapsed) external view returns (uint256);
+    function owner() external view returns (address);
+    function setInterestPerSecond(uint256) external;
+    function accruedInterest(uint256, uint256) external view returns (uint256);
 }

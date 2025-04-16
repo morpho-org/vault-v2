@@ -14,12 +14,12 @@ contract IRM is IIRM {
         owner = _owner;
     }
 
-    function setInterest(uint256 newInterestPerSecond) public {
+    function setInterestPerSecond(uint256 newInterestPerSecond) public {
         require(msg.sender == owner);
         _interestPerSecond = newInterestPerSecond;
     }
 
-    function interestPerSecond(uint256, uint256) external view returns (uint256) {
-        return _interestPerSecond;
+    function accruedInterest(uint256, uint256 elapsed) external view returns (uint256) {
+        return _interestPerSecond * elapsed;
     }
 }
