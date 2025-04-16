@@ -26,6 +26,15 @@ Timelocks change must set the value between 0 and 2 weeks.
 The `sentinel`, if set, can revoke the actions taken by other roles during the timelock, with the exception of the action setting the sentinel.
 After the timelock, the action can be executed by anyone.
 
+### Markets in Vault V2
+
+In Morpho Market V1, markets were defined by a tuple of the form `(CollateralAsset, LoanAsset, LLTV, Oracle, IRMAddress)`.
+Morpho Market V2 allow for more flexibility in defining offers accepted by the vault.
+In practice, markets for a given `LoanAsset` are defined using a tuple of the form `(CollateralAsset, LLTV, Oracle)`,
+where each value of the triplet can correspond to multiple values (including all possible values).
+For instance, a market defined by the following triplet `(wstETH/WETH, 94.5%, .)` would accept borrowing offers on the pair
+`wstETH/WETH` with an LLTV of `94,5%` using any oracle.
+
 ### Roles
 
 **Owner**
