@@ -1,7 +1,5 @@
 # Vault v2
 
-## Overview
-
 Morpho Vault V2 is a protocol for noncustodial risk management.
 It enables anyone to create a vault depositing liquidity into both Morpho Market V2 and [Morpho Market V1](https://github.com/morpho-org/morpho-blue).
 
@@ -13,27 +11,56 @@ These roles are primarily responsible for enabling and disabling markets on Morp
 One Morpho Vault V2 is related to one loan asset.
 The [VaultV2Factory](https://github.com/morpho-org/vaults-v2/blob/main/src/VaultV2Factory.sol) is deploying immutable onchain instances of Vaults V2.
 
-TODO: mention liquidity markets
-Users can supply or withdraw assets at any time, depending on the available liquidity on the underlying markets.
-Each market has a supply cap and a relative cap that guarantees lenders both a maximum absolute and a maximum relative exposure to the specific market.
+## Overview
 
 There are 5 different roles for a MetaMorpho vault: owner, curator, sentinel, treasurer and allocator.
+
+The owner is responsible for defining the markets that the vault will lend against by setting adapters.
+The curator and allocator are then responsible for the management of the corresponding markets by setting caps and allocation of funds across those markets.
+
+Each market has a supply cap and a relative cap that guarantees lenders both a maximum absolute and a maximum relative exposure to the specific market.
+Users can supply or withdraw assets at any time, depending on the available liquidity on the liquidity market.
 
 In Vault V2, all actions are potentially subject to a timelock.
 Owners are encouraged to subect actions that may be against users' interests (e.g. enabling a market with a high exposure) to a timelock.
 Timelocks change must set the value between 0 and 2 weeks.
 
 The `sentinel`, if set, can revoke the actions taken by other roles during the timelock, with the exception of the action setting the sentinel.
-After the timelock, the action can be executed by anyone.
+After the timelock, actions can be executed by anyone.
 
-### Markets in Vault V2
+### Adapters and markets in Vault V2
 
-In Morpho Market V1, markets were defined by a tuple of the form `(CollateralAsset, LoanAsset, LLTV, Oracle, IRMAddress)`.
-Morpho Market V2 allow for more flexibility in defining offers accepted by the vault.
-In practice, markets for a given `LoanAsset` are defined using a tuple of the form `(CollateralAsset, LLTV, Oracle)`,
+In Vault V1, markets were defined by a tuple of the form `(CollateralAsset, LoanAsset, LLTV, Oracle, IRMAddress)`.
+Vault V2 allow for more flexibility in defining offers accepted by the vault.
+
+Markets V2 for a given `LoanAsset` are defined using a tuple of the form `(CollateralAsset, LLTV, Oracle)`,
 where each value of the triplet can correspond to multiple values (including all possible values).
 For instance, a market defined by the following triplet `(wstETH/WETH, 94.5%, .)` would accept borrowing offers on the pair
 `wstETH/WETH` with an LLTV of `94,5%` using any oracle.
+In practice, markets that the vault will lend against are defined by the owner of the vault, by setting adapters.
+Adapters enable vaults to track and control exposure to given markets through maximum and relative caps.
+
+While adapters have been designed in the context of Morpho Markets V2, they are more general and can be used to supply liquidity to other protocols.
+
+### Liquidity market
+
+The allocator is responsible for ensuring that users can withdraw their assets at anytime.
+This is done by managing the available liquidity in the `idle` and an optional liquidity market $M$.
+
+When users withdraw assets, the assets are taken in priority from the `idle` market.
+If the `idle` market does not have enough liquidity, the market $M$ is used.
+When defined, the market $M$ is also used as the market users are depositing into.
+
+The market $M$ should typically be a very liquid Market V1.
+
+### Interest Rate Model (IRM)
+
+The IRM is responsible for returning the `interestPerSecond` that is used when accruing fees.
+
+The IRM can typically be simple smart contract storing the  `interestPerSecond`, whose value is regularly set by the curator.
+The rate returned by the IRM must be below `200% APR`.
+This model is in contrast with Vault V1 were the interest was automatically computed from the underlying allocations.
+This entails monitoring the vault's interest accrual in order to set a reasonable interest.
 
 ### Roles
 
@@ -52,6 +79,7 @@ It can:
 - Set the `performanceFeeRecipient`.
 - Set the `managementFeeRecipient`.
 - Set the `irm`. The `irm` is responsible for returning the per second interests accrued by users. This is in contrast with Vault V1 where the interest was automatically computed based on the underlying allocations.
+- [Timelocked] Set adapter.
 - [Timelocked] Increase the timelock.
 - [Timelocked] Decrease the timelock.
 
