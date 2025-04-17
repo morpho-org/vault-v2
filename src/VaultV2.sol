@@ -1,29 +1,34 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {ERC20, IERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
-import {SafeERC20} from "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {IVaultV2, IAdapter} from "./interfaces/IVaultV2.sol";
+import {IVaultV2, IERC20, IAdapter} from "./interfaces/IVaultV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
-import {WAD} from "./libraries/ConstantsLib.sol";
-import {MathLib} from "./libraries/MathLib.sol";
+import {EventsLib} from "./libraries/EventsLib.sol";
+import {WAD, MAX_RATE_PER_SECOND, PERMIT_TYPEHASH, DOMAIN_TYPEHASH} from "./libraries/ConstantsLib.sol";
+import {UtilsLib} from "./libraries/UtilsLib.sol";
+import {SafeTransferLib} from "./libraries/SafeTransferLib.sol";
 
-contract VaultV2 is ERC20, IVaultV2 {
+contract VaultV2 is IVaultV2 {
     using Math for uint256;
-    using MathLib for uint256;
+    using UtilsLib for uint256;
+    using SafeTransferLib for IERC20;
 
     /* CONSTANT */
+
     uint64 public constant TIMELOCK_CAP = 2 weeks;
 
     /* IMMUTABLE */
 
+    string public name;
+    string public symbol;
+    uint8 public decimals;
     address public immutable factory;
-    IERC20 public immutable asset;
+    address public immutable asset;
 
     /* TRANSIENT */
 
@@ -41,8 +46,10 @@ contract VaultV2 is ERC20, IVaultV2 {
     mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
 
+    /// @dev invariant: performanceFee != 0 => performanceFeeRecipient != address(0)
     uint256 public performanceFee;
     address public performanceFeeRecipient;
+    /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint256 public managementFee;
     address public managementFeeRecipient;
 
@@ -74,11 +81,19 @@ contract VaultV2 is ERC20, IVaultV2 {
     mapping(bytes => uint256) public validAt;
     mapping(bytes4 => uint64) public timelockDuration;
 
+    uint256 public totalSupply;
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    mapping(address => uint256) public nonces;
+
     /* CONSTRUCTOR */
 
-    constructor(address _owner, address _asset, string memory _name, string memory _symbol) ERC20(_name, _symbol) {
+    constructor(address _owner, address _asset, string memory _name, string memory _symbol) {
+        name = _name;
+        symbol = _symbol;
+        decimals = IERC20(_asset).decimals();
         factory = msg.sender;
-        asset = IERC20(_asset);
+        asset = _asset;
         owner = _owner;
         lastUpdate = block.timestamp;
         timelockDuration[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
@@ -112,10 +127,14 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
+        require(newPerformanceFeeRecipient != address(0) || performanceFee == 0, ErrorsLib.FeeInvariantBroken());
+
         performanceFeeRecipient = newPerformanceFeeRecipient;
     }
 
     function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
+        require(newManagementFeeRecipient != address(0) || managementFee == 0, ErrorsLib.FeeInvariantBroken());
+
         managementFeeRecipient = newManagementFeeRecipient;
     }
 
@@ -143,12 +162,14 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
         require(newPerformanceFee < WAD, ErrorsLib.FeeTooHigh());
+        require(performanceFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
 
         performanceFee = newPerformanceFee;
     }
 
     function setManagementFee(uint256 newManagementFee) external timelocked {
         require(newManagementFee < WAD, ErrorsLib.FeeTooHigh());
+        require(managementFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
 
         managementFee = newManagementFee;
     }
@@ -199,7 +220,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        asset.transfer(adapter, amount);
+        IERC20(asset).safeTransfer(adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
 
         for (uint256 i; i < ids.length; i++) {
@@ -227,7 +248,7 @@ contract VaultV2 is ERC20, IVaultV2 {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(amount);
         }
 
-        asset.transferFrom(adapter, address(this), amount);
+        IERC20(asset).safeTransferFrom(adapter, address(this), amount);
     }
 
     function setDepositData(address newDepositAdapter, bytes memory newDepositData) external timelocked {
@@ -258,7 +279,12 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function accruedFeeShares() public view returns (uint256, uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        uint256 interest = IIRM(irm).interestPerSecond() * elapsed;
+        uint256 interestPerSecond = IIRM(irm).interestPerSecond(totalAssets, elapsed);
+        require(
+            interestPerSecond <= totalAssets.mulDiv(MAX_RATE_PER_SECOND, WAD, Math.Rounding.Floor),
+            ErrorsLib.InvalidRate()
+        );
+        uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssets + interest;
 
         uint256 protocolFee = IVaultV2Factory(factory).protocolFee();
@@ -274,7 +300,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         if (interest > 0 && performanceFee != 0) {
             uint256 performanceFeeAssets = interest.mulDiv(performanceFee, WAD, Math.Rounding.Floor);
             totalPerformanceFeeShares = performanceFeeAssets.mulDiv(
-                totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets, Math.Rounding.Floor
+                totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets, Math.Rounding.Floor
             );
             protocolPerformanceFeeShares = totalPerformanceFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
             performanceFeeShares = totalPerformanceFeeShares - protocolPerformanceFeeShares;
@@ -283,7 +309,7 @@ contract VaultV2 is ERC20, IVaultV2 {
             // Using newTotalAssets to make all approximations consistent.
             uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDiv(managementFee, WAD, Math.Rounding.Floor);
             uint256 totalManagementFeeShares = managementFeeAssets.mulDiv(
-                totalSupply() + 1 + totalPerformanceFeeShares,
+                totalSupply + 1 + totalPerformanceFeeShares,
                 newTotalAssets + 1 - managementFeeAssets,
                 Math.Rounding.Floor
             );
@@ -300,7 +326,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     // TODO: extract virtual shares and assets (= 1).
     function convertToShares(uint256 assets, Math.Rounding rounding) internal view returns (uint256 shares) {
-        shares = assets.mulDiv(totalSupply() + 1, totalAssets + 1, rounding);
+        shares = assets.mulDiv(totalSupply + 1, totalAssets + 1, rounding);
     }
 
     function convertToAssets(uint256 shares) external view returns (uint256) {
@@ -308,13 +334,13 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function convertToAssets(uint256 shares, Math.Rounding rounding) internal view returns (uint256 assets) {
-        assets = shares.mulDiv(totalAssets + 1, totalSupply() + 1, rounding);
+        assets = shares.mulDiv(totalAssets + 1, totalSupply + 1, rounding);
     }
 
     /* USER INTERACTION */
 
     function _deposit(uint256 assets, uint256 shares, address receiver) internal {
-        SafeERC20.safeTransferFrom(asset, msg.sender, address(this), assets);
+        IERC20(asset).safeTransferFrom(msg.sender, address(this), assets);
         _mint(receiver, shares);
         totalAssets += assets;
 
@@ -337,10 +363,12 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal virtual {
         try this.reallocateToIdle(withdrawAdapter, withdrawData, assets) {} catch {}
-
-        if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
+        uint256 _allowance = allowance[supplier][msg.sender];
+        if (msg.sender != supplier && _allowance != type(uint256).max) {
+            allowance[supplier][msg.sender] = _allowance - shares;
+        }
         _burn(supplier, shares);
-        SafeERC20.safeTransfer(asset, receiver, assets);
+        IERC20(asset).safeTransfer(receiver, assets);
         totalAssets -= assets;
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
@@ -395,8 +423,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function isAuthorizedToSubmit(address sender, bytes4 functionSelector) internal view returns (bool) {
-        // forgefmt: disable-start
-        // Owner actions.
+        // Owner functions
         if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
         if (functionSelector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
         if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
@@ -408,10 +435,10 @@ contract VaultV2 is ERC20, IVaultV2 {
         if (functionSelector == IVaultV2.setIsAdapter.selector) return sender == owner;
         if (functionSelector == IVaultV2.increaseTimelock.selector) return sender == owner;
         if (functionSelector == IVaultV2.decreaseTimelock.selector) return sender == owner;
-        // Treasurer actions.
+        // Treasurer functions
         if (functionSelector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
         if (functionSelector == IVaultV2.setManagementFee.selector) return sender == treasurer;
-        // Curator actions.
+        // Curator functions
         if (functionSelector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
         if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
         if (functionSelector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
@@ -425,7 +452,70 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     /* INTERFACE */
 
+    function transfer(address to, uint256 amount) public returns (bool) {
+        require(to != address(0), ErrorsLib.ZeroAddress());
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        emit EventsLib.Transfer(msg.sender, to, amount);
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) public returns (bool) {
+        require(from != address(0), ErrorsLib.ZeroAddress());
+        require(to != address(0), ErrorsLib.ZeroAddress());
+        uint256 _allowance = allowance[from][msg.sender];
+
+        if (_allowance < type(uint256).max) allowance[from][msg.sender] = _allowance - amount;
+
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        emit EventsLib.Transfer(from, to, amount);
+
+        return true;
+    }
+
+    function approve(address spender, uint256 amount) public returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        emit EventsLib.Approval(msg.sender, spender, amount);
+        return true;
+    }
+
+    function permit(address _owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        public
+        virtual
+    {
+        bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonces[_owner]++, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
+        address recoveredAddress = ecrecover(digest, v, r, s);
+
+        require(deadline >= block.timestamp, ErrorsLib.PermitDeadlineExpired());
+        require(recoveredAddress != address(0) && recoveredAddress == _owner, ErrorsLib.InvalidSigner());
+
+        allowance[recoveredAddress][spender] = value;
+        emit EventsLib.Approval(recoveredAddress, spender, value);
+    }
+
+    function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {
+        return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
+    }
+
     function maxWithdraw(address) external view returns (uint256) {
-        return asset.balanceOf(address(this));
+        return IERC20(asset).balanceOf(address(this));
+    }
+
+    /* ERC20 INTERNAL */
+
+    function _mint(address to, uint256 amount) internal {
+        require(to != address(0), ErrorsLib.ZeroAddress());
+        balanceOf[to] += amount;
+        totalSupply += amount;
+        emit EventsLib.Transfer(address(0), to, amount);
+    }
+
+    function _burn(address from, uint256 amount) internal {
+        require(from != address(0), ErrorsLib.ZeroAddress());
+        balanceOf[from] -= amount;
+        totalSupply -= amount;
+        emit EventsLib.Transfer(from, address(0), amount);
     }
 }
