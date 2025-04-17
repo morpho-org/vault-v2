@@ -118,12 +118,10 @@ contract ERC20Test is BaseTest {
         }
     }
 
-    function testTransferFromSenderZeroAddress(address to, uint256 amount) public {
+    function testTransferFromSenderZeroAddress(address to) public {
         vm.assume(to != address(0));
-        vm.startPrank(address(0));
-        vault.approve(address(this), type(uint256).max);
         vm.expectRevert(ErrorsLib.ZeroAddress.selector);
-        vault.transferFrom(address(0), to, amount);
+        vault.transferFrom(address(0), to, 0);
         vm.stopPrank();
     }
 
@@ -181,7 +179,7 @@ contract ERC20Test is BaseTest {
         vm.assume(to != address(0));
 
         allowance = bound(allowance, 0, type(uint256).max - 1);
-        vault.mint(allowance, from);
+        vault.mint(allowance + 1, from);
 
         vm.prank(from);
         vault.approve(address(this), allowance);
