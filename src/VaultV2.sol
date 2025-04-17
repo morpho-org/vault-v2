@@ -11,7 +11,7 @@ import {WAD, MAX_RATE_PER_SECOND, PERMIT_TYPEHASH, DOMAIN_TYPEHASH} from "./libr
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeTransferLib} from "./libraries/SafeTransferLib.sol";
 
-contract VaultV2 is ERC20, IVaultV2 {
+contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
     using SafeTransferLib for IERC20;
 
@@ -269,7 +269,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         if (interest > 0 && performanceFee != 0) {
             uint256 performanceFeeAssets = interest.wDivDown(performanceFee);
             totalPerformanceFeeShares =
-                performanceFeeAssets.mulDivDown(totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets);
+                performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
             protocolPerformanceFeeShares = totalPerformanceFeeShares.wDivDown(protocolFee);
             performanceFeeShares = totalPerformanceFeeShares - protocolPerformanceFeeShares;
         }
@@ -277,7 +277,7 @@ contract VaultV2 is ERC20, IVaultV2 {
             // Using newTotalAssets to make all approximations consistent.
             uint256 managementFeeAssets = (newTotalAssets * elapsed).wDivDown(managementFee);
             uint256 totalManagementFeeShares = managementFeeAssets.mulDivDown(
-                totalSupply() + 1 + totalPerformanceFeeShares, newTotalAssets + 1 - managementFeeAssets
+                totalSupply + 1 + totalPerformanceFeeShares, newTotalAssets + 1 - managementFeeAssets
             );
             protocolManagementFeeShares = totalManagementFeeShares.wDivDown(protocolFee);
             managementFeeShares = totalManagementFeeShares - protocolManagementFeeShares;
@@ -295,19 +295,19 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function convertToSharesDown(uint256 assets) internal view returns (uint256) {
-        return assets.mulDivDown(totalSupply() + 1, totalAssets + 1);
+        return assets.mulDivDown(totalSupply + 1, totalAssets + 1);
     }
 
     function convertToSharesUp(uint256 assets) internal view returns (uint256) {
-        return assets.mulDivUp(totalSupply() + 1, totalAssets + 1);
+        return assets.mulDivUp(totalSupply + 1, totalAssets + 1);
     }
 
     function convertToAssetsDown(uint256 shares) internal view returns (uint256) {
-        return shares.mulDivDown(totalAssets + 1, totalSupply() + 1);
+        return shares.mulDivDown(totalAssets + 1, totalSupply + 1);
     }
 
     function convertToAssetsUp(uint256 shares) internal view returns (uint256) {
-        return shares.mulDivUp(totalAssets + 1, totalSupply() + 1);
+        return shares.mulDivUp(totalAssets + 1, totalSupply + 1);
     }
 
     /* USER INTERACTION */
