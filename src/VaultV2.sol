@@ -362,7 +362,8 @@ contract VaultV2 is IVaultV2 {
     }
 
     function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal virtual {
-        try this.reallocateToIdle(withdrawAdapter, withdrawData, assets) {} catch {}
+        uint idleAssets = IERC20(asset).balanceOf(address(this));
+        if (assets > idleAssets) try this.reallocateToIdle(withdrawAdapter, withdrawData, assets - idleAssets) {} catch {}  
         uint256 _allowance = allowance[supplier][msg.sender];
         if (msg.sender != supplier && _allowance != type(uint256).max) {
             allowance[supplier][msg.sender] = _allowance - shares;
