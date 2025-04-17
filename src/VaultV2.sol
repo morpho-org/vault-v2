@@ -262,8 +262,8 @@ contract VaultV2 is IVaultV2 {
         uint256 elapsed = block.timestamp - lastUpdate;
         uint256 interest = IIRM(irm).accruedInterest(totalAssets, elapsed);
         require(
-            interest.mulDiv(365 days, elapsed, Math.Rounding.Ceil)
-                <= totalAssets.mulDiv(MAX_RATE, WAD, Math.Rounding.Floor),
+            interest
+                <= totalAssets.mulDiv(MAX_RATE, WAD, Math.Rounding.Floor).mulDiv(elapsed, 365 days, Math.Rounding.Floor),
             ErrorsLib.InvalidRate()
         );
         uint256 newTotalAssets = totalAssets + interest;
