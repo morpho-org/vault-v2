@@ -50,6 +50,7 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     uint256 public lastUpdate;
     uint256 public totalAssets;
+    uint256 public withdrawableShares;
 
     // Adapter is trusted to pass the expected ids when supplying assets.
     mapping(address => bool) public isAdapter;
@@ -232,10 +233,16 @@ contract VaultV2 is ERC20, IVaultV2 {
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
-        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 protocolFeeShares, uint256 newTotalAssets) =
-            accruedFeeShares();
+        (
+            uint256 performanceFeeShares,
+            uint256 managementFeeShares,
+            uint256 protocolFeeShares,
+            uint256 newTotalAssets,
+            uint256 newWithdrawableShares
+        ) = accruedFeeShares();
 
         totalAssets = newTotalAssets;
+        withdrawableShares = newWithdrawableShares;
 
         address protocolFeeRecipient = IVaultV2Factory(factory).protocolFeeRecipient();
         if (performanceFeeShares != 0) _mint(performanceFeeRecipient, performanceFeeShares);
@@ -245,7 +252,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         lastUpdate = block.timestamp;
     }
 
-    function accruedFeeShares() public view returns (uint256, uint256, uint256, uint256) {
+    function accruedFeeShares() public view returns (uint256, uint256, uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         uint256 interestPerSecond = IIRM(irm).interestPerSecond(totalAssets, elapsed);
         require(
@@ -254,6 +261,9 @@ contract VaultV2 is ERC20, IVaultV2 {
         );
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssets + interest;
+
+        uint256 newWithdrawableShares =
+            UtilsLib.min(withdrawableShares + (totalSupply() / 10 * elapsed / 1 days), totalSupply() / 10);
 
         uint256 protocolFee = IVaultV2Factory(factory).protocolFee();
 
@@ -285,7 +295,7 @@ contract VaultV2 is ERC20, IVaultV2 {
             managementFeeShares = totalManagementFeeShares - protocolManagementFeeShares;
         }
         uint256 protocolFeeShares = protocolPerformanceFeeShares + protocolManagementFeeShares;
-        return (performanceFeeShares, managementFeeShares, protocolFeeShares, newTotalAssets);
+        return (performanceFeeShares, managementFeeShares, protocolFeeShares, newTotalAssets, newWithdrawableShares);
     }
 
     function convertToShares(uint256 assets) external view returns (uint256) {
@@ -310,6 +320,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function _deposit(uint256 assets, uint256 shares, address receiver) internal {
         SafeERC20.safeTransferFrom(asset, msg.sender, address(this), assets);
         _mint(receiver, shares);
+        withdrawableShares = UtilsLib.min(withdrawableShares + shares, totalSupply() / 10);
         totalAssets += assets;
     }
 
@@ -330,6 +341,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal virtual {
         if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
         _burn(supplier, shares);
+        withdrawableShares -= shares;
         SafeERC20.safeTransfer(asset, receiver, assets);
         totalAssets -= assets;
 

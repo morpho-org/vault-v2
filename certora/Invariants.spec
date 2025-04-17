@@ -11,6 +11,8 @@ methods {
     function allocation(bytes32 id) external returns uint256 envfree;
 
     function totalAssets() external returns uint256 envfree;
+    function totalSupply() external returns uint256 envfree;
+    function withdrawableShares() external returns uint256 envfree;
 }
 
 /// INVARIANTS ///
@@ -21,3 +23,14 @@ strong invariant performanceFeeRecipient()
 strong invariant managementFeeRecipient()
     managementFee() != 0 => managementFeeRecipient() != 0;
 
+strong invariant withdrawableShares()
+    withdrawableShares() <= totalSupply() / 10;
+
+// you can never withdraw more than 10% atomically
+rule withrawableShares(method f, env e, calldataarg args) {
+    uint256 totalSupplyBefore = totalSupply();
+
+    f(e, args);
+
+    assert(totalSupply() >= totalSupplyBefore * 9 / 10);
+}
