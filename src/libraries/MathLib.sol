@@ -4,21 +4,6 @@ pragma solidity ^0.8.0;
 import {WAD} from "./ConstantsLib.sol";
 
 library MathLib {
-    /// @dev Returns (x * y) / WAD rounded down.
-    function wMulDown(uint256 x, uint256 y) internal pure returns (uint256) {
-        return mulDivDown(x, y, WAD);
-    }
-
-    /// @dev Returns (x * WAD) / y rounded down.
-    function wDivDown(uint256 x, uint256 y) internal pure returns (uint256) {
-        return mulDivDown(x, WAD, y);
-    }
-
-    /// @dev Returns (x * WAD) / y rounded up.
-    function wDivUp(uint256 x, uint256 y) internal pure returns (uint256) {
-        return mulDivUp(x, WAD, y);
-    }
-
     /// @dev Returns (x * y) / d rounded down.
     function mulDivDown(uint256 x, uint256 y, uint256 d) internal pure returns (uint256) {
         return (x * y) / d;

@@ -190,7 +190,7 @@ contract VaultV2 is IVaultV2 {
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
         require(newRelativeCap < relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
         require(idsWithRelativeCap[index] == id, ErrorsLib.IdNotFound());
-        require(allocation[id] <= totalAssets.wMulDown(newRelativeCap), ErrorsLib.RelativeCapExceeded());
+        require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
 
         if (newRelativeCap == 0) {
             idsWithRelativeCap[index] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
@@ -214,7 +214,7 @@ contract VaultV2 is IVaultV2 {
             allocation[ids[i]] += amount;
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
-            require(allocation[ids[i]] <= totalAssets.wMulDown(relativeCap[ids[i]]), ErrorsLib.RelativeCapExceeded());
+            require(allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD), ErrorsLib.RelativeCapExceeded());
         }
     }
 
@@ -252,7 +252,7 @@ contract VaultV2 is IVaultV2 {
     function accruedFeeShares() public view returns (uint256, uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         uint256 interestPerSecond = IIRM(irm).interestPerSecond(totalAssets, elapsed);
-        require(interestPerSecond <= totalAssets.wMulDown(MAX_RATE_PER_SECOND), ErrorsLib.InvalidRate());
+        require(interestPerSecond <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssets + interest;
 
@@ -267,19 +267,19 @@ contract VaultV2 is IVaultV2 {
         // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
         uint256 totalPerformanceFeeShares;
         if (interest > 0 && performanceFee != 0) {
-            uint256 performanceFeeAssets = interest.wMulDown(performanceFee);
+            uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
             totalPerformanceFeeShares =
                 performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
-            protocolPerformanceFeeShares = totalPerformanceFeeShares.wMulDown(protocolFee);
+            protocolPerformanceFeeShares = totalPerformanceFeeShares.mulDivDown(protocolFee, WAD);
             performanceFeeShares = totalPerformanceFeeShares - protocolPerformanceFeeShares;
         }
         if (managementFee != 0) {
             // Using newTotalAssets to make all approximations consistent.
-            uint256 managementFeeAssets = (newTotalAssets * elapsed).wMulDown(managementFee);
+            uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
             uint256 totalManagementFeeShares = managementFeeAssets.mulDivDown(
                 totalSupply + 1 + totalPerformanceFeeShares, newTotalAssets + 1 - managementFeeAssets
             );
-            protocolManagementFeeShares = totalManagementFeeShares.wMulDown(protocolFee);
+            protocolManagementFeeShares = totalManagementFeeShares.mulDivDown(protocolFee, WAD);
             managementFeeShares = totalManagementFeeShares - protocolManagementFeeShares;
         }
         uint256 protocolFeeShares = protocolPerformanceFeeShares + protocolManagementFeeShares;
@@ -343,7 +343,7 @@ contract VaultV2 is IVaultV2 {
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
-            require(allocation[id] <= totalAssets.wMulDown(relativeCap[id]), ErrorsLib.RelativeCapExceeded());
+            require(allocation[id] <= totalAssets.mulDivDown(relativeCap[id], WAD), ErrorsLib.RelativeCapExceeded());
         }
     }
 
