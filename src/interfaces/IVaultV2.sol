@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity >=0.5.0;
 
-import {IERC20} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "./IERC20.sol";
 
 interface IAdapter {
     function allocateIn(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
     function allocateOut(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
 }
 
-interface IVaultV2 {
+interface IVaultV2 is IERC20 {
     // State variables
-    function asset() external view returns (IERC20);
+    function asset() external view returns (address);
     function owner() external view returns (address);
     function curator() external view returns (address);
     function isSentinel(address) external view returns (bool);
