@@ -328,20 +328,20 @@ contract VaultV2 is IVaultV2 {
     }
 
     // TODO: how to hook on deposit so that assets are atomically allocated ?
-    function deposit(uint256 assets, address receiver) public virtual returns (uint256 shares) {
+    function deposit(uint256 assets, address receiver) public returns (uint256 shares) {
         accrueInterest();
         // Note that it could be made more efficient by caching totalAssets.
         shares = convertToShares(assets, Math.Rounding.Floor);
         _deposit(assets, shares, receiver);
     }
 
-    function mint(uint256 shares, address receiver) public virtual returns (uint256 assets) {
+    function mint(uint256 shares, address receiver) public returns (uint256 assets) {
         accrueInterest();
         assets = convertToAssets(shares, Math.Rounding.Ceil);
         _deposit(assets, shares, receiver);
     }
 
-    function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal virtual {
+    function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal {
         uint256 _allowance = allowance[supplier][msg.sender];
         if (msg.sender != supplier && _allowance != type(uint256).max) {
             allowance[supplier][msg.sender] = _allowance - shares;
@@ -361,13 +361,13 @@ contract VaultV2 is IVaultV2 {
 
     // Note that it is not callable by default, if there is no liquidity.
     // This is actually a feature, so that the curator can pause withdrawals if necessary/wanted.
-    function withdraw(uint256 assets, address receiver, address supplier) public virtual returns (uint256 shares) {
+    function withdraw(uint256 assets, address receiver, address supplier) public returns (uint256 shares) {
         accrueInterest();
         shares = convertToShares(assets, Math.Rounding.Ceil);
         _withdraw(assets, shares, receiver, supplier);
     }
 
-    function redeem(uint256 shares, address receiver, address supplier) public virtual returns (uint256 assets) {
+    function redeem(uint256 shares, address receiver, address supplier) public returns (uint256 assets) {
         accrueInterest();
         assets = convertToAssets(shares, Math.Rounding.Floor);
         _withdraw(assets, shares, receiver, supplier);
@@ -457,7 +457,6 @@ contract VaultV2 is IVaultV2 {
 
     function permit(address _owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         public
-        virtual
     {
         bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonces[_owner]++, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
@@ -470,7 +469,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Approval(recoveredAddress, spender, value);
     }
 
-    function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {
+    function DOMAIN_SEPARATOR() public view returns (bytes32) {
         return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
     }
 
