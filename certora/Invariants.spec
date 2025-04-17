@@ -11,6 +11,7 @@ methods {
     function allocation(bytes32 id) external returns uint256 envfree;
 
     function totalAssets() external returns uint256 envfree;
+    function balanceOf(address) external returns uint256 envfree;
 }
 
 /// INVARIANTS ///
@@ -21,3 +22,5 @@ strong invariant performanceFeeRecipient()
 strong invariant managementFeeRecipient()
     managementFee() != 0 => managementFeeRecipient() != 0;
 
+strong invariant balanceOfZero() 
+    balanceOf(0) == 0;
