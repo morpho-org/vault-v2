@@ -3,7 +3,8 @@ pragma solidity 0.8.28;
 
 import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 
-import {IVaultV2, IERC20, IAdapter} from "./interfaces/IVaultV2.sol";
+import {IVaultV2, IERC20Permit, IAdapter} from "./interfaces/IVaultV2.sol";
+import {IERC20} from "./interfaces/IERC20.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 

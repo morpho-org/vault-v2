@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity >=0.5.0;
 
-import {IERC20} from "./IERC20.sol";
+import {IERC20Permit} from "./IERC20Permit.sol";
 
 interface IAdapter {
     function allocateIn(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
     function allocateOut(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
 }
 
-interface IVaultV2 is IERC20 {
+interface IVaultV2 is IERC20Permit {
     // State variables
     function asset() external view returns (address);
     function owner() external view returns (address);
