@@ -21,8 +21,8 @@ The curator and allocator are then responsible for the management of the corresp
 Each market has a supply cap and a relative cap that guarantees lenders both a maximum absolute and a maximum relative exposure to the specific market.
 Users can supply or withdraw assets at any time, depending on the available liquidity on the liquidity market.
 
-In Vault V2, all actions are potentially subject to a timelock.
-Owners are encouraged to subect actions that may be against users' interests (e.g. enabling a market with a high exposure) to a timelock.
+In Vault V2, all actions can be timelocked (except `reallocateIn` and `reallocateOut`).
+Owners are encouraged to subject actions that may be against users' interests (e.g. enabling a market with a high exposure) to a timelock.
 Timelocks change must set the value between 0 and 2 weeks.
 
 The `sentinel`, if set, can revoke the actions taken by other roles during the timelock, with the exception of the action setting the sentinel.
