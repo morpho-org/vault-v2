@@ -15,8 +15,6 @@ contract ERC20Test is BaseTest {
 
     struct PermitInfo {
         uint256 privateKey;
-        address to;
-        uint256 amount;
         uint256 nonce;
         uint256 deadline;
     }
@@ -29,6 +27,20 @@ contract ERC20Test is BaseTest {
         bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, owner, to, amount, nonce, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", vault.DOMAIN_SEPARATOR(), hashStruct));
         return vm.sign(privateKey, digest);
+    }
+
+    function _setupPermit(PermitInfo calldata p)
+        internal
+        returns (address owner, uint256 privateKey, uint256 nonce, uint256 deadline)
+    {
+        privateKey = boundPrivateKey(p.privateKey);
+        owner = vm.addr(privateKey);
+        deadline = bound(p.deadline, block.timestamp, type(uint256).max);
+        nonce = bound(p.nonce, 0, type(uint256).max - 1);
+    }
+
+    function _setCurrentNonce(address owner, uint256 nonce) internal {
+        stdstore.target(address(vault)).sig("nonces(address)").with_key(owner).checked_write(nonce);
     }
 
     function setUp() public override {
@@ -233,25 +245,8 @@ contract ERC20Test is BaseTest {
         vault.redeem(burnAmount, to, to);
     }
 
-    function _setupPermit(PermitInfo calldata p)
-        internal
-        returns (address owner, uint256 privateKey, address to, uint256 amount, uint256 nonce, uint256 deadline)
-    {
-        privateKey = boundPrivateKey(p.privateKey);
-        owner = vm.addr(privateKey);
-        deadline = bound(p.deadline, block.timestamp, type(uint256).max);
-        nonce = bound(p.nonce, 0, type(uint256).max - 1);
-        to = p.to;
-        amount = p.amount;
-    }
-
-    function _setCurrentNonce(address owner, uint256 nonce) internal {
-        stdstore.target(address(vault)).sig("nonces(address)").with_key(owner).checked_write(nonce);
-    }
-
-    function testPermitOK(PermitInfo calldata p) public {
-        (address owner, uint256 privateKey, address to, uint256 amount, uint256 nonce, uint256 deadline) =
-            _setupPermit(p);
+    function testPermitOK(PermitInfo calldata p, address to, uint256 amount) public {
+        (address owner, uint256 privateKey, uint256 nonce, uint256 deadline) = _setupPermit(p);
         _setCurrentNonce(owner, nonce);
 
         (uint8 v, bytes32 r, bytes32 s) = _signPermit(privateKey, owner, to, amount, nonce, deadline);
@@ -264,9 +259,8 @@ contract ERC20Test is BaseTest {
         assertEq(vault.nonces(owner), nonce + 1);
     }
 
-    function testPermitBadOwnerReverts(PermitInfo calldata p, address badOwner) public {
-        (address owner, uint256 privateKey, address to, uint256 amount, uint256 nonce, uint256 deadline) =
-            _setupPermit(p);
+    function testPermitBadOwnerReverts(PermitInfo calldata p, address to, uint256 amount, address badOwner) public {
+        (address owner, uint256 privateKey, uint256 nonce, uint256 deadline) = _setupPermit(p);
         _setCurrentNonce(owner, nonce);
 
         vm.assume(owner != badOwner);
@@ -277,9 +271,10 @@ contract ERC20Test is BaseTest {
         vault.permit(owner, to, amount, deadline, v, r, s);
     }
 
-    function testPermitBadSpenderReverts(PermitInfo calldata p, address badSpender) public {
-        (address owner, uint256 privateKey, address to, uint256 amount, uint256 nonce, uint256 deadline) =
-            _setupPermit(p);
+    function testPermitBadSpenderReverts(PermitInfo calldata p, address to, uint256 amount, address badSpender)
+        public
+    {
+        (address owner, uint256 privateKey, uint256 nonce, uint256 deadline) = _setupPermit(p);
         _setCurrentNonce(owner, nonce);
 
         vm.assume(to != badSpender);
@@ -290,9 +285,8 @@ contract ERC20Test is BaseTest {
         vault.permit(owner, to, amount, deadline, v, r, s);
     }
 
-    function testPermitBadNonceReverts(PermitInfo calldata p, uint256 badNonce) public {
-        (address owner, uint256 privateKey, address to, uint256 amount, uint256 nonce, uint256 deadline) =
-            _setupPermit(p);
+    function testPermitBadNonceReverts(PermitInfo calldata p, address to, uint256 amount, uint256 badNonce) public {
+        (address owner, uint256 privateKey, uint256 nonce, uint256 deadline) = _setupPermit(p);
         _setCurrentNonce(owner, nonce);
 
         vm.assume(nonce != badNonce);
@@ -303,9 +297,10 @@ contract ERC20Test is BaseTest {
         vault.permit(owner, to, amount, deadline, v, r, s);
     }
 
-    function testPermitBadDeadlineReverts(PermitInfo calldata p, uint256 badDeadline) public {
-        (address owner, uint256 privateKey, address to, uint256 amount, uint256 nonce, uint256 deadline) =
-            _setupPermit(p);
+    function testPermitBadDeadlineReverts(PermitInfo calldata p, address to, uint256 amount, uint256 badDeadline)
+        public
+    {
+        (address owner, uint256 privateKey, uint256 nonce, uint256 deadline) = _setupPermit(p);
         _setCurrentNonce(owner, nonce);
 
         badDeadline = bound(badDeadline, block.timestamp, type(uint256).max - 1);
@@ -317,9 +312,8 @@ contract ERC20Test is BaseTest {
         vault.permit(owner, to, amount, deadline, v, r, s);
     }
 
-    function testPermitPastDeadlineReverts(PermitInfo calldata p) public {
-        (address owner, uint256 privateKey, address to, uint256 amount, uint256 nonce, uint256 deadline) =
-            _setupPermit(p);
+    function testPermitPastDeadlineReverts(PermitInfo calldata p, address to, uint256 amount) public {
+        (address owner, uint256 privateKey, uint256 nonce, uint256 deadline) = _setupPermit(p);
         _setCurrentNonce(owner, nonce);
 
         deadline = bound(deadline, 0, block.timestamp - 1);
@@ -330,9 +324,8 @@ contract ERC20Test is BaseTest {
         vault.permit(owner, to, amount, deadline, v, r, s);
     }
 
-    function testPermitReplayReverts(PermitInfo calldata p) public {
-        (address owner, uint256 privateKey, address to, uint256 amount, uint256 nonce, uint256 deadline) =
-            _setupPermit(p);
+    function testPermitReplayReverts(PermitInfo calldata p, address to, uint256 amount) public {
+        (address owner, uint256 privateKey, uint256 nonce, uint256 deadline) = _setupPermit(p);
         nonce = bound(nonce, 0, type(uint256).max - 2);
         _setCurrentNonce(owner, nonce);
 
