@@ -113,11 +113,15 @@ contract VaultV2 is IVaultV2 {
     function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
         require(newPerformanceFeeRecipient != address(0) || performanceFee == 0, ErrorsLib.FeeInvariantBroken());
 
+        accrueInterest();
+
         performanceFeeRecipient = newPerformanceFeeRecipient;
     }
 
     function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
         require(newManagementFeeRecipient != address(0) || managementFee == 0, ErrorsLib.FeeInvariantBroken());
+
+        accrueInterest();
 
         managementFeeRecipient = newManagementFeeRecipient;
     }
@@ -147,12 +151,16 @@ contract VaultV2 is IVaultV2 {
         require(newPerformanceFee < WAD, ErrorsLib.FeeTooHigh());
         require(performanceFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
 
+        accrueInterest();
+
         performanceFee = newPerformanceFee;
     }
 
     function setManagementFee(uint256 newManagementFee) external timelocked {
         require(newManagementFee < WAD, ErrorsLib.FeeTooHigh());
         require(managementFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
+
+        accrueInterest();
 
         managementFee = newManagementFee;
     }
