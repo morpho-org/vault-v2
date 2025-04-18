@@ -148,7 +148,7 @@ contract VaultV2 is IVaultV2 {
     /* TREASURER ACTIONS */
 
     function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
-        require(newPerformanceFee < WAD, ErrorsLib.FeeTooHigh());
+        require(newPerformanceFee <= WAD, ErrorsLib.FeeTooHigh());
         require(performanceFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
 
         accrueInterest();
@@ -157,7 +157,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setManagementFee(uint256 newManagementFee) external timelocked {
-        require(newManagementFee < WAD, ErrorsLib.FeeTooHigh());
+        require(newManagementFee <= WAD, ErrorsLib.FeeTooHigh());
         require(managementFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
 
         accrueInterest();
