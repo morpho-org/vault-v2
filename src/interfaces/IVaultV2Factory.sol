@@ -14,5 +14,5 @@ interface IVaultV2Factory {
     function setOwner(address) external;
     function setProtocolFee(uint96) external;
     function setProtocolFeeRecipient(address) external;
-    function createVaultV2(address, address, address, string memory, string memory) external returns (address);
+    function createVaultV2(address, address, string memory, string memory) external returns (address);
 }
