@@ -1,19 +1,33 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity >=0.5.0;
 
-import {IERC20} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "./IERC20.sol";
 
 interface IAdapter {
     function allocateIn(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
     function allocateOut(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
 }
 
-interface IVaultV2 {
+interface IVaultV2 is IERC20 {
+    // ERC-2612 (Permit)
+    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        external;
+    function nonces(address owner) external view returns (uint256);
+    function DOMAIN_SEPARATOR() external view returns (bytes32);
+
+    // ERC-4626 (incomplete)
+    function asset() external view returns (address);
+    function totalAssets() external view returns (uint256);
+    function convertToShares(uint256 assets) external view returns (uint256);
+    function convertToAssets(uint256 shares) external view returns (uint256);
+    function deposit(uint256 assets, address receiver) external returns (uint256);
+    function mint(uint256 shares, address receiver) external returns (uint256);
+    function withdraw(uint256 assets, address receiver, address owner) external returns (uint256);
+    function redeem(uint256 shares, address receiver, address owner) external returns (uint256);
+
     // State variables
-    function asset() external view returns (IERC20);
     function owner() external view returns (address);
     function curator() external view returns (address);
-    function guardian() external view returns (address);
     function isSentinel(address) external view returns (bool);
     function isAllocator(address) external view returns (bool);
     function performanceFee() external view returns (uint256);
@@ -25,11 +39,10 @@ interface IVaultV2 {
     function irm() external view returns (address);
     function allocation(bytes32) external view returns (uint256);
     function lastUpdate() external view returns (uint256);
-    function totalAssets() external view returns (uint256);
     function absoluteCap(bytes32) external view returns (uint256);
     function relativeCap(bytes32) external view returns (uint256);
     function validAt(bytes calldata) external view returns (uint256);
-    function timelockDuration(bytes4) external view returns (uint64);
+    function timelock(bytes4) external view returns (uint256);
     function canRequestExit(address, address) external view returns (bool);
     function exitRequests(address) external view returns (uint128, uint128);
     function maxMissingExitAssetsDuration() external view returns (uint256);
@@ -42,12 +55,11 @@ interface IVaultV2 {
     function setOwner(address) external;
     function setCurator(address) external;
     function setIsSentinel(address, bool) external;
-    function setGuardian(address) external;
     function setTreasurer(address) external;
-    function increaseTimelock(bytes4, uint64) external;
-    function decreaseTimelock(bytes4, uint64) external;
+    function increaseTimelock(bytes4, uint256) external;
+    function decreaseTimelock(bytes4, uint256) external;
     function setIsAllocator(address, bool) external;
-
+    function setIsAdapter(address, bool) external;
     // Treasurer actions
     function setPerformanceFee(uint256) external;
     function setManagementFee(uint256) external;
@@ -70,18 +82,12 @@ interface IVaultV2 {
     // Exchange rate
     function accrueInterest() external;
     function accruedFeeShares() external returns (uint256, uint256, uint256, uint256);
-    function convertToShares(uint256) external view returns (uint256);
-    function convertToAssets(uint256) external view returns (uint256);
 
     // Timelocks
     function submit(bytes calldata) external;
     function revoke(bytes calldata) external;
 
     // User actions
-    function deposit(uint256, address) external returns (uint256);
-    function mint(uint256, address) external returns (uint256);
-    function withdraw(uint256, address, address) external returns (uint256);
-    function redeem(uint256, address, address) external returns (uint256);
     function requestExit(uint256, address) external;
     function claimExit(uint256, address, address) external returns (uint256);
 }
