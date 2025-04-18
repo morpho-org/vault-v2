@@ -53,7 +53,7 @@ contract ERC20Test is BaseTest {
         vm.assume(amount <= MAX_DEPOSIT);
 
         vm.expectEmit();
-        emit IVaultV2.Transfer(address(0), address(this), amount);
+        emit IERC20.Transfer(address(0), address(this), amount);
 
         vault.mint(amount, address(this));
         assertEq(vault.totalSupply(), amount, "total supply");
@@ -71,7 +71,7 @@ contract ERC20Test is BaseTest {
 
         vault.mint(amount, address(this));
         vm.expectEmit();
-        emit IVaultV2.Transfer(address(this), address(0), amountRedeemed);
+        emit IERC20.Transfer(address(this), address(0), amountRedeemed);
 
         vault.redeem(amountRedeemed, address(this), address(this));
 
@@ -87,7 +87,7 @@ contract ERC20Test is BaseTest {
     function testApprove(address spender, uint256 amount) public {
         vm.assume(amount <= MAX_DEPOSIT);
         vm.expectEmit();
-        emit IVaultV2.Approval(address(this), address(spender), amount);
+        emit IERC20.Approval(address(this), address(spender), amount);
 
         assertTrue(vault.approve(spender, amount));
         assertEq(vault.allowance(address(this), spender), amount);
@@ -101,7 +101,7 @@ contract ERC20Test is BaseTest {
         vault.mint(amount, address(this));
 
         vm.expectEmit();
-        emit IVaultV2.Transfer(address(this), address(to), amountTransferred);
+        emit IERC20.Transfer(address(this), address(to), amountTransferred);
 
         assertTrue(vault.transfer(to, amountTransferred));
 
@@ -139,7 +139,7 @@ contract ERC20Test is BaseTest {
         vault.approve(address(this), amountApproved);
 
         vm.expectEmit();
-        emit IVaultV2.Transfer(from, to, amountTransferred);
+        emit IERC20.Transfer(from, to, amountTransferred);
         vault.transferFrom(from, to, amountTransferred);
 
         assertEq(vault.allowance(from, address(this)), amountApproved - amountTransferred, "allowance");
@@ -181,7 +181,7 @@ contract ERC20Test is BaseTest {
         vault.approve(address(this), type(uint256).max);
 
         vm.expectEmit();
-        emit IVaultV2.Transfer(from, to, amountTransferred);
+        emit IERC20.Transfer(from, to, amountTransferred);
 
         vault.transferFrom(from, to, amountTransferred);
         assertEq(vault.allowance(from, address(this)), type(uint256).max, "allowance");
@@ -251,7 +251,7 @@ contract ERC20Test is BaseTest {
         (uint8 v, bytes32 r, bytes32 s) = _signPermit(privateKey, owner, to, amount, nonce, deadline);
 
         vm.expectEmit();
-        emit IVaultV2.Approval(owner, to, amount);
+        emit IERC20.Approval(owner, to, amount);
 
         vault.permit(owner, to, amount, deadline, v, r, s);
         assertEq(vault.allowance(owner, to), amount);

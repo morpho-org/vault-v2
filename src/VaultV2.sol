@@ -308,6 +308,8 @@ contract VaultV2 is IVaultV2 {
         SafeTransferLib.safeTransferFrom(IERC20(asset), msg.sender, address(this), assets);
         _mint(receiver, shares);
         totalAssets += assets;
+
+        emit Deposit(msg.sender, receiver, assets, shares);
     }
 
     // TODO: how to hook on deposit so that assets are atomically allocated ?
@@ -337,6 +339,8 @@ contract VaultV2 is IVaultV2 {
             bytes32 id = idsWithRelativeCap[i];
             require(allocation[id] <= totalAssets.mulDivDown(relativeCap[id], WAD), ErrorsLib.RelativeCapExceeded());
         }
+
+        emit Withdraw(msg.sender, receiver, supplier, assets, shares);
     }
 
     // Note that it is not callable by default, if there is no liquidity.

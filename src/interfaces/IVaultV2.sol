@@ -25,6 +25,9 @@ interface IVaultV2 is IERC20 {
     function withdraw(uint256 assets, address receiver, address owner) external returns (uint256);
     function redeem(uint256 shares, address receiver, address owner) external returns (uint256);
 
+    event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
+    event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
+
     // State variables
     function owner() external view returns (address);
     function curator() external view returns (address);
