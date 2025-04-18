@@ -6,3 +6,4 @@ bytes32 constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(uint256 chainId,addre
 bytes32 constant PERMIT_TYPEHASH =
     keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
 uint256 constant MAX_RATE_PER_SECOND = (1e18 + 200 * 1e16) / uint256(365 days); // 200% APR
+uint256 constant TIMELOCK_CAP = 2 weeks;
