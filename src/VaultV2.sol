@@ -268,7 +268,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
         exitBalances[supplier] -= shares;
         totalExitSupply -= shares;
-        uint256 exitShares = shares.mulDiv(WAD - exitFee, WAD,Math.Rounding.Floor);
+        uint256 exitShares = shares.mulDiv(WAD - exitFee, WAD, Math.Rounding.Floor);
         _update(supplier, exitFeeRecipient, shares - exitShares);
         accrueInterest();
         claimedAssets = convertToAssets(exitShares, Math.Rounding.Floor);
@@ -409,11 +409,10 @@ contract VaultV2 is ERC20, IVaultV2 {
         _mint(receiver, shares);
         totalAssets += assets;
 
-        int missingAssets = updateMissingExitAssets();
+        int256 missingAssets = updateMissingExitAssets();
         if (missingAssets < 0) {
-            uint toReallocate = UtilsLib.min(uint256(-missingAssets),assets);
-            try this.reallocateFromIdle(depositAdapter, depositData, toReallocate) {}
-            catch { }
+            uint256 toReallocate = UtilsLib.min(uint256(-missingAssets), assets);
+            try this.reallocateFromIdle(depositAdapter, depositData, toReallocate) {} catch {}
         }
     }
 
