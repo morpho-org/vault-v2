@@ -30,10 +30,10 @@ strong invariant managementFeeRecipient()
     managementFee() != 0 => managementFeeRecipient() != 0;
 
 strong invariant performanceFee()
-    performanceFee() < MAX_PERFOMANCE_FEE();
+    performanceFee() <= MAX_PERFOMANCE_FEE();
 
 strong invariant managementFee()
-    managementFee() < MAX_MANAGEMENT_FEE();
+    managementFee() <= MAX_MANAGEMENT_FEE();
 
 strong invariant balanceOfZero() 
     balanceOf(0) == 0;
