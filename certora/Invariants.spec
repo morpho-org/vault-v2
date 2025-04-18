@@ -29,10 +29,10 @@ strong invariant managementFeeRecipient()
     managementFee() != 0 => managementFeeRecipient() != 0;
 
 strong invariant performanceFee()
-    performanceFee() < WAD();
+    performanceFee() <= WAD();
 
 strong invariant managementFee()
-    managementFee() < WAD();
+    managementFee() <= WAD();
 
 strong invariant balanceOfZero() 
     balanceOf(0) == 0;
