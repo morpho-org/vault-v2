@@ -1,7 +1,7 @@
 # Vault v2
 
 Morpho Vault V2 is a protocol for noncustodial risk management.
-It enables anyone to create a vault depositing liquidity into both Morpho Market V2 and [Morpho Market V1](https://github.com/morpho-org/morpho-blue).
+It enables anyone to create a vault depositing liquidity into different venues, including Morpho markets V1 and V2.
 
 Users of Morpho Vault V2 are liquidity providers who want to earn from borrowing interest without having to actively manage the risk of their position.
 The active management of the deposited assets is the responsibility of a set of different roles.
