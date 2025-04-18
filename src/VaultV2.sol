@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {Math} from "../lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
-
 import {IVaultV2, IERC20, IAdapter} from "./interfaces/IVaultV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
@@ -10,12 +8,11 @@ import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
 import {WAD, MAX_RATE_PER_SECOND, PERMIT_TYPEHASH, DOMAIN_TYPEHASH, TIMELOCK_CAP} from "./libraries/ConstantsLib.sol";
-import {UtilsLib} from "./libraries/UtilsLib.sol";
+import {MathLib} from "./libraries/MathLib.sol";
 import {SafeTransferLib} from "./libraries/SafeTransferLib.sol";
 
 contract VaultV2 is IVaultV2 {
-    using Math for uint256;
-    using UtilsLib for uint256;
+    using MathLib for uint256;
     using SafeTransferLib for IERC20;
 
     /* IMMUTABLE */
@@ -189,10 +186,7 @@ contract VaultV2 is IVaultV2 {
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
         require(newRelativeCap < relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
         require(idsWithRelativeCap[index] == id, ErrorsLib.IdNotFound());
-        require(
-            allocation[id] <= totalAssets.mulDiv(newRelativeCap, WAD, Math.Rounding.Floor),
-            ErrorsLib.RelativeCapExceeded()
-        );
+        require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
 
         if (newRelativeCap == 0) {
             idsWithRelativeCap[index] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
@@ -211,7 +205,7 @@ contract VaultV2 is IVaultV2 {
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        IERC20(asset).safeTransfer(adapter, amount);
+        SafeTransferLib.safeTransfer(IERC20(asset), adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
 
         for (uint256 i; i < ids.length; i++) {
@@ -219,8 +213,7 @@ contract VaultV2 is IVaultV2 {
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
             require(
-                allocation[ids[i]] <= totalAssets.mulDiv(relativeCap[ids[i]], WAD, Math.Rounding.Floor),
-                ErrorsLib.RelativeCapExceeded()
+                allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD), ErrorsLib.RelativeCapExceeded()
             );
         }
     }
@@ -239,7 +232,7 @@ contract VaultV2 is IVaultV2 {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(amount);
         }
 
-        IERC20(asset).safeTransferFrom(adapter, address(this), amount);
+        SafeTransferLib.safeTransferFrom(IERC20(asset), adapter, address(this), amount);
     }
 
     function setDepositData(address newDepositAdapter, bytes memory newDepositData) external timelocked {
@@ -271,10 +264,7 @@ contract VaultV2 is IVaultV2 {
     function accruedFeeShares() public view returns (uint256, uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         uint256 interestPerSecond = IIRM(irm).interestPerSecond(totalAssets, elapsed);
-        require(
-            interestPerSecond <= totalAssets.mulDiv(MAX_RATE_PER_SECOND, WAD, Math.Rounding.Floor),
-            ErrorsLib.InvalidRate()
-        );
+        require(interestPerSecond <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssets + interest;
 
@@ -289,22 +279,19 @@ contract VaultV2 is IVaultV2 {
         // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
         uint256 totalPerformanceFeeShares;
         if (interest > 0 && performanceFee != 0) {
-            uint256 performanceFeeAssets = interest.mulDiv(performanceFee, WAD, Math.Rounding.Floor);
-            totalPerformanceFeeShares = performanceFeeAssets.mulDiv(
-                totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets, Math.Rounding.Floor
-            );
-            protocolPerformanceFeeShares = totalPerformanceFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
+            uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
+            totalPerformanceFeeShares =
+                performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
+            protocolPerformanceFeeShares = totalPerformanceFeeShares.mulDivDown(protocolFee, WAD);
             performanceFeeShares = totalPerformanceFeeShares - protocolPerformanceFeeShares;
         }
         if (managementFee != 0) {
             // Using newTotalAssets to make all approximations consistent.
-            uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDiv(managementFee, WAD, Math.Rounding.Floor);
-            uint256 totalManagementFeeShares = managementFeeAssets.mulDiv(
-                totalSupply + 1 + totalPerformanceFeeShares,
-                newTotalAssets + 1 - managementFeeAssets,
-                Math.Rounding.Floor
+            uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
+            uint256 totalManagementFeeShares = managementFeeAssets.mulDivDown(
+                totalSupply + 1 + totalPerformanceFeeShares, newTotalAssets + 1 - managementFeeAssets
             );
-            protocolManagementFeeShares = totalManagementFeeShares.mulDiv(protocolFee, WAD, Math.Rounding.Floor);
+            protocolManagementFeeShares = totalManagementFeeShares.mulDivDown(protocolFee, WAD);
             managementFeeShares = totalManagementFeeShares - protocolManagementFeeShares;
         }
         uint256 protocolFeeShares = protocolPerformanceFeeShares + protocolManagementFeeShares;
@@ -312,26 +299,33 @@ contract VaultV2 is IVaultV2 {
     }
 
     function convertToShares(uint256 assets) external view returns (uint256) {
-        return convertToShares(assets, Math.Rounding.Floor);
-    }
-
-    // TODO: extract virtual shares and assets (= 1).
-    function convertToShares(uint256 assets, Math.Rounding rounding) internal view returns (uint256 shares) {
-        shares = assets.mulDiv(totalSupply + 1, totalAssets + 1, rounding);
+        return convertToSharesDown(assets);
     }
 
     function convertToAssets(uint256 shares) external view returns (uint256) {
-        return convertToAssets(shares, Math.Rounding.Floor);
+        return convertToAssetsDown(shares);
     }
 
-    function convertToAssets(uint256 shares, Math.Rounding rounding) internal view returns (uint256 assets) {
-        assets = shares.mulDiv(totalAssets + 1, totalSupply + 1, rounding);
+    function convertToSharesDown(uint256 assets) internal view returns (uint256) {
+        return assets.mulDivDown(totalSupply + 1, totalAssets + 1);
+    }
+
+    function convertToSharesUp(uint256 assets) internal view returns (uint256) {
+        return assets.mulDivUp(totalSupply + 1, totalAssets + 1);
+    }
+
+    function convertToAssetsDown(uint256 shares) internal view returns (uint256) {
+        return shares.mulDivDown(totalAssets + 1, totalSupply + 1);
+    }
+
+    function convertToAssetsUp(uint256 shares) internal view returns (uint256) {
+        return shares.mulDivUp(totalAssets + 1, totalSupply + 1);
     }
 
     /* USER INTERACTION */
 
     function _deposit(uint256 assets, uint256 shares, address receiver) internal {
-        IERC20(asset).safeTransferFrom(msg.sender, address(this), assets);
+        SafeTransferLib.safeTransferFrom(IERC20(asset), msg.sender, address(this), assets);
         _mint(receiver, shares);
         totalAssets += assets;
 
@@ -339,20 +333,20 @@ contract VaultV2 is IVaultV2 {
     }
 
     // TODO: how to hook on deposit so that assets are atomically allocated ?
-    function deposit(uint256 assets, address receiver) public virtual returns (uint256 shares) {
+    function deposit(uint256 assets, address receiver) public returns (uint256 shares) {
         accrueInterest();
         // Note that it could be made more efficient by caching totalAssets.
-        shares = convertToShares(assets, Math.Rounding.Floor);
+        shares = convertToSharesDown(assets);
         _deposit(assets, shares, receiver);
     }
 
-    function mint(uint256 shares, address receiver) public virtual returns (uint256 assets) {
+    function mint(uint256 shares, address receiver) public returns (uint256 assets) {
         accrueInterest();
-        assets = convertToAssets(shares, Math.Rounding.Ceil);
+        assets = convertToAssetsUp(shares);
         _deposit(assets, shares, receiver);
     }
 
-    function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal virtual {
+    function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal {
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets) {
             try this.reallocateToIdle(withdrawAdapter, withdrawData, assets - idleAssets) {} catch {}
@@ -362,29 +356,26 @@ contract VaultV2 is IVaultV2 {
             allowance[supplier][msg.sender] = _allowance - shares;
         }
         _burn(supplier, shares);
-        IERC20(asset).safeTransfer(receiver, assets);
+        SafeTransferLib.safeTransfer(IERC20(asset), receiver, assets);
         totalAssets -= assets;
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
-            require(
-                allocation[id] <= totalAssets.mulDiv(relativeCap[id], WAD, Math.Rounding.Floor),
-                ErrorsLib.RelativeCapExceeded()
-            );
+            require(allocation[id] <= totalAssets.mulDivDown(relativeCap[id], WAD), ErrorsLib.RelativeCapExceeded());
         }
     }
 
     // Note that it is not callable by default, if there is no liquidity.
     // This is actually a feature, so that the curator can pause withdrawals if necessary/wanted.
-    function withdraw(uint256 assets, address receiver, address supplier) public virtual returns (uint256 shares) {
+    function withdraw(uint256 assets, address receiver, address supplier) public returns (uint256 shares) {
         accrueInterest();
-        shares = convertToShares(assets, Math.Rounding.Ceil);
+        shares = convertToSharesUp(assets);
         _withdraw(assets, shares, receiver, supplier);
     }
 
-    function redeem(uint256 shares, address receiver, address supplier) public virtual returns (uint256 assets) {
+    function redeem(uint256 shares, address receiver, address supplier) public returns (uint256 assets) {
         accrueInterest();
-        assets = convertToAssets(shares, Math.Rounding.Floor);
+        assets = convertToAssetsDown(shares);
         _withdraw(assets, shares, receiver, supplier);
     }
 
@@ -475,7 +466,6 @@ contract VaultV2 is IVaultV2 {
 
     function permit(address _owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         public
-        virtual
     {
         bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonces[_owner]++, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
@@ -488,7 +478,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Approval(recoveredAddress, spender, value);
     }
 
-    function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {
+    function DOMAIN_SEPARATOR() public view returns (bytes32) {
         return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
     }
 

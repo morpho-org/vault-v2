@@ -9,8 +9,23 @@ interface IAdapter {
 }
 
 interface IVaultV2 is IERC20 {
-    // State variables
+    // ERC-2612 (Permit)
+    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        external;
+    function nonces(address owner) external view returns (uint256);
+    function DOMAIN_SEPARATOR() external view returns (bytes32);
+
+    // ERC-4626 (incomplete)
     function asset() external view returns (address);
+    function totalAssets() external view returns (uint256);
+    function convertToShares(uint256 assets) external view returns (uint256);
+    function convertToAssets(uint256 shares) external view returns (uint256);
+    function deposit(uint256 assets, address receiver) external returns (uint256);
+    function mint(uint256 shares, address receiver) external returns (uint256);
+    function withdraw(uint256 assets, address receiver, address owner) external returns (uint256);
+    function redeem(uint256 shares, address receiver, address owner) external returns (uint256);
+
+    // State variables
     function owner() external view returns (address);
     function curator() external view returns (address);
     function isSentinel(address) external view returns (bool);
@@ -22,7 +37,6 @@ interface IVaultV2 is IERC20 {
     function irm() external view returns (address);
     function allocation(bytes32) external view returns (uint256);
     function lastUpdate() external view returns (uint256);
-    function totalAssets() external view returns (uint256);
     function absoluteCap(bytes32) external view returns (uint256);
     function relativeCap(bytes32) external view returns (uint256);
     function validAt(bytes calldata) external view returns (uint256);
@@ -59,16 +73,8 @@ interface IVaultV2 is IERC20 {
     // Exchange rate
     function accrueInterest() external;
     function accruedFeeShares() external returns (uint256, uint256, uint256, uint256);
-    function convertToShares(uint256) external view returns (uint256);
-    function convertToAssets(uint256) external view returns (uint256);
 
     // Timelocks
     function submit(bytes calldata) external;
     function revoke(bytes calldata) external;
-
-    // User actions
-    function deposit(uint256, address) external returns (uint256);
-    function mint(uint256, address) external returns (uint256);
-    function withdraw(uint256, address, address) external returns (uint256);
-    function redeem(uint256, address, address) external returns (uint256);
 }
