@@ -75,7 +75,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     mapping(address account => bytes32) internal roles;
     mapping(string roleName => bytes32) internal roleIds;
 
-    mapping(bytes => uint) internal validAt;
+    mapping(bytes => uint256) internal validAt;
     mapping(bytes => bytes32) internal dataHash;
     mapping(bytes4 => uint64) public timelockDuration;
 
@@ -112,8 +112,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(functionSelector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
 
-        if (timelock(abi.encode("timelock",functionSelector),hasRole(OWNER_ROLE))) {
-            require(newDuration > timelockDuration[functionSelector],ErrorsLib.TimelockNotIncreasing());
+        if (timelock(abi.encode("timelock", functionSelector), hasRole(OWNER_ROLE))) {
+            require(newDuration > timelockDuration[functionSelector], ErrorsLib.TimelockNotIncreasing());
             timelockDuration[functionSelector] = newDuration;
         }
     }
@@ -122,8 +122,8 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(functionSelector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
 
-        if (timelock(abi.encode("timelock",functionSelector), hasRole(OWNER_ROLE))) {
-            require(newDuration < timelockDuration[functionSelector],ErrorsLib.TimelockNotDecreasing());
+        if (timelock(abi.encode("timelock", functionSelector), hasRole(OWNER_ROLE))) {
+            require(newDuration < timelockDuration[functionSelector], ErrorsLib.TimelockNotDecreasing());
             timelockDuration[functionSelector] = newDuration;
         }
     }
@@ -142,7 +142,7 @@ contract VaultV2 is ERC20, IVaultV2 {
                      || (hasRole(SENTINEL_ROLE) && role != SENTINEL_ROLE);
         // forgefmt: disable-end
 
-        if (timelock(abi.encode(msg.sig,role), canSubmit, canRevoke)) _setRole(account, role, on);
+        if (timelock(abi.encode(msg.sig, role), canSubmit, canRevoke)) _setRole(account, role, on);
     }
 
     function _setRole(address account, bytes32 role, bool on) internal {
@@ -188,13 +188,13 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     function setAbsoluteCap(bytes32 id, uint256 newCap) external {
         bool canSubmit = hasRole(CURATOR_ROLE) || (hasRole(SENTINEL_ROLE) && newCap < absoluteCap[id]);
-        if (timelock(abi.encode(msg.sig,id),canSubmit)) absoluteCap[id] = newCap;
+        if (timelock(abi.encode(msg.sig, id), canSubmit)) absoluteCap[id] = newCap;
     }
 
     function setRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external {
         uint256 currentRelativeCap = relativeCap[id];
         bool canSubmit = hasRole(CURATOR_ROLE) || (hasRole(SENTINEL_ROLE) && newRelativeCap < currentRelativeCap);
-        if (timelock(abi.encode(msg.sig,id),canSubmit)) {
+        if (timelock(abi.encode(msg.sig, id), canSubmit)) {
             if (newRelativeCap > currentRelativeCap) {
                 if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
                 relativeCap[id] = newRelativeCap;
