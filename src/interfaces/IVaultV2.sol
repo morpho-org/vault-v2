@@ -15,7 +15,7 @@ interface IVaultV2 is IERC20 {
     function nonces(address owner) external view returns (uint256);
     function DOMAIN_SEPARATOR() external view returns (bytes32);
 
-    // ERC-4626
+    // ERC-4626 (incomplete)
     function asset() external view returns (address);
     function totalAssets() external view returns (uint256);
     function convertToShares(uint256 assets) external view returns (uint256);
