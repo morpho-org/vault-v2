@@ -26,7 +26,7 @@ In Vault V2, all actions can be timelocked (except `reallocateIn` and `reallocat
 Owners are encouraged to subject actions that may be against users' interests (e.g. enabling a market) to a timelock.
 Timelocks values must be between 0 and 2 weeks.
 
-The `sentinel`, if set, can revoke the actions taken by other roles during the timelock, with the exception of the action setting the sentinel.
+Sentinels can revoke the actions taken by other roles during the timelock, with the exception of the action of setting and unsetting a sentinel.
 After the timelock, actions can be executed by anyone.
 
 ### Adapters and markets in Vault V2
