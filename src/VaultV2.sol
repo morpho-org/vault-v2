@@ -11,6 +11,7 @@ import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {WAD} from "./libraries/ConstantsLib.sol";
+import {UtilsLib} from "./libraries/UtilsLib.sol";
 
 contract VaultV2 is ERC20, IVaultV2 {
     using Math for uint256;
@@ -70,8 +71,19 @@ contract VaultV2 is ERC20, IVaultV2 {
     mapping(bytes4 => uint64) public timelockDuration;
 
     mapping(address => mapping(address => bool)) public canRequestExit;
-    mapping(address => uint256) public exitBalances;
-    uint256 public totalExitSupply;
+    mapping(address => ExitRequest) public exitRequests;
+
+    struct ExitRequest {
+        uint128 shares;
+        uint128 maxAssets;
+    }
+
+    uint128 public totalExitSupply;
+
+    // Not updated by share price changes.
+    // May create deadweight idle assets if share price goes down, until a) it comes back up or b) until all exit claims
+    // have been processed.
+    uint128 public totalMaxExitAssets;
 
     uint256 public maxMissingExitAssetsDuration = 1 weeks;
     // Can become incorrect as share price moves.
@@ -255,19 +267,31 @@ contract VaultV2 is ERC20, IVaultV2 {
     // Do not try to redeem normally first
     function requestExit(uint256 shares, address supplier) external {
         if (msg.sender != supplier) require(canRequestExit[supplier][msg.sender], "not allowed to exit");
-        _burn(supplier, shares);
-        exitBalances[supplier] += shares;
-        totalExitSupply += shares;
+
+        uint256 exitShares = shares.mulDiv(WAD - exitFee, WAD);
+        uint256 maxExitAssets = convertToAssets(exitShares, Math.Rounding.Floor);
+        _burn(supplier, exitShares);
+        _update(supplier, exitFeeRecipient, shares - exitShares);
+        exitRequests[supplier].shares += uint128(exitShares);
+        exitRequests[supplier].maxAssets += uint128(maxExitAssets);
+        totalExitSupply += uint128(shares);
+        totalMaxExitAssets += uint128(maxExitAssets);
+        updateMissingExitAssets();
     }
 
     function claimExit(uint256 shares, address receiver, address supplier) external returns (uint256 claimedAssets) {
         if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
-        exitBalances[supplier] -= shares;
-        totalExitSupply -= shares;
-        uint256 exitShares = shares * (WAD - exitFee) / WAD;
-        _update(supplier, exitFeeRecipient, shares - exitShares);
+        uint256 supplierMaxExitAssets = exitRequests[supplier].maxAssets;
+        uint256 supplierExitShares = exitRequests[supplier].shares;
         accrueInterest();
-        claimedAssets = convertToAssets(exitShares, Math.Rounding.Floor);
+        claimedAssets = convertToAssets(shares, Math.Rounding.Floor);
+        uint256 maxExitAssets = shares.mulDiv(supplierMaxExitAssets, supplierExitShares, Math.Rounding.Ceil);
+        if (maxExitAssets < claimedAssets) {
+            claimedAssets = maxExitAssets;
+        }
+        exitRequests[supplier].shares = uint128(supplierExitShares - shares);
+        exitRequests[supplier].maxAssets = uint128(UtilsLib.zeroFloorSub(supplierMaxExitAssets, claimedAssets));
+        totalMaxExitAssets -= uint128(maxExitAssets);
         asset.transfer(receiver, claimedAssets);
 
         updateMissingExitAssets();
@@ -388,11 +412,11 @@ contract VaultV2 is ERC20, IVaultV2 {
 
     // Negative value means idle assets availabel for withdrawal.
     function updateMissingExitAssets() public returns (int256 missingExitAssets) {
-        int256 totalExitAssets = int256(convertToAssets(totalExitSupply, Math.Rounding.Floor));
         int256 idleAssets = int256(asset.balanceOf(address(this)));
-        missingExitAssets = totalExitAssets - idleAssets;
+        missingExitAssets = int256(uint256(totalMaxExitAssets)) - idleAssets;
 
         if (missingExitAssets <= 0) {
+            // can only happen when called by requestExit
             missingExitAssetsSince = 0;
         } else if (missingExitAssetsSince == 0) {
             missingExitAssetsSince = block.timestamp;

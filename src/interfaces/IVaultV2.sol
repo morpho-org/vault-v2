@@ -31,7 +31,7 @@ interface IVaultV2 {
     function validAt(bytes calldata) external view returns (uint256);
     function timelockDuration(bytes4) external view returns (uint64);
     function canRequestExit(address, address) external view returns (bool);
-    function exitBalances(address) external view returns (uint256);
+    function exitRequests(address) external view returns (uint128, uint128);
     function maxMissingExitAssetsDuration() external view returns (uint256);
     function missingExitAssetsSince() external view returns (uint256);
 
