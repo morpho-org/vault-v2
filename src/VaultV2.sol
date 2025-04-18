@@ -73,14 +73,14 @@ contract VaultV2 is IVaultV2 {
     /// @dev function selector => timelock duration
     mapping(bytes4 => uint256) public timelock;
 
-    uint256 internal _totalSupply;
+    uint256 public totalTransferrableSupply;
+    uint256 public totalExitSupply;
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
     mapping(address => uint256) public nonces;
 
     mapping(address => mapping(address => bool)) public canRequestExit;
     mapping(address => uint256) public exitBalances;
-    uint256 public totalExitSupply;
 
     uint256 public maxMissingExitAssetsDuration = 1 weeks;
     // Can become incorrect as share price moves.
@@ -179,6 +179,7 @@ contract VaultV2 is IVaultV2 {
 
     function setExitFee(uint256 newExitFee) external timelocked {
         require(newExitFee < WAD, ErrorsLib.ExitFeeTooHigh());
+        require(exitFeeRecipient != address(0) || newExitFee == 0, ErrorsLib.FeeInvariantBroken());
 
         accrueInterest();
         if (newExitFee > exitFee) require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
@@ -220,8 +221,8 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setMaxMissingExitAssetsDuration(uint256 newMaxMissingExitAssetsDuration) external timelocked {
-        accrueInterest();
         if (newMaxMissingExitAssetsDuration > maxMissingExitAssetsDuration) {
+            accrueInterest();
             require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
         }
 
@@ -255,20 +256,20 @@ contract VaultV2 is IVaultV2 {
     }
 
     function totalSupply() public view override returns (uint256) {
-        return _totalSupply + totalExitSupply;
+        return totalTransferrableSupply + totalExitSupply;
     }
 
     // Do not try to redeem normally first
     function requestExit(uint256 shares, address supplier) external {
-        if (msg.sender != supplier) require(canRequestExit[supplier][msg.sender], "not allowed to exit");
+        if (msg.sender != supplier) require(canRequestExit[supplier][msg.sender], ErrorsLib.Unauthorized());
         _burn(supplier, shares);
         exitBalances[supplier] += shares;
         totalExitSupply += shares;
     }
 
     function claimExit(uint256 shares, address receiver, address supplier) external returns (uint256 claimedAssets) {
-        if (msg.sender != supplier) {
-            uint256 _allowance = allowance[supplier][msg.sender];
+        uint256 _allowance = allowance[supplier][msg.sender];
+        if (msg.sender != supplier && _allowance != type(uint256).max) {
             if (_allowance < type(uint256).max) allowance[supplier][msg.sender] = _allowance - shares;
         }
 
@@ -440,7 +441,7 @@ contract VaultV2 is IVaultV2 {
         _deposit(assets, shares, receiver);
     }
 
-    function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal virtual {
+    function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal {
         int256 missingAssets = int256(assets) + updateMissingExitAssets();
 
         if (missingAssets > 0) {
@@ -592,14 +593,14 @@ contract VaultV2 is IVaultV2 {
     function _mint(address to, uint256 amount) internal {
         require(to != address(0), ErrorsLib.ZeroAddress());
         balanceOf[to] += amount;
-        _totalSupply += amount;
+        totalTransferrableSupply += amount;
         emit EventsLib.Transfer(address(0), to, amount);
     }
 
     function _burn(address from, uint256 amount) internal {
         require(from != address(0), ErrorsLib.ZeroAddress());
         balanceOf[from] -= amount;
-        _totalSupply -= amount;
+        totalTransferrableSupply -= amount;
         emit EventsLib.Transfer(from, address(0), amount);
     }
 }
