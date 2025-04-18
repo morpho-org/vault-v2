@@ -276,7 +276,7 @@ contract VaultV2 is IVaultV2 {
         exitBalances[supplier] -= shares;
         totalExitSupply -= uint128(shares);
         uint256 exitShares = shares.mulDivDown(WAD - exitFee, WAD);
-        if (exitFee > 0) _transfer(supplier, exitFeeRecipient, shares - exitShares);
+        if (exitFee > 0) _mint(exitFeeRecipient, shares - exitShares);
 
         accrueInterest();
         claimedAssets = convertToAssetsDown(exitShares);
