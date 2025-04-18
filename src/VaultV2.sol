@@ -66,7 +66,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev key: calldata, value: executable at
     mapping(bytes => uint256) public validAt;
-    /// @dev key: function selector, value: timelock duration
+    /// @dev function selector => timelock duration
     mapping(bytes4 => uint256) public timelock;
 
     uint256 public totalSupply;
