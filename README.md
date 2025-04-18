@@ -19,7 +19,7 @@ There are 5 different roles for a MetaMorpho vault: owner, curator, sentinel, tr
 The owner is responsible for defining the markets that the vault will lend against by setting adapters.
 The curator and allocator are then responsible for the management of the corresponding markets by setting caps and allocation of funds across those markets.
 
-Each market has a supply cap and a relative cap that guarantees lenders both a maximum absolute and a maximum relative exposure to the specific market.
+Each market has an absolute cap and a relative cap that guarantees lenders both a maximum absolute and a maximum relative exposure to the specific market.
 Users can supply or withdraw assets at any time, depending on the available liquidity on the liquidity market.
 
 In Vault V2, all actions can be timelocked (except `reallocateIn` and `reallocateOut`).
