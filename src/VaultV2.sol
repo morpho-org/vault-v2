@@ -6,7 +6,6 @@ import {IIRM} from "./interfaces/IIRM.sol";
 import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
-import {EventsLib} from "./libraries/EventsLib.sol";
 import {WAD, MAX_RATE_PER_SECOND, PERMIT_TYPEHASH, DOMAIN_TYPEHASH, TIMELOCK_CAP} from "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeTransferLib} from "./libraries/SafeTransferLib.sol";
@@ -412,7 +411,7 @@ contract VaultV2 is IVaultV2 {
         require(to != address(0), ErrorsLib.ZeroAddress());
         balanceOf[msg.sender] -= amount;
         balanceOf[to] += amount;
-        emit EventsLib.Transfer(msg.sender, to, amount);
+        emit Transfer(msg.sender, to, amount);
         return true;
     }
 
@@ -425,14 +424,14 @@ contract VaultV2 is IVaultV2 {
 
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
-        emit EventsLib.Transfer(from, to, amount);
+        emit Transfer(from, to, amount);
 
         return true;
     }
 
     function approve(address spender, uint256 amount) public returns (bool) {
         allowance[msg.sender][spender] = amount;
-        emit EventsLib.Approval(msg.sender, spender, amount);
+        emit Approval(msg.sender, spender, amount);
         return true;
     }
 
@@ -448,7 +447,7 @@ contract VaultV2 is IVaultV2 {
         require(recoveredAddress != address(0) && recoveredAddress == _owner, ErrorsLib.InvalidSigner());
 
         allowance[recoveredAddress][spender] = value;
-        emit EventsLib.Approval(recoveredAddress, spender, value);
+        emit Approval(recoveredAddress, spender, value);
     }
 
     function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {
@@ -465,13 +464,13 @@ contract VaultV2 is IVaultV2 {
         require(to != address(0), ErrorsLib.ZeroAddress());
         balanceOf[to] += amount;
         totalSupply += amount;
-        emit EventsLib.Transfer(address(0), to, amount);
+        emit Transfer(address(0), to, amount);
     }
 
     function _burn(address from, uint256 amount) internal {
         require(from != address(0), ErrorsLib.ZeroAddress());
         balanceOf[from] -= amount;
         totalSupply -= amount;
-        emit EventsLib.Transfer(from, address(0), amount);
+        emit Transfer(from, address(0), amount);
     }
 }

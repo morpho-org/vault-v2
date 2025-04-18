@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {BaseTest} from "./BaseTest.sol";
+import {BaseTest, IVaultV2} from "./BaseTest.sol";
 import {stdError} from "forge-std/StdError.sol";
-import "../src/libraries/EventsLib.sol";
 import {ErrorsLib} from "../src/libraries/ErrorsLib.sol";
 
 contract ERC20Test is BaseTest {
@@ -20,7 +19,7 @@ contract ERC20Test is BaseTest {
         vm.assume(amount <= MAX_DEPOSIT);
 
         vm.expectEmit();
-        emit EventsLib.Transfer(address(0), address(this), amount);
+        emit IVaultV2.Transfer(address(0), address(this), amount);
 
         vault.mint(amount, address(this));
         assertEq(vault.totalSupply(), amount, "total supply");
@@ -38,7 +37,7 @@ contract ERC20Test is BaseTest {
 
         vault.mint(amount, address(this));
         vm.expectEmit();
-        emit EventsLib.Transfer(address(this), address(0), amountRedeemed);
+        emit IVaultV2.Transfer(address(this), address(0), amountRedeemed);
 
         vault.redeem(amountRedeemed, address(this), address(this));
 
@@ -54,7 +53,7 @@ contract ERC20Test is BaseTest {
     function testApprove(address spender, uint256 amount) public {
         vm.assume(amount <= MAX_DEPOSIT);
         vm.expectEmit();
-        emit EventsLib.Approval(address(this), address(spender), amount);
+        emit IVaultV2.Approval(address(this), address(spender), amount);
 
         assertTrue(vault.approve(spender, amount));
         assertEq(vault.allowance(address(this), spender), amount);
@@ -68,7 +67,7 @@ contract ERC20Test is BaseTest {
         vault.mint(amount, address(this));
 
         vm.expectEmit();
-        emit EventsLib.Transfer(address(this), address(to), amountTransferred);
+        emit IVaultV2.Transfer(address(this), address(to), amountTransferred);
 
         assertTrue(vault.transfer(to, amountTransferred));
 
@@ -106,7 +105,7 @@ contract ERC20Test is BaseTest {
         vault.approve(address(this), amountApproved);
 
         vm.expectEmit();
-        emit EventsLib.Transfer(from, to, amountTransferred);
+        emit IVaultV2.Transfer(from, to, amountTransferred);
         vault.transferFrom(from, to, amountTransferred);
 
         assertEq(vault.allowance(from, address(this)), amountApproved - amountTransferred, "allowance");
@@ -148,7 +147,7 @@ contract ERC20Test is BaseTest {
         vault.approve(address(this), type(uint256).max);
 
         vm.expectEmit();
-        emit EventsLib.Transfer(from, to, amountTransferred);
+        emit IVaultV2.Transfer(from, to, amountTransferred);
 
         vault.transferFrom(from, to, amountTransferred);
         assertEq(vault.allowance(from, address(this)), type(uint256).max, "allowance");
