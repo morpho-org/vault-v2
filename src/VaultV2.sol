@@ -9,7 +9,7 @@ import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
-import {WAD, MAX_RATE_PER_SECOND, PERMIT_TYPEHASH, DOMAIN_TYPEHASH} from "./libraries/ConstantsLib.sol";
+import {WAD, MAX_RATE_PER_SECOND, PERMIT_TYPEHASH, DOMAIN_TYPEHASH, TIMELOCK_CAP} from "./libraries/ConstantsLib.sol";
 import {UtilsLib} from "./libraries/UtilsLib.sol";
 import {SafeTransferLib} from "./libraries/SafeTransferLib.sol";
 
@@ -18,22 +18,13 @@ contract VaultV2 is IVaultV2 {
     using UtilsLib for uint256;
     using SafeTransferLib for IERC20;
 
-    /* CONSTANT */
-
-    uint64 public constant TIMELOCK_CAP = 2 weeks;
-
     /* IMMUTABLE */
 
     string public name;
     string public symbol;
-    uint8 public decimals;
+    uint8 public immutable decimals;
     address public immutable factory;
     address public immutable asset;
-
-    /* TRANSIENT */
-
-    // TODO: make this actually transient.
-    bool public unlocked;
 
     /* STORAGE */
 
@@ -78,8 +69,10 @@ contract VaultV2 is IVaultV2 {
     address public withdrawAdapter;
     bytes public withdrawData;
 
+    /// @dev calldata => executable at
     mapping(bytes => uint256) public validAt;
-    mapping(bytes4 => uint64) public timelockDuration;
+    /// @dev function selector => timelock duration
+    mapping(bytes4 => uint256) public timelock;
 
     uint256 public totalSupply;
     mapping(address => uint256) public balanceOf;
@@ -96,8 +89,7 @@ contract VaultV2 is IVaultV2 {
         asset = _asset;
         owner = _owner;
         lastUpdate = block.timestamp;
-        timelockDuration[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
-        // The vault starts with no IRM, no markets and no assets. To be configured afterwards.
+        timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
     }
 
     /* OWNER ACTIONS */
@@ -142,20 +134,19 @@ contract VaultV2 is IVaultV2 {
         isAdapter[adapter] = newIsAdapter;
     }
 
-    function increaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
-        require(functionSelector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
+    function increaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
+        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
-        require(newDuration > timelockDuration[functionSelector], ErrorsLib.TimelockNotIncreasing());
+        require(newDuration > timelock[selector], ErrorsLib.TimelockNotIncreasing());
 
-        timelockDuration[functionSelector] = newDuration;
+        timelock[selector] = newDuration;
     }
 
-    function decreaseTimelock(bytes4 functionSelector, uint64 newDuration) external timelocked {
-        require(functionSelector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
-        require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
-        require(newDuration < timelockDuration[functionSelector], ErrorsLib.TimelockNotDecreasing());
+    function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
+        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
+        require(newDuration < timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
-        timelockDuration[functionSelector] = newDuration;
+        timelock[selector] = newDuration;
     }
 
     /* TREASURER ACTIONS */
@@ -400,12 +391,12 @@ contract VaultV2 is IVaultV2 {
     /* TIMELOCKS */
 
     function submit(bytes calldata data) external {
-        bytes4 functionSelector = bytes4(data);
-        require(isAuthorizedToSubmit(msg.sender, functionSelector), ErrorsLib.Unauthorized());
+        bytes4 selector = bytes4(data);
+        require(isAuthorizedToSubmit(msg.sender, selector), ErrorsLib.Unauthorized());
 
         require(validAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
-        validAt[data] = block.timestamp + timelockDuration[functionSelector];
+        validAt[data] = block.timestamp + timelock[selector];
     }
 
     modifier timelocked() {
@@ -425,31 +416,30 @@ contract VaultV2 is IVaultV2 {
         validAt[data] = 0;
     }
 
-    function isAuthorizedToSubmit(address sender, bytes4 functionSelector) internal view returns (bool) {
+    function isAuthorizedToSubmit(address sender, bytes4 selector) internal view returns (bool) {
         // Owner functions
-        if (functionSelector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setIsSentinel.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setOwner.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setCurator.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setIRM.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setTreasurer.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setIsAllocator.selector) return sender == owner;
-        if (functionSelector == IVaultV2.setIsAdapter.selector) return sender == owner;
-        if (functionSelector == IVaultV2.increaseTimelock.selector) return sender == owner;
-        if (functionSelector == IVaultV2.decreaseTimelock.selector) return sender == owner;
+        if (selector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
+        if (selector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
+        if (selector == IVaultV2.setIsSentinel.selector) return sender == owner;
+        if (selector == IVaultV2.setOwner.selector) return sender == owner;
+        if (selector == IVaultV2.setCurator.selector) return sender == owner;
+        if (selector == IVaultV2.setIRM.selector) return sender == owner;
+        if (selector == IVaultV2.setTreasurer.selector) return sender == owner;
+        if (selector == IVaultV2.setIsAllocator.selector) return sender == owner;
+        if (selector == IVaultV2.setIsAdapter.selector) return sender == owner;
+        if (selector == IVaultV2.increaseTimelock.selector) return sender == owner;
+        if (selector == IVaultV2.decreaseTimelock.selector) return sender == owner;
         // Treasurer functions
-        if (functionSelector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
-        if (functionSelector == IVaultV2.setManagementFee.selector) return sender == treasurer;
+        if (selector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
+        if (selector == IVaultV2.setManagementFee.selector) return sender == treasurer;
         // Curator functions
-        if (functionSelector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
-        if (functionSelector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
-        if (functionSelector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
-        if (functionSelector == IVaultV2.decreaseRelativeCap.selector) return sender == curator || isSentinel[sender];
+        if (selector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
+        if (selector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
+        if (selector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
+        if (selector == IVaultV2.decreaseRelativeCap.selector) return sender == curator;
         // Allocator actions.
-        if (functionSelector == IVaultV2.setDepositData.selector) return isAllocator[sender];
-        if (functionSelector == IVaultV2.setWithdrawData.selector) return isAllocator[sender];
-        // forgefmt: disable-end
+        if (selector == IVaultV2.setDepositData.selector) return isAllocator[sender];
+        if (selector == IVaultV2.setWithdrawData.selector) return isAllocator[sender];
         return false;
     }
 
