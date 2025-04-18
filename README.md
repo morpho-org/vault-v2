@@ -79,7 +79,7 @@ It can:
     - `allocator`
 - Set the `performanceFeeRecipient`.
 - Set the `managementFeeRecipient`.
-- Set the `irm`. The `irm` is responsible for returning the per second interests accrued by users. This is in contrast with Vault V1 where the interest was automatically computed based on the underlying allocations.
+- Set the `irm`.
 - [Timelocked] Set adapter.
 - [Timelocked] Increase the timelock.
 - [Timelocked] Decrease the timelock.
