@@ -244,7 +244,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(isAllocator[msg.sender] || msg.sender == address(this), "not an allocator");
         require(isAdapter[adapter], "not an adapter");
 
-        asset.transfer(adapter, amount);
+        SafeERC20.safeTransfer(asset, adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
 
         require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
@@ -428,9 +428,11 @@ contract VaultV2 is ERC20, IVaultV2 {
         _mint(receiver, shares);
         totalAssets += assets;
 
-        try this.reallocateFromIdle(depositAdapter, depositData, assets) {}
-        catch {
-            updateMissingExitAssets();
+        int missingAssets = updateMissingExitAssets();
+        if (missingAssets < 0) {
+            uint toReallocate = UtilsLib.min(uint256(-missingAssets),assets);
+            try this.reallocateFromIdle(depositAdapter, depositData, toReallocate) {}
+            catch { }
         }
     }
 
