@@ -11,6 +11,7 @@ import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {WAD} from "./libraries/ConstantsLib.sol";
+import {UtilsLib} from "./libraries/UtilsLib.sol";
 
 bytes32 constant EXIT_ACCOUNT_PREFIX = keccak256("Morpho Vault V2 Exit Account Prefix");
 
@@ -177,6 +178,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function setExitFee(uint256 newExitFee) external timelocked {
         require(newExitFee < WAD, ErrorsLib.ExitFeeTooHigh());
 
+        accrueInterest();
         if (newExitFee > exitFee) require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
 
         exitFee = newExitFee;
@@ -219,6 +221,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     }
 
     function setMaxMissingExitAssetsDuration(uint256 newMaxMissingExitAssetsDuration) external timelocked {
+        accrueInterest();
         if (newMaxMissingExitAssetsDuration > maxMissingExitAssetsDuration) {
             require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
         }
@@ -234,9 +237,10 @@ contract VaultV2 is ERC20, IVaultV2 {
         require(isAllocator[msg.sender] || msg.sender == address(this), "not an allocator");
         require(isAdapter[adapter], "not an adapter");
 
-        asset.transfer(adapter, amount);
+        SafeERC20.safeTransfer(asset, adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
 
+        accrueInterest();
         require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
 
         for (uint256 i; i < ids.length; i++) {
@@ -260,7 +264,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function claimExit(uint256 shares, address receiver, address supplier) external returns (uint256 claimedAssets) {
         if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
         totalExitSupply -= shares;
-        uint256 exitShares = shares * (WAD - exitFee) / WAD;
+        uint256 exitShares = shares.mulDiv(WAD - exitFee, WAD,Math.Rounding.Floor);
         address supplierExitAccount = exitAccount(supplier);
         _burn(supplierExitAccount, exitShares);
         _update(supplierExitAccount, exitFeeRecipient, shares - exitShares);
@@ -286,6 +290,7 @@ contract VaultV2 is ERC20, IVaultV2 {
         asset.transferFrom(adapter, address(this), amount);
         bytes32[] memory ids = IAdapter(adapter).allocateOut(data, amount);
 
+        accrueInterest();
         updateMissingExitAssets();
 
         for (uint256 i; i < ids.length; i++) {
@@ -402,9 +407,11 @@ contract VaultV2 is ERC20, IVaultV2 {
         _mint(receiver, shares);
         totalAssets += assets;
 
-        try this.reallocateFromIdle(depositAdapter, depositData, assets) {}
-        catch {
-            updateMissingExitAssets();
+        int missingAssets = updateMissingExitAssets();
+        if (missingAssets < 0) {
+            uint toReallocate = UtilsLib.min(uint256(-missingAssets),assets);
+            try this.reallocateFromIdle(depositAdapter, depositData, toReallocate) {}
+            catch { }
         }
     }
 
