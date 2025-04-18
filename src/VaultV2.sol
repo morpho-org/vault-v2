@@ -264,7 +264,7 @@ contract VaultV2 is ERC20, IVaultV2 {
     function claimExit(uint256 shares, address receiver, address supplier) external returns (uint256 claimedAssets) {
         if (msg.sender != supplier) _spendAllowance(supplier, msg.sender, shares);
         totalExitSupply -= shares;
-        uint256 exitShares = shares.mulDiv(WAD - exitFee, WAD,Math.Rounding.Floor);
+        uint256 exitShares = shares.mulDiv(WAD - exitFee, WAD, Math.Rounding.Floor);
         address supplierExitAccount = exitAccount(supplier);
         _burn(supplierExitAccount, exitShares);
         _update(supplierExitAccount, exitFeeRecipient, shares - exitShares);
