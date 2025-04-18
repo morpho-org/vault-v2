@@ -274,10 +274,10 @@ contract VaultV2 is IVaultV2 {
         uint256 exitShares = shares.mulDivDown(WAD - exitFee, WAD);
         uint256 maxExitAssets = convertToAssetsDown(exitShares);
         _burn(supplier, exitShares);
+        totalExitSupply += uint128(exitShares);
         if (exitFee > 0) _transfer(supplier, exitFeeRecipient, shares - exitShares);
         exitRequests[supplier].shares += uint128(exitShares);
         exitRequests[supplier].maxAssets += uint128(maxExitAssets);
-        totalExitSupply += uint128(shares);
         totalMaxExitAssets += uint128(maxExitAssets);
         updateMissingExitAssets();
     }
@@ -294,6 +294,7 @@ contract VaultV2 is IVaultV2 {
         uint256 maxExitAssets = shares.mulDivUp(supplierMaxExitAssets, supplierExitShares);
         if (maxExitAssets < claimedAssets) claimedAssets = maxExitAssets;
         exitRequests[supplier].shares = uint128(supplierExitShares - shares);
+        totalExitSupply -= uint128(shares);
         exitRequests[supplier].maxAssets = uint128(MathLib.zeroFloorSub(supplierMaxExitAssets, claimedAssets));
         totalMaxExitAssets -= uint128(maxExitAssets);
         SafeTransferLib.safeTransfer(IERC20(asset), receiver, claimedAssets);
