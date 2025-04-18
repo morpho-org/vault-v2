@@ -73,8 +73,8 @@ contract VaultV2 is IVaultV2 {
     /// @dev function selector => timelock duration
     mapping(bytes4 => uint256) public timelock;
 
-    uint256 public totalTransferrableSupply;
-    uint256 public totalExitSupply;
+    uint128 public totalTransferrableSupply;
+    uint128 public totalExitSupply;
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
     mapping(address => uint256) public nonces;
@@ -276,9 +276,8 @@ contract VaultV2 is IVaultV2 {
         exitBalances[supplier] -= shares;
         totalExitSupply -= shares;
         uint256 exitShares = shares.mulDivDown(WAD - exitFee, WAD);
-        if (exitFee > 0) {
-            _transfer(supplier, exitFeeRecipient, shares - exitShares);
-        }
+        if (exitFee > 0) _transfer(supplier, exitFeeRecipient, shares - exitShares);
+
         accrueInterest();
         claimedAssets = convertToAssetsDown(exitShares);
         SafeTransferLib.safeTransfer(IERC20(asset), receiver, claimedAssets);
