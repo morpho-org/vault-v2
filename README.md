@@ -9,7 +9,8 @@ These roles are primarily responsible for enabling and disabling markets on Morp
 
 [Morpho Vault V2](https://github.com/morpho-org/vaults-v2/blob/main/src/VaultV2.sol) vaults are [**ERC-4626](https://eips.ethereum.org/EIPS/eip-4626)** vaults, with ([ERC-2612](https://eips.ethereum.org/EIPS/eip-2612)) permit.
 A given Morpho Vault V2 has one unique underlying asset.
-The [VaultV2Factory](https://github.com/morpho-org/vaults-v2/blob/main/src/VaultV2Factory.sol) is deploying immutable onchain instances of Vaults V2.
+The [VaultV2Factory](https://github.com/morpho-org/vaults-v2/blob/main/src/VaultV2Factory.sol) deploys instances of Vaults V2.
+All the contracts are immutable.
 
 ## Overview
 
