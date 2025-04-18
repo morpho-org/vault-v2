@@ -24,6 +24,7 @@ interface IVaultV2 is IERC20 {
     function mint(uint256 shares, address receiver) external returns (uint256);
     function withdraw(uint256 assets, address receiver, address owner) external returns (uint256);
     function redeem(uint256 shares, address receiver, address owner) external returns (uint256);
+
     event Transfer(address indexed from, address indexed to, uint256 amount);
     event Approval(address indexed owner, address indexed spender, uint256 amount);
 
