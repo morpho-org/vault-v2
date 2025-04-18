@@ -287,16 +287,24 @@ contract VaultV2 is IVaultV2 {
         if (msg.sender != supplier && _allowance != type(uint256).max) {
             if (_allowance < type(uint256).max) allowance[supplier][msg.sender] = _allowance - shares;
         }
+        totalExitSupply -= uint128(shares);
         uint256 supplierMaxExitAssets = exitRequests[supplier].maxAssets;
         uint256 supplierExitShares = exitRequests[supplier].shares;
         accrueInterest();
         claimedAssets = convertToAssetsDown(shares);
-        uint256 maxExitAssets = shares.mulDivUp(supplierMaxExitAssets, supplierExitShares);
-        if (maxExitAssets < claimedAssets) claimedAssets = maxExitAssets;
+        // Round up to avoid leaving unclaimed assets
+        uint256 maxClaimedAssets = shares.mulDivUp(supplierMaxExitAssets, supplierExitShares);
+        if (maxClaimedAssets < claimedAssets) {
+            // Give excess assets to exit fee recipient
+            uint256 exitFeeRecipientShares =
+                (claimedAssets - maxClaimedAssets).mulDivDown(totalSupply() + 1, totalAssets + 1 - maxClaimedAssets);
+            _mint(exitFeeRecipient, exitFeeRecipientShares);
+            claimedAssets = maxClaimedAssets;
+        }
+
         exitRequests[supplier].shares = uint128(supplierExitShares - shares);
-        totalExitSupply -= uint128(shares);
-        exitRequests[supplier].maxAssets = uint128(MathLib.zeroFloorSub(supplierMaxExitAssets, claimedAssets));
-        totalMaxExitAssets -= uint128(maxExitAssets);
+        exitRequests[supplier].maxAssets = uint128(supplierMaxExitAssets.zeroFloorSub(claimedAssets));
+        totalMaxExitAssets = uint128(uint256(totalMaxExitAssets).zeroFloorSub(maxClaimedAssets));
         SafeTransferLib.safeTransfer(IERC20(asset), receiver, claimedAssets);
 
         updateMissingExitAssets();
