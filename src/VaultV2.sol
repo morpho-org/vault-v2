@@ -64,7 +64,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev By design, double counting some stuff.
     mapping(bytes32 => uint256) public allocation;
 
-    /// @dev key: calldata, value: executable at
+    /// @dev calldata => executable at
     mapping(bytes => uint256) public validAt;
     /// @dev function selector => timelock duration
     mapping(bytes4 => uint256) public timelock;
