@@ -145,14 +145,14 @@ contract VaultV2 is IVaultV2 {
 
     function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
         require(newPerformanceFee < WAD, ErrorsLib.FeeTooHigh());
-        require(performanceFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
+        require(performanceFeeRecipient != address(0) || newPerformanceFee == 0, ErrorsLib.FeeInvariantBroken());
 
         performanceFee = newPerformanceFee;
     }
 
     function setManagementFee(uint256 newManagementFee) external timelocked {
         require(newManagementFee < WAD, ErrorsLib.FeeTooHigh());
-        require(managementFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
+        require(managementFeeRecipient != address(0) || newManagementFee == 0, ErrorsLib.FeeInvariantBroken());
 
         managementFee = newManagementFee;
     }
