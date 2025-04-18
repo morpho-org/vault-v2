@@ -52,7 +52,7 @@ When users withdraw assets, the assets are taken in priority from the `idle` mar
 If the `idle` market does not have enough liquidity, the market $M$ is used.
 When defined, the market $M$ is also used as the market users are depositing into.
 
-The market $M$ should typically be a very liquid Market V1.
+The market $M$ would typically be a very liquid Market V1.
 
 ### Interest Rate Model (IRM)
 
