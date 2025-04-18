@@ -17,7 +17,6 @@ import {SafeTransferLib} from "./libraries/SafeTransferLib.sol";
 contract VaultV2 is IVaultV2 {
     using Math for uint256;
     using UtilsLib for uint256;
-    using SafeTransferLib for IERC20;
 
     /* CONSTANT */
 
@@ -214,7 +213,7 @@ contract VaultV2 is IVaultV2 {
         require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.NotAllocator());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        IERC20(asset).safeTransfer(adapter, amount);
+        SafeTransferLib.transfer(asset,adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
 
         for (uint256 i; i < ids.length; i++) {
@@ -240,7 +239,7 @@ contract VaultV2 is IVaultV2 {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(amount);
         }
 
-        IERC20(asset).safeTransferFrom(adapter, address(this), amount);
+        SafeTransferLib.transferFrom(asset,adapter, address(this), amount);
     }
 
     /* EXCHANGE RATE */
@@ -322,7 +321,7 @@ contract VaultV2 is IVaultV2 {
     /* USER INTERACTION */
 
     function _deposit(uint256 assets, uint256 shares, address receiver) internal {
-        IERC20(asset).safeTransferFrom(msg.sender, address(this), assets);
+        SafeTransferLib.transferFrom(asset,msg.sender, address(this), assets);
         _mint(receiver, shares);
         totalAssets += assets;
     }
@@ -347,7 +346,7 @@ contract VaultV2 is IVaultV2 {
             allowance[supplier][msg.sender] = _allowance - shares;
         }
         _burn(supplier, shares);
-        IERC20(asset).safeTransfer(receiver, assets);
+        SafeTransferLib.transfer(asset,receiver, assets);
         totalAssets -= assets;
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
