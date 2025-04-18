@@ -24,7 +24,7 @@ Users can supply or withdraw assets at any time, depending on the available liqu
 
 In Vault V2, all actions can be timelocked (except `reallocateIn` and `reallocateOut`).
 Owners are encouraged to subject actions that may be against users' interests (e.g. enabling a market) to a timelock.
-Timelocks change must set the value between 0 and 2 weeks.
+Timelocks values must be between 0 and 2 weeks.
 
 The `sentinel`, if set, can revoke the actions taken by other roles during the timelock, with the exception of the action setting the sentinel.
 After the timelock, actions can be executed by anyone.
