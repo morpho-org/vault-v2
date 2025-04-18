@@ -264,7 +264,7 @@ contract VaultV2 is IVaultV2 {
         if (msg.sender != supplier) require(canRequestExit[supplier][msg.sender], ErrorsLib.Unauthorized());
         _burn(supplier, shares);
         exitBalances[supplier] += shares;
-        totalExitSupply += shares;
+        totalExitSupply += uint128(shares);
     }
 
     function claimExit(uint256 shares, address receiver, address supplier) external returns (uint256 claimedAssets) {
@@ -274,7 +274,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         exitBalances[supplier] -= shares;
-        totalExitSupply -= shares;
+        totalExitSupply -= uint128(shares);
         uint256 exitShares = shares.mulDivDown(WAD - exitFee, WAD);
         if (exitFee > 0) _transfer(supplier, exitFeeRecipient, shares - exitShares);
 
@@ -592,14 +592,14 @@ contract VaultV2 is IVaultV2 {
     function _mint(address to, uint256 amount) internal {
         require(to != address(0), ErrorsLib.ZeroAddress());
         balanceOf[to] += amount;
-        totalTransferrableSupply += amount;
+        totalTransferrableSupply += uint128(amount);
         emit EventsLib.Transfer(address(0), to, amount);
     }
 
     function _burn(address from, uint256 amount) internal {
         require(from != address(0), ErrorsLib.ZeroAddress());
         balanceOf[from] -= amount;
-        totalTransferrableSupply -= amount;
+        totalTransferrableSupply -= uint128(amount);
         emit EventsLib.Transfer(from, address(0), amount);
     }
 }
