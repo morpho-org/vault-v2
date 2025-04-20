@@ -261,9 +261,9 @@ contract VaultV2 is IVaultV2 {
     function requestExit(uint256 requestedShares, address supplier) external {
         if (msg.sender != supplier) require(canRequestExit[supplier][msg.sender], ErrorsLib.Unauthorized());
 
+        ExitRequest storage request = exitRequests[supplier];
         uint256 exitShares = requestedShares.mulDivDown(WAD - exitFee, WAD);
         uint256 exitAssets = convertToAssetsDown(exitShares);
-        ExitRequest storage request = exitRequests[supplier];
 
         _burn(supplier, exitShares);
         _transfer(supplier, exitFeeRecipient, requestedShares - exitShares);
@@ -283,7 +283,6 @@ contract VaultV2 is IVaultV2 {
         }
 
         ExitRequest storage request = exitRequests[supplier];
-
         uint256 claimedAssets = request.maxAssets.mulDivUp(claimedShares, request.shares);
         uint256 quotedClaimedShares = convertToAssetsDown(claimedShares);
         exitAssets = MathLib.min(claimedAssets, quotedClaimedShares);
