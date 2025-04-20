@@ -183,7 +183,7 @@ contract VaultV2 is IVaultV2 {
 
     function setExitFee(uint256 newExitFee) external timelocked {
         require(newExitFee < WAD, ErrorsLib.ExitFeeTooHigh());
-        require(exitFeeRecipient != address(0) || newExitFee == 0, ErrorsLib.FeeInvariantBroken());
+        require(exitFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
 
         if (newExitFee > exitFee) require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
 
