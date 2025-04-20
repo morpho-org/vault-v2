@@ -8,6 +8,11 @@ interface IAdapter {
     function allocateOut(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
 }
 
+struct ExitRequest {
+    uint256 shares;
+    uint256 maxAssets;
+}
+
 interface IVaultV2 is IERC20 {
     // ERC-2612 (Permit)
     function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
@@ -44,7 +49,7 @@ interface IVaultV2 is IERC20 {
     function validAt(bytes calldata) external view returns (uint256);
     function timelock(bytes4) external view returns (uint256);
     function canRequestExit(address, address) external view returns (bool);
-    function exitRequests(address) external view returns (uint, uint);
+    function exitRequests(address) external view returns (uint256, uint256);
     function maxMissingExitAssetsDuration() external view returns (uint256);
     function missingExitAssetsSince() external view returns (uint256);
 

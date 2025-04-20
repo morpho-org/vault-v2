@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {IVaultV2, IERC20, IAdapter} from "./interfaces/IVaultV2.sol";
+import {IVaultV2, IERC20, IAdapter, ExitRequest} from "./interfaces/IVaultV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
@@ -80,11 +80,6 @@ contract VaultV2 is IVaultV2 {
 
     mapping(address => mapping(address => bool)) public canRequestExit;
     mapping(address => ExitRequest) public exitRequests;
-
-    struct ExitRequest {
-        uint shares;
-        uint maxAssets;
-    }
 
     // Not updated by share price changes.
     // May create deadweight idle assets if share price goes down, until a) it comes back up or b) until all exit claims
@@ -266,7 +261,7 @@ contract VaultV2 is IVaultV2 {
     function requestExit(uint256 requestedShares, address supplier) external {
         if (msg.sender != supplier) require(canRequestExit[supplier][msg.sender], ErrorsLib.Unauthorized());
 
-        uint256 exitShares = requestedShares.mulDivDown(WAD - exitFee,WAD);
+        uint256 exitShares = requestedShares.mulDivDown(WAD - exitFee, WAD);
         uint256 exitAssets = convertToAssetsDown(exitShares);
         ExitRequest storage request = exitRequests[supplier];
 
@@ -278,7 +273,10 @@ contract VaultV2 is IVaultV2 {
         updateMissingExitAssets();
     }
 
-    function claimExit(uint256 claimedShares, address receiver, address supplier) external returns (uint256 exitAssets) {
+    function claimExit(uint256 claimedShares, address receiver, address supplier)
+        external
+        returns (uint256 exitAssets)
+    {
         uint256 _allowance = allowance[supplier][msg.sender];
         if (msg.sender != supplier && _allowance != type(uint256).max) {
             if (_allowance < type(uint256).max) allowance[supplier][msg.sender] = _allowance - claimedShares;
@@ -286,13 +284,13 @@ contract VaultV2 is IVaultV2 {
 
         ExitRequest storage request = exitRequests[supplier];
 
-        uint claimedAssets = request.maxAssets.mulDivUp(claimedShares,request.shares);
-        uint quotedClaimedShares = convertToAssetsDown(claimedShares);
+        uint256 claimedAssets = request.maxAssets.mulDivUp(claimedShares, request.shares);
+        uint256 quotedClaimedShares = convertToAssetsDown(claimedShares);
         exitAssets = MathLib.min(claimedAssets, quotedClaimedShares);
 
         request.shares -= claimedShares;
         request.maxAssets = request.maxAssets.zeroFloorSub(claimedAssets);
-        IERC20(asset).transfer(receiver,exitAssets);
+        IERC20(asset).transfer(receiver, exitAssets);
 
         updateMissingExitAssets();
     }
