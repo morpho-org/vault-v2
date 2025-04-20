@@ -44,7 +44,7 @@ interface IVaultV2 is IERC20 {
     function validAt(bytes calldata) external view returns (uint256);
     function timelock(bytes4) external view returns (uint256);
     function canRequestExit(address, address) external view returns (bool);
-    function exitRequests(address) external view returns (uint128, uint128);
+    function exitRequests(address) external view returns (uint, uint);
     function maxMissingExitAssetsDuration() external view returns (uint256);
     function missingExitAssetsSince() external view returns (uint256);
 

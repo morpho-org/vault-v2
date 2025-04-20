@@ -73,8 +73,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev function selector => timelock duration
     mapping(bytes4 => uint256) public timelock;
 
-    uint128 public totalTransferrableSupply;
-    uint128 public totalExitSupply;
+    uint256 public totalSupply;
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
     mapping(address => uint256) public nonces;
@@ -83,14 +82,14 @@ contract VaultV2 is IVaultV2 {
     mapping(address => ExitRequest) public exitRequests;
 
     struct ExitRequest {
-        uint128 shares;
-        uint128 maxAssets;
+        uint shares;
+        uint maxAssets;
     }
 
     // Not updated by share price changes.
     // May create deadweight idle assets if share price goes down, until a) it comes back up or b) until all exit claims
     // have been processed.
-    uint128 public totalMaxExitAssets;
+    uint256 public totalMaxExitAssets;
 
     uint256 public maxMissingExitAssetsDuration = 1 weeks;
     // Can become incorrect as share price moves.
@@ -263,49 +262,37 @@ contract VaultV2 is IVaultV2 {
         }
     }
 
-    function totalSupply() public view override returns (uint256) {
-        return totalTransferrableSupply + totalExitSupply;
-    }
-
     // Do not try to redeem normally first
-    function requestExit(uint256 shares, address supplier) external {
+    function requestExit(uint256 requestedShares, address supplier) external {
         if (msg.sender != supplier) require(canRequestExit[supplier][msg.sender], ErrorsLib.Unauthorized());
 
-        uint256 exitShares = shares.mulDivDown(WAD - exitFee, WAD);
-        uint256 maxExitAssets = convertToAssetsDown(exitShares);
+        uint256 exitShares = requestedShares.mulDivDown(WAD - exitFee,WAD);
+        uint256 exitAssets = convertToAssetsDown(exitShares);
+        ExitRequest storage request = exitRequests[supplier];
+
         _burn(supplier, exitShares);
-        totalExitSupply += uint128(exitShares);
-        if (exitFee > 0) _transfer(supplier, exitFeeRecipient, shares - exitShares);
-        exitRequests[supplier].shares += uint128(exitShares);
-        exitRequests[supplier].maxAssets += uint128(maxExitAssets);
-        totalMaxExitAssets += uint128(maxExitAssets);
+        _transfer(supplier, exitFeeRecipient, requestedShares - exitShares);
+        request.shares += exitShares;
+        request.maxAssets += exitAssets;
+        totalAssets -= exitAssets;
         updateMissingExitAssets();
     }
 
-    function claimExit(uint256 shares, address receiver, address supplier) external returns (uint256 claimedAssets) {
+    function claimExit(uint256 claimedShares, address receiver, address supplier) external returns (uint256 exitAssets) {
         uint256 _allowance = allowance[supplier][msg.sender];
         if (msg.sender != supplier && _allowance != type(uint256).max) {
-            if (_allowance < type(uint256).max) allowance[supplier][msg.sender] = _allowance - shares;
-        }
-        totalExitSupply -= uint128(shares);
-        uint256 supplierMaxExitAssets = exitRequests[supplier].maxAssets;
-        uint256 supplierExitShares = exitRequests[supplier].shares;
-        accrueInterest();
-        claimedAssets = convertToAssetsDown(shares);
-        // Round up to avoid leaving unclaimed assets
-        uint256 maxClaimedAssets = shares.mulDivUp(supplierMaxExitAssets, supplierExitShares);
-        if (maxClaimedAssets < claimedAssets) {
-            // Give excess assets to exit fee recipient
-            uint256 exitFeeRecipientShares =
-                (claimedAssets - maxClaimedAssets).mulDivDown(totalSupply() + 1, totalAssets + 1 - maxClaimedAssets);
-            _mint(exitFeeRecipient, exitFeeRecipientShares);
-            claimedAssets = maxClaimedAssets;
+            if (_allowance < type(uint256).max) allowance[supplier][msg.sender] = _allowance - claimedShares;
         }
 
-        exitRequests[supplier].shares = uint128(supplierExitShares - shares);
-        exitRequests[supplier].maxAssets = uint128(supplierMaxExitAssets.zeroFloorSub(claimedAssets));
-        totalMaxExitAssets = uint128(uint256(totalMaxExitAssets).zeroFloorSub(maxClaimedAssets));
-        SafeTransferLib.safeTransfer(IERC20(asset), receiver, claimedAssets);
+        ExitRequest storage request = exitRequests[supplier];
+
+        uint claimedAssets = request.maxAssets.mulDivUp(claimedShares,request.shares);
+        uint quotedClaimedShares = convertToAssetsDown(claimedShares);
+        exitAssets = MathLib.min(claimedAssets, quotedClaimedShares);
+
+        request.shares -= claimedShares;
+        request.maxAssets = request.maxAssets.zeroFloorSub(claimedAssets);
+        IERC20(asset).transfer(receiver,exitAssets);
 
         updateMissingExitAssets();
     }
@@ -382,7 +369,7 @@ contract VaultV2 is IVaultV2 {
         if (interest > 0 && performanceFee != 0) {
             uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
             totalPerformanceFeeShares =
-                performanceFeeAssets.mulDivDown(totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets);
+                performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
             protocolPerformanceFeeShares = totalPerformanceFeeShares.mulDivDown(protocolFee, WAD);
             performanceFeeShares = totalPerformanceFeeShares - protocolPerformanceFeeShares;
         }
@@ -390,7 +377,7 @@ contract VaultV2 is IVaultV2 {
             // Using newTotalAssets to make all approximations consistent.
             uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
             uint256 totalManagementFeeShares = managementFeeAssets.mulDivDown(
-                totalSupply() + 1 + totalPerformanceFeeShares, newTotalAssets + 1 - managementFeeAssets
+                totalSupply + 1 + totalPerformanceFeeShares, newTotalAssets + 1 - managementFeeAssets
             );
             protocolManagementFeeShares = totalManagementFeeShares.mulDivDown(protocolFee, WAD);
             managementFeeShares = totalManagementFeeShares - protocolManagementFeeShares;
@@ -408,19 +395,19 @@ contract VaultV2 is IVaultV2 {
     }
 
     function convertToSharesDown(uint256 assets) internal view returns (uint256) {
-        return assets.mulDivDown(totalSupply() + 1, totalAssets + 1);
+        return assets.mulDivDown(totalSupply + 1, totalAssets + 1);
     }
 
     function convertToSharesUp(uint256 assets) internal view returns (uint256) {
-        return assets.mulDivUp(totalSupply() + 1, totalAssets + 1);
+        return assets.mulDivUp(totalSupply + 1, totalAssets + 1);
     }
 
     function convertToAssetsDown(uint256 shares) internal view returns (uint256) {
-        return shares.mulDivDown(totalAssets + 1, totalSupply() + 1);
+        return shares.mulDivDown(totalAssets + 1, totalSupply + 1);
     }
 
     function convertToAssetsUp(uint256 shares) internal view returns (uint256) {
-        return shares.mulDivUp(totalAssets + 1, totalSupply() + 1);
+        return shares.mulDivUp(totalAssets + 1, totalSupply + 1);
     }
 
     /* USER INTERACTION */
@@ -616,14 +603,14 @@ contract VaultV2 is IVaultV2 {
     function _mint(address to, uint256 amount) internal {
         require(to != address(0), ErrorsLib.ZeroAddress());
         balanceOf[to] += amount;
-        totalTransferrableSupply += uint128(amount);
+        totalSupply += amount;
         emit EventsLib.Transfer(address(0), to, amount);
     }
 
     function _burn(address from, uint256 amount) internal {
         require(from != address(0), ErrorsLib.ZeroAddress());
         balanceOf[from] -= amount;
-        totalTransferrableSupply -= uint128(amount);
+        totalSupply -= amount;
         emit EventsLib.Transfer(from, address(0), amount);
     }
 }
