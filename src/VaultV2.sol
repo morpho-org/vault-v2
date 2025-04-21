@@ -42,7 +42,7 @@ contract VaultV2 is IVaultV2 {
     address public managementFeeRecipient;
 
     uint256 public lastUpdate;
-    uint256 public totalAssets;
+    uint256 internal _totalAssets;
 
     // Adapter is trusted to pass the expected ids when supplying assets.
     mapping(address => bool) public isAdapter;
@@ -75,6 +75,8 @@ contract VaultV2 is IVaultV2 {
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
     mapping(address => uint256) public nonces;
+
+    bool public shutdown;
 
     /* CONSTRUCTOR */
 
@@ -128,6 +130,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
+        if (newIsAdapter) require(!shutdown, ErrorsLib.Shutdown());
         isAdapter[adapter] = newIsAdapter;
     }
 
@@ -144,6 +147,12 @@ contract VaultV2 is IVaultV2 {
         require(newDuration < timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
+    }
+
+    function shutdownVault() external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        require(!shutdown, ErrorsLib.Shutdown());
+        shutdown = true;
     }
 
     /* TREASURER ACTIONS */
@@ -186,7 +195,7 @@ contract VaultV2 is IVaultV2 {
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
         require(newRelativeCap < relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
         require(idsWithRelativeCap[index] == id, ErrorsLib.IdNotFound());
-        require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
+        require(allocation[id] <= _totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
 
         if (newRelativeCap == 0) {
             idsWithRelativeCap[index] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
@@ -200,21 +209,26 @@ contract VaultV2 is IVaultV2 {
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateFromIdle(address adapter, bytes memory data, uint256 amount) external {
+        require(!shutdown, ErrorsLib.Shutdown());
         require(
-            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
+            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this) || shutdown,
+            ErrorsLib.NotAllocator()
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         SafeTransferLib.safeTransfer(IERC20(asset), adapter, amount);
-        bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
+        if (!shutdown) {
+            bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
 
-        for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] += amount;
+            for (uint256 i; i < ids.length; i++) {
+                allocation[ids[i]] += amount;
 
-            require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
-            require(
-                allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD), ErrorsLib.RelativeCapExceeded()
-            );
+                require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
+                require(
+                    allocation[ids[i]] <= _totalAssets.mulDivDown(relativeCap[ids[i]], WAD),
+                    ErrorsLib.RelativeCapExceeded()
+                );
+            }
         }
     }
 
@@ -248,25 +262,31 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
-        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 protocolFeeShares, uint256 newTotalAssets) =
-            accruedFeeShares();
+        if (!shutdown) {
+            (
+                uint256 performanceFeeShares,
+                uint256 managementFeeShares,
+                uint256 protocolFeeShares,
+                uint256 newTotalAssets
+            ) = accruedFeeShares();
 
-        totalAssets = newTotalAssets;
+            _totalAssets = newTotalAssets;
 
-        address protocolFeeRecipient = IVaultV2Factory(factory).protocolFeeRecipient();
-        if (performanceFeeShares != 0) _mint(performanceFeeRecipient, performanceFeeShares);
-        if (managementFeeShares != 0) _mint(managementFeeRecipient, managementFeeShares);
-        if (protocolFeeShares != 0) _mint(protocolFeeRecipient, protocolFeeShares);
+            address protocolFeeRecipient = IVaultV2Factory(factory).protocolFeeRecipient();
+            if (performanceFeeShares != 0) _mint(performanceFeeRecipient, performanceFeeShares);
+            if (managementFeeShares != 0) _mint(managementFeeRecipient, managementFeeShares);
+            if (protocolFeeShares != 0) _mint(protocolFeeRecipient, protocolFeeShares);
+        }
 
         lastUpdate = block.timestamp;
     }
 
     function accruedFeeShares() public view returns (uint256, uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        uint256 interestPerSecond = IIRM(irm).interestPerSecond(totalAssets, elapsed);
-        require(interestPerSecond <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
+        uint256 interestPerSecond = IIRM(irm).interestPerSecond(_totalAssets, elapsed);
+        require(interestPerSecond <= _totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
         uint256 interest = interestPerSecond * elapsed;
-        uint256 newTotalAssets = totalAssets + interest;
+        uint256 newTotalAssets = _totalAssets + interest;
 
         uint256 protocolFee = IVaultV2Factory(factory).protocolFee();
 
@@ -307,27 +327,28 @@ contract VaultV2 is IVaultV2 {
     }
 
     function convertToSharesDown(uint256 assets) internal view returns (uint256) {
-        return assets.mulDivDown(totalSupply + 1, totalAssets + 1);
+        return assets.mulDivDown(totalSupply + 1, totalAssets() + 1);
     }
 
     function convertToSharesUp(uint256 assets) internal view returns (uint256) {
-        return assets.mulDivUp(totalSupply + 1, totalAssets + 1);
+        return assets.mulDivUp(totalSupply + 1, totalAssets() + 1);
     }
 
     function convertToAssetsDown(uint256 shares) internal view returns (uint256) {
-        return shares.mulDivDown(totalAssets + 1, totalSupply + 1);
+        return shares.mulDivDown(totalAssets() + 1, totalSupply + 1);
     }
 
     function convertToAssetsUp(uint256 shares) internal view returns (uint256) {
-        return shares.mulDivUp(totalAssets + 1, totalSupply + 1);
+        return shares.mulDivUp(totalAssets() + 1, totalSupply + 1);
     }
 
     /* USER INTERACTION */
 
     function _deposit(uint256 assets, uint256 shares, address receiver) internal {
+        require(!shutdown, ErrorsLib.Shutdown());
         SafeTransferLib.safeTransferFrom(IERC20(asset), msg.sender, address(this), assets);
         _mint(receiver, shares);
-        totalAssets += assets;
+        _totalAssets += assets;
 
         try this.reallocateFromIdle(depositAdapter, depositData, assets) {} catch {}
     }
@@ -357,11 +378,15 @@ contract VaultV2 is IVaultV2 {
         }
         _burn(supplier, shares);
         SafeTransferLib.safeTransfer(IERC20(asset), receiver, assets);
-        totalAssets -= assets;
+        if (!shutdown) {
+            _totalAssets -= assets;
 
-        for (uint256 i; i < idsWithRelativeCap.length; i++) {
-            bytes32 id = idsWithRelativeCap[i];
-            require(allocation[id] <= totalAssets.mulDivDown(relativeCap[id], WAD), ErrorsLib.RelativeCapExceeded());
+            for (uint256 i; i < idsWithRelativeCap.length; i++) {
+                bytes32 id = idsWithRelativeCap[i];
+                require(
+                    allocation[id] <= _totalAssets.mulDivDown(relativeCap[id], WAD), ErrorsLib.RelativeCapExceeded()
+                );
+            }
         }
     }
 
@@ -435,6 +460,14 @@ contract VaultV2 is IVaultV2 {
     }
 
     /* INTERFACE */
+
+    function totalAssets() public view returns (uint256) {
+        if (shutdown) {
+            return IERC20(asset).balanceOf(address(this));
+        } else {
+            return _totalAssets;
+        }
+    }
 
     function transfer(address to, uint256 amount) public returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
