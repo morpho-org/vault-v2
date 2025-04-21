@@ -262,7 +262,7 @@ contract VaultV2 is IVaultV2 {
         if (msg.sender != supplier) require(canRequestExit[supplier][msg.sender], ErrorsLib.Unauthorized());
 
         ExitRequest storage request = exitRequests[supplier];
-        uint256 exitShares = requestedShares.mulDivDown(WAD - exitFee, WAD);
+        uint256 exitShares = requestedShares.mulDivUp(WAD - exitFee, WAD);
         uint256 exitAssets = convertToAssetsDown(exitShares);
 
         _burn(supplier, exitShares);
