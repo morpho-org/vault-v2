@@ -412,7 +412,7 @@ contract VaultV2 is IVaultV2 {
     // Negative value means idle assets availabel for withdrawal.
     function updateMissingExitAssets() public returns (int256 missingExitAssets) {
         int256 idleAssets = int256(IERC20(asset).balanceOf(address(this)));
-        missingExitAssets = int256(uint256(totalMaxExitAssets)) - idleAssets;
+        missingExitAssets = int256(totalMaxExitAssets) - idleAssets;
 
         if (missingExitAssets <= 0) {
             // can only happen when called by requestExit
