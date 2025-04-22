@@ -26,7 +26,7 @@ contract VaultV2Factory is IVaultV2Factory {
 
     function setProtocolFee(uint96 newProtocolFee) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        require(newProtocolFee < MAX_PROTOCOL_FEE, ErrorsLib.FeeTooHigh());
+        require(newProtocolFee <= MAX_PROTOCOL_FEE, ErrorsLib.FeeTooHigh());
         protocolFee = newProtocolFee;
     }
 
