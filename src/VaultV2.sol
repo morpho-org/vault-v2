@@ -440,6 +440,7 @@ contract VaultV2 is IVaultV2 {
         if (selector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
         if (selector == IVaultV2.setIsSentinel.selector) return sender == owner;
         if (selector == IVaultV2.setOwner.selector) return sender == owner;
+        if (selector == IVaultV2.setShutdownOperator.selector) return sender == owner;
         if (selector == IVaultV2.setCurator.selector) return sender == owner;
         if (selector == IVaultV2.setIRM.selector) return sender == owner;
         if (selector == IVaultV2.setTreasurer.selector) return sender == owner;
