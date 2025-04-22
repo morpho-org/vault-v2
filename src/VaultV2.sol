@@ -28,6 +28,7 @@ contract VaultV2 is IVaultV2 {
     // Note that each role could be a smart contract: the owner, curator and guardian.
     // This way, roles are modularized, and notably restricting their capabilities could be done on top.
     address public owner;
+    address public shutdownOperator;
     address public curator;
     address public treasurer;
     address public irm;
@@ -97,6 +98,10 @@ contract VaultV2 is IVaultV2 {
         owner = newOwner;
     }
 
+    function setShutdownOperator(address newShutdownOperator) external timelocked {
+        shutdownOperator = newShutdownOperator;
+    }
+
     function setCurator(address newCurator) external timelocked {
         curator = newCurator;
     }
@@ -150,7 +155,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function shutdownVault() external {
-        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        require(msg.sender == shutdownOperator, ErrorsLib.Unauthorized());
         require(!shutdown, ErrorsLib.Shutdown());
         shutdown = true;
     }
@@ -211,8 +216,7 @@ contract VaultV2 is IVaultV2 {
     function reallocateFromIdle(address adapter, bytes memory data, uint256 amount) external {
         require(!shutdown, ErrorsLib.Shutdown());
         require(
-            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this),
-            ErrorsLib.NotAllocator()
+            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
@@ -224,8 +228,7 @@ contract VaultV2 is IVaultV2 {
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
             require(
-                allocation[ids[i]] <= _totalAssets.mulDivDown(relativeCap[ids[i]], WAD),
-                ErrorsLib.RelativeCapExceeded()
+                allocation[ids[i]] <= _totalAssets.mulDivDown(relativeCap[ids[i]], WAD), ErrorsLib.RelativeCapExceeded()
             );
         }
     }
@@ -234,7 +237,8 @@ contract VaultV2 is IVaultV2 {
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
         require(
-            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this) || shutdown, ErrorsLib.NotAllocator()
+            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this) || shutdown,
+            ErrorsLib.NotAllocator()
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
