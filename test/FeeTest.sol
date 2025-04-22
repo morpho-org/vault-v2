@@ -28,7 +28,7 @@ contract FeeTest is BaseTest {
     function testPerformanceFee(uint256 performanceFee, uint256 interestPerSecond, uint256 deposit, uint256 elapsed)
         public
     {
-        performanceFee = bound(performanceFee, 0, WAD);
+        performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         deposit = bound(deposit, 0, MAX_DEPOSIT);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
         elapsed = bound(elapsed, 0, 1000 weeks);
@@ -58,7 +58,7 @@ contract FeeTest is BaseTest {
     function testManagementFee(uint256 managementFee, uint256 interestPerSecond, uint256 deposit, uint256 elapsed)
         public
     {
-        managementFee = bound(managementFee, 0, 0.1 ether / uint256(365 days));
+        managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_DEPOSIT);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
         elapsed = bound(elapsed, 0, 50 weeks);
