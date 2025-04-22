@@ -211,7 +211,7 @@ contract VaultV2 is IVaultV2 {
     function reallocateFromIdle(address adapter, bytes memory data, uint256 amount) external {
         require(!shutdown, ErrorsLib.Shutdown());
         require(
-            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this) || shutdown,
+            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this),
             ErrorsLib.NotAllocator()
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
@@ -234,7 +234,7 @@ contract VaultV2 is IVaultV2 {
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
         require(
-            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
+            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this) || shutdown, ErrorsLib.NotAllocator()
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
