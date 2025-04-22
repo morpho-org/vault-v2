@@ -34,7 +34,7 @@ contract BaseTest is Test {
 
         vaultFactory = IVaultV2Factory(address(new VaultV2Factory(address(this))));
 
-        vault = IVaultV2(vaultFactory.createVaultV2(owner, address(underlyingToken), "VaultToken", "VAULT"));
+        vault = IVaultV2(vaultFactory.createVaultV2(owner, address(underlyingToken)));
         vm.label(address(vault), "vault");
         irm = new IRM(manager);
         vm.label(address(irm), "IRM");

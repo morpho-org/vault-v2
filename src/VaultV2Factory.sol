@@ -35,11 +35,8 @@ contract VaultV2Factory is IVaultV2Factory {
         protocolFeeRecipient = newProtocolFeeRecipient;
     }
 
-    function createVaultV2(address _owner, address _asset, string memory _name, string memory _symbol)
-        external
-        returns (address)
-    {
-        address vaultV2 = address(new VaultV2{salt: 0}(_owner, _asset, _name, _symbol));
+    function createVaultV2(address _owner, address _asset) external returns (address) {
+        address vaultV2 = address(new VaultV2{salt: 0}(_owner, _asset));
 
         isVaultV2[vaultV2] = true;
 

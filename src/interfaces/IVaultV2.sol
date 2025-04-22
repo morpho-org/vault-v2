@@ -15,14 +15,16 @@ interface IVaultV2 is IERC20 {
     function nonces(address owner) external view returns (uint256);
     function DOMAIN_SEPARATOR() external view returns (bytes32);
 
-    // ERC-4626 (incomplete)
+    // ERC-4626-v2
     function asset() external view returns (address);
     function totalAssets() external view returns (uint256);
-    function convertToShares(uint256 assets) external view returns (uint256);
-    function convertToAssets(uint256 shares) external view returns (uint256);
+    function previewDeposit(uint256 assets) external view returns (uint256);
     function deposit(uint256 assets, address receiver) external returns (uint256);
+    function previewMint(uint256 shares) external view returns (uint256);
     function mint(uint256 shares, address receiver) external returns (uint256);
+    function previewWithdraw(uint256 assets) external view returns (uint256);
     function withdraw(uint256 assets, address receiver, address owner) external returns (uint256);
+    function previewRedeem(uint256 shares) external view returns (uint256);
     function redeem(uint256 shares, address receiver, address owner) external returns (uint256);
 
     // State variables
@@ -53,6 +55,7 @@ interface IVaultV2 is IERC20 {
     function decreaseTimelock(bytes4, uint256) external;
     function setIsAllocator(address, bool) external;
     function setIsAdapter(address, bool) external;
+
     // Treasurer actions
     function setPerformanceFee(uint256) external;
     function setManagementFee(uint256) external;
@@ -70,7 +73,7 @@ interface IVaultV2 is IERC20 {
 
     // Exchange rate
     function accrueInterest() external;
-    function accruedFeeShares() external returns (uint256, uint256, uint256, uint256);
+    function accruedFeeShares() external returns (uint256, uint256, uint256, uint256, uint256);
 
     // Timelocks
     function submit(bytes calldata) external;
