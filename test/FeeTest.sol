@@ -55,7 +55,7 @@ contract FeeTest is BaseTest {
         assertEq(vault.balanceOf(performanceFeeRecipient), expectedShares);
     }
 
-    function testManagementFee(uint256 managementFee, uint256 interestPerSecond, uint256 deposit, uint256 elapsed)
+    function testManagementFeeWithoutPerformanceFee(uint256 managementFee, uint256 interestPerSecond, uint256 deposit, uint256 elapsed)
         public
     {
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
