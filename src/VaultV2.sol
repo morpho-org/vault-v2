@@ -224,19 +224,18 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterest() public {
         (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 protocolFeeShares,, uint256 newTotalAssets)
-        = accruedFeeShares();
+        = accrueInterestView();
 
         totalAssets = newTotalAssets;
 
-        address protocolFeeRecipient = IVaultV2Factory(factory).protocolFeeRecipient();
         if (performanceFeeShares != 0) _mint(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) _mint(managementFeeRecipient, managementFeeShares);
-        if (protocolFeeShares != 0) _mint(protocolFeeRecipient, protocolFeeShares);
+        if (protocolFeeShares != 0) _mint(IVaultV2Factory(factory).protocolFeeRecipient(), protocolFeeShares);
 
         lastUpdate = block.timestamp;
     }
 
-    function accruedFeeShares() public view returns (uint256, uint256, uint256, uint256, uint256) {
+    function accrueInterestView() public view returns (uint256, uint256, uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (0, 0, 0, totalSupply, totalAssets);
         uint256 interestPerSecond = IIRM(irm).interestPerSecond(totalAssets, elapsed);
