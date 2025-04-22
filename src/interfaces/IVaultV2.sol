@@ -73,7 +73,7 @@ interface IVaultV2 is IERC20 {
 
     // Exchange rate
     function accrueInterest() external;
-    function accruedFeeShares() external returns (uint256, uint256, uint256, uint256, uint256);
+    function accrueInterestView() external view returns (uint256, uint256, uint256, uint256, uint256); 
 
     // Timelocks
     function submit(bytes calldata) external;
