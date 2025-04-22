@@ -275,22 +275,22 @@ contract VaultV2 is IVaultV2 {
     }
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
-        (,,, uint256 newTotalSupply, uint256 newTotalAssets) = accruedFeeShares();
+        (,,, uint256 newTotalSupply, uint256 newTotalAssets) = accrueInterestView();
         return assets.mulDivDown(newTotalSupply + 1, newTotalAssets + 1);
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
-        (,,, uint256 newTotalSupply, uint256 newTotalAssets) = accruedFeeShares();
+        (,,, uint256 newTotalSupply, uint256 newTotalAssets) = accrueInterestView();
         return assets.mulDivUp(newTotalSupply + 1, newTotalAssets + 1);
     }
 
     function previewMint(uint256 shares) public view returns (uint256) {
-        (,,, uint256 newTotalSupply, uint256 newTotalAssets) = accruedFeeShares();
+        (,,, uint256 newTotalSupply, uint256 newTotalAssets) = accrueInterestView();
         return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + 1);
     }
 
     function previewRedeem(uint256 shares) public view returns (uint256) {
-        (,,, uint256 newTotalSupply, uint256 newTotalAssets) = accruedFeeShares();
+        (,,, uint256 newTotalSupply, uint256 newTotalAssets) = accrueInterestView();
         return shares.mulDivUp(newTotalAssets + 1, newTotalSupply + 1);
     }
 
