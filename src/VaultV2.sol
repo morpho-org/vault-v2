@@ -7,7 +7,7 @@ import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
-import {WAD, MAX_RATE_PER_SECOND, PERMIT_TYPEHASH, DOMAIN_TYPEHASH, TIMELOCK_CAP} from "./libraries/ConstantsLib.sol";
+import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeTransferLib} from "./libraries/SafeTransferLib.sol";
 
@@ -148,7 +148,7 @@ contract VaultV2 is IVaultV2 {
     /* TREASURER ACTIONS */
 
     function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
-        require(newPerformanceFee <= WAD, ErrorsLib.FeeTooHigh());
+        require(newPerformanceFee <= MAX_PERFORMANCE_FEE, ErrorsLib.FeeTooHigh());
         require(performanceFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
 
         accrueInterest();
@@ -157,7 +157,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setManagementFee(uint256 newManagementFee) external timelocked {
-        require(newManagementFee <= WAD, ErrorsLib.FeeTooHigh());
+        require(newManagementFee <= MAX_MANAGEMENT_FEE, ErrorsLib.FeeTooHigh());
         require(managementFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
 
         accrueInterest();
