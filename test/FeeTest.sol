@@ -25,7 +25,7 @@ contract FeeTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
     }
 
-    function testPerformanceFee(uint256 performanceFee, uint256 interestPerSecond, uint256 deposit, uint256 elapsed)
+    function testPerformanceFeeWithoutManagementFee(uint256 performanceFee, uint256 interestPerSecond, uint256 deposit, uint256 elapsed)
         public
     {
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
