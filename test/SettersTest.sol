@@ -174,7 +174,7 @@ contract SettersTest is BaseTest {
 
     function testSetManagementFee(address rdm) public {
         vm.assume(rdm != treasurer);
-        uint256 newManagementFee = 0.05 ether;
+        uint256 newManagementFee = 0.01 ether / uint256(365.25 days);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
@@ -231,7 +231,7 @@ contract SettersTest is BaseTest {
 
         assertEq(vault.managementFeeRecipient(), newManagementFeeRecipient);
 
-        uint256 newManagementFee = 0.05 ether;
+        uint256 newManagementFee = 0.01 ether / uint256(365.25 days);
         vm.prank(treasurer);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, newManagementFee));
         vault.setManagementFee(newManagementFee);
