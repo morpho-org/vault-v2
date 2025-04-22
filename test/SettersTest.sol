@@ -100,9 +100,9 @@ contract SettersTest is BaseTest {
         assertFalse(vault.isAllocator(newAllocator));
     }
 
-    function testSetPerformanceFee(address rdm) public {
+    function testSetPerformanceFee(address rdm, uint256 newPerformanceFee) public {
         vm.assume(rdm != treasurer);
-        uint256 newPerformanceFee = 0.05 ether;
+        newPerformanceFee = bound(newPerformanceFee, 0, MAX_PERFORMANCE_FEE);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
@@ -142,9 +142,9 @@ contract SettersTest is BaseTest {
         assertEq(vault.performanceFee(), newPerformanceFee);
     }
 
-    function testSetPerformanceFeeRecipient(address rdm) public {
+    function testSetPerformanceFeeRecipient(address rdm, address newPerformanceFeeRecipient) public {
         vm.assume(rdm != owner);
-        address newPerformanceFeeRecipient = makeAddr("newPerformanceFeeRecipient");
+        vm.assume(newPerformanceFeeRecipient != address(0));
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
@@ -172,9 +172,9 @@ contract SettersTest is BaseTest {
         vault.setPerformanceFeeRecipient(address(0));
     }
 
-    function testSetManagementFee(address rdm) public {
+    function testSetManagementFee(address rdm, uint256 newManagementFee) public {
         vm.assume(rdm != treasurer);
-        uint256 newManagementFee = 0.01 ether / uint256(365.25 days);
+        newManagementFee = bound(newManagementFee, 0, MAX_MANAGEMENT_FEE);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
@@ -212,9 +212,9 @@ contract SettersTest is BaseTest {
         assertEq(vault.managementFee(), newManagementFee);
     }
 
-    function testSetManagementFeeRecipient(address rdm) public {
+    function testSetManagementFeeRecipient(address rdm, address newManagementFeeRecipient) public {
         vm.assume(rdm != owner);
-        address newManagementFeeRecipient = makeAddr("newManagementFeeRecipient");
+        vm.assume(newManagementFeeRecipient != address(0));
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);

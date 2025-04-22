@@ -14,7 +14,7 @@ contract IRM is IIRM {
         owner = _owner;
     }
 
-    function setInterest(uint256 newInterestPerSecond) public {
+    function setInterestPerSecond(uint256 newInterestPerSecond) public {
         require(msg.sender == owner);
         _interestPerSecond = newInterestPerSecond;
     }
