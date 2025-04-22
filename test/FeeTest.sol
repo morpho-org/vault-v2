@@ -61,7 +61,7 @@ contract FeeTest is BaseTest {
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_DEPOSIT);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        elapsed = bound(elapsed, 0, 50 weeks);
+        elapsed = bound(elapsed, 0, 20 * 365 days);
 
         vm.prank(treasurer);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, managementFee));
