@@ -449,10 +449,6 @@ contract VaultV2 is IVaultV2 {
         return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
     }
 
-    function maxWithdraw(address) external view returns (uint256) {
-        return IERC20(asset).balanceOf(address(this));
-    }
-
     /* ERC20 INTERNAL */
 
     function _mint(address to, uint256 amount) internal {
