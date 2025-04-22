@@ -217,18 +217,16 @@ contract VaultV2 is IVaultV2 {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         SafeTransferLib.safeTransfer(IERC20(asset), adapter, amount);
-        if (!shutdown) {
-            bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
+        bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
 
-            for (uint256 i; i < ids.length; i++) {
-                allocation[ids[i]] += amount;
+        for (uint256 i; i < ids.length; i++) {
+            allocation[ids[i]] += amount;
 
-                require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
-                require(
-                    allocation[ids[i]] <= _totalAssets.mulDivDown(relativeCap[ids[i]], WAD),
-                    ErrorsLib.RelativeCapExceeded()
-                );
-            }
+            require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
+            require(
+                allocation[ids[i]] <= _totalAssets.mulDivDown(relativeCap[ids[i]], WAD),
+                ErrorsLib.RelativeCapExceeded()
+            );
         }
     }
 
