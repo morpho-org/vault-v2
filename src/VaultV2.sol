@@ -197,8 +197,10 @@ contract VaultV2 is IVaultV2 {
 
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
-    function reallocateFromIdle(address adapter, bytes memory data, uint256 amount) public {
-        require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.NotAllocator());
+    function reallocateFromIdle(address adapter, bytes memory data, uint256 amount) external {
+        require(
+            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
+        );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         SafeTransferLib.safeTransfer(IERC20(asset), adapter, amount);
