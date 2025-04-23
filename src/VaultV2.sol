@@ -252,7 +252,7 @@ contract VaultV2 is IVaultV2 {
     /* IN-KIND REDEMPTION */
 
     function forceReallocateToIdle(address adapter, bytes memory data, uint256 amount) external payable {
-        require(msg.value == forceExitFee, ErrorsLib.ExitFeeTooLow());
+        require(msg.value == forceExitFee, ErrorsLib.WrongExitFee());
         payable(forceExitFeeRecipient).transfer(msg.value);
 
         this.reallocateToIdle(adapter, data, amount);
