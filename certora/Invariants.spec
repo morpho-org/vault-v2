@@ -5,11 +5,10 @@ methods {
     function performanceFeeRecipient() external returns address envfree;
     function managementFee() external returns uint256 envfree;
     function managementFeeRecipient() external returns address envfree;
-    function exitFee() external returns uint256 envfree;
-    function exitFeeRecipient() external returns address envfree;
+    function forceExitFee() external returns uint256 envfree;
+    function forceExitFeeRecipient() external returns address envfree;
 
     function decreaseTimelock(bytes4 functionSelector, uint256 newDuration) external;
-
     function absoluteCap(bytes32 id) external returns uint256 envfree;
     function relativeCap(bytes32 id) external returns uint256 envfree;
     function allocation(bytes32 id) external returns uint256 envfree;
@@ -31,8 +30,8 @@ strong invariant performanceFeeRecipient()
 strong invariant managementFeeRecipient()
     managementFee() != 0 => managementFeeRecipient() != 0;
 
-strong invariant exitFeeRecipient()
-    exitFee() != 0 => exitFeeRecipient() != 0;
+strong invariant forceExitFeeRecipient()
+    forceExitFee() != 0 => forceExitFeeRecipient() != 0;
 
 strong invariant performanceFee()
     performanceFee() <= MAX_PERFOMANCE_FEE();
@@ -41,12 +40,7 @@ strong invariant managementFee()
     managementFee() <= MAX_MANAGEMENT_FEE();
 
 strong invariant balanceOfZero()
-    balanceOf(0) == 0
-    {
-        preserved {
-            requireInvariant exitFeeRecipient();
-        }
-    }
+    balanceOf(0) == 0;
 
 strong invariant timelockCap(bytes4 selector)
     timelock(selector) <= TIMELOCK_CAP();

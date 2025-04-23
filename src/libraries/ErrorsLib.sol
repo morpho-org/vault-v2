@@ -8,7 +8,7 @@ library ErrorsLib {
     error TransferFromReverted();
     error TransferFromReturnedFalse();
     error FeeTooHigh();
-    error ExitFeeTooHigh();
+    error ForceExitFeeTooHigh();
     error ZeroAddress();
     error Unauthorized();
     error TimelockNotExpired();
@@ -33,5 +33,4 @@ library ErrorsLib {
     error InvalidRate();
     error PermitDeadlineExpired();
     error InvalidSigner();
-    error MissingExitAssets();
 }

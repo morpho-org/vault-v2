@@ -8,11 +8,6 @@ interface IAdapter {
     function allocateOut(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
 }
 
-struct ExitRequest {
-    uint256 shares;
-    uint256 maxAssets;
-}
-
 interface IVaultV2 is IERC20 {
     // ERC-2612 (Permit)
     function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
@@ -37,10 +32,10 @@ interface IVaultV2 is IERC20 {
     function isAllocator(address) external view returns (bool);
     function performanceFee() external view returns (uint256);
     function managementFee() external view returns (uint256);
-    function exitFee() external view returns (uint256);
+    function forceExitFee() external view returns (uint256);
     function performanceFeeRecipient() external view returns (address);
     function managementFeeRecipient() external view returns (address);
-    function exitFeeRecipient() external view returns (address);
+    function forceExitFeeRecipient() external view returns (address);
     function irm() external view returns (address);
     function allocation(bytes32) external view returns (uint256);
     function lastUpdate() external view returns (uint256);
@@ -48,15 +43,11 @@ interface IVaultV2 is IERC20 {
     function relativeCap(bytes32) external view returns (uint256);
     function validAt(bytes calldata) external view returns (uint256);
     function timelock(bytes4) external view returns (uint256);
-    function canRequestExit(address, address) external view returns (bool);
-    function exitRequests(address) external view returns (uint256, uint256);
-    function maxMissingExitAssetsDuration() external view returns (uint256);
-    function missingExitAssetsSince() external view returns (uint256);
 
     // Owner actions
     function setPerformanceFeeRecipient(address) external;
     function setManagementFeeRecipient(address) external;
-    function setExitFeeRecipient(address) external;
+    function setForceExitFeeRecipient(address) external;
     function setOwner(address) external;
     function setCurator(address) external;
     function setIsSentinel(address, bool) external;
@@ -68,7 +59,7 @@ interface IVaultV2 is IERC20 {
     // Treasurer actions
     function setPerformanceFee(uint256) external;
     function setManagementFee(uint256) external;
-    function setExitFee(uint256) external;
+    function setForceExitFee(uint256) external;
 
     // Curator actions
     function setIRM(address) external;
@@ -76,7 +67,6 @@ interface IVaultV2 is IERC20 {
     function increaseRelativeCap(bytes32, uint256) external;
     function decreaseAbsoluteCap(bytes32, uint256) external;
     function decreaseRelativeCap(bytes32, uint256, uint256) external;
-    function setMaxMissingExitAssetsDuration(uint256) external;
 
     // Allocator actions
     function reallocateFromIdle(address, bytes memory, uint256) external;
@@ -92,6 +82,6 @@ interface IVaultV2 is IERC20 {
     function revoke(bytes calldata) external;
 
     // User actions
-    function requestExit(uint256, address) external;
-    function claimExit(uint256, address, address) external returns (uint256);
+    function forceWithdraw(address, bytes memory, uint256, address, address) external returns (uint256);
+    function forceRedeem(address, bytes memory, uint256, address, address) external returns (uint256);
 }

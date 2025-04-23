@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {IVaultV2, IERC20, IAdapter, ExitRequest} from "./interfaces/IVaultV2.sol";
+import {IVaultV2, IERC20, IAdapter} from "./interfaces/IVaultV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
 import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
@@ -40,8 +40,8 @@ contract VaultV2 is IVaultV2 {
     /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint256 public managementFee;
     address public managementFeeRecipient;
-    uint256 public exitFee;
-    address public exitFeeRecipient;
+    uint256 public forceExitFee;
+    address public forceExitFeeRecipient;
 
     uint256 public lastUpdate;
     uint256 public totalAssets;
@@ -75,18 +75,6 @@ contract VaultV2 is IVaultV2 {
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
     mapping(address => uint256) public nonces;
-
-    mapping(address => mapping(address => bool)) public canRequestExit;
-    mapping(address => ExitRequest) public exitRequests;
-
-    // Not updated by share price changes.
-    // May create deadweight idle assets if share price goes down, until a) it comes back up or b) until all exit claims
-    // have been processed.
-    uint256 public totalMaxExitAssets;
-
-    uint256 public maxMissingExitAssetsDuration = 1 weeks;
-    // Can become incorrect as share price moves.
-    uint256 public missingExitAssetsSince;
 
     /* CONSTRUCTOR */
 
@@ -143,13 +131,12 @@ contract VaultV2 is IVaultV2 {
         managementFeeRecipient = newManagementFeeRecipient;
     }
 
-    function setExitFeeRecipient(address newExitFeeRecipient) external timelocked {
-        require(newExitFeeRecipient != address(0) || exitFee == 0, ErrorsLib.FeeInvariantBroken());
-        exitFeeRecipient = newExitFeeRecipient;
+    function setForceExitFeeRecipient(address newForceExitFeeRecipient) external timelocked {
+        require(newForceExitFeeRecipient != address(0) || forceExitFee == 0, ErrorsLib.FeeInvariantBroken());
+        forceExitFeeRecipient = newForceExitFeeRecipient;
     }
 
     function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
-        if (!newIsAdapter) require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
         isAdapter[adapter] = newIsAdapter;
     }
 
@@ -188,13 +175,11 @@ contract VaultV2 is IVaultV2 {
         managementFee = newManagementFee;
     }
 
-    function setExitFee(uint256 newExitFee) external timelocked {
-        require(newExitFee < WAD, ErrorsLib.ExitFeeTooHigh());
-        require(exitFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
+    function setForceExitFee(uint256 newForceExitFee) external timelocked {
+        require(newForceExitFee < WAD, ErrorsLib.ForceExitFeeTooHigh());
+        require(forceExitFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
 
-        if (newExitFee > exitFee) require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
-
-        exitFee = newExitFee;
+        forceExitFee = newForceExitFee;
     }
 
     /* CURATOR ACTIONS */
@@ -230,15 +215,6 @@ contract VaultV2 is IVaultV2 {
         relativeCap[id] = newRelativeCap;
     }
 
-    function setMaxMissingExitAssetsDuration(uint256 newMaxMissingExitAssetsDuration) external timelocked {
-        if (newMaxMissingExitAssetsDuration > maxMissingExitAssetsDuration) {
-            accrueInterest();
-            require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
-        }
-
-        maxMissingExitAssetsDuration = newMaxMissingExitAssetsDuration;
-    }
-
     /* ALLOCATOR ACTIONS */
 
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
@@ -252,8 +228,6 @@ contract VaultV2 is IVaultV2 {
         SafeTransferLib.safeTransfer(IERC20(asset), adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
 
-        require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
-
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] += amount;
 
@@ -264,60 +238,55 @@ contract VaultV2 is IVaultV2 {
         }
     }
 
-    // Do not try to redeem normally first
-    function requestExit(uint256 requestedShares, address supplier) external {
-        if (msg.sender != supplier) require(canRequestExit[supplier][msg.sender], ErrorsLib.Unauthorized());
+    // If the curator removes adapters, users cannot exit.
+    function _forceWithdraw(
+        address adapter,
+        bytes memory data,
+        uint256 assets,
+        uint256 shares,
+        address receiver,
+        address supplier
+    ) internal {
+        require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        ExitRequest storage request = exitRequests[supplier];
-        uint256 exitShares = requestedShares.mulDivUp(WAD - exitFee, WAD);
-        uint256 exitAssets = convertToAssetsDown(exitShares);
+        bytes32[] memory ids = IAdapter(adapter).allocateOut(data, assets);
 
-        _burn(supplier, exitShares);
-        _transfer(supplier, exitFeeRecipient, requestedShares - exitShares);
-        request.shares += exitShares;
-        request.maxAssets += exitAssets;
-        totalAssets -= exitAssets;
-        updateMissingExitAssets();
-    }
-
-    function claimExit(uint256 claimedShares, address receiver, address supplier)
-        external
-        returns (uint256 exitAssets)
-    {
-        uint256 _allowance = allowance[supplier][msg.sender];
-        if (msg.sender != supplier && _allowance != type(uint256).max) {
-            if (_allowance < type(uint256).max) allowance[supplier][msg.sender] = _allowance - claimedShares;
+        for (uint256 i; i < ids.length; i++) {
+            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(assets);
         }
 
-        ExitRequest storage request = exitRequests[supplier];
-        uint256 claimedAssets = request.maxAssets.mulDivUp(claimedShares, request.shares);
-        uint256 quotedClaimedShares = convertToAssetsDown(claimedShares);
-        exitAssets = MathLib.min(claimedAssets, quotedClaimedShares);
-
-        request.shares -= claimedShares;
-        request.maxAssets = request.maxAssets.zeroFloorSub(claimedAssets);
-        IERC20(asset).transfer(receiver, exitAssets);
-
-        updateMissingExitAssets();
+        uint256 feeAssets = assets.mulDivUp(forceExitFee, WAD);
+        uint256 feeShares = shares.mulDivDown(forceExitFee, WAD);
+        SafeTransferLib.safeTransferFrom(IERC20(asset), adapter, address(this), assets - feeAssets);
+        _transfer(supplier, forceExitFeeRecipient, feeShares);
+        _withdraw(assets - feeAssets, shares - feeShares, receiver, supplier);
     }
 
-    function approveExit(address spender, bool allowed) external {
-        canRequestExit[msg.sender][spender] = allowed;
+    function forceWithdraw(address adapter, bytes memory data, uint256 assets, address receiver, address supplier)
+        external
+        returns (uint256 shares)
+    {
+        accrueInterest();
+        shares = convertToSharesUp(assets);
+        _forceWithdraw(adapter, data, assets, shares, receiver, supplier);
+    }
+
+    function forceRedeem(address adapter, bytes memory data, uint256 shares, address receiver, address supplier)
+        external
+        returns (uint256 assets)
+    {
+        accrueInterest();
+        assets = convertToAssetsDown(shares);
+        _forceWithdraw(adapter, data, assets, shares, receiver, supplier);
     }
 
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
-    function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(
-            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this)
-                || (missingExitAssetsSince != 0 && block.timestamp - missingExitAssetsSince <= maxMissingExitAssetsDuration),
-            ErrorsLib.NotAllocator()
-        );
+    function reallocateToIdle(address adapter, bytes memory data, uint256 amount) public {
+        require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.NotAllocator());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         bytes32[] memory ids = IAdapter(adapter).allocateOut(data, amount);
-
-        updateMissingExitAssets();
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(amount);
@@ -419,29 +388,12 @@ contract VaultV2 is IVaultV2 {
 
     /* USER INTERACTION */
 
-    // Negative value means idle assets availabel for withdrawal.
-    function updateMissingExitAssets() public returns (int256 missingExitAssets) {
-        int256 idleAssets = int256(IERC20(asset).balanceOf(address(this)));
-        missingExitAssets = int256(totalMaxExitAssets) - idleAssets;
-
-        if (missingExitAssets <= 0) {
-            // can only happen when called by requestExit
-            missingExitAssetsSince = 0;
-        } else if (missingExitAssetsSince == 0) {
-            missingExitAssetsSince = block.timestamp;
-        }
-    }
-
     function _deposit(uint256 assets, uint256 shares, address receiver) internal {
         SafeTransferLib.safeTransferFrom(IERC20(asset), msg.sender, address(this), assets);
         _mint(receiver, shares);
         totalAssets += assets;
 
-        int256 missingAssets = updateMissingExitAssets();
-        if (missingAssets < 0) {
-            uint256 toReallocate = MathLib.min(uint256(-missingAssets), assets);
-            try this.reallocateFromIdle(liquidityAdapter, liquidityData, toReallocate) {} catch {}
-        }
+        try this.reallocateFromIdle(liquidityAdapter, liquidityData, assets) {} catch {}
     }
 
     // TODO: how to hook on deposit so that assets are atomically allocated ?
@@ -459,12 +411,10 @@ contract VaultV2 is IVaultV2 {
     }
 
     function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal {
-        int256 missingAssets = int256(assets) + updateMissingExitAssets();
-
-        if (missingAssets > 0 && liquidityAdapter != address(0)) {
-            try this.reallocateToIdle(liquidityAdapter, liquidityData, uint256(missingAssets)) {} catch {}
+        uint256 idleAssets = IERC20(asset).balanceOf(address(this));
+        if (assets > idleAssets && liquidityAdapter != address(0)) {
+            reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
         }
-
         uint256 _allowance = allowance[supplier][msg.sender];
         if (msg.sender != supplier && _allowance != type(uint256).max) {
             allowance[supplier][msg.sender] = _allowance - shares;
@@ -525,7 +475,7 @@ contract VaultV2 is IVaultV2 {
         // Owner functions
         if (selector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
         if (selector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
-        if (selector == IVaultV2.setExitFeeRecipient.selector) return sender == owner;
+        if (selector == IVaultV2.setForceExitFeeRecipient.selector) return sender == owner;
         if (selector == IVaultV2.setIsSentinel.selector) return sender == owner;
         if (selector == IVaultV2.setOwner.selector) return sender == owner;
         if (selector == IVaultV2.setCurator.selector) return sender == owner;
@@ -538,13 +488,12 @@ contract VaultV2 is IVaultV2 {
         // Treasurer functions
         if (selector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
         if (selector == IVaultV2.setManagementFee.selector) return sender == treasurer;
-        if (selector == IVaultV2.setExitFee.selector) return sender == treasurer;
+        if (selector == IVaultV2.setForceExitFee.selector) return sender == treasurer;
         // Curator functions
         if (selector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
         if (selector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
         if (selector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
         if (selector == IVaultV2.decreaseRelativeCap.selector) return sender == curator;
-        if (selector == IVaultV2.setMaxMissingExitAssetsDuration.selector) return sender == curator;
         // Allocator actions.
         if (selector == IVaultV2.setLiquidityMarket.selector) return isAllocator[sender];
         return false;
@@ -553,14 +502,11 @@ contract VaultV2 is IVaultV2 {
     /* INTERFACE */
 
     function transfer(address to, uint256 amount) public returns (bool) {
-        require(to != address(0), ErrorsLib.ZeroAddress());
         _transfer(msg.sender, to, amount);
         return true;
     }
 
     function transferFrom(address from, address to, uint256 amount) public returns (bool) {
-        require(from != address(0), ErrorsLib.ZeroAddress());
-        require(to != address(0), ErrorsLib.ZeroAddress());
         uint256 _allowance = allowance[from][msg.sender];
 
         if (_allowance < type(uint256).max) allowance[from][msg.sender] = _allowance - amount;
@@ -571,6 +517,8 @@ contract VaultV2 is IVaultV2 {
     }
 
     function _transfer(address from, address to, uint256 amount) internal {
+        require(from != address(0), ErrorsLib.ZeroAddress());
+        require(to != address(0), ErrorsLib.ZeroAddress());
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
         emit EventsLib.Transfer(from, to, amount);
