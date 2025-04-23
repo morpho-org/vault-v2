@@ -226,8 +226,10 @@ contract VaultV2 is IVaultV2 {
 
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
-    function reallocateToIdle(address adapter, bytes memory data, uint256 amount) public {
-        require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.NotAllocator());
+    function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
+        require(
+            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
+        );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         bytes32[] memory ids = IAdapter(adapter).allocateOut(data, amount);
@@ -357,7 +359,7 @@ contract VaultV2 is IVaultV2 {
     function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal {
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
-            reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
+            this.reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
         }
         uint256 _allowance = allowance[supplier][msg.sender];
         if (msg.sender != supplier && _allowance != type(uint256).max) {
