@@ -7,7 +7,7 @@ import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
-import {WAD, MAX_RATE_PER_SECOND, PERMIT_TYPEHASH, DOMAIN_TYPEHASH, TIMELOCK_CAP} from "./libraries/ConstantsLib.sol";
+import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeTransferLib} from "./libraries/SafeTransferLib.sol";
 
@@ -116,11 +116,15 @@ contract VaultV2 is IVaultV2 {
     function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
         require(newPerformanceFeeRecipient != address(0) || performanceFee == 0, ErrorsLib.FeeInvariantBroken());
 
+        accrueInterest();
+
         performanceFeeRecipient = newPerformanceFeeRecipient;
     }
 
     function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
         require(newManagementFeeRecipient != address(0) || managementFee == 0, ErrorsLib.FeeInvariantBroken());
+
+        accrueInterest();
 
         managementFeeRecipient = newManagementFeeRecipient;
     }
@@ -147,15 +151,19 @@ contract VaultV2 is IVaultV2 {
     /* TREASURER ACTIONS */
 
     function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
-        require(newPerformanceFee < WAD, ErrorsLib.FeeTooHigh());
+        require(newPerformanceFee <= MAX_PERFORMANCE_FEE, ErrorsLib.FeeTooHigh());
         require(performanceFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
+
+        accrueInterest();
 
         performanceFee = newPerformanceFee;
     }
 
     function setManagementFee(uint256 newManagementFee) external timelocked {
-        require(newManagementFee < WAD, ErrorsLib.FeeTooHigh());
+        require(newManagementFee <= MAX_MANAGEMENT_FEE, ErrorsLib.FeeTooHigh());
         require(managementFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
+
+        accrueInterest();
 
         managementFee = newManagementFee;
     }
@@ -240,19 +248,18 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterest() public {
         (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 protocolFeeShares, uint256 newTotalAssets) =
-            accruedFeeShares();
+            accrueInterestView();
 
         totalAssets = newTotalAssets;
 
-        address protocolFeeRecipient = IVaultV2Factory(factory).protocolFeeRecipient();
         if (performanceFeeShares != 0) _mint(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) _mint(managementFeeRecipient, managementFeeShares);
-        if (protocolFeeShares != 0) _mint(protocolFeeRecipient, protocolFeeShares);
+        if (protocolFeeShares != 0) _mint(IVaultV2Factory(factory).protocolFeeRecipient(), protocolFeeShares);
 
         lastUpdate = block.timestamp;
     }
 
-    function accruedFeeShares() public view returns (uint256, uint256, uint256, uint256) {
+    function accrueInterestView() public view returns (uint256, uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         uint256 interestPerSecond = IIRM(irm).interestPerSecond(totalAssets, elapsed);
         require(interestPerSecond <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
@@ -290,25 +297,35 @@ contract VaultV2 is IVaultV2 {
     }
 
     function convertToShares(uint256 assets) external view returns (uint256) {
-        return convertToSharesDown(assets);
+        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 protocolFeeShares, uint256 newTotalAssets) =
+            accrueInterestView();
+        uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares + protocolFeeShares;
+        return assets.mulDivDown(newTotalSupply + 1, newTotalAssets + 1);
     }
 
     function convertToAssets(uint256 shares) external view returns (uint256) {
-        return convertToAssetsDown(shares);
+        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 protocolFeeShares, uint256 newTotalAssets) =
+            accrueInterestView();
+        uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares + protocolFeeShares;
+        return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + 1);
     }
 
+    /// @dev Use only once interest have been accrued.
     function convertToSharesDown(uint256 assets) internal view returns (uint256) {
         return assets.mulDivDown(totalSupply + 1, totalAssets + 1);
     }
 
+    /// @dev Use only once interest have been accrued.
     function convertToSharesUp(uint256 assets) internal view returns (uint256) {
         return assets.mulDivUp(totalSupply + 1, totalAssets + 1);
     }
 
+    /// @dev Use only once interest have been accrued.
     function convertToAssetsDown(uint256 shares) internal view returns (uint256) {
         return shares.mulDivDown(totalAssets + 1, totalSupply + 1);
     }
 
+    /// @dev Use only once interest have been accrued.
     function convertToAssetsUp(uint256 shares) internal view returns (uint256) {
         return shares.mulDivUp(totalAssets + 1, totalSupply + 1);
     }

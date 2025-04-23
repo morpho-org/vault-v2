@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
-import {WAD} from "./libraries/ConstantsLib.sol";
+import {WAD, MAX_PROTOCOL_FEE} from "./libraries/ConstantsLib.sol";
 
 import {VaultV2} from "./VaultV2.sol";
 import {IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
@@ -26,7 +26,7 @@ contract VaultV2Factory is IVaultV2Factory {
 
     function setProtocolFee(uint96 newProtocolFee) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        require(newProtocolFee < WAD, ErrorsLib.FeeTooHigh());
+        require(newProtocolFee <= MAX_PROTOCOL_FEE, ErrorsLib.FeeTooHigh());
         protocolFee = newProtocolFee;
     }
 

@@ -17,8 +17,9 @@ methods {
     function balanceOf(address) external returns uint256 envfree;
 }
 
-definition WAD() returns uint256 = 10^18;
-definition WEEK() returns uint256 = 14 * 24 * 60 * 60;
+definition TIMELOCK_CAP() returns uint256 = 14 * 24 * 60 * 60;
+definition MAX_PERFOMANCE_FEE() returns uint256 = 10^18 / 2;
+definition MAX_MANAGEMENT_FEE() returns uint256 = 10^18 / 20 / (365 * 24 * 60 * 60);
 
 /// INVARIANTS ///
 
@@ -29,16 +30,16 @@ strong invariant managementFeeRecipient()
     managementFee() != 0 => managementFeeRecipient() != 0;
 
 strong invariant performanceFee()
-    performanceFee() < WAD();
+    performanceFee() <= MAX_PERFOMANCE_FEE();
 
 strong invariant managementFee()
-    managementFee() < WAD();
+    managementFee() <= MAX_MANAGEMENT_FEE();
 
 strong invariant balanceOfZero() 
     balanceOf(0) == 0;
 
 strong invariant timelockCap(bytes4 selector)
-    timelock(selector) <= WEEK();
+    timelock(selector) <= TIMELOCK_CAP();
 
 strong invariant timelockTimelock()
-    timelock(to_bytes4(0x5c1a1a4f)) == WEEK();
+    timelock(to_bytes4(0x5c1a1a4f)) == TIMELOCK_CAP();
