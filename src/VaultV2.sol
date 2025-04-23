@@ -147,6 +147,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
+        if (!newIsAdapter) require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
         isAdapter[adapter] = newIsAdapter;
     }
 
@@ -301,13 +302,12 @@ contract VaultV2 is IVaultV2 {
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
-        if (missingExitAssetsSince != 0 && block.timestamp - missingExitAssetsSince <= maxMissingExitAssetsDuration) {
-            require(
-                isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this),
-                ErrorsLib.NotAllocator()
-            );
-            require(isAdapter[adapter], ErrorsLib.NotAdapter());
-        }
+        require(
+            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this)
+                || (missingExitAssetsSince != 0 && block.timestamp - missingExitAssetsSince <= maxMissingExitAssetsDuration),
+            ErrorsLib.NotAllocator()
+        );
+        require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         bytes32[] memory ids = IAdapter(adapter).allocateOut(data, amount);
 
