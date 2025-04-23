@@ -1,16 +1,31 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity >=0.5.0;
 
-import {IERC20} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "./IERC20.sol";
 
 interface IAdapter {
     function allocateIn(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
     function allocateOut(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
 }
 
-interface IVaultV2 {
+interface IVaultV2 is IERC20 {
+    // ERC-2612 (Permit)
+    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        external;
+    function nonces(address owner) external view returns (uint256);
+    function DOMAIN_SEPARATOR() external view returns (bytes32);
+
+    // ERC-4626 (incomplete)
+    function asset() external view returns (address);
+    function totalAssets() external view returns (uint256);
+    function convertToShares(uint256 assets) external view returns (uint256);
+    function convertToAssets(uint256 shares) external view returns (uint256);
+    function deposit(uint256 assets, address receiver) external returns (uint256);
+    function mint(uint256 shares, address receiver) external returns (uint256);
+    function withdraw(uint256 assets, address receiver, address owner) external returns (uint256);
+    function redeem(uint256 shares, address receiver, address owner) external returns (uint256);
+
     // State variables
-    function asset() external view returns (IERC20);
     function performanceFee() external view returns (uint256);
     function managementFee() external view returns (uint256);
     function performanceFeeRecipient() external view returns (address);
@@ -18,11 +33,10 @@ interface IVaultV2 {
     function irm() external view returns (address);
     function allocation(bytes32) external view returns (uint256);
     function lastUpdate() external view returns (uint256);
-    function totalAssets() external view returns (uint256);
     function absoluteCap(bytes32) external view returns (uint256);
     function relativeCap(bytes32) external view returns (uint256);
     function validAt(bytes calldata) external view returns (uint256);
-    function timelockDuration(bytes4) external view returns (uint64);
+    function timelock(bytes4) external view returns (uint256);
 
     // Owner actions
     function setPerformanceFeeRecipient(address) external;
@@ -43,21 +57,12 @@ interface IVaultV2 {
     // Allocator actions
     function reallocateFromIdle(address, bytes memory, uint256) external;
     function reallocateToIdle(address, bytes memory, uint256) external;
-    function setDepositData(address, bytes memory) external;
-    function setWithdrawData(address, bytes memory) external;
+    function setLiquidityMarket(address, bytes memory) external;
 
     // Exchange rate
     function accrueInterest() external;
-    function accruedFeeShares() external returns (uint256, uint256, uint256, uint256);
-    function convertToShares(uint256) external view returns (uint256);
-    function convertToAssets(uint256) external view returns (uint256);
+    function accrueInterestView() external view returns (uint256, uint256, uint256, uint256);
 
     // Timelocks
     function revoke(bytes calldata) external;
-
-    // User actions
-    function deposit(uint256, address) external returns (uint256);
-    function mint(uint256, address) external returns (uint256);
-    function withdraw(uint256, address, address) external returns (uint256);
-    function redeem(uint256, address, address) external returns (uint256);
 }

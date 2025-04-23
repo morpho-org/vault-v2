@@ -1,8 +1,30 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity 0.8.28;
+pragma solidity ^0.8.0;
+
+import {WAD} from "./ConstantsLib.sol";
 
 library MathLib {
-    function zeroFloorSub(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a > b ? a - b : 0;
+    /// @dev Returns (x * y) / d rounded down.
+    function mulDivDown(uint256 x, uint256 y, uint256 d) internal pure returns (uint256) {
+        return (x * y) / d;
+    }
+
+    /// @dev Returns (x * y) / d rounded up.
+    function mulDivUp(uint256 x, uint256 y, uint256 d) internal pure returns (uint256) {
+        return (x * y + (d - 1)) / d;
+    }
+
+    /// @dev Returns the min of x and y.
+    function min(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        assembly {
+            z := xor(x, mul(xor(x, y), lt(y, x)))
+        }
+    }
+
+    /// @dev Returns max(0, x - y).
+    function zeroFloorSub(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        assembly {
+            z := mul(gt(x, y), sub(x, y))
+        }
     }
 }
