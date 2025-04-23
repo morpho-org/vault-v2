@@ -462,7 +462,7 @@ contract VaultV2 is IVaultV2 {
         int256 missingAssets = int256(assets) + updateMissingExitAssets();
 
         if (missingAssets > 0 && liquidityAdapter != address(0)) {
-            try this.reallocateToIdle(withdrawAdapter, withdrawData, uint256(missingAssets)) {} catch {}
+            try this.reallocateToIdle(liquidityAdapter, liquidityData, uint256(missingAssets)) {} catch {}
         }
 
         uint256 _allowance = allowance[supplier][msg.sender];
