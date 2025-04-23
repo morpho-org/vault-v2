@@ -257,8 +257,8 @@ contract VaultV2 is IVaultV2 {
 
         uint256 feeAssets = assets.mulDivUp(forceExitFee, WAD);
         uint256 feeShares = shares.mulDivDown(forceExitFee, WAD);
-        SafeTransferLib.safeTransferFrom(IERC20(asset), adapter, address(this), assets - feeAssets);
         _transfer(supplier, forceExitFeeRecipient, feeShares);
+        SafeTransferLib.safeTransferFrom(IERC20(asset), adapter, address(this), assets - feeAssets);
         _withdraw(assets - feeAssets, shares - feeShares, receiver, supplier);
     }
 
