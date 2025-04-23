@@ -31,6 +31,7 @@ contract ERC20Test is BaseTest {
 
     function _setupPermit(PermitInfo calldata p)
         internal
+        view
         returns (address owner, uint256 privateKey, uint256 nonce, uint256 deadline)
     {
         privateKey = boundPrivateKey(p.privateKey);
