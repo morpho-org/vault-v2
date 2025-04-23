@@ -26,10 +26,7 @@ interface IVaultV2 is IERC20 {
     function redeem(uint256 shares, address receiver, address owner) external returns (uint256);
 
     // State variables
-    function owner() external view returns (address);
-    function curator() external view returns (address);
-    function isSentinel(address) external view returns (bool);
-    function isAllocator(address) external view returns (bool);
+    function hasRole(address, bytes32) external returns (bool);
     function performanceFee() external view returns (uint256);
     function managementFee() external view returns (uint256);
     function performanceFeeRecipient() external view returns (address);
@@ -45,14 +42,9 @@ interface IVaultV2 is IERC20 {
     // Owner actions
     function setPerformanceFeeRecipient(address) external;
     function setManagementFeeRecipient(address) external;
-    function setOwner(address) external;
-    function setCurator(address) external;
-    function setIsSentinel(address, bool) external;
-    function setTreasurer(address) external;
     function increaseTimelock(bytes4, uint256) external;
     function decreaseTimelock(bytes4, uint256) external;
-    function setIsAllocator(address, bool) external;
-    function setIsAdapter(address, bool) external;
+    function setRoles(address, bytes32) external;
     // Treasurer actions
     function setPerformanceFee(uint256) external;
     function setManagementFee(uint256) external;

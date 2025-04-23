@@ -11,6 +11,16 @@ import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeTransferLib} from "./libraries/SafeTransferLib.sol";
 
+// forgefmt: disable-start
+bytes32 constant ONE       = bytes32(uint256(1));
+bytes32 constant SENTINEL  = ONE << 0;
+bytes32 constant TREASURER = ONE << 2;
+bytes32 constant CURATOR   = ONE << 3;
+bytes32 constant ALLOCATOR = ONE << 4;
+bytes32 constant OWNER     = ONE << 5;
+bytes32 constant ADAPTER   = ONE << 6;
+// forgefmt: disable-end
+
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
     using SafeTransferLib for IERC20;
@@ -25,14 +35,8 @@ contract VaultV2 is IVaultV2 {
 
     /* STORAGE */
 
-    // Note that each role could be a smart contract: the owner, curator and guardian.
-    // This way, roles are modularized, and notably restricting their capabilities could be done on top.
-    address public owner;
-    address public curator;
-    address public treasurer;
     address public irm;
-    mapping(address => bool) public isSentinel;
-    mapping(address => bool) public isAllocator;
+    mapping(address => bytes32) public roles;
 
     /// @dev invariant: performanceFee != 0 => performanceFeeRecipient != address(0)
     uint256 public performanceFee;
@@ -79,35 +83,15 @@ contract VaultV2 is IVaultV2 {
         decimals = IERC20(_asset).decimals();
         factory = msg.sender;
         asset = _asset;
-        owner = _owner;
+        roles[_owner] = OWNER;
         lastUpdate = block.timestamp;
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
     }
 
     /* OWNER ACTIONS */
 
-    function setOwner(address newOwner) external timelocked {
-        owner = newOwner;
-    }
-
-    function setCurator(address newCurator) external timelocked {
-        curator = newCurator;
-    }
-
-    function setTreasurer(address newTreasurer) external timelocked {
-        treasurer = newTreasurer;
-    }
-
-    function setIRM(address newIRM) external timelocked {
-        irm = newIRM;
-    }
-
-    function setIsSentinel(address newSentinel, bool newIsSentinel) external timelocked {
-        isSentinel[newSentinel] = newIsSentinel;
-    }
-
-    function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
-        isAllocator[allocator] = newIsAllocator;
+    function setRoles(address account, bytes32 newRoles) external timelocked {
+        roles[account] = newRoles;
     }
 
     function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
@@ -167,6 +151,10 @@ contract VaultV2 is IVaultV2 {
 
     /* CURATOR ACTIONS */
 
+    function setIRM(address newIRM) external timelocked {
+        irm = newIRM;
+    }
+
     function increaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
         require(newCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
 
@@ -203,7 +191,7 @@ contract VaultV2 is IVaultV2 {
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateFromIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.NotAllocator());
+        require(hasRole(msg.sender, ALLOCATOR) || hasRole(msg.sender, SENTINEL), ErrorsLib.NotAllocator());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         SafeTransferLib.safeTransfer(IERC20(asset), adapter, amount);
@@ -222,7 +210,7 @@ contract VaultV2 is IVaultV2 {
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.NotAllocator());
+        require(hasRole(msg.sender, ALLOCATOR) || hasRole(msg.sender, SENTINEL), ErrorsLib.NotAllocator());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         bytes32[] memory ids = IAdapter(adapter).allocateOut(data, amount);
@@ -392,7 +380,7 @@ contract VaultV2 is IVaultV2 {
     function revoke(bytes calldata data) external {
         require(
             isAuthorizedToSubmit(msg.sender, bytes4(data))
-                || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector),
+                || (hasRole(msg.sender, SENTINEL) && bytes4(data) != IVaultV2.setRoles.selector),
             ErrorsLib.Unauthorized()
         );
         require(validAt[data] != 0);
@@ -401,26 +389,27 @@ contract VaultV2 is IVaultV2 {
 
     function isAuthorizedToSubmit(address sender, bytes4 selector) internal view returns (bool) {
         // Owner functions
-        if (selector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
-        if (selector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
-        if (selector == IVaultV2.setIsSentinel.selector) return sender == owner;
-        if (selector == IVaultV2.setOwner.selector) return sender == owner;
-        if (selector == IVaultV2.setCurator.selector) return sender == owner;
-        if (selector == IVaultV2.setIRM.selector) return sender == owner;
-        if (selector == IVaultV2.setTreasurer.selector) return sender == owner;
-        if (selector == IVaultV2.setIsAllocator.selector) return sender == owner;
-        if (selector == IVaultV2.setIsAdapter.selector) return sender == owner;
-        if (selector == IVaultV2.increaseTimelock.selector) return sender == owner;
-        if (selector == IVaultV2.decreaseTimelock.selector) return sender == owner;
+        if (selector == IVaultV2.setPerformanceFeeRecipient.selector) return hasRole(sender, OWNER);
+        if (selector == IVaultV2.setManagementFeeRecipient.selector) return hasRole(sender, OWNER);
+        if (selector == IVaultV2.setRoles.selector) return hasRole(sender, OWNER);
+        if (selector == IVaultV2.setIRM.selector) return hasRole(sender, OWNER);
+        if (selector == IVaultV2.increaseTimelock.selector) return hasRole(sender, OWNER);
+        if (selector == IVaultV2.decreaseTimelock.selector) return hasRole(sender, OWNER);
         // Treasurer functions
-        if (selector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
-        if (selector == IVaultV2.setManagementFee.selector) return sender == treasurer;
+        if (selector == IVaultV2.setPerformanceFee.selector) return hasRole(sender, TREASURER);
+        if (selector == IVaultV2.setManagementFee.selector) return hasRole(sender, TREASURER);
         // Curator functions
-        if (selector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
-        if (selector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
-        if (selector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
-        if (selector == IVaultV2.decreaseRelativeCap.selector) return sender == curator;
+        if (selector == IVaultV2.increaseAbsoluteCap.selector) return hasRole(sender, CURATOR);
+        if (selector == IVaultV2.decreaseAbsoluteCap.selector) {
+            return hasRole(sender, CURATOR) || hasRole(sender, SENTINEL);
+        }
+        if (selector == IVaultV2.increaseRelativeCap.selector) return hasRole(sender, CURATOR);
+        if (selector == IVaultV2.decreaseRelativeCap.selector) return hasRole(sender, CURATOR);
         return false;
+    }
+
+    function hasRole(address account, bytes32 role) public view returns (bool) {
+        return roles[account] & role == role;
     }
 
     /* INTERFACE */

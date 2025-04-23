@@ -5,10 +5,7 @@ import "./BaseTest.sol";
 
 contract SettersTest is BaseTest {
     function testConstructor() public view {
-        assertEq(vault.owner(), owner);
         assertEq(address(vault.asset()), address(underlyingToken));
-        assertEq(address(vault.curator()), curator);
-        assertTrue(vault.isAllocator(address(allocator)));
         assertEq(address(vault.irm()), address(irm));
         assertEq(irm.owner(), manager);
     }
@@ -19,18 +16,18 @@ contract SettersTest is BaseTest {
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setOwner(newOwner);
+        vault.setRoles(newOwner, OWNER);
 
         // Only owner can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setOwner.selector, newOwner));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setRoles.selector, newOwner, OWNER));
 
         vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setOwner.selector, newOwner));
-        vault.setOwner(newOwner);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setRoles.selector, newOwner, OWNER));
+        vault.setRoles(newOwner, OWNER);
 
-        assertEq(vault.owner(), newOwner);
+        assertEq(vault.hasRole(newOwner, OWNER), true);
     }
 
     function testSetCurator(address rdm) public {
@@ -39,18 +36,18 @@ contract SettersTest is BaseTest {
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setCurator(newCurator);
+        vault.setRoles(newCurator, CURATOR);
 
         // Only owner can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setCurator.selector, newCurator));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setRoles.selector, newCurator, CURATOR));
 
         vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setCurator.selector, newCurator));
-        vault.setCurator(newCurator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setRoles.selector, newCurator, CURATOR));
+        vault.setRoles(newCurator, CURATOR);
 
-        assertEq(vault.curator(), newCurator);
+        assertEq(vault.hasRole(newCurator, CURATOR), true);
     }
 
     function testSetIRM(address rdm) public {
@@ -79,25 +76,25 @@ contract SettersTest is BaseTest {
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setIsAllocator(newAllocator, true);
+        vault.setRoles(newAllocator, ALLOCATOR);
 
         // Only owner can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, true));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setRoles.selector, newAllocator, ALLOCATOR));
 
         vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, true));
-        vault.setIsAllocator(newAllocator, true);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setRoles.selector, newAllocator, ALLOCATOR));
+        vault.setRoles(newAllocator, ALLOCATOR);
 
-        assertTrue(vault.isAllocator(newAllocator));
+        assertEq(vault.hasRole(newAllocator, ALLOCATOR), true);
 
         // Owner can remove an allocator
         vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, false));
-        vault.setIsAllocator(newAllocator, false);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setRoles.selector, newAllocator, 0));
+        vault.setRoles(newAllocator, 0);
 
-        assertFalse(vault.isAllocator(newAllocator));
+        assertEq(vault.hasRole(newAllocator, ALLOCATOR), false);
     }
 
     function testSetPerformanceFee(address rdm, uint256 newPerformanceFee) public {
