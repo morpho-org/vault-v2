@@ -25,9 +25,12 @@ contract FeeTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
     }
 
-    function testPerformanceFeeWithoutManagementFee(uint256 performanceFee, uint256 interestPerSecond, uint256 deposit, uint256 elapsed)
-        public
-    {
+    function testPerformanceFeeWithoutManagementFee(
+        uint256 performanceFee,
+        uint256 interestPerSecond,
+        uint256 deposit,
+        uint256 elapsed
+    ) public {
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         deposit = bound(deposit, 0, MAX_DEPOSIT);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
@@ -55,9 +58,12 @@ contract FeeTest is BaseTest {
         assertEq(vault.balanceOf(performanceFeeRecipient), expectedShares);
     }
 
-    function testManagementFeeWithoutPerformanceFee(uint256 managementFee, uint256 interestPerSecond, uint256 deposit, uint256 elapsed)
-        public
-    {
+    function testManagementFeeWithoutPerformanceFee(
+        uint256 managementFee,
+        uint256 interestPerSecond,
+        uint256 deposit,
+        uint256 elapsed
+    ) public {
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_DEPOSIT);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));

@@ -40,6 +40,8 @@ contract VaultV2 is IVaultV2 {
     /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint256 public managementFee;
     address public managementFeeRecipient;
+    uint256 public forceExitFee;
+    address public forceExitFeeRecipient;
 
     uint256 public lastUpdate;
     uint256 public totalAssets;
@@ -126,6 +128,11 @@ contract VaultV2 is IVaultV2 {
         managementFeeRecipient = newManagementFeeRecipient;
     }
 
+    function setForceExitFeeRecipient(address newForceExitFeeRecipient) external timelocked {
+        require(newForceExitFeeRecipient != address(0) || forceExitFee == 0, ErrorsLib.FeeInvariantBroken());
+        forceExitFeeRecipient = newForceExitFeeRecipient;
+    }
+
     function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
         isAdapter[adapter] = newIsAdapter;
     }
@@ -163,6 +170,12 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         managementFee = newManagementFee;
+    }
+
+    function setForceExitFee(uint256 newForceExitFee) external timelocked {
+        require(forceExitFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
+
+        forceExitFee = newForceExitFee;
     }
 
     /* CURATOR ACTIONS */
@@ -222,7 +235,9 @@ contract VaultV2 is IVaultV2 {
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.NotAllocator());
+        require(
+            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
+        );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         bytes32[] memory ids = IAdapter(adapter).allocateOut(data, amount);
@@ -232,6 +247,15 @@ contract VaultV2 is IVaultV2 {
         }
 
         SafeTransferLib.safeTransferFrom(IERC20(asset), adapter, address(this), amount);
+    }
+
+    /* IN-KIND REDEMPTION */
+
+    function forceReallocateToIdle(address adapter, bytes memory data, uint256 amount) external payable {
+        require(msg.value == forceExitFee, ErrorsLib.ExitFeeTooLow());
+        payable(forceExitFeeRecipient).transfer(msg.value);
+
+        this.reallocateToIdle(adapter, data, amount);
     }
 
     /* EXCHANGE RATE */
