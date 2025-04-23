@@ -5,10 +5,10 @@ import "./BaseTest.sol";
 
 contract LiquidityMarketTest is BaseTest {
     using MathLib for uint256;
-    
+
     bytes recodedData;
     uint256 recodedAmount;
-    
+
     function setUp() public override {
         super.setUp();
 
