@@ -35,7 +35,6 @@ interface IVaultV2 is IERC20 {
     function forceExitFee() external view returns (uint256);
     function performanceFeeRecipient() external view returns (address);
     function managementFeeRecipient() external view returns (address);
-    function forceExitFeeRecipient() external view returns (address);
     function irm() external view returns (address);
     function allocation(bytes32) external view returns (uint256);
     function lastUpdate() external view returns (uint256);
@@ -47,7 +46,6 @@ interface IVaultV2 is IERC20 {
     // Owner actions
     function setPerformanceFeeRecipient(address) external;
     function setManagementFeeRecipient(address) external;
-    function setForceExitFeeRecipient(address) external;
     function setOwner(address) external;
     function setCurator(address) external;
     function setIsSentinel(address, bool) external;

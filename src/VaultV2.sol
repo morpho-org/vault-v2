@@ -41,7 +41,6 @@ contract VaultV2 is IVaultV2 {
     uint256 public managementFee;
     address public managementFeeRecipient;
     uint256 public forceExitFee;
-    address public forceExitFeeRecipient;
 
     uint256 public lastUpdate;
     uint256 public totalAssets;
@@ -131,11 +130,6 @@ contract VaultV2 is IVaultV2 {
         managementFeeRecipient = newManagementFeeRecipient;
     }
 
-    function setForceExitFeeRecipient(address newForceExitFeeRecipient) external timelocked {
-        require(newForceExitFeeRecipient != address(0) || forceExitFee == 0, ErrorsLib.FeeInvariantBroken());
-        forceExitFeeRecipient = newForceExitFeeRecipient;
-    }
-
     function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
         isAdapter[adapter] = newIsAdapter;
     }
@@ -177,7 +171,6 @@ contract VaultV2 is IVaultV2 {
 
     function setForceExitFee(uint256 newForceExitFee) external timelocked {
         require(newForceExitFee < WAD, ErrorsLib.ForceExitFeeTooHigh());
-        require(forceExitFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
 
         forceExitFee = newForceExitFee;
     }
@@ -249,9 +242,8 @@ contract VaultV2 is IVaultV2 {
         this.reallocateToIdle(adapter, data, assets);
 
         uint256 feeAssets = assets.mulDivUp(forceExitFee, WAD);
-        uint256 feeShares = shares.mulDivDown(forceExitFee, WAD);
-        _transfer(supplier, forceExitFeeRecipient, feeShares);
-        _withdraw(assets - feeAssets, shares - feeShares, receiver, supplier);
+        _withdraw(assets - feeAssets, shares, receiver, supplier);
+        totalAssets -= feeAssets;
     }
 
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
@@ -451,7 +443,6 @@ contract VaultV2 is IVaultV2 {
         // Owner functions
         if (selector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
         if (selector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
-        if (selector == IVaultV2.setForceExitFeeRecipient.selector) return sender == owner;
         if (selector == IVaultV2.setIsSentinel.selector) return sender == owner;
         if (selector == IVaultV2.setOwner.selector) return sender == owner;
         if (selector == IVaultV2.setCurator.selector) return sender == owner;
