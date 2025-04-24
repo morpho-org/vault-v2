@@ -338,8 +338,8 @@ contract VaultV2 is IVaultV2 {
             allowance[supplier][msg.sender] = _allowance - shares;
         }
         _burn(supplier, shares);
-        SafeTransferLib.safeTransfer(IERC20(asset), receiver, assets);
         totalAssets -= assets;
+        SafeTransferLib.safeTransfer(IERC20(asset), receiver, assets);
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
