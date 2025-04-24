@@ -251,7 +251,7 @@ contract VaultV2 is IVaultV2 {
         uint256 assetsToSeize = assets.mulDivDown(forceExitFee, WAD);
         uint256 sharesToSeize = convertToSharesDown(assetsToSeize);
 
-        _withdraw(assetsToSeize, sharesToSeize, onBehalf, msg.sender);
+        _withdraw(assetsToSeize, sharesToSeize, address(this), onBehalf);
     }
 
     /* EXCHANGE RATE */
