@@ -25,8 +25,8 @@ contract VaultV2 is IVaultV2 {
     // Note that each role could be a smart contract: the owner, curator and guardian.
     // This way, roles are modularized, and notably restricting their capabilities could be done on top.
     address public owner;
+    address public chief;
     address public curator;
-    address public treasurer;
     address public irm;
     mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
@@ -84,24 +84,26 @@ contract VaultV2 is IVaultV2 {
         owner = newOwner;
     }
 
-    function setCurator(address newCurator) external timelocked {
-        curator = newCurator;
+    function setChief(address newChief) external timelocked {
+        chief = newChief;
     }
 
-    function setTreasurer(address newTreasurer) external timelocked {
-        treasurer = newTreasurer;
+    function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
+        require(newPerformanceFee <= MAX_PERFORMANCE_FEE, ErrorsLib.FeeTooHigh());
+        require(performanceFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
+
+        accrueInterest();
+
+        performanceFee = newPerformanceFee;
     }
 
-    function setIRM(address newIRM) external timelocked {
-        irm = newIRM;
-    }
+    function setManagementFee(uint256 newManagementFee) external timelocked {
+        require(newManagementFee <= MAX_MANAGEMENT_FEE, ErrorsLib.FeeTooHigh());
+        require(managementFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
 
-    function setIsSentinel(address newSentinel, bool newIsSentinel) external timelocked {
-        isSentinel[newSentinel] = newIsSentinel;
-    }
+        accrueInterest();
 
-    function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
-        isAllocator[allocator] = newIsAllocator;
+        managementFee = newManagementFee;
     }
 
     function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
@@ -118,6 +120,24 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         managementFeeRecipient = newManagementFeeRecipient;
+    }
+
+    /* CHIEF ACTIONS */
+    
+    function setCurator(address newCurator) external timelocked {
+        curator = newCurator;
+    }
+
+    function setIRM(address newIRM) external timelocked {
+        irm = newIRM;
+    }
+
+    function setIsSentinel(address newSentinel, bool newIsSentinel) external timelocked {
+        isSentinel[newSentinel] = newIsSentinel;
+    }
+
+    function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
+        isAllocator[allocator] = newIsAllocator;
     }
 
     function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
@@ -137,26 +157,6 @@ contract VaultV2 is IVaultV2 {
         require(newDuration < timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
-    }
-
-    /* TREASURER ACTIONS */
-
-    function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
-        require(newPerformanceFee <= MAX_PERFORMANCE_FEE, ErrorsLib.FeeTooHigh());
-        require(performanceFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
-
-        accrueInterest();
-
-        performanceFee = newPerformanceFee;
-    }
-
-    function setManagementFee(uint256 newManagementFee) external timelocked {
-        require(newManagementFee <= MAX_MANAGEMENT_FEE, ErrorsLib.FeeTooHigh());
-        require(managementFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
-
-        accrueInterest();
-
-        managementFee = newManagementFee;
     }
 
     /* CURATOR ACTIONS */
@@ -393,20 +393,20 @@ contract VaultV2 is IVaultV2 {
 
     function isAuthorizedToSubmit(address sender, bytes4 selector) internal view returns (bool) {
         // Owner functions
+        if (selector == IVaultV2.setOwner.selector) return sender == owner;
+        if (selector == IVaultV2.setChief.selector) return sender == owner;
+        if (selector == IVaultV2.setPerformanceFee.selector) return sender == owner;
+        if (selector == IVaultV2.setManagementFee.selector) return sender == owner;
         if (selector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
         if (selector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
-        if (selector == IVaultV2.setIsSentinel.selector) return sender == owner;
-        if (selector == IVaultV2.setOwner.selector) return sender == owner;
-        if (selector == IVaultV2.setCurator.selector) return sender == owner;
-        if (selector == IVaultV2.setIRM.selector) return sender == owner;
-        if (selector == IVaultV2.setTreasurer.selector) return sender == owner;
-        if (selector == IVaultV2.setIsAllocator.selector) return sender == owner;
-        if (selector == IVaultV2.setIsAdapter.selector) return sender == owner;
-        if (selector == IVaultV2.increaseTimelock.selector) return sender == owner;
-        if (selector == IVaultV2.decreaseTimelock.selector) return sender == owner;
-        // Treasurer functions
-        if (selector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
-        if (selector == IVaultV2.setManagementFee.selector) return sender == treasurer;
+        // Chief functions
+        if (selector == IVaultV2.setCurator.selector) return sender == chief;
+        if (selector == IVaultV2.setIsSentinel.selector) return sender == chief;
+        if (selector == IVaultV2.setIRM.selector) return sender == chief;
+        if (selector == IVaultV2.setIsAllocator.selector) return sender == chief;
+        if (selector == IVaultV2.setIsAdapter.selector) return sender == chief;
+        if (selector == IVaultV2.increaseTimelock.selector) return sender == chief;
+        if (selector == IVaultV2.decreaseTimelock.selector) return sender == chief;
         // Curator functions
         if (selector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
         if (selector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];

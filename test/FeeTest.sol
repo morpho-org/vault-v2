@@ -36,7 +36,7 @@ contract FeeTest is BaseTest {
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
         elapsed = bound(elapsed, 0, 1000 weeks);
 
-        vm.prank(treasurer);
+        vm.prank(owner);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, performanceFee));
         vault.setPerformanceFee(performanceFee);
 
@@ -69,7 +69,7 @@ contract FeeTest is BaseTest {
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
         elapsed = bound(elapsed, 0, 20 * 365 days);
 
-        vm.prank(treasurer);
+        vm.prank(owner);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, managementFee));
         vault.setManagementFee(managementFee);
 
