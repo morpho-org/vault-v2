@@ -40,7 +40,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint256 public managementFee;
     address public managementFeeRecipient;
-    uint256 public forceExitFee;
+    uint256 public forcedReallocateToIdleFee;
 
     uint256 public lastUpdate;
     uint256 public totalAssets;
@@ -166,9 +166,9 @@ contract VaultV2 is IVaultV2 {
         managementFee = newManagementFee;
     }
 
-    function setForceExitFee(uint256 newForceExitFee) external timelocked {
-        require(newForceExitFee <= MAX_FORCE_EXIT_FEE, ErrorsLib.FeeTooHigh());
-        forceExitFee = newForceExitFee;
+    function setForcedReallocateToIdleFee(uint256 newForcedReallocateToIdleFee) external timelocked {
+        require(newForcedReallocateToIdleFee <= MAX_FORCE_EXIT_FEE, ErrorsLib.FeeTooHigh());
+        forcedReallocateToIdleFee = newForcedReallocateToIdleFee;
     }
 
     /* CURATOR ACTIONS */
@@ -248,7 +248,7 @@ contract VaultV2 is IVaultV2 {
         this.reallocateToIdle(adapter, data, assets);
 
         accrueInterest();
-        uint256 assetsToSeize = assets.mulDivDown(forceExitFee, WAD);
+        uint256 assetsToSeize = assets.mulDivDown(forcedReallocateToIdleFee, WAD);
         uint256 sharesToSeize = convertToSharesDown(assetsToSeize);
 
         _withdraw(assetsToSeize, sharesToSeize, address(this), onBehalf);
@@ -432,7 +432,7 @@ contract VaultV2 is IVaultV2 {
         if (selector == IVaultV2.setIsAdapter.selector) return sender == owner;
         if (selector == IVaultV2.increaseTimelock.selector) return sender == owner;
         if (selector == IVaultV2.decreaseTimelock.selector) return sender == owner;
-        if (selector == IVaultV2.setForceExitFee.selector) return sender == owner;
+        if (selector == IVaultV2.setForcedReallocateToIdleFee.selector) return sender == owner;
         // Treasurer functions
         if (selector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
         if (selector == IVaultV2.setManagementFee.selector) return sender == treasurer;
