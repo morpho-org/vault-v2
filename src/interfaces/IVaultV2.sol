@@ -67,7 +67,8 @@ interface IVaultV2 is IERC20 {
     // Allocator actions
     function reallocateFromIdle(address, bytes memory, uint256) external;
     function reallocateToIdle(address, bytes memory, uint256) external;
-    function setLiquidityMarket(address, bytes memory) external;
+    function setLiquidityAdapter(address) external;
+    function setLiquidityData(bytes memory) external;
 
     // Exchange rate
     function accrueInterest() external;

@@ -130,6 +130,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
+        require(adapter != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariant());
         isAdapter[adapter] = newIsAdapter;
     }
 
@@ -241,9 +242,14 @@ contract VaultV2 is IVaultV2 {
         SafeTransferLib.safeTransferFrom(IERC20(asset), adapter, address(this), amount);
     }
 
-    function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external {
+    function setLiquidityAdapter(address newLiquidityAdapter) external {
         require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
+        require(isAdapter[newLiquidityAdapter] || newLiquidityAdapter == address(0), ErrorsLib.LiquidityAdapterInvariant());
         liquidityAdapter = newLiquidityAdapter;
+    }
+
+    function setLiquidityData(bytes memory newLiquidityData) external {
+        require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
         liquidityData = newLiquidityData;
     }
 
