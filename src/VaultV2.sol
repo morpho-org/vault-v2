@@ -239,15 +239,12 @@ contract VaultV2 is IVaultV2 {
     }
 
     // If the curator removes adapters, users cannot exit.
-    function _forceWithdraw(
-        address adapter,
-        bytes memory data,
-        uint256 assets,
-        uint256 shares,
-        address receiver,
-        address supplier
-    ) internal {
-        require(isAdapter[adapter], ErrorsLib.NotAdapter());
+    function forceRedeem(address adapter, bytes memory data, uint256 shares, address receiver, address supplier)
+        external
+        returns (uint256 assets)
+    {
+        accrueInterest();
+        assets = convertToAssetsDown(shares);
 
         bytes32[] memory ids = IAdapter(adapter).allocateOut(data, assets);
 
@@ -260,24 +257,6 @@ contract VaultV2 is IVaultV2 {
         _transfer(supplier, forceExitFeeRecipient, feeShares);
         SafeTransferLib.safeTransferFrom(IERC20(asset), adapter, address(this), assets - feeAssets);
         _withdraw(assets - feeAssets, shares - feeShares, receiver, supplier);
-    }
-
-    function forceWithdraw(address adapter, bytes memory data, uint256 assets, address receiver, address supplier)
-        external
-        returns (uint256 shares)
-    {
-        accrueInterest();
-        shares = convertToSharesUp(assets);
-        _forceWithdraw(adapter, data, assets, shares, receiver, supplier);
-    }
-
-    function forceRedeem(address adapter, bytes memory data, uint256 shares, address receiver, address supplier)
-        external
-        returns (uint256 assets)
-    {
-        accrueInterest();
-        assets = convertToAssetsDown(shares);
-        _forceWithdraw(adapter, data, assets, shares, receiver, supplier);
     }
 
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
