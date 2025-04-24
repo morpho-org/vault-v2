@@ -34,4 +34,5 @@ library ErrorsLib {
     error InvalidSigner();
     error ApproveReverted();
     error ApproveReturnedFalse();
+    error LiquidityAdapterInvariantBroken();
 }

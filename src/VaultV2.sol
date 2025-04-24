@@ -58,6 +58,9 @@ contract VaultV2 is IVaultV2 {
     /// @dev By design, double counting some stuff.
     mapping(bytes32 => uint256) public allocation;
 
+    address public liquidityAdapter;
+    bytes public liquidityData;
+
     /// @dev calldata => executable at
     mapping(bytes => uint256) public validAt;
     /// @dev function selector => timelock duration
@@ -121,6 +124,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
+        require(adapter != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
         isAdapter[adapter] = newIsAdapter;
     }
 
@@ -197,7 +201,9 @@ contract VaultV2 is IVaultV2 {
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateFromIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.NotAllocator());
+        require(
+            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
+        );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         SafeTransferLib.safeTransfer(asset, adapter, amount);
@@ -216,7 +222,9 @@ contract VaultV2 is IVaultV2 {
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.NotAllocator());
+        require(
+            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
+        );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         bytes32[] memory ids = IAdapter(adapter).allocateOut(data, amount);
@@ -226,6 +234,20 @@ contract VaultV2 is IVaultV2 {
         }
 
         SafeTransferLib.safeTransferFrom(asset, adapter, address(this), amount);
+    }
+
+    function setLiquidityAdapter(address newLiquidityAdapter) external {
+        require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
+        require(
+            newLiquidityAdapter == address(0) || isAdapter[newLiquidityAdapter],
+            ErrorsLib.LiquidityAdapterInvariantBroken()
+        );
+        liquidityAdapter = newLiquidityAdapter;
+    }
+
+    function setLiquidityData(bytes memory newLiquidityData) external {
+        require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
+        liquidityData = newLiquidityData;
     }
 
     /* EXCHANGE RATE */
@@ -315,6 +337,8 @@ contract VaultV2 is IVaultV2 {
         SafeTransferLib.safeTransferFrom(asset, msg.sender, address(this), assets);
         _mint(receiver, shares);
         totalAssets += assets;
+
+        try this.reallocateFromIdle(liquidityAdapter, liquidityData, assets) {} catch {}
     }
 
     // TODO: how to hook on deposit so that assets are atomically allocated ?
@@ -333,6 +357,10 @@ contract VaultV2 is IVaultV2 {
     }
 
     function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal {
+        uint256 idleAssets = IERC20(asset).balanceOf(address(this));
+        if (assets > idleAssets && liquidityAdapter != address(0)) {
+            this.reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
+        }
         uint256 _allowance = allowance[supplier][msg.sender];
         if (msg.sender != supplier && _allowance != type(uint256).max) {
             allowance[supplier][msg.sender] = _allowance - shares;
