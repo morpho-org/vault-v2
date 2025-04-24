@@ -82,6 +82,5 @@ interface IVaultV2 is IERC20 {
     function revoke(bytes calldata) external;
 
     // User actions
-    function forceWithdraw(address, bytes memory, uint256, address, address) external returns (uint256);
     function forceRedeem(address, bytes memory, uint256, address, address) external returns (uint256);
 }

@@ -246,23 +246,20 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
         assets = convertToAssetsDown(shares);
 
-        bytes32[] memory ids = IAdapter(adapter).allocateOut(data, assets);
-
-        for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(assets);
-        }
+        this.reallocateToIdle(adapter, data, assets);
 
         uint256 feeAssets = assets.mulDivUp(forceExitFee, WAD);
         uint256 feeShares = shares.mulDivDown(forceExitFee, WAD);
         _transfer(supplier, forceExitFeeRecipient, feeShares);
-        SafeTransferLib.safeTransferFrom(IERC20(asset), adapter, address(this), assets - feeAssets);
         _withdraw(assets - feeAssets, shares - feeShares, receiver, supplier);
     }
 
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateToIdle(address adapter, bytes memory data, uint256 amount) public {
-        require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.NotAllocator());
+        require(
+            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
+        );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         bytes32[] memory ids = IAdapter(adapter).allocateOut(data, amount);
