@@ -206,8 +206,9 @@ contract VaultV2 is IVaultV2 {
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        SafeTransferLib.safeTransfer(asset, adapter, amount);
+        SafeTransferLib.safeApprove(asset, adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
+        SafeTransferLib.safeApprove(asset, adapter, 0);
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] += amount;
