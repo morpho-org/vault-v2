@@ -339,12 +339,13 @@ contract VaultV2 is IVaultV2 {
         }
         _burn(supplier, shares);
         totalAssets -= assets;
-        SafeTransferLib.safeTransfer(IERC20(asset), receiver, assets);
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
             require(allocation[id] <= totalAssets.mulDivDown(relativeCap[id], WAD), ErrorsLib.RelativeCapExceeded());
         }
+
+        SafeTransferLib.safeTransfer(IERC20(asset), receiver, assets);
     }
 
     // Note that it is not callable by default, if there is no liquidity.
