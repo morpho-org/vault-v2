@@ -241,7 +241,8 @@ contract VaultV2 is IVaultV2 {
         SafeTransferLib.safeTransferFrom(IERC20(asset), adapter, address(this), amount);
     }
 
-    function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external timelocked {
+    function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external {
+        require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
         liquidityAdapter = newLiquidityAdapter;
         liquidityData = newLiquidityData;
     }
@@ -438,8 +439,6 @@ contract VaultV2 is IVaultV2 {
         if (selector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
         if (selector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
         if (selector == IVaultV2.decreaseRelativeCap.selector) return sender == curator;
-        // Allocator actions.
-        if (selector == IVaultV2.setLiquidityMarket.selector) return isAllocator[sender];
         return false;
     }
 

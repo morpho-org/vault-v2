@@ -34,7 +34,6 @@ contract LiquidityMarketTest is BaseTest {
         vault.setIsAdapter(address(adapter), true);
 
         vm.prank(allocator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setLiquidityMarket.selector, address(adapter), data));
         vault.setLiquidityMarket(address(adapter), data);
 
         vault.deposit(assets, address(this));
@@ -49,7 +48,6 @@ contract LiquidityMarketTest is BaseTest {
         vault.setIsAdapter(address(adapter), true);
 
         vm.prank(allocator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setLiquidityMarket.selector, address(adapter), data));
         vault.setLiquidityMarket(address(adapter), data);
 
         uint256 assets = shares.mulDivDown(vault.totalAssets() + 1, vault.totalSupply() + 1);
