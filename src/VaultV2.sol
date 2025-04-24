@@ -244,7 +244,9 @@ contract VaultV2 is IVaultV2 {
 
     function setLiquidityAdapter(address newLiquidityAdapter) external {
         require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
-        require(isAdapter[newLiquidityAdapter] || newLiquidityAdapter == address(0), ErrorsLib.LiquidityAdapterInvariant());
+        require(
+            isAdapter[newLiquidityAdapter] || newLiquidityAdapter == address(0), ErrorsLib.LiquidityAdapterInvariant()
+        );
         liquidityAdapter = newLiquidityAdapter;
     }
 
