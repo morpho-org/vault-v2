@@ -82,26 +82,32 @@ contract VaultV2 is IVaultV2 {
 
     function setOwner(address newOwner) external timelocked {
         owner = newOwner;
+        emit EventsLib.SetOwner(newOwner);
     }
 
     function setCurator(address newCurator) external timelocked {
         curator = newCurator;
+        emit EventsLib.SetCurator(newCurator);
     }
 
     function setTreasurer(address newTreasurer) external timelocked {
         treasurer = newTreasurer;
+        emit EventsLib.SetTreasurer(newTreasurer);
     }
 
     function setIRM(address newIRM) external timelocked {
         irm = newIRM;
+        emit EventsLib.SetIRM(newIRM);
     }
 
     function setIsSentinel(address newSentinel, bool newIsSentinel) external timelocked {
         isSentinel[newSentinel] = newIsSentinel;
+        emit EventsLib.SetIsSentinel(newSentinel, newIsSentinel);
     }
 
     function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
         isAllocator[allocator] = newIsAllocator;
+        emit EventsLib.SetIsAllocator(allocator, newIsAllocator);
     }
 
     function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
@@ -110,6 +116,7 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         performanceFeeRecipient = newPerformanceFeeRecipient;
+        emit EventsLib.SetPerformanceFeeRecipient(newPerformanceFeeRecipient);
     }
 
     function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
@@ -118,10 +125,12 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         managementFeeRecipient = newManagementFeeRecipient;
+        emit EventsLib.SetManagementFeeRecipient(newManagementFeeRecipient);
     }
 
     function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
         isAdapter[adapter] = newIsAdapter;
+        emit EventsLib.SetIsAdapter(adapter, newIsAdapter);
     }
 
     function increaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
@@ -130,6 +139,7 @@ contract VaultV2 is IVaultV2 {
         require(newDuration > timelock[selector], ErrorsLib.TimelockNotIncreasing());
 
         timelock[selector] = newDuration;
+        emit EventsLib.IncreaseTimelock(selector, newDuration);
     }
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
@@ -137,6 +147,7 @@ contract VaultV2 is IVaultV2 {
         require(newDuration < timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
+        emit EventsLib.DecreaseTimelock(selector, newDuration);
     }
 
     /* TREASURER ACTIONS */
@@ -148,6 +159,7 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         performanceFee = newPerformanceFee;
+        emit EventsLib.SetPerformanceFee(newPerformanceFee);
     }
 
     function setManagementFee(uint256 newManagementFee) external timelocked {
@@ -157,6 +169,7 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         managementFee = newManagementFee;
+        emit EventsLib.SetManagementFee(newManagementFee);
     }
 
     /* CURATOR ACTIONS */
@@ -165,12 +178,14 @@ contract VaultV2 is IVaultV2 {
         require(newCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
 
         absoluteCap[id] = newCap;
+        emit EventsLib.IncreaseAbsoluteCap(id, newCap);
     }
 
     function decreaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
         require(newCap < absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
 
         absoluteCap[id] = newCap;
+        emit EventsLib.DecreaseAbsoluteCap(id, newCap);
     }
 
     function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
@@ -178,6 +193,7 @@ contract VaultV2 is IVaultV2 {
 
         if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
         relativeCap[id] = newRelativeCap;
+        emit EventsLib.IncreaseRelativeCap(id, newRelativeCap);
     }
 
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
@@ -190,6 +206,7 @@ contract VaultV2 is IVaultV2 {
             idsWithRelativeCap.pop();
         }
         relativeCap[id] = newRelativeCap;
+        emit EventsLib.DecreaseRelativeCap(id, newRelativeCap, index);
     }
 
     /* ALLOCATOR ACTIONS */
@@ -211,6 +228,7 @@ contract VaultV2 is IVaultV2 {
                 allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD), ErrorsLib.RelativeCapExceeded()
             );
         }
+        emit EventsLib.ReallocateFromIdle(msg.sender, adapter, data, amount);
     }
 
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
@@ -224,8 +242,8 @@ contract VaultV2 is IVaultV2 {
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(amount);
         }
-
         SafeTransferLib.safeTransferFrom(IERC20(asset), adapter, address(this), amount);
+        emit EventsLib.ReallocateToIdle(msg.sender, adapter, data, amount);
     }
 
     /* EXCHANGE RATE */
@@ -241,6 +259,7 @@ contract VaultV2 is IVaultV2 {
         if (protocolFeeShares != 0) _mint(IVaultV2Factory(factory).protocolFeeRecipient(), protocolFeeShares);
 
         lastUpdate = block.timestamp;
+        emit EventsLib.AccrueInterest(newTotalAssets);
     }
 
     function accrueInterestView() public view returns (uint256, uint256, uint256, uint256) {
@@ -315,6 +334,7 @@ contract VaultV2 is IVaultV2 {
         SafeTransferLib.safeTransferFrom(IERC20(asset), msg.sender, address(this), assets);
         _mint(receiver, shares);
         totalAssets += assets;
+        emit EventsLib.Deposit(msg.sender, receiver, assets, shares);
     }
 
     // TODO: how to hook on deposit so that assets are atomically allocated ?
@@ -345,6 +365,7 @@ contract VaultV2 is IVaultV2 {
             bytes32 id = idsWithRelativeCap[i];
             require(allocation[id] <= totalAssets.mulDivDown(relativeCap[id], WAD), ErrorsLib.RelativeCapExceeded());
         }
+        emit EventsLib.Withdraw(msg.sender, receiver, supplier, assets, shares);
     }
 
     // Note that it is not callable by default, if there is no liquidity.
@@ -372,6 +393,7 @@ contract VaultV2 is IVaultV2 {
         require(validAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
         validAt[data] = block.timestamp + timelock[selector];
+        emit EventsLib.Submit(msg.sender, data);
     }
 
     modifier timelocked() {
@@ -389,6 +411,7 @@ contract VaultV2 is IVaultV2 {
         );
         require(validAt[data] != 0);
         validAt[data] = 0;
+        emit EventsLib.Revoke(msg.sender, data);
     }
 
     function isAuthorizedToSubmit(address sender, bytes4 selector) internal view returns (bool) {
@@ -435,7 +458,6 @@ contract VaultV2 is IVaultV2 {
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
         emit EventsLib.Transfer(from, to, amount);
-
         return true;
     }
 
@@ -448,7 +470,8 @@ contract VaultV2 is IVaultV2 {
     function permit(address _owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         public
     {
-        bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonces[_owner]++, deadline));
+        uint256 nonce = nonces[_owner]++;
+        bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonce, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
         address recoveredAddress = ecrecover(digest, v, r, s);
 
@@ -456,6 +479,7 @@ contract VaultV2 is IVaultV2 {
         require(recoveredAddress != address(0) && recoveredAddress == _owner, ErrorsLib.InvalidSigner());
 
         allowance[recoveredAddress][spender] = value;
+        emit EventsLib.Permit(_owner, spender, value, deadline, nonce);
         emit EventsLib.Approval(recoveredAddress, spender, value);
     }
 
