@@ -124,7 +124,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
-        require(adapter != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariant());
+        require(adapter != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
         isAdapter[adapter] = newIsAdapter;
     }
 
@@ -239,7 +239,8 @@ contract VaultV2 is IVaultV2 {
     function setLiquidityAdapter(address newLiquidityAdapter) external {
         require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
         require(
-            isAdapter[newLiquidityAdapter] || newLiquidityAdapter == address(0), ErrorsLib.LiquidityAdapterInvariant()
+            newLiquidityAdapter == address(0) || isAdapter[newLiquidityAdapter],
+            ErrorsLib.LiquidityAdapterInvariantBroken()
         );
         liquidityAdapter = newLiquidityAdapter;
     }
