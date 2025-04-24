@@ -232,13 +232,9 @@ contract VaultV2 is IVaultV2 {
         returns (uint256 assets)
     {
         accrueInterest();
-        assets = convertToAssetsDown(shares);
-
-        this.reallocateToIdle(adapter, data, assets);
-
-        uint256 feeAssets = assets.mulDivUp(forceExitFee, WAD);
-        _withdraw(assets - feeAssets, shares, receiver, supplier);
-        totalAssets -= feeAssets;
+        assets = previewRedeem(shares);
+        this.reallocateFromIdle(adapter, data, assets);
+        _withdraw(assets, assets.mulDivDown(WAD - forceExitFee, WAD), shares, receiver, supplier);
     }
 
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
@@ -377,7 +373,9 @@ contract VaultV2 is IVaultV2 {
         return assets;
     }
 
-    function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal {
+    function _withdraw(uint256 assets, uint256 assetsToTransfer, uint256 shares, address receiver, address supplier)
+        internal
+    {
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
             this.reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
@@ -387,13 +385,14 @@ contract VaultV2 is IVaultV2 {
             allowance[supplier][msg.sender] = _allowance - shares;
         }
         _burn(supplier, shares);
-        SafeTransferLib.safeTransfer(IERC20(asset), receiver, assets);
         totalAssets -= assets;
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
             require(allocation[id] <= totalAssets.mulDivDown(relativeCap[id], WAD), ErrorsLib.RelativeCapExceeded());
         }
+
+        SafeTransferLib.safeTransfer(IERC20(asset), receiver, assetsToTransfer);
     }
 
     // Note that it is not callable by default, if there is no liquidity.
@@ -401,14 +400,14 @@ contract VaultV2 is IVaultV2 {
     function withdraw(uint256 assets, address receiver, address supplier) public returns (uint256) {
         accrueInterest();
         uint256 shares = previewWithdraw(assets);
-        _withdraw(assets, shares, receiver, supplier);
+        _withdraw(assets, assets, shares, receiver, supplier);
         return shares;
     }
 
     function redeem(uint256 shares, address receiver, address supplier) public returns (uint256) {
         accrueInterest();
         uint256 assets = previewRedeem(shares);
-        _withdraw(assets, shares, receiver, supplier);
+        _withdraw(assets, assets, shares, receiver, supplier);
         return assets;
     }
 
