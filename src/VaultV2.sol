@@ -40,8 +40,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint256 public managementFee;
     address public managementFeeRecipient;
-    uint256 public forceExitFee;
-    address public forceExitFeeRecipient;
+    uint256 public forcedReallocateToIdleFee;
 
     uint256 public lastUpdate;
     uint256 public totalAssets;
@@ -128,11 +127,6 @@ contract VaultV2 is IVaultV2 {
         managementFeeRecipient = newManagementFeeRecipient;
     }
 
-    function setForceExitFeeRecipient(address newForceExitFeeRecipient) external timelocked {
-        require(newForceExitFeeRecipient != address(0) || forceExitFee == 0, ErrorsLib.FeeInvariantBroken());
-        forceExitFeeRecipient = newForceExitFeeRecipient;
-    }
-
     function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
         isAdapter[adapter] = newIsAdapter;
     }
@@ -172,10 +166,9 @@ contract VaultV2 is IVaultV2 {
         managementFee = newManagementFee;
     }
 
-    function setForceExitFee(uint256 newForceExitFee) external timelocked {
-        require(forceExitFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
-
-        forceExitFee = newForceExitFee;
+    function setForcedReallocateToIdleFee(uint256 newForcedReallocateToIdleFee) external timelocked {
+        require(newForcedReallocateToIdleFee <= MAX_FORCE_EXIT_FEE, ErrorsLib.FeeTooHigh());
+        forcedReallocateToIdleFee = newForcedReallocateToIdleFee;
     }
 
     /* CURATOR ACTIONS */
@@ -251,11 +244,14 @@ contract VaultV2 is IVaultV2 {
 
     /* IN-KIND REDEMPTION */
 
-    function forceReallocateToIdle(address adapter, bytes memory data, uint256 amount) external payable {
-        require(msg.value == forceExitFee, ErrorsLib.WrongExitFee());
-        payable(forceExitFeeRecipient).transfer(msg.value);
+    function forceReallocateToIdle(address adapter, bytes memory data, uint256 assets, address onBehalf) external {
+        this.reallocateToIdle(adapter, data, assets);
 
-        this.reallocateToIdle(adapter, data, amount);
+        accrueInterest();
+        uint256 assetsToSeize = assets.mulDivDown(forcedReallocateToIdleFee, WAD);
+        uint256 sharesToSeize = convertToSharesDown(assetsToSeize);
+
+        _withdraw(assetsToSeize, sharesToSeize, address(this), onBehalf);
     }
 
     /* EXCHANGE RATE */
@@ -436,6 +432,7 @@ contract VaultV2 is IVaultV2 {
         if (selector == IVaultV2.setIsAdapter.selector) return sender == owner;
         if (selector == IVaultV2.increaseTimelock.selector) return sender == owner;
         if (selector == IVaultV2.decreaseTimelock.selector) return sender == owner;
+        if (selector == IVaultV2.setForcedReallocateToIdleFee.selector) return sender == owner;
         // Treasurer functions
         if (selector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
         if (selector == IVaultV2.setManagementFee.selector) return sender == treasurer;
