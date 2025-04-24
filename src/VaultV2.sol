@@ -37,7 +37,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint256 public managementFee;
     address public managementFeeRecipient;
-    uint256 public forcedReallocateToIdleFee;
+    uint256 public forceReallocateToIdleFee;
 
     uint256 public lastUpdate;
     uint256 public totalAssets;
@@ -160,9 +160,9 @@ contract VaultV2 is IVaultV2 {
         managementFee = newManagementFee;
     }
 
-    function setForcedReallocateToIdleFee(uint256 newForcedReallocateToIdleFee) external timelocked {
-        require(newForcedReallocateToIdleFee <= MAX_FORCE_EXIT_FEE, ErrorsLib.FeeTooHigh());
-        forcedReallocateToIdleFee = newForcedReallocateToIdleFee;
+    function setForceReallocateToIdleFee(uint256 newForceReallocateToIdleFee) external timelocked {
+        require(newForceReallocateToIdleFee <= MAX_FORCE_EXIT_FEE, ErrorsLib.FeeTooHigh());
+        forceReallocateToIdleFee = newForceReallocateToIdleFee;
     }
 
     /* CURATOR ACTIONS */
@@ -241,11 +241,7 @@ contract VaultV2 is IVaultV2 {
     function forceReallocateToIdle(address adapter, bytes memory data, uint256 assets, address onBehalf) external {
         this.reallocateToIdle(adapter, data, assets);
 
-        accrueInterest();
-        uint256 assetsToSeize = assets.mulDivDown(forcedReallocateToIdleFee, WAD);
-        uint256 sharesToSeize = convertToSharesDown(assetsToSeize);
-
-        _withdraw(assetsToSeize, sharesToSeize, address(this), onBehalf);
+        withdraw(assets.mulDivDown(forceReallocateToIdleFee, WAD), address(this), onBehalf);
     }
 
     /* EXCHANGE RATE */
@@ -338,14 +334,14 @@ contract VaultV2 is IVaultV2 {
     }
 
     // TODO: how to hook on deposit so that assets are atomically allocated ?
-    function deposit(uint256 assets, address receiver) public returns (uint256) {
+    function deposit(uint256 assets, address receiver) external returns (uint256) {
         accrueInterest();
         uint256 shares = previewDeposit(assets);
         _deposit(assets, shares, receiver);
         return shares;
     }
 
-    function mint(uint256 shares, address receiver) public returns (uint256) {
+    function mint(uint256 shares, address receiver) external returns (uint256) {
         accrueInterest();
         uint256 assets = previewMint(shares);
         _deposit(assets, shares, receiver);
@@ -376,7 +372,7 @@ contract VaultV2 is IVaultV2 {
         return shares;
     }
 
-    function redeem(uint256 shares, address receiver, address supplier) public returns (uint256) {
+    function redeem(uint256 shares, address receiver, address supplier) external returns (uint256) {
         accrueInterest();
         uint256 assets = previewRedeem(shares);
         _withdraw(assets, shares, receiver, supplier);
@@ -424,7 +420,7 @@ contract VaultV2 is IVaultV2 {
         if (selector == IVaultV2.setIsAdapter.selector) return sender == owner;
         if (selector == IVaultV2.increaseTimelock.selector) return sender == owner;
         if (selector == IVaultV2.decreaseTimelock.selector) return sender == owner;
-        if (selector == IVaultV2.setForcedReallocateToIdleFee.selector) return sender == owner;
+        if (selector == IVaultV2.setForceReallocateToIdleFee.selector) return sender == owner;
         // Treasurer functions
         if (selector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
         if (selector == IVaultV2.setManagementFee.selector) return sender == treasurer;
@@ -438,7 +434,7 @@ contract VaultV2 is IVaultV2 {
 
     /* INTERFACE */
 
-    function transfer(address to, uint256 amount) public returns (bool) {
+    function transfer(address to, uint256 amount) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
         balanceOf[msg.sender] -= amount;
         balanceOf[to] += amount;
@@ -446,7 +442,7 @@ contract VaultV2 is IVaultV2 {
         return true;
     }
 
-    function transferFrom(address from, address to, uint256 amount) public returns (bool) {
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
         uint256 _allowance = allowance[from][msg.sender];
@@ -460,14 +456,14 @@ contract VaultV2 is IVaultV2 {
         return true;
     }
 
-    function approve(address spender, uint256 amount) public returns (bool) {
+    function approve(address spender, uint256 amount) external returns (bool) {
         allowance[msg.sender][spender] = amount;
         emit EventsLib.Approval(msg.sender, spender, amount);
         return true;
     }
 
     function permit(address _owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
-        public
+        external
     {
         bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonces[_owner]++, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));

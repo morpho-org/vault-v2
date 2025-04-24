@@ -55,7 +55,7 @@ interface IVaultV2 is IERC20 {
     function decreaseTimelock(bytes4, uint256) external;
     function setIsAllocator(address, bool) external;
     function setIsAdapter(address, bool) external;
-    function setForcedReallocateToIdleFee(uint256) external;
+    function setForceReallocateToIdleFee(uint256) external;
     // Treasurer actions
     function setPerformanceFee(uint256) external;
     function setManagementFee(uint256) external;
