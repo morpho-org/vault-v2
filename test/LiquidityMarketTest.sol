@@ -33,7 +33,7 @@ contract LiquidityMarketTest is BaseTest {
         vm.prank(allocator);
         vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariant.selector));
         vault.setLiquidityAdapter(liquidityAdapter);
-        
+
         vm.prank(owner);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, liquidityAdapter, true));
         vault.setIsAdapter(liquidityAdapter, true);
