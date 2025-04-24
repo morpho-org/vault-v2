@@ -123,7 +123,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     /* CHIEF ACTIONS */
-    
+
     function setCurator(address newCurator) external timelocked {
         curator = newCurator;
     }
