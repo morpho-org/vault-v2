@@ -17,9 +17,6 @@ contract VaultV2 is IVaultV2 {
 
     /* IMMUTABLE */
 
-    string public name;
-    string public symbol;
-    uint8 public immutable decimals;
     address public immutable factory;
     address public immutable asset;
 
@@ -77,10 +74,7 @@ contract VaultV2 is IVaultV2 {
 
     /* CONSTRUCTOR */
 
-    constructor(address _owner, address _asset, string memory _name, string memory _symbol) {
-        name = _name;
-        symbol = _symbol;
-        decimals = IERC20(_asset).decimals();
+    constructor(address _owner, address _asset) {
         factory = msg.sender;
         asset = _asset;
         owner = _owner;
@@ -131,6 +125,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
+        require(adapter != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariant());
         isAdapter[adapter] = newIsAdapter;
     }
 
@@ -248,7 +243,7 @@ contract VaultV2 is IVaultV2 {
 
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
-    function reallocateToIdle(address adapter, bytes memory data, uint256 amount) public {
+    function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
         require(
             isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
         );
@@ -263,8 +258,16 @@ contract VaultV2 is IVaultV2 {
         SafeTransferLib.safeTransferFrom(IERC20(asset), adapter, address(this), amount);
     }
 
-    function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external timelocked {
+    function setLiquidityAdapter(address newLiquidityAdapter) external {
+        require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
+        require(
+            isAdapter[newLiquidityAdapter] || newLiquidityAdapter == address(0), ErrorsLib.LiquidityAdapterInvariant()
+        );
         liquidityAdapter = newLiquidityAdapter;
+    }
+
+    function setLiquidityData(bytes memory newLiquidityData) external {
+        require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
         liquidityData = newLiquidityData;
     }
 
@@ -285,6 +288,7 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterestView() public view returns (uint256, uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
+        if (elapsed == 0) return (0, 0, 0, totalAssets);
         uint256 interestPerSecond = IIRM(irm).interestPerSecond(totalAssets, elapsed);
         require(interestPerSecond <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
         uint256 interest = interestPerSecond * elapsed;
@@ -320,38 +324,32 @@ contract VaultV2 is IVaultV2 {
         return (performanceFeeShares, managementFeeShares, protocolFeeShares, newTotalAssets);
     }
 
-    function convertToShares(uint256 assets) external view returns (uint256) {
+    function previewDeposit(uint256 assets) public view returns (uint256) {
         (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 protocolFeeShares, uint256 newTotalAssets) =
             accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares + protocolFeeShares;
         return assets.mulDivDown(newTotalSupply + 1, newTotalAssets + 1);
     }
 
-    function convertToAssets(uint256 shares) external view returns (uint256) {
+    function previewWithdraw(uint256 assets) public view returns (uint256) {
         (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 protocolFeeShares, uint256 newTotalAssets) =
             accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares + protocolFeeShares;
-        return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + 1);
+        return assets.mulDivUp(newTotalSupply + 1, newTotalAssets + 1);
     }
 
-    /// @dev Use only once interest have been accrued.
-    function convertToSharesDown(uint256 assets) internal view returns (uint256) {
-        return assets.mulDivDown(totalSupply + 1, totalAssets + 1);
+    function previewMint(uint256 shares) public view returns (uint256) {
+        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 protocolFeeShares, uint256 newTotalAssets) =
+            accrueInterestView();
+        uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares + protocolFeeShares;
+        return shares.mulDivDown(newTotalSupply + 1, newTotalAssets + 1);
     }
 
-    /// @dev Use only once interest have been accrued.
-    function convertToSharesUp(uint256 assets) internal view returns (uint256) {
-        return assets.mulDivUp(totalSupply + 1, totalAssets + 1);
-    }
-
-    /// @dev Use only once interest have been accrued.
-    function convertToAssetsDown(uint256 shares) internal view returns (uint256) {
-        return shares.mulDivDown(totalAssets + 1, totalSupply + 1);
-    }
-
-    /// @dev Use only once interest have been accrued.
-    function convertToAssetsUp(uint256 shares) internal view returns (uint256) {
-        return shares.mulDivUp(totalAssets + 1, totalSupply + 1);
+    function previewRedeem(uint256 shares) public view returns (uint256) {
+        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 protocolFeeShares, uint256 newTotalAssets) =
+            accrueInterestView();
+        uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares + protocolFeeShares;
+        return shares.mulDivUp(newTotalSupply + 1, newTotalAssets + 1);
     }
 
     /* USER INTERACTION */
@@ -365,23 +363,24 @@ contract VaultV2 is IVaultV2 {
     }
 
     // TODO: how to hook on deposit so that assets are atomically allocated ?
-    function deposit(uint256 assets, address receiver) public returns (uint256 shares) {
+    function deposit(uint256 assets, address receiver) public returns (uint256) {
         accrueInterest();
-        // Note that it could be made more efficient by caching totalAssets.
-        shares = convertToSharesDown(assets);
+        uint256 shares = previewDeposit(assets);
         _deposit(assets, shares, receiver);
+        return shares;
     }
 
-    function mint(uint256 shares, address receiver) public returns (uint256 assets) {
+    function mint(uint256 shares, address receiver) public returns (uint256) {
         accrueInterest();
-        assets = convertToAssetsUp(shares);
+        uint256 assets = previewMint(shares);
         _deposit(assets, shares, receiver);
+        return assets;
     }
 
     function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal {
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
-            reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
+            this.reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
         }
         uint256 _allowance = allowance[supplier][msg.sender];
         if (msg.sender != supplier && _allowance != type(uint256).max) {
@@ -399,16 +398,18 @@ contract VaultV2 is IVaultV2 {
 
     // Note that it is not callable by default, if there is no liquidity.
     // This is actually a feature, so that the curator can pause withdrawals if necessary/wanted.
-    function withdraw(uint256 assets, address receiver, address supplier) public returns (uint256 shares) {
+    function withdraw(uint256 assets, address receiver, address supplier) public returns (uint256) {
         accrueInterest();
-        shares = convertToSharesUp(assets);
+        uint256 shares = previewWithdraw(assets);
         _withdraw(assets, shares, receiver, supplier);
+        return shares;
     }
 
-    function redeem(uint256 shares, address receiver, address supplier) public returns (uint256 assets) {
+    function redeem(uint256 shares, address receiver, address supplier) public returns (uint256) {
         accrueInterest();
-        assets = convertToAssetsDown(shares);
+        uint256 assets = previewRedeem(shares);
         _withdraw(assets, shares, receiver, supplier);
+        return assets;
     }
 
     /* TIMELOCKS */
@@ -461,8 +462,6 @@ contract VaultV2 is IVaultV2 {
         if (selector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
         if (selector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
         if (selector == IVaultV2.decreaseRelativeCap.selector) return sender == curator;
-        // Allocator actions.
-        if (selector == IVaultV2.setLiquidityMarket.selector) return isAllocator[sender];
         return false;
     }
 
@@ -513,10 +512,6 @@ contract VaultV2 is IVaultV2 {
 
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
         return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
-    }
-
-    function maxWithdraw(address) external view returns (uint256) {
-        return IERC20(asset).balanceOf(address(this));
     }
 
     /* ERC20 INTERNAL */

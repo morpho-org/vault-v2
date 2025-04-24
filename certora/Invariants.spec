@@ -13,6 +13,10 @@ methods {
     function relativeCap(bytes32 id) external returns uint256 envfree;
     function allocation(bytes32 id) external returns uint256 envfree;
     function timelock(bytes4 selector) external returns uint256 envfree;
+    function liquidityAdapter() external returns address envfree;
+    function liquidityData() external returns bytes memory envfree;
+
+    function isAdapter(address adapter) external returns bool envfree;
 
     function totalAssets() external returns uint256 envfree;
     function balanceOf(address) external returns uint256 envfree;
@@ -47,3 +51,6 @@ strong invariant timelockCap(bytes4 selector)
 
 strong invariant timelockTimelock()
     timelock(to_bytes4(0x5c1a1a4f)) == TIMELOCK_CAP();
+
+strong invariant liquidityAdapterInvariant()
+    liquidityAdapter() == 0 || isAdapter(liquidityAdapter());
