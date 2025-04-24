@@ -334,9 +334,9 @@ contract VaultV2 is IVaultV2 {
     /* USER INTERACTION */
 
     function _deposit(uint256 assets, uint256 shares, address receiver) internal {
-        SafeTransferLib.safeTransferFrom(asset, msg.sender, address(this), assets);
         _mint(receiver, shares);
         totalAssets += assets;
+        SafeTransferLib.safeTransferFrom(asset, msg.sender, address(this), assets);
 
         try this.reallocateFromIdle(liquidityAdapter, liquidityData, assets) {} catch {}
     }
