@@ -356,16 +356,16 @@ contract VaultV2 is IVaultV2 {
         return assets;
     }
 
-    function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal {
+    function _withdraw(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
             this.reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
         }
-        uint256 _allowance = allowance[supplier][msg.sender];
-        if (msg.sender != supplier && _allowance != type(uint256).max) {
-            allowance[supplier][msg.sender] = _allowance - shares;
+        uint256 _allowance = allowance[onBehalf][msg.sender];
+        if (msg.sender != onBehalf && _allowance != type(uint256).max) {
+            allowance[onBehalf][msg.sender] = _allowance - shares;
         }
-        _burn(supplier, shares);
+        _burn(onBehalf, shares);
         totalAssets -= assets;
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
@@ -378,17 +378,17 @@ contract VaultV2 is IVaultV2 {
 
     // Note that it is not callable by default, if there is no liquidity.
     // This is actually a feature, so that the curator can pause withdrawals if necessary/wanted.
-    function withdraw(uint256 assets, address receiver, address supplier) public returns (uint256) {
+    function withdraw(uint256 assets, address receiver, address onBehalf) public returns (uint256) {
         accrueInterest();
         uint256 shares = previewWithdraw(assets);
-        _withdraw(assets, shares, receiver, supplier);
+        _withdraw(assets, shares, receiver, onBehalf);
         return shares;
     }
 
-    function redeem(uint256 shares, address receiver, address supplier) public returns (uint256) {
+    function redeem(uint256 shares, address receiver, address onBehalf) public returns (uint256) {
         accrueInterest();
         uint256 assets = previewRedeem(shares);
-        _withdraw(assets, shares, receiver, supplier);
+        _withdraw(assets, shares, receiver, onBehalf);
         return assets;
     }
 
