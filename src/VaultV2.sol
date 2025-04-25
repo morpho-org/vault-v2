@@ -341,7 +341,6 @@ contract VaultV2 is IVaultV2 {
         try this.reallocateFromIdle(liquidityAdapter, liquidityData, assets) {} catch {}
     }
 
-    // TODO: how to hook on deposit so that assets are atomically allocated ?
     function deposit(uint256 assets, address receiver) public returns (uint256) {
         accrueInterest();
         uint256 shares = previewDeposit(assets);
@@ -395,7 +394,7 @@ contract VaultV2 is IVaultV2 {
 
     function submit(bytes calldata data) external {
         bytes4 selector = bytes4(data);
-        require(isAuthorizedToSubmit(msg.sender, selector), ErrorsLib.Unauthorized());
+        require(_isAuthorizedToSubmit(msg.sender, selector), ErrorsLib.Unauthorized());
 
         require(validAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
@@ -411,7 +410,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Authorized to submit can revoke.
     function revoke(bytes calldata data) external {
         require(
-            isAuthorizedToSubmit(msg.sender, bytes4(data))
+            _isAuthorizedToSubmit(msg.sender, bytes4(data))
                 || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector),
             ErrorsLib.Unauthorized()
         );
@@ -419,7 +418,7 @@ contract VaultV2 is IVaultV2 {
         validAt[data] = 0;
     }
 
-    function isAuthorizedToSubmit(address sender, bytes4 selector) internal view returns (bool) {
+    function _isAuthorizedToSubmit(address sender, bytes4 selector) internal view returns (bool) {
         // Owner functions
         if (selector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
         if (selector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
@@ -476,15 +475,15 @@ contract VaultV2 is IVaultV2 {
     function permit(address _owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         public
     {
+        require(deadline >= block.timestamp, ErrorsLib.PermitDeadlineExpired());
+
         bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonces[_owner]++, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
         address recoveredAddress = ecrecover(digest, v, r, s);
-
-        require(deadline >= block.timestamp, ErrorsLib.PermitDeadlineExpired());
         require(recoveredAddress != address(0) && recoveredAddress == _owner, ErrorsLib.InvalidSigner());
 
-        allowance[recoveredAddress][spender] = value;
-        emit EventsLib.Approval(recoveredAddress, spender, value);
+        allowance[_owner][spender] = value;
+        emit EventsLib.Approval(_owner, spender, value);
     }
 
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
