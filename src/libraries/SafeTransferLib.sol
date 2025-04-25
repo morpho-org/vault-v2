@@ -14,10 +14,10 @@ library SafeTransferLib {
     }
 
     function safeTransferFrom(address token, address from, address to, uint256 value) internal {
-        require(address(token).code.length > 0, ErrorsLib.NoCode());
+        require(token.code.length > 0, ErrorsLib.NoCode());
 
         (bool success, bytes memory returndata) =
-            address(token).call(abi.encodeCall(IERC20.transferFrom, (from, to, value)));
+            token.call(abi.encodeCall(IERC20.transferFrom, (from, to, value)));
         require(success, ErrorsLib.TransferFromReverted());
         require(returndata.length == 0 || abi.decode(returndata, (bool)), ErrorsLib.TransferFromReturnedFalse());
     }
