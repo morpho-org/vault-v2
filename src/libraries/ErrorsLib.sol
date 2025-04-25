@@ -33,5 +33,5 @@ library ErrorsLib {
     error InvalidRate();
     error PermitDeadlineExpired();
     error InvalidSigner();
-    error LiquidityAdapterInvariant();
+    error LiquidityAdapterInvariantBroken();
 }
