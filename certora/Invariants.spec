@@ -6,7 +6,6 @@ methods {
     function managementFee() external returns uint256 envfree;
     function managementFeeRecipient() external returns address envfree;
     function forceExitFee() external returns uint256 envfree;
-    function forceExitFeeRecipient() external returns address envfree;
 
     function decreaseTimelock(bytes4 functionSelector, uint256 newDuration) external;
     function absoluteCap(bytes32 id) external returns uint256 envfree;
@@ -33,9 +32,6 @@ strong invariant performanceFeeRecipient()
 
 strong invariant managementFeeRecipient()
     managementFee() != 0 => managementFeeRecipient() != 0;
-
-strong invariant forceExitFeeRecipient()
-    forceExitFee() != 0 => forceExitFeeRecipient() != 0;
 
 strong invariant performanceFee()
     performanceFee() <= MAX_PERFOMANCE_FEE();
