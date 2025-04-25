@@ -307,7 +307,7 @@ contract VaultV2 is IVaultV2 {
                 missingManagementFeeAssets + (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
             if (managementFeeAssets > availableInterest) {
                 newMissingManagementFeeAssets = managementFeeAssets - availableInterest;
-                managementFeeAssets = interest;
+                managementFeeAssets = availableInterest;
             }
             uint256 totalManagementFeeShares = managementFeeAssets.mulDivDown(
                 totalSupply + 1 + totalPerformanceFeeShares, newTotalAssets + 1 - managementFeeAssets
