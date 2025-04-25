@@ -79,6 +79,7 @@ contract VaultV2 is IVaultV2 {
         owner = _owner;
         lastUpdate = block.timestamp;
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
+        emit EventsLib.SetOwner(_owner);
     }
 
     /* OWNER ACTIONS */
@@ -143,7 +144,7 @@ contract VaultV2 is IVaultV2 {
         require(newDuration > timelock[selector], ErrorsLib.TimelockNotIncreasing());
 
         timelock[selector] = newDuration;
-        emit EventsLib.IncreaseTimelock(selector, newDuration);
+        emit EventsLib.SetTimelock(selector, newDuration);
     }
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
@@ -151,7 +152,7 @@ contract VaultV2 is IVaultV2 {
         require(newDuration < timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
-        emit EventsLib.DecreaseTimelock(selector, newDuration);
+        emit EventsLib.SetTimelock(selector, newDuration);
     }
 
     /* TREASURER ACTIONS */
@@ -178,18 +179,18 @@ contract VaultV2 is IVaultV2 {
 
     /* CURATOR ACTIONS */
 
-    function increaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
-        require(newCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
+    function increaseAbsoluteCap(bytes32 id, uint256 newAbsoluteCap) external timelocked {
+        require(newAbsoluteCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
 
-        absoluteCap[id] = newCap;
-        emit EventsLib.IncreaseAbsoluteCap(id, newCap);
+        absoluteCap[id] = newAbsoluteCap;
+        emit EventsLib.SetAbsoluteCap(id, newAbsoluteCap);
     }
 
-    function decreaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
-        require(newCap < absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
+    function decreaseAbsoluteCap(bytes32 id, uint256 newAbsoluteCap) external timelocked {
+        require(newAbsoluteCap < absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
 
-        absoluteCap[id] = newCap;
-        emit EventsLib.DecreaseAbsoluteCap(id, newCap);
+        absoluteCap[id] = newAbsoluteCap;
+        emit EventsLib.SetAbsoluteCap(id, newAbsoluteCap);
     }
 
     function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
@@ -197,7 +198,7 @@ contract VaultV2 is IVaultV2 {
 
         if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
         relativeCap[id] = newRelativeCap;
-        emit EventsLib.IncreaseRelativeCap(id, newRelativeCap);
+        emit EventsLib.SetRelativeCap(id, newRelativeCap);
     }
 
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
@@ -210,7 +211,7 @@ contract VaultV2 is IVaultV2 {
             idsWithRelativeCap.pop();
         }
         relativeCap[id] = newRelativeCap;
-        emit EventsLib.DecreaseRelativeCap(id, newRelativeCap, index);
+        emit EventsLib.SetRelativeCap(id, newRelativeCap);
     }
 
     /* ALLOCATOR ACTIONS */
@@ -234,7 +235,7 @@ contract VaultV2 is IVaultV2 {
                 allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD), ErrorsLib.RelativeCapExceeded()
             );
         }
-        emit EventsLib.ReallocateFromIdle(msg.sender, adapter, data, amount);
+        emit EventsLib.ReallocateFromIdle(msg.sender, adapter, data, amount, ids);
     }
 
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
@@ -251,7 +252,7 @@ contract VaultV2 is IVaultV2 {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(amount);
         }
         SafeTransferLib.safeTransferFrom(asset, adapter, address(this), amount);
-        emit EventsLib.ReallocateToIdle(msg.sender, adapter, data, amount);
+        emit EventsLib.ReallocateToIdle(msg.sender, adapter, data, amount, ids);
     }
 
     function setLiquidityAdapter(address newLiquidityAdapter) external {
@@ -261,11 +262,13 @@ contract VaultV2 is IVaultV2 {
             ErrorsLib.LiquidityAdapterInvariantBroken()
         );
         liquidityAdapter = newLiquidityAdapter;
+        emit EventsLib.SetLiquidityAdapter(newLiquidityAdapter);
     }
 
     function setLiquidityData(bytes memory newLiquidityData) external {
         require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
         liquidityData = newLiquidityData;
+        emit EventsLib.SetLiquidityData(newLiquidityData);
     }
 
     /* EXCHANGE RATE */
@@ -281,7 +284,7 @@ contract VaultV2 is IVaultV2 {
         if (protocolFeeShares != 0) _mint(IVaultV2Factory(factory).protocolFeeRecipient(), protocolFeeShares);
 
         lastUpdate = block.timestamp;
-        emit EventsLib.AccrueInterest(newTotalAssets);
+        emit EventsLib.AccrueInterest(newTotalAssets, performanceFeeShares, managementFeeShares, protocolFeeShares);
     }
 
     function accrueInterestView() public view returns (uint256, uint256, uint256, uint256) {
@@ -391,7 +394,7 @@ contract VaultV2 is IVaultV2 {
             bytes32 id = idsWithRelativeCap[i];
             require(allocation[id] <= totalAssets.mulDivDown(relativeCap[id], WAD), ErrorsLib.RelativeCapExceeded());
         }
-        emit EventsLib.Withdraw(msg.sender, receiver, supplier, assets, shares);
+        emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }
 
     // Note that it is not callable by default, if there is no liquidity.
@@ -493,20 +496,20 @@ contract VaultV2 is IVaultV2 {
         return true;
     }
 
-    function permit(address _owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+    function permit(address _owner, address spender, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         public
     {
         require(deadline >= block.timestamp, ErrorsLib.PermitDeadlineExpired());
 
         uint256 nonce = nonces[_owner]++;
-        bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonce, deadline));
+        bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, amount, nonce, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
         address recoveredAddress = ecrecover(digest, v, r, s);
         require(recoveredAddress != address(0) && recoveredAddress == _owner, ErrorsLib.InvalidSigner());
 
-        allowance[_owner][spender] = value;
-        emit EventsLib.Permit(_owner, spender, value, deadline, nonce);
-        emit EventsLib.Approval(_owner, spender, value);
+        allowance[_owner][spender] = amount;
+        emit EventsLib.Permit(_owner, spender, amount, nonce);
+        emit EventsLib.Approval(_owner, spender, amount);
     }
 
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
