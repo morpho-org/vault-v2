@@ -37,7 +37,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint256 public managementFee;
     address public managementFeeRecipient;
-    uint256 public forceExitFee;
+    uint256 public forceRedeemFee;
 
     uint256 public lastUpdate;
     uint256 public totalAssets;
@@ -164,10 +164,10 @@ contract VaultV2 is IVaultV2 {
         managementFee = newManagementFee;
     }
 
-    function setForceExitFee(uint256 newForceExitFee) external timelocked {
-        require(newForceExitFee < WAD, ErrorsLib.ForceExitFeeTooHigh());
+    function setForceRedeemFee(uint256 newForceRedeemFee) external timelocked {
+        require(newForceRedeemFee < WAD, ErrorsLib.ForceRedeemFeeTooHigh());
 
-        forceExitFee = newForceExitFee;
+        forceRedeemFee = newForceRedeemFee;
     }
 
     /* CURATOR ACTIONS */
@@ -234,7 +234,7 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
         assets = previewRedeem(shares);
         this.reallocateFromIdle(adapter, data, assets);
-        _withdraw(assets, assets.mulDivDown(WAD - forceExitFee, WAD), shares, receiver, supplier);
+        _withdraw(assets, assets.mulDivDown(WAD - forceRedeemFee, WAD), shares, receiver, supplier);
     }
 
     // Note how the discrepancy between transferred amount and decrease in market.totalAssets() is handled:
@@ -456,7 +456,7 @@ contract VaultV2 is IVaultV2 {
         // Treasurer functions
         if (selector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
         if (selector == IVaultV2.setManagementFee.selector) return sender == treasurer;
-        if (selector == IVaultV2.setForceExitFee.selector) return sender == treasurer;
+        if (selector == IVaultV2.setForceRedeemFee.selector) return sender == treasurer;
         // Curator functions
         if (selector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
         if (selector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];

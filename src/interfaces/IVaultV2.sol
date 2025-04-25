@@ -34,7 +34,7 @@ interface IVaultV2 is IERC20 {
     function isAllocator(address) external view returns (bool);
     function performanceFee() external view returns (uint256);
     function managementFee() external view returns (uint256);
-    function forceExitFee() external view returns (uint256);
+    function forceRedeemFee() external view returns (uint256);
     function performanceFeeRecipient() external view returns (address);
     function managementFeeRecipient() external view returns (address);
     function irm() external view returns (address);
@@ -60,7 +60,7 @@ interface IVaultV2 is IERC20 {
     // Treasurer actions
     function setPerformanceFee(uint256) external;
     function setManagementFee(uint256) external;
-    function setForceExitFee(uint256) external;
+    function setForceRedeemFee(uint256) external;
 
     // Curator actions
     function setIRM(address) external;
