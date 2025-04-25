@@ -360,7 +360,6 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Deposit(msg.sender, receiver, assets, shares);
     }
 
-    // TODO: how to hook on deposit so that assets are atomically allocated ?
     function deposit(uint256 assets, address receiver) public returns (uint256) {
         accrueInterest();
         uint256 shares = previewDeposit(assets);
@@ -375,16 +374,16 @@ contract VaultV2 is IVaultV2 {
         return assets;
     }
 
-    function _withdraw(uint256 assets, uint256 shares, address receiver, address supplier) internal {
+    function _withdraw(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
             this.reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
         }
-        uint256 _allowance = allowance[supplier][msg.sender];
-        if (msg.sender != supplier && _allowance != type(uint256).max) {
-            allowance[supplier][msg.sender] = _allowance - shares;
+        uint256 _allowance = allowance[onBehalf][msg.sender];
+        if (msg.sender != onBehalf && _allowance != type(uint256).max) {
+            allowance[onBehalf][msg.sender] = _allowance - shares;
         }
-        _burn(supplier, shares);
+        _burn(onBehalf, shares);
         SafeTransferLib.safeTransfer(asset, receiver, assets);
         totalAssets -= assets;
 
@@ -397,17 +396,17 @@ contract VaultV2 is IVaultV2 {
 
     // Note that it is not callable by default, if there is no liquidity.
     // This is actually a feature, so that the curator can pause withdrawals if necessary/wanted.
-    function withdraw(uint256 assets, address receiver, address supplier) public returns (uint256) {
+    function withdraw(uint256 assets, address receiver, address onBehalf) public returns (uint256) {
         accrueInterest();
         uint256 shares = previewWithdraw(assets);
-        _withdraw(assets, shares, receiver, supplier);
+        _withdraw(assets, shares, receiver, onBehalf);
         return shares;
     }
 
-    function redeem(uint256 shares, address receiver, address supplier) public returns (uint256) {
+    function redeem(uint256 shares, address receiver, address onBehalf) public returns (uint256) {
         accrueInterest();
         uint256 assets = previewRedeem(shares);
-        _withdraw(assets, shares, receiver, supplier);
+        _withdraw(assets, shares, receiver, onBehalf);
         return assets;
     }
 
@@ -415,7 +414,7 @@ contract VaultV2 is IVaultV2 {
 
     function submit(bytes calldata data) external {
         bytes4 selector = bytes4(data);
-        require(isAuthorizedToSubmit(msg.sender, selector), ErrorsLib.Unauthorized());
+        require(_isAuthorizedToSubmit(msg.sender, selector), ErrorsLib.Unauthorized());
 
         require(validAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
@@ -432,7 +431,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Authorized to submit can revoke.
     function revoke(bytes calldata data) external {
         require(
-            isAuthorizedToSubmit(msg.sender, bytes4(data))
+            _isAuthorizedToSubmit(msg.sender, bytes4(data))
                 || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector),
             ErrorsLib.Unauthorized()
         );
@@ -441,7 +440,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Revoke(msg.sender, data);
     }
 
-    function isAuthorizedToSubmit(address sender, bytes4 selector) internal view returns (bool) {
+    function _isAuthorizedToSubmit(address sender, bytes4 selector) internal view returns (bool) {
         // Owner functions
         if (selector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
         if (selector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
@@ -497,17 +496,17 @@ contract VaultV2 is IVaultV2 {
     function permit(address _owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         public
     {
+        require(deadline >= block.timestamp, ErrorsLib.PermitDeadlineExpired());
+
         uint256 nonce = nonces[_owner]++;
         bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonce, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
         address recoveredAddress = ecrecover(digest, v, r, s);
-
-        require(deadline >= block.timestamp, ErrorsLib.PermitDeadlineExpired());
         require(recoveredAddress != address(0) && recoveredAddress == _owner, ErrorsLib.InvalidSigner());
 
-        allowance[recoveredAddress][spender] = value;
+        allowance[_owner][spender] = value;
         emit EventsLib.Permit(_owner, spender, value, deadline, nonce);
-        emit EventsLib.Approval(recoveredAddress, spender, value);
+        emit EventsLib.Approval(_owner, spender, value);
     }
 
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
