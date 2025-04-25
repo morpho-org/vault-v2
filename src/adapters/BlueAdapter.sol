@@ -21,7 +21,7 @@ contract BlueAdapter {
 
     function allocateIn(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {
         require(msg.sender == VAULT, "not authorized");
-        SafeTransferLib.safeTransferFrom(IVaultV2(VAULT).asset(), VAULT, address(this), amount);
+        SafeTransferLib.safeTransferFrom(VAULT_ASSET, VAULT, address(this), amount);
         (address loanToken, address collateralToken, address oracle, address irm, uint256 lltv) =
             abi.decode(data, (address, address, address, address, uint256));
 
