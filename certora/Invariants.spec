@@ -8,6 +8,7 @@ methods {
     function forceExitFee() external returns uint256 envfree;
 
     function decreaseTimelock(bytes4 functionSelector, uint256 newDuration) external;
+
     function absoluteCap(bytes32 id) external returns uint256 envfree;
     function relativeCap(bytes32 id) external returns uint256 envfree;
     function allocation(bytes32 id) external returns uint256 envfree;
