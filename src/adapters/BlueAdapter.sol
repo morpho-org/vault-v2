@@ -9,19 +9,16 @@ import {SafeTransferLib} from "../libraries/SafeTransferLib.sol";
 contract BlueAdapter {
     IMorpho public immutable MORPHO;
     address public immutable VAULT;
-    address public immutable VAULT_ASSET;
 
     constructor(address _morpho, address _vault) {
         MORPHO = IMorpho(_morpho);
         VAULT = _vault;
-        VAULT_ASSET = IVaultV2(VAULT).asset();
         SafeTransferLib.safeApprove(IVaultV2(_vault).asset(), _morpho, type(uint256).max);
         SafeTransferLib.safeApprove(IVaultV2(_vault).asset(), _vault, type(uint256).max);
     }
 
     function allocateIn(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {
         require(msg.sender == VAULT, "not authorized");
-        SafeTransferLib.safeTransferFrom(VAULT_ASSET, VAULT, address(this), amount);
         (address loanToken, address collateralToken, address oracle, address irm, uint256 lltv) =
             abi.decode(data, (address, address, address, address, uint256));
 
