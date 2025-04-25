@@ -341,7 +341,6 @@ contract VaultV2 is IVaultV2 {
         try this.reallocateFromIdle(liquidityAdapter, liquidityData, assets) {} catch {}
     }
 
-    // TODO: how to hook on deposit so that assets are atomically allocated ?
     function deposit(uint256 assets, address receiver) public returns (uint256) {
         accrueInterest();
         uint256 shares = previewDeposit(assets);
