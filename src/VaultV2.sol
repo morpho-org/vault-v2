@@ -467,26 +467,25 @@ contract VaultV2 is IVaultV2 {
     /* INTERFACE */
 
     function transfer(address to, uint256 amount) public returns (bool) {
-        _transfer(msg.sender, to, amount);
+        require(to != address(0), ErrorsLib.ZeroAddress());
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        emit EventsLib.Transfer(msg.sender, to, amount);
         return true;
     }
 
     function transferFrom(address from, address to, uint256 amount) public returns (bool) {
+        require(from != address(0), ErrorsLib.ZeroAddress());
+        require(to != address(0), ErrorsLib.ZeroAddress());
         uint256 _allowance = allowance[from][msg.sender];
 
         if (_allowance < type(uint256).max) allowance[from][msg.sender] = _allowance - amount;
 
-        _transfer(from, to, amount);
-
-        return true;
-    }
-
-    function _transfer(address from, address to, uint256 amount) internal {
-        require(from != address(0), ErrorsLib.ZeroAddress());
-        require(to != address(0), ErrorsLib.ZeroAddress());
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
         emit EventsLib.Transfer(from, to, amount);
+
+        return true;
     }
 
     function approve(address spender, uint256 amount) public returns (bool) {
