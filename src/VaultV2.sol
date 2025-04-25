@@ -275,6 +275,7 @@ contract VaultV2 is IVaultV2 {
 
         uint256 protocolFee = IVaultV2Factory(factory).protocolFee();
 
+        uint256 performanceFeeAssets;
         uint256 performanceFeeShares;
         uint256 managementFeeShares;
         uint256 protocolPerformanceFeeShares;
@@ -284,7 +285,7 @@ contract VaultV2 is IVaultV2 {
         // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
         uint256 totalPerformanceFeeShares;
         if (interest > 0 && performanceFee != 0) {
-            uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
+            performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
             totalPerformanceFeeShares =
                 performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
             protocolPerformanceFeeShares = totalPerformanceFeeShares.mulDivDown(protocolFee, WAD);
@@ -292,7 +293,9 @@ contract VaultV2 is IVaultV2 {
         }
         if (managementFee != 0) {
             // Using newTotalAssets to make all approximations consistent.
+            uint256 availableInterest = interest - performanceFeeAssets;
             uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
+            if (managementFeeAssets > availableInterest) managementFeeAssets = availableInterest;
             uint256 totalManagementFeeShares = managementFeeAssets.mulDivDown(
                 totalSupply + 1 + totalPerformanceFeeShares, newTotalAssets + 1 - managementFeeAssets
             );
