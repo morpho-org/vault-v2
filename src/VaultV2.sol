@@ -13,7 +13,6 @@ import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
-    using SafeERC20Lib for IERC20;
 
     /* IMMUTABLE */
 
