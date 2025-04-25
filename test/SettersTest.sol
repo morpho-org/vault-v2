@@ -30,7 +30,7 @@ contract SettersTest is BaseTest {
         vm.prank(owner);
         vault.submit(abi.encodeWithSelector(IVaultV2.setOwner.selector, newOwner));
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit();
         emit EventsLib.SetOwner(newOwner);
         vault.setOwner(newOwner);
 
@@ -53,7 +53,7 @@ contract SettersTest is BaseTest {
         vm.prank(owner);
         vault.submit(abi.encodeWithSelector(IVaultV2.setCurator.selector, newCurator));
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit();
         emit EventsLib.SetCurator(newCurator);
         vault.setCurator(newCurator);
 
@@ -76,7 +76,7 @@ contract SettersTest is BaseTest {
         vm.prank(owner);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, newIRM));
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit();
         emit EventsLib.SetIRM(newIRM);
         vault.setIRM(newIRM);
 
@@ -99,7 +99,7 @@ contract SettersTest is BaseTest {
         vm.prank(owner);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, true));
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit();
         emit EventsLib.SetIsAllocator(newAllocator, true);
         vault.setIsAllocator(newAllocator, true);
 
@@ -150,7 +150,7 @@ contract SettersTest is BaseTest {
         );
         vault.setPerformanceFeeRecipient(makeAddr("newPerformanceFeeRecipient"));
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit();
         emit EventsLib.SetPerformanceFee(newPerformanceFee);
         vault.setPerformanceFee(newPerformanceFee);
 
@@ -172,7 +172,7 @@ contract SettersTest is BaseTest {
 
         vm.prank(owner);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFeeRecipient.selector, newPerformanceFeeRecipient));
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit();
         emit EventsLib.SetPerformanceFeeRecipient(newPerformanceFeeRecipient);
         vault.setPerformanceFeeRecipient(newPerformanceFeeRecipient);
 
@@ -224,7 +224,7 @@ contract SettersTest is BaseTest {
         );
         vault.setManagementFeeRecipient(makeAddr("newManagementFeeRecipient"));
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit();
         emit EventsLib.SetManagementFee(newManagementFee);
         vault.setManagementFee(newManagementFee);
 
@@ -246,7 +246,7 @@ contract SettersTest is BaseTest {
 
         vm.prank(owner);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, newManagementFeeRecipient));
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit();
         emit EventsLib.SetManagementFeeRecipient(newManagementFeeRecipient);
         vault.setManagementFeeRecipient(newManagementFeeRecipient);
 
