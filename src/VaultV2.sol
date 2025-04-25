@@ -206,7 +206,7 @@ contract VaultV2 is IVaultV2 {
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        SafeTransferLib.safeTransfer(IERC20(asset), adapter, amount);
+        SafeTransferLib.safeTransfer(asset, adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
 
         for (uint256 i; i < ids.length; i++) {
@@ -233,7 +233,7 @@ contract VaultV2 is IVaultV2 {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(amount);
         }
 
-        SafeTransferLib.safeTransferFrom(IERC20(asset), adapter, address(this), amount);
+        SafeTransferLib.safeTransferFrom(asset, adapter, address(this), amount);
     }
 
     function setLiquidityAdapter(address newLiquidityAdapter) external {
@@ -334,7 +334,7 @@ contract VaultV2 is IVaultV2 {
     /* USER INTERACTION */
 
     function _deposit(uint256 assets, uint256 shares, address receiver) internal {
-        SafeTransferLib.safeTransferFrom(IERC20(asset), msg.sender, address(this), assets);
+        SafeTransferLib.safeTransferFrom(asset, msg.sender, address(this), assets);
         _mint(receiver, shares);
         totalAssets += assets;
 
@@ -365,7 +365,7 @@ contract VaultV2 is IVaultV2 {
             allowance[onBehalf][msg.sender] = _allowance - shares;
         }
         _burn(onBehalf, shares);
-        SafeTransferLib.safeTransfer(IERC20(asset), receiver, assets);
+        SafeTransferLib.safeTransfer(asset, receiver, assets);
         totalAssets -= assets;
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
