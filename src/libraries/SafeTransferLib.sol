@@ -23,9 +23,9 @@ library SafeTransferLib {
     }
 
     function safeApprove(address token, address spender, uint256 value) internal {
-        require(address(token).code.length > 0, ErrorsLib.NoCode());
+        require(token.code.length > 0, ErrorsLib.NoCode());
 
-        (bool success, bytes memory returndata) = address(token).call(abi.encodeCall(IERC20.approve, (spender, value)));
+        (bool success, bytes memory returndata) = token.call(abi.encodeCall(IERC20.approve, (spender, value)));
         require(success, ErrorsLib.ApproveReverted());
         require(returndata.length == 0 || abi.decode(returndata, (bool)), ErrorsLib.ApproveReturnedFalse());
     }
