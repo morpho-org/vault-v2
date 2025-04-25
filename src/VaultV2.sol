@@ -79,7 +79,7 @@ contract VaultV2 is IVaultV2 {
         owner = _owner;
         lastUpdate = block.timestamp;
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
-        emit EventsLib.SetOwner(_owner);
+        emit EventsLib.Construction(_owner, _asset);
     }
 
     /* OWNER ACTIONS */
@@ -144,7 +144,7 @@ contract VaultV2 is IVaultV2 {
         require(newDuration > timelock[selector], ErrorsLib.TimelockNotIncreasing());
 
         timelock[selector] = newDuration;
-        emit EventsLib.SetTimelock(selector, newDuration);
+        emit EventsLib.IncreaseTimelock(selector, newDuration);
     }
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
@@ -152,7 +152,7 @@ contract VaultV2 is IVaultV2 {
         require(newDuration < timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
-        emit EventsLib.SetTimelock(selector, newDuration);
+        emit EventsLib.DecreaseTimelock(selector, newDuration);
     }
 
     /* TREASURER ACTIONS */
@@ -183,14 +183,14 @@ contract VaultV2 is IVaultV2 {
         require(newAbsoluteCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
 
         absoluteCap[id] = newAbsoluteCap;
-        emit EventsLib.SetAbsoluteCap(id, newAbsoluteCap);
+        emit EventsLib.IncreaseAbsoluteCap(id, newAbsoluteCap);
     }
 
     function decreaseAbsoluteCap(bytes32 id, uint256 newAbsoluteCap) external timelocked {
         require(newAbsoluteCap < absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
 
         absoluteCap[id] = newAbsoluteCap;
-        emit EventsLib.SetAbsoluteCap(id, newAbsoluteCap);
+        emit EventsLib.DecreaseAbsoluteCap(id, newAbsoluteCap);
     }
 
     function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
@@ -198,7 +198,7 @@ contract VaultV2 is IVaultV2 {
 
         if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
         relativeCap[id] = newRelativeCap;
-        emit EventsLib.SetRelativeCap(id, newRelativeCap);
+        emit EventsLib.IncreaseRelativeCap(id, newRelativeCap);
     }
 
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
@@ -211,7 +211,7 @@ contract VaultV2 is IVaultV2 {
             idsWithRelativeCap.pop();
         }
         relativeCap[id] = newRelativeCap;
-        emit EventsLib.SetRelativeCap(id, newRelativeCap);
+        emit EventsLib.DecreaseRelativeCap(id, newRelativeCap, index);
     }
 
     /* ALLOCATOR ACTIONS */
@@ -508,7 +508,7 @@ contract VaultV2 is IVaultV2 {
         require(recoveredAddress != address(0) && recoveredAddress == _owner, ErrorsLib.InvalidSigner());
 
         allowance[_owner][spender] = amount;
-        emit EventsLib.Permit(_owner, spender, amount, nonce);
+        emit EventsLib.Permit(_owner, spender, amount, deadline, v, r, s, nonce);
         emit EventsLib.Approval(_owner, spender, amount);
     }
 
