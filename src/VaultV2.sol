@@ -364,13 +364,14 @@ contract VaultV2 is IVaultV2 {
             allowance[onBehalf][msg.sender] = _allowance - shares;
         }
         _burn(onBehalf, shares);
-        SafeERC20Lib.safeTransfer(asset, receiver, assets);
         totalAssets -= assets;
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
             require(allocation[id] <= totalAssets.mulDivDown(relativeCap[id], WAD), ErrorsLib.RelativeCapExceeded());
         }
+
+        SafeERC20Lib.safeTransfer(asset, receiver, assets);
     }
 
     // Note that it is not callable by default, if there is no liquidity.
