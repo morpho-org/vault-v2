@@ -9,11 +9,10 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
-import {SafeTransferLib} from "./libraries/SafeTransferLib.sol";
+import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
-    using SafeTransferLib for IERC20;
 
     /* IMMUTABLE */
 
@@ -206,7 +205,7 @@ contract VaultV2 is IVaultV2 {
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        SafeTransferLib.safeTransfer(asset, adapter, amount);
+        SafeERC20Lib.safeTransfer(asset, adapter, amount);
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
 
         for (uint256 i; i < ids.length; i++) {
@@ -233,7 +232,7 @@ contract VaultV2 is IVaultV2 {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(amount);
         }
 
-        SafeTransferLib.safeTransferFrom(asset, adapter, address(this), amount);
+        SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), amount);
     }
 
     function setLiquidityAdapter(address newLiquidityAdapter) external {
@@ -334,7 +333,7 @@ contract VaultV2 is IVaultV2 {
     /* USER INTERACTION */
 
     function _deposit(uint256 assets, uint256 shares, address receiver) internal {
-        SafeTransferLib.safeTransferFrom(asset, msg.sender, address(this), assets);
+        SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         _mint(receiver, shares);
         totalAssets += assets;
 
@@ -365,7 +364,7 @@ contract VaultV2 is IVaultV2 {
             allowance[onBehalf][msg.sender] = _allowance - shares;
         }
         _burn(onBehalf, shares);
-        SafeTransferLib.safeTransfer(asset, receiver, assets);
+        SafeERC20Lib.safeTransfer(asset, receiver, assets);
         totalAssets -= assets;
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
