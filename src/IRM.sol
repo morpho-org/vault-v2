@@ -8,18 +8,19 @@ contract IRM is IIRM {
     // Note that owner may be controlled by the curator, if the curator has the ability to change the IRM.
     address public immutable owner;
 
-    uint256 internal _interestPerSecond;
+    // rate per second, in WAD
+    uint256 internal _rate;
 
     constructor(address _owner) {
         owner = _owner;
     }
 
-    function setInterestPerSecond(uint256 newInterestPerSecond) public {
+    function setRate(uint256 newRate) public {
         require(msg.sender == owner);
-        _interestPerSecond = newInterestPerSecond;
+        _rate = newRate;
     }
 
-    function interestPerSecond(uint256, uint256) external view returns (uint256) {
-        return _interestPerSecond;
+    function rate(uint256, uint256) external view returns (uint256) {
+        return _rate;
     }
 }

@@ -268,9 +268,9 @@ contract VaultV2 is IVaultV2 {
     function accrueInterestView() public view returns (uint256, uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (0, 0, 0, totalAssets);
-        uint256 interestPerSecond = IIRM(irm).interestPerSecond(totalAssets, elapsed);
-        require(interestPerSecond <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
-        uint256 interest = interestPerSecond * elapsed;
+        uint256 rate = IIRM(irm).rate(totalAssets, elapsed);
+        require(rate <= MAX_RATE_PER_SECOND, ErrorsLib.InvalidRate());
+        uint256 interest = totalAssets.mulDivDown(rate.wTaylorCompounded(elapsed), WAD);
         uint256 newTotalAssets = totalAssets + interest;
 
         uint256 protocolFee = IVaultV2Factory(factory).protocolFee();
@@ -284,7 +284,8 @@ contract VaultV2 is IVaultV2 {
         // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
         uint256 totalPerformanceFeeShares;
         if (interest > 0 && performanceFee != 0) {
-            uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
+            uint256 performanceFeeAssets =
+                interest - interest.mulDivUp(WAD, WAD + performanceFee.wTaylorCompounded(elapsed));
             totalPerformanceFeeShares =
                 performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
             protocolPerformanceFeeShares = totalPerformanceFeeShares.mulDivDown(protocolFee, WAD);

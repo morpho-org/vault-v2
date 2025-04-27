@@ -27,13 +27,13 @@ contract FeeTest is BaseTest {
 
     function testPerformanceFeeWithoutManagementFee(
         uint256 performanceFee,
-        uint256 interestPerSecond,
+        uint256 rate,
         uint256 deposit,
         uint256 elapsed
     ) public {
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         deposit = bound(deposit, 0, MAX_DEPOSIT);
-        interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
+        rate = bound(rate, 0, MAX_RATE_PER_SECOND);
         elapsed = bound(elapsed, 0, 1000 weeks);
 
         vm.prank(treasurer);
@@ -43,13 +43,14 @@ contract FeeTest is BaseTest {
         vault.deposit(deposit, address(this));
 
         vm.prank(manager);
-        irm.setInterestPerSecond(interestPerSecond);
+        irm.setRate(rate);
 
         vm.warp(block.timestamp + elapsed);
 
-        uint256 interest = interestPerSecond * elapsed;
+        uint256 interest = vault.totalAssets().mulDivDown(rate.wTaylorCompounded(elapsed),WAD);
         uint256 newTotalAssets = vault.totalAssets() + interest;
-        uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
+        uint256 performanceFeeAssets =
+                interest - interest.mulDivUp(WAD, WAD + performanceFee.wTaylorCompounded(elapsed));
         uint256 expectedShares =
             performanceFeeAssets.mulDivDown(vault.totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets);
 
@@ -60,13 +61,13 @@ contract FeeTest is BaseTest {
 
     function testManagementFeeWithoutPerformanceFee(
         uint256 managementFee,
-        uint256 interestPerSecond,
+        uint256 rate,
         uint256 deposit,
         uint256 elapsed
     ) public {
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_DEPOSIT);
-        interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
+        rate = bound(rate, 0, MAX_RATE_PER_SECOND);
         elapsed = bound(elapsed, 0, 20 * 365 days);
 
         vm.prank(treasurer);
@@ -76,11 +77,11 @@ contract FeeTest is BaseTest {
         vault.deposit(deposit, address(this));
 
         vm.prank(manager);
-        irm.setInterestPerSecond(interestPerSecond);
+        irm.setRate(rate);
 
         vm.warp(block.timestamp + elapsed);
 
-        uint256 interest = interestPerSecond * elapsed;
+        uint256 interest = vault.totalAssets().mulDivDown(rate.wTaylorCompounded(elapsed),WAD);
         uint256 newTotalAssets = vault.totalAssets() + interest;
         uint256 managementFeeAssets =
             newTotalAssets - newTotalAssets.mulDivUp(WAD, WAD + managementFee.wTaylorCompounded(elapsed));
