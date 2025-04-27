@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import {IMorpho, MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {IERC20} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {SafeTransferLib} from "../libraries/SafeTransferLib.sol";
+import {SafeApproveLib} from "./libraries/SafeApproveLib.sol";
 
 contract BlueAdapter {
     IMorpho public immutable MORPHO;
@@ -13,8 +13,8 @@ contract BlueAdapter {
     constructor(address _morpho, address _vault) {
         MORPHO = IMorpho(_morpho);
         VAULT = _vault;
-        SafeTransferLib.safeApprove(IVaultV2(_vault).asset(), _morpho, type(uint256).max);
-        SafeTransferLib.safeApprove(IVaultV2(_vault).asset(), _vault, type(uint256).max);
+        SafeApproveLib.safeApprove(IVaultV2(_vault).asset(), _morpho, type(uint256).max);
+        SafeApproveLib.safeApprove(IVaultV2(_vault).asset(), _vault, type(uint256).max);
     }
 
     function allocateIn(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {
