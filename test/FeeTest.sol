@@ -47,10 +47,10 @@ contract FeeTest is BaseTest {
 
         vm.warp(block.timestamp + elapsed);
 
-        uint256 interest = vault.totalAssets().mulDivDown(rate.wTaylorCompounded(elapsed),WAD);
+        uint256 interest = vault.totalAssets().mulDivDown(rate.wTaylorCompounded(elapsed), WAD);
         uint256 newTotalAssets = vault.totalAssets() + interest;
         uint256 performanceFeeAssets =
-                interest - interest.mulDivUp(WAD, WAD + performanceFee.wTaylorCompounded(elapsed));
+            interest - interest.mulDivUp(WAD, WAD + performanceFee.wTaylorCompounded(elapsed));
         uint256 expectedShares =
             performanceFeeAssets.mulDivDown(vault.totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets);
 
@@ -81,7 +81,7 @@ contract FeeTest is BaseTest {
 
         vm.warp(block.timestamp + elapsed);
 
-        uint256 interest = vault.totalAssets().mulDivDown(rate.wTaylorCompounded(elapsed),WAD);
+        uint256 interest = vault.totalAssets().mulDivDown(rate.wTaylorCompounded(elapsed), WAD);
         uint256 newTotalAssets = vault.totalAssets() + interest;
         uint256 managementFeeAssets =
             newTotalAssets - newTotalAssets.mulDivUp(WAD, WAD + managementFee.wTaylorCompounded(elapsed));
