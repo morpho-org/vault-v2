@@ -10,6 +10,7 @@ import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
+import {IGatekeeper} from "./interfaces/IGatekeeper.sol";
 
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
@@ -27,6 +28,7 @@ contract VaultV2 is IVaultV2 {
     address public curator;
     address public treasurer;
     address public irm;
+    address public gatekeeper;
     mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
 
@@ -92,6 +94,10 @@ contract VaultV2 is IVaultV2 {
 
     function setTreasurer(address newTreasurer) external timelocked {
         treasurer = newTreasurer;
+    }
+
+    function setGatekeeper(address newGatekeeper) external timelocked {
+        gatekeeper = newGatekeeper;
     }
 
     function setIRM(address newIRM) external timelocked {
@@ -317,6 +323,10 @@ contract VaultV2 is IVaultV2 {
     /* USER INTERACTION */
 
     function _deposit(uint256 assets, uint256 shares, address receiver) internal {
+        require(
+            gatekeeper == address(0) || IGatekeeper(gatekeeper).canTransfer(msg.sender, address(0), receiver),
+            ErrorsLib.Unauthorized()
+        );
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         _mint(receiver, shares);
         totalAssets += assets;
@@ -339,6 +349,10 @@ contract VaultV2 is IVaultV2 {
     }
 
     function _withdraw(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
+        require(
+            gatekeeper == address(0) || IGatekeeper(gatekeeper).canWithdraw(msg.sender, onBehalf, receiver),
+            ErrorsLib.Unauthorized()
+        );
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
             this.reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
@@ -430,6 +444,10 @@ contract VaultV2 is IVaultV2 {
 
     function transfer(address to, uint256 amount) public returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
+        require(
+            gatekeeper == address(0) || IGatekeeper(gatekeeper).canTransfer(msg.sender, msg.sender, to),
+            ErrorsLib.Unauthorized()
+        );
         balanceOf[msg.sender] -= amount;
         balanceOf[to] += amount;
         emit EventsLib.Transfer(msg.sender, to, amount);
@@ -439,6 +457,10 @@ contract VaultV2 is IVaultV2 {
     function transferFrom(address from, address to, uint256 amount) public returns (bool) {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
+        require(
+            gatekeeper == address(0) || IGatekeeper(gatekeeper).canTransfer(msg.sender, from, to),
+            ErrorsLib.Unauthorized()
+        );
         uint256 _allowance = allowance[from][msg.sender];
 
         if (_allowance < type(uint256).max) allowance[from][msg.sender] = _allowance - amount;
