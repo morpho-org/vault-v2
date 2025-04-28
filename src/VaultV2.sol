@@ -9,7 +9,7 @@ import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
-import {IGatekeeper} from "./interfaces/IGatekeeper.sol";
+import {IGate} from "./interfaces/IGate.sol";
 
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
@@ -24,7 +24,7 @@ contract VaultV2 is IVaultV2 {
     address public curator;
     address public treasurer;
     address public irm;
-    address public gatekeeper;
+    address public gate;
     mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
 
@@ -91,8 +91,8 @@ contract VaultV2 is IVaultV2 {
         treasurer = newTreasurer;
     }
 
-    function setGatekeeper(address newGatekeeper) external timelocked {
-        gatekeeper = newGatekeeper;
+    function setGate(address newGate) external timelocked {
+        gate = newGate;
     }
 
     function setIRM(address newIRM) external timelocked {
@@ -380,7 +380,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function enter(uint256 assets, uint256 shares, address receiver) internal {
-        require(gatekeeper == address(0) || IGatekeeper(gatekeeper).canUseShares(receiver), ErrorsLib.Unauthorized());
+        require(gate == address(0) || IGate(gate).canUseShares(receiver), ErrorsLib.Unauthorized());
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(receiver, shares);
         totalAssets += assets;
@@ -404,8 +404,7 @@ contract VaultV2 is IVaultV2 {
 
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         require(
-            gatekeeper == address(0)
-                || (IGatekeeper(gatekeeper).canUseShares(onBehalf) && IGatekeeper(gatekeeper).canReceiveAssets(receiver)),
+            gate == address(0) || (IGate(gate).canUseShares(onBehalf) && IGate(gate).canReceiveAssets(receiver)),
             ErrorsLib.Unauthorized()
         );
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
@@ -432,8 +431,7 @@ contract VaultV2 is IVaultV2 {
     function transfer(address to, uint256 amount) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
         require(
-            gatekeeper == address(0)
-                || (IGatekeeper(gatekeeper).canUseShares(msg.sender) && IGatekeeper(gatekeeper).canUseShares(to)),
+            gate == address(0) || (IGate(gate).canUseShares(msg.sender) && IGate(gate).canUseShares(to)),
             ErrorsLib.Unauthorized()
         );
         balanceOf[msg.sender] -= amount;
@@ -446,8 +444,7 @@ contract VaultV2 is IVaultV2 {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
         require(
-            gatekeeper == address(0)
-                || (IGatekeeper(gatekeeper).canUseShares(from) && IGatekeeper(gatekeeper).canUseShares(to)),
+            gate == address(0) || (IGate(gate).canUseShares(from) && IGate(gate).canUseShares(to)),
             ErrorsLib.Unauthorized()
         );
         uint256 _allowance = allowance[from][msg.sender];
