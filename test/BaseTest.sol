@@ -32,7 +32,7 @@ contract BaseTest is Test {
         underlyingToken = new ERC20Mock("UnderlyingToken", "UND");
         vm.label(address(underlyingToken), "underlying");
 
-        vaultFactory = IVaultV2Factory(address(new VaultV2Factory(address(this))));
+        vaultFactory = IVaultV2Factory(address(new VaultV2Factory()));
 
         vault = IVaultV2(vaultFactory.createVaultV2(owner, address(underlyingToken)));
         vm.label(address(vault), "vault");
