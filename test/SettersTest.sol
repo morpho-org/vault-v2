@@ -33,40 +33,20 @@ contract SettersTest is BaseTest {
         assertEq(vault.owner(), newOwner);
     }
 
-    function testSetAdmin(address rdm) public {
-        vm.assume(rdm != owner);
-        address newAdmin = makeAddr("newAdmin");
-
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setAdmin(newAdmin);
-
-        // Only owner can submit
-        vm.expectRevert(ErrorsLib.Unauthorized.selector);
-        vm.prank(rdm);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setAdmin.selector, newAdmin));
-
-        vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setAdmin.selector, newAdmin));
-        vault.setAdmin(newAdmin);
-
-        assertEq(vault.admin(), newAdmin);
-    }
-
     function testSetCurator(address rdm) public {
-        vm.assume(rdm != admin);
+        vm.assume(rdm != owner);
         address newCurator = makeAddr("newCurator");
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setCurator(newCurator);
 
-        // Only admin can submit
+        // Only owner can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeWithSelector(IVaultV2.setCurator.selector, newCurator));
 
-        vm.prank(admin);
+        vm.prank(owner);
         vault.submit(abi.encodeWithSelector(IVaultV2.setCurator.selector, newCurator));
         vault.setCurator(newCurator);
 
@@ -74,19 +54,19 @@ contract SettersTest is BaseTest {
     }
 
     function testSetIRM(address rdm) public {
-        vm.assume(rdm != admin);
+        vm.assume(rdm != curator);
         address newIRM = address(new IRM(manager));
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setIRM(newIRM);
 
-        // Only admin can submit
+        // Only curator can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, newIRM));
 
-        vm.prank(admin);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, newIRM));
         vault.setIRM(newIRM);
 
@@ -94,26 +74,26 @@ contract SettersTest is BaseTest {
     }
 
     function testSetIsAllocator(address rdm) public {
-        vm.assume(rdm != admin);
+        vm.assume(rdm != curator);
         address newAllocator = makeAddr("newAllocator");
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setIsAllocator(newAllocator, true);
 
-        // Only admin can submit
+        // Only curator can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, true));
 
-        vm.prank(admin);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, true));
         vault.setIsAllocator(newAllocator, true);
 
         assertTrue(vault.isAllocator(newAllocator));
 
-        // Admin can remove an allocator
-        vm.prank(admin);
+        // Curator can remove an allocator
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, false));
         vault.setIsAllocator(newAllocator, false);
 
@@ -121,26 +101,26 @@ contract SettersTest is BaseTest {
     }
 
     function testSetIsAdapter(address rdm) public {
-        vm.assume(rdm != admin);
+        vm.assume(rdm != curator);
         address newAdapter = makeAddr("newAdapter");
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setIsAdapter(newAdapter, true);
 
-        // Only admin can submit
+        // Only curator can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, newAdapter, true));
 
-        vm.prank(admin);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, newAdapter, true));
         vault.setIsAdapter(newAdapter, true);
 
         assertTrue(vault.isAdapter(newAdapter));
 
-        // Admin can remove an adapter
-        vm.prank(admin);
+        // Curator can remove an adapter
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, newAdapter, false));
         vault.setIsAdapter(newAdapter, false);
 
@@ -148,26 +128,26 @@ contract SettersTest is BaseTest {
     }
 
     function testSetPerformanceFee(address rdm, uint256 newPerformanceFee) public {
-        vm.assume(rdm != owner);
+        vm.assume(rdm != curator);
         newPerformanceFee = bound(newPerformanceFee, 0, MAX_PERFORMANCE_FEE);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setPerformanceFee(newPerformanceFee);
 
-        // Only owner can submit
+        // Only curator can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, newPerformanceFee));
 
         uint256 tooHighFee = 1 ether + 1;
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, tooHighFee));
 
         vm.expectRevert(ErrorsLib.FeeTooHigh.selector);
         vault.setPerformanceFee(tooHighFee);
 
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, newPerformanceFee));
 
         assertEq(
@@ -178,7 +158,7 @@ contract SettersTest is BaseTest {
         vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
         vault.setPerformanceFee(newPerformanceFee);
 
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(
             abi.encodeWithSelector(IVaultV2.setPerformanceFeeRecipient.selector, makeAddr("newPerformanceFeeRecipient"))
         );
@@ -190,55 +170,55 @@ contract SettersTest is BaseTest {
     }
 
     function testSetPerformanceFeeRecipient(address rdm, address newPerformanceFeeRecipient) public {
-        vm.assume(rdm != owner);
+        vm.assume(rdm != curator);
         vm.assume(newPerformanceFeeRecipient != address(0));
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setPerformanceFeeRecipient(newPerformanceFeeRecipient);
 
-        // Only owner can submit
+        // Only curator can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFeeRecipient.selector, newPerformanceFeeRecipient));
 
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFeeRecipient.selector, newPerformanceFeeRecipient));
         vault.setPerformanceFeeRecipient(newPerformanceFeeRecipient);
 
         assertEq(vault.performanceFeeRecipient(), newPerformanceFeeRecipient);
 
         uint256 newPerformanceFee = 0.05 ether;
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, newPerformanceFee));
         vault.setPerformanceFee(newPerformanceFee);
 
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFeeRecipient.selector, address(0)));
         vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
         vault.setPerformanceFeeRecipient(address(0));
     }
 
     function testSetManagementFee(address rdm, uint256 newManagementFee) public {
-        vm.assume(rdm != owner);
+        vm.assume(rdm != curator);
         newManagementFee = bound(newManagementFee, 0, MAX_MANAGEMENT_FEE);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setManagementFee(newManagementFee);
 
-        // Only owner can submit
+        // Only curator can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, newManagementFee));
 
         uint256 tooHighFee = 1 ether + 1;
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, tooHighFee));
         vm.expectRevert(ErrorsLib.FeeTooHigh.selector);
         vault.setManagementFee(tooHighFee);
 
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, newManagementFee));
 
         assertEq(
@@ -248,7 +228,7 @@ contract SettersTest is BaseTest {
         vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
         vault.setManagementFee(newManagementFee);
 
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(
             abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, makeAddr("newManagementFeeRecipient"))
         );
@@ -260,30 +240,30 @@ contract SettersTest is BaseTest {
     }
 
     function testSetManagementFeeRecipient(address rdm, address newManagementFeeRecipient) public {
-        vm.assume(rdm != owner);
+        vm.assume(rdm != curator);
         vm.assume(newManagementFeeRecipient != address(0));
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setManagementFeeRecipient(newManagementFeeRecipient);
 
-        // Only owner can submit
+        // Only curator can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, newManagementFeeRecipient));
 
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, newManagementFeeRecipient));
         vault.setManagementFeeRecipient(newManagementFeeRecipient);
 
         assertEq(vault.managementFeeRecipient(), newManagementFeeRecipient);
 
         uint256 newManagementFee = 0.01 ether / uint256(365.25 days);
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, newManagementFee));
         vault.setManagementFee(newManagementFee);
 
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, address(0)));
         vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
         vault.setManagementFeeRecipient(address(0));

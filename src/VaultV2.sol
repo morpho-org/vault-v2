@@ -20,7 +20,6 @@ contract VaultV2 is IVaultV2 {
     /* STORAGE */
 
     address public owner;
-    address public admin;
     address public curator;
     address public irm;
     mapping(address => bool) public isSentinel;
@@ -81,8 +80,73 @@ contract VaultV2 is IVaultV2 {
         owner = newOwner;
     }
 
-    function setAdmin(address newAdmin) external timelocked {
-        admin = newAdmin;
+    function setCurator(address newCurator) external timelocked {
+        curator = newCurator;
+    }
+
+    /* CURATOR ACTIONS */
+
+    function setIsSentinel(address sentinel, bool newIsSentinel) external timelocked {
+        isSentinel[sentinel] = newIsSentinel;
+    }
+
+    function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
+        isAllocator[allocator] = newIsAllocator;
+    }
+
+    function setIRM(address newIRM) external timelocked {
+        irm = newIRM;
+    }
+
+    function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
+        require(adapter != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
+        isAdapter[adapter] = newIsAdapter;
+    }
+
+    function increaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
+        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
+        require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
+        require(newDuration > timelock[selector], ErrorsLib.TimelockNotIncreasing());
+
+        timelock[selector] = newDuration;
+    }
+
+    function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
+        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
+        require(newDuration < timelock[selector], ErrorsLib.TimelockNotDecreasing());
+
+        timelock[selector] = newDuration;
+    }
+
+    function increaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
+        require(newCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
+
+        absoluteCap[id] = newCap;
+    }
+
+    function decreaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
+        require(newCap < absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
+
+        absoluteCap[id] = newCap;
+    }
+
+    function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
+        require(newRelativeCap > relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
+
+        if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
+        relativeCap[id] = newRelativeCap;
+    }
+
+    function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
+        require(newRelativeCap < relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
+        require(idsWithRelativeCap[index] == id, ErrorsLib.IdNotFound());
+        require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
+
+        if (newRelativeCap == 0) {
+            idsWithRelativeCap[index] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
+            idsWithRelativeCap.pop();
+        }
+        relativeCap[id] = newRelativeCap;
     }
 
     function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
@@ -117,77 +181,6 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         managementFeeRecipient = newManagementFeeRecipient;
-    }
-
-    /* ADMIN ACTIONS */
-
-    function setCurator(address newCurator) external timelocked {
-        curator = newCurator;
-    }
-
-    function setIRM(address newIRM) external timelocked {
-        irm = newIRM;
-    }
-
-    function setIsSentinel(address sentinel, bool newIsSentinel) external timelocked {
-        isSentinel[sentinel] = newIsSentinel;
-    }
-
-    function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
-        isAllocator[allocator] = newIsAllocator;
-    }
-
-    function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
-        require(adapter != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
-        isAdapter[adapter] = newIsAdapter;
-    }
-
-    function increaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
-        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
-        require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
-        require(newDuration > timelock[selector], ErrorsLib.TimelockNotIncreasing());
-
-        timelock[selector] = newDuration;
-    }
-
-    function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
-        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
-        require(newDuration < timelock[selector], ErrorsLib.TimelockNotDecreasing());
-
-        timelock[selector] = newDuration;
-    }
-
-    /* CURATOR ACTIONS */
-
-    function increaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
-        require(newCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
-
-        absoluteCap[id] = newCap;
-    }
-
-    function decreaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
-        require(newCap < absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
-
-        absoluteCap[id] = newCap;
-    }
-
-    function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
-        require(newRelativeCap > relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
-
-        if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
-        relativeCap[id] = newRelativeCap;
-    }
-
-    function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
-        require(newRelativeCap < relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
-        require(idsWithRelativeCap[index] == id, ErrorsLib.IdNotFound());
-        require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
-
-        if (newRelativeCap == 0) {
-            idsWithRelativeCap[index] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
-            idsWithRelativeCap.pop();
-        }
-        relativeCap[id] = newRelativeCap;
     }
 
     /* ALLOCATOR ACTIONS */
@@ -271,24 +264,22 @@ contract VaultV2 is IVaultV2 {
     function isAuthorizedToSubmit(address sender, bytes4 selector) internal view returns (bool) {
         // Owner functions
         if (selector == IVaultV2.setOwner.selector) return sender == owner;
-        if (selector == IVaultV2.setAdmin.selector) return sender == owner;
-        if (selector == IVaultV2.setPerformanceFee.selector) return sender == owner;
-        if (selector == IVaultV2.setManagementFee.selector) return sender == owner;
-        if (selector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
-        if (selector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
-        // Admin functions
-        if (selector == IVaultV2.setCurator.selector) return sender == admin;
-        if (selector == IVaultV2.setIsSentinel.selector) return sender == admin;
-        if (selector == IVaultV2.setIRM.selector) return sender == admin;
-        if (selector == IVaultV2.setIsAllocator.selector) return sender == admin;
-        if (selector == IVaultV2.setIsAdapter.selector) return sender == admin;
-        if (selector == IVaultV2.increaseTimelock.selector) return sender == admin;
-        if (selector == IVaultV2.decreaseTimelock.selector) return sender == admin;
+        if (selector == IVaultV2.setCurator.selector) return sender == owner;
         // Curator functions
+        if (selector == IVaultV2.setIsSentinel.selector) return sender == curator;
+        if (selector == IVaultV2.setIsAllocator.selector) return sender == curator;
+        if (selector == IVaultV2.setIRM.selector) return sender == curator;
+        if (selector == IVaultV2.setIsAdapter.selector) return sender == curator;
+        if (selector == IVaultV2.increaseTimelock.selector) return sender == curator;
+        if (selector == IVaultV2.decreaseTimelock.selector) return sender == curator;
         if (selector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
         if (selector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
         if (selector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
         if (selector == IVaultV2.decreaseRelativeCap.selector) return sender == curator;
+        if (selector == IVaultV2.setPerformanceFee.selector) return sender == curator;
+        if (selector == IVaultV2.setManagementFee.selector) return sender == curator;
+        if (selector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == curator;
+        if (selector == IVaultV2.setManagementFeeRecipient.selector) return sender == curator;
         return false;
     }
 

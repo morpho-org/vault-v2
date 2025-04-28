@@ -29,7 +29,6 @@ interface IVaultV2 is IERC20 {
 
     // State variables
     function owner() external view returns (address);
-    function admin() external view returns (address);
     function curator() external view returns (address);
     function isSentinel(address) external view returns (bool);
     function isAllocator(address) external view returns (bool);
@@ -52,7 +51,6 @@ interface IVaultV2 is IERC20 {
     function setOwner(address) external;
     function setCurator(address) external;
     function setIsSentinel(address, bool) external;
-    function setAdmin(address) external;
     function increaseTimelock(bytes4, uint256) external;
     function decreaseTimelock(bytes4, uint256) external;
     function setIsAllocator(address, bool) external;
