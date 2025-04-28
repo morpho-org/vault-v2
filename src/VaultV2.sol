@@ -380,10 +380,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function enter(uint256 assets, uint256 shares, address receiver) internal {
-        require(
-            gatekeeper == address(0) || IGatekeeper(gatekeeper).canTransfer(msg.sender, address(0), receiver),
-            ErrorsLib.Unauthorized()
-        );
+        require(gatekeeper == address(0) || IGatekeeper(gatekeeper).canUseShares(receiver), ErrorsLib.Unauthorized());
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(receiver, shares);
         totalAssets += assets;
@@ -407,7 +404,8 @@ contract VaultV2 is IVaultV2 {
 
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         require(
-            gatekeeper == address(0) || IGatekeeper(gatekeeper).canWithdraw(msg.sender, onBehalf, receiver),
+            gatekeeper == address(0)
+                || (IGatekeeper(gatekeeper).canUseShares(onBehalf) && IGatekeeper(gatekeeper).canReceiveAssets(receiver)),
             ErrorsLib.Unauthorized()
         );
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
@@ -434,7 +432,8 @@ contract VaultV2 is IVaultV2 {
     function transfer(address to, uint256 amount) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
         require(
-            gatekeeper == address(0) || IGatekeeper(gatekeeper).canTransfer(msg.sender, msg.sender, to),
+            gatekeeper == address(0)
+                || (IGatekeeper(gatekeeper).canUseShares(msg.sender) && IGatekeeper(gatekeeper).canUseShares(to)),
             ErrorsLib.Unauthorized()
         );
         balanceOf[msg.sender] -= amount;
@@ -447,7 +446,8 @@ contract VaultV2 is IVaultV2 {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
         require(
-            gatekeeper == address(0) || IGatekeeper(gatekeeper).canTransfer(msg.sender, from, to),
+            gatekeeper == address(0)
+                || (IGatekeeper(gatekeeper).canUseShares(from) && IGatekeeper(gatekeeper).canUseShares(to)),
             ErrorsLib.Unauthorized()
         );
         uint256 _allowance = allowance[from][msg.sender];
