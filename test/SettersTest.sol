@@ -33,20 +33,40 @@ contract SettersTest is BaseTest {
         assertEq(vault.owner(), newOwner);
     }
 
+    function testSetAdmin(address rdm) public {
+        vm.assume(rdm != owner);
+        address newAdmin = makeAddr("newAdmin");
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vault.setAdmin(newAdmin);
+
+        // Only owner can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setAdmin.selector, newAdmin));
+
+        vm.prank(owner);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setAdmin.selector, newAdmin));
+        vault.setAdmin(newAdmin);
+
+        assertEq(vault.admin(), newAdmin);
+    }
+
     function testSetCurator(address rdm) public {
-        vm.assume(rdm != chief);
+        vm.assume(rdm != admin);
         address newCurator = makeAddr("newCurator");
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setCurator(newCurator);
 
-        // Only chief can submit
+        // Only admin can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeWithSelector(IVaultV2.setCurator.selector, newCurator));
 
-        vm.prank(chief);
+        vm.prank(admin);
         vault.submit(abi.encodeWithSelector(IVaultV2.setCurator.selector, newCurator));
         vault.setCurator(newCurator);
 
@@ -54,19 +74,19 @@ contract SettersTest is BaseTest {
     }
 
     function testSetIRM(address rdm) public {
-        vm.assume(rdm != chief);
+        vm.assume(rdm != admin);
         address newIRM = address(new IRM(manager));
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setIRM(newIRM);
 
-        // Only chief can submit
+        // Only admin can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, newIRM));
 
-        vm.prank(chief);
+        vm.prank(admin);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, newIRM));
         vault.setIRM(newIRM);
 
@@ -74,26 +94,26 @@ contract SettersTest is BaseTest {
     }
 
     function testSetIsAllocator(address rdm) public {
-        vm.assume(rdm != chief);
+        vm.assume(rdm != admin);
         address newAllocator = makeAddr("newAllocator");
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setIsAllocator(newAllocator, true);
 
-        // Only chief can submit
+        // Only admin can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, true));
 
-        vm.prank(chief);
+        vm.prank(admin);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, true));
         vault.setIsAllocator(newAllocator, true);
 
         assertTrue(vault.isAllocator(newAllocator));
 
-        // Chief can remove an allocator
-        vm.prank(chief);
+        // Admin can remove an allocator
+        vm.prank(admin);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, false));
         vault.setIsAllocator(newAllocator, false);
 
@@ -101,26 +121,26 @@ contract SettersTest is BaseTest {
     }
 
     function testSetIsAdapter(address rdm) public {
-        vm.assume(rdm != chief);
+        vm.assume(rdm != admin);
         address newAdapter = makeAddr("newAdapter");
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setIsAdapter(newAdapter, true);
 
-        // Only chief can submit
+        // Only admin can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, newAdapter, true));
 
-        vm.prank(chief);
+        vm.prank(admin);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, newAdapter, true));
         vault.setIsAdapter(newAdapter, true);
 
         assertTrue(vault.isAdapter(newAdapter));
 
-        // Chief can remove an adapter
-        vm.prank(chief);
+        // Admin can remove an adapter
+        vm.prank(admin);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, newAdapter, false));
         vault.setIsAdapter(newAdapter, false);
 

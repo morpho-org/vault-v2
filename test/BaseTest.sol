@@ -17,7 +17,7 @@ contract BaseTest is Test {
     address immutable owner = makeAddr("owner");
     address immutable curator = makeAddr("curator");
     address immutable allocator = makeAddr("allocator");
-    address immutable chief = makeAddr("chief");
+    address immutable admin = makeAddr("admin");
 
     ERC20Mock underlyingToken;
     IVaultV2Factory vaultFactory;
@@ -40,10 +40,10 @@ contract BaseTest is Test {
         vm.label(address(irm), "IRM");
 
         vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setChief.selector, chief));
-        vault.setChief(chief);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setAdmin.selector, admin));
+        vault.setAdmin(admin);
 
-        vm.startPrank(chief);
+        vm.startPrank(admin);
         vault.submit(abi.encodeWithSelector(IVaultV2.setCurator.selector, curator));
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, allocator, true));
         vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, address(irm)));

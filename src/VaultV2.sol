@@ -24,7 +24,7 @@ contract VaultV2 is IVaultV2 {
     // Note that each role could be a smart contract: the owner, curator and guardian.
     // This way, roles are modularized, and notably restricting their capabilities could be done on top.
     address public owner;
-    address public chief;
+    address public admin;
     address public curator;
     address public irm;
     mapping(address => bool) public isSentinel;
@@ -86,8 +86,8 @@ contract VaultV2 is IVaultV2 {
         owner = newOwner;
     }
 
-    function setChief(address newChief) external timelocked {
-        chief = newChief;
+    function setAdmin(address newAdmin) external timelocked {
+        admin = newAdmin;
     }
 
     function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
@@ -124,7 +124,7 @@ contract VaultV2 is IVaultV2 {
         managementFeeRecipient = newManagementFeeRecipient;
     }
 
-    /* CHIEF ACTIONS */
+    /* ADMIN ACTIONS */
 
     function setCurator(address newCurator) external timelocked {
         curator = newCurator;
@@ -421,19 +421,19 @@ contract VaultV2 is IVaultV2 {
     function _isAuthorizedToSubmit(address sender, bytes4 selector) internal view returns (bool) {
         // Owner functions
         if (selector == IVaultV2.setOwner.selector) return sender == owner;
-        if (selector == IVaultV2.setChief.selector) return sender == owner;
+        if (selector == IVaultV2.setAdmin.selector) return sender == owner;
         if (selector == IVaultV2.setPerformanceFee.selector) return sender == owner;
         if (selector == IVaultV2.setManagementFee.selector) return sender == owner;
         if (selector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
         if (selector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
-        // Chief functions
-        if (selector == IVaultV2.setCurator.selector) return sender == chief;
-        if (selector == IVaultV2.setIsSentinel.selector) return sender == chief;
-        if (selector == IVaultV2.setIRM.selector) return sender == chief;
-        if (selector == IVaultV2.setIsAllocator.selector) return sender == chief;
-        if (selector == IVaultV2.setIsAdapter.selector) return sender == chief;
-        if (selector == IVaultV2.increaseTimelock.selector) return sender == chief;
-        if (selector == IVaultV2.decreaseTimelock.selector) return sender == chief;
+        // Admin functions
+        if (selector == IVaultV2.setCurator.selector) return sender == admin;
+        if (selector == IVaultV2.setIsSentinel.selector) return sender == admin;
+        if (selector == IVaultV2.setIRM.selector) return sender == admin;
+        if (selector == IVaultV2.setIsAllocator.selector) return sender == admin;
+        if (selector == IVaultV2.setIsAdapter.selector) return sender == admin;
+        if (selector == IVaultV2.increaseTimelock.selector) return sender == admin;
+        if (selector == IVaultV2.decreaseTimelock.selector) return sender == admin;
         // Curator functions
         if (selector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
         if (selector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
