@@ -363,7 +363,7 @@ contract VaultV2 is IVaultV2 {
         return shares.mulDivUp(newTotalSupply + 1, newTotalAssets + 1);
     }
 
-    /* VAULT INTERFACE */
+    /* USER VAULT INTERACTIONS */
 
     function deposit(uint256 assets, address receiver) external returns (uint256) {
         accrueInterest();
