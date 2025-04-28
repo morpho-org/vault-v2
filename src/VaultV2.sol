@@ -186,8 +186,7 @@ contract VaultV2 is IVaultV2 {
         relativeCap[id] = newRelativeCap;
     }
 
-    function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external {
-        require(msg.sender == curator, ErrorsLib.Unauthorized());
+    function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
         require(newRelativeCap < relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
         require(idsWithRelativeCap[index] == id, ErrorsLib.IdNotFound());
         require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
@@ -204,9 +203,7 @@ contract VaultV2 is IVaultV2 {
     // Note how the discrepancy between transferred amount and increase in market.totalAssets() is handled:
     // it is not reflected in vault.totalAssets() but will have an impact on interest.
     function reallocateFromIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(
-            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
-        );
+        require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         SafeTransferLib.safeTransfer(asset, adapter, amount);
@@ -240,7 +237,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setLiquidityAdapter(address newLiquidityAdapter) external {
-        require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.NotAllocator());
+        require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
         require(
             newLiquidityAdapter == address(0) || isAdapter[newLiquidityAdapter],
             ErrorsLib.LiquidityAdapterInvariantBroken()
@@ -249,7 +246,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setLiquidityData(bytes memory newLiquidityData) external {
-        require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.NotAllocator());
+        require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
         liquidityData = newLiquidityData;
     }
 
@@ -439,6 +436,8 @@ contract VaultV2 is IVaultV2 {
         // Curator functions
         if (selector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
         if (selector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
+        if (selector == IVaultV2.decreaseRelativeCap.selector) return sender == curator;
+
         return false;
     }
 
