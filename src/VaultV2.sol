@@ -331,7 +331,6 @@ contract VaultV2 is IVaultV2 {
             if (managementFeeAssets > availableInterest) managementFeeAssets = availableInterest;
             managementFeeShares = managementFeeAssets.mulDivDown(
                 totalSupply + 1 + performanceFeeShares, newTotalAssets + 1 - managementFeeAssets
-
             );
         }
         return (performanceFeeShares, managementFeeShares, newTotalAssets);
