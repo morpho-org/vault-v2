@@ -241,4 +241,30 @@ contract SettersTest is BaseTest {
         vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
         vault.setManagementFeeRecipient(address(0));
     }
+
+    function testSetForceReallocateToIdleFee(address rdm, uint256 newForceReallocateToIdleFee) public {
+        vm.assume(rdm != owner);
+        newForceReallocateToIdleFee = bound(newForceReallocateToIdleFee, 0, MAX_FORCE_EXIT_FEE);
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vault.setForceReallocateToIdleFee(newForceReallocateToIdleFee);
+        
+        // Only owner can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdleFee.selector, newForceReallocateToIdleFee));
+
+        vm.prank(owner);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdleFee.selector, newForceReallocateToIdleFee));
+        vault.setForceReallocateToIdleFee(newForceReallocateToIdleFee);
+
+        assertEq(vault.forceReallocateToIdleFee(), newForceReallocateToIdleFee);
+
+        uint256 tooHighFee = MAX_FORCE_EXIT_FEE + 1;
+        vm.prank(owner);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdleFee.selector, tooHighFee));
+        vm.expectRevert(ErrorsLib.FeeTooHigh.selector);
+        vault.setForceReallocateToIdleFee(tooHighFee);
+    }
 }

@@ -287,6 +287,7 @@ contract VaultV2 is IVaultV2 {
         if (selector == IVaultV2.setIsAdapter.selector) return sender == owner;
         if (selector == IVaultV2.increaseTimelock.selector) return sender == owner;
         if (selector == IVaultV2.decreaseTimelock.selector) return sender == owner;
+        if (selector == IVaultV2.setForceReallocateToIdleFee.selector) return sender == owner;
         // Treasurer functions
         if (selector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
         if (selector == IVaultV2.setManagementFee.selector) return sender == treasurer;

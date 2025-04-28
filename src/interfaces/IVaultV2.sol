@@ -36,6 +36,7 @@ interface IVaultV2 is IERC20 {
     function managementFee() external view returns (uint256);
     function performanceFeeRecipient() external view returns (address);
     function managementFeeRecipient() external view returns (address);
+    function forceReallocateToIdleFee() external view returns (uint256);
     function irm() external view returns (address);
     function allocation(bytes32) external view returns (uint256);
     function lastUpdate() external view returns (uint256);
