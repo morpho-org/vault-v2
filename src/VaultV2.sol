@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {IVaultV2, IERC20, IAdapter} from "./interfaces/IVaultV2.sol";
 import {IIRM} from "./interfaces/IIRM.sol";
-import {ProtocolFee, IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
+import {IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
@@ -252,81 +252,65 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
-        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 protocolFeeShares, uint256 newTotalAssets) =
-            accrueInterestView();
+        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 newTotalAssets) = accrueInterestView();
 
         totalAssets = newTotalAssets;
 
         if (performanceFeeShares != 0) _mint(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) _mint(managementFeeRecipient, managementFeeShares);
-        if (protocolFeeShares != 0) _mint(IVaultV2Factory(factory).protocolFeeRecipient(), protocolFeeShares);
 
         lastUpdate = block.timestamp;
     }
 
-    function accrueInterestView() public view returns (uint256, uint256, uint256, uint256) {
+    function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        if (elapsed == 0) return (0, 0, 0, totalAssets);
+        if (elapsed == 0) return (0, 0, totalAssets);
         uint256 interestPerSecond = IIRM(irm).interestPerSecond(totalAssets, elapsed);
         require(interestPerSecond <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssets + interest;
 
-        uint256 protocolFee = IVaultV2Factory(factory).protocolFee();
-
         uint256 performanceFeeShares;
         uint256 managementFeeShares;
-        uint256 protocolPerformanceFeeShares;
-        uint256 protocolManagementFeeShares;
         // Note that the fee assets is subtracted from the total assets in the fee shares calculation to compensate for
         // the fact that total assets is already increased by the total interest (including the fee assets).
         // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
-        uint256 totalPerformanceFeeShares;
         if (interest > 0 && performanceFee != 0) {
             uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
-            totalPerformanceFeeShares =
+            performanceFeeShares =
                 performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
-            protocolPerformanceFeeShares = totalPerformanceFeeShares.mulDivDown(protocolFee, WAD);
-            performanceFeeShares = totalPerformanceFeeShares - protocolPerformanceFeeShares;
         }
         if (managementFee != 0) {
             // Using newTotalAssets to make all approximations consistent.
             uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
-            uint256 totalManagementFeeShares = managementFeeAssets.mulDivDown(
-                totalSupply + 1 + totalPerformanceFeeShares, newTotalAssets + 1 - managementFeeAssets
+            managementFeeShares = managementFeeAssets.mulDivDown(
+                totalSupply + 1 + performanceFeeShares, newTotalAssets + 1 - managementFeeAssets
             );
-            protocolManagementFeeShares = totalManagementFeeShares.mulDivDown(protocolFee, WAD);
-            managementFeeShares = totalManagementFeeShares - protocolManagementFeeShares;
         }
-        uint256 protocolFeeShares = protocolPerformanceFeeShares + protocolManagementFeeShares;
-        return (performanceFeeShares, managementFeeShares, protocolFeeShares, newTotalAssets);
+        return (performanceFeeShares, managementFeeShares, newTotalAssets);
     }
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
-        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 protocolFeeShares, uint256 newTotalAssets) =
-            accrueInterestView();
-        uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares + protocolFeeShares;
+        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 newTotalAssets) = accrueInterestView();
+        uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return assets.mulDivDown(newTotalSupply + 1, newTotalAssets + 1);
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
-        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 protocolFeeShares, uint256 newTotalAssets) =
-            accrueInterestView();
-        uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares + protocolFeeShares;
+        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 newTotalAssets) = accrueInterestView();
+        uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return assets.mulDivUp(newTotalSupply + 1, newTotalAssets + 1);
     }
 
     function previewMint(uint256 shares) public view returns (uint256) {
-        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 protocolFeeShares, uint256 newTotalAssets) =
-            accrueInterestView();
-        uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares + protocolFeeShares;
+        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 newTotalAssets) = accrueInterestView();
+        uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivDown(newTotalSupply + 1, newTotalAssets + 1);
     }
 
     function previewRedeem(uint256 shares) public view returns (uint256) {
-        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 protocolFeeShares, uint256 newTotalAssets) =
-            accrueInterestView();
-        uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares + protocolFeeShares;
+        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 newTotalAssets) = accrueInterestView();
+        uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivUp(newTotalSupply + 1, newTotalAssets + 1);
     }
 
