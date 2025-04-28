@@ -255,12 +255,6 @@ contract VaultV2 is IVaultV2 {
         liquidityData = newLiquidityData;
     }
 
-    function forceReallocateToIdle(address adapter, bytes memory data, uint256 assets, address onBehalf) external {
-        this.reallocateToIdle(adapter, data, assets);
-
-        withdraw(assets.mulDivDown(forceReallocateToIdleFee, WAD), address(this), onBehalf);
-    }
-
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
@@ -342,7 +336,7 @@ contract VaultV2 is IVaultV2 {
         return shares.mulDivUp(newTotalSupply + 1, newTotalAssets + 1);
     }
 
-    /* USER INTERACTION */
+    /* VAULT INTERFACE */
 
     function _deposit(uint256 assets, uint256 shares, address receiver) internal {
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
@@ -402,6 +396,12 @@ contract VaultV2 is IVaultV2 {
         return assets;
     }
 
+    function forceReallocateToIdle(address adapter, bytes memory data, uint256 assets, address onBehalf) external {
+        this.reallocateToIdle(adapter, data, assets);
+
+        withdraw(assets.mulDivDown(forceReallocateToIdleFee, WAD), address(this), onBehalf);
+    }
+
     /* TIMELOCKS */
 
     function submit(bytes calldata data) external {
@@ -455,7 +455,7 @@ contract VaultV2 is IVaultV2 {
         return false;
     }
 
-    /* INTERFACE */
+    /* ERC20 INTERFACE */
 
     function transfer(address to, uint256 amount) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
