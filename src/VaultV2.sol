@@ -437,7 +437,6 @@ contract VaultV2 is IVaultV2 {
         if (selector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
         if (selector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
         if (selector == IVaultV2.decreaseRelativeCap.selector) return sender == curator;
-
         return false;
     }
 
