@@ -255,7 +255,6 @@ contract VaultV2 is IVaultV2 {
         liquidityData = newLiquidityData;
     }
 
-    /* IN-KIND REDEMPTION */
 
     function forceReallocateToIdle(address adapter, bytes memory data, uint256 assets, address onBehalf) external {
         this.reallocateToIdle(adapter, data, assets);
