@@ -14,7 +14,7 @@ All the contracts are immutable.
 
 ## Overview
 
-There are 5 different roles for a MetaMorpho vault: owner, curator, sentinel, treasurer and allocator.
+There are 5 different roles for a Morpho vault V2: owner, curator, sentinel, treasurer and allocator.
 
 Each market has an absolute cap and a relative cap that guarantees lenders both a maximum absolute and a maximum relative exposure to the specific market.
 Users can supply or withdraw assets at any time, depending on the available liquidity on the liquidity market.
@@ -26,24 +26,42 @@ Timelocks values must be between 0 and 2 weeks.
 Sentinels can revoke the actions taken by other roles during the timelock, with the exception of the action of setting and unsetting a sentinel.
 After the timelock, actions can be executed by anyone.
 
-### Adapters and markets in Vault V2
+### Adapters
 
-In Vault V1, markets were defined by a tuple of the form `(CollateralToken, LoanToken, LLTV, Oracle, IRMAddress)`.
-Vault V2 allow for more flexibility in defining offers accepted by the vault.
+Vault V1 strategies were defined by a tuple of the form `(CollateralToken, LoanToken, LLTV, Oracle, IRMAddress)`,
+which defined offers accepted by the vault.
+Vault V2 introduces more flexibility in defining strategies.
+Vaults can allocate assets not only to Morpho Markets V1 and V2,
+but also to external protocols, such as ERC-4626 vaults.
+Curators enable protocols in which the vault can supply through the use of adapters.
 
-Markets V2 for a given `LoanToken` are defined using a tuple of the form `(CollateralToken, LLTV, Oracle)`,
-where each value of the triplet can correspond to multiple values (including all possible values).
-For instance, a market defined by the following triplet `(wstETH/WETH, 94.5%, .)` would accept borrowing offers on the pair
-`wstETH/WETH` with an LLTV of `94,5%` using any oracle.
-In practice, markets that the vault will lend against are defined by the owner of the vault, by setting adapters.
-Adapters enable vaults to track and control exposure to given markets through maximum and relative caps.
+In order to enable a given protocol, a corresponding adapter need to be used.
+Adapters for the following protocols are available:
+- Morpho Market V1
+- Morpho Market V2
+- ERC-4626
 
-While adapters have been designed in the context of Morpho Markets V2, they are more general and can be used to supply liquidity to other protocols.
+When supplying through an adapter, the adapter returns arbitrary bytes32 identifiers (IDs).
+Those IDs can be thought as some properties of the protocol the adapter supply to,
+such as the collateral asset or the oracle in the case of a lending market.
+For each ID, the vault tracks an absolute cap and an allocation.
+On supply, the allocation is increased and the cap is checked.
+On withdrawal, the allocation is decreased without checks.
+The vault does not enforce any structure or semantics on IDs.
+
+IDs of lending markets for a given `LoanToken` can be defined using a tuple of the form `(CollateralToken, LLTV, Oracle)`.
+A vault could be setup to enforce the following caps:
+- `(stETH, *, Chainlink)`: 6M
+- `(stETH, *, Redstone)`: 6M
+- `(stETH, *, *)`: 10M
+
+This would ensure that the vault never have more than 10M exposure to the stETH asset,
+and never more than 6M exposure to markets using chainlink or redstone oracles, for any LLTV.
 
 ### Liquidity market
 
 The allocator is responsible for ensuring that users can withdraw their assets at anytime.
-This is done by managing the available liquidity in the `idle` and an optional liquidity market $M$.
+This is done by managing the available liquidity in `idle` and in an optional liquidity market $M$.
 
 When users withdraw assets, the assets are taken in priority from the `idle` market.
 If the `idle` market does not have enough liquidity, the market $M$ is used.
@@ -53,12 +71,19 @@ The market $M$ would typically be a very liquid Market V1.
 
 ### Interest Rate Model (IRM)
 
-The IRM is responsible for returning the `interestPerSecond` that is used when accruing fees.
+Vault V2 can allocate assets across many markets, especially when interacting with Morpho Markets V2.
+Looping through all markets to compute the total assets is not realistic in the general case.
+This differs from Vault V1, where total assets were automatically computed from the vault's underlying allocations.
+As a result, in Vault V2, curators are responsible for monitoring the vault’s total assets and setting an appropriate interest rate.
+The interest rate is set through the IRM, a contract responsible for returning the `interestPerSecond` used to accrue fees.
 
 The IRM can typically be simple smart contract storing the `interestPerSecond`, whose value is regularly set by the curator.
 The rate returned by the IRM must be below `200% APR`.
-This model is in contrast with Vault V1 were the interest was automatically computed from the underlying allocations.
-This entails monitoring the vault's interest accrual in order to set a reasonable interest.
+
+### Bad debt
+
+Similarly, the curator is responsible for monitoring the vault's bad debt.
+In contrast to Vault V1.0, bad debt realisation is not atomic to avoid share price manipulation with flash loans.
 
 ### Roles
 
@@ -123,6 +148,7 @@ It can:
 
 ### Main differences with Vault V1
 
+- Vault V2 can supply to arbitrary protocols, including, but not limited to, Morpho Market V1 and Morpho Market V2.
 - The curator is responsible for setting the interest of the vault.
   This implies monitoring interests generated by the vault in order to set an interest that is in line with the profits generated by the vault.
 - Contrary to Vault V1, the `Owner` does not inherit the other roles.
@@ -131,7 +157,8 @@ It can:
 - The `Treasurer` role has been introduced.
   This role can set the performance and management fees.
   Separating the treasurer role from the curator opens the possibility of managing the fees more dynamically.
-- All actions are timelockable, except `reallocateIn` and `reallocateOut` and timelocks are not constrained anymore.
+- All actions can have a specific timelock (except `reallocateIn` and `reallocateOut`) and timelocks are not constrained anymore.
+- Bad debt should be monitored by the curator and bad debt realisation is not atomic.
 
 ## Getting started
 
