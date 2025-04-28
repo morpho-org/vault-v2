@@ -21,8 +21,6 @@ contract VaultV2 is IVaultV2 {
 
     /* STORAGE */
 
-    // Note that each role could be a smart contract: the owner, curator and guardian.
-    // This way, roles are modularized, and notably restricting their capabilities could be done on top.
     address public owner;
     address public admin;
     address public curator;
