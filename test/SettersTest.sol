@@ -249,7 +249,7 @@ contract SettersTest is BaseTest {
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setForceReallocateToIdleFee(newForceReallocateToIdleFee);
-        
+
         // Only owner can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
