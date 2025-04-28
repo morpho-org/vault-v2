@@ -19,7 +19,7 @@ There are 5 different roles for a MetaMorpho vault: owner, curator, sentinel, tr
 Each market has an absolute cap and a relative cap that guarantees lenders both a maximum absolute and a maximum relative exposure to the specific market.
 Users can supply or withdraw assets at any time, depending on the available liquidity on the liquidity market.
 
-In Vault V2, all actions can be timelocked (except `reallocateIn` and `reallocateOut`).
+In Vault V2, all permissioned actions can be timelocked (except `reallocateIn` and `reallocateOut`).
 Owners are encouraged to subject actions that may be against users' interests (e.g. enabling a market) to a timelock.
 Timelocks values must be between 0 and 2 weeks.
 
