@@ -387,13 +387,12 @@ contract VaultV2 is IVaultV2 {
         try this.reallocateFromIdle(liquidityAdapter, liquidityData, assets) {} catch {}
     }
 
-    function withdraw(uint256 assets, address receiver, address onBehalf) external returns (uint256) {
+    function withdraw(uint256 assets, address receiver, address onBehalf) public returns (uint256) {
         accrueInterest();
         uint256 shares = previewWithdraw(assets);
         exit(assets, shares, receiver, onBehalf);
         return shares;
     }
-
 
     function redeem(uint256 shares, address receiver, address onBehalf) external returns (uint256) {
         accrueInterest();
@@ -421,7 +420,7 @@ contract VaultV2 is IVaultV2 {
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
     }
-    
+
     function forceReallocateToIdle(address adapter, bytes memory data, uint256 assets, address onBehalf) external {
         this.reallocateToIdle(adapter, data, assets);
 
