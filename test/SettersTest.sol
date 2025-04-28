@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
-import {EventsLib} from "../src/libraries/EventsLib.sol";
 
 contract SettersTest is BaseTest {
     function testConstructor() public view {

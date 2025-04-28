@@ -23,12 +23,16 @@ library EventsLib {
     event DecreaseAbsoluteCap(bytes32 indexed id, uint256 newAbsoluteCap);
     event IncreaseRelativeCap(bytes32 indexed id, uint256 newRelativeCap, uint256 index);
     event DecreaseRelativeCap(bytes32 indexed id, uint256 newRelativeCap, uint256 index);
-    event ReallocateFromIdle(address indexed sender, address indexed adapter, bytes data, uint256 amount, bytes32[] ids);
+    event ReallocateFromIdle(
+        address indexed sender, address indexed adapter, bytes data, uint256 amount, bytes32[] ids
+    );
     event ReallocateToIdle(address indexed sender, address indexed adapter, bytes data, uint256 amount, bytes32[] ids);
     event SetLiquidityAdapter(address indexed sender, address indexed liquidityAdapter);
     event SetLiquidityData(address indexed sender, bytes indexed data);
     event Deposit(address indexed sender, address indexed onBehalf, uint256 assets, uint256 shares);
-    event Withdraw(address indexed sender, address indexed receiver, address indexed onBehalf, uint256 assets, uint256 shares);
+    event Withdraw(
+        address indexed sender, address indexed receiver, address indexed onBehalf, uint256 assets, uint256 shares
+    );
     event Submit(address indexed sender, bytes data);
     event Revoke(address indexed sender, bytes data);
     event AccrueInterest(uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares);
