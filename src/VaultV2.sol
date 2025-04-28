@@ -133,7 +133,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setIsSentinel(address sentinel, bool newIsSentinel) external timelocked {
-        isSentinel[newSentinel] = newIsSentinel;
+        isSentinel[sentinel] = newIsSentinel;
     }
 
     function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
