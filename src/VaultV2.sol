@@ -231,10 +231,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setMaxMissingExitAssetsDuration(uint256 newMaxMissingExitAssetsDuration) external timelocked {
-        if (newMaxMissingExitAssetsDuration > maxMissingExitAssetsDuration) {
-            accrueInterest();
-            require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
-        }
+        if (newMaxMissingExitAssetsDuration > maxMissingExitAssetsDuration) require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
 
         maxMissingExitAssetsDuration = newMaxMissingExitAssetsDuration;
     }
@@ -276,7 +273,9 @@ contract VaultV2 is IVaultV2 {
         _transfer(supplier, exitFeeRecipient, requestedShares - exitShares);
         request.shares += exitShares;
         request.maxAssets += exitAssets;
+        totalMaxExitAssets += exitAssets;
         totalAssets -= exitAssets;
+
         updateMissingExitAssets();
     }
 
@@ -294,8 +293,10 @@ contract VaultV2 is IVaultV2 {
         uint256 quotedClaimedShares = convertToAssetsDown(claimedShares);
         exitAssets = MathLib.min(claimedAssets, quotedClaimedShares);
 
+
         request.shares -= claimedShares;
         request.maxAssets = request.maxAssets.zeroFloorSub(claimedAssets);
+        totalMaxExitAssets = totalMaxExitAssets.zeroFloorSub(claimedAssets);
         IERC20(asset).transfer(receiver, exitAssets);
 
         updateMissingExitAssets();
