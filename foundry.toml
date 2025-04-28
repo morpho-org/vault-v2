@@ -2,6 +2,8 @@
 src = "src"
 out = "out"
 libs = ["lib"]
+ignored_error_codes = ["transient-storage"]
+ignored_warnings_from = ["test"]
 via_ir = true
 optimizer_runs = 999999 # Etherscan does not support verifying contracts with more optimization runs.
 evm_version = "cancun"

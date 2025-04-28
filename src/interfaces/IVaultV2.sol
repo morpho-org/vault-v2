@@ -9,6 +9,9 @@ interface IAdapter {
 }
 
 interface IVaultV2 is IERC20 {
+    // ERC-X (Permissioned token with callback)
+    function handleOnBehalf(address onBehalf, uint256 amount, bytes calldata callback) external;
+
     // ERC-2612 (Permit)
     function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         external;

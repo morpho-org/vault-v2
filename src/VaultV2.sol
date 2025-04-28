@@ -10,6 +10,8 @@ import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {IGate} from "./interfaces/IGate.sol";
+import {IPermissionedTokenHandler} from "./interfaces/IPermissionedTokenHandler.sol";
+import {SharesHandlerLib} from "./libraries/SharesHandlerLib.sol";
 
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
@@ -404,7 +406,7 @@ contract VaultV2 is IVaultV2 {
 
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         require(
-            gate == address(0) || (IGate(gate).canUseShares(onBehalf) && IGate(gate).canReceiveAssets(receiver)),
+            gate == address(0) || (canUseShares(onBehalf) && IGate(gate).canReceiveAssets(receiver)),
             ErrorsLib.Unauthorized()
         );
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
@@ -430,10 +432,7 @@ contract VaultV2 is IVaultV2 {
 
     function transfer(address to, uint256 amount) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
-        require(
-            gate == address(0) || (IGate(gate).canUseShares(msg.sender) && IGate(gate).canUseShares(to)),
-            ErrorsLib.Unauthorized()
-        );
+        require(gate == address(0) || (canUseShares(msg.sender) && canUseShares(to)), ErrorsLib.Unauthorized());
         balanceOf[msg.sender] -= amount;
         balanceOf[to] += amount;
         emit EventsLib.Transfer(msg.sender, to, amount);
@@ -443,10 +442,7 @@ contract VaultV2 is IVaultV2 {
     function transferFrom(address from, address to, uint256 amount) external returns (bool) {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
-        require(
-            gate == address(0) || (IGate(gate).canUseShares(from) && IGate(gate).canUseShares(to)),
-            ErrorsLib.Unauthorized()
-        );
+        require(gate == address(0) || (canUseShares(from) && canUseShares(to)), ErrorsLib.Unauthorized());
         uint256 _allowance = allowance[from][msg.sender];
 
         if (_allowance < type(uint256).max) allowance[from][msg.sender] = _allowance - amount;
@@ -494,5 +490,33 @@ contract VaultV2 is IVaultV2 {
         balanceOf[from] -= amount;
         totalSupply -= amount;
         emit EventsLib.Transfer(from, address(0), amount);
+    }
+
+    function handleOnBehalf(address onBehalf, uint256 amount, bytes calldata callback) external {
+        require(
+            gate == address(0)
+                || (IGate(gate).canHandleSharesOnBehalf(msg.sender) && IGate(gate).canUseShares(onBehalf)),
+            ErrorsLib.Unauthorized()
+        );
+        require(SharesHandlerLib.getHandled(msg.sender) == address(0), ErrorsLib.AlreadyHandling());
+
+        uint256 _allowance = allowance[onBehalf][msg.sender];
+        if (_allowance < type(uint256).max) allowance[onBehalf][msg.sender] = _allowance - amount;
+
+        balanceOf[onBehalf] -= amount;
+        balanceOf[msg.sender] += amount;
+        emit EventsLib.Transfer(onBehalf, msg.sender, amount);
+
+        SharesHandlerLib.setHandled(msg.sender, onBehalf);
+
+        IPermissionedTokenHandler(msg.sender).permissionedTokenHandlerCallback(onBehalf, amount, callback);
+
+        SharesHandlerLib.setHandled(msg.sender, address(0));
+    }
+
+    /* PERMISSIONED SHARES INTERNAL */
+
+    function canUseShares(address account) internal view returns (bool) {
+        return SharesHandlerLib.getHandled(account) != address(0) || IGate(gate).canUseShares(account);
     }
 }
