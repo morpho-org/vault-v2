@@ -197,7 +197,7 @@ contract VaultV2 is IVaultV2 {
 
         if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
         relativeCap[id] = newRelativeCap;
-        emit EventsLib.IncreaseRelativeCap(id, newRelativeCap);
+        emit EventsLib.IncreaseRelativeCap(id, newRelativeCap, idsWithRelativeCap.length - 1);
     }
 
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
@@ -262,13 +262,13 @@ contract VaultV2 is IVaultV2 {
             ErrorsLib.LiquidityAdapterInvariantBroken()
         );
         liquidityAdapter = newLiquidityAdapter;
-        emit EventsLib.SetLiquidityAdapter(newLiquidityAdapter);
+        emit EventsLib.SetLiquidityAdapter(msg.sender, newLiquidityAdapter);
     }
 
     function setLiquidityData(bytes memory newLiquidityData) external {
         require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
         liquidityData = newLiquidityData;
-        emit EventsLib.SetLiquidityData(newLiquidityData);
+        emit EventsLib.SetLiquidityData(msg.sender, newLiquidityData);
     }
 
     /* EXCHANGE RATE */
@@ -282,7 +282,7 @@ contract VaultV2 is IVaultV2 {
         if (managementFeeShares != 0) _mint(managementFeeRecipient, managementFeeShares);
 
         lastUpdate = block.timestamp;
-        emit EventsLib.AccrueInterest(newTotalAssets, performanceFeeShares, managementFeeShares, protocolFeeShares);
+        emit EventsLib.AccrueInterest(newTotalAssets, performanceFeeShares, managementFeeShares);
     }
 
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
@@ -493,8 +493,8 @@ contract VaultV2 is IVaultV2 {
         require(recoveredAddress != address(0) && recoveredAddress == _owner, ErrorsLib.InvalidSigner());
 
         allowance[_owner][spender] = amount;
-        emit EventsLib.Permit(_owner, spender, amount, deadline, v, r, s, nonce);
         emit EventsLib.Approval(_owner, spender, amount);
+        emit EventsLib.Permit(_owner, spender, amount, nonce, deadline);
     }
 
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
