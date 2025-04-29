@@ -413,10 +413,12 @@ contract VaultV2 is IVaultV2 {
         if (assets > idleAssets && liquidityAdapter != address(0)) {
             this.reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
         }
-        uint256 _allowance = allowance[onBehalf][msg.sender];
-        if (msg.sender != onBehalf && _allowance != type(uint256).max) {
-            allowance[onBehalf][msg.sender] = _allowance - shares;
+
+        if (msg.sender != onBehalf) {
+            uint256 _allowance = allowance[onBehalf][msg.sender];
+            if (_allowance != type(uint256).max) allowance[onBehalf][msg.sender] = _allowance - shares;
         }
+
         deleteShares(onBehalf, shares);
         totalAssets -= assets;
 
@@ -441,9 +443,11 @@ contract VaultV2 is IVaultV2 {
     function transferFrom(address from, address to, uint256 amount) external returns (bool) {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
-        uint256 _allowance = allowance[from][msg.sender];
 
-        if (_allowance < type(uint256).max) allowance[from][msg.sender] = _allowance - amount;
+        if (msg.sender != from) {
+            uint256 _allowance = allowance[from][msg.sender];
+            if (_allowance != type(uint256).max) allowance[from][msg.sender] = _allowance - amount;
+        }
 
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
