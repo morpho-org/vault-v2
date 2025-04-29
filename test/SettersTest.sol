@@ -59,6 +59,52 @@ contract SettersTest is BaseTest {
         assertEq(vault.curator(), newCurator);
     }
 
+    function testSetTreasurer(address rdm) public {
+        vm.assume(rdm != owner);
+        address newTreasurer = makeAddr("newTreasurer");
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vault.setTreasurer(newTreasurer);
+
+        // Only owner can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setTreasurer.selector, newTreasurer));
+
+        vm.prank(owner);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setTreasurer.selector, newTreasurer));
+
+        vm.expectEmit();
+        emit EventsLib.SetTreasurer(newTreasurer);
+        vault.setTreasurer(newTreasurer);
+
+        assertEq(vault.treasurer(), newTreasurer);
+    }
+
+    function testSetIsSentinel(address rdm) public {
+        vm.assume(rdm != owner);
+        address newSentinel = makeAddr("newSentinel");
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vault.setIsSentinel(newSentinel, true);
+
+        // Only owner can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsSentinel.selector, newSentinel, true));
+
+        vm.prank(owner);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsSentinel.selector, newSentinel, true));
+
+        vm.expectEmit();
+        emit EventsLib.SetIsSentinel(newSentinel, true);
+        vault.setIsSentinel(newSentinel, true);
+
+        assertTrue(vault.isSentinel(newSentinel));
+    }
+
     function testSetIRM(address rdm) public {
         vm.assume(rdm != owner);
         address newIRM = address(new IRM(manager));
@@ -260,5 +306,44 @@ contract SettersTest is BaseTest {
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, address(0)));
         vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
         vault.setManagementFeeRecipient(address(0));
+    }
+
+    function testSetLiquidityAdapter(address rdm, address liquidityAdapter) public {
+        vm.assume(liquidityAdapter != address(0));
+        vm.prank(allocator);
+        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
+        vault.setLiquidityAdapter(liquidityAdapter);
+
+        vm.prank(owner);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, liquidityAdapter, true));
+        vault.setIsAdapter(liquidityAdapter, true);
+
+        vm.prank(allocator);
+        vm.expectEmit();
+        emit EventsLib.SetLiquidityAdapter(allocator, liquidityAdapter);
+        vault.setLiquidityAdapter(liquidityAdapter);
+
+        assertEq(vault.liquidityAdapter(), liquidityAdapter);
+
+        vm.prank(owner);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, liquidityAdapter, false));
+        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
+        vault.setIsAdapter(liquidityAdapter, false);
+    }
+
+    function testSetLiquidityData(address rdm) public {
+        vm.assume(rdm != owner);
+        bytes memory newData = abi.encode("newData");
+
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setLiquidityData.selector, newData));
+
+        vm.prank(allocator);
+        vm.expectEmit();
+        emit EventsLib.SetLiquidityData(allocator, newData);
+        vault.setLiquidityData(newData);
+
+        assertEq(vault.liquidityData(), newData);
     }
 }

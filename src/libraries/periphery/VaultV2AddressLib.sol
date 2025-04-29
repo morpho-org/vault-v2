@@ -7,17 +7,14 @@ library VaultV2AddressLib {
     function computeVaultV2Address(
         address factory,
         address owner,
-        address curator,
-        address allocator,
         address asset,
-        string memory name,
-        string memory symbol
+        bytes32 salt
     ) internal pure returns (address) {
         bytes32 initCodeHash = keccak256(
             abi.encodePacked(
-                type(VaultV2).creationCode, abi.encode(factory, owner, curator, allocator, asset, name, symbol)
+                type(VaultV2).creationCode, abi.encode(owner, asset)
             )
         );
-        return address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, uint256(0), initCodeHash)))));
+        return address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), address(factory), salt, initCodeHash)))));
     }
 }

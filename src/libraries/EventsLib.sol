@@ -36,6 +36,6 @@ library EventsLib {
     event Submit(address indexed sender, bytes data);
     event Revoke(address indexed sender, bytes data);
     event AccrueInterest(uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares);
-    event SetIsVaultV2(address indexed vaultV2);
+    event CreateVaultV2(address indexed vaultV2, address indexed owner, address indexed asset);
     event SetInterestPerSecond(uint256 irm);
 }
