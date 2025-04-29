@@ -66,6 +66,19 @@ contract VaultV2 is IVaultV2 {
     mapping(address => mapping(address => uint256)) public allowance;
     mapping(address => uint256) public nonces;
 
+    /* MULTICALL */
+
+    function multicall(bytes[] calldata data) external {
+        for (uint256 i = 0; i < data.length; i++) {
+            (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
+            if (!success) {
+                assembly ("memory-safe") {
+                    revert(add(32, returnData), mload(returnData))
+                }
+            }
+        }
+    }
+
     /* CONSTRUCTOR */
 
     constructor(address _owner, address _asset) {
@@ -323,8 +336,8 @@ contract VaultV2 is IVaultV2 {
 
         totalAssets = newTotalAssets;
 
-        if (performanceFeeShares != 0) mint(performanceFeeRecipient, performanceFeeShares);
-        if (managementFeeShares != 0) mint(managementFeeRecipient, managementFeeShares);
+        if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
+        if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
 
         lastUpdate = block.timestamp;
         emit EventsLib.AccrueInterest(newTotalAssets, performanceFeeShares, managementFeeShares);
@@ -400,7 +413,7 @@ contract VaultV2 is IVaultV2 {
 
     function enter(uint256 assets, uint256 shares, address receiver) internal {
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
-        mint(receiver, shares);
+        createShares(receiver, shares);
         totalAssets += assets;
         try this.reallocateFromIdle(liquidityAdapter, liquidityData, assets) {} catch {}
         emit EventsLib.Deposit(msg.sender, receiver, assets, shares);
@@ -425,11 +438,13 @@ contract VaultV2 is IVaultV2 {
         if (assets > idleAssets && liquidityAdapter != address(0)) {
             this.reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
         }
-        uint256 _allowance = allowance[onBehalf][msg.sender];
-        if (msg.sender != onBehalf && _allowance != type(uint256).max) {
-            allowance[onBehalf][msg.sender] = _allowance - shares;
+
+        if (msg.sender != onBehalf) {
+            uint256 _allowance = allowance[onBehalf][msg.sender];
+            if (_allowance != type(uint256).max) allowance[onBehalf][msg.sender] = _allowance - shares;
         }
-        burn(onBehalf, shares);
+
+        deleteShares(onBehalf, shares);
         totalAssets -= assets;
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
@@ -454,9 +469,11 @@ contract VaultV2 is IVaultV2 {
     function transferFrom(address from, address to, uint256 amount) external returns (bool) {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
-        uint256 _allowance = allowance[from][msg.sender];
 
-        if (_allowance < type(uint256).max) allowance[from][msg.sender] = _allowance - amount;
+        if (msg.sender != from) {
+            uint256 _allowance = allowance[from][msg.sender];
+            if (_allowance != type(uint256).max) allowance[from][msg.sender] = _allowance - amount;
+        }
 
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
@@ -490,14 +507,14 @@ contract VaultV2 is IVaultV2 {
         return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
     }
 
-    function mint(address to, uint256 amount) internal {
+    function createShares(address to, uint256 amount) internal {
         require(to != address(0), ErrorsLib.ZeroAddress());
         balanceOf[to] += amount;
         totalSupply += amount;
         emit EventsLib.Transfer(address(0), to, amount);
     }
 
-    function burn(address from, uint256 amount) internal {
+    function deleteShares(address from, uint256 amount) internal {
         require(from != address(0), ErrorsLib.ZeroAddress());
         balanceOf[from] -= amount;
         totalSupply -= amount;
