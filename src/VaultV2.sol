@@ -68,6 +68,19 @@ contract VaultV2 is IVaultV2 {
     mapping(address => mapping(address => uint256)) public allowance;
     mapping(address => uint256) public nonces;
 
+    /* MULTICALL */
+
+    function multicall(bytes[] calldata data) external {
+        for (uint256 i = 0; i < data.length; i++) {
+            (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
+            if (!success) {
+                assembly ("memory-safe") {
+                    revert(add(32, returnData), mload(returnData))
+                }
+            }
+        }
+    }
+
     /* CONSTRUCTOR */
 
     constructor(address _owner, address _asset, address _gate) {
@@ -419,10 +432,12 @@ contract VaultV2 is IVaultV2 {
         if (assets > idleAssets && liquidityAdapter != address(0)) {
             this.reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
         }
-        uint256 _allowance = allowance[onBehalf][msg.sender];
-        if (msg.sender != onBehalf && _allowance != type(uint256).max) {
-            allowance[onBehalf][msg.sender] = _allowance - shares;
+
+        if (msg.sender != onBehalf) {
+            uint256 _allowance = allowance[onBehalf][msg.sender];
+            if (_allowance != type(uint256).max) allowance[onBehalf][msg.sender] = _allowance - shares;
         }
+
         deleteShares(onBehalf, shares);
         totalAssets -= assets;
 
@@ -455,9 +470,11 @@ contract VaultV2 is IVaultV2 {
             gate == address(0) || (IGate(gate).canUseShares(from) && IGate(gate).canUseShares(to)),
             ErrorsLib.Unauthorized()
         );
-        uint256 _allowance = allowance[from][msg.sender];
 
-        if (_allowance < type(uint256).max) allowance[from][msg.sender] = _allowance - amount;
+        if (msg.sender != from) {
+            uint256 _allowance = allowance[from][msg.sender];
+            if (_allowance != type(uint256).max) allowance[from][msg.sender] = _allowance - amount;
+        }
 
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
