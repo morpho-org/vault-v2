@@ -55,14 +55,15 @@ A vault could be setup to enforce the following caps:
 This would ensure that the vault never have more than 10M exposure to the stETH asset,
 and never more than 6M exposure to markets using chainlink or redstone oracles, for any LLTV.
 
-### Liquidity market
+### Liquidity
 
 The allocator is responsible for ensuring that users can withdraw their assets at anytime.
 This is done by managing the available liquidity in `idle` and in an optional liquidity market $M$.
 
+As for other protocols, the liquidity market is defined using an adapter (`liquidityAdapter`).
 When users withdraw assets, the assets are taken in priority from the `idle` market.
-If the `idle` market does not have enough liquidity, the market $M$ is used.
-When defined, the market $M$ is also used as the market users are depositing into.
+If the `idle` market does not have enough liquidity, liquidity is taken from the liquidity market $M$.
+When defined, the liquidity market $M$ is also used as the market users are depositing into when supplying to the vault.
 
 The market $M$ would typically be a very liquid Market V1.
 
