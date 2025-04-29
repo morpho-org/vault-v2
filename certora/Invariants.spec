@@ -8,6 +8,8 @@ methods {
     function managementFee() external returns uint256 envfree;
     function managementFeeRecipient() external returns address envfree;
 
+    function forceReallocateToIdleFee() external returns uint256 envfree;
+
     function absoluteCap(bytes32 id) external returns uint256 envfree;
     function relativeCap(bytes32 id) external returns uint256 envfree;
     function allocation(bytes32 id) external returns uint256 envfree;
