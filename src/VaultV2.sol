@@ -122,38 +122,6 @@ contract VaultV2 is IVaultV2 {
         timelock[selector] = newDuration;
     }
 
-    function increaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
-        require(newCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
-
-        absoluteCap[id] = newCap;
-    }
-
-    function decreaseAbsoluteCap(bytes32 id, uint256 newCap) external {
-        require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        require(newCap < absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
-
-        absoluteCap[id] = newCap;
-    }
-
-    function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
-        require(newRelativeCap > relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
-
-        if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
-        relativeCap[id] = newRelativeCap;
-    }
-
-    function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
-        require(newRelativeCap < relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
-        require(idsWithRelativeCap[index] == id, ErrorsLib.IdNotFound());
-        require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
-
-        if (newRelativeCap == 0) {
-            idsWithRelativeCap[index] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
-            idsWithRelativeCap.pop();
-        }
-        relativeCap[id] = newRelativeCap;
-    }
-
     function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
         require(newPerformanceFee <= MAX_PERFORMANCE_FEE, ErrorsLib.FeeTooHigh());
         require(performanceFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
@@ -186,6 +154,38 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         managementFeeRecipient = newManagementFeeRecipient;
+    }
+
+    function increaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
+        require(newCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
+
+        absoluteCap[id] = newCap;
+    }
+
+    function decreaseAbsoluteCap(bytes32 id, uint256 newCap) external {
+        require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
+        require(newCap < absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
+
+        absoluteCap[id] = newCap;
+    }
+
+    function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
+        require(newRelativeCap > relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
+
+        if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
+        relativeCap[id] = newRelativeCap;
+    }
+
+    function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
+        require(newRelativeCap < relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
+        require(idsWithRelativeCap[index] == id, ErrorsLib.IdNotFound());
+        require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
+
+        if (newRelativeCap == 0) {
+            idsWithRelativeCap[index] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
+            idsWithRelativeCap.pop();
+        }
+        relativeCap[id] = newRelativeCap;
     }
 
     /* ALLOCATOR ACTIONS */
