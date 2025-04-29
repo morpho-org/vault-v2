@@ -98,7 +98,7 @@ It can:
 - [Timelockable] Set the `irm`.
 - [Timelockable] Set adapters.
 - Increase timelocks.
-- [Timelockable] Decrease timelocks.
+- [Timelocked 2 weeks] Decrease timelocks.
 - [Timelockable] Set the `performanceFee`.
   The performance fee is capped at 50% of generated interest.
 - [Timelockable] Set the `managementFee`.
