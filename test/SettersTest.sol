@@ -244,7 +244,7 @@ contract SettersTest is BaseTest {
 
     function testSetForceReallocateToIdleFee(address rdm, uint256 newForceReallocateToIdleFee) public {
         vm.assume(rdm != owner);
-        newForceReallocateToIdleFee = bound(newForceReallocateToIdleFee, 0, MAX_FORCE_EXIT_FEE);
+        newForceReallocateToIdleFee = bound(newForceReallocateToIdleFee, 0, MAX_FORCE_REALLOCATE_TO_IDLE_FEE);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
@@ -261,7 +261,7 @@ contract SettersTest is BaseTest {
 
         assertEq(vault.forceReallocateToIdleFee(), newForceReallocateToIdleFee);
 
-        uint256 tooHighFee = MAX_FORCE_EXIT_FEE + 1;
+        uint256 tooHighFee = MAX_FORCE_REALLOCATE_TO_IDLE_FEE + 1;
         vm.prank(owner);
         vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdleFee.selector, tooHighFee));
         vm.expectRevert(ErrorsLib.FeeTooHigh.selector);

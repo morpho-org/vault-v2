@@ -159,7 +159,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setForceReallocateToIdleFee(uint256 newForceReallocateToIdleFee) external timelocked {
-        require(newForceReallocateToIdleFee <= MAX_FORCE_EXIT_FEE, ErrorsLib.FeeTooHigh());
+        require(newForceReallocateToIdleFee <= MAX_FORCE_REALLOCATE_TO_IDLE_FEE, ErrorsLib.FeeTooHigh());
         forceReallocateToIdleFee = newForceReallocateToIdleFee;
     }
 
@@ -425,6 +425,7 @@ contract VaultV2 is IVaultV2 {
     function forceReallocateToIdle(address adapter, bytes memory data, uint256 assets, address onBehalf) external {
         this.reallocateToIdle(adapter, data, assets);
 
+        // The fee is taken as a withdrawal that is donated to the vault.
         withdraw(assets.mulDivDown(forceReallocateToIdleFee, WAD), address(this), onBehalf);
     }
 

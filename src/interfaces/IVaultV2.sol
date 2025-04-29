@@ -81,4 +81,7 @@ interface IVaultV2 is IERC20 {
     // Timelocks
     function submit(bytes calldata) external;
     function revoke(bytes calldata) external;
+
+    // Force reallocate to idle
+    function forceReallocateToIdle(address, bytes memory, uint256, address) external;
 }

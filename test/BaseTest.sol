@@ -52,3 +52,7 @@ contract BaseTest is Test {
         vault.setIRM(address(irm));
     }
 }
+
+function min(uint256 a, uint256 b) pure returns (uint256) {
+    return a < b ? a : b;
+}
