@@ -7,7 +7,7 @@ Depositors of Morpho Vault V2 earn from borrowing interest without having to act
 The active management of the deposited assets is the responsibility of a set of different roles.
 These roles are primarily responsible for enabling and disabling markets on Morpho Market V1 and Morpho Market V2 as well as managing the allocation of users’ funds across those markets.
 
-[Morpho Vault V2](https://github.com/morpho-org/vaults-v2/blob/main/src/VaultV2.sol) vaults are [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) vaults, with [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) permit.
+[Morpho Vault V2](https://github.com/morpho-org/vaults-v2/blob/main/src/VaultV2.sol) vaults are [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) compliant, with [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) permit.
 A given Morpho Vault V2 has one unique underlying asset.
 The [VaultV2Factory](https://github.com/morpho-org/vaults-v2/blob/main/src/VaultV2Factory.sol) deploys instances of Vaults V2.
 All the contracts are immutable.
