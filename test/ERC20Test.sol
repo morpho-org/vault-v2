@@ -242,7 +242,7 @@ contract ERC20Test is BaseTest {
         burnAmount = _bound(burnAmount, mintAmount + 1, type(uint256).max);
 
         vault.mint(mintAmount, to);
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert();
         vault.redeem(burnAmount, to, to);
     }
 

@@ -410,7 +410,7 @@ contract VaultV2 is IVaultV2 {
 
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
-        if (assets > idleAssets && liquidityAdapter != address(0)) {
+        if (assets > idleAssets) {
             this.reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
         }
         uint256 _allowance = allowance[onBehalf][msg.sender];
