@@ -33,7 +33,7 @@ library EventsLib {
     event Withdraw(
         address indexed sender, address indexed receiver, address indexed onBehalf, uint256 assets, uint256 shares
     );
-    event Submit(address indexed sender, bytes data);
+    event Submit(address indexed sender, bytes data, uint256 validAt);
     event Revoke(address indexed sender, bytes data);
     event AccrueInterest(uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares);
     event CreateVaultV2(address indexed vaultV2, address indexed owner, address indexed asset);
