@@ -15,8 +15,12 @@ contract MulticallTest is BaseTest {
 
     function testMulticall(address newCurator, address newOwner) public {
         bytes[] memory data = new bytes[](2);
-        data[0] = abi.encodeWithSelector(IVaultV2.submit.selector, abi.encodeWithSelector(IVaultV2.setCurator.selector, newCurator));
-        data[1] = abi.encodeWithSelector(IVaultV2.submit.selector, abi.encodeWithSelector(IVaultV2.setOwner.selector, newOwner));
+        data[0] = abi.encodeWithSelector(
+            IVaultV2.submit.selector, abi.encodeWithSelector(IVaultV2.setCurator.selector, newCurator)
+        );
+        data[1] = abi.encodeWithSelector(
+            IVaultV2.submit.selector, abi.encodeWithSelector(IVaultV2.setOwner.selector, newOwner)
+        );
 
         vm.prank(owner);
         vault.multicall(data);
