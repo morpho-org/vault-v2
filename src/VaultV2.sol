@@ -70,11 +70,13 @@ contract VaultV2 is IVaultV2 {
 
     /* CONSTRUCTOR */
 
-    constructor(address _owner, address _asset) {
+    constructor(address _owner, address _asset, address _gate) {
         asset = _asset;
         owner = _owner;
+        gate = _gate;
         lastUpdate = block.timestamp;
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
+        timelock[IVaultV2.setGate.selector] = TIMELOCK_CAP;
     }
 
     /* OWNER ACTIONS */
@@ -129,7 +131,10 @@ contract VaultV2 is IVaultV2 {
     }
 
     function increaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
-        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
+        require(
+            selector != IVaultV2.decreaseTimelock.selector && selector != IVaultV2.setGate.selector,
+            ErrorsLib.TimelockCapIsFixed()
+        );
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
         require(newDuration > timelock[selector], ErrorsLib.TimelockNotIncreasing());
 
@@ -137,7 +142,10 @@ contract VaultV2 is IVaultV2 {
     }
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
-        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
+        require(
+            selector != IVaultV2.decreaseTimelock.selector && selector != IVaultV2.setGate.selector,
+            ErrorsLib.TimelockCapIsFixed()
+        );
         require(newDuration < timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;

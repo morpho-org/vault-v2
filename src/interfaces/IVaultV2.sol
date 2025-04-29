@@ -48,6 +48,7 @@ interface IVaultV2 is IERC20 {
     function setPerformanceFeeRecipient(address) external;
     function setManagementFeeRecipient(address) external;
     function setOwner(address) external;
+    function setGate(address) external;
     function setCurator(address) external;
     function setIsSentinel(address, bool) external;
     function setTreasurer(address) external;

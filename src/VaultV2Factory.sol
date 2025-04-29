@@ -10,8 +10,8 @@ import {IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 contract VaultV2Factory is IVaultV2Factory {
     mapping(address => bool) public isVaultV2;
 
-    function createVaultV2(address _owner, address _asset) external returns (address) {
-        address vaultV2 = address(new VaultV2{salt: 0}(_owner, _asset));
+    function createVaultV2(address _owner, address _asset, address _gate) external returns (address) {
+        address vaultV2 = address(new VaultV2{salt: 0}(_owner, _asset, _gate));
 
         isVaultV2[vaultV2] = true;
 
