@@ -82,7 +82,7 @@ contract FeeTest is BaseTest {
 
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = vault.totalAssets() + interest;
-        uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
+        uint256 managementFeeAssets = (newTotalAssets * MathLib.min(elapsed, 365 days)).mulDivDown(managementFee, WAD);
         uint256 expectedShares =
             managementFeeAssets.mulDivDown(vault.totalSupply() + 1, newTotalAssets + 1 - managementFeeAssets);
 
