@@ -227,7 +227,7 @@ contract VaultV2 is IVaultV2 {
                 allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD), ErrorsLib.RelativeCapExceeded()
             );
         }
-        emit EventsLib.ReallocateFromIdle(msg.sender, adapter, data, amount, ids);
+        emit EventsLib.ReallocateFromIdle(msg.sender, adapter, amount, ids);
     }
 
     function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
@@ -243,7 +243,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), amount);
-        emit EventsLib.ReallocateToIdle(msg.sender, adapter, data, amount, ids);
+        emit EventsLib.ReallocateToIdle(msg.sender, adapter, amount, ids);
     }
 
     function setLiquidityAdapter(address newLiquidityAdapter) external {
