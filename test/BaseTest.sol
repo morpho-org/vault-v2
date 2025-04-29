@@ -39,7 +39,6 @@ contract BaseTest is Test {
         vm.label(address(irm), "IRM");
 
         vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setCurator.selector, curator));
         vault.setCurator(curator);
 
         vm.startPrank(curator);

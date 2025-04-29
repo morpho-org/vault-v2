@@ -76,19 +76,22 @@ contract VaultV2 is IVaultV2 {
 
     /* OWNER ACTIONS */
 
-    function setOwner(address newOwner) external timelocked {
+    function setOwner(address newOwner) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
         owner = newOwner;
     }
 
-    function setCurator(address newCurator) external timelocked {
+    function setCurator(address newCurator) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
         curator = newCurator;
     }
 
-    /* CURATOR ACTIONS */
-
-    function setIsSentinel(address sentinel, bool newIsSentinel) external timelocked {
+    function setIsSentinel(address sentinel, bool newIsSentinel) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
         isSentinel[sentinel] = newIsSentinel;
     }
+
+    /* CURATOR ACTIONS */
 
     function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
         isAllocator[allocator] = newIsAllocator;
@@ -103,7 +106,8 @@ contract VaultV2 is IVaultV2 {
         isAdapter[adapter] = newIsAdapter;
     }
 
-    function increaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
+    function increaseTimelock(bytes4 selector, uint256 newDuration) external {
+        require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
         require(newDuration > timelock[selector], ErrorsLib.TimelockNotIncreasing());
@@ -124,7 +128,8 @@ contract VaultV2 is IVaultV2 {
         absoluteCap[id] = newCap;
     }
 
-    function decreaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
+    function decreaseAbsoluteCap(bytes32 id, uint256 newCap) external {
+        require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(newCap < absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
 
         absoluteCap[id] = newCap;
@@ -262,20 +267,13 @@ contract VaultV2 is IVaultV2 {
     }
 
     function isAuthorizedToSubmit(address sender, bytes4 selector) internal view returns (bool) {
-        // Owner functions
-        if (selector == IVaultV2.setOwner.selector) return sender == owner;
-        if (selector == IVaultV2.setCurator.selector) return sender == owner;
-        // Curator functions
-        if (selector == IVaultV2.setIsSentinel.selector) return sender == curator;
         if (selector == IVaultV2.setIsAllocator.selector) return sender == curator;
         if (selector == IVaultV2.setIRM.selector) return sender == curator;
         if (selector == IVaultV2.setIsAdapter.selector) return sender == curator;
         if (selector == IVaultV2.increaseTimelock.selector) return sender == curator;
         if (selector == IVaultV2.decreaseTimelock.selector) return sender == curator;
         if (selector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
-        if (selector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
         if (selector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
-        if (selector == IVaultV2.decreaseRelativeCap.selector) return sender == curator;
         if (selector == IVaultV2.setPerformanceFee.selector) return sender == curator;
         if (selector == IVaultV2.setManagementFee.selector) return sender == curator;
         if (selector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == curator;

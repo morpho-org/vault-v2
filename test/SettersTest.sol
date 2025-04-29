@@ -17,17 +17,12 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != owner);
         address newOwner = makeAddr("newOwner");
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setOwner(newOwner);
-
-        // Only owner can submit
+        // Only owner can set
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setOwner.selector, newOwner));
+        vault.setOwner(newOwner);
 
         vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setOwner.selector, newOwner));
         vault.setOwner(newOwner);
 
         assertEq(vault.owner(), newOwner);
@@ -37,20 +32,29 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != owner);
         address newCurator = makeAddr("newCurator");
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setCurator(newCurator);
-
-        // Only owner can submit
+        // Only owner can set
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setCurator.selector, newCurator));
+        vault.setCurator(newCurator);
 
         vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setCurator.selector, newCurator));
         vault.setCurator(newCurator);
 
         assertEq(vault.curator(), newCurator);
+    }
+
+    function testSetIsSentinel(address rdm, bool newIsSentinel) public {
+        vm.assume(rdm != owner);
+
+        // Only owner can set
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.setIsSentinel(rdm, newIsSentinel);
+
+        vm.prank(owner);
+        vault.setIsSentinel(rdm, newIsSentinel);
+
+        assertEq(vault.isSentinel(rdm), newIsSentinel);
     }
 
     function testSetIRM(address rdm) public {
@@ -59,6 +63,7 @@ contract SettersTest is BaseTest {
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
         vault.setIRM(newIRM);
 
         // Only curator can submit
@@ -79,6 +84,7 @@ contract SettersTest is BaseTest {
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
         vault.setIsAllocator(newAllocator, true);
 
         // Only curator can submit
@@ -106,6 +112,7 @@ contract SettersTest is BaseTest {
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
         vault.setIsAdapter(newAdapter, true);
 
         // Only curator can submit
@@ -133,6 +140,7 @@ contract SettersTest is BaseTest {
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
         vault.setPerformanceFee(newPerformanceFee);
 
         // Only curator can submit
@@ -175,6 +183,7 @@ contract SettersTest is BaseTest {
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
         vault.setPerformanceFeeRecipient(newPerformanceFeeRecipient);
 
         // Only curator can submit
@@ -205,6 +214,7 @@ contract SettersTest is BaseTest {
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
         vault.setManagementFee(newManagementFee);
 
         // Only curator can submit
@@ -245,6 +255,7 @@ contract SettersTest is BaseTest {
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
         vault.setManagementFeeRecipient(newManagementFeeRecipient);
 
         // Only curator can submit
