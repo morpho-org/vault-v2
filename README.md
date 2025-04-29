@@ -11,18 +11,6 @@ All the contracts are immutable.
 
 ## Overview
 
-There are 5 different roles for a Morpho vault V2: owner, curator, sentinel, treasurer and allocator.
-
-Each market has an absolute cap and a relative cap that guarantees lenders both a maximum absolute and a maximum relative exposure to the specific market.
-Users can supply or withdraw assets at any time, depending on the available liquidity on the liquidity market.
-
-In Vault V2, all permissioned actions can be timelocked (except `reallocateIn` and `reallocateOut`).
-Owners are encouraged to subject actions that may be against users' interests (e.g. enabling a market) to a timelock.
-Timelocks values must be between 0 and 2 weeks.
-
-Sentinels can revoke the actions taken by other roles during the timelock, with the exception of the action of setting and unsetting a sentinel.
-After the timelock, actions can be executed by anyone.
-
 ### Adapters
 
 Vault V1 strategies were defined by a tuple of the form `(CollateralToken, LoanToken, LLTV, Oracle, IRMAddress)`,
@@ -91,29 +79,30 @@ Only one address can have this role.
 
 It can:
 
-- [Timelocked] Set other roles:
-  - `sentinel`
-  - `owner`
-  - `curator`
-  - `treasurer`
-  - `allocator`
-- [Timelocked] Set the `performanceFeeRecipient`.
-- [Timelocked] Set the `managementFeeRecipient`.
-- [Timelocked] Set the `irm`.
-- [Timelocked] Set adapter.
-- [Timelocked] Increase the timelock.
-- [Timelocked] Decrease the timelock.
+- Set the owner.
+- Set the curator.
+- Set sentinels.
 
-**Treasurer**
+**Curator**
 
 Only one address can have this role.
 
 It can:
 
-- [Timelocked] Set the `performanceFee`.
+- [Timelockable] Increase absolute caps.
+- Decrease absolute caps.
+- [Timelockable] Increase relative caps.
+- [Timelockable] Decrease relative caps.
+- [Timelockable] Set the `irm`.
+- [Timelockable] Set adapters.
+- Increase timelocks.
+- [Timelockable] Decrease timelocks.
+- [Timelockable] Set the `performanceFee`.
   The performance fee is capped at 50% of generated interest.
-- [Timelocked] Set the `managementFee`.
+- [Timelockable] Set the `managementFee`.
   The management fee is capped at 5% of assets under management annually.
+- [Timelockable] Set the `performanceFeeRecipient`.
+- [Timelockable] Set the `managementFeeRecipient`.
 
 **Allocator**
 
@@ -123,15 +112,8 @@ It can:
 
 - Reallocate funds from the “idle market” to enabled markets.
 - Reallocate funds from enabled markets to the “idle market”.
-
-**Curator**
-
-Only one address can have this role.
-
-It can:
-
-- [Timelocked] Change the absolute supply cap of any market.
-- [Timelocked] Change the relative supply cap of any market.
+- Set the `liquidityAdapter`.
+- Set the `liquidityData`.
 
 **Sentinel**
 
@@ -139,10 +121,9 @@ Multiple addresses can have this role.
 
 It can:
 
-- Reallocate funds from the “idle market” to enabled markets.
 - Reallocate funds from enabled markets to the “idle market”.
-- [Timelocked] Decrease the absolute supply cap of any market.
-- Revoke actions from other roles, except the `setSentinel` action (contrary to Vault V1, the sentinel cannot revoke any attempt to change the sentinel).
+- Decrease absolute caps.
+- Revoke timelocked actions.
 
 ### Main differences with Vault V1
 
