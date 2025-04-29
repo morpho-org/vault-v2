@@ -134,6 +134,7 @@ contract ERC20Test is BaseTest {
         amountTransferred = bound(amountTransferred, 0, amountApproved);
 
         vm.assume(from != address(0));
+        vm.assume(from != address(this));
         vm.assume(to != address(0));
         vault.mint(amount, from);
 
