@@ -326,7 +326,8 @@ contract VaultV2 is IVaultV2 {
         if (managementFee != 0) {
             // Using newTotalAssets to make all approximations consistent.
             // Elapsed is capped so the vault is never bricked.
-            uint256 managementFeeAssets = (newTotalAssets * MathLib.min(elapsed,365 days)).mulDivDown(managementFee, WAD);
+            uint256 managementFeeAssets =
+                (newTotalAssets * MathLib.min(elapsed, 365 days)).mulDivDown(managementFee, WAD);
             managementFeeShares = managementFeeAssets.mulDivDown(
                 totalSupply + 1 + performanceFeeShares, newTotalAssets + 1 - managementFeeAssets
             );
