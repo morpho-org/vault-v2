@@ -242,7 +242,7 @@ contract VaultV2 is IVaultV2 {
 
     function submit(bytes calldata data) external {
         bytes4 selector = bytes4(data);
-        require(isAuthorizedToSubmit(msg.sender, selector), ErrorsLib.Unauthorized());
+        require(msg.sender == curator, ErrorsLib.Unauthorized());
 
         require(validAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
@@ -257,28 +257,9 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Authorized to submit can revoke.
     function revoke(bytes calldata data) external {
-        require(
-            isAuthorizedToSubmit(msg.sender, bytes4(data))
-                || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector),
-            ErrorsLib.Unauthorized()
-        );
-        require(validAt[data] != 0);
+        require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
+        require(validAt[data] != 0, ErrorsLib.DataNotTimelocked());
         validAt[data] = 0;
-    }
-
-    function isAuthorizedToSubmit(address sender, bytes4 selector) internal view returns (bool) {
-        if (selector == IVaultV2.setIsAllocator.selector) return sender == curator;
-        if (selector == IVaultV2.setIRM.selector) return sender == curator;
-        if (selector == IVaultV2.setIsAdapter.selector) return sender == curator;
-        if (selector == IVaultV2.increaseTimelock.selector) return sender == curator;
-        if (selector == IVaultV2.decreaseTimelock.selector) return sender == curator;
-        if (selector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
-        if (selector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
-        if (selector == IVaultV2.setPerformanceFee.selector) return sender == curator;
-        if (selector == IVaultV2.setManagementFee.selector) return sender == curator;
-        if (selector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == curator;
-        if (selector == IVaultV2.setManagementFeeRecipient.selector) return sender == curator;
-        return false;
     }
 
     /* EXCHANGE RATE */
