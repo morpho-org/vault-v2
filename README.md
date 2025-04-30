@@ -98,6 +98,7 @@ It can:
 - [Timelockable] Decrease relative caps.
 - [Timelockable] Set the `irm`.
 - [Timelockable] Set adapters.
+- [Timelockable] Set allocators.
 - Increase timelocks.
 - [Timelocked 2 weeks] Decrease timelocks.
 - [Timelockable] Set the `performanceFee`.
