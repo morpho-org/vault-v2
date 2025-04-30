@@ -446,6 +446,7 @@ contract VaultV2 is IVaultV2 {
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
         emit EventsLib.Transfer(from, to, amount);
+        emit EventsLib.TransferFrom(msg.sender, from, to, amount);
         return true;
     }
 

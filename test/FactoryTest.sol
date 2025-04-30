@@ -16,4 +16,10 @@ contract FactoryTest is BaseTest {
         assertEq(vault.owner(), _owner);
         assertEq(vault.asset(), _asset);
     }
+
+    function testCreateVaultV2Event(address _owner, address _asset, bytes32 _salt) public {
+        vm.expectEmit();
+        emit EventsLib.Construction(_owner, _asset);
+        vaultFactory.createVaultV2(_owner, _asset, _salt);
+    }
 }

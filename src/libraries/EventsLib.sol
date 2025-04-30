@@ -3,12 +3,12 @@ pragma solidity ^0.8.0;
 
 library EventsLib {
     event Transfer(address indexed from, address indexed to, uint256 amount);
+    event TransferFrom(address indexed sender, address indexed from, address indexed to, uint256 amount);
     event Approval(address indexed owner, address indexed spender, uint256 amount);
     event Permit(address indexed owner, address indexed spender, uint256 amount, uint256 nonce, uint256 deadline);
     event Construction(address indexed owner, address indexed asset);
     event SetOwner(address indexed owner);
     event SetCurator(address indexed curator);
-    event SetTreasurer(address indexed treasurer);
     event SetIRM(address indexed irm);
     event SetIsSentinel(address indexed sentinel, bool isSentinel);
     event SetIsAllocator(address indexed allocator, bool isAllocator);
