@@ -441,7 +441,7 @@ contract VaultV2 is IVaultV2 {
         uint256 total = 0;
         for (uint256 i; i < adapters.length; i++) {
             this.reallocateToIdle(adapters[i], data[i], assets[i]);
-            total += assets[i]; 
+            total += assets[i];
         }
 
         // The fee is taken as a withdrawal that is donated to the vault.
