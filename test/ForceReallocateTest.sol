@@ -55,6 +55,6 @@ contract ForceReallocateTest is BaseTest {
         assertEq(underlyingToken.balanceOf(address(vault)), reallocated);
         assertEq(vault.balanceOf(address(this)), expectedShares);
 
-        vault.withdraw(min(reallocated, vault.previewWithdraw(expectedShares)), address(this), address(this));
+        vault.withdraw(min(reallocated, vault.previewRedeem(expectedShares)), address(this), address(this));
     }
 }
