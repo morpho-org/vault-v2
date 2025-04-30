@@ -28,27 +28,8 @@ contract LiquidityMarketTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
     }
 
-    function testLiquidityAdapterInvariant(address liquidityAdapter) public {
-        vm.assume(liquidityAdapter != address(0));
-        vm.prank(allocator);
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
-        vault.setLiquidityAdapter(liquidityAdapter);
-
-        vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, liquidityAdapter, true));
-        vault.setIsAdapter(liquidityAdapter, true);
-
-        vm.prank(allocator);
-        vault.setLiquidityAdapter(liquidityAdapter);
-
-        vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, liquidityAdapter, false));
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
-        vault.setIsAdapter(liquidityAdapter, false);
-    }
-
     function testLiquidityMarketDeposit(bytes memory data, uint256 assets) public {
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, address(adapter), true));
         vault.setIsAdapter(address(adapter), true);
 
@@ -64,7 +45,7 @@ contract LiquidityMarketTest is BaseTest {
     }
 
     function testLiquidityMarketMint(bytes memory data, uint256 shares) public {
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, address(adapter), true));
         vault.setIsAdapter(address(adapter), true);
 
