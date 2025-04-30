@@ -87,7 +87,6 @@ contract VaultV2 is IVaultV2 {
         owner = _owner;
         lastUpdate = block.timestamp;
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
-        timelock[IVaultV2.setGate.selector] = TIMELOCK_CAP;
         emit EventsLib.Construction(_owner, _asset);
     }
 
