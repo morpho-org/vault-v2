@@ -29,7 +29,7 @@ contract LiquidityMarketTest is BaseTest {
     }
 
     function testLiquidityMarketDeposit(bytes memory data, uint256 assets) public {
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, address(adapter), true));
         vault.setIsAdapter(address(adapter), true);
 
@@ -45,7 +45,7 @@ contract LiquidityMarketTest is BaseTest {
     }
 
     function testLiquidityMarketMint(bytes memory data, uint256 shares) public {
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, address(adapter), true));
         vault.setIsAdapter(address(adapter), true);
 
