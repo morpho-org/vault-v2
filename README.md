@@ -88,7 +88,7 @@ It can:
 Only one address can have this role.
 
 Some actions of the curator are timelockable (between 0 and 2 weeks).
-Once the timelocked passed, the action can be executed by anyone.
+Once the timelock passed, the action can be executed by anyone.
 
 It can:
 
