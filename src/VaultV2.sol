@@ -201,7 +201,7 @@ contract VaultV2 is IVaultV2 {
         }
         relativeCap[id] = newRelativeCap;
     }
-    
+
     function setForceReallocateToIdleFee(uint256 newForceReallocateToIdleFee) external timelocked {
         require(newForceReallocateToIdleFee <= MAX_FORCE_REALLOCATE_TO_IDLE_FEE, ErrorsLib.FeeTooHigh());
         forceReallocateToIdleFee = newForceReallocateToIdleFee;
