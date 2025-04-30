@@ -28,6 +28,24 @@ contract ForceReallocateTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
     }
 
+    function _list(address input) internal returns (address[] memory) {
+        address[] memory list = new address[](1);
+        list[0] = input;
+        return list;
+    }
+
+    function _list(bytes memory input) internal returns (bytes[] memory) {
+        bytes[] memory list = new bytes[](1);
+        list[0] = input;
+        return list;
+    }
+
+    function _list(uint256 input) internal returns (uint256[] memory) {
+        uint256[] memory list = new uint256[](1);
+        list[0] = input;
+        return list;
+    }
+
     function testForceReallocate(uint256 supplied, uint256 reallocated, uint256 forceReallocateFee) public {
         supplied = bound(supplied, 0, MAX_DEPOSIT);
         reallocated = bound(reallocated, 0, supplied);
@@ -50,7 +68,7 @@ contract ForceReallocateTest is BaseTest {
         vault.setForceReallocateToIdleFee(forceReallocateFee);
 
         uint256 expectedShares = shares - vault.previewWithdraw(reallocated.mulDivDown(forceReallocateFee, WAD));
-        uint256 withdrawnShares = vault.forceReallocateToIdle(address(adapter), hex"", reallocated, address(this));
+        uint256 withdrawnShares = vault.forceReallocateToIdle(_list(address(adapter)), _list(hex""), _list(reallocated), address(this));
         assertEq(shares - expectedShares, withdrawnShares);
         assertEq(underlyingToken.balanceOf(adapter), supplied - reallocated);
         assertEq(underlyingToken.balanceOf(address(vault)), reallocated);

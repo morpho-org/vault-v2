@@ -430,14 +430,22 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }
 
-    function forceReallocateToIdle(address adapter, bytes memory data, uint256 assets, address onBehalf)
-        external
-        returns (uint256)
-    {
-        this.reallocateToIdle(adapter, data, assets);
+    /// @dev Loop to make the relative cap check at the end.
+    /// @dev The lists must have the same length.
+    function forceReallocateToIdle(
+        address[] memory adapters,
+        bytes[] memory data,
+        uint256[] memory assets,
+        address onBehalf
+    ) external returns (uint256) {
+        uint256 total = 0;
+        for (uint256 i; i < adapters.length; i++) {
+            this.reallocateToIdle(adapters[i], data[i], assets[i]);
+            total += assets[i]; 
+        }
 
         // The fee is taken as a withdrawal that is donated to the vault.
-        return withdraw(assets.mulDivDown(forceReallocateToIdleFee, WAD), address(this), onBehalf);
+        return withdraw(total.mulDivDown(forceReallocateToIdleFee, WAD), address(this), onBehalf);
     }
 
     /* ERC20 */

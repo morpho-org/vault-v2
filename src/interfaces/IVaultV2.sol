@@ -88,5 +88,10 @@ interface IVaultV2 is IERC20 {
     function revoke(bytes calldata) external;
 
     // Force reallocate to idle
-    function forceReallocateToIdle(address, bytes memory, uint256, address) external returns (uint256);
+    function forceReallocateToIdle(
+        address[] memory adapters,
+        bytes[] memory data,
+        uint256[] memory assets,
+        address onBehalf
+    ) external returns (uint256);
 }
