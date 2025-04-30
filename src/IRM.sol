@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
+import {EventsLib} from "./libraries/EventsLib.sol";
+
 import {IIRM} from "./interfaces/IIRM.sol";
 import {IVaultV2} from "./interfaces/IVaultV2.sol";
 
@@ -17,6 +19,7 @@ contract IRM is IIRM {
     function setInterestPerSecond(uint256 newInterestPerSecond) public {
         require(msg.sender == owner);
         _interestPerSecond = newInterestPerSecond;
+        emit EventsLib.SetInterestPerSecond(newInterestPerSecond);
     }
 
     function interestPerSecond(uint256, uint256) external view returns (uint256) {

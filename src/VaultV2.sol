@@ -86,6 +86,7 @@ contract VaultV2 is IVaultV2 {
         owner = _owner;
         lastUpdate = block.timestamp;
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
+        emit EventsLib.Construction(_owner, _asset);
     }
 
     /* OWNER ACTIONS */
@@ -93,31 +94,37 @@ contract VaultV2 is IVaultV2 {
     function setOwner(address newOwner) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
         owner = newOwner;
+        emit EventsLib.SetOwner(newOwner);
     }
 
     function setCurator(address newCurator) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
         curator = newCurator;
+        emit EventsLib.SetCurator(newCurator);
     }
 
     function setIsSentinel(address sentinel, bool newIsSentinel) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
         isSentinel[sentinel] = newIsSentinel;
+        emit EventsLib.SetIsSentinel(sentinel, newIsSentinel);
     }
 
     /* CURATOR ACTIONS */
 
     function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
         isAllocator[allocator] = newIsAllocator;
+        emit EventsLib.SetIsAllocator(allocator, newIsAllocator);
     }
 
     function setIRM(address newIRM) external timelocked {
         irm = newIRM;
+        emit EventsLib.SetIRM(newIRM);
     }
 
     function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
         require(adapter != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
         isAdapter[adapter] = newIsAdapter;
+        emit EventsLib.SetIsAdapter(adapter, newIsAdapter);
     }
 
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
@@ -127,6 +134,7 @@ contract VaultV2 is IVaultV2 {
         require(newDuration > timelock[selector], ErrorsLib.TimelockNotIncreasing());
 
         timelock[selector] = newDuration;
+        emit EventsLib.IncreaseTimelock(selector, newDuration);
     }
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
@@ -134,6 +142,7 @@ contract VaultV2 is IVaultV2 {
         require(newDuration < timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
+        emit EventsLib.DecreaseTimelock(selector, newDuration);
     }
 
     function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
@@ -143,6 +152,7 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         performanceFee = newPerformanceFee;
+        emit EventsLib.SetPerformanceFee(newPerformanceFee);
     }
 
     function setManagementFee(uint256 newManagementFee) external timelocked {
@@ -152,6 +162,7 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         managementFee = newManagementFee;
+        emit EventsLib.SetManagementFee(newManagementFee);
     }
 
     function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
@@ -160,6 +171,7 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         performanceFeeRecipient = newPerformanceFeeRecipient;
+        emit EventsLib.SetPerformanceFeeRecipient(newPerformanceFeeRecipient);
     }
 
     function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
@@ -168,19 +180,22 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         managementFeeRecipient = newManagementFeeRecipient;
+        emit EventsLib.SetManagementFeeRecipient(newManagementFeeRecipient);
     }
 
-    function increaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
-        require(newCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
+    function increaseAbsoluteCap(bytes32 id, uint256 newAbsoluteCap) external timelocked {
+        require(newAbsoluteCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
 
-        absoluteCap[id] = newCap;
+        absoluteCap[id] = newAbsoluteCap;
+        emit EventsLib.IncreaseAbsoluteCap(id, newAbsoluteCap);
     }
 
-    function decreaseAbsoluteCap(bytes32 id, uint256 newCap) external {
+    function decreaseAbsoluteCap(bytes32 id, uint256 newAbsoluteCap) external {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        require(newCap < absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
+        require(newAbsoluteCap < absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
 
-        absoluteCap[id] = newCap;
+        absoluteCap[id] = newAbsoluteCap;
+        emit EventsLib.DecreaseAbsoluteCap(id, newAbsoluteCap);
     }
 
     function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
@@ -188,18 +203,21 @@ contract VaultV2 is IVaultV2 {
 
         if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
         relativeCap[id] = newRelativeCap;
+        emit EventsLib.IncreaseRelativeCap(id, newRelativeCap);
     }
 
-    function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap, uint256 index) external timelocked {
+    function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
         require(newRelativeCap < relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
-        require(idsWithRelativeCap[index] == id, ErrorsLib.IdNotFound());
         require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
 
         if (newRelativeCap == 0) {
-            idsWithRelativeCap[index] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
+            uint256 i;
+            while (idsWithRelativeCap[i] != id) i++;
+            idsWithRelativeCap[i] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
             idsWithRelativeCap.pop();
         }
         relativeCap[id] = newRelativeCap;
+        emit EventsLib.DecreaseRelativeCap(id, newRelativeCap);
     }
 
     function setForceReallocateToIdleFee(uint256 newForceReallocateToIdleFee) external timelocked {
@@ -224,6 +242,7 @@ contract VaultV2 is IVaultV2 {
                 allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD), ErrorsLib.RelativeCapExceeded()
             );
         }
+        emit EventsLib.ReallocateFromIdle(msg.sender, adapter, amount, ids);
     }
 
     function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
@@ -239,6 +258,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), amount);
+        emit EventsLib.ReallocateToIdle(msg.sender, adapter, amount, ids);
     }
 
     function setLiquidityAdapter(address newLiquidityAdapter) external {
@@ -248,11 +268,13 @@ contract VaultV2 is IVaultV2 {
             ErrorsLib.LiquidityAdapterInvariantBroken()
         );
         liquidityAdapter = newLiquidityAdapter;
+        emit EventsLib.SetLiquidityAdapter(msg.sender, newLiquidityAdapter);
     }
 
     function setLiquidityData(bytes memory newLiquidityData) external {
         require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
         liquidityData = newLiquidityData;
+        emit EventsLib.SetLiquidityData(msg.sender, newLiquidityData);
     }
 
     /* TIMELOCKS */
@@ -264,6 +286,7 @@ contract VaultV2 is IVaultV2 {
         require(validAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
         validAt[data] = block.timestamp + timelock[selector];
+        emit EventsLib.Submit(msg.sender, data, validAt[data]);
     }
 
     modifier timelocked() {
@@ -277,12 +300,13 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(validAt[data] != 0, ErrorsLib.DataNotTimelocked());
         validAt[data] = 0;
+        emit EventsLib.Revoke(msg.sender, data);
     }
 
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
-        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 newTotalAssets) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
 
         totalAssets = newTotalAssets;
 
@@ -290,11 +314,12 @@ contract VaultV2 is IVaultV2 {
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
 
         lastUpdate = block.timestamp;
+        emit EventsLib.AccrueInterest(newTotalAssets, performanceFeeShares, managementFeeShares);
     }
 
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        if (elapsed == 0) return (0, 0, totalAssets);
+        if (elapsed == 0) return (totalAssets, 0, 0);
         uint256 interestPerSecond = IIRM(irm).interestPerSecond(totalAssets, elapsed);
         require(interestPerSecond <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
         uint256 interest = interestPerSecond * elapsed;
@@ -317,29 +342,29 @@ contract VaultV2 is IVaultV2 {
                 totalSupply + 1 + performanceFeeShares, newTotalAssets + 1 - managementFeeAssets
             );
         }
-        return (performanceFeeShares, managementFeeShares, newTotalAssets);
+        return (newTotalAssets, performanceFeeShares, managementFeeShares);
     }
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
-        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 newTotalAssets) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return assets.mulDivDown(newTotalSupply + 1, newTotalAssets + 1);
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
-        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 newTotalAssets) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return assets.mulDivUp(newTotalSupply + 1, newTotalAssets + 1);
     }
 
     function previewMint(uint256 shares) public view returns (uint256) {
-        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 newTotalAssets) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivDown(newTotalSupply + 1, newTotalAssets + 1);
     }
 
     function previewRedeem(uint256 shares) public view returns (uint256) {
-        (uint256 performanceFeeShares, uint256 managementFeeShares, uint256 newTotalAssets) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivUp(newTotalSupply + 1, newTotalAssets + 1);
     }
@@ -364,8 +389,8 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(receiver, shares);
         totalAssets += assets;
-
         try this.reallocateFromIdle(liquidityAdapter, liquidityData, assets) {} catch {}
+        emit EventsLib.Deposit(msg.sender, receiver, assets, shares);
     }
 
     function withdraw(uint256 assets, address receiver, address onBehalf) public returns (uint256) {
@@ -402,6 +427,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
+        emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }
 
     function forceReallocateToIdle(address adapter, bytes memory data, uint256 assets, address onBehalf)
@@ -436,7 +462,7 @@ contract VaultV2 is IVaultV2 {
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
         emit EventsLib.Transfer(from, to, amount);
-
+        emit EventsLib.TransferFrom(msg.sender, from, to, amount);
         return true;
     }
 
@@ -451,13 +477,15 @@ contract VaultV2 is IVaultV2 {
     {
         require(deadline >= block.timestamp, ErrorsLib.PermitDeadlineExpired());
 
-        bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonces[_owner]++, deadline));
+        uint256 nonce = nonces[_owner]++;
+        bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonce, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
         address recoveredAddress = ecrecover(digest, v, r, s);
         require(recoveredAddress != address(0) && recoveredAddress == _owner, ErrorsLib.InvalidSigner());
 
         allowance[_owner][spender] = value;
         emit EventsLib.Approval(_owner, spender, value);
+        emit EventsLib.Permit(_owner, spender, value, nonce, deadline);
     }
 
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
