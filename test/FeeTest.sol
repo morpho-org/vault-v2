@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity 0.8.28;
+pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
@@ -13,7 +13,7 @@ contract FeeTest is BaseTest {
     function setUp() public override {
         super.setUp();
 
-        vm.startPrank(owner);
+        vm.startPrank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFeeRecipient.selector, performanceFeeRecipient));
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, managementFeeRecipient));
         vm.stopPrank();
@@ -36,7 +36,7 @@ contract FeeTest is BaseTest {
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
         elapsed = bound(elapsed, 0, 1000 weeks);
 
-        vm.prank(treasurer);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, performanceFee));
         vault.setPerformanceFee(performanceFee);
 
@@ -69,7 +69,7 @@ contract FeeTest is BaseTest {
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
         elapsed = bound(elapsed, 0, 20 * 365 days);
 
-        vm.prank(treasurer);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, managementFee));
         vault.setManagementFee(managementFee);
 

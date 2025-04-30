@@ -9,6 +9,9 @@ interface IAdapter {
 }
 
 interface IVaultV2 is IERC20 {
+    // Multicall
+    function multicall(bytes[] calldata) external;
+
     // ERC-2612 (Permit)
     function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         external;
@@ -32,6 +35,7 @@ interface IVaultV2 is IERC20 {
     function curator() external view returns (address);
     function isSentinel(address) external view returns (bool);
     function isAllocator(address) external view returns (bool);
+    function isAdapter(address) external view returns (bool);
     function performanceFee() external view returns (uint256);
     function managementFee() external view returns (uint256);
     function performanceFeeRecipient() external view returns (address);
@@ -50,7 +54,6 @@ interface IVaultV2 is IERC20 {
     function setOwner(address) external;
     function setCurator(address) external;
     function setIsSentinel(address, bool) external;
-    function setTreasurer(address) external;
     function increaseTimelock(bytes4, uint256) external;
     function decreaseTimelock(bytes4, uint256) external;
     function setIsAllocator(address, bool) external;
@@ -75,7 +78,7 @@ interface IVaultV2 is IERC20 {
 
     // Exchange rate
     function accrueInterest() external;
-    function accrueInterestView() external view returns (uint256, uint256, uint256, uint256);
+    function accrueInterestView() external view returns (uint256, uint256, uint256);
 
     // Timelocks
     function submit(bytes calldata) external;
