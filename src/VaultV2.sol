@@ -191,7 +191,7 @@ contract VaultV2 is IVaultV2 {
 
     function decreaseAbsoluteCap(bytes32 id, uint256 newAbsoluteCap) external {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        require(newCap < absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
+        require(newAbsoluteCap < absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
 
         absoluteCap[id] = newAbsoluteCap;
         emit EventsLib.DecreaseAbsoluteCap(id, newAbsoluteCap);
