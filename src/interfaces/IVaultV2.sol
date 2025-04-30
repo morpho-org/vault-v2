@@ -70,7 +70,7 @@ interface IVaultV2 is IERC20 {
     function increaseAbsoluteCap(bytes32, uint256) external;
     function increaseRelativeCap(bytes32, uint256) external;
     function decreaseAbsoluteCap(bytes32, uint256) external;
-    function decreaseRelativeCap(bytes32, uint256, uint256) external;
+    function decreaseRelativeCap(bytes32, uint256) external;
 
     // Allocator actions
     function reallocateFromIdle(address, bytes memory, uint256) external;

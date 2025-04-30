@@ -21,8 +21,8 @@ library EventsLib {
     event SetManagementFee(uint256 managementFee);
     event IncreaseAbsoluteCap(bytes32 indexed id, uint256 newAbsoluteCap);
     event DecreaseAbsoluteCap(bytes32 indexed id, uint256 newAbsoluteCap);
-    event IncreaseRelativeCap(bytes32 indexed id, uint256 newRelativeCap, uint256 index);
-    event DecreaseRelativeCap(bytes32 indexed id, uint256 newRelativeCap, uint256 index);
+    event IncreaseRelativeCap(bytes32 indexed id, uint256 newRelativeCap);
+    event DecreaseRelativeCap(bytes32 indexed id, uint256 newRelativeCap);
     event ReallocateFromIdle(address indexed sender, address indexed adapter, uint256 amount, bytes32[] ids);
     event ReallocateToIdle(address indexed sender, address indexed adapter, uint256 amount, bytes32[] ids);
     event SetLiquidityAdapter(address indexed sender, address indexed liquidityAdapter);
