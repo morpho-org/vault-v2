@@ -33,7 +33,7 @@ contract ForceReallocateTest is BaseTest {
         reallocated = bound(reallocated, 0, supplied);
         forceReallocateFee = bound(forceReallocateFee, 0, MAX_FORCE_REALLOCATE_TO_IDLE_FEE);
 
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, adapter, true));
 
         vault.setIsAdapter(adapter, true);
@@ -45,12 +45,13 @@ contract ForceReallocateTest is BaseTest {
         vault.reallocateFromIdle(address(adapter), hex"", supplied);
         assertEq(underlyingToken.balanceOf(adapter), supplied);
 
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdleFee.selector, forceReallocateFee));
         vault.setForceReallocateToIdleFee(forceReallocateFee);
 
         uint256 expectedShares = shares - vault.previewWithdraw(reallocated.mulDivDown(forceReallocateFee, WAD));
-        vault.forceReallocateToIdle(address(adapter), hex"", reallocated, address(this));
+        uint256 withdrawnShares = vault.forceReallocateToIdle(address(adapter), hex"", reallocated, address(this));
+        assertEq(shares - expectedShares, withdrawnShares);
         assertEq(underlyingToken.balanceOf(adapter), supplied - reallocated);
         assertEq(underlyingToken.balanceOf(address(vault)), reallocated);
         assertEq(vault.balanceOf(address(this)), expectedShares);

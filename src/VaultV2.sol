@@ -404,11 +404,14 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
     }
 
-    function forceReallocateToIdle(address adapter, bytes memory data, uint256 assets, address onBehalf) external {
+    function forceReallocateToIdle(address adapter, bytes memory data, uint256 assets, address onBehalf)
+        external
+        returns (uint256)
+    {
         this.reallocateToIdle(adapter, data, assets);
 
         // The fee is taken as a withdrawal that is donated to the vault.
-        withdraw(assets.mulDivDown(forceReallocateToIdleFee, WAD), address(this), onBehalf);
+        return withdraw(assets.mulDivDown(forceReallocateToIdleFee, WAD), address(this), onBehalf);
     }
 
     /* ERC20 */

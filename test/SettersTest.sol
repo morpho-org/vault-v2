@@ -281,26 +281,26 @@ contract SettersTest is BaseTest {
     }
 
     function testSetForceReallocateToIdleFee(address rdm, uint256 newForceReallocateToIdleFee) public {
-        vm.assume(rdm != owner);
+        vm.assume(rdm != curator);
         newForceReallocateToIdleFee = bound(newForceReallocateToIdleFee, 0, MAX_FORCE_REALLOCATE_TO_IDLE_FEE);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vault.setForceReallocateToIdleFee(newForceReallocateToIdleFee);
 
-        // Only owner can submit
+        // Only curator can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdleFee.selector, newForceReallocateToIdleFee));
 
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdleFee.selector, newForceReallocateToIdleFee));
         vault.setForceReallocateToIdleFee(newForceReallocateToIdleFee);
 
         assertEq(vault.forceReallocateToIdleFee(), newForceReallocateToIdleFee);
 
         uint256 tooHighFee = MAX_FORCE_REALLOCATE_TO_IDLE_FEE + 1;
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdleFee.selector, tooHighFee));
         vm.expectRevert(ErrorsLib.FeeTooHigh.selector);
         vault.setForceReallocateToIdleFee(tooHighFee);
