@@ -83,10 +83,9 @@ contract VaultV2 is IVaultV2 {
 
     /* CONSTRUCTOR */
 
-    constructor(address _owner, address _asset, address _gate) {
+    constructor(address _owner, address _asset) {
         asset = _asset;
         owner = _owner;
-        gate = _gate;
         lastUpdate = block.timestamp;
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         timelock[IVaultV2.setGate.selector] = TIMELOCK_CAP;
@@ -144,21 +143,19 @@ contract VaultV2 is IVaultV2 {
     }
 
     function increaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
+        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(
-            selector != IVaultV2.decreaseTimelock.selector && selector != IVaultV2.setGate.selector,
-            ErrorsLib.TimelockCapIsFixed()
+            (selector == IVaultV2.setGate.selector && newDuration == type(uint256).max) || newDuration <= TIMELOCK_CAP,
+            ErrorsLib.TimelockDurationTooHigh()
         );
-        require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
         require(newDuration > timelock[selector], ErrorsLib.TimelockNotIncreasing());
 
         timelock[selector] = newDuration;
     }
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
-        require(
-            selector != IVaultV2.decreaseTimelock.selector && selector != IVaultV2.setGate.selector,
-            ErrorsLib.TimelockCapIsFixed()
-        );
+        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
+        require(selector != IVaultV2.setGate.selector, ErrorsLib.GateTimelockCannotDecrease());
         require(newDuration < timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
@@ -401,7 +398,10 @@ contract VaultV2 is IVaultV2 {
     }
 
     function enter(uint256 assets, uint256 shares, address receiver) internal {
-        require(gate == address(0) || IGate(gate).canUseShares(receiver), ErrorsLib.Unauthorized());
+        require(
+            gate == address(0) || (IGate(gate).canUseAssets(msg.sender) && IGate(gate).canUseShares(receiver)),
+            ErrorsLib.Unauthorized()
+        );
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(receiver, shares);
         totalAssets += assets;
@@ -425,7 +425,7 @@ contract VaultV2 is IVaultV2 {
 
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         require(
-            gate == address(0) || (IGate(gate).canUseShares(onBehalf) && IGate(gate).canReceiveAssets(receiver)),
+            gate == address(0) || (IGate(gate).canUseShares(onBehalf) && IGate(gate).canUseAssets(receiver)),
             ErrorsLib.Unauthorized()
         );
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));

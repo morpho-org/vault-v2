@@ -35,4 +35,5 @@ library ErrorsLib {
     error LiquidityAdapterInvariantBroken();
     error ApproveReverted();
     error ApproveReturnedFalse();
+    error GateTimelockCannotDecrease();
 }
