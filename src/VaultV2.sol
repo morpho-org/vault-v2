@@ -21,7 +21,6 @@ contract VaultV2 is IVaultV2 {
 
     address public owner;
     address public curator;
-    address public treasurer;
     address public irm;
     mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
@@ -90,44 +89,29 @@ contract VaultV2 is IVaultV2 {
 
     /* OWNER ACTIONS */
 
-    function setOwner(address newOwner) external timelocked {
+    function setOwner(address newOwner) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
         owner = newOwner;
     }
 
-    function setCurator(address newCurator) external timelocked {
+    function setCurator(address newCurator) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
         curator = newCurator;
     }
 
-    function setTreasurer(address newTreasurer) external timelocked {
-        treasurer = newTreasurer;
+    function setIsSentinel(address sentinel, bool newIsSentinel) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        isSentinel[sentinel] = newIsSentinel;
     }
 
-    function setIRM(address newIRM) external timelocked {
-        irm = newIRM;
-    }
-
-    function setIsSentinel(address newSentinel, bool newIsSentinel) external timelocked {
-        isSentinel[newSentinel] = newIsSentinel;
-    }
+    /* CURATOR ACTIONS */
 
     function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
         isAllocator[allocator] = newIsAllocator;
     }
 
-    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
-        require(newPerformanceFeeRecipient != address(0) || performanceFee == 0, ErrorsLib.FeeInvariantBroken());
-
-        accrueInterest();
-
-        performanceFeeRecipient = newPerformanceFeeRecipient;
-    }
-
-    function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
-        require(newManagementFeeRecipient != address(0) || managementFee == 0, ErrorsLib.FeeInvariantBroken());
-
-        accrueInterest();
-
-        managementFeeRecipient = newManagementFeeRecipient;
+    function setIRM(address newIRM) external timelocked {
+        irm = newIRM;
     }
 
     function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
@@ -135,7 +119,8 @@ contract VaultV2 is IVaultV2 {
         isAdapter[adapter] = newIsAdapter;
     }
 
-    function increaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
+    function increaseTimelock(bytes4 selector, uint256 newDuration) external {
+        require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
         require(newDuration > timelock[selector], ErrorsLib.TimelockNotIncreasing());
@@ -149,8 +134,6 @@ contract VaultV2 is IVaultV2 {
 
         timelock[selector] = newDuration;
     }
-
-    /* TREASURER ACTIONS */
 
     function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
         require(newPerformanceFee <= MAX_PERFORMANCE_FEE, ErrorsLib.FeeTooHigh());
@@ -170,7 +153,21 @@ contract VaultV2 is IVaultV2 {
         managementFee = newManagementFee;
     }
 
-    /* CURATOR ACTIONS */
+    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
+        require(newPerformanceFeeRecipient != address(0) || performanceFee == 0, ErrorsLib.FeeInvariantBroken());
+
+        accrueInterest();
+
+        performanceFeeRecipient = newPerformanceFeeRecipient;
+    }
+
+    function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
+        require(newManagementFeeRecipient != address(0) || managementFee == 0, ErrorsLib.FeeInvariantBroken());
+
+        accrueInterest();
+
+        managementFeeRecipient = newManagementFeeRecipient;
+    }
 
     function increaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
         require(newCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
@@ -178,7 +175,8 @@ contract VaultV2 is IVaultV2 {
         absoluteCap[id] = newCap;
     }
 
-    function decreaseAbsoluteCap(bytes32 id, uint256 newCap) external timelocked {
+    function decreaseAbsoluteCap(bytes32 id, uint256 newCap) external {
+        require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(newCap < absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
 
         absoluteCap[id] = newCap;
@@ -206,9 +204,7 @@ contract VaultV2 is IVaultV2 {
     /* ALLOCATOR ACTIONS */
 
     function reallocateFromIdle(address adapter, bytes memory data, uint256 amount) external {
-        require(
-            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
-        );
+        require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         SafeERC20Lib.safeTransfer(asset, adapter, amount);
@@ -257,7 +253,7 @@ contract VaultV2 is IVaultV2 {
 
     function submit(bytes calldata data) external {
         bytes4 selector = bytes4(data);
-        require(isAuthorizedToSubmit(msg.sender, selector), ErrorsLib.Unauthorized());
+        require(msg.sender == curator, ErrorsLib.Unauthorized());
 
         require(validAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
@@ -272,37 +268,9 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Authorized to submit can revoke.
     function revoke(bytes calldata data) external {
-        require(
-            isAuthorizedToSubmit(msg.sender, bytes4(data))
-                || (isSentinel[msg.sender] && bytes4(data) != IVaultV2.setIsSentinel.selector),
-            ErrorsLib.Unauthorized()
-        );
-        require(validAt[data] != 0);
+        require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
+        require(validAt[data] != 0, ErrorsLib.DataNotTimelocked());
         validAt[data] = 0;
-    }
-
-    function isAuthorizedToSubmit(address sender, bytes4 selector) internal view returns (bool) {
-        // Owner functions
-        if (selector == IVaultV2.setPerformanceFeeRecipient.selector) return sender == owner;
-        if (selector == IVaultV2.setManagementFeeRecipient.selector) return sender == owner;
-        if (selector == IVaultV2.setIsSentinel.selector) return sender == owner;
-        if (selector == IVaultV2.setOwner.selector) return sender == owner;
-        if (selector == IVaultV2.setCurator.selector) return sender == owner;
-        if (selector == IVaultV2.setIRM.selector) return sender == owner;
-        if (selector == IVaultV2.setTreasurer.selector) return sender == owner;
-        if (selector == IVaultV2.setIsAllocator.selector) return sender == owner;
-        if (selector == IVaultV2.setIsAdapter.selector) return sender == owner;
-        if (selector == IVaultV2.increaseTimelock.selector) return sender == owner;
-        if (selector == IVaultV2.decreaseTimelock.selector) return sender == owner;
-        // Treasurer functions
-        if (selector == IVaultV2.setPerformanceFee.selector) return sender == treasurer;
-        if (selector == IVaultV2.setManagementFee.selector) return sender == treasurer;
-        // Curator functions
-        if (selector == IVaultV2.increaseAbsoluteCap.selector) return sender == curator;
-        if (selector == IVaultV2.decreaseAbsoluteCap.selector) return sender == curator || isSentinel[sender];
-        if (selector == IVaultV2.increaseRelativeCap.selector) return sender == curator;
-        if (selector == IVaultV2.decreaseRelativeCap.selector) return sender == curator;
-        return false;
     }
 
     /* EXCHANGE RATE */

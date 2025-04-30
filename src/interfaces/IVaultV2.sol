@@ -35,6 +35,7 @@ interface IVaultV2 is IERC20 {
     function curator() external view returns (address);
     function isSentinel(address) external view returns (bool);
     function isAllocator(address) external view returns (bool);
+    function isAdapter(address) external view returns (bool);
     function performanceFee() external view returns (uint256);
     function managementFee() external view returns (uint256);
     function performanceFeeRecipient() external view returns (address);
@@ -53,7 +54,6 @@ interface IVaultV2 is IERC20 {
     function setOwner(address) external;
     function setCurator(address) external;
     function setIsSentinel(address, bool) external;
-    function setTreasurer(address) external;
     function increaseTimelock(bytes4, uint256) external;
     function decreaseTimelock(bytes4, uint256) external;
     function setIsAllocator(address, bool) external;
