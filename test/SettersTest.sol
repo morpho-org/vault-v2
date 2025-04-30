@@ -23,6 +23,8 @@ contract SettersTest is BaseTest {
         vault.setOwner(newOwner);
 
         vm.prank(owner);
+        vm.expectEmit();
+        emit EventsLib.SetOwner(newOwner);
         vault.setOwner(newOwner);
 
         assertEq(vault.owner(), newOwner);
@@ -38,6 +40,8 @@ contract SettersTest is BaseTest {
         vault.setCurator(newCurator);
 
         vm.prank(owner);
+        vm.expectEmit();
+        emit EventsLib.SetCurator(newCurator);
         vault.setCurator(newCurator);
 
         assertEq(vault.curator(), newCurator);
@@ -52,6 +56,8 @@ contract SettersTest is BaseTest {
         vault.setIsSentinel(rdm, newIsSentinel);
 
         vm.prank(owner);
+        vm.expectEmit();
+        emit EventsLib.SetIsSentinel(rdm, newIsSentinel);
         vault.setIsSentinel(rdm, newIsSentinel);
 
         assertEq(vault.isSentinel(rdm), newIsSentinel);
@@ -72,7 +78,12 @@ contract SettersTest is BaseTest {
         vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, newIRM));
 
         vm.prank(curator);
+        vm.expectEmit();
+        emit EventsLib.Submit(curator, abi.encodeWithSelector(IVaultV2.setIRM.selector, newIRM), block.timestamp);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, newIRM));
+
+        vm.expectEmit();
+        emit EventsLib.SetIRM(newIRM);
         vault.setIRM(newIRM);
 
         assertEq(address(vault.irm()), newIRM);
@@ -93,7 +104,14 @@ contract SettersTest is BaseTest {
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, true));
 
         vm.prank(curator);
+        vm.expectEmit();
+        emit EventsLib.Submit(
+            curator, abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, true), block.timestamp
+        );
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, true));
+
+        vm.expectEmit();
+        emit EventsLib.SetIsAllocator(newAllocator, true);
         vault.setIsAllocator(newAllocator, true);
 
         assertTrue(vault.isAllocator(newAllocator));
@@ -156,6 +174,10 @@ contract SettersTest is BaseTest {
         vault.setPerformanceFee(tooHighFee);
 
         vm.prank(curator);
+        vm.expectEmit();
+        emit EventsLib.Submit(
+            curator, abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, newPerformanceFee), block.timestamp
+        );
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, newPerformanceFee));
 
         assertEq(
@@ -172,6 +194,8 @@ contract SettersTest is BaseTest {
         );
         vault.setPerformanceFeeRecipient(makeAddr("newPerformanceFeeRecipient"));
 
+        vm.expectEmit();
+        emit EventsLib.SetPerformanceFee(newPerformanceFee);
         vault.setPerformanceFee(newPerformanceFee);
 
         assertEq(vault.performanceFee(), newPerformanceFee);
@@ -192,7 +216,15 @@ contract SettersTest is BaseTest {
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFeeRecipient.selector, newPerformanceFeeRecipient));
 
         vm.prank(curator);
+        vm.expectEmit();
+        emit EventsLib.Submit(
+            curator,
+            abi.encodeWithSelector(IVaultV2.setPerformanceFeeRecipient.selector, newPerformanceFeeRecipient),
+            block.timestamp
+        );
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFeeRecipient.selector, newPerformanceFeeRecipient));
+        vm.expectEmit();
+        emit EventsLib.SetPerformanceFeeRecipient(newPerformanceFeeRecipient);
         vault.setPerformanceFeeRecipient(newPerformanceFeeRecipient);
 
         assertEq(vault.performanceFeeRecipient(), newPerformanceFeeRecipient);
@@ -224,6 +256,10 @@ contract SettersTest is BaseTest {
 
         uint256 tooHighFee = 1 ether + 1;
         vm.prank(curator);
+        vm.expectEmit();
+        emit EventsLib.Submit(
+            curator, abi.encodeWithSelector(IVaultV2.setManagementFee.selector, tooHighFee), block.timestamp
+        );
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, tooHighFee));
         vm.expectRevert(ErrorsLib.FeeTooHigh.selector);
         vault.setManagementFee(tooHighFee);
@@ -244,6 +280,8 @@ contract SettersTest is BaseTest {
         );
         vault.setManagementFeeRecipient(makeAddr("newManagementFeeRecipient"));
 
+        vm.expectEmit();
+        emit EventsLib.SetManagementFee(newManagementFee);
         vault.setManagementFee(newManagementFee);
 
         assertEq(vault.managementFee(), newManagementFee);
@@ -264,7 +302,15 @@ contract SettersTest is BaseTest {
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, newManagementFeeRecipient));
 
         vm.prank(curator);
+        vm.expectEmit();
+        emit EventsLib.Submit(
+            curator,
+            abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, newManagementFeeRecipient),
+            block.timestamp
+        );
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, newManagementFeeRecipient));
+        vm.expectEmit();
+        emit EventsLib.SetManagementFeeRecipient(newManagementFeeRecipient);
         vault.setManagementFeeRecipient(newManagementFeeRecipient);
 
         assertEq(vault.managementFeeRecipient(), newManagementFeeRecipient);
@@ -278,5 +324,49 @@ contract SettersTest is BaseTest {
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, address(0)));
         vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
         vault.setManagementFeeRecipient(address(0));
+    }
+
+    function testSetLiquidityAdapter(address rdm, address liquidityAdapter) public {
+        vm.assume(liquidityAdapter != address(0));
+        vm.prank(allocator);
+        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
+        vault.setLiquidityAdapter(liquidityAdapter);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, liquidityAdapter, true));
+        vault.setIsAdapter(liquidityAdapter, true);
+
+        // Only allocator can set.
+        vm.expectRevert(ErrorsLib.NotAllocator.selector);
+        vm.prank(rdm);
+        vault.setLiquidityAdapter(liquidityAdapter);
+
+        vm.prank(allocator);
+        vm.expectEmit();
+        emit EventsLib.SetLiquidityAdapter(allocator, liquidityAdapter);
+        vault.setLiquidityAdapter(liquidityAdapter);
+
+        assertEq(vault.liquidityAdapter(), liquidityAdapter);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, liquidityAdapter, false));
+        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
+        vault.setIsAdapter(liquidityAdapter, false);
+    }
+
+    function testSetLiquidityData(address rdm) public {
+        vm.assume(rdm != owner);
+        bytes memory newData = abi.encode("newData");
+
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setLiquidityData.selector, newData));
+
+        vm.prank(allocator);
+        vm.expectEmit();
+        emit EventsLib.SetLiquidityData(allocator, newData);
+        vault.setLiquidityData(newData);
+
+        assertEq(vault.liquidityData(), newData);
     }
 }
