@@ -7,10 +7,13 @@ import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
 contract ERC4626Adapter {
-    /* STORAGE */
+    /* IMMUTABLES */
 
     address public immutable parentVault;
     address public immutable asset;
+
+    /* STORAGE */
+
     address public skimRecipient;
 
     /* FUNCTIONS */

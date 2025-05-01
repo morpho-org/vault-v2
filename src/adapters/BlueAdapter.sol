@@ -7,10 +7,13 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 
 contract BlueAdapter {
-    /* STORAGE */
+    /* IMMUTABLES */
 
     address public immutable parentVault;
     address public immutable morpho;
+
+    /* STORAGE */
+
     address public skimRecipient;
 
     /* FUNCTIONS */
@@ -22,6 +25,16 @@ contract BlueAdapter {
         SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
     }
 
+    function ids(MarketParams memory marketParams) public pure returns (bytes32[] memory) {
+        bytes32[] memory ids = new bytes32[](1);
+        ids[0] = keccak256(
+            abi.encode(
+                "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
+            )
+        );
+        return ids;
+    }
+
     function setSkimRecipient(address newSkimRecipient) external {
         require(msg.sender == IVaultV2(parentVault).owner(), "not authorized");
         skimRecipient = newSkimRecipient;
@@ -30,31 +43,15 @@ contract BlueAdapter {
     function allocateIn(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, "not authorized");
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-
         IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-
-        bytes32[] memory ids = new bytes32[](1);
-        ids[0] = keccak256(
-            abi.encode(
-                "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
-            )
-        );
-        return ids;
+        return ids(marketParams);
     }
 
     function allocateOut(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, "not authorized");
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-
         IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-
-        bytes32[] memory ids = new bytes32[](1);
-        ids[0] = keccak256(
-            abi.encode(
-                "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
-            )
-        );
-        return ids;
+        return ids(marketParams);
     }
 
     function skim(address token) external {
@@ -64,9 +61,12 @@ contract BlueAdapter {
 }
 
 contract BlueAdapterFactory {
-    /* STORAGE */
+    /* IMMUTABLES */
 
     address immutable morpho;
+
+    /* STORAGE */
+
     // vault => adapter
     mapping(address => address) public adapter;
 
