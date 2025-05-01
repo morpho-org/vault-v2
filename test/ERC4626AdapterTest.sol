@@ -83,11 +83,9 @@ contract ERC4626AdapterTest is Test {
         assertEq(ids[0], expectedId, "Incorrect id returned");
     }
 
-    function testAllocateOutWithdrawsAssetsFromERC4626Vault(uint256 initialAmount, uint256 withdrawRatio) public {
+    function testAllocateOutWithdrawsAssetsFromERC4626Vault(uint256 initialAmount, uint256 withdrawAmount) public {
         initialAmount = _boundAmount(initialAmount);
-        withdrawRatio = bound(withdrawRatio, 1, 100);
-
-        uint256 withdrawAmount = (initialAmount * withdrawRatio) / 100;
+        withdrawAmount = bound(withdrawAmount, 0, initialAmount);
 
         deal(address(asset), address(adapter), initialAmount);
         vm.prank(address(parentVault));
