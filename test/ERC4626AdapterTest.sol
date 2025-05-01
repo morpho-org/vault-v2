@@ -126,6 +126,7 @@ contract ERC4626AdapterTest is Test {
         assertEq(ERC4626Adapter(newAdapter).parentVault(), address(newParentVault), "Incorrect parent vault");
         assertEq(ERC4626Adapter(newAdapter).asset(), address(asset), "Incorrect asset");
         assertEq(factory.adapter(address(newParentVault)), newAdapter, "Adapter not tracked correctly");
+        assertTrue(factory.isAdapter(newAdapter), "Adapter not tracked correctly");
     }
 
     function testSetSkimRecipient(address newRecipient, address caller) public {

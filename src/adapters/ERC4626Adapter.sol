@@ -61,7 +61,9 @@ contract ERC4626Adapter {
 contract ERC4626AdapterFactory {
     /* STORAGE */
 
+    // parent vault => adapter
     mapping(address => address) public adapter;
+    mapping(address => bool) public isAdapter;
 
     /* EVENTS */
 
@@ -70,6 +72,7 @@ contract ERC4626AdapterFactory {
     function createERC4626Adapter(address _parentVault) external returns (address) {
         address erc4626Adapter = address(new ERC4626Adapter{salt: bytes32(0)}(_parentVault));
         adapter[_parentVault] = erc4626Adapter;
+        isAdapter[erc4626Adapter] = true;
         emit CreateERC4626Adapter(_parentVault, erc4626Adapter);
         return erc4626Adapter;
     }

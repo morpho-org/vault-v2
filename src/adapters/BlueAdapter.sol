@@ -26,13 +26,13 @@ contract BlueAdapter {
     }
 
     function ids(MarketParams memory marketParams) public pure returns (bytes32[] memory) {
-        bytes32[] memory ids = new bytes32[](1);
-        ids[0] = keccak256(
+        bytes32[] memory ids_ = new bytes32[](1);
+        ids_[0] = keccak256(
             abi.encode(
                 "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
             )
         );
-        return ids;
+        return ids_;
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -69,6 +69,7 @@ contract BlueAdapterFactory {
 
     // vault => adapter
     mapping(address => address) public adapter;
+    mapping(address => bool) public isAdapter;
 
     /* EVENTS */
 
@@ -83,6 +84,7 @@ contract BlueAdapterFactory {
     function createBlueAdapter(address vault) external returns (address) {
         address blueAdapter = address(new BlueAdapter{salt: bytes32(0)}(vault, morpho));
         adapter[vault] = blueAdapter;
+        isAdapter[blueAdapter] = true;
         emit CreateBlueAdapter(vault, blueAdapter);
         return blueAdapter;
     }

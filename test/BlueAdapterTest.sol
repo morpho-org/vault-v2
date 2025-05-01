@@ -160,6 +160,7 @@ contract BlueAdapterTest is Test {
         assertEq(BlueAdapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
         assertEq(BlueAdapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
         assertEq(factory.adapter(newParentVaultAddr), newAdapter, "Adapter not tracked correctly");
+        assertTrue(factory.isAdapter(newAdapter), "Adapter not tracked correctly");
     }
 
     function testSetSkimRecipient(address newRecipient, address caller) public {
