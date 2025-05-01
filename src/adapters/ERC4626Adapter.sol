@@ -55,4 +55,3 @@ contract ERC4626AdapterFactory {
         return erc4626Adapter;
     }
 }
-

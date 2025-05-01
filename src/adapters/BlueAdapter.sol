@@ -49,7 +49,7 @@ contract BlueAdapter {
 
 contract BlueAdapterFactory {
     /* STORAGE */
-    
+
     address immutable morpho;
     // vault => adapter
     mapping(address => address) adapter;
@@ -59,7 +59,7 @@ contract BlueAdapterFactory {
     event CreateBlueAdapter(address indexed vault, address indexed blueAdapter);
 
     /* FUNCTIONS */
-    
+
     constructor(address _morpho) {
         morpho = _morpho;
     }
