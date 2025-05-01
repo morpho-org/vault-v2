@@ -52,7 +52,7 @@ contract BlueAdapterFactory {
 
     address immutable morpho;
     // vault => adapter
-    mapping(address => address) adapter;
+    mapping(address => address) public adapter;
 
     /* EVENTS */
 
@@ -65,7 +65,7 @@ contract BlueAdapterFactory {
     }
 
     function createBlueAdapter(address vault) external returns (address) {
-        address blueAdapter = address(new BlueAdapter(vault, morpho));
+        address blueAdapter = address(new BlueAdapter{salt: bytes32(0)}(vault, morpho));
         adapter[vault] = blueAdapter;
         emit CreateBlueAdapter(vault, blueAdapter);
         return blueAdapter;

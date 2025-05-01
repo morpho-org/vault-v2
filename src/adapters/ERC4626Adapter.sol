@@ -12,6 +12,7 @@ contract ERC4626Adapter {
 
     constructor(address _parentVault) {
         parentVault = _parentVault;
+        asset = IVaultV2(_parentVault).asset();
         SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
     }
 
@@ -42,14 +43,14 @@ contract ERC4626Adapter {
 contract ERC4626AdapterFactory {
     /* STORAGE */
 
-    mapping(address => address) adapter;
+    mapping(address => address) public adapter;
 
     /* EVENTS */
 
     event CreateERC4626Adapter(address indexed parentVault, address indexed erc4626Adapter);
 
     function createERC4626Adapter(address _parentVault) external returns (address) {
-        address erc4626Adapter = address(new ERC4626Adapter(_parentVault));
+        address erc4626Adapter = address(new ERC4626Adapter{salt: bytes32(0)}(_parentVault));
         adapter[_parentVault] = erc4626Adapter;
         emit CreateERC4626Adapter(_parentVault, erc4626Adapter);
         return erc4626Adapter;
