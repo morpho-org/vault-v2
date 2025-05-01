@@ -152,6 +152,40 @@ contract SettersTest is BaseTest {
         assertFalse(vault.isAdapter(newAdapter));
     }
 
+    function testSetForceReallocateToIdleFee(address rdm, uint256 newForceReallocateToIdleFee) public {
+        vm.assume(rdm != curator);
+        newForceReallocateToIdleFee = bound(newForceReallocateToIdleFee, 0, MAX_FORCE_REALLOCATE_TO_IDLE_FEE);
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vault.setForceReallocateToIdleFee(newForceReallocateToIdleFee);
+
+        // Only curator can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdleFee.selector, newForceReallocateToIdleFee));
+
+        vm.prank(curator);
+        vm.expectEmit();
+        emit EventsLib.Submit(
+            curator,
+            abi.encodeWithSelector(IVaultV2.setForceReallocateToIdleFee.selector, newForceReallocateToIdleFee),
+            block.timestamp
+        );
+        vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdleFee.selector, newForceReallocateToIdleFee));
+        vm.expectEmit();
+        emit EventsLib.SetForceReallocateToIdleFee(newForceReallocateToIdleFee);
+        vault.setForceReallocateToIdleFee(newForceReallocateToIdleFee);
+
+        assertEq(vault.forceReallocateToIdleFee(), newForceReallocateToIdleFee);
+
+        uint256 tooHighFee = MAX_FORCE_REALLOCATE_TO_IDLE_FEE + 1;
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdleFee.selector, tooHighFee));
+        vm.expectRevert(ErrorsLib.FeeTooHigh.selector);
+        vault.setForceReallocateToIdleFee(tooHighFee);
+    }
+
     function testSetPerformanceFee(address rdm, uint256 newPerformanceFee) public {
         vm.assume(rdm != curator);
         newPerformanceFee = bound(newPerformanceFee, 0, MAX_PERFORMANCE_FEE);

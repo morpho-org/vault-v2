@@ -31,6 +31,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint256 public managementFee;
     address public managementFeeRecipient;
+    uint256 public forceReallocateToIdleFee;
 
     uint256 public lastUpdate;
     uint256 public totalAssets;
@@ -219,6 +220,12 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseRelativeCap(id, newRelativeCap);
     }
 
+    function setForceReallocateToIdleFee(uint256 newForceReallocateToIdleFee) external timelocked {
+        require(newForceReallocateToIdleFee <= MAX_FORCE_REALLOCATE_TO_IDLE_FEE, ErrorsLib.FeeTooHigh());
+        forceReallocateToIdleFee = newForceReallocateToIdleFee;
+        emit EventsLib.SetForceReallocateToIdleFee(newForceReallocateToIdleFee);
+    }
+
     /* ALLOCATOR ACTIONS */
 
     function reallocateFromIdle(address adapter, bytes memory data, uint256 amount) external {
@@ -387,7 +394,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Deposit(msg.sender, receiver, assets, shares);
     }
 
-    function withdraw(uint256 assets, address receiver, address onBehalf) external returns (uint256) {
+    function withdraw(uint256 assets, address receiver, address onBehalf) public returns (uint256) {
         accrueInterest();
         uint256 shares = previewWithdraw(assets);
         exit(assets, shares, receiver, onBehalf);
@@ -422,6 +429,26 @@ contract VaultV2 is IVaultV2 {
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
+    }
+
+    /// @dev Loop to make the relative cap check at the end.
+    function forceReallocateToIdle(
+        address[] memory adapters,
+        bytes[] memory data,
+        uint256[] memory assets,
+        address onBehalf
+    ) external returns (uint256) {
+        require(adapters.length == data.length && adapters.length == assets.length, ErrorsLib.InvalidInputLength());
+        uint256 total;
+        for (uint256 i; i < adapters.length; i++) {
+            this.reallocateToIdle(adapters[i], data[i], assets[i]);
+            total += assets[i];
+        }
+
+        // The fee is taken as a withdrawal that is donated to the vault.
+        uint256 shares = withdraw(total.mulDivDown(forceReallocateToIdleFee, WAD), address(this), onBehalf);
+        emit EventsLib.ForceReallocateToIdle(msg.sender, onBehalf, total);
+        return shares;
     }
 
     /* ERC20 */
