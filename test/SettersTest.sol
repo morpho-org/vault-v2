@@ -327,6 +327,7 @@ contract SettersTest is BaseTest {
     }
 
     function testSetLiquidityAdapter(address rdm, address liquidityAdapter) public {
+        vm.assume(rdm != allocator);
         vm.assume(liquidityAdapter != address(0));
         vm.prank(allocator);
         vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));

@@ -2,48 +2,72 @@
 pragma solidity 0.8.28;
 
 import {IMorpho, MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
-import {IERC20} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
 contract BlueAdapter {
-    IMorpho public immutable MORPHO;
-    address public immutable VAULT;
+    address public immutable parentVault;
+    address public immutable morpho;
 
-    constructor(address _morpho, address _vault) {
-        MORPHO = IMorpho(_morpho);
-        VAULT = _vault;
-        SafeERC20Lib.safeApprove(IVaultV2(_vault).asset(), _morpho, type(uint256).max);
-        SafeERC20Lib.safeApprove(IVaultV2(_vault).asset(), _vault, type(uint256).max);
+    constructor(address _parentVault, address _morpho) {
+        morpho = _morpho;
+        parentVault = _parentVault;
+        SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _morpho, type(uint256).max);
+        SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
     }
 
-    function allocateIn(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {
-        require(msg.sender == VAULT, "not authorized");
-        (address loanToken, address collateralToken, address oracle, address irm, uint256 lltv) =
-            abi.decode(data, (address, address, address, address, uint256));
+    function allocateIn(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+        require(msg.sender == parentVault, "not authorized");
+        MarketParams memory marketParams = abi.decode(data, (MarketParams));
 
-        MarketParams memory marketParams =
-            MarketParams({loanToken: loanToken, collateralToken: collateralToken, oracle: oracle, irm: irm, lltv: lltv});
+        IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
 
-        ids = new bytes32[](2);
-        ids[0] = keccak256(abi.encode("collateral", collateralToken, oracle, lltv));
-        ids[1] = keccak256(abi.encode("irm", irm));
-
-        MORPHO.supply(marketParams, amount, 0, address(this), hex"");
+        bytes32[] memory ids = new bytes32[](1);
+        ids[0] = keccak256(
+            abi.encode(
+                "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
+            )
+        );
+        return ids;
     }
 
-    function allocateOut(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {
-        require(msg.sender == VAULT, "not authorized");
-        (address loanToken, address collateralToken, address oracle, address irm, uint256 lltv) =
-            abi.decode(data, (address, address, address, address, uint256));
+    function allocateOut(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+        require(msg.sender == parentVault, "not authorized");
+        MarketParams memory marketParams = abi.decode(data, (MarketParams));
 
-        MarketParams memory marketParams =
-            MarketParams({loanToken: loanToken, collateralToken: collateralToken, oracle: oracle, irm: irm, lltv: lltv});
+        IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
 
-        ids = new bytes32[](2);
-        ids[0] = keccak256(abi.encode("collateral", collateralToken, oracle, lltv));
-        ids[1] = keccak256(abi.encode("irm", irm));
+        bytes32[] memory ids = new bytes32[](1);
+        ids[0] = keccak256(
+            abi.encode(
+                "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
+            )
+        );
+        return ids;
+    }
+}
 
-        MORPHO.withdraw(marketParams, amount, 0, address(this), address(this));
+contract BlueAdapterFactory {
+    /* STORAGE */
+    
+    address immutable morpho;
+    // vault => adapter
+    mapping(address => address) adapter;
+
+    /* EVENTS */
+
+    event CreateBlueAdapter(address indexed vault, address indexed blueAdapter);
+
+    /* FUNCTIONS */
+    
+    constructor(address _morpho) {
+        morpho = _morpho;
+    }
+
+    function createBlueAdapter(address vault) external returns (address) {
+        address blueAdapter = address(new BlueAdapter(vault, morpho));
+        adapter[vault] = blueAdapter;
+        emit CreateBlueAdapter(vault, blueAdapter);
+        return blueAdapter;
     }
 }
