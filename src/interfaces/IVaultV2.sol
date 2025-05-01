@@ -41,7 +41,7 @@ interface IVaultV2 is IERC20 {
     function performanceFeeRecipient() external view returns (address);
     function managementFeeRecipient() external view returns (address);
     function forceReallocateToIdleFee() external view returns (uint256);
-    function irm() external view returns (address);
+    function interestController() external view returns (address);
     function allocation(bytes32) external view returns (uint256);
     function lastUpdate() external view returns (uint256);
     function absoluteCap(bytes32) external view returns (uint256);
@@ -68,7 +68,7 @@ interface IVaultV2 is IERC20 {
     function setManagementFee(uint256) external;
 
     // Curator actions
-    function setIRM(address) external;
+    function setInterestController(address) external;
     function increaseAbsoluteCap(bytes32, uint256) external;
     function increaseRelativeCap(bytes32, uint256) external;
     function decreaseAbsoluteCap(bytes32, uint256) external;

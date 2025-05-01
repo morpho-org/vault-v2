@@ -13,7 +13,7 @@ All the contracts are immutable.
 
 ### Adapters
 
-Vault V1 strategies were defined by a tuple of the form `(CollateralToken, LoanToken, LLTV, Oracle, IRMAddress)`,
+Vault V1 strategies were defined by a tuple of the form `(CollateralToken, LoanToken, LLTV, Oracle, InterestControllerAddress)`,
 which defined offers accepted by the vault.
 Vault V2 introduces more flexibility in defining strategies.
 Vaults can allocate assets not only to Morpho Markets V1 and V2,
@@ -55,16 +55,16 @@ When defined, the liquidity market $M$ is also used as the market users are depo
 
 The market $M$ would typically be a very liquid Market V1.
 
-### Interest Rate Model (IRM)
+### Interest Controller
 
 Vault V2 can allocate assets across many markets, especially when interacting with Morpho Markets V2.
 Looping through all markets to compute the total assets is not realistic in the general case.
 This differs from Vault V1, where total assets were automatically computed from the vault's underlying allocations.
 As a result, in Vault V2, curators are responsible for monitoring the vault’s total assets and setting an appropriate interest rate.
-The interest rate is set through the IRM, a contract responsible for returning the `interestPerSecond` used to accrue fees.
+The interest rate is set through the `interestController`, a contract responsible for returning the `interestPerSecond` used to accrue fees.
 
-The IRM can typically be simple smart contract storing the `interestPerSecond`, whose value is regularly set by the curator.
-The rate returned by the IRM must be below `200% APR`.
+The interest controller can typically be simple smart contract storing the `interestPerSecond`, whose value is regularly set by the curator.
+The rate returned by the interest controller must be below `200% APR`.
 
 ### Bad debt
 
@@ -96,7 +96,7 @@ It can:
 - Decrease absolute caps.
 - [Timelockable] Increase relative caps.
 - [Timelockable] Decrease relative caps.
-- [Timelockable] Set the `irm`.
+- [Timelockable] Set the `interestController`.
 - [Timelockable] Set adapters.
 - [Timelockable] Set allocators.
 - Increase timelocks.

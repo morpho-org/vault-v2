@@ -9,8 +9,8 @@ contract SettersTest is BaseTest {
         assertEq(address(vault.asset()), address(underlyingToken));
         assertEq(address(vault.curator()), curator);
         assertTrue(vault.isAllocator(address(allocator)));
-        assertEq(address(vault.irm()), address(irm));
-        assertEq(irm.owner(), manager);
+        assertEq(address(vault.interestController()), address(interestController));
+        assertEq(interestController.owner(), manager);
     }
 
     function testSetOwner(address rdm) public {
@@ -63,30 +63,30 @@ contract SettersTest is BaseTest {
         assertEq(vault.isSentinel(rdm), newIsSentinel);
     }
 
-    function testSetIRM(address rdm) public {
+    function testSetInterestController(address rdm) public {
         vm.assume(rdm != curator);
-        address newIRM = address(new IRM(manager));
+        address newInterestController = address(new ManualInterestController(manager));
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
-        vault.setIRM(newIRM);
+        vault.setInterestController(newInterestController);
 
         // Only curator can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, newIRM));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setInterestController.selector, newInterestController));
 
         vm.prank(curator);
         vm.expectEmit();
-        emit EventsLib.Submit(curator, abi.encodeWithSelector(IVaultV2.setIRM.selector, newIRM), block.timestamp);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, newIRM));
+        emit EventsLib.Submit(curator, abi.encodeWithSelector(IVaultV2.setInterestController.selector, newInterestController), block.timestamp);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setInterestController.selector, newInterestController));
 
         vm.expectEmit();
-        emit EventsLib.SetIRM(newIRM);
-        vault.setIRM(newIRM);
+        emit EventsLib.SetInterestController(newInterestController);
+        vault.setInterestController(newInterestController);
 
-        assertEq(address(vault.irm()), newIRM);
+        assertEq(address(vault.interestController()), newInterestController);
     }
 
     function testSetIsAllocator(address rdm) public {

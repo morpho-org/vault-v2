@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import {IVaultV2, IERC20, IAdapter} from "./interfaces/IVaultV2.sol";
-import {IIRM} from "./interfaces/IIRM.sol";
+import {IInterestController} from "./interfaces/IInterestController.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
@@ -21,7 +21,7 @@ contract VaultV2 is IVaultV2 {
 
     address public owner;
     address public curator;
-    address public irm;
+    address public interestController;
     mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
 
@@ -116,9 +116,9 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetIsAllocator(allocator, newIsAllocator);
     }
 
-    function setIRM(address newIRM) external timelocked {
-        irm = newIRM;
-        emit EventsLib.SetIRM(newIRM);
+    function setInterestController(address newInterestController) external timelocked {
+        interestController = newInterestController;
+        emit EventsLib.SetInterestController(newInterestController);
     }
 
     function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
@@ -321,7 +321,7 @@ contract VaultV2 is IVaultV2 {
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (totalAssets, 0, 0);
-        uint256 interestPerSecond = IIRM(irm).interestPerSecond(totalAssets, elapsed);
+        uint256 interestPerSecond = IInterestController(interestController).interestPerSecond(totalAssets, elapsed);
         require(interestPerSecond <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssets + interest;

@@ -9,7 +9,7 @@ library EventsLib {
     event Construction(address indexed owner, address indexed asset);
     event SetOwner(address indexed owner);
     event SetCurator(address indexed curator);
-    event SetIRM(address indexed irm);
+    event SetInterestController(address indexed interestController);
     event SetIsSentinel(address indexed sentinel, bool isSentinel);
     event SetIsAllocator(address indexed allocator, bool isAllocator);
     event SetPerformanceFeeRecipient(address indexed);
@@ -37,5 +37,5 @@ library EventsLib {
     event AccrueInterest(uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares);
     event ForceReallocateToIdle(address indexed sender, address indexed onBehalf, uint256 assets);
     event CreateVaultV2(address indexed vaultV2, address indexed owner, address indexed asset);
-    event SetInterestPerSecond(uint256 irm);
+    event SetInterestPerSecond(uint256 interestController);
 }
