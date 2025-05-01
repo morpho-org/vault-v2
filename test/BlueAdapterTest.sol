@@ -105,7 +105,7 @@ contract BlueAdapterTest is Test {
     function testAllocateOutWithdrawsAssetsFromMorpho(uint256 initialAmount, uint256 withdrawRatio) public {
         initialAmount = _boundAmount(initialAmount);
         withdrawRatio = bound(withdrawRatio, 1, 100);
-        
+
         uint256 withdrawAmount = (initialAmount * withdrawRatio) / 100;
 
         deal(address(loanToken), address(adapter), initialAmount);
@@ -133,16 +133,18 @@ contract BlueAdapterTest is Test {
         assertEq(ids[0], expectedId, "Incorrect id returned");
     }
 
-    function testFactoryCreateBlueAdapter() public {        
+    function testFactoryCreateBlueAdapter() public {
         address newParentVault = address(new VaultStub(address(loanToken)));
 
-        bytes32 initCodeHash = keccak256(abi.encodePacked(type(BlueAdapter).creationCode, abi.encode(newParentVault, morpho)));
-        address expectedNewAdapter = address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
+        bytes32 initCodeHash =
+            keccak256(abi.encodePacked(type(BlueAdapter).creationCode, abi.encode(newParentVault, morpho)));
+        address expectedNewAdapter =
+            address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
         emit BlueAdapterFactory.CreateBlueAdapter(address(newParentVault), expectedNewAdapter);
-        
+
         address newAdapter = factory.createBlueAdapter(address(newParentVault));
-        
+
         assertTrue(newAdapter != address(0), "Adapter not created");
         assertEq(BlueAdapter(newAdapter).parentVault(), address(newParentVault), "Incorrect parent vault");
         assertEq(BlueAdapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");

@@ -75,7 +75,7 @@ contract ERC4626AdapterTest is Test {
     function testAllocateOutWithdrawsAssetsFromERC4626Vault(uint256 initialAmount, uint256 withdrawRatio) public {
         initialAmount = _boundAmount(initialAmount);
         withdrawRatio = bound(withdrawRatio, 1, 100);
-        
+
         uint256 withdrawAmount = (initialAmount * withdrawRatio) / 100;
 
         deal(address(asset), address(adapter), initialAmount);
@@ -101,14 +101,16 @@ contract ERC4626AdapterTest is Test {
 
     function testFactoryCreateAdapter() public {
         VaultStub parentVault = new VaultStub(address(asset));
-        
-        bytes32 initCodeHash = keccak256(abi.encodePacked(type(ERC4626Adapter).creationCode, abi.encode(address(parentVault))));
-        address expectedNewAdapter = address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
+
+        bytes32 initCodeHash =
+            keccak256(abi.encodePacked(type(ERC4626Adapter).creationCode, abi.encode(address(parentVault))));
+        address expectedNewAdapter =
+            address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
         emit ERC4626AdapterFactory.CreateERC4626Adapter(address(parentVault), expectedNewAdapter);
-        
+
         address newAdapter = factory.createERC4626Adapter(address(parentVault));
-        
+
         assertTrue(newAdapter != address(0), "Adapter not created");
         assertEq(ERC4626Adapter(newAdapter).parentVault(), address(parentVault), "Incorrect parent vault");
         assertEq(ERC4626Adapter(newAdapter).asset(), address(asset), "Incorrect asset");
