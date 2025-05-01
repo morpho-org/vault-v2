@@ -223,6 +223,7 @@ contract VaultV2 is IVaultV2 {
     function setForceReallocateToIdleFee(uint256 newForceReallocateToIdleFee) external timelocked {
         require(newForceReallocateToIdleFee <= MAX_FORCE_REALLOCATE_TO_IDLE_FEE, ErrorsLib.FeeTooHigh());
         forceReallocateToIdleFee = newForceReallocateToIdleFee;
+        emit EventsLib.SetForceReallocateToIdleFee(newForceReallocateToIdleFee);
     }
 
     /* ALLOCATOR ACTIONS */
@@ -445,7 +446,9 @@ contract VaultV2 is IVaultV2 {
         }
 
         // The fee is taken as a withdrawal that is donated to the vault.
-        return withdraw(total.mulDivDown(forceReallocateToIdleFee, WAD), address(this), onBehalf);
+        uint256 shares = withdraw(total.mulDivDown(forceReallocateToIdleFee, WAD), address(this), onBehalf);
+        emit EventsLib.ForceReallocateToIdle(msg.sender, onBehalf, total);
+        return shares;
     }
 
     /* ERC20 */

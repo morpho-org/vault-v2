@@ -340,7 +340,15 @@ contract SettersTest is BaseTest {
         vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdleFee.selector, newForceReallocateToIdleFee));
 
         vm.prank(curator);
+        vm.expectEmit();
+        emit EventsLib.Submit(
+            curator,
+            abi.encodeWithSelector(IVaultV2.setForceReallocateToIdleFee.selector, newForceReallocateToIdleFee),
+            block.timestamp
+        );
         vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdleFee.selector, newForceReallocateToIdleFee));
+        vm.expectEmit();
+        emit EventsLib.SetForceReallocateToIdleFee(newForceReallocateToIdleFee);
         vault.setForceReallocateToIdleFee(newForceReallocateToIdleFee);
 
         assertEq(vault.forceReallocateToIdleFee(), newForceReallocateToIdleFee);

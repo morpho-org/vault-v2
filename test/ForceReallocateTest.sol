@@ -68,6 +68,8 @@ contract ForceReallocateTest is BaseTest {
         vault.setForceReallocateToIdleFee(forceReallocateFee);
 
         uint256 expectedShares = shares - vault.previewWithdraw(reallocated.mulDivDown(forceReallocateFee, WAD));
+        vm.expectEmit();
+        emit EventsLib.ForceReallocateToIdle(address(this), address(this), reallocated);
         uint256 withdrawnShares =
             vault.forceReallocateToIdle(_list(address(adapter)), _list(hex""), _list(reallocated), address(this));
         assertEq(shares - expectedShares, withdrawnShares);
