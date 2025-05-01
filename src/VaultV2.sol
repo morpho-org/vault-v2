@@ -183,11 +183,12 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetManagementFeeRecipient(newManagementFeeRecipient);
     }
 
-    function increaseAbsoluteCap(bytes32 id, uint256 newAbsoluteCap) external timelocked {
+    function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external timelocked {
+        bytes32 id = keccak256(idData);
         require(newAbsoluteCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
 
         absoluteCap[id] = newAbsoluteCap;
-        emit EventsLib.IncreaseAbsoluteCap(id, newAbsoluteCap);
+        emit EventsLib.IncreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
     function decreaseAbsoluteCap(bytes32 id, uint256 newAbsoluteCap) external {

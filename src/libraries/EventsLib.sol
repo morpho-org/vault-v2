@@ -19,7 +19,7 @@ library EventsLib {
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event SetPerformanceFee(uint256 performanceFee);
     event SetManagementFee(uint256 managementFee);
-    event IncreaseAbsoluteCap(bytes32 indexed id, uint256 newAbsoluteCap);
+    event IncreaseAbsoluteCap(bytes32 indexed id, bytes idData, uint256 newAbsoluteCap);
     event DecreaseAbsoluteCap(bytes32 indexed id, uint256 newAbsoluteCap);
     event IncreaseRelativeCap(bytes32 indexed id, uint256 newRelativeCap);
     event DecreaseRelativeCap(bytes32 indexed id, uint256 newRelativeCap);
@@ -37,5 +37,5 @@ library EventsLib {
     event AccrueInterest(uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares);
     event ForceReallocateToIdle(address indexed sender, address indexed onBehalf, uint256 assets);
     event CreateVaultV2(address indexed vaultV2, address indexed owner, address indexed asset);
-    event SetInterestPerSecond(uint256 interestController);
+    event SetInterestPerSecond(uint256 interestPerSecond);
 }

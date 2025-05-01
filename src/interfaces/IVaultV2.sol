@@ -69,7 +69,7 @@ interface IVaultV2 is IERC20 {
 
     // Curator actions
     function setInterestController(address) external;
-    function increaseAbsoluteCap(bytes32, uint256) external;
+    function increaseAbsoluteCap(bytes memory, uint256) external;
     function increaseRelativeCap(bytes32, uint256) external;
     function decreaseAbsoluteCap(bytes32, uint256) external;
     function decreaseRelativeCap(bytes32, uint256) external;
