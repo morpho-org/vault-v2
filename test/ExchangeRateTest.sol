@@ -7,6 +7,7 @@ import {StdStorage, stdStorage} from "forge-std/StdStorage.sol";
 contract ExchangeRateTest is BaseTest {
     using stdStorage for StdStorage;
 
+    uint256 constant MIN_DEPOSIT = 1 ether;
     uint256 constant MAX_DEPOSIT = 1e18 ether;
 
     function setUp() public override {
@@ -15,9 +16,8 @@ contract ExchangeRateTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
     }
 
-    function testExchangeRateDepositRedeem() public {
-        uint256 amount = 1e18;
-        // amount = bound(amount, 0, MAX_DEPOSIT);
+    function testExchangeRateDepositRedeem(uint256 amount) public {
+        amount = bound(amount, MIN_DEPOSIT, MAX_DEPOSIT);
         vault.deposit(amount, address(this));
 
         assertEq(underlyingToken.balanceOf(address(vault)), amount, "wrong deposit amount");
