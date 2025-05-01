@@ -4,7 +4,6 @@ pragma solidity 0.8.28;
 import {EventsLib} from "./libraries/EventsLib.sol";
 
 import {IIRM} from "./interfaces/IIRM.sol";
-import {IVaultV2} from "./interfaces/IVaultV2.sol";
 
 contract IRM is IIRM {
     // Note that owner may be controlled by the curator, if the curator has the ability to change the IRM.
