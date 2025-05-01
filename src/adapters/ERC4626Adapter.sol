@@ -7,13 +7,23 @@ import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
 contract ERC4626Adapter {
+    /* STORAGE */
+
     address public immutable parentVault;
     address public immutable asset;
+    address public skimRecipient;
+
+    /* FUNCTIONS */
 
     constructor(address _parentVault) {
         parentVault = _parentVault;
         asset = IVaultV2(_parentVault).asset();
         SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
+    }
+
+    function setSkimRecipient(address newSkimRecipient) external {
+        require(msg.sender == IVaultV2(parentVault).owner(), "not authorized");
+        skimRecipient = newSkimRecipient;
     }
 
     function allocateIn(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
@@ -37,6 +47,11 @@ contract ERC4626Adapter {
         bytes32[] memory ids = new bytes32[](1);
         ids[0] = keccak256(abi.encode("vault", vault));
         return ids;
+    }
+
+    function skim(address token) external {
+        require(token != asset, "can't skim underlying");
+        SafeERC20Lib.safeTransfer(token, skimRecipient, IERC20(token).balanceOf(address(this)));
     }
 }
 

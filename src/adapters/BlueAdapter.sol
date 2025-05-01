@@ -4,16 +4,27 @@ pragma solidity 0.8.28;
 import {IMorpho, MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
+import {IERC20} from "../interfaces/IERC20.sol";
 
 contract BlueAdapter {
+    /* STORAGE */
+
     address public immutable parentVault;
     address public immutable morpho;
+    address public skimRecipient;
+
+    /* FUNCTIONS */
 
     constructor(address _parentVault, address _morpho) {
         morpho = _morpho;
         parentVault = _parentVault;
         SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
+    }
+
+    function setSkimRecipient(address newSkimRecipient) external {
+        require(msg.sender == IVaultV2(parentVault).owner(), "not authorized");
+        skimRecipient = newSkimRecipient;
     }
 
     function allocateIn(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
@@ -44,6 +55,11 @@ contract BlueAdapter {
             )
         );
         return ids;
+    }
+
+    function skim(address token) external {
+        require(token != IVaultV2(parentVault).asset(), "can't skim underlying");
+        SafeERC20Lib.safeTransfer(token, skimRecipient, IERC20(token).balanceOf(address(this)));
     }
 }
 

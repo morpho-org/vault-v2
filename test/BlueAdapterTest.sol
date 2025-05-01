@@ -8,13 +8,17 @@ import {OracleMock} from "lib/morpho-blue/src/mocks/OracleMock.sol";
 import {IrmMock} from "lib/morpho-blue/src/mocks/IrmMock.sol";
 import {IMorpho, MarketParams} from "lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MorphoBalancesLib} from "lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {IERC20} from "src/interfaces/IERC20.sol";
+import {IVaultV2} from "src/interfaces/IVaultV2.sol";
 
 /// @notice Minimal stub contract used as the parent vault by the BlueAdapter in tests.
 contract VaultStub {
     address public asset;
+    address public owner;
 
-    constructor(address _asset) {
+    constructor(address _asset, address _owner) {
         asset = _asset;
+        owner = _owner;
     }
 }
 
@@ -27,19 +31,26 @@ contract BlueAdapterTest is Test {
     MarketParams internal marketParams;
     ERC20Mock internal loanToken;
     ERC20Mock internal collateralToken;
+    ERC20Mock internal rewardToken;
     OracleMock internal oracle;
     IrmMock internal irm;
     IMorpho internal morpho;
+    address internal owner;
+    address internal recipient;
 
     uint256 internal constant MIN_TEST_AMOUNT = 1e6;
     uint256 internal constant MAX_TEST_AMOUNT = 1e24;
 
     function setUp() public {
+        owner = makeAddr("owner");
+        recipient = makeAddr("recipient");
+        
         address morphoOwner = makeAddr("MorphoOwner");
         morpho = IMorpho(deployCode("Morpho.sol", abi.encode(morphoOwner)));
 
         loanToken = new ERC20Mock();
         collateralToken = new ERC20Mock();
+        rewardToken = new ERC20Mock();
         oracle = new OracleMock();
         irm = new IrmMock();
 
@@ -57,7 +68,7 @@ contract BlueAdapterTest is Test {
         vm.stopPrank();
 
         morpho.createMarket(marketParams);
-        parentVault = new VaultStub(address(loanToken));
+        parentVault = new VaultStub(address(loanToken), owner);
         factory = new BlueAdapterFactory(address(morpho));
         adapter = BlueAdapter(factory.createBlueAdapter(address(parentVault)));
     }
@@ -134,20 +145,62 @@ contract BlueAdapterTest is Test {
     }
 
     function testFactoryCreateBlueAdapter() public {
-        address newParentVault = address(new VaultStub(address(loanToken)));
+        address newParentVaultAddr = address(new VaultStub(address(loanToken), owner));
 
-        bytes32 initCodeHash =
-            keccak256(abi.encodePacked(type(BlueAdapter).creationCode, abi.encode(newParentVault, morpho)));
-        address expectedNewAdapter =
-            address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
+        bytes32 initCodeHash = keccak256(abi.encodePacked(type(BlueAdapter).creationCode, abi.encode(newParentVaultAddr, morpho)));
+        address expectedNewAdapter = address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
-        emit BlueAdapterFactory.CreateBlueAdapter(address(newParentVault), expectedNewAdapter);
+        emit BlueAdapterFactory.CreateBlueAdapter(newParentVaultAddr, expectedNewAdapter);
 
-        address newAdapter = factory.createBlueAdapter(address(newParentVault));
+        address newAdapter = factory.createBlueAdapter(newParentVaultAddr);
 
         assertTrue(newAdapter != address(0), "Adapter not created");
-        assertEq(BlueAdapter(newAdapter).parentVault(), address(newParentVault), "Incorrect parent vault");
+        assertEq(BlueAdapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
         assertEq(BlueAdapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
-        assertEq(factory.adapter(address(newParentVault)), newAdapter, "Adapter not tracked correctly");
+        assertEq(factory.adapter(newParentVaultAddr), newAdapter, "Adapter not tracked correctly");
+    }
+    
+    function testSetSkimRecipient(address newRecipient, address caller) public {
+        vm.assume(newRecipient != address(0));
+        vm.assume(caller != address(0));
+        vm.assume(caller != owner);
+        
+        vm.prank(caller);
+        vm.expectRevert(bytes("not authorized"));
+        adapter.setSkimRecipient(newRecipient);
+        
+        vm.prank(owner);
+        adapter.setSkimRecipient(newRecipient);
+        
+        assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
+    }
+
+    function testSkim(uint256 amount) public {
+        amount = _boundAmount(amount);
+        
+        ERC20Mock token = new ERC20Mock();
+        
+        vm.prank(owner);
+        adapter.setSkimRecipient(recipient);
+        
+        deal(address(token), address(adapter), amount);
+        assertEq(token.balanceOf(address(adapter)), amount, "Adapter did not receive tokens");
+        
+        adapter.skim(address(token));
+        
+        assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
+        assertEq(token.balanceOf(recipient), amount, "Recipient did not receive tokens");
+    }
+    
+    function testSkimRevertsForUnderlyingToken(uint256 amount) public {
+        amount = _boundAmount(amount);
+        
+        vm.prank(owner);
+        adapter.setSkimRecipient(recipient);
+        
+        deal(address(loanToken), address(adapter), amount);
+        
+        vm.expectRevert(bytes("can't skim underlying"));
+        adapter.skim(address(loanToken));
     }
 }
