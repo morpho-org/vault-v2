@@ -36,7 +36,7 @@ contract ERC4626AdapterTest is Test {
     function setUp() public {
         owner = makeAddr("owner");
         recipient = makeAddr("recipient");
-        
+
         asset = new ERC20Mock();
         rewardToken = new ERC20Mock();
         erc4626Vault = new ERC4626Mock(address(asset));
@@ -132,42 +132,42 @@ contract ERC4626AdapterTest is Test {
         vm.assume(newRecipient != address(0));
         vm.assume(caller != address(0));
         vm.assume(caller != owner);
-        
+
         vm.prank(caller);
         vm.expectRevert(bytes("not authorized"));
         adapter.setSkimRecipient(newRecipient);
-        
+
         vm.prank(owner);
         adapter.setSkimRecipient(newRecipient);
-        
+
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
     }
 
     function testSkim(uint256 amount) public {
         amount = _boundAmount(amount);
-        
+
         ERC20Mock token = new ERC20Mock();
-        
+
         vm.prank(owner);
         adapter.setSkimRecipient(recipient);
-        
+
         deal(address(token), address(adapter), amount);
         assertEq(token.balanceOf(address(adapter)), amount, "Adapter did not receive tokens");
-        
+
         adapter.skim(address(token));
-        
+
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
         assertEq(token.balanceOf(recipient), amount, "Recipient did not receive tokens");
     }
-    
+
     function testSkimRevertsForUnderlyingToken(uint256 amount) public {
         amount = _boundAmount(amount);
-        
+
         vm.prank(owner);
         adapter.setSkimRecipient(recipient);
-        
+
         deal(address(asset), address(adapter), amount);
-        
+
         vm.expectRevert(bytes("can't skim underlying"));
         adapter.skim(address(asset));
     }

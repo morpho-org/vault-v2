@@ -44,7 +44,7 @@ contract BlueAdapterTest is Test {
     function setUp() public {
         owner = makeAddr("owner");
         recipient = makeAddr("recipient");
-        
+
         address morphoOwner = makeAddr("MorphoOwner");
         morpho = IMorpho(deployCode("Morpho.sol", abi.encode(morphoOwner)));
 
@@ -147,8 +147,10 @@ contract BlueAdapterTest is Test {
     function testFactoryCreateBlueAdapter() public {
         address newParentVaultAddr = address(new VaultStub(address(loanToken), owner));
 
-        bytes32 initCodeHash = keccak256(abi.encodePacked(type(BlueAdapter).creationCode, abi.encode(newParentVaultAddr, morpho)));
-        address expectedNewAdapter = address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
+        bytes32 initCodeHash =
+            keccak256(abi.encodePacked(type(BlueAdapter).creationCode, abi.encode(newParentVaultAddr, morpho)));
+        address expectedNewAdapter =
+            address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
         emit BlueAdapterFactory.CreateBlueAdapter(newParentVaultAddr, expectedNewAdapter);
 
@@ -159,47 +161,47 @@ contract BlueAdapterTest is Test {
         assertEq(BlueAdapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
         assertEq(factory.adapter(newParentVaultAddr), newAdapter, "Adapter not tracked correctly");
     }
-    
+
     function testSetSkimRecipient(address newRecipient, address caller) public {
         vm.assume(newRecipient != address(0));
         vm.assume(caller != address(0));
         vm.assume(caller != owner);
-        
+
         vm.prank(caller);
         vm.expectRevert(bytes("not authorized"));
         adapter.setSkimRecipient(newRecipient);
-        
+
         vm.prank(owner);
         adapter.setSkimRecipient(newRecipient);
-        
+
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
     }
 
     function testSkim(uint256 amount) public {
         amount = _boundAmount(amount);
-        
+
         ERC20Mock token = new ERC20Mock();
-        
+
         vm.prank(owner);
         adapter.setSkimRecipient(recipient);
-        
+
         deal(address(token), address(adapter), amount);
         assertEq(token.balanceOf(address(adapter)), amount, "Adapter did not receive tokens");
-        
+
         adapter.skim(address(token));
-        
+
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
         assertEq(token.balanceOf(recipient), amount, "Recipient did not receive tokens");
     }
-    
+
     function testSkimRevertsForUnderlyingToken(uint256 amount) public {
         amount = _boundAmount(amount);
-        
+
         vm.prank(owner);
         adapter.setSkimRecipient(recipient);
-        
+
         deal(address(loanToken), address(adapter), amount);
-        
+
         vm.expectRevert(bytes("can't skim underlying"));
         adapter.skim(address(loanToken));
     }
