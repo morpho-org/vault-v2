@@ -301,7 +301,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(validAt[data] != 0, ErrorsLib.DataNotTimelocked());
         validAt[data] = 0;
-        emit EventsLib.Revoke(msg.sender, data);
+        emit EventsLib.Revoke(msg.sender, bytes4(data), data);
     }
 
     /* EXCHANGE RATE */
