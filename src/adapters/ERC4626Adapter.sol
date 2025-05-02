@@ -40,7 +40,7 @@ contract ERC4626Adapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     function allocateIn(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
-        require(msg.sender == parentVault, "not authorized");
+        require(msg.sender == parentVault, NotAuthorized());
         (address vault) = abi.decode(data, (address));
 
         IERC20(asset).approve(vault, assets);

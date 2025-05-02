@@ -6,7 +6,7 @@ import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
-contract BlueAdapter {
+contract MorphoAdapter {
     /* IMMUTABLES */
 
     address public immutable parentVault;

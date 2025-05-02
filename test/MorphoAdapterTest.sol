@@ -2,8 +2,8 @@
 pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
-import {BlueAdapter} from "src/adapters/BlueAdapter.sol";
-import {BlueAdapterFactory} from "src/adapters/BlueAdapterFactory.sol";
+import {MorphoAdapter} from "src/adapters/MorphoAdapter.sol";
+import {MorphoAdapterFactory} from "src/adapters/MorphoAdapterFactory.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultMock} from "./mocks/VaultV2Mock.sol";
@@ -13,11 +13,11 @@ import {MorphoBalancesLib} from "lib/morpho-blue/src/libraries/periphery/MorphoB
 import {IERC20} from "src/interfaces/IERC20.sol";
 import {IVaultV2} from "src/interfaces/IVaultV2.sol";
 
-contract BlueAdapterTest is Test {
+contract MorphoAdapterTest is Test {
     using MorphoBalancesLib for IMorpho;
 
-    BlueAdapterFactory internal factory;
-    BlueAdapter internal adapter;
+    MorphoAdapterFactory internal factory;
+    MorphoAdapter internal adapter;
     VaultMock internal parentVault;
     MarketParams internal marketParams;
     ERC20Mock internal loanToken;
@@ -60,8 +60,8 @@ contract BlueAdapterTest is Test {
 
         morpho.createMarket(marketParams);
         parentVault = new VaultMock(address(loanToken), owner);
-        factory = new BlueAdapterFactory(address(morpho));
-        adapter = BlueAdapter(factory.createBlueAdapter(address(parentVault)));
+        factory = new MorphoAdapterFactory(address(morpho));
+        adapter = MorphoAdapter(factory.createMorphoAdapter(address(parentVault)));
     }
 
     function _boundAmount(uint256 amount) internal pure returns (uint256) {
@@ -75,13 +75,13 @@ contract BlueAdapterTest is Test {
 
     function testAllocateInNotAuthorizedReverts(uint256 amount) public {
         amount = _boundAmount(amount);
-        vm.expectRevert(bytes("not authorized"));
+        vm.expectRevert(MorphoAdapter.NotAuthorized.selector);
         adapter.allocateIn(abi.encode(marketParams), amount);
     }
 
     function testAllocateOutNotAuthorizedReverts(uint256 amount) public {
         amount = _boundAmount(amount);
-        vm.expectRevert(bytes("not authorized"));
+        vm.expectRevert(MorphoAdapter.NotAuthorized.selector);
         adapter.allocateOut(abi.encode(marketParams), amount);
     }
 
@@ -133,21 +133,21 @@ contract BlueAdapterTest is Test {
         assertEq(ids[0], expectedId, "Incorrect id returned");
     }
 
-    function testFactoryCreateBlueAdapter() public {
+    function testFactoryCreateMorphoAdapter() public {
         address newParentVaultAddr = address(new VaultMock(address(loanToken), owner));
 
         bytes32 initCodeHash =
-            keccak256(abi.encodePacked(type(BlueAdapter).creationCode, abi.encode(newParentVaultAddr, morpho)));
+            keccak256(abi.encodePacked(type(MorphoAdapter).creationCode, abi.encode(newParentVaultAddr, morpho)));
         address expectedNewAdapter =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
-        emit BlueAdapterFactory.CreateBlueAdapter(newParentVaultAddr, expectedNewAdapter);
+        emit MorphoAdapterFactory.CreateMorphoAdapter(newParentVaultAddr, expectedNewAdapter);
 
-        address newAdapter = factory.createBlueAdapter(newParentVaultAddr);
+        address newAdapter = factory.createMorphoAdapter(newParentVaultAddr);
 
         assertTrue(newAdapter != address(0), "Adapter not created");
-        assertEq(BlueAdapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
-        assertEq(BlueAdapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
+        assertEq(MorphoAdapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
+        assertEq(MorphoAdapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
         assertEq(factory.adapter(newParentVaultAddr), newAdapter, "Adapter not tracked correctly");
         assertTrue(factory.isAdapter(newAdapter), "Adapter not tracked correctly");
     }
@@ -158,7 +158,7 @@ contract BlueAdapterTest is Test {
         vm.assume(caller != owner);
 
         vm.prank(caller);
-        vm.expectRevert(bytes("not authorized"));
+        vm.expectRevert(MorphoAdapter.NotAuthorized.selector);
         adapter.setSkimRecipient(newRecipient);
 
         vm.prank(owner);
@@ -179,7 +179,7 @@ contract BlueAdapterTest is Test {
         assertEq(token.balanceOf(address(adapter)), amount, "Adapter did not receive tokens");
 
         vm.expectEmit();
-        emit BlueAdapter.Skim(address(token), amount);
+        emit MorphoAdapter.Skim(address(token), amount);
         adapter.skim(address(token));
 
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");

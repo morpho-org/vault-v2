@@ -48,13 +48,13 @@ contract ERC4626AdapterTest is Test {
 
     function testAllocateInNotAuthorizedReverts(uint256 amount) public {
         amount = _boundAmount(amount);
-        vm.expectRevert(bytes("not authorized"));
+        vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
         adapter.allocateIn(abi.encode(address(erc4626Vault)), amount);
     }
 
     function testAllocateOutNotAuthorizedReverts(uint256 amount) public {
         amount = _boundAmount(amount);
-        vm.expectRevert(bytes("not authorized"));
+        vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
         adapter.allocateOut(abi.encode(address(erc4626Vault)), amount);
     }
 
@@ -126,7 +126,7 @@ contract ERC4626AdapterTest is Test {
         vm.assume(caller != owner);
 
         vm.prank(caller);
-        vm.expectRevert(bytes("not authorized"));
+        vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
         adapter.setSkimRecipient(newRecipient);
 
         vm.prank(owner);
