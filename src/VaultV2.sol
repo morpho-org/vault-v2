@@ -445,7 +445,7 @@ contract VaultV2 is IVaultV2 {
             total += assets[i];
         }
 
-        // The discount is taken as a withdrawal that is donated to the vault.
+        // The penalty is taken as a withdrawal that is donated to the vault.
         uint256 shares = withdraw(total.mulDivDown(forceReallocateToIdlePenalty, WAD), address(this), onBehalf);
         emit EventsLib.ForceReallocateToIdle(msg.sender, onBehalf, total);
         return shares;
