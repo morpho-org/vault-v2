@@ -307,17 +307,19 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
-        if (block.timestamp - lastUpdate == 0) return;
+        if (block.timestamp - lastUpdate == 0) {
+            emit EventsLib.AccrueInterest(totalAssets, 0, 0);
+        } else {
+            (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
 
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+            totalAssets = newTotalAssets;
 
-        totalAssets = newTotalAssets;
+            if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
+            if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
 
-        if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
-        if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
-
-        lastUpdate = block.timestamp;
-        emit EventsLib.AccrueInterest(newTotalAssets, performanceFeeShares, managementFeeShares);
+            lastUpdate = block.timestamp;
+            emit EventsLib.AccrueInterest(newTotalAssets, performanceFeeShares, managementFeeShares);
+        }
     }
 
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
