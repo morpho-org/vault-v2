@@ -14,57 +14,54 @@ contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
 
     /* IMMUTABLE */
-
     address public immutable asset;
 
-    /* STORAGE */
-
+    /* ROLES STORAGE */
     address public owner;
     address public curator;
-    address public interestController;
     mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
 
+    /* TOKEN STORAGE */
+    uint256 public totalSupply;
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    mapping(address => uint256) public nonces;
+
+    /* VAULT STORAGE */
+    uint256 public totalAssets;
+    uint256 public lastUpdate;
+
+    /* CURATION STORAGE */
+    address public interestController;
+    uint256 public forceReallocateToIdlePenalty;
+    // Adapter is trusted to pass the expected ids when supplying assets.
+    mapping(address => bool) public isAdapter;
+    /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
+    mapping(bytes32 => uint256) public absoluteCap;
+    /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
+    mapping(bytes32 => uint256) public relativeCap;
+    /// @dev Useful to iterate over all ids with relative cap in withdrawals.
+    bytes32[] public idsWithRelativeCap;
+    /// @dev Interests are not counted in the allocation.
+    /// @dev By design, double counting some stuff.
+    mapping(bytes32 => uint256) public allocation;
+    /// @dev calldata => executable at
+    mapping(bytes => uint256) public validAt;
+    /// @dev function selector => timelock duration
+    mapping(bytes4 => uint256) public timelock;
+
+    /* ALLOCATION STORAGE */
+    address public liquidityAdapter;
+    bytes public liquidityData;
+
+    /* FEES STORAGE */
     /// @dev invariant: performanceFee != 0 => performanceFeeRecipient != address(0)
     uint256 public performanceFee;
     address public performanceFeeRecipient;
     /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint256 public managementFee;
     address public managementFeeRecipient;
-    uint256 public forceReallocateToIdlePenalty;
-
-    uint256 public lastUpdate;
-    uint256 public totalAssets;
-
-    // Adapter is trusted to pass the expected ids when supplying assets.
-    mapping(address => bool) public isAdapter;
-
-    /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
-    mapping(bytes32 => uint256) public absoluteCap;
-
-    /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
-    /// @dev Relative cap = 0 is interpreted as no relative cap.
-    mapping(bytes32 => uint256) public relativeCap;
-
-    /// @dev Useful to iterate over all ids with relative cap in withdrawals.
-    bytes32[] public idsWithRelativeCap;
-
-    /// @dev Interests are not counted in the allocation.
-    /// @dev By design, double counting some stuff.
-    mapping(bytes32 => uint256) public allocation;
-
-    address public liquidityAdapter;
-    bytes public liquidityData;
-
-    /// @dev calldata => executable at
-    mapping(bytes => uint256) public validAt;
-    /// @dev function selector => timelock duration
-    mapping(bytes4 => uint256) public timelock;
-
-    uint256 public totalSupply;
-    mapping(address => uint256) public balanceOf;
-    mapping(address => mapping(address => uint256)) public allowance;
-    mapping(address => uint256) public nonces;
 
     /* MULTICALL */
 
