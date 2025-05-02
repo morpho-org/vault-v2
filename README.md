@@ -13,7 +13,7 @@ All the contracts are immutable.
 
 ### Adapters
 
-Vault V1 strategies were defined by a tuple of the form `(CollateralToken, LoanToken, LLTV, Oracle, InterestControllerAddress)`,
+Vault V1 strategies were defined by a tuple of the form `(CollateralToken, LoanToken, LLTV, Oracle, IRM)`,
 which defined offers accepted by the vault.
 Vault V2 introduces more flexibility in defining strategies.
 Vaults can allocate assets not only to Morpho Markets V1 and V2,
