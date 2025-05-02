@@ -48,11 +48,8 @@ contract FeeTest is BaseTest {
         vm.warp(block.timestamp + elapsed);
 
         uint256 interest = interestPerSecond * elapsed;
-        console.log("interest", interest);
         uint256 newTotalAssets = vault.totalAssets() + interest;
-        console.log("newTotalAssets", newTotalAssets);
         uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
-        console.log("performanceFeeAssets", performanceFeeAssets);
         uint256 expectedShares =
             performanceFeeAssets.mulDivDown(vault.totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets);
 
