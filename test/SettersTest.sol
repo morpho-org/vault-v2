@@ -361,6 +361,7 @@ contract SettersTest is BaseTest {
     }
 
     function testSetLiquidityAdapter(address rdm, address liquidityAdapter) public {
+        vm.assume(rdm != allocator);
         vm.assume(liquidityAdapter != address(0));
         vm.prank(allocator);
         vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
@@ -389,12 +390,8 @@ contract SettersTest is BaseTest {
     }
 
     function testSetLiquidityData(address rdm) public {
-        vm.assume(rdm != owner);
+        vm.assume(rdm != allocator);
         bytes memory newData = abi.encode("newData");
-
-        vm.expectRevert(ErrorsLib.Unauthorized.selector);
-        vm.prank(rdm);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setLiquidityData.selector, newData));
 
         vm.prank(allocator);
         vm.expectEmit();
