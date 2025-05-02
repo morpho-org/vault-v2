@@ -64,9 +64,7 @@ contract ForceReallocateTest is BaseTest {
         assertEq(underlyingToken.balanceOf(adapter), supplied);
 
         vm.prank(curator);
-        vault.submit(
-            abi.encodeWithSelector(IVaultV2.setForceReallocateToIdlePenalty.selector, forceReallocatePenalty)
-        );
+        vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdlePenalty.selector, forceReallocatePenalty));
         vault.setForceReallocateToIdlePenalty(forceReallocatePenalty);
 
         uint256 expectedShares = shares - vault.previewWithdraw(reallocated.mulDivDown(forceReallocatePenalty, WAD));
