@@ -14,11 +14,11 @@ contract ERC4626AdapterFactory {
 
     event CreateERC4626Adapter(address indexed parentVault, address indexed erc4626Adapter);
 
-    function createERC4626Adapter(address _parentVault) external returns (address) {
-        address erc4626Adapter = address(new ERC4626Adapter{salt: bytes32(0)}(_parentVault));
-        adapter[_parentVault] = erc4626Adapter;
+    function createERC4626Adapter(address vault) external returns (address) {
+        address erc4626Adapter = address(new ERC4626Adapter{salt: bytes32(0)}(vault));
+        adapter[vault] = erc4626Adapter;
         isAdapter[erc4626Adapter] = true;
-        emit CreateERC4626Adapter(_parentVault, erc4626Adapter);
+        emit CreateERC4626Adapter(vault, erc4626Adapter);
         return erc4626Adapter;
     }
 }
