@@ -150,9 +150,13 @@ contract ERC4626AdapterTest is Test {
 
         vm.expectEmit();
         emit ERC4626Adapter.Skim(address(token), amount);
+        vm.prank(recipient);
         adapter.skim(address(token));
 
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
         assertEq(token.balanceOf(recipient), amount, "Recipient did not receive tokens");
+
+        vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
+        adapter.skim(address(token));
     }
 }
