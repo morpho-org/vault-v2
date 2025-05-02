@@ -544,7 +544,7 @@ contract SettersTest is BaseTest {
         // Access control
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setLiquidityData.selector, newData));
+        vault.setLiquidityData(newData);
 
         // Normal path
         vm.prank(allocator);
