@@ -287,7 +287,7 @@ contract VaultV2 is IVaultV2 {
         require(validAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
         validAt[data] = block.timestamp + timelock[selector];
-        emit EventsLib.Submit(msg.sender, data, validAt[data]);
+        emit EventsLib.Submit(msg.sender, selector, data, validAt[data]);
     }
 
     modifier timelocked() {
