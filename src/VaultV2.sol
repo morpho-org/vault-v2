@@ -285,8 +285,9 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(validAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
-        validAt[data] = block.timestamp + timelock[bytes4(data)];
-        emit EventsLib.Submit(msg.sender, data, validAt[data]);
+        bytes4 selector = bytes4(data);
+        validAt[data] = block.timestamp + timelock[selector];
+        emit EventsLib.Submit(msg.sender, selector, data, validAt[data]);
     }
 
     modifier timelocked() {
@@ -300,7 +301,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(validAt[data] != 0, ErrorsLib.DataNotTimelocked());
         validAt[data] = 0;
-        emit EventsLib.Revoke(msg.sender, data);
+        emit EventsLib.Revoke(msg.sender, bytes4(data), data);
     }
 
     /* EXCHANGE RATE */
