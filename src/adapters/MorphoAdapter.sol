@@ -34,7 +34,7 @@ contract MorphoAdapter {
         SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
     }
 
-    function ids(MarketParams memory marketParams) public pure returns (bytes32[] memory) {
+    function ids(MarketParams memory marketParams) internal pure returns (bytes32[] memory) {
         bytes32[] memory ids_ = new bytes32[](1);
         ids_[0] = keccak256(
             abi.encode(
