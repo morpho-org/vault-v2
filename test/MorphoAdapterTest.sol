@@ -162,6 +162,8 @@ contract MorphoAdapterTest is Test {
         adapter.setSkimRecipient(newRecipient);
 
         vm.prank(owner);
+        vm.expectEmit();
+        emit MorphoAdapter.SetSkimRecipient(newRecipient);
         adapter.setSkimRecipient(newRecipient);
 
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");

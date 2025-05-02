@@ -18,6 +18,7 @@ contract MorphoAdapter {
 
     /* EVENTS */
 
+    event SetSkimRecipient(address indexed newSkimRecipient);
     event Skim(address indexed token, uint256 amount);
 
     /* ERRORS */
@@ -46,6 +47,7 @@ contract MorphoAdapter {
     function setSkimRecipient(address newSkimRecipient) external {
         require(msg.sender == IVaultV2(parentVault).owner(), NotAuthorized());
         skimRecipient = newSkimRecipient;
+        emit SetSkimRecipient(newSkimRecipient);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.

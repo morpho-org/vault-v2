@@ -130,6 +130,8 @@ contract ERC4626AdapterTest is Test {
         adapter.setSkimRecipient(newRecipient);
 
         vm.prank(owner);
+        vm.expectEmit();
+        emit ERC4626Adapter.SetSkimRecipient(newRecipient);
         adapter.setSkimRecipient(newRecipient);
 
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
