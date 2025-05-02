@@ -28,19 +28,19 @@ contract ForceReallocateTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
     }
 
-    function _list(address input) internal returns (address[] memory) {
+    function _list(address input) internal pure returns (address[] memory) {
         address[] memory list = new address[](1);
         list[0] = input;
         return list;
     }
 
-    function _list(bytes memory input) internal returns (bytes[] memory) {
+    function _list(bytes memory input) internal pure returns (bytes[] memory) {
         bytes[] memory list = new bytes[](1);
         list[0] = input;
         return list;
     }
 
-    function _list(uint256 input) internal returns (uint256[] memory) {
+    function _list(uint256 input) internal pure returns (uint256[] memory) {
         uint256[] memory list = new uint256[](1);
         list[0] = input;
         return list;

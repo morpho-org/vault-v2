@@ -10,11 +10,11 @@ library EventsLib {
     event SetOwner(address indexed owner);
     event SetCurator(address indexed curator);
     event SetInterestController(address indexed interestController);
-    event SetIsSentinel(address indexed sentinel, bool isSentinel);
-    event SetIsAllocator(address indexed allocator, bool isAllocator);
+    event SetIsSentinel(address indexed account, bool isSentinel);
+    event SetIsAllocator(address indexed account, bool isAllocator);
     event SetPerformanceFeeRecipient(address indexed);
     event SetManagementFeeRecipient(address indexed);
-    event SetIsAdapter(address indexed adapter, bool isAdapter);
+    event SetIsAdapter(address indexed account, bool isAdapter);
     event IncreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event SetPerformanceFee(uint256 performanceFee);

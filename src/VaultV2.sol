@@ -103,17 +103,17 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetCurator(newCurator);
     }
 
-    function setIsSentinel(address sentinel, bool newIsSentinel) external {
+    function setIsSentinel(address account, bool newIsSentinel) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        isSentinel[sentinel] = newIsSentinel;
-        emit EventsLib.SetIsSentinel(sentinel, newIsSentinel);
+        isSentinel[account] = newIsSentinel;
+        emit EventsLib.SetIsSentinel(account, newIsSentinel);
     }
 
     /* CURATOR ACTIONS */
 
-    function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
-        isAllocator[allocator] = newIsAllocator;
-        emit EventsLib.SetIsAllocator(allocator, newIsAllocator);
+    function setIsAllocator(address account, bool newIsAllocator) external timelocked {
+        isAllocator[account] = newIsAllocator;
+        emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
 
     function setInterestController(address newInterestController) external timelocked {
@@ -121,10 +121,10 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetInterestController(newInterestController);
     }
 
-    function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
-        require(adapter != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
-        isAdapter[adapter] = newIsAdapter;
-        emit EventsLib.SetIsAdapter(adapter, newIsAdapter);
+    function setIsAdapter(address account, bool newIsAdapter) external timelocked {
+        require(account != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
+        isAdapter[account] = newIsAdapter;
+        emit EventsLib.SetIsAdapter(account, newIsAdapter);
     }
 
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
