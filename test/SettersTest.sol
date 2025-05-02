@@ -199,9 +199,10 @@ contract SettersTest is BaseTest {
 
     function testDecreaseTimelock(address rdm, bytes4 selector, uint256 oldTimelock, uint256 newTimelock) public {
         vm.assume(rdm != curator);
-        vm.assume(oldTimelock <= 2 weeks);
-        vm.assume(newTimelock > 0);
         vm.assume(selector != IVaultV2.decreaseTimelock.selector);
+
+        oldTimelock = bound(oldTimelock, 1, 2 weeks);
+        newTimelock = bound(newTimelock, 0, oldTimelock - 1);
         vm.assume(oldTimelock > newTimelock);
 
         vm.prank(curator);
@@ -391,6 +392,7 @@ contract SettersTest is BaseTest {
     function testDecreaseAbsoluteCap(address rdm, bytes memory idData, uint256 oldAbsoluteCap, uint256 newAbsoluteCap)
         public
     {
+        vm.assume(rdm != curator);
         vm.assume(newAbsoluteCap > 0);
         vm.assume(idData.length > 0);
         vm.assume(oldAbsoluteCap > newAbsoluteCap);
@@ -535,7 +537,7 @@ contract SettersTest is BaseTest {
     }
 
     function testSetLiquidityData(address rdm) public {
-        vm.assume(rdm != allocator);
+        vm.assume(rdm != curator);
         bytes memory newData = abi.encode("newData");
 
         // Access control
