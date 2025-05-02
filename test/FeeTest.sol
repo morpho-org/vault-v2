@@ -43,7 +43,7 @@ contract FeeTest is BaseTest {
         vault.deposit(deposit, address(this));
 
         vm.prank(manager);
-        irm.setInterestPerSecond(interestPerSecond);
+        interestController.setInterestPerSecond(interestPerSecond);
 
         vm.warp(block.timestamp + elapsed);
 
@@ -76,7 +76,7 @@ contract FeeTest is BaseTest {
         vault.deposit(deposit, address(this));
 
         vm.prank(manager);
-        irm.setInterestPerSecond(interestPerSecond);
+        interestController.setInterestPerSecond(interestPerSecond);
 
         vm.warp(block.timestamp + elapsed);
 

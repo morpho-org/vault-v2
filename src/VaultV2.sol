@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import {IVaultV2, IERC20, IAdapter} from "./interfaces/IVaultV2.sol";
-import {IIRM} from "./interfaces/IIRM.sol";
+import {IInterestController} from "./interfaces/IInterestController.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
@@ -21,7 +21,7 @@ contract VaultV2 is IVaultV2 {
 
     address public owner;
     address public curator;
-    address public irm;
+    address public interestController;
     mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
 
@@ -116,9 +116,9 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetIsAllocator(allocator, newIsAllocator);
     }
 
-    function setIRM(address newIRM) external timelocked {
-        irm = newIRM;
-        emit EventsLib.SetIRM(newIRM);
+    function setInterestController(address newInterestController) external timelocked {
+        interestController = newInterestController;
+        emit EventsLib.SetInterestController(newInterestController);
     }
 
     function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
@@ -183,11 +183,12 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetManagementFeeRecipient(newManagementFeeRecipient);
     }
 
-    function increaseAbsoluteCap(bytes32 id, uint256 newAbsoluteCap) external timelocked {
+    function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external timelocked {
+        bytes32 id = keccak256(idData);
         require(newAbsoluteCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
 
         absoluteCap[id] = newAbsoluteCap;
-        emit EventsLib.IncreaseAbsoluteCap(id, newAbsoluteCap);
+        emit EventsLib.IncreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
     function decreaseAbsoluteCap(bytes32 id, uint256 newAbsoluteCap) external {
@@ -263,7 +264,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setLiquidityAdapter(address newLiquidityAdapter) external {
-        require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
+        require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         require(
             newLiquidityAdapter == address(0) || isAdapter[newLiquidityAdapter],
             ErrorsLib.LiquidityAdapterInvariantBroken()
@@ -273,7 +274,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setLiquidityData(bytes memory newLiquidityData) external {
-        require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
+        require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         liquidityData = newLiquidityData;
         emit EventsLib.SetLiquidityData(msg.sender, newLiquidityData);
     }
@@ -281,22 +282,21 @@ contract VaultV2 is IVaultV2 {
     /* TIMELOCKS */
 
     function submit(bytes calldata data) external {
-        bytes4 selector = bytes4(data);
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-
         require(validAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
+        bytes4 selector = bytes4(data);
         validAt[data] = block.timestamp + timelock[selector];
         emit EventsLib.Submit(msg.sender, selector, data, validAt[data]);
     }
 
     modifier timelocked() {
-        require(validAt[msg.data] != 0 && block.timestamp >= validAt[msg.data], ErrorsLib.DataNotTimelocked());
+        require(validAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
+        require(block.timestamp >= validAt[msg.data], ErrorsLib.TimelockNotExpired());
         validAt[msg.data] = 0;
         _;
     }
 
-    /// @dev Authorized to submit can revoke.
     function revoke(bytes calldata data) external {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(validAt[data] != 0, ErrorsLib.DataNotTimelocked());
@@ -321,7 +321,7 @@ contract VaultV2 is IVaultV2 {
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (totalAssets, 0, 0);
-        uint256 interestPerSecond = IIRM(irm).interestPerSecond(totalAssets, elapsed);
+        uint256 interestPerSecond = IInterestController(interestController).interestPerSecond(totalAssets, elapsed);
         require(interestPerSecond <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssets + interest;

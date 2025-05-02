@@ -134,7 +134,6 @@ contract ERC20Test is BaseTest {
         amountTransferred = bound(amountTransferred, 0, amountApproved);
 
         vm.assume(from != address(0));
-        vm.assume(from != address(this));
         vm.assume(to != address(0));
         vault.mint(amount, from);
 
@@ -147,7 +146,11 @@ contract ERC20Test is BaseTest {
         emit EventsLib.TransferFrom(address(this), from, to, amountTransferred);
         vault.transferFrom(from, to, amountTransferred);
 
-        assertEq(vault.allowance(from, address(this)), amountApproved - amountTransferred, "allowance");
+        if (address(this) != from) {
+            assertEq(vault.allowance(from, address(this)), amountApproved - amountTransferred, "approved-transferred");
+        } else {
+            assertEq(vault.allowance(from, address(this)), amountApproved, "approved");
+        }
         if (from == to) {
             assertEq(vault.balanceOf(from), amount, "balance");
         } else {
