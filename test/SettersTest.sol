@@ -216,14 +216,14 @@ contract SettersTest is BaseTest {
         // Can't increase timelock with decreaseTimelock
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, selector, oldTimelock + 1));
-        vm.warp(block.timestamp + TIMELOCK_CAP);
+        vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
         vm.expectRevert(ErrorsLib.TimelockNotDecreasing.selector);
         vault.decreaseTimelock(selector, oldTimelock + 1);
 
         // Normal path
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, selector, newTimelock));
-        vm.warp(block.timestamp + TIMELOCK_CAP + TIMELOCK_CAP); // foundry bug?
+        vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
         vm.expectEmit();
         emit EventsLib.DecreaseTimelock(selector, newTimelock);
         vault.decreaseTimelock(selector, newTimelock);
@@ -234,7 +234,7 @@ contract SettersTest is BaseTest {
         vault.submit(
             abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, IVaultV2.decreaseTimelock.selector, 1 weeks)
         );
-        vm.warp(block.timestamp + TIMELOCK_CAP + TIMELOCK_CAP + TIMELOCK_CAP); // foundry bug?
+        vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
         vm.expectRevert(ErrorsLib.TimelockCapIsFixed.selector);
         vault.decreaseTimelock(IVaultV2.decreaseTimelock.selector, 1 weeks);
     }
