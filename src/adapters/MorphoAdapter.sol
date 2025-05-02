@@ -67,6 +67,7 @@ contract MorphoAdapter {
     }
 
     function skim(address token) external {
+        require(msg.sender == skimRecipient, NotAuthorized());
         uint256 balance = IERC20(token).balanceOf(address(this));
         SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
         emit Skim(token, balance);

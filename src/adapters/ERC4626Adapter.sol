@@ -45,7 +45,7 @@ contract ERC4626Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         (address vault) = abi.decode(data, (address));
 
-        IERC20(asset).approve(vault, assets);
+        SafeERC20Lib.safeApprove(asset, vault, assets);
         IERC4626(vault).deposit(assets, address(this));
 
         bytes32[] memory ids = new bytes32[](1);
@@ -66,6 +66,7 @@ contract ERC4626Adapter {
     }
 
     function skim(address token) external {
+        require(msg.sender == skimRecipient, NotAuthorized());
         uint256 balance = IERC20(token).balanceOf(address(this));
         SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
         emit Skim(token, balance);
