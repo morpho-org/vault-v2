@@ -425,6 +425,10 @@ contract SettersTest is BaseTest {
         vm.assume(newRelativeCap > 0);
         vm.assume(newRelativeCap < WAD);
 
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, id, 0));
+        vault.decreaseRelativeCap(id, 0);
+
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
@@ -436,8 +440,11 @@ contract SettersTest is BaseTest {
         vm.expectEmit();
         emit EventsLib.IncreaseRelativeCap(id, newRelativeCap);
         vault.increaseRelativeCap(id, newRelativeCap);
-        assertEq(vault.relativeCap(id), newRelativeCap);
-        assertEq(vault.idsWithRelativeCap(0), id);
+        assertEq(vault.oneMinusRelativeCap(id), WAD - newRelativeCap);
+        if (newRelativeCap == 0) {
+            vm.expectRevert();
+            vault.idsWithRelativeCap(0);
+        }
 
         // Can't decrease relative cap
         vm.prank(curator);
@@ -446,14 +453,9 @@ contract SettersTest is BaseTest {
         vault.increaseRelativeCap(id, newRelativeCap - 1);
     }
 
-    function testDecreaseRelativeCap(address rdm, bytes32 id, uint256 oldRelativeCap, uint256 newRelativeCap) public {
+    function testDecreaseRelativeCap(address rdm, bytes32 id, uint256 newRelativeCap) public {
         vm.assume(newRelativeCap > 0);
-        vm.assume(oldRelativeCap > newRelativeCap);
-        vm.assume(oldRelativeCap < WAD);
-
-        vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, id, oldRelativeCap));
-        vault.increaseRelativeCap(id, oldRelativeCap);
+        vm.assume(newRelativeCap < WAD);
 
         // Access control
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
@@ -466,11 +468,8 @@ contract SettersTest is BaseTest {
         vm.expectEmit();
         emit EventsLib.DecreaseRelativeCap(id, newRelativeCap);
         vault.decreaseRelativeCap(id, newRelativeCap);
-        assertEq(vault.relativeCap(id), newRelativeCap);
-        if (newRelativeCap == 0) {
-            vm.expectRevert();
-            vault.idsWithRelativeCap(0);
-        }
+        assertEq(vault.oneMinusRelativeCap(id), WAD - newRelativeCap);
+        assertEq(vault.idsWithRelativeCap(0), id);
 
         // Can't increase relative cap
         vm.prank(curator);

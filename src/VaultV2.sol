@@ -40,7 +40,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
     mapping(bytes32 => uint256) public absoluteCap;
     /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
-    mapping(bytes32 => uint256) public relativeCap;
+    mapping(bytes32 => uint256) public oneMinusRelativeCap;
     /// @dev Useful to iterate over all ids with relative cap in withdrawals.
     bytes32[] public idsWithRelativeCap;
     /// @dev Interests are not counted in the allocation.
@@ -197,24 +197,24 @@ contract VaultV2 is IVaultV2 {
     }
 
     function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
-        require(newRelativeCap > relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
+        require(newRelativeCap > WAD - oneMinusRelativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
 
-        if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
-        relativeCap[id] = newRelativeCap;
-        emit EventsLib.IncreaseRelativeCap(id, newRelativeCap);
-    }
-
-    function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
-        require(newRelativeCap < relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
-        require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
-
-        if (newRelativeCap == 0) {
+        if (newRelativeCap == WAD) {
             uint256 i;
             while (idsWithRelativeCap[i] != id) i++;
             idsWithRelativeCap[i] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
             idsWithRelativeCap.pop();
         }
-        relativeCap[id] = newRelativeCap;
+        oneMinusRelativeCap[id] = WAD - newRelativeCap;
+        emit EventsLib.IncreaseRelativeCap(id, newRelativeCap);
+    }
+
+    function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
+        require(newRelativeCap < WAD - oneMinusRelativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
+        require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
+
+        if (oneMinusRelativeCap[id] == 0) idsWithRelativeCap.push(id);
+        oneMinusRelativeCap[id] = WAD - newRelativeCap;
         emit EventsLib.DecreaseRelativeCap(id, newRelativeCap);
     }
 
@@ -238,7 +238,8 @@ contract VaultV2 is IVaultV2 {
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
             require(
-                allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD), ErrorsLib.RelativeCapExceeded()
+                allocation[ids[i]] <= totalAssets.mulDivDown(WAD - oneMinusRelativeCap[ids[i]], WAD),
+                ErrorsLib.RelativeCapExceeded()
             );
         }
         emit EventsLib.ReallocateFromIdle(msg.sender, adapter, amount, ids);
@@ -421,7 +422,10 @@ contract VaultV2 is IVaultV2 {
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
-            require(allocation[id] <= totalAssets.mulDivDown(relativeCap[id], WAD), ErrorsLib.RelativeCapExceeded());
+            require(
+                allocation[id] <= totalAssets.mulDivDown(WAD - oneMinusRelativeCap[id], WAD),
+                ErrorsLib.RelativeCapExceeded()
+            );
         }
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
