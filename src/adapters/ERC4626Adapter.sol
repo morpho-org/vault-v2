@@ -46,7 +46,7 @@ contract ERC4626Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         (address vault) = abi.decode(data, (address));
 
-        IERC20(asset).approve(vault, assets);
+        SafeERC20Lib.safeApprove(asset, vault, assets);
         IERC4626(vault).deposit(assets, address(this));
 
         bytes32[] memory ids = new bytes32[](1);
