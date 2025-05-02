@@ -483,7 +483,8 @@ contract SettersTest is BaseTest {
 
     function testSetForceReallocateToIdlePenalty(address rdm, uint256 newForceReallocateToIdlePenalty) public {
         vm.assume(rdm != curator);
-        newForceReallocateToIdlePenalty = bound(newForceReallocateToIdlePenalty, 0, MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY);
+        newForceReallocateToIdlePenalty =
+            bound(newForceReallocateToIdlePenalty, 0, MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
