@@ -66,6 +66,7 @@ contract ERC4626AdapterTest is Test {
         bytes32[] memory ids = adapter.allocateIn(abi.encode(address(erc4626Vault)), amount);
 
         uint256 adapterShares = erc4626Vault.balanceOf(address(adapter));
+        // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(adapterShares, amount, "Incorrect share balance after deposit");
         assertEq(asset.balanceOf(address(adapter)), 0, "Underlying tokens not transferred to vault");
 
@@ -83,6 +84,7 @@ contract ERC4626AdapterTest is Test {
         adapter.allocateIn(abi.encode(address(erc4626Vault)), initialAmount);
 
         uint256 beforeShares = erc4626Vault.balanceOf(address(adapter));
+        // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(beforeShares, initialAmount, "Precondition failed: shares not set");
 
         vm.prank(address(parentVault));

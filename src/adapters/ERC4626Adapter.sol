@@ -6,6 +6,7 @@ import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
+/// Vaults should transfer exactly the input in deposit and withdraw.
 contract ERC4626Adapter {
     /* IMMUTABLES */
 
@@ -20,6 +21,10 @@ contract ERC4626Adapter {
 
     event Skim(address indexed token, uint256 amount);
 
+    /* ERRORS */
+
+    error NotAuthorized();
+
     /* FUNCTIONS */
 
     constructor(address _parentVault) {
@@ -29,7 +34,7 @@ contract ERC4626Adapter {
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
-        require(msg.sender == IVaultV2(parentVault).owner(), "not authorized");
+        require(msg.sender == IVaultV2(parentVault).owner(), NotAuthorized());
         skimRecipient = newSkimRecipient;
     }
 
@@ -48,7 +53,7 @@ contract ERC4626Adapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     function allocateOut(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
-        require(msg.sender == parentVault, "not authorized");
+        require(msg.sender == parentVault, NotAuthorized());
         (address vault) = abi.decode(data, (address));
 
         IERC4626(vault).withdraw(assets, address(this), address(this));

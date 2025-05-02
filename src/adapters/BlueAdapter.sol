@@ -3,8 +3,8 @@ pragma solidity 0.8.28;
 
 import {IMorpho, MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
+import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
 contract BlueAdapter {
     /* IMMUTABLES */
@@ -19,6 +19,10 @@ contract BlueAdapter {
     /* EVENTS */
 
     event Skim(address indexed token, uint256 amount);
+
+    /* ERRORS */
+
+    error NotAuthorized();
 
     /* FUNCTIONS */
 
@@ -40,13 +44,13 @@ contract BlueAdapter {
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
-        require(msg.sender == IVaultV2(parentVault).owner(), "not authorized");
+        require(msg.sender == IVaultV2(parentVault).owner(), NotAuthorized());
         skimRecipient = newSkimRecipient;
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     function allocateIn(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
-        require(msg.sender == parentVault, "not authorized");
+        require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
         return ids(marketParams);
@@ -54,7 +58,7 @@ contract BlueAdapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     function allocateOut(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
-        require(msg.sender == parentVault, "not authorized");
+        require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
         return ids(marketParams);
