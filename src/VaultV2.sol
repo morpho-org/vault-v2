@@ -264,7 +264,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setLiquidityAdapter(address newLiquidityAdapter) external {
-        require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
+        require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         require(
             newLiquidityAdapter == address(0) || isAdapter[newLiquidityAdapter],
             ErrorsLib.LiquidityAdapterInvariantBroken()
@@ -274,7 +274,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setLiquidityData(bytes memory newLiquidityData) external {
-        require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
+        require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         liquidityData = newLiquidityData;
         emit EventsLib.SetLiquidityData(msg.sender, newLiquidityData);
     }
@@ -282,22 +282,20 @@ contract VaultV2 is IVaultV2 {
     /* TIMELOCKS */
 
     function submit(bytes calldata data) external {
-        bytes4 selector = bytes4(data);
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-
         require(validAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
-        validAt[data] = block.timestamp + timelock[selector];
+        validAt[data] = block.timestamp + timelock[bytes4(data)];
         emit EventsLib.Submit(msg.sender, data, validAt[data]);
     }
 
     modifier timelocked() {
-        require(validAt[msg.data] != 0 && block.timestamp >= validAt[msg.data], ErrorsLib.DataNotTimelocked());
+        require(validAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
+        require(block.timestamp >= validAt[msg.data], ErrorsLib.TimelockNotExpired());
         validAt[msg.data] = 0;
         _;
     }
 
-    /// @dev Authorized to submit can revoke.
     function revoke(bytes calldata data) external {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(validAt[data] != 0, ErrorsLib.DataNotTimelocked());
