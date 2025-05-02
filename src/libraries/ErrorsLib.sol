@@ -8,6 +8,7 @@ library ErrorsLib {
     error TransferFromReverted();
     error TransferFromReturnedFalse();
     error FeeTooHigh();
+    error PenaltyTooHigh();
     error ZeroAddress();
     error Unauthorized();
     error TimelockNotExpired();
