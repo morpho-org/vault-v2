@@ -31,7 +31,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint256 public managementFee;
     address public managementFeeRecipient;
-    uint256 public forceReallocateToIdleDiscount;
+    uint256 public forceReallocateToIdlePenalty;
 
     uint256 public lastUpdate;
     uint256 public totalAssets;
@@ -220,10 +220,10 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseRelativeCap(id, newRelativeCap);
     }
 
-    function setForceReallocateToIdleDiscount(uint256 newForceReallocateToIdleDiscount) external timelocked {
-        require(newForceReallocateToIdleDiscount <= MAX_FORCE_REALLOCATE_TO_IDLE_DISCOUNT, ErrorsLib.FeeTooHigh());
-        forceReallocateToIdleDiscount = newForceReallocateToIdleDiscount;
-        emit EventsLib.SetForceReallocateToIdleDiscount(newForceReallocateToIdleDiscount);
+    function setForceReallocateToIdlePenalty(uint256 newForceReallocateToIdlePenalty) external timelocked {
+        require(newForceReallocateToIdlePenalty <= MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY, ErrorsLib.FeeTooHigh());
+        forceReallocateToIdlePenalty = newForceReallocateToIdlePenalty;
+        emit EventsLib.SetForceReallocateToIdlePenalty(newForceReallocateToIdlePenalty);
     }
 
     /* ALLOCATOR ACTIONS */
@@ -446,7 +446,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         // The discount is taken as a withdrawal that is donated to the vault.
-        uint256 shares = withdraw(total.mulDivDown(forceReallocateToIdleDiscount, WAD), address(this), onBehalf);
+        uint256 shares = withdraw(total.mulDivDown(forceReallocateToIdlePenalty, WAD), address(this), onBehalf);
         emit EventsLib.ForceReallocateToIdle(msg.sender, onBehalf, total);
         return shares;
     }

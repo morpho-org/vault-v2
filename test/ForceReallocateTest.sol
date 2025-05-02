@@ -46,10 +46,10 @@ contract ForceReallocateTest is BaseTest {
         return list;
     }
 
-    function testForceReallocate(uint256 supplied, uint256 reallocated, uint256 forceReallocateDiscount) public {
+    function testForceReallocate(uint256 supplied, uint256 reallocated, uint256 forceReallocatePenalty) public {
         supplied = bound(supplied, 0, MAX_DEPOSIT);
         reallocated = bound(reallocated, 0, supplied);
-        forceReallocateDiscount = bound(forceReallocateDiscount, 0, MAX_FORCE_REALLOCATE_TO_IDLE_DISCOUNT);
+        forceReallocatePenalty = bound(forceReallocatePenalty, 0, MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY);
 
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, adapter, true));
@@ -65,11 +65,11 @@ contract ForceReallocateTest is BaseTest {
 
         vm.prank(curator);
         vault.submit(
-            abi.encodeWithSelector(IVaultV2.setForceReallocateToIdleDiscount.selector, forceReallocateDiscount)
+            abi.encodeWithSelector(IVaultV2.setForceReallocateToIdlePenalty.selector, forceReallocatePenalty)
         );
-        vault.setForceReallocateToIdleDiscount(forceReallocateDiscount);
+        vault.setForceReallocateToIdlePenalty(forceReallocatePenalty);
 
-        uint256 expectedShares = shares - vault.previewWithdraw(reallocated.mulDivDown(forceReallocateDiscount, WAD));
+        uint256 expectedShares = shares - vault.previewWithdraw(reallocated.mulDivDown(forceReallocatePenalty, WAD));
         vm.expectEmit();
         emit EventsLib.ForceReallocateToIdle(address(this), address(this), reallocated);
         uint256 withdrawnShares =

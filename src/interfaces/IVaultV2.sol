@@ -40,7 +40,7 @@ interface IVaultV2 is IERC20 {
     function managementFee() external view returns (uint256);
     function performanceFeeRecipient() external view returns (address);
     function managementFeeRecipient() external view returns (address);
-    function forceReallocateToIdleDiscount() external view returns (uint256);
+    function forceReallocateToIdlePenalty() external view returns (uint256);
     function irm() external view returns (address);
     function allocation(bytes32) external view returns (uint256);
     function lastUpdate() external view returns (uint256);
@@ -61,7 +61,7 @@ interface IVaultV2 is IERC20 {
     function decreaseTimelock(bytes4, uint256) external;
     function setIsAllocator(address, bool) external;
     function setIsAdapter(address, bool) external;
-    function setForceReallocateToIdleDiscount(uint256) external;
+    function setForceReallocateToIdlePenalty(uint256) external;
 
     // Treasurer actions
     function setPerformanceFee(uint256) external;

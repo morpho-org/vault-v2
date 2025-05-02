@@ -26,7 +26,7 @@ methods {
 definition TIMELOCK_CAP() returns uint256 = 14 * 24 * 60 * 60;
 definition MAX_PERFOMANCE_FEE() returns uint256 = 10^18 / 2;
 definition MAX_MANAGEMENT_FEE() returns uint256 = 10^18 / 20 / (365 * 24 * 60 * 60);
-definition MAX_FORCE_REALLOCATE_TO_IDLE_DISCOUNT() returns uint256 = 10^18 / 100;
+definition MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY() returns uint256 = 10^18 / 100;
 
 strong invariant performanceFeeRecipient()
     performanceFee() != 0 => performanceFeeRecipient() != 0;
@@ -40,8 +40,8 @@ strong invariant performanceFee()
 strong invariant managementFee()
     managementFee() <= MAX_MANAGEMENT_FEE();
 
-strong invariant forceReallocateToIdleDiscount()
-    forceReallocateToIdleDiscount() <= MAX_FORCE_REALLOCATE_TO_IDLE_DISCOUNT();
+strong invariant forceReallocateToIdlePenalty()
+    forceReallocateToIdlePenalty() <= MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY();
 
 strong invariant balanceOfZero()
     balanceOf(0) == 0;
