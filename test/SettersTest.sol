@@ -239,7 +239,7 @@ contract SettersTest is BaseTest {
         vault.decreaseTimelock(IVaultV2.decreaseTimelock.selector, 1 weeks);
     }
 
-    function testSetPerformanceFee(address rdm, uint256 newPerformance) public {
+    function testSetPerformanceFee(address rdm, uint256 newPerformanceFee) public {
         vm.assume(rdm != curator);
         newPerformanceFee = bound(newPerformanceFee, 0, MAX_PERFORMANCE_FEE);
 
@@ -492,7 +492,9 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdleFee.selector, newForceReallocateToIdleFee));
+        vault.submit(
+            abi.encodeWithSelector(IVaultV2.setForceReallocateToIdlePenalty.selector, newForceReallocateToIdlePenalty)
+        );
         vm.expectEmit();
         emit EventsLib.SetForceReallocateToIdlePenalty(newForceReallocateToIdlePenalty);
         vault.setForceReallocateToIdlePenalty(newForceReallocateToIdlePenalty);
@@ -501,8 +503,8 @@ contract SettersTest is BaseTest {
         // Can't set fee above cap
         uint256 tooHighPenalty = MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY + 1;
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdlePenalty.selector, tooHighFee));
-        vm.expectRevert(ErrorsLib.FeeTooHigh.selector);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdlePenalty.selector, tooHighPenalty));
+        vm.expectRevert(ErrorsLib.PenaltyTooHigh.selector);
         vault.setForceReallocateToIdlePenalty(tooHighPenalty);
     }
 

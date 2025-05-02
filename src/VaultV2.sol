@@ -222,7 +222,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setForceReallocateToIdlePenalty(uint256 newForceReallocateToIdlePenalty) external timelocked {
-        require(newForceReallocateToIdlePenalty <= MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY, ErrorsLib.FeeTooHigh());
+        require(newForceReallocateToIdlePenalty <= MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY, ErrorsLib.PenaltyTooHigh());
         forceReallocateToIdlePenalty = newForceReallocateToIdlePenalty;
         emit EventsLib.SetForceReallocateToIdlePenalty(newForceReallocateToIdlePenalty);
     }
