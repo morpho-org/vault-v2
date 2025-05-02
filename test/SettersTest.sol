@@ -537,7 +537,7 @@ contract SettersTest is BaseTest {
     }
 
     function testSetLiquidityData(address rdm) public {
-        vm.assume(rdm != curator);
+        vm.assume(rdm != allocator);
         bytes memory newData = abi.encode("newData");
 
         // Access control
