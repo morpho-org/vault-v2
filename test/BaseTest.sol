@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
-import {IVaultV2Factory} from "../src/interfaces/IVaultV2Factory.sol";
-import {IVaultV2, IERC20} from "../src/interfaces/IVaultV2.sol";
-
-import {VaultV2Factory} from "../src/VaultV2Factory.sol";
 import "../src/VaultV2.sol";
 import {ManualInterestController} from "../src/interest-controllers/ManualInterestController.sol";
 
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
+import {IIrmFactory} from "../src/interfaces/IIRMFactory.sol";
+import {IRM} from "../src/IRM.sol";
 
+import {IVaultV2, IERC20} from "../src/interfaces/IVaultV2.sol";
+
+import {IVaultV2Factory} from "../src/interfaces/IVaultV2Factory.sol";
 import {Test, console} from "../lib/forge-std/src/Test.sol";
+import {VaultV2Factory} from "../src/VaultV2Factory.sol";
+import {IrmFactory} from "../src/IrmFactory.sol";
 
 contract BaseTest is Test {
     address immutable manager = makeAddr("manager");
@@ -20,6 +23,7 @@ contract BaseTest is Test {
 
     ERC20Mock underlyingToken;
     IVaultV2Factory vaultFactory;
+    IIrmFactory irmFactory;
     IVaultV2 vault;
     ManualInterestController interestController;
 
@@ -32,6 +36,7 @@ contract BaseTest is Test {
         vm.label(address(underlyingToken), "underlying");
 
         vaultFactory = IVaultV2Factory(address(new VaultV2Factory()));
+        irmFactory = IIrmFactory(address(new IrmFactory()));
 
         vault = IVaultV2(vaultFactory.createVaultV2(owner, address(underlyingToken), bytes32(0)));
         vm.label(address(vault), "vault");
