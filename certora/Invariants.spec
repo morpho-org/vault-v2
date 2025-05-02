@@ -10,12 +10,8 @@ methods {
 
     function forceReallocateToIdlePenalty() external returns uint256 envfree;
 
-    function absoluteCap(bytes32 id) external returns uint256 envfree;
-    function relativeCap(bytes32 id) external returns uint256 envfree;
-    function allocation(bytes32 id) external returns uint256 envfree;
     function timelock(bytes4 selector) external returns uint256 envfree;
     function liquidityAdapter() external returns address envfree;
-    function liquidityData() external returns bytes memory envfree;
 
     function isAdapter(address adapter) external returns bool envfree;
 
