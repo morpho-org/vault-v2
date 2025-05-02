@@ -444,9 +444,7 @@ contract SettersTest is BaseTest {
         vault.increaseRelativeCap(id, newRelativeCap - 1);
     }
 
-    function testDecreaseRelativeCap(address rdm, bytes32 id, uint256 oldRelativeCap, uint256 newRelativeCap)
-        public
-    {
+    function testDecreaseRelativeCap(address rdm, bytes32 id, uint256 oldRelativeCap, uint256 newRelativeCap) public {
         vm.assume(newRelativeCap > 0);
         vm.assume(oldRelativeCap > newRelativeCap);
         vm.assume(oldRelativeCap < WAD);
