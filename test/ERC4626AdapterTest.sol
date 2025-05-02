@@ -6,6 +6,7 @@ import "forge-std/Test.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {ERC4626Mock} from "./mocks/ERC4626Mock.sol";
 import {ERC4626Adapter, ERC4626AdapterFactory} from "src/adapters/ERC4626Adapter.sol";
+import "src/adapters/AdapterEventsLib.sol";
 import {IERC20} from "src/interfaces/IERC20.sol";
 import {IVaultV2} from "src/interfaces/IVaultV2.sol";
 
@@ -137,6 +138,8 @@ contract ERC4626AdapterTest is Test {
         adapter.setSkimRecipient(newRecipient);
 
         vm.prank(owner);
+        vm.expectEmit();
+        emit AdapterEventsLib.SetSkimRecipient(newRecipient);
         adapter.setSkimRecipient(newRecipient);
 
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
@@ -153,6 +156,8 @@ contract ERC4626AdapterTest is Test {
         deal(address(token), address(adapter), amount);
         assertEq(token.balanceOf(address(adapter)), amount, "Adapter did not receive tokens");
 
+        vm.expectEmit();
+        emit AdapterEventsLib.Skim(address(token), amount);
         adapter.skim(address(token));
 
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");

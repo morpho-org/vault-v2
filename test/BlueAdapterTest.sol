@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
 import {BlueAdapter, BlueAdapterFactory} from "src/adapters/BlueAdapter.sol";
+import "src/adapters/AdapterEventsLib.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "lib/morpho-blue/src/mocks/OracleMock.sol";
 import {IrmMock} from "lib/morpho-blue/src/mocks/IrmMock.sol";
@@ -165,12 +166,13 @@ contract BlueAdapterTest is Test {
         vm.assume(newRecipient != address(0));
         vm.assume(caller != address(0));
         vm.assume(caller != owner);
-
         vm.prank(caller);
         vm.expectRevert(bytes("not authorized"));
         adapter.setSkimRecipient(newRecipient);
 
         vm.prank(owner);
+        vm.expectEmit();
+        emit AdapterEventsLib.SetSkimRecipient(newRecipient);
         adapter.setSkimRecipient(newRecipient);
 
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
@@ -187,6 +189,8 @@ contract BlueAdapterTest is Test {
         deal(address(token), address(adapter), amount);
         assertEq(token.balanceOf(address(adapter)), amount, "Adapter did not receive tokens");
 
+        vm.expectEmit();
+        emit AdapterEventsLib.Skim(address(token), amount);
         adapter.skim(address(token));
 
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
