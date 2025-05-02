@@ -508,6 +508,7 @@ contract SettersTest is BaseTest {
     /* ALLOCATOR SETTERS */
 
     function testSetLiquidityAdapter(address rdm, address liquidityAdapter) public {
+        vm.assume(rdm != allocator);
         vm.assume(liquidityAdapter != address(0));
         vm.assume(rdm != allocator);
         vm.prank(allocator);
