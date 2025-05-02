@@ -5,27 +5,19 @@ import "forge-std/Test.sol";
 
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {ERC4626Mock} from "./mocks/ERC4626Mock.sol";
-import {ERC4626Adapter, ERC4626AdapterFactory} from "src/adapters/ERC4626Adapter.sol";
+import {ERC4626Adapter} from "src/adapters/ERC4626Adapter.sol";
+import {ERC4626AdapterFactory} from "src/adapters/ERC4626AdapterFactory.sol";
 import "src/adapters/AdapterEventsLib.sol";
+
+import {VaultMock} from "./mocks/VaultV2Mock.sol";
 import {IERC20} from "src/interfaces/IERC20.sol";
 import {IVaultV2} from "src/interfaces/IVaultV2.sol";
-
-/// @notice Minimal stub contract used as the parent vault by the ERC4626Adapter in tests.
-contract VaultStub {
-    address public asset;
-    address public owner;
-
-    constructor(address _asset, address _owner) {
-        asset = _asset;
-        owner = _owner;
-    }
-}
 
 contract ERC4626AdapterTest is Test {
     ERC20Mock internal asset;
     ERC20Mock internal rewardToken;
     ERC4626Mock internal erc4626Vault;
-    VaultStub internal parentVault;
+    VaultMock internal parentVault;
     ERC4626AdapterFactory internal factory;
     ERC4626Adapter internal adapter;
     address internal owner;
@@ -41,7 +33,7 @@ contract ERC4626AdapterTest is Test {
         asset = new ERC20Mock();
         rewardToken = new ERC20Mock();
         erc4626Vault = new ERC4626Mock(address(asset));
-        parentVault = new VaultStub(address(asset), owner);
+        parentVault = new VaultMock(address(asset), owner);
 
         factory = new ERC4626AdapterFactory();
         adapter = ERC4626Adapter(factory.createERC4626Adapter(address(parentVault)));
@@ -110,7 +102,7 @@ contract ERC4626AdapterTest is Test {
     }
 
     function testFactoryCreateAdapter() public {
-        VaultStub newParentVault = new VaultStub(address(asset), owner);
+        VaultMock newParentVault = new VaultMock(address(asset), owner);
 
         bytes32 initCodeHash =
             keccak256(abi.encodePacked(type(ERC4626Adapter).creationCode, abi.encode(address(newParentVault))));
@@ -162,17 +154,5 @@ contract ERC4626AdapterTest is Test {
 
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
         assertEq(token.balanceOf(recipient), amount, "Recipient did not receive tokens");
-    }
-
-    function testSkimRevertsForUnderlyingToken(uint256 amount) public {
-        amount = _boundAmount(amount);
-
-        vm.prank(owner);
-        adapter.setSkimRecipient(recipient);
-
-        deal(address(asset), address(adapter), amount);
-
-        vm.expectRevert(bytes("can't skim underlying"));
-        adapter.skim(address(asset));
     }
 }

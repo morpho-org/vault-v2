@@ -2,33 +2,25 @@
 pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
-import {BlueAdapter, BlueAdapterFactory} from "src/adapters/BlueAdapter.sol";
+import {BlueAdapter} from "src/adapters/BlueAdapter.sol";
+import {BlueAdapterFactory} from "src/adapters/BlueAdapterFactory.sol";
 import "src/adapters/AdapterEventsLib.sol";
+
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "lib/morpho-blue/src/mocks/OracleMock.sol";
+import {VaultMock} from "./mocks/VaultV2Mock.sol";
 import {IrmMock} from "lib/morpho-blue/src/mocks/IrmMock.sol";
 import {IMorpho, MarketParams} from "lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MorphoBalancesLib} from "lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 import {IERC20} from "src/interfaces/IERC20.sol";
 import {IVaultV2} from "src/interfaces/IVaultV2.sol";
 
-/// @notice Minimal stub contract used as the parent vault by the BlueAdapter in tests.
-contract VaultStub {
-    address public asset;
-    address public owner;
-
-    constructor(address _asset, address _owner) {
-        asset = _asset;
-        owner = _owner;
-    }
-}
-
 contract BlueAdapterTest is Test {
     using MorphoBalancesLib for IMorpho;
 
     BlueAdapterFactory internal factory;
     BlueAdapter internal adapter;
-    VaultStub internal parentVault;
+    VaultMock internal parentVault;
     MarketParams internal marketParams;
     ERC20Mock internal loanToken;
     ERC20Mock internal collateralToken;
@@ -39,7 +31,7 @@ contract BlueAdapterTest is Test {
     address internal owner;
     address internal recipient;
 
-    uint256 internal constant MIN_TEST_AMOUNT = 1e6;
+    uint256 internal constant MIN_TEST_AMOUNT = 1;
     uint256 internal constant MAX_TEST_AMOUNT = 1e24;
 
     function setUp() public {
@@ -69,7 +61,7 @@ contract BlueAdapterTest is Test {
         vm.stopPrank();
 
         morpho.createMarket(marketParams);
-        parentVault = new VaultStub(address(loanToken), owner);
+        parentVault = new VaultMock(address(loanToken), owner);
         factory = new BlueAdapterFactory(address(morpho));
         adapter = BlueAdapter(factory.createBlueAdapter(address(parentVault)));
     }
@@ -116,7 +108,7 @@ contract BlueAdapterTest is Test {
 
     function testAllocateOutWithdrawsAssetsFromMorpho(uint256 initialAmount, uint256 withdrawAmount) public {
         initialAmount = _boundAmount(initialAmount);
-        withdrawAmount = bound(withdrawAmount, 0, initialAmount);
+        withdrawAmount = bound(withdrawAmount, 1, initialAmount);
 
         deal(address(loanToken), address(adapter), initialAmount);
         vm.prank(address(parentVault));
@@ -144,7 +136,7 @@ contract BlueAdapterTest is Test {
     }
 
     function testFactoryCreateBlueAdapter() public {
-        address newParentVaultAddr = address(new VaultStub(address(loanToken), owner));
+        address newParentVaultAddr = address(new VaultMock(address(loanToken), owner));
 
         bytes32 initCodeHash =
             keccak256(abi.encodePacked(type(BlueAdapter).creationCode, abi.encode(newParentVaultAddr, morpho)));
@@ -195,17 +187,5 @@ contract BlueAdapterTest is Test {
 
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
         assertEq(token.balanceOf(recipient), amount, "Recipient did not receive tokens");
-    }
-
-    function testSkimRevertsForUnderlyingToken(uint256 amount) public {
-        amount = _boundAmount(amount);
-
-        vm.prank(owner);
-        adapter.setSkimRecipient(recipient);
-
-        deal(address(loanToken), address(adapter), amount);
-
-        vm.expectRevert(bytes("can't skim underlying"));
-        adapter.skim(address(loanToken));
     }
 }

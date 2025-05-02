@@ -31,6 +31,7 @@ contract ERC4626Adapter {
         emit AdapterEventsLib.SetSkimRecipient(newSkimRecipient);
     }
 
+    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     function allocateIn(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, "not authorized");
         (address vault) = abi.decode(data, (address));
@@ -43,6 +44,7 @@ contract ERC4626Adapter {
         return ids;
     }
 
+    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     function allocateOut(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, "not authorized");
         (address vault) = abi.decode(data, (address));
@@ -55,29 +57,9 @@ contract ERC4626Adapter {
     }
 
     function skim(address token) external {
-        require(token != asset, "can't skim underlying");
-        uint256 skimedAmount = IERC20(token).balanceOf(address(this));
-        SafeERC20Lib.safeTransfer(token, skimRecipient, skimedAmount);
-        emit AdapterEventsLib.Skim(token, skimedAmount);
-    }
-}
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
 
-contract ERC4626AdapterFactory {
-    /* STORAGE */
-
-    // parent vault => adapter
-    mapping(address => address) public adapter;
-    mapping(address => bool) public isAdapter;
-
-    /* EVENTS */
-
-    event CreateERC4626Adapter(address indexed parentVault, address indexed erc4626Adapter);
-
-    function createERC4626Adapter(address _parentVault) external returns (address) {
-        address erc4626Adapter = address(new ERC4626Adapter{salt: bytes32(0)}(_parentVault));
-        adapter[_parentVault] = erc4626Adapter;
-        isAdapter[erc4626Adapter] = true;
-        emit CreateERC4626Adapter(_parentVault, erc4626Adapter);
-        return erc4626Adapter;
+        emit AdapterEventsLib.Skim(token, balance);
     }
 }
