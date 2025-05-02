@@ -16,6 +16,10 @@ contract BlueAdapter {
 
     address public skimRecipient;
 
+    /* EVENTS */
+
+    event Skim(address indexed token, uint256 amount);
+
     /* FUNCTIONS */
 
     constructor(address _parentVault, address _morpho) {
@@ -40,6 +44,7 @@ contract BlueAdapter {
         skimRecipient = newSkimRecipient;
     }
 
+    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     function allocateIn(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, "not authorized");
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
@@ -47,6 +52,7 @@ contract BlueAdapter {
         return ids(marketParams);
     }
 
+    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     function allocateOut(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, "not authorized");
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
@@ -55,37 +61,8 @@ contract BlueAdapter {
     }
 
     function skim(address token) external {
-        require(token != IVaultV2(parentVault).asset(), "can't skim underlying");
-        SafeERC20Lib.safeTransfer(token, skimRecipient, IERC20(token).balanceOf(address(this)));
-    }
-}
-
-contract BlueAdapterFactory {
-    /* IMMUTABLES */
-
-    address immutable morpho;
-
-    /* STORAGE */
-
-    // vault => adapter
-    mapping(address => address) public adapter;
-    mapping(address => bool) public isAdapter;
-
-    /* EVENTS */
-
-    event CreateBlueAdapter(address indexed vault, address indexed blueAdapter);
-
-    /* FUNCTIONS */
-
-    constructor(address _morpho) {
-        morpho = _morpho;
-    }
-
-    function createBlueAdapter(address vault) external returns (address) {
-        address blueAdapter = address(new BlueAdapter{salt: bytes32(0)}(vault, morpho));
-        adapter[vault] = blueAdapter;
-        isAdapter[blueAdapter] = true;
-        emit CreateBlueAdapter(vault, blueAdapter);
-        return blueAdapter;
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
+        emit Skim(token, balance);
     }
 }

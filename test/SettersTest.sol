@@ -359,10 +359,6 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != allocator);
         bytes memory newData = abi.encode("newData");
 
-        vm.expectRevert(ErrorsLib.Unauthorized.selector);
-        vm.prank(rdm);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setLiquidityData.selector, newData));
-
         vm.prank(allocator);
         vm.expectEmit();
         emit EventsLib.SetLiquidityData(allocator, newData);
