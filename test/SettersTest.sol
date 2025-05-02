@@ -79,7 +79,9 @@ contract SettersTest is BaseTest {
 
         vm.prank(curator);
         vm.expectEmit();
-        emit EventsLib.Submit(curator, abi.encodeWithSelector(IVaultV2.setIRM.selector, newIRM), block.timestamp);
+        emit EventsLib.Submit(
+            curator, IVaultV2.setIRM.selector, abi.encodeWithSelector(IVaultV2.setIRM.selector, newIRM), block.timestamp
+        );
         vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, newIRM));
 
         vm.expectEmit();
@@ -106,7 +108,10 @@ contract SettersTest is BaseTest {
         vm.prank(curator);
         vm.expectEmit();
         emit EventsLib.Submit(
-            curator, abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, true), block.timestamp
+            curator,
+            IVaultV2.setIsAllocator.selector,
+            abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, true),
+            block.timestamp
         );
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, true));
 
@@ -169,6 +174,7 @@ contract SettersTest is BaseTest {
         vm.expectEmit();
         emit EventsLib.Submit(
             curator,
+            IVaultV2.setForceReallocateToIdleFee.selector,
             abi.encodeWithSelector(IVaultV2.setForceReallocateToIdleFee.selector, newForceReallocateToIdleFee),
             block.timestamp
         );
@@ -210,7 +216,10 @@ contract SettersTest is BaseTest {
         vm.prank(curator);
         vm.expectEmit();
         emit EventsLib.Submit(
-            curator, abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, newPerformanceFee), block.timestamp
+            curator,
+            IVaultV2.setPerformanceFee.selector,
+            abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, newPerformanceFee),
+            block.timestamp
         );
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, newPerformanceFee));
 
@@ -253,6 +262,7 @@ contract SettersTest is BaseTest {
         vm.expectEmit();
         emit EventsLib.Submit(
             curator,
+            IVaultV2.setPerformanceFeeRecipient.selector,
             abi.encodeWithSelector(IVaultV2.setPerformanceFeeRecipient.selector, newPerformanceFeeRecipient),
             block.timestamp
         );
@@ -292,7 +302,10 @@ contract SettersTest is BaseTest {
         vm.prank(curator);
         vm.expectEmit();
         emit EventsLib.Submit(
-            curator, abi.encodeWithSelector(IVaultV2.setManagementFee.selector, tooHighFee), block.timestamp
+            curator,
+            IVaultV2.setManagementFee.selector,
+            abi.encodeWithSelector(IVaultV2.setManagementFee.selector, tooHighFee),
+            block.timestamp
         );
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, tooHighFee));
         vm.expectRevert(ErrorsLib.FeeTooHigh.selector);
@@ -339,6 +352,7 @@ contract SettersTest is BaseTest {
         vm.expectEmit();
         emit EventsLib.Submit(
             curator,
+            IVaultV2.setManagementFeeRecipient.selector,
             abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, newManagementFeeRecipient),
             block.timestamp
         );
