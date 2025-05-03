@@ -12,7 +12,6 @@ contract ERC4626Adapter {
 
     address public immutable parentVault;
     address public immutable vault;
-    address public immutable asset;
 
     /* STORAGE */
 
@@ -32,8 +31,8 @@ contract ERC4626Adapter {
     constructor(address _parentVault, address _vault) {
         parentVault = _parentVault;
         vault = _vault;
-        asset = IVaultV2(_parentVault).asset();
         SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
+        SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _vault, type(uint256).max);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -46,7 +45,6 @@ contract ERC4626Adapter {
     function allocateIn(bytes memory, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
 
-        SafeERC20Lib.safeApprove(asset, vault, assets);
         IERC4626(vault).deposit(assets, address(this));
 
         bytes32[] memory ids = new bytes32[](1);

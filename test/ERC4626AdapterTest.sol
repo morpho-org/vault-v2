@@ -43,7 +43,7 @@ contract ERC4626AdapterTest is Test {
 
     function testParentVaultAndAssetSet() public view {
         assertEq(adapter.parentVault(), address(parentVault), "Incorrect parent vault set");
-        assertEq(adapter.asset(), address(asset), "Incorrect asset set");
+        assertEq(adapter.vault(), address(vault), "Incorrect vault set");
     }
 
     function testAllocateInNotAuthorizedReverts(uint256 amount) public {
@@ -117,7 +117,7 @@ contract ERC4626AdapterTest is Test {
 
         assertTrue(newAdapter != address(0), "Adapter not created");
         assertEq(ERC4626Adapter(newAdapter).parentVault(), address(newParentVault), "Incorrect parent vault");
-        assertEq(ERC4626Adapter(newAdapter).asset(), address(asset), "Incorrect asset");
+        assertEq(ERC4626Adapter(newAdapter).vault(), address(newVault), "Incorrect vault");
         assertEq(
             factory.adapter(address(newParentVault), address(newVault)), newAdapter, "Adapter not tracked correctly"
         );
