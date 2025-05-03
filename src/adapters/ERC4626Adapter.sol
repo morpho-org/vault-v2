@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {IVaultV2} from "../interfaces/IVaultV2.sol";
+import {IVaultV2, IAdapter} from "../interfaces/IVaultV2.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
 /// Vaults should transfer exactly the input in deposit and withdraw.
-contract ERC4626Adapter {
+contract ERC4626Adapter is IAdapter {
     /* IMMUTABLES */
 
     address public immutable parentVault;
@@ -16,6 +16,8 @@ contract ERC4626Adapter {
     /* STORAGE */
 
     address public skimRecipient;
+    uint256 public realisableLoss;
+    uint256 public lastAssetsInVault;
 
     /* EVENTS */
 
@@ -45,6 +47,10 @@ contract ERC4626Adapter {
     function allocateIn(bytes memory, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
 
+        uint256 assetsInVault = IERC4626(vault).previewWithdraw(IERC4626(vault).balanceOf(address(this)));
+        if (assetsInVault < lastAssetsInVault) realisableLoss += lastAssetsInVault - assetsInVault;
+        lastAssetsInVault = assetsInVault + assets;
+
         IERC4626(vault).deposit(assets, address(this));
 
         bytes32[] memory ids = new bytes32[](1);
@@ -56,11 +62,22 @@ contract ERC4626Adapter {
     function allocateOut(bytes memory, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
 
+        uint256 assetsInVault = IERC4626(vault).previewWithdraw(IERC4626(vault).balanceOf(address(this)));
+        if (assetsInVault < lastAssetsInVault) realisableLoss += lastAssetsInVault - assetsInVault;
+        lastAssetsInVault = assetsInVault - assets;
+
         IERC4626(vault).withdraw(assets, address(this), address(this));
 
         bytes32[] memory ids = new bytes32[](1);
         ids[0] = keccak256(abi.encode("vault", vault));
         return ids;
+    }
+
+    function realiseLoss(bytes memory) external returns (uint256) {
+        require(msg.sender == parentVault, NotAuthorized());
+        uint256 res = realisableLoss;
+        realisableLoss = 0;
+        return res;
     }
 
     function skim(address token) external {

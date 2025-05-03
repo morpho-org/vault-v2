@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
 
+import {IERC4626} from "src/interfaces/IERC4626.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {ERC4626Mock} from "./mocks/ERC4626Mock.sol";
 import {ERC4626Adapter} from "src/adapters/ERC4626Adapter.sol";
@@ -162,5 +163,105 @@ contract ERC4626AdapterTest is Test {
 
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
         adapter.skim(address(token));
+    }
+
+    function testLossRealizationInitiallyZero() public {
+        uint256 initialLoss = adapter.realisableLoss();
+        assertEq(initialLoss, 0, "Initial realizable loss should be zero");
+    }
+
+    function testRealiseLossNotAuthorizedReverts() public {
+        vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
+        adapter.realiseLoss(hex"");
+    }
+
+    function testLossRealization(uint256 initialAmount, uint256 lossAmount) public {
+        initialAmount = _boundAmount(initialAmount);
+        lossAmount = bound(lossAmount, 0, initialAmount);
+
+        // Setup.
+        deal(address(asset), address(adapter), initialAmount);
+        vm.prank(address(parentVault));
+        adapter.allocateIn(hex"", initialAmount);
+
+        // Loss detection.
+        vm.mockCall(
+            address(vault),
+            abi.encodeWithSelector(IERC4626.previewWithdraw.selector, initialAmount),
+            abi.encode(initialAmount - lossAmount)
+        );
+        uint256 snapshot = vm.snapshot();
+        vm.prank(address(parentVault));
+        adapter.allocateIn(hex"", 0);
+        assertEq(adapter.realisableLoss(), lossAmount, "Loss should have been tracked");
+        vm.revertTo(snapshot);
+        vm.prank(address(parentVault));
+        adapter.allocateOut(hex"", 0);
+        assertEq(adapter.realisableLoss(), lossAmount, "Loss should have been tracked");
+
+        // Realisation.
+        vm.prank(address(parentVault));
+        uint256 realizedLoss = adapter.realiseLoss(hex"");
+        assertEq(realizedLoss, lossAmount, "Realized loss should match expected loss");
+        assertEq(adapter.realisableLoss(), 0, "Realizable loss should be reset to zero");
+
+        // Can't realise loss twice.
+        vm.prank(address(parentVault));
+        uint256 secondRealizedLoss = adapter.realiseLoss(hex"");
+        assertEq(secondRealizedLoss, 0, "Second realized loss should be zero");
+    }
+
+    function testCumulativeLossRealization(
+        uint256 initialAmount,
+        uint256 firstLoss,
+        uint256 secondLoss,
+        uint256 depositAmount,
+        uint256 withdrawAmount
+    ) public {
+        initialAmount = _boundAmount(initialAmount);
+        firstLoss = bound(firstLoss, 0, initialAmount);
+        secondLoss = bound(secondLoss, 0, initialAmount - firstLoss);
+        depositAmount = _boundAmount(depositAmount);
+        withdrawAmount = bound(withdrawAmount, 0, depositAmount + initialAmount);
+
+        deal(address(asset), address(adapter), initialAmount + depositAmount);
+        vm.prank(address(parentVault));
+        adapter.allocateIn(hex"", initialAmount);
+
+        // First loss
+        vm.mockCall(
+            address(vault),
+            abi.encodeWithSelector(IERC4626.previewWithdraw.selector, initialAmount),
+            abi.encode(initialAmount - firstLoss)
+        );
+        vm.prank(address(parentVault));
+        adapter.allocateIn(hex"", 0);
+        assertEq(adapter.realisableLoss(), firstLoss, "First loss should be tracked");
+
+        // Second loss
+        vm.mockCall(
+            address(vault),
+            abi.encodeWithSelector(IERC4626.previewWithdraw.selector, initialAmount),
+            abi.encode(initialAmount - firstLoss - secondLoss)
+        );
+        vm.prank(address(parentVault));
+        adapter.allocateIn(hex"", 0);
+        assertEq(adapter.realisableLoss(), firstLoss + secondLoss, "Cumulative loss should be tracked");
+
+        // Depositing doesn't change the loss.
+        vm.prank(address(parentVault));
+        adapter.allocateIn(hex"", depositAmount);
+        assertEq(adapter.realisableLoss(), firstLoss + secondLoss, "Loss should not change");
+
+        // Withdrawing doesn't change the loss.
+        vm.prank(address(parentVault));
+        adapter.allocateOut(hex"", withdrawAmount);
+        assertEq(adapter.realisableLoss(), firstLoss + secondLoss, "Loss should not change");
+
+        // Realise loss
+        vm.prank(address(parentVault));
+        uint256 realizedLoss = adapter.realiseLoss(hex"");
+        assertEq(realizedLoss, firstLoss + secondLoss, "Should realize the full cumulative loss");
+        assertEq(adapter.realisableLoss(), 0, "Realizable loss should be reset to zero");
     }
 }

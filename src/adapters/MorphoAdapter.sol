@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {IMorpho, MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
-import {IVaultV2} from "../interfaces/IVaultV2.sol";
+import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
+import {IVaultV2, IAdapter} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
-contract MorphoAdapter {
+contract MorphoAdapter is IAdapter {
+    using MorphoBalancesLib for IMorpho;
+    using MarketParamsLib for MarketParams;
+
     /* IMMUTABLES */
 
     address public immutable parentVault;
@@ -15,6 +20,8 @@ contract MorphoAdapter {
     /* STORAGE */
 
     address public skimRecipient;
+    mapping(Id => uint256) public lastAssetsInMarket;
+    mapping(Id => uint256) public realisableLoss;
 
     /* EVENTS */
 
@@ -54,7 +61,16 @@ contract MorphoAdapter {
     function allocateIn(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+
+        uint256 assetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+        Id marketId = marketParams.id();
+        if (assetsInMarket < lastAssetsInMarket[marketId]) {
+            realisableLoss[marketId] += lastAssetsInMarket[marketId] - assetsInMarket;
+        }
+        lastAssetsInMarket[marketId] = assetsInMarket + assets;
+
+        if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+
         return ids(marketParams);
     }
 
@@ -62,8 +78,25 @@ contract MorphoAdapter {
     function allocateOut(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+        Id marketId = marketParams.id();
+
+        uint256 assetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+        if (assetsInMarket < lastAssetsInMarket[marketId]) {
+            realisableLoss[marketId] += lastAssetsInMarket[marketId] - assetsInMarket;
+        }
+        lastAssetsInMarket[marketId] = assetsInMarket - assets;
+
+        if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+
         return ids(marketParams);
+    }
+
+    function realiseLoss(bytes memory data) external returns (uint256) {
+        require(msg.sender == parentVault, NotAuthorized());
+        Id marketId = abi.decode(data, (Id));
+        uint256 res = realisableLoss[marketId];
+        realisableLoss[marketId] = 0;
+        return res;
     }
 
     function skim(address token) external {

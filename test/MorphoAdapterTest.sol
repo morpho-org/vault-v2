@@ -8,18 +8,21 @@ import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultMock} from "./mocks/VaultV2Mock.sol";
 import {IrmMock} from "lib/morpho-blue/src/mocks/IrmMock.sol";
-import {IMorpho, MarketParams} from "lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {IMorpho, MarketParams, Id, Market} from "lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MorphoBalancesLib} from "lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {MarketParamsLib} from "lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {IERC20} from "src/interfaces/IERC20.sol";
 import {IVaultV2} from "src/interfaces/IVaultV2.sol";
 
 contract MorphoAdapterTest is Test {
     using MorphoBalancesLib for IMorpho;
+    using MarketParamsLib for MarketParams;
 
     MorphoAdapterFactory internal factory;
     MorphoAdapter internal adapter;
     VaultMock internal parentVault;
     MarketParams internal marketParams;
+    Id internal marketId;
     ERC20Mock internal loanToken;
     ERC20Mock internal collateralToken;
     ERC20Mock internal rewardToken;
@@ -29,8 +32,8 @@ contract MorphoAdapterTest is Test {
     address internal owner;
     address internal recipient;
 
-    uint256 internal constant MIN_TEST_AMOUNT = 1;
-    uint256 internal constant MAX_TEST_AMOUNT = 1e24;
+    uint256 internal constant MIN_TEST_AMOUNT = 10;
+    uint256 internal constant MAX_TEST_AMOUNT = 1e18;
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -59,6 +62,7 @@ contract MorphoAdapterTest is Test {
         vm.stopPrank();
 
         morpho.createMarket(marketParams);
+        marketId = marketParams.id();
         parentVault = new VaultMock(address(loanToken), owner);
         factory = new MorphoAdapterFactory(address(morpho));
         adapter = MorphoAdapter(factory.createMorphoAdapter(address(parentVault)));
@@ -190,5 +194,129 @@ contract MorphoAdapterTest is Test {
 
         vm.expectRevert(MorphoAdapter.NotAuthorized.selector);
         adapter.skim(address(token));
+    }
+
+    function testRealiseLossNotAuthorizedReverts() public {
+        vm.expectRevert(MorphoAdapter.NotAuthorized.selector);
+        adapter.realiseLoss(abi.encode(marketId));
+    }
+
+    function testLossRealizationInitiallyZero() public {
+        uint256 initialLoss = adapter.realisableLoss(marketId);
+        assertEq(initialLoss, 0, "Initial realizable loss should be zero");
+    }
+
+    function testLossRealization(uint256 initialAmount, uint256 lossAmount) public {
+        initialAmount = _boundAmount(initialAmount);
+        lossAmount = bound(lossAmount, 1, initialAmount);
+
+        // Setup: deposit assets
+        deal(address(loanToken), address(adapter), initialAmount);
+        vm.prank(address(parentVault));
+        adapter.allocateIn(abi.encode(marketParams), initialAmount);
+        assertEq(adapter.lastAssetsInMarket(marketId), initialAmount, "Initial lastAssetsInMarket incorrect");
+
+        // Loss detection during allocate
+        _overrideMarketTotalSupplyAssets(initialAmount - lossAmount);
+        uint256 snapshot = vm.snapshot();
+        vm.prank(address(parentVault));
+        adapter.allocateIn(abi.encode(marketParams), 0);
+        assertEq(adapter.realisableLoss(marketId), lossAmount, "Loss should have been tracked in allocateIn");
+        vm.revertTo(snapshot);
+        vm.prank(address(parentVault));
+        adapter.allocateOut(abi.encode(marketParams), 0);
+        assertEq(adapter.realisableLoss(marketId), lossAmount, "Loss should have been tracked in allocateOut");
+
+        // Realise loss
+        vm.prank(address(parentVault));
+        uint256 realizedLoss = adapter.realiseLoss(abi.encode(marketId));
+        assertEq(realizedLoss, lossAmount, "Realized loss should match expected loss");
+        assertEq(adapter.realisableLoss(marketId), 0, "Realizable loss should be reset to zero");
+
+        // Can't realise loss twice
+        vm.prank(address(parentVault));
+        uint256 secondRealizedLoss = adapter.realiseLoss(abi.encode(marketId));
+        assertEq(secondRealizedLoss, 0, "Second realized loss should be zero");
+    }
+
+    function testCumulativeLossRealization(
+        uint256 initialAmount,
+        uint256 firstLoss,
+        uint256 secondLoss,
+        uint256 depositAmount,
+        uint256 withdrawAmount
+    ) public {
+        initialAmount = _boundAmount(initialAmount);
+        firstLoss = bound(firstLoss, 0, initialAmount / 2); // no too big otherwise next deposits' shares overflow
+        secondLoss = bound(secondLoss, 0, (initialAmount - firstLoss) / 2);
+        depositAmount = _boundAmount(depositAmount);
+        withdrawAmount = bound(withdrawAmount, 1, depositAmount);
+
+        // Setup
+        deal(address(loanToken), address(adapter), initialAmount + depositAmount);
+        vm.prank(address(parentVault));
+        adapter.allocateIn(abi.encode(marketParams), initialAmount);
+
+        // First loss
+        _overrideMarketTotalSupplyAssets(initialAmount - firstLoss);
+        vm.prank(address(parentVault));
+        adapter.allocateIn(abi.encode(marketParams), 0);
+        assertEq(adapter.realisableLoss(marketId), firstLoss, "First loss should be tracked");
+
+        // Second loss
+        _overrideMarketTotalSupplyAssets(initialAmount - firstLoss - secondLoss);
+        vm.prank(address(parentVault));
+        adapter.allocateIn(abi.encode(marketParams), 0);
+        assertEq(adapter.realisableLoss(marketId), firstLoss + secondLoss, "Cumulative loss should be tracked");
+
+        // Depositing doesn't change the loss tracking
+        vm.prank(address(parentVault));
+        adapter.allocateIn(abi.encode(marketParams), depositAmount);
+        assertEq(adapter.realisableLoss(marketId), firstLoss + secondLoss, "Loss should not change after deposit");
+
+        // Withdrawing doesn't change the loss tracking
+        vm.prank(address(parentVault));
+        adapter.allocateOut(abi.encode(marketParams), withdrawAmount);
+        assertEq(adapter.realisableLoss(marketId), firstLoss + secondLoss, "Loss should not change after withdrawal");
+
+        // Realize loss
+        vm.prank(address(parentVault));
+        uint256 realizedLoss = adapter.realiseLoss(abi.encode(marketId));
+        assertEq(realizedLoss, firstLoss + secondLoss, "Should realize the full cumulative loss");
+        assertEq(adapter.realisableLoss(marketId), 0, "Realizable loss should be reset to zero");
+    }
+
+    function _overrideMarketTotalSupplyAssets(uint256 newTotalSupplyAssets) internal {
+        bytes32 marketSlot0 = keccak256(abi.encode(marketId, 3)); // 3 is the slot of the market mappping.
+        bytes32 currentSlot0Value = vm.load(address(morpho), marketSlot0);
+        uint128 currentTotalSupplyShares = uint128(uint256(currentSlot0Value) >> 128);
+        bytes32 newSlot0Value = bytes32((uint256(currentTotalSupplyShares) << 128) | uint256(newTotalSupplyAssets));
+        vm.store(address(morpho), marketSlot0, newSlot0Value);
+    }
+
+    function testOverwriteMarketTotalSupplyAssets(uint256 newTotalSupplyAssets) public {
+        Market memory market = morpho.market(marketId);
+        newTotalSupplyAssets = _boundAmount(newTotalSupplyAssets);
+        _overrideMarketTotalSupplyAssets(newTotalSupplyAssets);
+        assertEq(
+            morpho.market(marketId).totalSupplyAssets,
+            uint128(newTotalSupplyAssets),
+            "Market total supply assets not set correctly"
+        );
+        assertEq(
+            morpho.market(marketId).totalSupplyShares,
+            uint128(market.totalSupplyShares),
+            "Market total supply shares not set correctly"
+        );
+        assertEq(
+            morpho.market(marketId).totalBorrowShares,
+            uint128(market.totalBorrowShares),
+            "Market total borrow shares not set correctly"
+        );
+        assertEq(
+            morpho.market(marketId).totalBorrowAssets,
+            uint128(market.totalBorrowAssets),
+            "Market total borrow assets not set correctly"
+        );
     }
 }

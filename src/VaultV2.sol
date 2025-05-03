@@ -227,6 +227,14 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetForceReallocateToIdlePenalty(newForceReallocateToIdlePenalty);
     }
 
+    function realiseLoss(address adapter, bytes memory data) external {
+        require(msg.sender == curator, ErrorsLib.Unauthorized());
+        require(isAdapter[adapter], ErrorsLib.NotAdapter());
+        uint256 loss = IAdapter(adapter).realiseLoss(data);
+        totalAssets -= loss;
+        emit EventsLib.RealiseLoss(adapter, data, loss);
+    }
+
     /* ALLOCATOR ACTIONS */
 
     function reallocateFromIdle(address adapter, bytes memory data, uint256 amount) external {

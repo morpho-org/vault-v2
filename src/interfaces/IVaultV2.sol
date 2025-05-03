@@ -6,6 +6,7 @@ import {IERC20} from "./IERC20.sol";
 interface IAdapter {
     function allocateIn(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
     function allocateOut(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
+    function realiseLoss(bytes memory data) external returns (uint256);
 }
 
 interface IVaultV2 is IERC20 {
