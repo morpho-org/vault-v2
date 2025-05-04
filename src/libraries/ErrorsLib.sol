@@ -36,4 +36,6 @@ library ErrorsLib {
     error ApproveReverted();
     error ApproveReturnedFalse();
     error GateTimelockCannotDecrease();
+    error CannotUseAssets();
+    error CannotUseShares();
 }

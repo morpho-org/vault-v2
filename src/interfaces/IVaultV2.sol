@@ -12,6 +12,10 @@ interface IVaultV2 is IERC20 {
     // Multicall
     function multicall(bytes[] calldata) external;
 
+    // Gating
+    function canUseShares(address account) external view returns (bool);
+    function canUseAssets(address account) external view returns (bool);
+
     // ERC-2612 (Permit)
     function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         external;

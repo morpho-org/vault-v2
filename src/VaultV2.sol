@@ -390,10 +390,10 @@ contract VaultV2 is IVaultV2 {
     }
 
     function enter(uint256 assets, uint256 shares, address receiver) internal {
-        require(
-            gate == address(0) || (IGate(gate).canUseAssets(msg.sender) && IGate(gate).canUseShares(receiver)),
-            ErrorsLib.Unauthorized()
-        );
+        if (gate != address(0)) {
+            require(IGate(gate).canUseAssets(msg.sender), ErrorsLib.CannotUseAssets());
+            require(IGate(gate).canUseShares(receiver), ErrorsLib.CannotUseShares());
+        }
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(receiver, shares);
         totalAssets += assets;
@@ -416,10 +416,11 @@ contract VaultV2 is IVaultV2 {
     }
 
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
-        require(
-            gate == address(0) || (IGate(gate).canUseShares(onBehalf) && IGate(gate).canUseAssets(receiver)),
-            ErrorsLib.Unauthorized()
-        );
+        if (gate != address(0)) {
+            require(IGate(gate).canUseAssets(receiver), ErrorsLib.CannotUseAssets());
+            require(IGate(gate).canUseShares(onBehalf), ErrorsLib.CannotUseShares());
+        }
+
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
             this.reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
@@ -446,10 +447,11 @@ contract VaultV2 is IVaultV2 {
 
     function transfer(address to, uint256 amount) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
-        require(
-            gate == address(0) || (IGate(gate).canUseShares(msg.sender) && IGate(gate).canUseShares(to)),
-            ErrorsLib.Unauthorized()
-        );
+        if (gate != address(0)) {
+            require(IGate(gate).canUseShares(msg.sender), ErrorsLib.CannotUseShares());
+            require(IGate(gate).canUseShares(to), ErrorsLib.CannotUseShares());
+        }
+
         balanceOf[msg.sender] -= amount;
         balanceOf[to] += amount;
         emit EventsLib.Transfer(msg.sender, to, amount);
@@ -459,10 +461,10 @@ contract VaultV2 is IVaultV2 {
     function transferFrom(address from, address to, uint256 amount) external returns (bool) {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
-        require(
-            gate == address(0) || (IGate(gate).canUseShares(from) && IGate(gate).canUseShares(to)),
-            ErrorsLib.Unauthorized()
-        );
+        if (gate != address(0)) {
+            require(IGate(gate).canUseShares(from), ErrorsLib.CannotUseShares());
+            require(IGate(gate).canUseShares(to), ErrorsLib.CannotUseShares());
+        }
 
         if (msg.sender != from) {
             uint256 _allowance = allowance[from][msg.sender];
@@ -514,5 +516,13 @@ contract VaultV2 is IVaultV2 {
         balanceOf[from] -= amount;
         totalSupply -= amount;
         emit EventsLib.Transfer(from, address(0), amount);
+    }
+
+    function canUseShares(address account) external view returns (bool) {
+        return (gate == address(0) || IGate(gate).canUseShares(account));
+    }
+
+    function canUseAssets(address account) external view returns (bool) {
+        return (gate == address(0) || IGate(gate).canUseShares(account));
     }
 }
