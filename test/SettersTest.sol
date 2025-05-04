@@ -108,6 +108,8 @@ contract SettersTest is BaseTest {
         // Removal
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, false));
+        vm.expectEmit();
+        emit EventsLib.SetIsAllocator(newAllocator, false);
         vault.setIsAllocator(newAllocator, false);
         assertFalse(vault.isAllocator(newAllocator));
     }
@@ -142,12 +144,16 @@ contract SettersTest is BaseTest {
         // Normal path
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, newAdapter, true));
+        vm.expectEmit();
+        emit EventsLib.SetIsAdapter(newAdapter, true);
         vault.setIsAdapter(newAdapter, true);
         assertTrue(vault.isAdapter(newAdapter));
 
         // Removal
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, newAdapter, false));
+        vm.expectEmit();
+        emit EventsLib.SetIsAdapter(newAdapter, false);
         vault.setIsAdapter(newAdapter, false);
         assertFalse(vault.isAdapter(newAdapter));
 

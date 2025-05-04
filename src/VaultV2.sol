@@ -240,9 +240,12 @@ contract VaultV2 is IVaultV2 {
             allocation[ids[i]] += amount;
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
-            require(
-                allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD), ErrorsLib.RelativeCapExceeded()
-            );
+            if (relativeCap[ids[i]] != 0) {
+                require(
+                    allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD),
+                    ErrorsLib.RelativeCapExceeded()
+                );
+            }
         }
         emit EventsLib.ReallocateFromIdle(msg.sender, adapter, amount, ids);
     }
