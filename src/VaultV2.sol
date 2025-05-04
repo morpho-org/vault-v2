@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import {IVaultV2, IERC20, IAdapter} from "./interfaces/IVaultV2.sol";
-import {IIRM} from "./interfaces/IIRM.sol";
+import {IInterestController} from "./interfaces/IInterestController.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
@@ -22,7 +22,7 @@ contract VaultV2 is IVaultV2 {
 
     address public owner;
     address public curator;
-    address public irm;
+    address public interestController;
     address public gate;
     mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
@@ -33,6 +33,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint256 public managementFee;
     address public managementFeeRecipient;
+    uint256 public forceReallocateToIdlePenalty;
 
     uint256 public lastUpdate;
     uint256 public totalAssets;
@@ -104,32 +105,32 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetCurator(newCurator);
     }
 
-    function setIsSentinel(address sentinel, bool newIsSentinel) external {
+    function setIsSentinel(address account, bool newIsSentinel) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        isSentinel[sentinel] = newIsSentinel;
-        emit EventsLib.SetIsSentinel(sentinel, newIsSentinel);
+        isSentinel[account] = newIsSentinel;
+        emit EventsLib.SetIsSentinel(account, newIsSentinel);
     }
 
     /* CURATOR ACTIONS */
 
-    function setIsAllocator(address allocator, bool newIsAllocator) external timelocked {
-        isAllocator[allocator] = newIsAllocator;
-        emit EventsLib.SetIsAllocator(allocator, newIsAllocator);
+    function setIsAllocator(address account, bool newIsAllocator) external timelocked {
+        isAllocator[account] = newIsAllocator;
+        emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
 
     function setGate(address newGate) external timelocked {
         gate = newGate;
     }
 
-    function setIRM(address newIRM) external timelocked {
-        irm = newIRM;
-        emit EventsLib.SetIRM(newIRM);
+    function setInterestController(address newInterestController) external timelocked {
+        interestController = newInterestController;
+        emit EventsLib.SetInterestController(newInterestController);
     }
 
-    function setIsAdapter(address adapter, bool newIsAdapter) external timelocked {
-        require(adapter != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
-        isAdapter[adapter] = newIsAdapter;
-        emit EventsLib.SetIsAdapter(adapter, newIsAdapter);
+    function setIsAdapter(address account, bool newIsAdapter) external timelocked {
+        require(account != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
+        isAdapter[account] = newIsAdapter;
+        emit EventsLib.SetIsAdapter(account, newIsAdapter);
     }
 
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
@@ -192,11 +193,12 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetManagementFeeRecipient(newManagementFeeRecipient);
     }
 
-    function increaseAbsoluteCap(bytes32 id, uint256 newAbsoluteCap) external timelocked {
+    function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external timelocked {
+        bytes32 id = keccak256(idData);
         require(newAbsoluteCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
 
         absoluteCap[id] = newAbsoluteCap;
-        emit EventsLib.IncreaseAbsoluteCap(id, newAbsoluteCap);
+        emit EventsLib.IncreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
     function decreaseAbsoluteCap(bytes32 id, uint256 newAbsoluteCap) external {
@@ -227,6 +229,12 @@ contract VaultV2 is IVaultV2 {
         }
         relativeCap[id] = newRelativeCap;
         emit EventsLib.DecreaseRelativeCap(id, newRelativeCap);
+    }
+
+    function setForceReallocateToIdlePenalty(uint256 newForceReallocateToIdlePenalty) external timelocked {
+        require(newForceReallocateToIdlePenalty <= MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY, ErrorsLib.PenaltyTooHigh());
+        forceReallocateToIdlePenalty = newForceReallocateToIdlePenalty;
+        emit EventsLib.SetForceReallocateToIdlePenalty(newForceReallocateToIdlePenalty);
     }
 
     /* ALLOCATOR ACTIONS */
@@ -266,7 +274,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setLiquidityAdapter(address newLiquidityAdapter) external {
-        require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
+        require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         require(
             newLiquidityAdapter == address(0) || isAdapter[newLiquidityAdapter],
             ErrorsLib.LiquidityAdapterInvariantBroken()
@@ -276,7 +284,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setLiquidityData(bytes memory newLiquidityData) external {
-        require(isAllocator[msg.sender], ErrorsLib.NotAllocator());
+        require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         liquidityData = newLiquidityData;
         emit EventsLib.SetLiquidityData(msg.sender, newLiquidityData);
     }
@@ -284,39 +292,35 @@ contract VaultV2 is IVaultV2 {
     /* TIMELOCKS */
 
     function submit(bytes calldata data) external {
-        bytes4 selector = bytes4(data);
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-
         require(validAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
+        bytes4 selector = bytes4(data);
         validAt[data] = block.timestamp + timelock[selector];
-        emit EventsLib.Submit(msg.sender, data, validAt[data]);
+        emit EventsLib.Submit(msg.sender, selector, data, validAt[data]);
     }
 
     modifier timelocked() {
-        require(validAt[msg.data] != 0 && block.timestamp >= validAt[msg.data], ErrorsLib.DataNotTimelocked());
+        require(validAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
+        require(block.timestamp >= validAt[msg.data], ErrorsLib.TimelockNotExpired());
         validAt[msg.data] = 0;
         _;
     }
 
-    /// @dev Authorized to submit can revoke.
     function revoke(bytes calldata data) external {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(validAt[data] != 0, ErrorsLib.DataNotTimelocked());
         validAt[data] = 0;
-        emit EventsLib.Revoke(msg.sender, data);
+        emit EventsLib.Revoke(msg.sender, bytes4(data), data);
     }
 
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
-
         totalAssets = newTotalAssets;
-
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
-
         lastUpdate = block.timestamp;
         emit EventsLib.AccrueInterest(newTotalAssets, performanceFeeShares, managementFeeShares);
     }
@@ -324,7 +328,7 @@ contract VaultV2 is IVaultV2 {
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (totalAssets, 0, 0);
-        uint256 interestPerSecond = IIRM(irm).interestPerSecond(totalAssets, elapsed);
+        uint256 interestPerSecond = IInterestController(interestController).interestPerSecond(totalAssets, elapsed);
         require(interestPerSecond <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssets + interest;
@@ -364,13 +368,13 @@ contract VaultV2 is IVaultV2 {
     function previewMint(uint256 shares) public view returns (uint256) {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
-        return shares.mulDivDown(newTotalSupply + 1, newTotalAssets + 1);
+        return shares.mulDivUp(newTotalAssets + 1, newTotalSupply + 1);
     }
 
     function previewRedeem(uint256 shares) public view returns (uint256) {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
-        return shares.mulDivUp(newTotalSupply + 1, newTotalAssets + 1);
+        return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + 1);
     }
 
     /* USER VAULT INTERACTIONS */
@@ -401,7 +405,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Deposit(msg.sender, receiver, assets, shares);
     }
 
-    function withdraw(uint256 assets, address receiver, address onBehalf) external returns (uint256) {
+    function withdraw(uint256 assets, address receiver, address onBehalf) public returns (uint256) {
         accrueInterest();
         uint256 shares = previewWithdraw(assets);
         exit(assets, shares, receiver, onBehalf);
@@ -441,6 +445,26 @@ contract VaultV2 is IVaultV2 {
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
+    }
+
+    /// @dev Loop to make the relative cap check at the end.
+    function forceReallocateToIdle(
+        address[] memory adapters,
+        bytes[] memory data,
+        uint256[] memory assets,
+        address onBehalf
+    ) external returns (uint256) {
+        require(adapters.length == data.length && adapters.length == assets.length, ErrorsLib.InvalidInputLength());
+        uint256 total;
+        for (uint256 i; i < adapters.length; i++) {
+            this.reallocateToIdle(adapters[i], data[i], assets[i]);
+            total += assets[i];
+        }
+
+        // The penalty is taken as a withdrawal that is donated to the vault.
+        uint256 shares = withdraw(total.mulDivDown(forceReallocateToIdlePenalty, WAD), address(this), onBehalf);
+        emit EventsLib.ForceReallocateToIdle(msg.sender, onBehalf, total);
+        return shares;
     }
 
     /* ERC20 */

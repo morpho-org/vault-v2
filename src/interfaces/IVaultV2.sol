@@ -44,38 +44,39 @@ interface IVaultV2 is IERC20 {
     function managementFee() external view returns (uint256);
     function performanceFeeRecipient() external view returns (address);
     function managementFeeRecipient() external view returns (address);
-    function irm() external view returns (address);
+    function forceReallocateToIdlePenalty() external view returns (uint256);
+    function interestController() external view returns (address);
     function allocation(bytes32) external view returns (uint256);
     function lastUpdate() external view returns (uint256);
     function absoluteCap(bytes32) external view returns (uint256);
     function relativeCap(bytes32) external view returns (uint256);
+    function idsWithRelativeCap(uint256) external view returns (bytes32);
     function validAt(bytes calldata) external view returns (uint256);
     function timelock(bytes4) external view returns (uint256);
     function liquidityAdapter() external view returns (address);
     function liquidityData() external view returns (bytes memory);
 
     // Owner actions
-    function setPerformanceFeeRecipient(address) external;
-    function setManagementFeeRecipient(address) external;
     function setOwner(address) external;
     function setGate(address) external;
     function setCurator(address) external;
     function setIsSentinel(address, bool) external;
+
+    // Curator actions
+    function setInterestController(address) external;
     function increaseTimelock(bytes4, uint256) external;
     function decreaseTimelock(bytes4, uint256) external;
     function setIsAllocator(address, bool) external;
     function setIsAdapter(address, bool) external;
-
-    // Treasurer actions
-    function setPerformanceFee(uint256) external;
-    function setManagementFee(uint256) external;
-
-    // Curator actions
-    function setIRM(address) external;
-    function increaseAbsoluteCap(bytes32, uint256) external;
+    function setForceReallocateToIdlePenalty(uint256) external;
+    function increaseAbsoluteCap(bytes memory, uint256) external;
     function increaseRelativeCap(bytes32, uint256) external;
     function decreaseAbsoluteCap(bytes32, uint256) external;
     function decreaseRelativeCap(bytes32, uint256) external;
+    function setPerformanceFee(uint256) external;
+    function setManagementFee(uint256) external;
+    function setPerformanceFeeRecipient(address) external;
+    function setManagementFeeRecipient(address) external;
 
     // Allocator actions
     function reallocateFromIdle(address, bytes memory, uint256) external;
@@ -90,4 +91,12 @@ interface IVaultV2 is IERC20 {
     // Timelocks
     function submit(bytes calldata) external;
     function revoke(bytes calldata) external;
+
+    // Force reallocate to idle
+    function forceReallocateToIdle(
+        address[] memory adapters,
+        bytes[] memory data,
+        uint256[] memory assets,
+        address onBehalf
+    ) external returns (uint256);
 }

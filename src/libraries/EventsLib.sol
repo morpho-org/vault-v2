@@ -9,20 +9,21 @@ library EventsLib {
     event Construction(address indexed owner, address indexed asset);
     event SetOwner(address indexed owner);
     event SetCurator(address indexed curator);
-    event SetIRM(address indexed irm);
-    event SetIsSentinel(address indexed sentinel, bool isSentinel);
-    event SetIsAllocator(address indexed allocator, bool isAllocator);
+    event SetInterestController(address indexed interestController);
+    event SetIsSentinel(address indexed account, bool isSentinel);
+    event SetIsAllocator(address indexed account, bool isAllocator);
     event SetPerformanceFeeRecipient(address indexed);
     event SetManagementFeeRecipient(address indexed);
-    event SetIsAdapter(address indexed adapter, bool isAdapter);
+    event SetIsAdapter(address indexed account, bool isAdapter);
     event IncreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event SetPerformanceFee(uint256 performanceFee);
     event SetManagementFee(uint256 managementFee);
-    event IncreaseAbsoluteCap(bytes32 indexed id, uint256 newAbsoluteCap);
+    event IncreaseAbsoluteCap(bytes32 indexed id, bytes idData, uint256 newAbsoluteCap);
     event DecreaseAbsoluteCap(bytes32 indexed id, uint256 newAbsoluteCap);
     event IncreaseRelativeCap(bytes32 indexed id, uint256 newRelativeCap);
     event DecreaseRelativeCap(bytes32 indexed id, uint256 newRelativeCap);
+    event SetForceReallocateToIdlePenalty(uint256 forceReallocateToIdleFee);
     event ReallocateFromIdle(address indexed sender, address indexed adapter, uint256 amount, bytes32[] ids);
     event ReallocateToIdle(address indexed sender, address indexed adapter, uint256 amount, bytes32[] ids);
     event SetLiquidityAdapter(address indexed sender, address indexed liquidityAdapter);
@@ -31,9 +32,10 @@ library EventsLib {
     event Withdraw(
         address indexed sender, address indexed receiver, address indexed onBehalf, uint256 assets, uint256 shares
     );
-    event Submit(address indexed sender, bytes data, uint256 validAt);
-    event Revoke(address indexed sender, bytes data);
+    event Submit(address indexed sender, bytes4 indexed selector, bytes data, uint256 validAt);
+    event Revoke(address indexed sender, bytes4 indexed selector, bytes data);
     event AccrueInterest(uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares);
+    event ForceReallocateToIdle(address indexed sender, address indexed onBehalf, uint256 assets);
     event CreateVaultV2(address indexed vaultV2, address indexed owner, address indexed asset);
-    event SetInterestPerSecond(uint256 irm);
+    event SetInterestPerSecond(uint256 interestPerSecond);
 }
