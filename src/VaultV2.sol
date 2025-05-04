@@ -525,4 +525,20 @@ contract VaultV2 is IVaultV2 {
     function canUseAssets(address account) external view returns (bool) {
         return (gate == address(0) || IGate(gate).canUseShares(account));
     }
+
+    /* Transiently allow `handler` to handle funds on behalf of `onBehalf`. */
+    /* Use onBehalf=0 to unset. */
+    function setHandling(address handler, address onBehalf) external {
+        require(gate != address(0), ErrorsLib.NotGated());
+        IGate(gate).setHandling(handler, onBehalf, msg.sender);
+    }
+
+    function getHandling(address handler) external view returns (address) {
+        require(gate != address(0), ErrorsLib.NotGated());
+        return IGate(gate).getHandling(handler);
+    }
+
+    function isAllowed(address account) external view returns (bool) {
+        return (gate == address(0) || IGate(gate).canUseShares(account));
+    }
 }

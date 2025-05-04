@@ -16,6 +16,11 @@ interface IVaultV2 is IERC20 {
     function canUseShares(address account) external view returns (bool);
     function canUseAssets(address account) external view returns (bool);
 
+    // Permissioned token
+    function setHandling(address handler, address onBehalf) external;
+    function getHandling(address handler) external view returns (address);
+    function isAllowed(address account) external view returns (bool);
+
     // ERC-2612 (Permit)
     function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         external;

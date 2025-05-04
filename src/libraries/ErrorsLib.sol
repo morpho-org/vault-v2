@@ -38,4 +38,5 @@ library ErrorsLib {
     error GateTimelockCannotDecrease();
     error CannotUseAssets();
     error CannotUseShares();
+    error NotGated();
 }
