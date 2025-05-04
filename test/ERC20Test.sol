@@ -218,7 +218,7 @@ contract ERC20Test is BaseTest {
     function testTransferFromInsufficientAllowanceReverts(address from, address to, uint256 allowance) public {
         vm.assume(from != address(0));
         vm.assume(to != address(0));
-        vm.assume(address(this) != from);
+        vm.assume(from != address(this));
 
         allowance = bound(allowance, 0, type(uint256).max - 1);
         vault.mint(allowance + 1, from);

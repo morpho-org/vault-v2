@@ -8,6 +8,7 @@ library ErrorsLib {
     error TransferFromReverted();
     error TransferFromReturnedFalse();
     error FeeTooHigh();
+    error PenaltyTooHigh();
     error ZeroAddress();
     error Unauthorized();
     error TimelockNotExpired();
@@ -15,6 +16,7 @@ library ErrorsLib {
     error TimelockDurationTooHigh();
     error WrongPendingValue();
     error CapExceeded();
+    error InvalidInputLength();
     error DataNotTimelocked();
     error DataAlreadyPending();
     error TimelockNotIncreasing();

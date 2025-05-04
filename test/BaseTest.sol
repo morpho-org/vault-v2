@@ -6,7 +6,7 @@ import {IVaultV2, IERC20} from "../src/interfaces/IVaultV2.sol";
 
 import {VaultV2Factory} from "../src/VaultV2Factory.sol";
 import "../src/VaultV2.sol";
-import {IRM} from "../src/IRM.sol";
+import {ManualInterestController} from "../src/interest-controllers/ManualInterestController.sol";
 
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 
@@ -21,32 +21,36 @@ contract BaseTest is Test {
     ERC20Mock underlyingToken;
     IVaultV2Factory vaultFactory;
     IVaultV2 vault;
-    IRM irm;
+    ManualInterestController interestController;
 
     bytes[] bundle;
 
     function setUp() public virtual {
         vm.label(address(this), "testContract");
 
-        underlyingToken = new ERC20Mock("UnderlyingToken", "UND");
+        underlyingToken = new ERC20Mock();
         vm.label(address(underlyingToken), "underlying");
 
         vaultFactory = IVaultV2Factory(address(new VaultV2Factory()));
 
         vault = IVaultV2(vaultFactory.createVaultV2(owner, address(underlyingToken), bytes32(0)));
         vm.label(address(vault), "vault");
-        irm = new IRM(manager);
-        vm.label(address(irm), "IRM");
+        interestController = new ManualInterestController(manager);
+        vm.label(address(interestController), "InterestController");
 
         vm.prank(owner);
         vault.setCurator(curator);
 
         vm.startPrank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, allocator, true));
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, address(irm)));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setInterestController.selector, address(interestController)));
         vm.stopPrank();
 
         vault.setIsAllocator(allocator, true);
-        vault.setIRM(address(irm));
+        vault.setInterestController(address(interestController));
     }
+}
+
+function min(uint256 a, uint256 b) pure returns (uint256) {
+    return a < b ? a : b;
 }
