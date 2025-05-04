@@ -89,6 +89,39 @@ contract SettersTest is BaseTest {
         vault.submit(data);
     }
 
+    function testRevoke(bytes memory data, address rdm) public {
+        vm.assume(rdm != curator);
+        vm.assume(rdm != sentinel);
+
+        // No pending data
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(sentinel);
+        vault.revoke(data);
+
+        // Setup
+        vm.prank(curator);
+        vault.submit(data);
+
+        // Access control
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.revoke(data);
+
+        // Normal path
+        uint256 snapshot = vm.snapshot();
+        vm.prank(sentinel);
+        vm.expectEmit();
+        emit EventsLib.Revoke(sentinel, bytes4(data), data);
+        vault.revoke(data);
+        assertEq(vault.validAt(data), 0);
+
+        // Curator can revoke as well
+        vm.revertTo(snapshot);
+        vm.prank(curator);
+        vault.revoke(data);
+        assertEq(vault.validAt(data), 0);
+    }
+
     function testSetIsAllocator(address rdm) public {
         address newAllocator = makeAddr("newAllocator");
 
