@@ -264,4 +264,14 @@ contract ERC4626AdapterTest is Test {
         assertEq(realizedLoss, firstLoss + secondLoss, "Should realize the full cumulative loss");
         assertEq(adapter.realisableLoss(), 0, "Realizable loss should be reset to zero");
     }
+
+    function testInvalidData(bytes memory data) public {
+        vm.assume(data.length > 0);
+
+        vm.expectRevert(ERC4626Adapter.InvalidData.selector);
+        adapter.allocateIn(data, 0);
+
+        vm.expectRevert(ERC4626Adapter.InvalidData.selector);
+        adapter.allocateOut(data, 0);
+    }
 }
