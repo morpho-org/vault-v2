@@ -25,6 +25,7 @@ contract ERC4626Adapter {
     /* ERRORS */
 
     error NotAuthorized();
+    error InvalidData();
 
     /* FUNCTIONS */
 
@@ -42,7 +43,8 @@ contract ERC4626Adapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    function allocateIn(bytes memory, uint256 assets) external returns (bytes32[] memory) {
+    function allocateIn(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+        require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
         IERC4626(vault).deposit(assets, address(this));
@@ -53,7 +55,8 @@ contract ERC4626Adapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    function allocateOut(bytes memory, uint256 assets) external returns (bytes32[] memory) {
+    function allocateOut(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+        require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
         IERC4626(vault).withdraw(assets, address(this), address(this));

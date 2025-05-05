@@ -163,4 +163,14 @@ contract ERC4626AdapterTest is Test {
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
         adapter.skim(address(token));
     }
+
+    function testInvalidData(bytes memory data) public {
+        vm.assume(data.length > 0);
+
+        vm.expectRevert(ERC4626Adapter.InvalidData.selector);
+        adapter.allocateIn(data, 0);
+
+        vm.expectRevert(ERC4626Adapter.InvalidData.selector);
+        adapter.allocateOut(data, 0);
+    }
 }
