@@ -3,10 +3,11 @@ pragma solidity ^0.8.0;
 
 import {IVaultV2Factory} from "../src/interfaces/IVaultV2Factory.sol";
 import {IVaultV2, IERC20} from "../src/interfaces/IVaultV2.sol";
+import {IManualInterestControllerFactory} from "../src/interest-controllers/interfaces/IManualInterestControllerFactory.sol";
 
 import {VaultV2Factory} from "../src/VaultV2Factory.sol";
+import {ManualInterestController, ManualInterestControllerFactory} from "../src/interest-controllers/ManualInterestControllerFactory.sol";
 import "../src/VaultV2.sol";
-import {ManualInterestController} from "../src/interest-controllers/ManualInterestController.sol";
 
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 
@@ -23,6 +24,7 @@ contract BaseTest is Test {
     ERC20Mock underlyingToken;
     IVaultV2Factory vaultFactory;
     IVaultV2 vault;
+    IManualInterestControllerFactory interestControllerFactory;
     ManualInterestController interestController;
 
     bytes[] bundle;
@@ -37,7 +39,8 @@ contract BaseTest is Test {
 
         vault = IVaultV2(vaultFactory.createVaultV2(owner, address(underlyingToken), bytes32(0)));
         vm.label(address(vault), "vault");
-        interestController = new ManualInterestController(manager);
+        interestControllerFactory = IManualInterestControllerFactory(address(new ManualInterestControllerFactory()));
+        interestController = ManualInterestController(interestControllerFactory.createManualInterestController(manager, bytes32(0)));
         vm.label(address(interestController), "InterestController");
 
         vm.startPrank(owner);
