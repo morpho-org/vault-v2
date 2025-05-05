@@ -505,7 +505,7 @@ contract SettersTest is BaseTest {
         // Can't increase relative cap above 1
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, id, WAD + 1));
-        vm.expectRevert(ErrorsLib.AboveOne.selector);
+        vm.expectRevert(ErrorsLib.RelativeCapAboveOne.selector);
         vault.increaseRelativeCap(id, WAD + 1);
 
         // Normal path
