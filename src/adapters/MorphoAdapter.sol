@@ -62,6 +62,7 @@ contract MorphoAdapter is IAdapter {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
 
+        IMorpho(morpho).accrueInterest(marketParams);
         uint256 assetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
         Id marketId = marketParams.id();
         if (assetsInMarket < lastAssetsInMarket[marketId]) {
@@ -80,6 +81,7 @@ contract MorphoAdapter is IAdapter {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
 
+        IMorpho(morpho).accrueInterest(marketParams);
         uint256 assetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
         if (assetsInMarket < lastAssetsInMarket[marketId]) {
             realisableLoss[marketId] += lastAssetsInMarket[marketId] - assetsInMarket;
