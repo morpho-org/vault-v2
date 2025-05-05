@@ -32,9 +32,10 @@ contract AccrueInterestTest is BaseTest {
         uint256 interestPerSecond,
         uint256 elapsed
     ) public {
+        deposit = bound(deposit, 0, MAX_DEPOSIT);
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
-        interestPerSecond = bound(interestPerSecond, 0, MAX_RATE_PER_SECOND);
+        interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
         elapsed = bound(elapsed, 0, 20 * 365 days);
 
         // Setup.
@@ -48,6 +49,8 @@ contract AccrueInterestTest is BaseTest {
         vault.setManagementFee(managementFee);
 
         vault.deposit(deposit, address(this));
+
+        vm.warp(vm.getBlockTimestamp() + elapsed);
 
         // Normal path.
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = vault.accrueInterestView();
