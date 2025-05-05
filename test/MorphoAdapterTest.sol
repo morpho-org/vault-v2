@@ -198,7 +198,7 @@ contract MorphoAdapterTest is Test {
 
     function testRealiseLossNotAuthorizedReverts() public {
         vm.expectRevert(MorphoAdapter.NotAuthorized.selector);
-        adapter.realiseLoss(abi.encode(marketId));
+        adapter.realiseLoss(abi.encode(marketParams));
     }
 
     function testLossRealizationInitiallyZero() public {
@@ -229,14 +229,34 @@ contract MorphoAdapterTest is Test {
 
         // Realise loss
         vm.prank(address(parentVault));
-        uint256 realizedLoss = adapter.realiseLoss(abi.encode(marketId));
+        (uint256 realizedLoss, bytes32[] memory ids) = adapter.realiseLoss(abi.encode(marketParams));
         assertEq(realizedLoss, lossAmount, "Realized loss should match expected loss");
         assertEq(adapter.realisableLoss(marketId), 0, "Realizable loss should be reset to zero");
+        assertEq(ids.length, 1, "Unexpected number of ids returned");
+        assertEq(
+            ids[0],
+            keccak256(
+                abi.encode(
+                    "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
+                )
+            ),
+            "Incorrect id returned"
+        );
 
         // Can't realise loss twice
         vm.prank(address(parentVault));
-        uint256 secondRealizedLoss = adapter.realiseLoss(abi.encode(marketId));
+        (uint256 secondRealizedLoss, bytes32[] memory secondIds) = adapter.realiseLoss(abi.encode(marketParams));
         assertEq(secondRealizedLoss, 0, "Second realized loss should be zero");
+        assertEq(secondIds.length, 1, "Unexpected number of ids returned");
+        assertEq(
+            secondIds[0],
+            keccak256(
+                abi.encode(
+                    "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
+                )
+            ),
+            "Incorrect id returned"
+        );
     }
 
     function testCumulativeLossRealization(
@@ -281,9 +301,19 @@ contract MorphoAdapterTest is Test {
 
         // Realize loss
         vm.prank(address(parentVault));
-        uint256 realizedLoss = adapter.realiseLoss(abi.encode(marketId));
+        (uint256 realizedLoss, bytes32[] memory ids) = adapter.realiseLoss(abi.encode(marketParams));
         assertEq(realizedLoss, firstLoss + secondLoss, "Should realize the full cumulative loss");
         assertEq(adapter.realisableLoss(marketId), 0, "Realizable loss should be reset to zero");
+        assertEq(ids.length, 1, "Unexpected number of ids returned");
+        assertEq(
+            ids[0],
+            keccak256(
+                abi.encode(
+                    "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
+                )
+            ),
+            "Incorrect id returned"
+        );
     }
 
     function _overrideMarketTotalSupplyAssets(uint256 newTotalSupplyAssets) internal {

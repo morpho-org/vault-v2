@@ -32,6 +32,7 @@ contract VaultV2 is IVaultV2 {
 
     /* VAULT STORAGE */
     uint256 public totalAssets;
+    uint256 public lossToRealise;
     uint256 public lastUpdate;
 
     /* CURATION AND ALLOCATION STORAGE */
@@ -228,9 +229,12 @@ contract VaultV2 is IVaultV2 {
     function realiseLoss(address adapter, bytes memory data) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
-        uint256 loss = IAdapter(adapter).realiseLoss(data);
-        totalAssets -= loss;
-        emit EventsLib.RealiseLoss(adapter, data, loss);
+        (uint256 loss, bytes32[] memory ids) = IAdapter(adapter).realiseLoss(data);
+        lossToRealise += loss;
+        for (uint256 i; i < ids.length; i++) {
+            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss);
+        }
+        emit EventsLib.RealiseLoss(adapter, data, loss, ids);
     }
 
     /* ALLOCATOR ACTIONS */

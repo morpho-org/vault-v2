@@ -76,11 +76,14 @@ contract ERC4626Adapter is IAdapter {
         return ids;
     }
 
-    function realiseLoss(bytes memory) external returns (uint256) {
+    function realiseLoss(bytes memory) external returns (uint256, bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
         uint256 res = realisableLoss;
         realisableLoss = 0;
-        return res;
+
+        bytes32[] memory ids = new bytes32[](1);
+        ids[0] = keccak256(abi.encode("vault", vault));
+        return (res, ids);
     }
 
     function skim(address token) external {

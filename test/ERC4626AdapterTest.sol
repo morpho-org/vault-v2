@@ -201,14 +201,18 @@ contract ERC4626AdapterTest is Test {
 
         // Realisation.
         vm.prank(address(parentVault));
-        uint256 realizedLoss = adapter.realiseLoss(hex"");
+        (uint256 realizedLoss, bytes32[] memory ids) = adapter.realiseLoss(hex"");
         assertEq(realizedLoss, lossAmount, "Realized loss should match expected loss");
         assertEq(adapter.realisableLoss(), 0, "Realizable loss should be reset to zero");
+        assertEq(ids.length, 1, "Unexpected number of ids returned");
+        assertEq(ids[0], keccak256(abi.encode("vault", address(vault))), "Incorrect id returned");
 
         // Can't realise loss twice.
         vm.prank(address(parentVault));
-        uint256 secondRealizedLoss = adapter.realiseLoss(hex"");
+        (uint256 secondRealizedLoss, bytes32[] memory secondIds) = adapter.realiseLoss(hex"");
         assertEq(secondRealizedLoss, 0, "Second realized loss should be zero");
+        assertEq(secondIds.length, 1, "Unexpected number of ids returned");
+        assertEq(secondIds[0], keccak256(abi.encode("vault", address(vault))), "Incorrect id returned");
     }
 
     function testCumulativeLossRealization(
@@ -260,9 +264,10 @@ contract ERC4626AdapterTest is Test {
 
         // Realise loss
         vm.prank(address(parentVault));
-        uint256 realizedLoss = adapter.realiseLoss(hex"");
+        (uint256 realizedLoss, bytes32[] memory ids) = adapter.realiseLoss(hex"");
         assertEq(realizedLoss, firstLoss + secondLoss, "Should realize the full cumulative loss");
         assertEq(adapter.realisableLoss(), 0, "Realizable loss should be reset to zero");
+        assertEq(ids.length, 1, "Unexpected number of ids returned");
     }
 
     function testInvalidData(bytes memory data) public {
