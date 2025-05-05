@@ -43,6 +43,7 @@ interface IVaultV2 is IERC20 {
     function forceReallocateToIdlePenalty() external view returns (uint256);
     function interestController() external view returns (address);
     function allocation(bytes32) external view returns (uint256);
+    function lastTotalAssets() external view returns (uint256);
     function lastUpdate() external view returns (uint256);
     function absoluteCap(bytes32) external view returns (uint256);
     function relativeCap(bytes32) external view returns (uint256);

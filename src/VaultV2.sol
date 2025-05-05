@@ -31,7 +31,7 @@ contract VaultV2 is IVaultV2 {
     mapping(address => uint256) public nonces;
 
     /* VAULT STORAGE */
-    uint256 public totalAssets;
+    uint256 public lastTotalAssets;
     uint256 public lastUpdate;
 
     /* CURATION AND ALLOCATION STORAGE */
@@ -213,7 +213,7 @@ contract VaultV2 is IVaultV2 {
 
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
         require(newRelativeCap <= relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
-        require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
+        require(allocation[id] <= lastTotalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
 
         if (newRelativeCap == 0 && relativeCap[id] != 0) {
             uint256 i;
@@ -246,7 +246,7 @@ contract VaultV2 is IVaultV2 {
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
             if (relativeCap[ids[i]] != 0) {
                 require(
-                    allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD),
+                    allocation[ids[i]] <= lastTotalAssets.mulDivDown(relativeCap[ids[i]], WAD),
                     ErrorsLib.RelativeCapExceeded()
                 );
             }
@@ -315,7 +315,7 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterest() public {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
-        totalAssets = newTotalAssets;
+        lastTotalAssets = newTotalAssets;
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
         lastUpdate = block.timestamp;
@@ -324,11 +324,11 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        if (elapsed == 0) return (totalAssets, 0, 0);
-        uint256 interestPerSecond = IInterestController(interestController).interestPerSecond(totalAssets, elapsed);
-        require(interestPerSecond <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
+        if (elapsed == 0) return (lastTotalAssets, 0, 0);
+        uint256 interestPerSecond = IInterestController(interestController).interestPerSecond(lastTotalAssets, elapsed);
+        require(interestPerSecond <= lastTotalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
         uint256 interest = interestPerSecond * elapsed;
-        uint256 newTotalAssets = totalAssets + interest;
+        uint256 newTotalAssets = lastTotalAssets + interest;
 
         uint256 performanceFeeShares;
         uint256 managementFeeShares;
@@ -374,6 +374,11 @@ contract VaultV2 is IVaultV2 {
         return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + 1);
     }
 
+    function totalAssets() external view returns (uint256) {
+        (uint256 newTotalAssets,,) = accrueInterestView();
+        return newTotalAssets;
+    }
+
     /* USER VAULT INTERACTIONS */
 
     function deposit(uint256 assets, address receiver) external returns (uint256) {
@@ -393,7 +398,7 @@ contract VaultV2 is IVaultV2 {
     function enter(uint256 assets, uint256 shares, address receiver) internal {
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(receiver, shares);
-        totalAssets += assets;
+        lastTotalAssets += assets;
         try this.reallocateFromIdle(liquidityAdapter, liquidityData, assets) {} catch {}
         emit EventsLib.Deposit(msg.sender, receiver, assets, shares);
     }
@@ -424,11 +429,11 @@ contract VaultV2 is IVaultV2 {
         }
 
         deleteShares(onBehalf, shares);
-        totalAssets -= assets;
+        lastTotalAssets -= assets;
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
-            require(allocation[id] <= totalAssets.mulDivDown(relativeCap[id], WAD), ErrorsLib.RelativeCapExceeded());
+            require(allocation[id] <= lastTotalAssets.mulDivDown(relativeCap[id], WAD), ErrorsLib.RelativeCapExceeded());
         }
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
