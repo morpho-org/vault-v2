@@ -32,26 +32,24 @@ contract VaultV2 is IVaultV2 {
     uint256 public totalAssets;
     uint256 public lastUpdate;
 
-    /* CURATION STORAGE */
+    /* CURATION AND ALLOCATION STORAGE */
     address public interestController;
     uint256 public forceReallocateToIdlePenalty;
-    // Adapter is trusted to pass the expected ids when supplying assets.
+    /// @dev Adapter is trusted to pass the expected ids when supplying assets.
     mapping(address => bool) public isAdapter;
     /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
     mapping(bytes32 => uint256) public absoluteCap;
     /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
+    /// @dev Relative cap = 0 is interpreted as no relative cap.
     mapping(bytes32 => uint256) public relativeCap;
     /// @dev Useful to iterate over all ids with relative cap in withdrawals.
     bytes32[] public idsWithRelativeCap;
     /// @dev Interests are not counted in the allocation.
-    /// @dev By design, double counting some stuff.
     mapping(bytes32 => uint256) public allocation;
     /// @dev calldata => executable at
     mapping(bytes => uint256) public validAt;
     /// @dev function selector => timelock duration
     mapping(bytes4 => uint256) public timelock;
-
-    /* ALLOCATION STORAGE */
     address public liquidityAdapter;
     bytes public liquidityData;
 
