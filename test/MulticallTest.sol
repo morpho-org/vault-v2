@@ -18,10 +18,10 @@ contract MulticallTest is BaseTest {
 
     function testMulticallFailing() public {
         bytes[] memory data = new bytes[](2);
-        data[0] = abi.encodeWithSelector(IVaultV2.decreaseAbsoluteCap.selector, keccak256(abi.encode(address(1))), 0);
-        data[1] = abi.encodeWithSelector(IVaultV2.setOwner.selector, address(1));
+        data[0] = abi.encodeWithSelector(IVaultV2.setCurator.selector, address(1));
+        data[1] = abi.encodeWithSelector(IVaultV2.submit.selector, hex"");
 
-        vm.prank(curator);
+        vm.prank(owner);
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vault.multicall(data);
     }
