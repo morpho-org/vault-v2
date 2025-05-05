@@ -4,6 +4,13 @@ pragma solidity ^0.8.0;
 import "./BaseTest.sol";
 
 contract SettersTest is BaseTest {
+    function setUp() public override {
+        super.setUp();
+
+        deal(address(underlyingToken), address(this), type(uint256).max);
+        underlyingToken.approve(address(vault), type(uint256).max);
+    }
+
     function testConstructor() public view {
         assertEq(vault.owner(), owner);
         assertEq(address(vault.asset()), address(underlyingToken));
@@ -506,10 +513,6 @@ contract SettersTest is BaseTest {
         emit EventsLib.DecreaseRelativeCap(id, newRelativeCap);
         vault.decreaseRelativeCap(id, newRelativeCap);
         assertEq(vault.relativeCap(id), newRelativeCap);
-        if (newRelativeCap == 0) {
-            vm.expectRevert();
-            vault.idsWithRelativeCap(0);
-        }
 
         // Can't increase relative cap
         vm.prank(curator);
@@ -517,7 +520,33 @@ contract SettersTest is BaseTest {
         vm.expectRevert(ErrorsLib.RelativeCapNotDecreasing.selector);
         vault.decreaseRelativeCap(id, newRelativeCap + 1);
 
-        // TODO: test that relative cap is not reached
+        // The relative cap decreased to 0.
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, id, 0));
+        vault.decreaseRelativeCap(id, 0);
+        vm.expectRevert();
+        vault.idsWithRelativeCap(0);
+
+        // The relative cap exceeded.
+        id = keccak256("id");
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, id, oldRelativeCap));
+        vault.increaseRelativeCap(id, oldRelativeCap);
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, "id", oldRelativeCap));
+        vault.increaseAbsoluteCap("id", oldRelativeCap);
+        vault.deposit(1 ether, address(this));
+        address adapter = address(new BasicAdapter());
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, adapter, true));
+        vault.setIsAdapter(adapter, true);
+        vm.prank(allocator);
+        vault.reallocateFromIdle(adapter, hex"", oldRelativeCap);
+        assertEq(vault.allocation(id), oldRelativeCap);
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, id, newRelativeCap));
+        vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
+        vault.decreaseRelativeCap(id, newRelativeCap);
     }
 
     function testSetForceReallocateToIdlePenalty(address rdm, uint256 newForceReallocateToIdlePenalty) public {
@@ -594,5 +623,13 @@ contract SettersTest is BaseTest {
         emit EventsLib.SetLiquidityData(allocator, newData);
         vault.setLiquidityData(newData);
         assertEq(vault.liquidityData(), newData);
+    }
+}
+
+contract BasicAdapter {
+    function allocateIn(bytes memory, uint256) external pure returns (bytes32[] memory) {
+        bytes32[] memory ids = new bytes32[](1);
+        ids[0] = keccak256("id");
+        return ids;
     }
 }

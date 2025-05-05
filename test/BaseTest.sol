@@ -11,6 +11,7 @@ import {ManualInterestController} from "../src/interest-controllers/ManualIntere
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 
 import {Test, console} from "../lib/forge-std/src/Test.sol";
+import {stdError} from "forge-std/StdError.sol";
 
 contract BaseTest is Test {
     address immutable manager = makeAddr("manager");

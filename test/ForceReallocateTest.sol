@@ -79,4 +79,13 @@ contract ForceReallocateTest is BaseTest {
 
         vault.withdraw(min(reallocated, vault.previewRedeem(expectedShares)), address(this), address(this));
     }
+
+    function testForceReallocateInvalidInputLength(
+        address[] memory adapters,
+        bytes[] memory data,
+        uint256[] memory assets
+    ) public {
+        vm.expectRevert(ErrorsLib.InvalidInputLength.selector);
+        vault.forceReallocateToIdle(adapters, data, assets, address(this));
+    }
 }

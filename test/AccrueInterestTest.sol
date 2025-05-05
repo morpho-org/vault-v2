@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
-contract FeeTest is BaseTest {
+contract AccrueInterestTest is BaseTest {
     using MathLib for uint256;
 
     address performanceFeeRecipient = makeAddr("performanceFeeRecipient");
@@ -23,6 +23,56 @@ contract FeeTest is BaseTest {
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
+    }
+
+    function testAccrueInterestView(
+        uint256 deposit,
+        uint256 performanceFee,
+        uint256 managementFee,
+        uint256 interestPerSecond,
+        uint256 elapsed
+    ) public {
+        performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
+        managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
+        interestPerSecond = bound(interestPerSecond, 0, MAX_RATE_PER_SECOND);
+        elapsed = bound(elapsed, 0, 20 * 365 days);
+
+        // Setup.
+        vm.prank(manager);
+        interestController.setInterestPerSecond(interestPerSecond);
+        vault.deposit(deposit, address(this));
+
+        // Normal path.
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = vault.accrueInterestView();
+        vault.accrueInterest();
+        assertEq(newTotalAssets, vault.totalAssets());
+        assertEq(performanceFeeShares, vault.balanceOf(performanceFeeRecipient));
+        assertEq(managementFeeShares, vault.balanceOf(managementFeeRecipient));
+    }
+
+    function testAccrueInterest(uint256 deposit, uint256 interestPerSecond, uint256 elapsed) public {
+        deposit = bound(deposit, 0, MAX_DEPOSIT);
+        interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
+        elapsed = bound(elapsed, 0, 20 * 365 days);
+
+        // Setup.
+        vault.deposit(deposit, address(this));
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        // Rate too high.
+        if (elapsed > 0) {
+            vm.prank(manager);
+            interestController.setInterestPerSecond(deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD) + 1);
+            vm.expectRevert(ErrorsLib.InvalidRate.selector);
+            vault.accrueInterest();
+        }
+
+        // Normal path.
+        vm.prank(manager);
+        interestController.setInterestPerSecond(interestPerSecond);
+        vault.accrueInterest();
+        assertEq(vault.totalAssets(), deposit + interestPerSecond * elapsed);
+        // TODO test fees.
     }
 
     function testPerformanceFeeWithoutManagementFee(
