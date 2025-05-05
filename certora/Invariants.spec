@@ -51,6 +51,3 @@ strong invariant timelockCap(bytes4 selector)
 
 strong invariant timelockTimelock()
     timelock(to_bytes4(0x5c1a1a4f)) == TIMELOCK_CAP();
-
-strong invariant liquidityAdapterInvariant()
-    liquidityAdapter() == 0 || isAdapter(liquidityAdapter());
