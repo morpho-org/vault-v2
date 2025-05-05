@@ -6,18 +6,30 @@ import {EventsLib} from "../libraries/EventsLib.sol";
 import {IInterestController} from "../interfaces/IInterestController.sol";
 
 contract ManualInterestController is IInterestController {
-    // Note that owner may be controlled by the curator, if the curator has the ability to change the
-    // InterestController.
+    /* IMMUTABLES */
+
     address public immutable owner;
 
+    /* STORAGE */
+
     uint256 internal _interestPerSecond;
+
+    /* EVENTS */
+
+    event SetInterestPerSecond(uint256 newInterestPerSecond);
+
+    /* ERRORS */
+
+    error Unauthorized();
+
+    /* FUNCTIONS */
 
     constructor(address _owner) {
         owner = _owner;
     }
 
     function setInterestPerSecond(uint256 newInterestPerSecond) public {
-        require(msg.sender == owner);
+        require(msg.sender == owner, Unauthorized());
         _interestPerSecond = newInterestPerSecond;
         emit EventsLib.SetInterestPerSecond(newInterestPerSecond);
     }

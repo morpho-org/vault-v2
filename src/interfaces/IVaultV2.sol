@@ -53,6 +53,9 @@ interface IVaultV2 is IERC20 {
     function liquidityAdapter() external view returns (address);
     function liquidityData() external view returns (bytes memory);
 
+    // Getters
+    function idsWithRelativeCapLength() external view returns (uint256);
+
     // Owner actions
     function setOwner(address) external;
     function setCurator(address) external;
