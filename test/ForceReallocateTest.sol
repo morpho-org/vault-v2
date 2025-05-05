@@ -85,6 +85,7 @@ contract ForceReallocateTest is BaseTest {
         bytes[] memory data,
         uint256[] memory assets
     ) public {
+        vm.assume(adapters.length != data.length || adapters.length != assets.length);
         vm.expectRevert(ErrorsLib.InvalidInputLength.selector);
         vault.forceReallocateToIdle(adapters, data, assets, address(this));
     }
