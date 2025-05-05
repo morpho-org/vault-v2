@@ -187,7 +187,7 @@ contract ERC4626AdapterTest is Test {
         // Loss detection.
         vm.mockCall(
             address(vault),
-            abi.encodeWithSelector(IERC4626.previewWithdraw.selector, initialAmount),
+            abi.encodeWithSelector(IERC4626.previewRedeem.selector, initialAmount),
             abi.encode(initialAmount - lossAmount)
         );
         uint256 snapshot = vm.snapshot();
@@ -231,7 +231,7 @@ contract ERC4626AdapterTest is Test {
         // First loss
         vm.mockCall(
             address(vault),
-            abi.encodeWithSelector(IERC4626.previewWithdraw.selector, initialAmount),
+            abi.encodeWithSelector(IERC4626.previewRedeem.selector, initialAmount),
             abi.encode(initialAmount - firstLoss)
         );
         vm.prank(address(parentVault));
@@ -241,7 +241,7 @@ contract ERC4626AdapterTest is Test {
         // Second loss
         vm.mockCall(
             address(vault),
-            abi.encodeWithSelector(IERC4626.previewWithdraw.selector, initialAmount),
+            abi.encodeWithSelector(IERC4626.previewRedeem.selector, initialAmount),
             abi.encode(initialAmount - firstLoss - secondLoss)
         );
         vm.prank(address(parentVault));
