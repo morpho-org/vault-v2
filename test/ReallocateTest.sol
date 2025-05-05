@@ -64,7 +64,6 @@ contract ReallocateTest is BaseTest {
 
     function _setAbsoluteCap(bytes memory idData, uint256 absoluteCap) internal {
         bytes32 id = keccak256(idData);
-        if (absoluteCap == vault.absoluteCap(id)) return; // no-op are not yet feasible.
         if (absoluteCap > vault.absoluteCap(id)) {
             vm.prank(curator);
             vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, absoluteCap));
