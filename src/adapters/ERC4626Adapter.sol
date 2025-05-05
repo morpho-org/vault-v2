@@ -47,7 +47,7 @@ contract ERC4626Adapter is IAdapter {
     function allocateIn(bytes memory, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 assetsInVault = IERC4626(vault).previewWithdraw(IERC4626(vault).balanceOf(address(this)));
+        uint256 assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
         if (assetsInVault < lastAssetsInVault) realisableLoss += lastAssetsInVault - assetsInVault;
         lastAssetsInVault = assetsInVault + assets;
 
