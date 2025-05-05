@@ -129,6 +129,32 @@ contract SettersTest is BaseTest {
         assertEq(vault.validAt(data), 0);
     }
 
+    function testTimelocked(uint256 timelock) public {
+        timelock = bound(timelock, 1, TIMELOCK_CAP);
+
+        // Setup.
+        vm.prank(curator);
+        vault.increaseTimelock(IVaultV2.setInterestController.selector, timelock);
+        assertEq(vault.timelock(IVaultV2.setInterestController.selector), timelock);
+        bytes memory data = abi.encodeWithSelector(IVaultV2.setInterestController.selector, address(1));
+        vm.prank(curator);
+        vault.submit(data);
+        assertEq(vault.validAt(data), block.timestamp + timelock);
+
+        // Timelock didn't pass.
+        vm.warp(vm.getBlockTimestamp() + timelock - 1);
+        vm.expectRevert(ErrorsLib.TimelockNotExpired.selector);
+        vault.setInterestController(address(1));
+
+        // Normal path.
+        vm.warp(vm.getBlockTimestamp() + 1);
+        vault.setInterestController(address(1));
+
+        // Data not timelocked.
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vault.setInterestController(address(1));
+    }
+
     function testSetIsAllocator(address rdm) public {
         address newAllocator = makeAddr("newAllocator");
 
