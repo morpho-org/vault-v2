@@ -23,7 +23,6 @@ Curators enable protocols in which the vault can supply through the use of adapt
 In order to enable a given protocol, a corresponding adapter need to be used.
 Adapters for the following protocols are available:
 - Morpho Market V1
-- Morpho Market V2
 - ERC-4626
 
 When supplying through an adapter, the adapter returns arbitrary bytes32 identifiers (IDs).
