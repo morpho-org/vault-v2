@@ -66,6 +66,12 @@ contract VaultV2 is IVaultV2 {
     mapping(address => mapping(address => uint256)) public allowance;
     mapping(address => uint256) public nonces;
 
+    /* GETTERS */
+
+    function idsWithRelativeCapLength() public view returns (uint256) {
+        return idsWithRelativeCap.length;
+    }
+
     /* MULTICALL */
 
     function multicall(bytes[] calldata data) external {

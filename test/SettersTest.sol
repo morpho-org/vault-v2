@@ -550,8 +550,7 @@ contract SettersTest is BaseTest {
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, id, 0));
         vault.decreaseRelativeCap(id, 0);
-        vm.expectRevert();
-        vault.idsWithRelativeCap(0);
+        assertEq(vault.idsWithRelativeCapLength(), 0);
 
         // The relative cap exceeded.
         id = keccak256("id");
