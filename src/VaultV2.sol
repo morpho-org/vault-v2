@@ -10,6 +10,8 @@ import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 
+/// @dev Zero checks are not performed.
+/// @dev No-ops are allowed.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
 
