@@ -320,6 +320,11 @@ contract SettersTest is BaseTest {
         vm.prank(rdm);
         vault.setPerformanceFee(newPerformanceFee);
 
+        // No op works
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, 0));
+        vault.setPerformanceFee(0);
+
         // Can't go over fee cap
         uint256 tooHighFee = 1 ether + 1;
         vm.prank(curator);
@@ -353,6 +358,11 @@ contract SettersTest is BaseTest {
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
         vault.setManagementFee(newManagementFee);
+
+        // No op works
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, 0));
+        vault.setManagementFee(0);
 
         // Can't go over fee cap
         uint256 tooHighFee = 1 ether + 1;
