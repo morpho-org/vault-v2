@@ -34,6 +34,8 @@ contract VaultV2 is IVaultV2 {
     uint256 public totalAssets;
     uint256 public lossToRealise;
     uint256 public lastUpdate;
+    /// @dev block => loss realised
+    mapping(uint256 => bool) public lossRealised;
 
     /* CURATION AND ALLOCATION STORAGE */
     address public interestController;
@@ -237,6 +239,7 @@ contract VaultV2 is IVaultV2 {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
         (uint256 loss, bytes32[] memory ids) = IAdapter(adapter).realiseLoss(data);
         lossToRealise += loss;
+
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss);
         }
@@ -328,6 +331,7 @@ contract VaultV2 is IVaultV2 {
     function accrueInterest() public {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         totalAssets = newTotalAssets;
+        lossToRealise = 0;
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
         lastUpdate = block.timestamp;
@@ -336,11 +340,11 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        if (elapsed == 0) return (totalAssets, 0, 0);
+        if (elapsed == 0) return (totalAssets - lossToRealise, 0, 0);
         uint256 interestPerSecond = IInterestController(interestController).interestPerSecond(totalAssets, elapsed);
         require(interestPerSecond <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
         uint256 interest = interestPerSecond * elapsed;
-        uint256 newTotalAssets = totalAssets + interest;
+        uint256 newTotalAssets = totalAssets - lossToRealise + interest;
 
         uint256 performanceFeeShares;
         uint256 managementFeeShares;
@@ -425,6 +429,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
+        require(!lossRealised[block.number], ErrorsLib.LossRealisedInBlock());
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
             this.reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
