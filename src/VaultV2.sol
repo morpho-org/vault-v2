@@ -200,7 +200,7 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
         require(newRelativeCap >= relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
 
-        if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
+        if (relativeCap[id] == 0 && newRelativeCap != 0) idsWithRelativeCap.push(id);
         relativeCap[id] = newRelativeCap;
         emit EventsLib.IncreaseRelativeCap(id, newRelativeCap);
     }
@@ -209,7 +209,7 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap <= relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
         require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
 
-        if (newRelativeCap == 0) {
+        if (newRelativeCap == 0 && relativeCap[id] != 0) {
             uint256 i;
             while (idsWithRelativeCap[i] != id) i++;
             idsWithRelativeCap[i] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
