@@ -241,7 +241,7 @@ contract SettersTest is BaseTest {
 
     function testSetPerformanceFee(address rdm, uint256 newPerformanceFee) public {
         vm.assume(rdm != curator);
-        newPerformanceFee = bound(newPerformanceFee, 0, MAX_PERFORMANCE_FEE);
+        newPerformanceFee = bound(newPerformanceFee, 1, MAX_PERFORMANCE_FEE);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
@@ -275,7 +275,7 @@ contract SettersTest is BaseTest {
 
     function testSetManagementFee(address rdm, uint256 newManagementFee) public {
         vm.assume(rdm != curator);
-        newManagementFee = bound(newManagementFee, 0, MAX_MANAGEMENT_FEE);
+        newManagementFee = bound(newManagementFee, 1, MAX_MANAGEMENT_FEE);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
