@@ -52,6 +52,7 @@ contract VaultV2 is IVaultV2 {
     mapping(bytes => uint256) public validAt;
     /// @dev function selector => timelock duration
     mapping(bytes4 => uint256) public timelock;
+    /// @dev The liquidity adapter is disabled when it is address(0).
     address public liquidityAdapter;
     bytes public liquidityData;
 
@@ -119,7 +120,6 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setIsAdapter(address account, bool newIsAdapter) external timelocked {
-        require(account != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
         isAdapter[account] = newIsAdapter;
         emit EventsLib.SetIsAdapter(account, newIsAdapter);
     }
@@ -263,10 +263,6 @@ contract VaultV2 is IVaultV2 {
 
     function setLiquidityAdapter(address newLiquidityAdapter) external {
         require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
-        require(
-            newLiquidityAdapter == address(0) || isAdapter[newLiquidityAdapter],
-            ErrorsLib.LiquidityAdapterInvariantBroken()
-        );
         liquidityAdapter = newLiquidityAdapter;
         emit EventsLib.SetLiquidityAdapter(msg.sender, newLiquidityAdapter);
     }
@@ -385,7 +381,7 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(receiver, shares);
         totalAssets += assets;
-        try this.reallocateFromIdle(liquidityAdapter, liquidityData, assets) {} catch {}
+        if (liquidityAdapter != address(0)) this.reallocateFromIdle(liquidityAdapter, liquidityData, assets);
         emit EventsLib.Deposit(msg.sender, receiver, assets, shares);
     }
 
