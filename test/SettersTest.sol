@@ -549,6 +549,73 @@ contract SettersTest is BaseTest {
         vault.decreaseRelativeCap(id, newRelativeCap);
     }
 
+    function testIdsWithRelativeCapOrdering() public {
+        // Create 4 different IDs
+        bytes32 id1 = keccak256("id1");
+        bytes32 id2 = keccak256("id2");
+        bytes32 id3 = keccak256("id3");
+        bytes32 id4 = keccak256("id4");
+
+        // Set relative caps in a specific order
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, id1, 0.2 ether));
+        vault.increaseRelativeCap(id1, 0.2 ether);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, id2, 0.4 ether));
+        vault.increaseRelativeCap(id2, 0.4 ether);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, id3, 0.1 ether));
+        vault.increaseRelativeCap(id3, 0.1 ether);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, id4, 0.3 ether));
+        vault.increaseRelativeCap(id4, 0.3 ether);
+
+        // Verify the order matches the order of addition
+        assertEq(vault.idsWithRelativeCap(0), id1);
+        assertEq(vault.idsWithRelativeCap(1), id2);
+        assertEq(vault.idsWithRelativeCap(2), id3);
+        assertEq(vault.idsWithRelativeCap(3), id4);
+
+        // Set them back to 0 in a different order
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, id2, 0));
+        vault.decreaseRelativeCap(id2, 0);
+
+        assertEq(vault.idsWithRelativeCap(0), id1);
+        assertEq(vault.idsWithRelativeCap(1), id4);
+        assertEq(vault.idsWithRelativeCap(2), id3);
+        vm.expectRevert();
+        vault.idsWithRelativeCap(4);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, id3, 0));
+        vault.decreaseRelativeCap(id3, 0);
+
+        assertEq(vault.idsWithRelativeCap(0), id1);
+        assertEq(vault.idsWithRelativeCap(1), id4);
+        vm.expectRevert();
+        vault.idsWithRelativeCap(2);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, id1, 0));
+        vault.decreaseRelativeCap(id1, 0);
+
+        assertEq(vault.idsWithRelativeCap(0), id4);
+        vm.expectRevert();
+        vault.idsWithRelativeCap(1);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, id4, 0));
+        vault.decreaseRelativeCap(id4, 0);
+
+        // Verify the list is empty
+        vm.expectRevert();
+        vault.idsWithRelativeCap(0);
+    }
+
     function testSetForceReallocateToIdlePenalty(address rdm, uint256 newForceReallocateToIdlePenalty) public {
         vm.assume(rdm != curator);
         newForceReallocateToIdlePenalty =
@@ -575,8 +642,6 @@ contract SettersTest is BaseTest {
         vm.expectRevert(ErrorsLib.PenaltyTooHigh.selector);
         vault.setForceReallocateToIdlePenalty(tooHighPenalty);
     }
-
-    /* ALLOCATOR SETTERS */
 
     function testSetLiquidityAdapter(address rdm, address liquidityAdapter) public {
         vm.assume(rdm != allocator);
