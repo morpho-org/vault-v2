@@ -274,7 +274,7 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != curator);
         vm.assume(selector != IVaultV2.decreaseTimelock.selector);
         oldTimelock = bound(oldTimelock, 1, 2 weeks);
-        newTimelock = bound(newTimelock, 0, oldTimelock - 1);
+        newTimelock = bound(newTimelock, 0, oldTimelock);
 
         vm.prank(curator);
         vault.increaseTimelock(selector, oldTimelock);
@@ -504,7 +504,7 @@ contract SettersTest is BaseTest {
     }
 
     function testIncreaseRelativeCap(address rdm, bytes32 id, uint256 newRelativeCap) public {
-        vm.assume(newRelativeCap >= 1);
+        vm.assume(newRelativeCap >= 0);
         vm.assume(newRelativeCap <= WAD);
 
         // Nobody can set directly
