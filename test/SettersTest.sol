@@ -525,7 +525,7 @@ contract SettersTest is BaseTest {
         emit EventsLib.IncreaseRelativeCap(id, newRelativeCap);
         vault.increaseRelativeCap(id, newRelativeCap);
         assertEq(vault.relativeCap(id), newRelativeCap);
-        assertEq(vault.idsWithRelativeCap(0), id);
+        if (newRelativeCap > 0) assertEq(vault.idsWithRelativeCap(0), id);
 
         // Can't decrease relative cap
         if (newRelativeCap > 0) {
@@ -567,6 +567,8 @@ contract SettersTest is BaseTest {
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, id, 0));
         vault.decreaseRelativeCap(id, 0);
+        vm.expectRevert();
+        vault.idsWithRelativeCap(0);
         assertEq(vault.idsWithRelativeCapLength(), 0);
 
         // The relative cap exceeded.
