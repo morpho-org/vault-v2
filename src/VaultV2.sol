@@ -385,7 +385,7 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(receiver, shares);
         totalAssets += assets;
-        try this.reallocateFromIdle(liquidityAdapter, liquidityData, assets) {} catch {}
+        if (liquidityAdapter != address(0)) this.reallocateFromIdle(liquidityAdapter, liquidityData, assets);
         emit EventsLib.Deposit(msg.sender, receiver, assets, shares);
     }
 
