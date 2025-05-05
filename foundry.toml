@@ -5,6 +5,7 @@ libs = ["lib"]
 via_ir = true
 optimizer_runs = 999999 # Etherscan does not support verifying contracts with more optimization runs.
 evm_version = "cancun"
+dynamic_test_linking = true
 
 [profile.default.fmt]
 wrap_comments = true
