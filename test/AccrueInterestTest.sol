@@ -40,6 +40,13 @@ contract AccrueInterestTest is BaseTest {
         // Setup.
         vm.prank(manager);
         interestController.setInterestPerSecond(interestPerSecond);
+        vm.startPrank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, performanceFee));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, managementFee));
+        vm.stopPrank();
+        vault.setPerformanceFee(performanceFee);
+        vault.setManagementFee(managementFee);
+
         vault.deposit(deposit, address(this));
 
         // Normal path.
@@ -50,13 +57,27 @@ contract AccrueInterestTest is BaseTest {
         assertEq(managementFeeShares, vault.balanceOf(managementFeeRecipient));
     }
 
-    function testAccrueInterest(uint256 deposit, uint256 interestPerSecond, uint256 elapsed) public {
+    function testAccrueInterest(
+        uint256 deposit,
+        uint256 performanceFee,
+        uint256 managementFee,
+        uint256 interestPerSecond,
+        uint256 elapsed
+    ) public {
+        performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
+        managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_DEPOSIT);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
         elapsed = bound(elapsed, 0, 20 * 365 days);
 
         // Setup.
         vault.deposit(deposit, address(this));
+        vm.startPrank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, performanceFee));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, managementFee));
+        vm.stopPrank();
+        vault.setPerformanceFee(performanceFee);
+        vault.setManagementFee(managementFee);
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
         // Rate too high.
@@ -70,9 +91,21 @@ contract AccrueInterestTest is BaseTest {
         // Normal path.
         vm.prank(manager);
         interestController.setInterestPerSecond(interestPerSecond);
+        uint256 interest = interestPerSecond * elapsed;
+        uint256 totalAssets = deposit + interest;
+        uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
+        uint256 performanceFeeShares =
+            performanceFeeAssets.mulDivDown(vault.totalSupply() + 1, totalAssets + 1 - performanceFeeAssets);
+        uint256 managementFeeAssets = (totalAssets * elapsed).mulDivDown(managementFee, WAD);
+        uint256 managementFeeShares = managementFeeAssets.mulDivDown(
+            vault.totalSupply() + 1 + performanceFeeShares, totalAssets + 1 - managementFeeAssets
+        );
+        vm.expectEmit();
+        emit EventsLib.AccrueInterest(totalAssets, performanceFeeShares, managementFeeShares);
         vault.accrueInterest();
-        assertEq(vault.totalAssets(), deposit + interestPerSecond * elapsed);
-        // TODO test fees.
+        assertEq(vault.totalAssets(), totalAssets);
+        assertEq(vault.balanceOf(performanceFeeRecipient), performanceFeeShares);
+        assertEq(vault.balanceOf(managementFeeRecipient), managementFeeShares);
     }
 
     function testPerformanceFeeWithoutManagementFee(
