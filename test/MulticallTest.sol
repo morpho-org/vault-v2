@@ -16,7 +16,7 @@ contract MulticallTest is BaseTest {
         assertEq(vault.owner(), newOwner, "wrong owner");
     }
 
-    function testFailingMulticall() public {
+    function testMulticallFailing() public {
         bytes[] memory data = new bytes[](2);
         data[0] = abi.encodeWithSelector(IVaultV2.decreaseAbsoluteCap.selector, keccak256(abi.encode(address(1))), 0);
         data[1] = abi.encodeWithSelector(IVaultV2.setOwner.selector, address(1));
