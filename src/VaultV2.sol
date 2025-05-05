@@ -10,61 +10,58 @@ import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 
+/// @dev Zero checks are not performed.
+/// @dev No-ops are allowed.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
 
     /* IMMUTABLE */
-
     address public immutable asset;
 
-    /* STORAGE */
-
+    /* ROLES STORAGE */
     address public owner;
     address public curator;
-    address public interestController;
     mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
 
+    /* TOKEN STORAGE */
+    uint256 public totalSupply;
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    mapping(address => uint256) public nonces;
+
+    /* VAULT STORAGE */
+    uint256 public totalAssets;
+    uint256 public lastUpdate;
+
+    /* CURATION AND ALLOCATION STORAGE */
+    address public interestController;
+    uint256 public forceReallocateToIdlePenalty;
+    /// @dev Adapter is trusted to pass the expected ids when supplying assets.
+    mapping(address => bool) public isAdapter;
+    /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
+    mapping(bytes32 => uint256) public absoluteCap;
+    /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
+    /// @dev Relative cap = 0 is interpreted as no relative cap.
+    mapping(bytes32 => uint256) public relativeCap;
+    /// @dev Useful to iterate over all ids with relative cap in withdrawals.
+    bytes32[] public idsWithRelativeCap;
+    /// @dev Interests are not counted in the allocation.
+    mapping(bytes32 => uint256) public allocation;
+    /// @dev calldata => executable at
+    mapping(bytes => uint256) public validAt;
+    /// @dev function selector => timelock duration
+    mapping(bytes4 => uint256) public timelock;
+    address public liquidityAdapter;
+    bytes public liquidityData;
+
+    /* FEES STORAGE */
     /// @dev invariant: performanceFee != 0 => performanceFeeRecipient != address(0)
     uint256 public performanceFee;
     address public performanceFeeRecipient;
     /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint256 public managementFee;
     address public managementFeeRecipient;
-    uint256 public forceReallocateToIdlePenalty;
-
-    uint256 public lastUpdate;
-    uint256 public totalAssets;
-
-    // Adapter is trusted to pass the expected ids when supplying assets.
-    mapping(address => bool) public isAdapter;
-
-    /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
-    mapping(bytes32 => uint256) public absoluteCap;
-
-    /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
-    /// @dev Relative cap = 0 is interpreted as no relative cap.
-    mapping(bytes32 => uint256) public relativeCap;
-
-    /// @dev Useful to iterate over all ids with relative cap in withdrawals.
-    bytes32[] public idsWithRelativeCap;
-
-    /// @dev Interests are not counted in the allocation.
-    /// @dev By design, double counting some stuff.
-    mapping(bytes32 => uint256) public allocation;
-
-    address public liquidityAdapter;
-    bytes public liquidityData;
-
-    /// @dev calldata => executable at
-    mapping(bytes => uint256) public validAt;
-    /// @dev function selector => timelock duration
-    mapping(bytes4 => uint256) public timelock;
-
-    uint256 public totalSupply;
-    mapping(address => uint256) public balanceOf;
-    mapping(address => mapping(address => uint256)) public allowance;
-    mapping(address => uint256) public nonces;
 
     /* GETTERS */
 
@@ -137,7 +134,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
-        require(newDuration > timelock[selector], ErrorsLib.TimelockNotIncreasing());
+        require(newDuration >= timelock[selector], ErrorsLib.TimelockNotIncreasing());
 
         timelock[selector] = newDuration;
         emit EventsLib.IncreaseTimelock(selector, newDuration);
@@ -145,7 +142,7 @@ contract VaultV2 is IVaultV2 {
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
-        require(newDuration < timelock[selector], ErrorsLib.TimelockNotDecreasing());
+        require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
         emit EventsLib.DecreaseTimelock(selector, newDuration);
@@ -153,7 +150,7 @@ contract VaultV2 is IVaultV2 {
 
     function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
         require(newPerformanceFee <= MAX_PERFORMANCE_FEE, ErrorsLib.FeeTooHigh());
-        require(performanceFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
+        require(performanceFeeRecipient != address(0) || newPerformanceFee == 0, ErrorsLib.FeeInvariantBroken());
 
         accrueInterest();
 
@@ -163,7 +160,7 @@ contract VaultV2 is IVaultV2 {
 
     function setManagementFee(uint256 newManagementFee) external timelocked {
         require(newManagementFee <= MAX_MANAGEMENT_FEE, ErrorsLib.FeeTooHigh());
-        require(managementFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
+        require(managementFeeRecipient != address(0) || newManagementFee == 0, ErrorsLib.FeeInvariantBroken());
 
         accrueInterest();
 
@@ -191,7 +188,7 @@ contract VaultV2 is IVaultV2 {
 
     function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external timelocked {
         bytes32 id = keccak256(idData);
-        require(newAbsoluteCap > absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
+        require(newAbsoluteCap >= absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
 
         absoluteCap[id] = newAbsoluteCap;
         emit EventsLib.IncreaseAbsoluteCap(id, idData, newAbsoluteCap);
@@ -199,25 +196,26 @@ contract VaultV2 is IVaultV2 {
 
     function decreaseAbsoluteCap(bytes32 id, uint256 newAbsoluteCap) external {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        require(newAbsoluteCap < absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
+        require(newAbsoluteCap <= absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
 
         absoluteCap[id] = newAbsoluteCap;
         emit EventsLib.DecreaseAbsoluteCap(id, newAbsoluteCap);
     }
 
     function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
-        require(newRelativeCap > relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
+        require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
+        require(newRelativeCap >= relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
 
-        if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
+        if (relativeCap[id] == 0 && newRelativeCap != 0) idsWithRelativeCap.push(id);
         relativeCap[id] = newRelativeCap;
         emit EventsLib.IncreaseRelativeCap(id, newRelativeCap);
     }
 
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
-        require(newRelativeCap < relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
+        require(newRelativeCap <= relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
         require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
 
-        if (newRelativeCap == 0) {
+        if (newRelativeCap == 0 && relativeCap[id] != 0) {
             uint256 i;
             while (idsWithRelativeCap[i] != id) i++;
             idsWithRelativeCap[i] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
