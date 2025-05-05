@@ -643,6 +643,8 @@ contract SettersTest is BaseTest {
         vault.setForceReallocateToIdlePenalty(tooHighPenalty);
     }
 
+    /* ALLOCATOR SETTERS */
+
     function testSetLiquidityAdapter(address rdm, address liquidityAdapter) public {
         vm.assume(rdm != allocator);
         vm.assume(liquidityAdapter != address(0));
