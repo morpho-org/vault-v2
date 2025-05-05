@@ -68,7 +68,7 @@ contract AccrueInterestTest is BaseTest {
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_DEPOSIT);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        elapsed = bound(elapsed, 0, 20 * 365 days);
+        elapsed = bound(elapsed, 1, 20 * 365 days);
 
         // Setup.
         vault.deposit(deposit, address(this));
@@ -81,12 +81,10 @@ contract AccrueInterestTest is BaseTest {
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
         // Rate too high.
-        if (elapsed > 0) {
-            vm.prank(manager);
-            interestController.setInterestPerSecond(deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD) + 1);
-            vm.expectRevert(ErrorsLib.InvalidRate.selector);
-            vault.accrueInterest();
-        }
+        vm.prank(manager);
+        interestController.setInterestPerSecond(deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD) + 1);
+        vm.expectRevert(ErrorsLib.InvalidRate.selector);
+        vault.accrueInterest();
 
         // Normal path.
         vm.prank(manager);
