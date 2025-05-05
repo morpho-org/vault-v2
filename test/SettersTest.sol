@@ -241,12 +241,17 @@ contract SettersTest is BaseTest {
 
     function testSetPerformanceFee(address rdm, uint256 newPerformanceFee) public {
         vm.assume(rdm != curator);
-        newPerformanceFee = bound(newPerformanceFee, 0, MAX_PERFORMANCE_FEE);
+        newPerformanceFee = bound(newPerformanceFee, 1, MAX_PERFORMANCE_FEE);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
         vault.setPerformanceFee(newPerformanceFee);
+
+        // No op works
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, 0));
+        vault.setPerformanceFee(0);
 
         // Can't go over fee cap
         uint256 tooHighFee = 1 ether + 1;
@@ -275,12 +280,17 @@ contract SettersTest is BaseTest {
 
     function testSetManagementFee(address rdm, uint256 newManagementFee) public {
         vm.assume(rdm != curator);
-        newManagementFee = bound(newManagementFee, 0, MAX_MANAGEMENT_FEE);
+        newManagementFee = bound(newManagementFee, 1, MAX_MANAGEMENT_FEE);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
         vault.setManagementFee(newManagementFee);
+
+        // No op works
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, 0));
+        vault.setManagementFee(0);
 
         // Can't go over fee cap
         uint256 tooHighFee = 1 ether + 1;
