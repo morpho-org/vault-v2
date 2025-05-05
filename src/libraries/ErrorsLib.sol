@@ -27,6 +27,7 @@ library ErrorsLib {
     error RelativeCapNotDecreasing();
     error AbsoluteCapExceeded();
     error RelativeCapExceeded();
+    error RelativeCapAboveOne();
     error IdNotFound();
     error NotAllocator();
     error NotAdapter();

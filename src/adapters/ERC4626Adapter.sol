@@ -11,7 +11,7 @@ contract ERC4626Adapter {
     /* IMMUTABLES */
 
     address public immutable parentVault;
-    address public immutable asset;
+    address public immutable vault;
 
     /* STORAGE */
 
@@ -25,13 +25,15 @@ contract ERC4626Adapter {
     /* ERRORS */
 
     error NotAuthorized();
+    error InvalidData();
 
     /* FUNCTIONS */
 
-    constructor(address _parentVault) {
+    constructor(address _parentVault, address _vault) {
         parentVault = _parentVault;
-        asset = IVaultV2(_parentVault).asset();
+        vault = _vault;
         SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
+        SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _vault, type(uint256).max);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -42,10 +44,9 @@ contract ERC4626Adapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     function allocateIn(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+        require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
-        (address vault) = abi.decode(data, (address));
 
-        SafeERC20Lib.safeApprove(asset, vault, assets);
         IERC4626(vault).deposit(assets, address(this));
 
         bytes32[] memory ids = new bytes32[](1);
@@ -55,8 +56,8 @@ contract ERC4626Adapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     function allocateOut(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+        require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
-        (address vault) = abi.decode(data, (address));
 
         IERC4626(vault).withdraw(assets, address(this), address(this));
 
