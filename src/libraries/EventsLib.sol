@@ -37,5 +37,4 @@ library EventsLib {
     event AccrueInterest(uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares);
     event ForceReallocateToIdle(address indexed sender, address indexed onBehalf, uint256 assets);
     event CreateVaultV2(address indexed vaultV2, address indexed owner, address indexed asset);
-    event SetInterestPerSecond(uint256 interestPerSecond);
 }

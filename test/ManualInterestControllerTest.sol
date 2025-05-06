@@ -4,21 +4,49 @@ pragma solidity ^0.8.0;
 import "../lib/forge-std/src/Test.sol";
 import "../src/interest-controllers/ManualInterestController.sol";
 import "../src/libraries/ErrorsLib.sol";
+import "./mocks/VaultV2Mock.sol";
 
 contract ManualInterestControllerTest is Test {
     ManualInterestController public manualInterestController;
+    IVaultV2 public vault;
+    address public curator;
+    address public allocator;
+    address public sentinel;
 
     function setUp() public {
-        manualInterestController = new ManualInterestController(address(this));
+        curator = makeAddr("curator");
+        allocator = makeAddr("allocator");
+        sentinel = makeAddr("sentinel");
+        vault = IVaultV2(address(new VaultV2Mock(address(0), address(0), curator, allocator, sentinel)));
+        manualInterestController = new ManualInterestController(address(vault));
+        vm.prank(curator);
+        manualInterestController.setMaxInterestPerSecond(type(uint256).max);
     }
 
-    function testConstructor(address owner) public {
-        manualInterestController = new ManualInterestController(owner);
-        assertEq(manualInterestController.owner(), owner);
+    function testConstructor(address _vault) public {
+        manualInterestController = new ManualInterestController(_vault);
+        assertEq(manualInterestController.vault(), _vault);
+    }
+
+    function testSetMaxInterestPerSecond(address rdm, uint256 newMaxInterestPerSecond) public {
+        vm.assume(rdm != curator);
+        vm.assume(newMaxInterestPerSecond == 0);
+
+        // Access control.
+        vm.prank(rdm);
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        manualInterestController.setMaxInterestPerSecond(newMaxInterestPerSecond);
+
+        // Normal path.
+        vm.prank(curator);
+        vm.expectEmit();
+        emit ManualInterestController.SetMaxInterestPerSecond(newMaxInterestPerSecond);
+        manualInterestController.setMaxInterestPerSecond(newMaxInterestPerSecond);
+        assertEq(manualInterestController.maxInterestPerSecond(), newMaxInterestPerSecond);
     }
 
     function testSetInterestPerSecond(address rdm, uint256 newInterestPerSecond) public {
-        vm.assume(rdm != address(this));
+        vm.assume(rdm != allocator);
 
         // Access control.
         vm.prank(rdm);
@@ -26,8 +54,9 @@ contract ManualInterestControllerTest is Test {
         manualInterestController.setInterestPerSecond(newInterestPerSecond);
 
         // Normal path.
+        vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.SetInterestPerSecond(newInterestPerSecond);
+        emit ManualInterestController.SetInterestPerSecond(allocator, newInterestPerSecond);
         manualInterestController.setInterestPerSecond(newInterestPerSecond);
         assertEq(manualInterestController.interestPerSecond(0, 0), newInterestPerSecond);
     }

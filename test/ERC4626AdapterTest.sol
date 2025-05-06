@@ -7,14 +7,14 @@ import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {ERC4626Mock} from "./mocks/ERC4626Mock.sol";
 import {ERC4626Adapter} from "src/adapters/ERC4626Adapter.sol";
 import {ERC4626AdapterFactory} from "src/adapters/ERC4626AdapterFactory.sol";
-import {VaultMock} from "./mocks/VaultV2Mock.sol";
+import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {IERC20} from "src/interfaces/IERC20.sol";
 import {IVaultV2} from "src/interfaces/IVaultV2.sol";
 
 contract ERC4626AdapterTest is Test {
     ERC20Mock internal asset;
     ERC20Mock internal rewardToken;
-    VaultMock internal parentVault;
+    VaultV2Mock internal parentVault;
     ERC4626Mock internal vault;
     ERC4626AdapterFactory internal factory;
     ERC4626Adapter internal adapter;
@@ -31,7 +31,7 @@ contract ERC4626AdapterTest is Test {
         asset = new ERC20Mock();
         rewardToken = new ERC20Mock();
         vault = new ERC4626Mock(address(asset));
-        parentVault = new VaultMock(address(asset), owner);
+        parentVault = new VaultV2Mock(address(asset), owner, address(0), address(0), address(0));
 
         factory = new ERC4626AdapterFactory();
         adapter = ERC4626Adapter(factory.createERC4626Adapter(address(parentVault), address(vault)));
@@ -102,7 +102,7 @@ contract ERC4626AdapterTest is Test {
     }
 
     function testFactoryCreateAdapter() public {
-        VaultMock newParentVault = new VaultMock(address(asset), owner);
+        VaultV2Mock newParentVault = new VaultV2Mock(address(asset), owner, address(0), address(0), address(0));
         ERC4626Mock newVault = new ERC4626Mock(address(asset));
 
         bytes32 initCodeHash = keccak256(

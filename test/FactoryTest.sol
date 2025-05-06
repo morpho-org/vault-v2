@@ -28,18 +28,18 @@ contract FactoryTest is BaseTest {
         vaultFactory.createVaultV2(_owner, _asset, _salt);
     }
 
-    function testCreateManualInterestController(address owner, bytes32 salt) public {
+    function testCreateManualInterestController(address vault, bytes32 salt) public {
         ManualInterestControllerFactory manualInterestControllerFactory = new ManualInterestControllerFactory();
 
         bytes32 initCodeHash =
-            keccak256(abi.encodePacked(type(ManualInterestController).creationCode, abi.encode(owner)));
+            keccak256(abi.encodePacked(type(ManualInterestController).creationCode, abi.encode(vault)));
         address expectedAddress = vm.computeCreate2Address(salt, initCodeHash, address(manualInterestControllerFactory));
         vm.expectEmit();
-        emit ManualInterestControllerFactory.CreateManualInterestController(expectedAddress, owner);
-        IInterestController manualInterestController =
-            IInterestController(manualInterestControllerFactory.createManualInterestController(owner, salt));
+        emit ManualInterestControllerFactory.CreateManualInterestController(expectedAddress, vault);
+        ManualInterestController manualInterestController =
+            ManualInterestController(manualInterestControllerFactory.createManualInterestController(vault, salt));
         assertEq(address(manualInterestController), expectedAddress);
         assertTrue(manualInterestControllerFactory.isManualInterestController(address(manualInterestController)));
-        assertEq(ManualInterestController(address(manualInterestController)).owner(), owner);
+        assertEq(manualInterestController.vault(), address(vault));
     }
 }

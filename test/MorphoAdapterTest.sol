@@ -6,7 +6,7 @@ import {MorphoAdapter} from "src/adapters/MorphoAdapter.sol";
 import {MorphoAdapterFactory} from "src/adapters/MorphoAdapterFactory.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "lib/morpho-blue/src/mocks/OracleMock.sol";
-import {VaultMock} from "./mocks/VaultV2Mock.sol";
+import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {IrmMock} from "lib/morpho-blue/src/mocks/IrmMock.sol";
 import {IMorpho, MarketParams} from "lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MorphoBalancesLib} from "lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
@@ -18,7 +18,7 @@ contract MorphoAdapterTest is Test {
 
     MorphoAdapterFactory internal factory;
     MorphoAdapter internal adapter;
-    VaultMock internal parentVault;
+    VaultV2Mock internal parentVault;
     MarketParams internal marketParams;
     ERC20Mock internal loanToken;
     ERC20Mock internal collateralToken;
@@ -59,7 +59,7 @@ contract MorphoAdapterTest is Test {
         vm.stopPrank();
 
         morpho.createMarket(marketParams);
-        parentVault = new VaultMock(address(loanToken), owner);
+        parentVault = new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0));
         factory = new MorphoAdapterFactory(address(morpho));
         adapter = MorphoAdapter(factory.createMorphoAdapter(address(parentVault)));
     }
@@ -134,7 +134,8 @@ contract MorphoAdapterTest is Test {
     }
 
     function testFactoryCreateMorphoAdapter() public {
-        address newParentVaultAddr = address(new VaultMock(address(loanToken), owner));
+        address newParentVaultAddr =
+            address(new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0)));
 
         bytes32 initCodeHash =
             keccak256(abi.encodePacked(type(MorphoAdapter).creationCode, abi.encode(newParentVaultAddr, morpho)));

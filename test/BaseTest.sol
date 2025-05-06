@@ -14,7 +14,6 @@ import {Test, console} from "../lib/forge-std/src/Test.sol";
 import {stdError} from "forge-std/StdError.sol";
 
 contract BaseTest is Test {
-    address immutable manager = makeAddr("manager");
     address immutable owner = makeAddr("owner");
     address immutable curator = makeAddr("curator");
     address immutable allocator = makeAddr("allocator");
@@ -37,7 +36,7 @@ contract BaseTest is Test {
 
         vault = IVaultV2(vaultFactory.createVaultV2(owner, address(underlyingToken), bytes32(0)));
         vm.label(address(vault), "vault");
-        interestController = new ManualInterestController(manager);
+        interestController = new ManualInterestController(address(vault));
         vm.label(address(interestController), "InterestController");
 
         vm.startPrank(owner);
@@ -46,6 +45,7 @@ contract BaseTest is Test {
         vm.stopPrank();
 
         vm.startPrank(curator);
+        ManualInterestController(interestController).setMaxInterestPerSecond(type(uint256).max);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, allocator, true));
         vault.submit(abi.encodeWithSelector(IVaultV2.setInterestController.selector, address(interestController)));
         vm.stopPrank();
