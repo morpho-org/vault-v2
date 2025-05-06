@@ -32,8 +32,9 @@ Additional adapters can be developed to support other protocols as needed.
 When supplying through an adapter, the adapter returns arbitrary bytes32 identifiers (IDs).
 Those IDs can be thought as some properties of the protocol the adapter supply to,
 such as the collateral asset or the oracle in the case of a lending market.
-For each ID, the vault tracks an absolute cap and an allocation.
-On supply, the allocation is increased and the cap is checked.
+The vault tracks assets allocation across the different IDs.
+Absolute caps and relative caps can be set by the curator for each of the IDs.
+On supply, the allocation is increased and caps are checked.
 On withdrawal, the allocation is decreased without checks.
 The vault does not enforce any structure or semantics on IDs.
 
