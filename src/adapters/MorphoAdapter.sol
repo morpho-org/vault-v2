@@ -62,15 +62,16 @@ contract MorphoAdapter is IAdapter {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
 
+        if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+
         IMorpho(morpho).accrueInterest(marketParams);
         uint256 assetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
         Id marketId = marketParams.id();
-        if (assetsInMarket < lastAssetsInMarket[marketId]) {
-            realisableLoss[marketId] += lastAssetsInMarket[marketId] - assetsInMarket;
+        uint256 expectedAssets = lastAssetsInMarket[marketId] + assets;
+        if (assetsInMarket < expectedAssets) {
+            realisableLoss[marketId] += expectedAssets - assetsInMarket;
         }
-        lastAssetsInMarket[marketId] = assetsInMarket + assets;
-
-        if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+        lastAssetsInMarket[marketId] = assetsInMarket;
 
         return ids(marketParams);
     }
@@ -79,16 +80,17 @@ contract MorphoAdapter is IAdapter {
     function allocateOut(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Id marketId = marketParams.id();
+
+        if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
 
         IMorpho(morpho).accrueInterest(marketParams);
         uint256 assetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
-        if (assetsInMarket < lastAssetsInMarket[marketId]) {
-            realisableLoss[marketId] += lastAssetsInMarket[marketId] - assetsInMarket;
+        Id marketId = marketParams.id();
+        uint256 expectedAssets = lastAssetsInMarket[marketId] - assets;
+        if (assetsInMarket < expectedAssets) {
+            realisableLoss[marketId] += expectedAssets - assetsInMarket;
         }
-        lastAssetsInMarket[marketId] = assetsInMarket - assets;
-
-        if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+        lastAssetsInMarket[marketId] = assetsInMarket;
 
         return ids(marketParams);
     }

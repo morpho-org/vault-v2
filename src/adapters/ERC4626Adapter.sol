@@ -49,11 +49,12 @@ contract ERC4626Adapter is IAdapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
-        if (assetsInVault < lastAssetsInVault) realisableLoss += lastAssetsInVault - assetsInVault;
-        lastAssetsInVault = assetsInVault + assets;
-
         IERC4626(vault).deposit(assets, address(this));
+
+        uint256 assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
+        uint256 expectedAssets = lastAssetsInVault + assets;
+        if (assetsInVault < expectedAssets) realisableLoss += expectedAssets - assetsInVault;
+        lastAssetsInVault = assetsInVault;
 
         bytes32[] memory ids = new bytes32[](1);
         ids[0] = keccak256(abi.encode("vault", vault));
@@ -65,11 +66,12 @@ contract ERC4626Adapter is IAdapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
-        if (assetsInVault < lastAssetsInVault) realisableLoss += lastAssetsInVault - assetsInVault;
-        lastAssetsInVault = assetsInVault - assets;
-
         IERC4626(vault).withdraw(assets, address(this), address(this));
+
+        uint256 assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
+        uint256 expectedAssets = lastAssetsInVault - assets;
+        if (assetsInVault < expectedAssets) realisableLoss += expectedAssets - assetsInVault;
+        lastAssetsInVault = assetsInVault;
 
         bytes32[] memory ids = new bytes32[](1);
         ids[0] = keccak256(abi.encode("vault", vault));
