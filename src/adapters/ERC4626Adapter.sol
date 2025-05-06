@@ -27,6 +27,7 @@ contract ERC4626Adapter is IAdapter {
 
     error NotAuthorized();
     error InvalidData();
+    error CantSkimVault();
 
     /* FUNCTIONS */
 
@@ -69,6 +70,7 @@ contract ERC4626Adapter is IAdapter {
 
     function skim(address token) external {
         require(msg.sender == skimRecipient, NotAuthorized());
+        require(token != vault, CantSkimVault());
         uint256 balance = IERC20(token).balanceOf(address(this));
         SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
         emit Skim(token, balance);
