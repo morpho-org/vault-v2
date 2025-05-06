@@ -27,6 +27,8 @@ definition TIMELOCK_CAP() returns uint256 = 14 * 24 * 60 * 60;
 definition MAX_PERFOMANCE_FEE() returns uint256 = 10^18 / 2;
 definition MAX_MANAGEMENT_FEE() returns uint256 = 10^18 / 20 / (365 * 24 * 60 * 60);
 definition MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY() returns uint256 = 10^18 / 100;
+definition MIN_RELATIVE_CAP() returns uint256 = 10^18 / 100;
+definition WAD() returns uint256 = 10^18;
 
 strong invariant performanceFeeRecipient()
     performanceFee() != 0 => performanceFeeRecipient() != 0;
@@ -54,3 +56,9 @@ strong invariant timelockTimelock()
 
 strong invariant liquidityAdapterInvariant()
     liquidityAdapter() == 0 || isAdapter(liquidityAdapter());
+
+strong invariant relativeCapLowerBound(bytes32 id)
+    relativeCap(id) == 0 || relativeCap(id) >= MIN_RELATIVE_CAP();
+
+strong invariant relativeCapUpperBound(bytes32 id)
+    relativeCap(id) <= WAD();

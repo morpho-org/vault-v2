@@ -203,7 +203,8 @@ contract VaultV2 is IVaultV2 {
     }
 
     function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
-        require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
+        require(newRelativeCap == 0 || newRelativeCap >= MIN_RELATIVE_CAP, ErrorsLib.RelativeCapBounds());
+        require(newRelativeCap <= WAD, ErrorsLib.RelativeCapBounds());
         require(newRelativeCap >= relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
 
         if (relativeCap[id] == 0 && newRelativeCap != 0) idsWithRelativeCap.push(id);
@@ -212,6 +213,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
+        require(newRelativeCap == 0 || newRelativeCap >= MIN_RELATIVE_CAP, ErrorsLib.RelativeCapBounds());
         require(newRelativeCap <= relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
         require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
 

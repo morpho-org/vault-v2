@@ -504,7 +504,7 @@ contract SettersTest is BaseTest {
     }
 
     function testIncreaseRelativeCap(address rdm, bytes32 id, uint256 newRelativeCap) public {
-        vm.assume(newRelativeCap >= 0);
+        vm.assume(newRelativeCap == 0 || newRelativeCap >= MIN_RELATIVE_CAP);
         vm.assume(newRelativeCap <= WAD);
 
         // Nobody can set directly
@@ -515,8 +515,14 @@ contract SettersTest is BaseTest {
         // Can't increase relative cap above 1
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, id, WAD + 1));
-        vm.expectRevert(ErrorsLib.RelativeCapAboveOne.selector);
+        vm.expectRevert(ErrorsLib.RelativeCapBounds.selector);
         vault.increaseRelativeCap(id, WAD + 1);
+
+        // Can't set relative cap below 1%
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, id, MIN_RELATIVE_CAP - 1));
+        vm.expectRevert(ErrorsLib.RelativeCapBounds.selector);
+        vault.increaseRelativeCap(id, MIN_RELATIVE_CAP - 1);
 
         // Normal path
         vm.prank(curator);
@@ -530,15 +536,16 @@ contract SettersTest is BaseTest {
         // Can't decrease relative cap
         if (newRelativeCap > 0) {
             vm.prank(curator);
-            vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, id, newRelativeCap - 1));
+            vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, id, 0));
             vm.expectRevert(ErrorsLib.RelativeCapNotIncreasing.selector);
-            vault.increaseRelativeCap(id, newRelativeCap - 1);
+            vault.increaseRelativeCap(id, 0);
         }
     }
 
     function testDecreaseRelativeCap(address rdm, bytes32 id, uint256 oldRelativeCap, uint256 newRelativeCap) public {
         newRelativeCap = bound(newRelativeCap, 0, WAD - 1);
-        oldRelativeCap = bound(oldRelativeCap, newRelativeCap, WAD - 1);
+        oldRelativeCap = bound(oldRelativeCap, max(MIN_RELATIVE_CAP, newRelativeCap), WAD - 1);
+        vm.assume(newRelativeCap == 0 || newRelativeCap >= MIN_RELATIVE_CAP);
 
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, id, oldRelativeCap));
@@ -548,6 +555,12 @@ contract SettersTest is BaseTest {
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
         vault.decreaseRelativeCap(id, newRelativeCap);
+
+        // Can't set relative cap below 1%
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, id, MIN_RELATIVE_CAP - 1));
+        vm.expectRevert(ErrorsLib.RelativeCapBounds.selector);
+        vault.decreaseRelativeCap(id, MIN_RELATIVE_CAP - 1);
 
         // Normal path
         vm.prank(curator);
@@ -559,9 +572,9 @@ contract SettersTest is BaseTest {
 
         // Can't increase relative cap
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, id, newRelativeCap + 1));
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, id, WAD));
         vm.expectRevert(ErrorsLib.RelativeCapNotDecreasing.selector);
-        vault.decreaseRelativeCap(id, newRelativeCap + 1);
+        vault.decreaseRelativeCap(id, WAD);
 
         // The relative cap decreased to 0.
         vm.prank(curator);
@@ -681,4 +694,8 @@ contract BasicAdapter {
         ids[0] = keccak256("id");
         return ids;
     }
+}
+
+function max(uint256 a, uint256 b) pure returns (uint256) {
+    return a > b ? a : b;
 }
