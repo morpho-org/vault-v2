@@ -25,6 +25,37 @@ contract AccrueInterestTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
     }
 
+    function testTotalAssets(
+        uint256 deposit,
+        uint256 performanceFee,
+        uint256 managementFee,
+        uint256 interestPerSecond,
+        uint256 elapsed
+    ) public {
+        deposit = bound(deposit, 0, MAX_DEPOSIT);
+        performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
+        managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
+        interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
+        elapsed = bound(elapsed, 0, 20 * 365 days);
+
+        // Setup.
+        vm.prank(manager);
+        interestController.setInterestPerSecond(interestPerSecond);
+        vm.startPrank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, performanceFee));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, managementFee));
+        vm.stopPrank();
+        vault.setPerformanceFee(performanceFee);
+        vault.setManagementFee(managementFee);
+        vault.deposit(deposit, address(this));
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        // Normal path.
+        uint256 newTotalAssets = vault.totalAssets();
+        vault.accrueInterest();
+        assertEq(newTotalAssets, vault.lastTotalAssets());
+    }
+
     function testAccrueInterestView(
         uint256 deposit,
         uint256 performanceFee,
@@ -55,7 +86,7 @@ contract AccrueInterestTest is BaseTest {
         // Normal path.
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = vault.accrueInterestView();
         vault.accrueInterest();
-        assertEq(newTotalAssets, vault.totalAssets());
+        assertEq(newTotalAssets, vault.lastTotalAssets());
         assertEq(performanceFeeShares, vault.balanceOf(performanceFeeRecipient));
         assertEq(managementFeeShares, vault.balanceOf(managementFeeRecipient));
     }
@@ -104,7 +135,7 @@ contract AccrueInterestTest is BaseTest {
         vm.expectEmit();
         emit EventsLib.AccrueInterest(totalAssets, performanceFeeShares, managementFeeShares);
         vault.accrueInterest();
-        assertEq(vault.totalAssets(), totalAssets);
+        assertEq(vault.lastTotalAssets(), totalAssets);
         assertEq(vault.balanceOf(performanceFeeRecipient), performanceFeeShares);
         assertEq(vault.balanceOf(managementFeeRecipient), managementFeeShares);
     }
