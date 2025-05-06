@@ -549,7 +549,7 @@ contract VaultV2 is IVaultV2 {
 
     function removeNode(bytes32 removedId, bytes32 prevId) internal {
         bytes32 removed = slot(removedId);
-        // invariant: node(removed).next != NULL_SLOT
+        // invariant must hold: node(removed).next != NULL_SLOT
 
         bytes32 prev = slot(prevId);
 
