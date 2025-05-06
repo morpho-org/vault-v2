@@ -16,7 +16,7 @@ contract Adapter is IAdapter {
 contract ForceReallocateTest is BaseTest {
     using MathLib for uint256;
 
-    uint256 constant MAX_DEPOSIT = 1 ether;
+    uint256 constant MAX_DEPOSIT = 1e18 ether;
     address adapter;
 
     function setUp() public override {
@@ -78,5 +78,15 @@ contract ForceReallocateTest is BaseTest {
         assertEq(vault.balanceOf(address(this)), expectedShares);
 
         vault.withdraw(min(reallocated, vault.previewRedeem(expectedShares)), address(this), address(this));
+    }
+
+    function testForceReallocateInvalidInputLength(
+        address[] memory adapters,
+        bytes[] memory data,
+        uint256[] memory assets
+    ) public {
+        vm.assume(adapters.length != data.length || adapters.length != assets.length);
+        vm.expectRevert(ErrorsLib.InvalidInputLength.selector);
+        vault.forceReallocateToIdle(adapters, data, assets, address(this));
     }
 }

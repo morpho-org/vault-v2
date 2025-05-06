@@ -15,4 +15,15 @@ contract MulticallTest is BaseTest {
         assertEq(vault.curator(), newCurator, "wrong curator");
         assertEq(vault.owner(), newOwner, "wrong owner");
     }
+
+    function testMulticallFailing(address rdm) public {
+        vm.assume(rdm != curator);
+
+        bytes[] memory data = new bytes[](2);
+        data[0] = abi.encodeWithSelector(IVaultV2.setCurator.selector, address(1));
+        data[1] = abi.encodeWithSelector(IVaultV2.submit.selector, hex"");
+        vm.prank(rdm);
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vault.multicall(data);
+    }
 }

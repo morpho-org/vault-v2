@@ -14,8 +14,8 @@ import {IVaultV2} from "src/interfaces/IVaultV2.sol";
 contract ERC4626AdapterTest is Test {
     ERC20Mock internal asset;
     ERC20Mock internal rewardToken;
-    ERC4626Mock internal erc4626Vault;
     VaultMock internal parentVault;
+    ERC4626Mock internal vault;
     ERC4626AdapterFactory internal factory;
     ERC4626Adapter internal adapter;
     address internal owner;
@@ -30,11 +30,11 @@ contract ERC4626AdapterTest is Test {
 
         asset = new ERC20Mock();
         rewardToken = new ERC20Mock();
-        erc4626Vault = new ERC4626Mock(address(asset));
+        vault = new ERC4626Mock(address(asset));
         parentVault = new VaultMock(address(asset), owner);
 
         factory = new ERC4626AdapterFactory();
-        adapter = ERC4626Adapter(factory.createERC4626Adapter(address(parentVault)));
+        adapter = ERC4626Adapter(factory.createERC4626Adapter(address(parentVault), address(vault)));
     }
 
     function _boundAmount(uint256 amount) internal pure returns (uint256) {
@@ -43,19 +43,19 @@ contract ERC4626AdapterTest is Test {
 
     function testParentVaultAndAssetSet() public view {
         assertEq(adapter.parentVault(), address(parentVault), "Incorrect parent vault set");
-        assertEq(adapter.asset(), address(asset), "Incorrect asset set");
+        assertEq(adapter.vault(), address(vault), "Incorrect vault set");
     }
 
     function testAllocateInNotAuthorizedReverts(uint256 amount) public {
         amount = _boundAmount(amount);
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
-        adapter.allocateIn(abi.encode(address(erc4626Vault)), amount);
+        adapter.allocateIn(hex"", amount);
     }
 
     function testAllocateOutNotAuthorizedReverts(uint256 amount) public {
         amount = _boundAmount(amount);
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
-        adapter.allocateOut(abi.encode(address(erc4626Vault)), amount);
+        adapter.allocateOut(hex"", amount);
     }
 
     function testAllocateInDepositsAssetsToERC4626Vault(uint256 amount) public {
@@ -63,14 +63,14 @@ contract ERC4626AdapterTest is Test {
         deal(address(asset), address(adapter), amount);
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.allocateIn(abi.encode(address(erc4626Vault)), amount);
+        bytes32[] memory ids = adapter.allocateIn(hex"", amount);
 
-        uint256 adapterShares = erc4626Vault.balanceOf(address(adapter));
+        uint256 adapterShares = vault.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(adapterShares, amount, "Incorrect share balance after deposit");
         assertEq(asset.balanceOf(address(adapter)), 0, "Underlying tokens not transferred to vault");
 
-        bytes32 expectedId = keccak256(abi.encode("vault", address(erc4626Vault)));
+        bytes32 expectedId = keccak256(abi.encode("vault", address(vault)));
         assertEq(ids.length, 1, "Unexpected number of ids returned");
         assertEq(ids[0], expectedId, "Incorrect id returned");
     }
@@ -81,42 +81,46 @@ contract ERC4626AdapterTest is Test {
 
         deal(address(asset), address(adapter), initialAmount);
         vm.prank(address(parentVault));
-        adapter.allocateIn(abi.encode(address(erc4626Vault)), initialAmount);
+        adapter.allocateIn(hex"", initialAmount);
 
-        uint256 beforeShares = erc4626Vault.balanceOf(address(adapter));
+        uint256 beforeShares = vault.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(beforeShares, initialAmount, "Precondition failed: shares not set");
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.allocateOut(abi.encode(address(erc4626Vault)), withdrawAmount);
+        bytes32[] memory ids = adapter.allocateOut(hex"", withdrawAmount);
 
-        uint256 afterShares = erc4626Vault.balanceOf(address(adapter));
+        uint256 afterShares = vault.balanceOf(address(adapter));
         assertEq(afterShares, initialAmount - withdrawAmount, "Share balance not decreased correctly");
 
         uint256 adapterBalance = asset.balanceOf(address(adapter));
         assertEq(adapterBalance, withdrawAmount, "Adapter did not receive withdrawn tokens");
 
-        bytes32 expectedId = keccak256(abi.encode("vault", address(erc4626Vault)));
+        bytes32 expectedId = keccak256(abi.encode("vault", address(vault)));
         assertEq(ids.length, 1, "Unexpected number of ids returned");
         assertEq(ids[0], expectedId, "Incorrect id returned");
     }
 
     function testFactoryCreateAdapter() public {
         VaultMock newParentVault = new VaultMock(address(asset), owner);
+        ERC4626Mock newVault = new ERC4626Mock(address(asset));
 
-        bytes32 initCodeHash =
-            keccak256(abi.encodePacked(type(ERC4626Adapter).creationCode, abi.encode(address(newParentVault))));
+        bytes32 initCodeHash = keccak256(
+            abi.encodePacked(type(ERC4626Adapter).creationCode, abi.encode(address(newParentVault), address(newVault)))
+        );
         address expectedNewAdapter =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
-        emit ERC4626AdapterFactory.CreateERC4626Adapter(address(newParentVault), expectedNewAdapter);
+        emit ERC4626AdapterFactory.CreateERC4626Adapter(address(newParentVault), address(newVault), expectedNewAdapter);
 
-        address newAdapter = factory.createERC4626Adapter(address(newParentVault));
+        address newAdapter = factory.createERC4626Adapter(address(newParentVault), address(newVault));
 
         assertTrue(newAdapter != address(0), "Adapter not created");
         assertEq(ERC4626Adapter(newAdapter).parentVault(), address(newParentVault), "Incorrect parent vault");
-        assertEq(ERC4626Adapter(newAdapter).asset(), address(asset), "Incorrect asset");
-        assertEq(factory.adapter(address(newParentVault)), newAdapter, "Adapter not tracked correctly");
+        assertEq(ERC4626Adapter(newAdapter).vault(), address(newVault), "Incorrect vault");
+        assertEq(
+            factory.adapter(address(newParentVault), address(newVault)), newAdapter, "Adapter not tracked correctly"
+        );
         assertTrue(factory.isAdapter(newAdapter), "Adapter not tracked correctly");
     }
 
@@ -125,15 +129,16 @@ contract ERC4626AdapterTest is Test {
         vm.assume(caller != address(0));
         vm.assume(caller != owner);
 
+        // Access control
         vm.prank(caller);
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
         adapter.setSkimRecipient(newRecipient);
 
+        // Normal path
         vm.prank(owner);
         vm.expectEmit();
         emit ERC4626Adapter.SetSkimRecipient(newRecipient);
         adapter.setSkimRecipient(newRecipient);
-
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
     }
 
@@ -142,21 +147,37 @@ contract ERC4626AdapterTest is Test {
 
         ERC20Mock token = new ERC20Mock();
 
+        // Setup
         vm.prank(owner);
         adapter.setSkimRecipient(recipient);
-
         deal(address(token), address(adapter), amount);
         assertEq(token.balanceOf(address(adapter)), amount, "Adapter did not receive tokens");
 
+        // Normal path
         vm.expectEmit();
         emit ERC4626Adapter.Skim(address(token), amount);
         vm.prank(recipient);
         adapter.skim(address(token));
-
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
         assertEq(token.balanceOf(recipient), amount, "Recipient did not receive tokens");
 
+        // Access control
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
         adapter.skim(address(token));
+
+        // Cant skim vault
+        vm.expectRevert(ERC4626Adapter.CantSkimVault.selector);
+        vm.prank(recipient);
+        adapter.skim(address(vault));
+    }
+
+    function testInvalidData(bytes memory data) public {
+        vm.assume(data.length > 0);
+
+        vm.expectRevert(ERC4626Adapter.InvalidData.selector);
+        adapter.allocateIn(data, 0);
+
+        vm.expectRevert(ERC4626Adapter.InvalidData.selector);
+        adapter.allocateOut(data, 0);
     }
 }
