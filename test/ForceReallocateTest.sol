@@ -16,7 +16,7 @@ contract Adapter is IAdapter {
 contract ForceReallocateTest is BaseTest {
     using MathLib for uint256;
 
-    uint256 constant MAX_DEPOSIT = 1 ether;
+    uint256 constant MAX_DEPOSIT = 1e18 ether;
     address adapter;
 
     function setUp() public override {
