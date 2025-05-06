@@ -6,7 +6,6 @@ library EventsLib {
     event TransferFrom(address indexed sender, address indexed from, address indexed to, uint256 amount);
     event Approval(address indexed owner, address indexed spender, uint256 amount);
     event Permit(address indexed owner, address indexed spender, uint256 amount, uint256 nonce, uint256 deadline);
-    event Construction(address indexed owner, address indexed asset);
     event SetOwner(address indexed owner);
     event SetCurator(address indexed curator);
     event SetInterestController(address indexed interestController);
@@ -38,6 +37,6 @@ library EventsLib {
         uint256 newTotalAssets, uint256 interest, uint256 performanceFeeShares, uint256 managementFeeShares
     );
     event ForceReallocateToIdle(address indexed sender, address indexed onBehalf, uint256 assets);
-    event CreateVaultV2(address indexed vaultV2, address indexed owner, address indexed asset);
+    event CreateVaultV2(address indexed vaultV2, address indexed asset);
     event SetInterestPerSecond(uint256 interestPerSecond);
 }

@@ -14,7 +14,7 @@ contract FactoryTest is BaseTest {
         address expectedVaultAddress =
             VaultV2AddressLib.computeVaultV2Address(address(vaultFactory), _owner, _asset, _salt);
         vm.expectEmit();
-        emit EventsLib.CreateVaultV2(expectedVaultAddress, _owner, _asset);
+        emit EventsLib.CreateVaultV2(expectedVaultAddress, _asset);
         IVaultV2 vault = IVaultV2(vaultFactory.createVaultV2(_owner, _asset, _salt));
         assertEq(address(vault), expectedVaultAddress);
         assertTrue(vaultFactory.isVaultV2(address(vault)));
@@ -22,9 +22,9 @@ contract FactoryTest is BaseTest {
         assertEq(vault.asset(), _asset);
     }
 
-    function testCreateVaultV2Event(address _owner, address _asset, bytes32 _salt) public {
+    function testVaultV2ConstructorEvent(address _owner, address _asset, bytes32 _salt) public {
         vm.expectEmit();
-        emit EventsLib.Construction(_owner, _asset);
+        emit EventsLib.SetOwner(_owner);
         vaultFactory.createVaultV2(_owner, _asset, _salt);
     }
 
