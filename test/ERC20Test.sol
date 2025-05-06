@@ -50,7 +50,7 @@ contract ERC20Test is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
     }
 
-    function testMint(uint256 amount) public {
+    function testCreateShares(uint256 amount) public {
         vm.assume(amount <= MAX_DEPOSIT);
 
         vm.expectEmit();
@@ -61,12 +61,12 @@ contract ERC20Test is BaseTest {
         assertEq(vault.balanceOf(address(this)), amount, "balance");
     }
 
-    function testMintZeroAddress(uint256 amount) public {
+    function testCreateSharesZeroAddress(uint256 amount) public {
         vm.expectRevert(ErrorsLib.ZeroAddress.selector);
         vault.mint(amount, address(0));
     }
 
-    function testBurn(uint256 amount, uint256 amountRedeemed) public {
+    function testDeleteShares(uint256 amount, uint256 amountRedeemed) public {
         vm.assume(amount <= MAX_DEPOSIT);
         amountRedeemed = bound(amountRedeemed, 0, amount);
 
@@ -80,7 +80,7 @@ contract ERC20Test is BaseTest {
         assertEq(vault.balanceOf(address(this)), amount - amountRedeemed, "balance");
     }
 
-    function testBurnZeroAddress() public {
+    function testDeleteSharesZeroAddress() public {
         vm.expectRevert(ErrorsLib.ZeroAddress.selector);
         vault.redeem(0, address(this), address(0));
     }
@@ -200,7 +200,7 @@ contract ERC20Test is BaseTest {
         }
     }
 
-    function testMintOverMaxUintReverts() public {
+    function testCreateSharesOverMaxUintReverts() public {
         vault.mint(type(uint256).max, address(this));
         vm.expectRevert(stdError.arithmeticError);
         vault.mint(1, address(this));
@@ -242,14 +242,16 @@ contract ERC20Test is BaseTest {
         vault.transferFrom(from, to, allowance);
     }
 
-    function testBurnInsufficientBalanceReverts(address to, uint256 mintAmount, uint256 burnAmount) public {
+    function testDeleteSharesInsufficientBalanceReverts(address to, uint256 createAmount, uint256 deletedAmount)
+        public
+    {
         vm.assume(to != address(0));
-        mintAmount = bound(mintAmount, 0, type(uint256).max - 1);
-        burnAmount = _bound(burnAmount, mintAmount + 1, type(uint256).max);
+        createAmount = bound(createAmount, 0, type(uint256).max - 1);
+        deletedAmount = _bound(deletedAmount, createAmount + 1, type(uint256).max);
 
-        vault.mint(mintAmount, to);
+        vault.mint(createAmount, to);
         vm.expectRevert(stdError.arithmeticError);
-        vault.redeem(burnAmount, to, to);
+        vault.redeem(deletedAmount, to, to);
     }
 
     function testPermitOK(PermitInfo calldata p, address to, uint256 amount) public {
