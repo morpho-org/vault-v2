@@ -19,7 +19,6 @@ methods {
 
     function isAdapter(address adapter) external returns bool envfree;
 
-    function totalAssets() external returns uint256 envfree;
     function balanceOf(address) external returns uint256 envfree;
 }
 
