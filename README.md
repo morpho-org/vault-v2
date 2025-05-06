@@ -1,10 +1,9 @@
 # Vault v2
 
-Morpho Vault V2 enables anyone to create vaults in which users may deposit liquidity.
-Depositors of Morpho Vault V2 earn from borrowing interest without having to actively manage the risk of their position.
+Morpho Vault V2 enables anyone to create vaults that allocate assets to any protocols, including but not limited to Morpho Market V1, Morpho Market V2, and ERC-4626 strategies.
+Depositors of Morpho Vault V2 earn from the underlying protocols without having to actively manage the risk of their position.
 Management of deposited assets is the responsability of a set of different roles (owner, curator and allocators).
-Deposited assets can be invested in different venues including, but not limited to, Morpho markets.
-The active management of invested positions involve choosing and allocating liquidity into target markets.
+The active management of invested positions involve enabling and allocating liquidity to protocols.
 
 [Morpho Vault V2](https://github.com/morpho-org/vaults-v2/blob/main/src/VaultV2.sol) vaults are [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) compliant, with [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) permit.
 A given Morpho Vault V2 has one unique deposit asset.
