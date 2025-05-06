@@ -549,34 +549,33 @@ contract VaultV2 is IVaultV2 {
 
     function removeNode(bytes32 removedId, bytes32 prevId) internal {
         bytes32 removed = slot(removedId);
+        // invariant: node(removed).next != NULL_SLOT
 
-        if (node(removed).next != NULL_SLOT) {
-            bytes32 prev = slot(prevId);
+        bytes32 prev = slot(prevId);
 
-            if (node(prev).next == NULL_SLOT || ceiling(node(prev)) < ceiling(node(removed))) {
-                prev = END_SLOT;
-            }
-
-            bytes32 next;
-            if (prev == END_SLOT) {
-                next = root;
-            } else {
-                next = node(prev).next;
-            }
-
-            while (next != removed) {
-                require(next != END_SLOT, ErrorsLib.NodeNotFound());
-                prev = next;
-                next = node(next).next;
-            }
-
-            if (prev == END_SLOT) {
-                root = node(removed).next;
-            } else {
-                node(prev).next = node(removed).next;
-            }
-            node(removed).next = NULL_SLOT;
+        if (node(prev).next == NULL_SLOT || ceiling(node(prev)) < ceiling(node(removed))) {
+            prev = END_SLOT;
         }
+
+        bytes32 next;
+        if (prev == END_SLOT) {
+            next = root;
+        } else {
+            next = node(prev).next;
+        }
+
+        while (next != removed) {
+            require(next != END_SLOT, ErrorsLib.NodeNotFound());
+            prev = next;
+            next = node(next).next;
+        }
+
+        if (prev == END_SLOT) {
+            root = node(removed).next;
+        } else {
+            node(prev).next = node(removed).next;
+        }
+        node(removed).next = NULL_SLOT;
     }
 
     function insertNode(bytes32 insertedId, bytes32 prevId) internal {
