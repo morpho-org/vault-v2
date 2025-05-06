@@ -11,12 +11,14 @@ import {ManualInterestController} from "../src/interest-controllers/ManualIntere
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 
 import {Test, console} from "../lib/forge-std/src/Test.sol";
+import {stdError} from "forge-std/StdError.sol";
 
 contract BaseTest is Test {
     address immutable manager = makeAddr("manager");
     address immutable owner = makeAddr("owner");
     address immutable curator = makeAddr("curator");
     address immutable allocator = makeAddr("allocator");
+    address immutable sentinel = makeAddr("sentinel");
 
     ERC20Mock underlyingToken;
     IVaultV2Factory vaultFactory;
@@ -38,8 +40,10 @@ contract BaseTest is Test {
         interestController = new ManualInterestController(manager);
         vm.label(address(interestController), "InterestController");
 
-        vm.prank(owner);
+        vm.startPrank(owner);
         vault.setCurator(curator);
+        vault.setIsSentinel(sentinel, true);
+        vm.stopPrank();
 
         vm.startPrank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, allocator, true));

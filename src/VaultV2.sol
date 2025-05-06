@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {IVaultV2, IERC20, IAdapter} from "./interfaces/IVaultV2.sol";
+import {IVaultV2, IERC20} from "./interfaces/IVaultV2.sol";
+import {IAdapter} from "./interfaces/IAdapter.sol";
 import {IInterestController} from "./interfaces/IInterestController.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
@@ -74,6 +75,12 @@ contract VaultV2 is IVaultV2 {
     /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint256 public managementFee;
     address public managementFeeRecipient;
+
+    /* GETTERS */
+
+    function idsWithRelativeCapLength() public view returns (uint256) {
+        return idsWithRelativeCap.length;
+    }
 
     /* MULTICALL */
 
@@ -409,7 +416,9 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(receiver, shares);
         totalAssets += assets;
-        try this.reallocateFromIdle(liquidityAdapter, liquidityData, assets) {} catch {}
+        if (liquidityAdapter != address(0)) {
+            try this.reallocateFromIdle(liquidityAdapter, liquidityData, assets) {} catch {}
+        }
         emit EventsLib.Deposit(msg.sender, receiver, assets, shares);
     }
 

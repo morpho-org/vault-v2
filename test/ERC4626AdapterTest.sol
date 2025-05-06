@@ -129,15 +129,16 @@ contract ERC4626AdapterTest is Test {
         vm.assume(caller != address(0));
         vm.assume(caller != owner);
 
+        // Access control
         vm.prank(caller);
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
         adapter.setSkimRecipient(newRecipient);
 
+        // Normal path
         vm.prank(owner);
         vm.expectEmit();
         emit ERC4626Adapter.SetSkimRecipient(newRecipient);
         adapter.setSkimRecipient(newRecipient);
-
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
     }
 
@@ -146,22 +147,28 @@ contract ERC4626AdapterTest is Test {
 
         ERC20Mock token = new ERC20Mock();
 
+        // Setup
         vm.prank(owner);
         adapter.setSkimRecipient(recipient);
-
         deal(address(token), address(adapter), amount);
         assertEq(token.balanceOf(address(adapter)), amount, "Adapter did not receive tokens");
 
+        // Normal path
         vm.expectEmit();
         emit ERC4626Adapter.Skim(address(token), amount);
         vm.prank(recipient);
         adapter.skim(address(token));
-
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
         assertEq(token.balanceOf(recipient), amount, "Recipient did not receive tokens");
 
+        // Access control
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
         adapter.skim(address(token));
+
+        // Cant skim vault
+        vm.expectRevert(ERC4626Adapter.CantSkimVault.selector);
+        vm.prank(recipient);
+        adapter.skim(address(vault));
     }
 
     function testInvalidData(bytes memory data) public {
