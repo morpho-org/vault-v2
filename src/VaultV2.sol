@@ -76,12 +76,6 @@ contract VaultV2 is IVaultV2 {
     uint256 public managementFee;
     address public managementFeeRecipient;
 
-    /* GETTERS */
-
-    function idsWithRelativeCapLength() public view returns (uint256) {
-        return idsWithRelativeCap.length;
-    }
-
     /* MULTICALL */
 
     function multicall(bytes[] calldata data) external {
