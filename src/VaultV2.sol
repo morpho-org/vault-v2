@@ -10,12 +10,6 @@ import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
-import "forge-std/console.sol";
-
-bytes32 constant NULL_SLOT = bytes32(uint256(0));
-bytes32 constant END_SLOT = bytes32(uint256(1));
-bytes32 constant TRANSIENT_ARRAY_END = keccak256("Transient array end");
-bytes32 constant HINTS_SLOT_PREFIX = keccak256("Hints Slot Prefix");
 
 struct Node {
     bytes32 id;
@@ -215,9 +209,7 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap >= relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
 
         (bytes32 oldPrevId, bytes32 newPrevId) = hints(id);
-        console.log("OLD REL CAP %e", relativeCap[id]);
         if (relativeCap[id] != 0) removeNode(id, oldPrevId);
-        console.log("NEW REL CAP %e", newRelativeCap);
         relativeCap[id] = newRelativeCap;
         if (newRelativeCap != 0) insertNode(id, newPrevId);
 
@@ -548,7 +540,6 @@ contract VaultV2 is IVaultV2 {
 
     function ceiling(Node storage _node) internal view returns (uint256) {
         bytes32 id = _node.id;
-        console.log("REL CAP %e", relativeCap[id]);
         return allocation[id] * WAD / relativeCap[id];
     }
 
@@ -591,18 +582,11 @@ contract VaultV2 is IVaultV2 {
     function insertNode(bytes32 insertedId, bytes32 prevId) internal {
         bytes32 inserted = slot(insertedId);
         node(inserted).id = insertedId;
-        console.log("prevId");
-        console.logBytes32(prevId);
         bytes32 prev = slot(prevId);
-        console.logBytes32(prev);
-        console.logBytes32(node(prev).next);
-        console.log("x");
         uint256 insertedCeiling = ceiling(node(inserted));
-        console.log("a");
         if (node(prev).next == NULL_SLOT || ceiling(node(prev)) < insertedCeiling) {
             prev = END_SLOT;
         }
-        console.log("b");
 
         bytes32 next;
         if (prev == END_SLOT) {
