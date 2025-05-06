@@ -25,13 +25,13 @@ contract MockAdapter is IAdapter {
         return _ids;
     }
 
-    function allocateOut(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {
+    function allocateOut(bytes memory data, uint256 amount) external returns (uint256, bytes32[] memory ids) {
         recordedData = data;
         recordedAmount = amount;
         bytes32[] memory _ids = new bytes32[](2);
         _ids[0] = keccak256("id-0");
         _ids[1] = keccak256("id-1");
-        return _ids;
+        return (amount, _ids);
     }
 }
 

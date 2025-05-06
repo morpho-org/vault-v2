@@ -116,7 +116,7 @@ contract MorphoAdapterTest is Test {
         assertEq(beforeSupply, initialAmount, "Precondition failed: supply not set");
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.allocateOut(abi.encode(marketParams), withdrawAmount);
+        (, bytes32[] memory ids) = adapter.allocateOut(abi.encode(marketParams), withdrawAmount);
 
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAmount - withdrawAmount, "Supply not decreased correctly");

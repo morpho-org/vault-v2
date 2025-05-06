@@ -88,7 +88,7 @@ contract ERC4626AdapterTest is Test {
         assertEq(beforeShares, initialAmount, "Precondition failed: shares not set");
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.allocateOut(hex"", withdrawAmount);
+        (, bytes32[] memory ids) = adapter.allocateOut(hex"", withdrawAmount);
 
         uint256 afterShares = vault.balanceOf(address(adapter));
         assertEq(afterShares, initialAmount - withdrawAmount, "Share balance not decreased correctly");

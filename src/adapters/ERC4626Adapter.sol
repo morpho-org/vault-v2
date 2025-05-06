@@ -57,7 +57,7 @@ contract ERC4626Adapter is IAdapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    function allocateOut(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+    function allocateOut(bytes memory data, uint256 assets) external returns (uint256, bytes32[] memory) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
@@ -65,7 +65,8 @@ contract ERC4626Adapter is IAdapter {
 
         bytes32[] memory ids = new bytes32[](1);
         ids[0] = keccak256(abi.encode("vault", vault));
-        return ids;
+        // Todo: return proportionalCost
+        return (assets, ids);
     }
 
     function skim(address token) external {

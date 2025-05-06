@@ -10,7 +10,7 @@ contract Adapter is IAdapter {
 
     function allocateIn(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {}
 
-    function allocateOut(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {}
+    function allocateOut(bytes memory data, uint256 amount) external returns (uint256, bytes32[] memory ids) {}
 }
 
 contract ForceReallocateTest is BaseTest {

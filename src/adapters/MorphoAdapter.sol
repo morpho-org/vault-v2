@@ -1,17 +1,27 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {IMorpho, MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IAdapter} from "../interfaces/IAdapter.sol";
+
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
+import {MathLib} from "../../src/libraries/MathLib.sol";
+import {MorphoLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
+import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 
 contract MorphoAdapter is IAdapter {
+    using MathLib for uint256;
+    using MarketParamsLib for MarketParams;
+    using MorphoLib for IMorpho;
+
     /* IMMUTABLES */
 
     address public immutable parentVault;
     address public immutable morpho;
+
+    mapping(Id => uint256) internal acquisitionCost;
 
     /* STORAGE */
 
@@ -56,15 +66,21 @@ contract MorphoAdapter is IAdapter {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+        acquisitionCost[marketParams.id()] += assets;
         return ids(marketParams);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    function allocateOut(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+    function allocateOut(bytes memory data, uint256 assets) external returns (uint256, bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-        return ids(marketParams);
+        IMorpho(morpho).accrueInterest(marketParams);
+        Id marketId = marketParams.id();
+        uint256 totalShares = IMorpho(morpho).supplyShares(marketId, address(this));
+        (, uint256 shares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+        uint256 proportionalCost = acquisitionCost[marketId].mulDivDown(shares, totalShares);
+        acquisitionCost[marketId] -= proportionalCost;
+        return (proportionalCost, ids(marketParams));
     }
 
     function skim(address token) external {
