@@ -38,4 +38,6 @@ library ErrorsLib {
     error LiquidityAdapterInvariantBroken();
     error ApproveReverted();
     error ApproveReturnedFalse();
+    error LengthMismatch();
+    error NodeNotFound();
 }

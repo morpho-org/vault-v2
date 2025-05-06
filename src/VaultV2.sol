@@ -9,6 +9,17 @@ import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
+import "forge-std/console.sol";
+
+bytes32 constant NULL_SLOT = bytes32(uint256(0));
+bytes32 constant END_SLOT = bytes32(uint256(1));
+bytes32 constant TRANSIENT_ARRAY_END = keccak256("Transient array end");
+bytes32 constant HINTS_SLOT_PREFIX = keccak256("Hints Slot Prefix");
+
+struct Node {
+    bytes32 id;
+    bytes32 next;
+}
 
 /// @dev Zero checks are not performed.
 /// @dev No-ops are allowed.
@@ -45,7 +56,8 @@ contract VaultV2 is IVaultV2 {
     /// @dev Relative cap = 0 is interpreted as no relative cap.
     mapping(bytes32 => uint256) public relativeCap;
     /// @dev Useful to iterate over all ids with relative cap in withdrawals.
-    bytes32[] public idsWithRelativeCap;
+
+    bytes32 root;
     /// @dev Interests are not counted in the allocation.
     mapping(bytes32 => uint256) public allocation;
     /// @dev calldata => executable at
@@ -84,6 +96,7 @@ contract VaultV2 is IVaultV2 {
         lastUpdate = block.timestamp;
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         emit EventsLib.Construction(_owner, _asset);
+        root = END_SLOT;
     }
 
     /* OWNER ACTIONS */
@@ -200,8 +213,13 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
         require(newRelativeCap >= relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
 
-        if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
+        (bytes32 oldPrevId, bytes32 newPrevId) = hints(id);
+        console.log("OLD REL CAP %e", relativeCap[id]);
+        if (relativeCap[id] != 0) removeNode(id, oldPrevId);
+        console.log("NEW REL CAP %e", newRelativeCap);
         relativeCap[id] = newRelativeCap;
+        if (newRelativeCap != 0) insertNode(id, newPrevId);
+
         emit EventsLib.IncreaseRelativeCap(id, newRelativeCap);
     }
 
@@ -209,13 +227,11 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap <= relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
         require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
 
-        if (newRelativeCap == 0) {
-            uint256 i;
-            while (idsWithRelativeCap[i] != id) i++;
-            idsWithRelativeCap[i] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
-            idsWithRelativeCap.pop();
-        }
+        (bytes32 oldPrevId, bytes32 newPrevId) = hints(id);
+        if (relativeCap[id] != 0) removeNode(id, oldPrevId);
         relativeCap[id] = newRelativeCap;
+        if (newRelativeCap != 0) insertNode(id, newPrevId);
+
         emit EventsLib.DecreaseRelativeCap(id, newRelativeCap);
     }
 
@@ -235,13 +251,18 @@ contract VaultV2 is IVaultV2 {
         bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
 
         for (uint256 i; i < ids.length; i++) {
+            (bytes32 oldPrevId, bytes32 newPrevId) = hints(ids[i]);
+            if (relativeCap[ids[i]] != 0) removeNode(ids[i], oldPrevId);
             allocation[ids[i]] += amount;
+            if (relativeCap[ids[i]] != 0) insertNode(ids[i], newPrevId);
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
-            require(
-                allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD), ErrorsLib.RelativeCapExceeded()
-            );
         }
+
+        if (root != END_SLOT) {
+            require(ceiling(node(root)) <= totalAssets, ErrorsLib.RelativeCapExceeded());
+        }
+
         emit EventsLib.ReallocateFromIdle(msg.sender, adapter, amount, ids);
     }
 
@@ -254,7 +275,10 @@ contract VaultV2 is IVaultV2 {
         bytes32[] memory ids = IAdapter(adapter).allocateOut(data, amount);
 
         for (uint256 i; i < ids.length; i++) {
+            (bytes32 oldPrevId, bytes32 newPrevId) = hints(ids[i]);
+            if (relativeCap[ids[i]] != 0) removeNode(ids[i], oldPrevId);
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(amount);
+            if (relativeCap[ids[i]] != 0) insertNode(ids[i], newPrevId);
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), amount);
@@ -417,9 +441,8 @@ contract VaultV2 is IVaultV2 {
         deleteShares(onBehalf, shares);
         totalAssets -= assets;
 
-        for (uint256 i; i < idsWithRelativeCap.length; i++) {
-            bytes32 id = idsWithRelativeCap[i];
-            require(allocation[id] <= totalAssets.mulDivDown(relativeCap[id], WAD), ErrorsLib.RelativeCapExceeded());
+        if (root != END_SLOT) {
+            require(ceiling(node(root)) <= totalAssets, ErrorsLib.RelativeCapExceeded());
         }
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
@@ -510,5 +533,132 @@ contract VaultV2 is IVaultV2 {
         balanceOf[from] -= amount;
         totalSupply -= amount;
         emit EventsLib.Transfer(from, address(0), amount);
+    }
+
+    /* Linked List */
+
+    function node(bytes32 _slot) internal pure returns (Node storage _node) {
+        assembly {
+            _node.slot := _slot
+        }
+    }
+
+    function ceiling(Node storage _node) internal view returns (uint256) {
+        bytes32 id = _node.id;
+        console.log("REL CAP %e", relativeCap[id]);
+        return allocation[id] * WAD / relativeCap[id];
+    }
+
+    function slot(bytes32 id) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked("Linked List", id));
+    }
+
+    function removeNode(bytes32 removedId, bytes32 prevId) internal {
+        bytes32 removed = slot(removedId);
+
+        if (node(removed).next != NULL_SLOT) {
+            bytes32 prev = slot(prevId);
+
+            if (node(prev).next == NULL_SLOT || ceiling(node(prev)) < ceiling(node(removed))) {
+                prev = END_SLOT;
+            }
+
+            bytes32 next;
+            if (prev == END_SLOT) {
+                next = root;
+            } else {
+                next = node(prev).next;
+            }
+
+            while (next != removed) {
+                require(next != END_SLOT, ErrorsLib.NodeNotFound());
+                prev = next;
+                next = node(next).next;
+            }
+
+            if (prev == END_SLOT) {
+                root = node(removed).next;
+            } else {
+                node(prev).next = node(removed).next;
+            }
+            node(removed).next = NULL_SLOT;
+        }
+    }
+
+    function insertNode(bytes32 insertedId, bytes32 prevId) internal {
+        bytes32 inserted = slot(insertedId);
+        node(inserted).id = insertedId;
+        console.log("prevId");
+        console.logBytes32(prevId);
+        bytes32 prev = slot(prevId);
+        console.logBytes32(prev);
+        console.logBytes32(node(prev).next);
+        console.log("x");
+        uint256 insertedCeiling = ceiling(node(inserted));
+        console.log("a");
+        if (node(prev).next == NULL_SLOT || ceiling(node(prev)) < insertedCeiling) {
+            prev = END_SLOT;
+        }
+        console.log("b");
+
+        bytes32 next;
+        if (prev == END_SLOT) {
+            next = root;
+        } else {
+            next = node(prev).next;
+        }
+
+        while (next != END_SLOT) {
+            if (ceiling(node(next)) > insertedCeiling) {
+                prev = next;
+                next = node(next).next;
+            } else {
+                break;
+            }
+        }
+
+        node(prev).next = inserted;
+        node(inserted).next = next;
+        if (prev == END_SLOT) root = inserted;
+    }
+
+    function setHints(bytes32[] calldata ids, bytes32[] calldata oldPrevIds, bytes32[] calldata newPrevIds) external {
+        require(ids.length == oldPrevIds.length && ids.length == newPrevIds.length, ErrorsLib.LengthMismatch());
+        for (uint256 i = 0; i < ids.length; i++) {
+            bytes32 oldPrev = oldPrevIds[i];
+            bytes32 newPrev = newPrevIds[i];
+            bytes32 oldPrevSlot = keccak256(abi.encodePacked(HINTS_SLOT_PREFIX, ids[i]));
+            assembly {
+                tstore(oldPrevSlot, oldPrev)
+                tstore(add(oldPrevSlot, 1), newPrev)
+            }
+        }
+    }
+
+    function hints(bytes32 id) internal view returns (bytes32 oldPrevId, bytes32 newPrevId) {
+        bytes32 oldPrevSlot = keccak256(abi.encodePacked(HINTS_SLOT_PREFIX, id));
+        assembly {
+            oldPrevId := tload(oldPrevSlot)
+            newPrevId := tload(add(oldPrevSlot, 1))
+        }
+    }
+
+    // Only call offchain
+    function idsWithRelativeCap() external view returns (bytes32[] memory) {
+        bytes32 _slot = root;
+        uint256 length;
+        while (_slot != END_SLOT) {
+            length += 1;
+            _slot = node(_slot).next;
+        }
+
+        bytes32[] memory res = new bytes32[](length);
+        uint256 i;
+        _slot = root;
+        while (_slot != END_SLOT) {
+            res[i++] = node(_slot).id;
+            _slot = node(_slot).next;
+        }
+        return res;
     }
 }
