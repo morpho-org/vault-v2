@@ -3,11 +3,6 @@ pragma solidity >=0.5.0;
 
 import {IERC20} from "./IERC20.sol";
 
-interface IAdapter {
-    function allocateIn(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
-    function allocateOut(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
-}
-
 interface IVaultV2 is IERC20 {
     // Multicall
     function multicall(bytes[] calldata) external;
