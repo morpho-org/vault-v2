@@ -24,7 +24,7 @@ contract LiquidityMarketTest is BaseTest {
     using MathLib for uint256;
 
     RecordingAdapter public adapter;
-    uint256 MAX_DEPOSIT = 1e18 ether;
+    uint256 MAX_TEST_AMOUNT = 1e18 ether;
 
     function setUp() public override {
         super.setUp();
@@ -46,7 +46,7 @@ contract LiquidityMarketTest is BaseTest {
     }
 
     function testLiquidityMarketDeposit(bytes memory data, uint256 assets) public {
-        assets = bound(assets, 0, MAX_DEPOSIT);
+        assets = bound(assets, 0, MAX_TEST_AMOUNT);
 
         vm.prank(allocator);
         vault.setLiquidityData(data);
@@ -58,7 +58,7 @@ contract LiquidityMarketTest is BaseTest {
     }
 
     function testLiquidityMarketMint(bytes memory data, uint256 shares) public {
-        shares = bound(shares, 0, MAX_DEPOSIT);
+        shares = bound(shares, 0, MAX_TEST_AMOUNT);
 
         vm.prank(allocator);
         vault.setLiquidityData(data);
@@ -70,7 +70,7 @@ contract LiquidityMarketTest is BaseTest {
     }
 
     function testLiquidityMarketWithdraw(bytes memory data, uint256 deposit) public {
-        deposit = bound(deposit, 0, MAX_DEPOSIT);
+        deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
 
         vm.prank(allocator);
         vault.setLiquidityData(data);
@@ -84,7 +84,7 @@ contract LiquidityMarketTest is BaseTest {
     }
 
     function testLiquidityMarketRedeem(bytes memory data, uint256 deposit) public {
-        deposit = bound(deposit, 0, MAX_DEPOSIT);
+        deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
 
         vm.prank(allocator);
         vault.setLiquidityData(data);
