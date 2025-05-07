@@ -24,7 +24,7 @@ contract FactoryTest is BaseTest {
 
     function testVaultV2ConstructorEvent(address _owner, address _asset, bytes32 _salt) public {
         vm.expectEmit();
-        emit EventsLib.SetOwner(_owner);
+        emit EventsLib.Constructor(_owner, _asset);
         vaultFactory.createVaultV2(_owner, _asset, _salt);
     }
 
