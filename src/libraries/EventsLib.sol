@@ -2,11 +2,11 @@
 pragma solidity ^0.8.0;
 
 library EventsLib {
+    event Constructor(address indexed owner, address indexed asset);
     event Transfer(address indexed from, address indexed to, uint256 shares);
-    event TransferFrom(address indexed sender, address indexed from, address indexed to, uint256 shares);
+    event AllowanceUpdatedByTransferFrom(address indexed owner, address indexed spender, uint256 shares);
     event Approval(address indexed owner, address indexed spender, uint256 shares);
     event Permit(address indexed owner, address indexed spender, uint256 shares, uint256 nonce, uint256 deadline);
-    event Construction(address indexed owner, address indexed asset);
     event SetOwner(address indexed owner);
     event SetCurator(address indexed curator);
     event SetInterestController(address indexed interestController);
@@ -34,8 +34,10 @@ library EventsLib {
     );
     event Submit(address indexed sender, bytes4 indexed selector, bytes data, uint256 validAt);
     event Revoke(address indexed sender, bytes4 indexed selector, bytes data);
-    event AccrueInterest(uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares);
+    event AccrueInterest(
+        uint256 previousTotalAssets, uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares
+    );
     event ForceReallocateToIdle(address indexed sender, address indexed onBehalf, uint256 assets);
-    event CreateVaultV2(address indexed vaultV2, address indexed owner, address indexed asset);
+    event CreateVaultV2(address indexed vaultV2, address indexed asset);
     event SetInterestPerSecond(uint256 interestPerSecond);
 }
