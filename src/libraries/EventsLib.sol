@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 library EventsLib {
     event Transfer(address indexed from, address indexed to, uint256 amount);
-    event TransferFrom(address indexed sender, address indexed from, address indexed to, uint256 amount);
+    event AllowanceUpdatedByTransferFrom(address indexed owner, address indexed spender, uint256 amount);
     event Approval(address indexed owner, address indexed spender, uint256 amount);
     event Permit(address indexed owner, address indexed spender, uint256 amount, uint256 nonce, uint256 deadline);
     event SetOwner(address indexed owner);

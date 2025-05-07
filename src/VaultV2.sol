@@ -473,13 +473,15 @@ contract VaultV2 is IVaultV2 {
 
         if (msg.sender != from) {
             uint256 _allowance = allowance[from][msg.sender];
-            if (_allowance != type(uint256).max) allowance[from][msg.sender] = _allowance - amount;
+            if (_allowance != type(uint256).max) {
+                allowance[from][msg.sender] = _allowance - amount;
+                emit EventsLib.AllowanceUpdatedByTransferFrom(from, msg.sender, _allowance - amount);
+            }
         }
 
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
         emit EventsLib.Transfer(from, to, amount);
-        emit EventsLib.TransferFrom(msg.sender, from, to, amount);
         return true;
     }
 
