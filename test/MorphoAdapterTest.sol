@@ -32,8 +32,8 @@ contract MorphoAdapterTest is Test {
     address internal owner;
     address internal recipient;
 
-    uint256 internal constant MIN_TEST_AMOUNT = 10;
-    uint256 internal constant MAX_TEST_AMOUNT = 1e18;
+    uint256 internal constant MIN_TEST_ASSETS = 10;
+    uint256 internal constant MAX_TEST_ASSETS = 1e18;
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -68,8 +68,8 @@ contract MorphoAdapterTest is Test {
         adapter = MorphoAdapter(factory.createMorphoAdapter(address(parentVault)));
     }
 
-    function _boundAmount(uint256 amount) internal pure returns (uint256) {
-        return bound(amount, MIN_TEST_AMOUNT, MAX_TEST_AMOUNT);
+    function _boundAssets(uint256 assets) internal pure returns (uint256) {
+        return bound(assets, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
     }
 
     function testParentVaultAndMorphoSet() public view {
@@ -77,27 +77,27 @@ contract MorphoAdapterTest is Test {
         assertEq(adapter.morpho(), address(morpho), "Incorrect morpho set");
     }
 
-    function testAllocateInNotAuthorizedReverts(uint256 amount) public {
-        amount = _boundAmount(amount);
+    function testAllocateInNotAuthorizedReverts(uint256 assets) public {
+        assets = _boundAssets(assets);
         vm.expectRevert(MorphoAdapter.NotAuthorized.selector);
-        adapter.allocateIn(abi.encode(marketParams), amount);
+        adapter.allocateIn(abi.encode(marketParams), assets);
     }
 
-    function testAllocateOutNotAuthorizedReverts(uint256 amount) public {
-        amount = _boundAmount(amount);
+    function testAllocateOutNotAuthorizedReverts(uint256 assets) public {
+        assets = _boundAssets(assets);
         vm.expectRevert(MorphoAdapter.NotAuthorized.selector);
-        adapter.allocateOut(abi.encode(marketParams), amount);
+        adapter.allocateOut(abi.encode(marketParams), assets);
     }
 
-    function testAllocateInSuppliesAssetsToMorpho(uint256 amount) public {
-        amount = _boundAmount(amount);
-        deal(address(loanToken), address(adapter), amount);
+    function testAllocateInSuppliesAssetsToMorpho(uint256 assets) public {
+        assets = _boundAssets(assets);
+        deal(address(loanToken), address(adapter), assets);
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.allocateIn(abi.encode(marketParams), amount);
+        bytes32[] memory ids = adapter.allocateIn(abi.encode(marketParams), assets);
 
         uint256 supplied = morpho.expectedSupplyAssets(marketParams, address(adapter));
-        assertEq(supplied, amount, "Incorrect supplied amount in Morpho");
+        assertEq(supplied, assets, "Incorrect supplied assets in Morpho");
 
         bytes32 expectedId = keccak256(
             abi.encode(
@@ -108,25 +108,25 @@ contract MorphoAdapterTest is Test {
         assertEq(ids[0], expectedId, "Incorrect id returned");
     }
 
-    function testAllocateOutWithdrawsAssetsFromMorpho(uint256 initialAmount, uint256 withdrawAmount) public {
-        initialAmount = _boundAmount(initialAmount);
-        withdrawAmount = bound(withdrawAmount, 1, initialAmount);
+    function testAllocateOutWithdrawsAssetsFromMorpho(uint256 initialAssets, uint256 withdrawAssets) public {
+        initialAssets = _boundAssets(initialAssets);
+        withdrawAssets = bound(withdrawAssets, 1, initialAssets);
 
-        deal(address(loanToken), address(adapter), initialAmount);
+        deal(address(loanToken), address(adapter), initialAssets);
         vm.prank(address(parentVault));
-        adapter.allocateIn(abi.encode(marketParams), initialAmount);
+        adapter.allocateIn(abi.encode(marketParams), initialAssets);
 
         uint256 beforeSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
-        assertEq(beforeSupply, initialAmount, "Precondition failed: supply not set");
+        assertEq(beforeSupply, initialAssets, "Precondition failed: supply not set");
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.allocateOut(abi.encode(marketParams), withdrawAmount);
+        bytes32[] memory ids = adapter.allocateOut(abi.encode(marketParams), withdrawAssets);
 
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
-        assertEq(afterSupply, initialAmount - withdrawAmount, "Supply not decreased correctly");
+        assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
 
         uint256 adapterBalance = loanToken.balanceOf(address(adapter));
-        assertEq(adapterBalance, withdrawAmount, "Adapter did not receive withdrawn tokens");
+        assertEq(adapterBalance, withdrawAssets, "Adapter did not receive withdrawn tokens");
 
         bytes32 expectedId = keccak256(
             abi.encode(
@@ -173,24 +173,24 @@ contract MorphoAdapterTest is Test {
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
     }
 
-    function testSkim(uint256 amount) public {
-        amount = _boundAmount(amount);
+    function testSkim(uint256 assets) public {
+        assets = _boundAssets(assets);
 
         ERC20Mock token = new ERC20Mock();
 
         vm.prank(owner);
         adapter.setSkimRecipient(recipient);
 
-        deal(address(token), address(adapter), amount);
-        assertEq(token.balanceOf(address(adapter)), amount, "Adapter did not receive tokens");
+        deal(address(token), address(adapter), assets);
+        assertEq(token.balanceOf(address(adapter)), assets, "Adapter did not receive tokens");
 
         vm.expectEmit();
-        emit MorphoAdapter.Skim(address(token), amount);
+        emit MorphoAdapter.Skim(address(token), assets);
         vm.prank(recipient);
         adapter.skim(address(token));
 
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
-        assertEq(token.balanceOf(recipient), amount, "Recipient did not receive tokens");
+        assertEq(token.balanceOf(recipient), assets, "Recipient did not receive tokens");
 
         vm.expectRevert(MorphoAdapter.NotAuthorized.selector);
         adapter.skim(address(token));
@@ -206,31 +206,31 @@ contract MorphoAdapterTest is Test {
         assertEq(initialLoss, 0, "Initial realizable loss should be zero");
     }
 
-    function testLossRealization(uint256 initialAmount, uint256 lossAmount) public {
-        initialAmount = _boundAmount(initialAmount);
-        lossAmount = bound(lossAmount, 1, initialAmount);
+    function testLossRealization(uint256 initialAssets, uint256 lossAssets) public {
+        initialAssets = _boundAssets(initialAssets);
+        lossAssets = bound(lossAssets, 1, initialAssets);
 
         // Setup: deposit assets
-        deal(address(loanToken), address(adapter), initialAmount);
+        deal(address(loanToken), address(adapter), initialAssets);
         vm.prank(address(parentVault));
-        adapter.allocateIn(abi.encode(marketParams), initialAmount);
-        assertEq(adapter.assetsInMarket(marketId), initialAmount, "Initial assetsInMarket incorrect");
+        adapter.allocateIn(abi.encode(marketParams), initialAssets);
+        assertEq(adapter.assetsInMarket(marketId), initialAssets, "Initial assetsInMarket incorrect");
 
         // Loss detection during allocate
-        _overrideMarketTotalSupplyAssets(initialAmount - lossAmount);
+        _overrideMarketTotalSupplyAssets(initialAssets - lossAssets);
         uint256 snapshot = vm.snapshot();
         vm.prank(address(parentVault));
         adapter.allocateIn(abi.encode(marketParams), 0);
-        assertEq(adapter.realisableLoss(marketId), lossAmount, "Loss should have been tracked in allocateIn");
+        assertEq(adapter.realisableLoss(marketId), lossAssets, "Loss should have been tracked in allocateIn");
         vm.revertTo(snapshot);
         vm.prank(address(parentVault));
         adapter.allocateOut(abi.encode(marketParams), 0);
-        assertEq(adapter.realisableLoss(marketId), lossAmount, "Loss should have been tracked in allocateOut");
+        assertEq(adapter.realisableLoss(marketId), lossAssets, "Loss should have been tracked in allocateOut");
 
         // Realise loss
         vm.prank(address(parentVault));
         (uint256 realizedLoss, bytes32[] memory ids) = adapter.realiseLoss(abi.encode(marketParams));
-        assertEq(realizedLoss, lossAmount, "Realized loss should match expected loss");
+        assertEq(realizedLoss, lossAssets, "Realized loss should match expected loss");
         assertEq(adapter.realisableLoss(marketId), 0, "Realizable loss should be reset to zero");
         assertEq(ids.length, 1, "Unexpected number of ids returned");
         assertEq(
@@ -260,43 +260,43 @@ contract MorphoAdapterTest is Test {
     }
 
     function testCumulativeLossRealization(
-        uint256 initialAmount,
+        uint256 initialAssets,
         uint256 firstLoss,
         uint256 secondLoss,
-        uint256 depositAmount,
-        uint256 withdrawAmount
+        uint256 depositAssets,
+        uint256 withdrawAssets
     ) public {
-        initialAmount = _boundAmount(initialAmount);
-        firstLoss = bound(firstLoss, 0, initialAmount / 2); // no too big otherwise next deposits' shares overflow
-        secondLoss = bound(secondLoss, 0, (initialAmount - firstLoss) / 2);
-        depositAmount = _boundAmount(depositAmount);
-        withdrawAmount = bound(withdrawAmount, 1, depositAmount);
+        initialAssets = _boundAssets(initialAssets);
+        firstLoss = bound(firstLoss, 0, initialAssets / 2); // no too big otherwise next deposits' shares overflow
+        secondLoss = bound(secondLoss, 0, (initialAssets - firstLoss) / 2);
+        depositAssets = _boundAssets(depositAssets);
+        withdrawAssets = bound(withdrawAssets, 1, depositAssets);
 
         // Setup
-        deal(address(loanToken), address(adapter), initialAmount + depositAmount);
+        deal(address(loanToken), address(adapter), initialAssets + depositAssets);
         vm.prank(address(parentVault));
-        adapter.allocateIn(abi.encode(marketParams), initialAmount);
+        adapter.allocateIn(abi.encode(marketParams), initialAssets);
 
         // First loss
-        _overrideMarketTotalSupplyAssets(initialAmount - firstLoss);
+        _overrideMarketTotalSupplyAssets(initialAssets - firstLoss);
         vm.prank(address(parentVault));
         adapter.allocateIn(abi.encode(marketParams), 0);
         assertEq(adapter.realisableLoss(marketId), firstLoss, "First loss should be tracked");
 
         // Second loss
-        _overrideMarketTotalSupplyAssets(initialAmount - firstLoss - secondLoss);
+        _overrideMarketTotalSupplyAssets(initialAssets - firstLoss - secondLoss);
         vm.prank(address(parentVault));
         adapter.allocateIn(abi.encode(marketParams), 0);
         assertEq(adapter.realisableLoss(marketId), firstLoss + secondLoss, "Cumulative loss should be tracked");
 
         // Depositing doesn't change the loss tracking
         vm.prank(address(parentVault));
-        adapter.allocateIn(abi.encode(marketParams), depositAmount);
+        adapter.allocateIn(abi.encode(marketParams), depositAssets);
         assertEq(adapter.realisableLoss(marketId), firstLoss + secondLoss, "Loss should not change after deposit");
 
         // Withdrawing doesn't change the loss tracking
         vm.prank(address(parentVault));
-        adapter.allocateOut(abi.encode(marketParams), withdrawAmount);
+        adapter.allocateOut(abi.encode(marketParams), withdrawAssets);
         assertEq(adapter.realisableLoss(marketId), firstLoss + secondLoss, "Loss should not change after withdrawal");
 
         // Realize loss
@@ -326,7 +326,7 @@ contract MorphoAdapterTest is Test {
 
     function testOverwriteMarketTotalSupplyAssets(uint256 newTotalSupplyAssets) public {
         Market memory market = morpho.market(marketId);
-        newTotalSupplyAssets = _boundAmount(newTotalSupplyAssets);
+        newTotalSupplyAssets = _boundAssets(newTotalSupplyAssets);
         _overrideMarketTotalSupplyAssets(newTotalSupplyAssets);
         assertEq(
             morpho.market(marketId).totalSupplyAssets,

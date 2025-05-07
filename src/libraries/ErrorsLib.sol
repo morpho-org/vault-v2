@@ -14,7 +14,6 @@ library ErrorsLib {
     error TimelockNotExpired();
     error TimelockCapIsFixed();
     error TimelockDurationTooHigh();
-    error WrongPendingValue();
     error CapExceeded();
     error InvalidInputLength();
     error DataNotTimelocked();
