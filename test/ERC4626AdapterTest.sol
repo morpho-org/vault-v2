@@ -21,7 +21,7 @@ contract ERC4626AdapterTest is Test {
     address internal owner;
     address internal recipient;
 
-    uint256 internal constant MAX_TEST_AMOUNT = 1e36;
+    uint256 internal constant MAX_TEST_ASSETS = 1e36;
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -41,28 +41,28 @@ contract ERC4626AdapterTest is Test {
         assertEq(adapter.vault(), address(vault), "Incorrect vault set");
     }
 
-    function testAllocateInNotAuthorizedReverts(uint256 amount) public {
-        amount = bound(amount, 0, MAX_TEST_AMOUNT);
+    function testAllocateInNotAuthorizedReverts(uint256 assets) public {
+        assets = bound(assets, 0, MAX_TEST_ASSETS);
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
-        adapter.allocateIn(hex"", amount);
+        adapter.allocateIn(hex"", assets);
     }
 
-    function testAllocateOutNotAuthorizedReverts(uint256 amount) public {
-        amount = bound(amount, 0, MAX_TEST_AMOUNT);
+    function testAllocateOutNotAuthorizedReverts(uint256 assets) public {
+        assets = bound(assets, 0, MAX_TEST_ASSETS);
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
-        adapter.allocateOut(hex"", amount);
+        adapter.allocateOut(hex"", assets);
     }
 
-    function testAllocateInDepositsAssetsToERC4626Vault(uint256 amount) public {
-        amount = bound(amount, 0, MAX_TEST_AMOUNT);
-        deal(address(asset), address(adapter), amount);
+    function testAllocateInDepositsAssetsToERC4626Vault(uint256 assets) public {
+        assets = bound(assets, 0, MAX_TEST_ASSETS);
+        deal(address(asset), address(adapter), assets);
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.allocateIn(hex"", amount);
+        bytes32[] memory ids = adapter.allocateIn(hex"", assets);
 
         uint256 adapterShares = vault.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
-        assertEq(adapterShares, amount, "Incorrect share balance after deposit");
+        assertEq(adapterShares, assets, "Incorrect share balance after deposit");
         assertEq(asset.balanceOf(address(adapter)), 0, "Underlying tokens not transferred to vault");
 
         bytes32 expectedId = keccak256(abi.encode("vault", address(vault)));
@@ -70,26 +70,26 @@ contract ERC4626AdapterTest is Test {
         assertEq(ids[0], expectedId, "Incorrect id returned");
     }
 
-    function testAllocateOutWithdrawsAssetsFromERC4626Vault(uint256 initialAmount, uint256 withdrawAmount) public {
-        initialAmount = bound(initialAmount, 0, MAX_TEST_AMOUNT);
-        withdrawAmount = bound(withdrawAmount, 0, initialAmount);
+    function testAllocateOutWithdrawsAssetsFromERC4626Vault(uint256 initialAssets, uint256 withdrawAssets) public {
+        initialAssets = bound(initialAssets, 0, MAX_TEST_ASSETS);
+        withdrawAssets = bound(withdrawAssets, 0, initialAssets);
 
-        deal(address(asset), address(adapter), initialAmount);
+        deal(address(asset), address(adapter), initialAssets);
         vm.prank(address(parentVault));
-        adapter.allocateIn(hex"", initialAmount);
+        adapter.allocateIn(hex"", initialAssets);
 
         uint256 beforeShares = vault.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
-        assertEq(beforeShares, initialAmount, "Precondition failed: shares not set");
+        assertEq(beforeShares, initialAssets, "Precondition failed: shares not set");
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.allocateOut(hex"", withdrawAmount);
+        bytes32[] memory ids = adapter.allocateOut(hex"", withdrawAssets);
 
         uint256 afterShares = vault.balanceOf(address(adapter));
-        assertEq(afterShares, initialAmount - withdrawAmount, "Share balance not decreased correctly");
+        assertEq(afterShares, initialAssets - withdrawAssets, "Share balance not decreased correctly");
 
         uint256 adapterBalance = asset.balanceOf(address(adapter));
-        assertEq(adapterBalance, withdrawAmount, "Adapter did not receive withdrawn tokens");
+        assertEq(adapterBalance, withdrawAssets, "Adapter did not receive withdrawn tokens");
 
         bytes32 expectedId = keccak256(abi.encode("vault", address(vault)));
         assertEq(ids.length, 1, "Unexpected number of ids returned");
@@ -137,24 +137,24 @@ contract ERC4626AdapterTest is Test {
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
     }
 
-    function testSkim(uint256 amount) public {
-        amount = bound(amount, 0, MAX_TEST_AMOUNT);
+    function testSkim(uint256 assets) public {
+        assets = bound(assets, 0, MAX_TEST_ASSETS);
 
         ERC20Mock token = new ERC20Mock();
 
         // Setup
         vm.prank(owner);
         adapter.setSkimRecipient(recipient);
-        deal(address(token), address(adapter), amount);
-        assertEq(token.balanceOf(address(adapter)), amount, "Adapter did not receive tokens");
+        deal(address(token), address(adapter), assets);
+        assertEq(token.balanceOf(address(adapter)), assets, "Adapter did not receive tokens");
 
         // Normal path
         vm.expectEmit();
-        emit ERC4626Adapter.Skim(address(token), amount);
+        emit ERC4626Adapter.Skim(address(token), assets);
         vm.prank(recipient);
         adapter.skim(address(token));
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
-        assertEq(token.balanceOf(recipient), amount, "Recipient did not receive tokens");
+        assertEq(token.balanceOf(recipient), assets, "Recipient did not receive tokens");
 
         // Access control
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);

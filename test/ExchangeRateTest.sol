@@ -7,66 +7,53 @@ import {StdStorage, stdStorage} from "forge-std/StdStorage.sol";
 contract ExchangeRateTest is BaseTest {
     using stdStorage for StdStorage;
 
-    uint256 constant MIN_TEST_AMOUNT = 1 ether;
-    uint256 constant MAX_TEST_AMOUNT = 1e36;
+    uint256 constant INITIAL_DEPOSIT = 1e24;
+    uint256 constant MIN_TEST_ASSETS = 1e18;
+    uint256 constant MAX_TEST_ASSETS = 1e36;
     uint256 constant PRECISION = 1; // precision is 1e(-16)%
 
     function setUp() public override {
         super.setUp();
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
+
+        vault.deposit(INITIAL_DEPOSIT, address(this));
+
+        assertEq(underlyingToken.balanceOf(address(vault)), INITIAL_DEPOSIT, "wrong balance before");
+        assertEq(vault.totalAssets(), INITIAL_DEPOSIT, "wrong totalAssets before");
+
+        underlyingToken.transfer(address(vault), INITIAL_DEPOSIT);
+        stdstore.target(address(vault)).sig(vault.totalAssets.selector).checked_write(2 * INITIAL_DEPOSIT);
+
+        assertEq(underlyingToken.balanceOf(address(vault)), 2 * INITIAL_DEPOSIT, "wrong balance after");
+        assertEq(vault.totalAssets(), 2 * INITIAL_DEPOSIT, "wrong totalAssets after");
     }
 
-    function startWithDoubleExchangeRate(uint256 initialDeposit) internal {
-        vault.deposit(initialDeposit, address(this));
+    function testExchangeRateRedeem(uint256 redeemShares) public {
+        redeemShares = bound(redeemShares, MIN_TEST_ASSETS, vault.balanceOf(address(this)));
+        uint256 redeemedAssets = vault.redeem(redeemShares, address(this), address(this));
 
-        assertEq(underlyingToken.balanceOf(address(vault)), initialDeposit, "wrong balance before");
-        assertEq(vault.totalAssets(), initialDeposit, "wrong totalAssets before");
-
-        underlyingToken.transfer(address(vault), initialDeposit);
-        stdstore.target(address(vault)).sig(vault.totalAssets.selector).checked_write(2 * initialDeposit);
-
-        assertEq(underlyingToken.balanceOf(address(vault)), 2 * initialDeposit, "wrong balance after");
-        assertEq(vault.totalAssets(), 2 * initialDeposit, "wrong totalAssets after");
+        assertApproxEqRel(redeemedAssets, 2 * redeemShares, PRECISION);
     }
 
-    function testExchangeRateRedeem(uint256 amount, uint256 redeemShares) public {
-        amount = bound(amount, MIN_TEST_AMOUNT, MAX_TEST_AMOUNT);
-        startWithDoubleExchangeRate(amount);
+    function testExchangeRateWithdraw(uint256 withdrawAssets) public {
+        withdrawAssets = bound(withdrawAssets, MIN_TEST_ASSETS, INITIAL_DEPOSIT);
+        uint256 withdrawShares = vault.withdraw(withdrawAssets, address(this), address(this));
 
-        redeemShares = bound(redeemShares, MIN_TEST_AMOUNT, vault.balanceOf(address(this)));
-        uint256 redeemedAmount = vault.redeem(redeemShares, address(this), address(this));
-
-        assertApproxEqRel(redeemedAmount, 2 * redeemShares, PRECISION);
+        assertApproxEqRel(withdrawAssets, 2 * withdrawShares, PRECISION);
     }
 
-    function testExchangeRateWithdraw(uint256 amount, uint256 withdrawAmount) public {
-        amount = bound(amount, MIN_TEST_AMOUNT, MAX_TEST_AMOUNT);
-        startWithDoubleExchangeRate(amount);
-
-        withdrawAmount = bound(withdrawAmount, MIN_TEST_AMOUNT, amount);
-        uint256 withdrawShares = vault.withdraw(withdrawAmount, address(this), address(this));
-
-        assertApproxEqRel(withdrawAmount, 2 * withdrawShares, PRECISION);
-    }
-
-    function testExchangeRateMint(uint256 amount, uint256 mintShares) public {
-        amount = bound(amount, MIN_TEST_AMOUNT, MAX_TEST_AMOUNT);
-        startWithDoubleExchangeRate(amount);
-
-        mintShares = bound(mintShares, MIN_TEST_AMOUNT, MAX_TEST_AMOUNT);
+    function testExchangeRateMint(uint256 mintShares) public {
+        mintShares = bound(mintShares, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
         uint256 mintAssets = vault.mint(mintShares, address(this));
 
         assertApproxEqRel(mintAssets, 2 * mintShares, PRECISION);
     }
 
-    function testExchangeRateDeposit(uint256 amount, uint256 depositAmount) public {
-        amount = bound(amount, MIN_TEST_AMOUNT, MAX_TEST_AMOUNT);
-        startWithDoubleExchangeRate(amount);
+    function testExchangeRateDeposit(uint256 depositAssets) public {
+        depositAssets = bound(depositAssets, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
+        uint256 depositShares = vault.deposit(depositAssets, address(this));
 
-        depositAmount = bound(depositAmount, MIN_TEST_AMOUNT, MAX_TEST_AMOUNT);
-        uint256 depositShares = vault.deposit(depositAmount, address(this));
-
-        assertApproxEqRel(depositAmount, 2 * depositShares, PRECISION);
+        assertApproxEqRel(depositAssets, 2 * depositShares, PRECISION);
     }
 }
