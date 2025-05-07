@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {IVaultV2, IAdapter} from "../interfaces/IVaultV2.sol";
+import {IVaultV2} from "../interfaces/IVaultV2.sol";
+import {IAdapter} from "../interfaces/IAdapter.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
@@ -28,6 +29,7 @@ contract ERC4626Adapter is IAdapter {
 
     error NotAuthorized();
     error InvalidData();
+    error CantSkimVault();
 
     /* FUNCTIONS */
 
@@ -88,6 +90,7 @@ contract ERC4626Adapter is IAdapter {
 
     function skim(address token) external {
         require(msg.sender == skimRecipient, NotAuthorized());
+        require(token != vault, CantSkimVault());
         uint256 balance = IERC20(token).balanceOf(address(this));
         SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
         emit Skim(token, balance);

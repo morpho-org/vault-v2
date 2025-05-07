@@ -4,8 +4,9 @@ pragma solidity 0.8.28;
 import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
-import {IVaultV2, IAdapter} from "../interfaces/IVaultV2.sol";
+import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
+import {IAdapter} from "../interfaces/IAdapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
 contract MorphoAdapter is IAdapter {

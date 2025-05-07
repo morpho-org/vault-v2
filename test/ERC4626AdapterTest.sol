@@ -22,8 +22,7 @@ contract ERC4626AdapterTest is Test {
     address internal owner;
     address internal recipient;
 
-    uint256 internal constant MIN_TEST_AMOUNT = 1e6;
-    uint256 internal constant MAX_TEST_AMOUNT = 1e24;
+    uint256 internal constant MAX_TEST_AMOUNT = 1e36;
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -38,29 +37,25 @@ contract ERC4626AdapterTest is Test {
         adapter = ERC4626Adapter(factory.createERC4626Adapter(address(parentVault), address(vault)));
     }
 
-    function _boundAmount(uint256 amount) internal pure returns (uint256) {
-        return bound(amount, MIN_TEST_AMOUNT, MAX_TEST_AMOUNT);
-    }
-
     function testParentVaultAndAssetSet() public view {
         assertEq(adapter.parentVault(), address(parentVault), "Incorrect parent vault set");
         assertEq(adapter.vault(), address(vault), "Incorrect vault set");
     }
 
     function testAllocateInNotAuthorizedReverts(uint256 amount) public {
-        amount = _boundAmount(amount);
+        amount = bound(amount, 0, MAX_TEST_AMOUNT);
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
         adapter.allocateIn(hex"", amount);
     }
 
     function testAllocateOutNotAuthorizedReverts(uint256 amount) public {
-        amount = _boundAmount(amount);
+        amount = bound(amount, 0, MAX_TEST_AMOUNT);
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
         adapter.allocateOut(hex"", amount);
     }
 
     function testAllocateInDepositsAssetsToERC4626Vault(uint256 amount) public {
-        amount = _boundAmount(amount);
+        amount = bound(amount, 0, MAX_TEST_AMOUNT);
         deal(address(asset), address(adapter), amount);
 
         vm.prank(address(parentVault));
@@ -77,7 +72,7 @@ contract ERC4626AdapterTest is Test {
     }
 
     function testAllocateOutWithdrawsAssetsFromERC4626Vault(uint256 initialAmount, uint256 withdrawAmount) public {
-        initialAmount = _boundAmount(initialAmount);
+        initialAmount = bound(initialAmount, 0, MAX_TEST_AMOUNT);
         withdrawAmount = bound(withdrawAmount, 0, initialAmount);
 
         deal(address(asset), address(adapter), initialAmount);
@@ -130,39 +125,46 @@ contract ERC4626AdapterTest is Test {
         vm.assume(caller != address(0));
         vm.assume(caller != owner);
 
+        // Access control
         vm.prank(caller);
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
         adapter.setSkimRecipient(newRecipient);
 
+        // Normal path
         vm.prank(owner);
         vm.expectEmit();
         emit ERC4626Adapter.SetSkimRecipient(newRecipient);
         adapter.setSkimRecipient(newRecipient);
-
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
     }
 
     function testSkim(uint256 amount) public {
-        amount = _boundAmount(amount);
+        amount = bound(amount, 0, MAX_TEST_AMOUNT);
 
         ERC20Mock token = new ERC20Mock();
 
+        // Setup
         vm.prank(owner);
         adapter.setSkimRecipient(recipient);
-
         deal(address(token), address(adapter), amount);
         assertEq(token.balanceOf(address(adapter)), amount, "Adapter did not receive tokens");
 
+        // Normal path
         vm.expectEmit();
         emit ERC4626Adapter.Skim(address(token), amount);
         vm.prank(recipient);
         adapter.skim(address(token));
-
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
         assertEq(token.balanceOf(recipient), amount, "Recipient did not receive tokens");
 
+        // Access control
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
         adapter.skim(address(token));
+
+        // Cant skim vault
+        vm.expectRevert(ERC4626Adapter.CantSkimVault.selector);
+        vm.prank(recipient);
+        adapter.skim(address(vault));
     }
 
     function testLossRealizationInitiallyZero() public {
@@ -176,7 +178,7 @@ contract ERC4626AdapterTest is Test {
     }
 
     function testLossRealization(uint256 initialAmount, uint256 lossAmount) public {
-        initialAmount = _boundAmount(initialAmount);
+        initialAmount = bound(initialAmount, 0, MAX_TEST_AMOUNT);
         lossAmount = bound(lossAmount, 0, initialAmount);
 
         // Setup.
@@ -222,11 +224,11 @@ contract ERC4626AdapterTest is Test {
         uint256 depositAmount,
         uint256 withdrawAmount
     ) public {
-        initialAmount = _boundAmount(initialAmount);
+        initialAmount = bound(initialAmount, 0, MAX_TEST_AMOUNT);
         firstLoss = bound(firstLoss, 0, initialAmount);
         secondLoss = bound(secondLoss, 0, initialAmount - firstLoss);
-        depositAmount = _boundAmount(depositAmount);
-        withdrawAmount = bound(withdrawAmount, 0, depositAmount + initialAmount);
+        depositAmount = bound(depositAmount, 0, MAX_TEST_AMOUNT);
+        withdrawAmount = bound(withdrawAmount, 0, depositAmount);
 
         deal(address(asset), address(adapter), initialAmount + depositAmount);
         vm.prank(address(parentVault));
