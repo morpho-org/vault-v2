@@ -239,7 +239,7 @@ contract VaultV2 is IVaultV2 {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         SafeERC20Lib.safeTransfer(asset, adapter, amount);
-        bytes32[] memory ids = IAdapter(adapter).allocateIn(data, amount);
+        bytes32[] memory ids = IAdapter(adapter).reallocateFromAdapter(data, amount);
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] += amount;
@@ -261,7 +261,7 @@ contract VaultV2 is IVaultV2 {
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        bytes32[] memory ids = IAdapter(adapter).allocateOut(data, amount);
+        bytes32[] memory ids = IAdapter(adapter).reallocateToAdapter(data, amount);
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(amount);

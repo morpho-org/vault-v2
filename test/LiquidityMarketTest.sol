@@ -7,13 +7,13 @@ contract RecordingAdapter {
     bytes public recordedData;
     uint256 public recordedAmount;
 
-    function allocateIn(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {
+    function reallocateFromAdapter(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {
         recordedData = data;
         recordedAmount = amount;
         ids = new bytes32[](0);
     }
 
-    function allocateOut(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {
+    function reallocateToAdapter(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {
         recordedData = data;
         recordedAmount = amount;
         ids = new bytes32[](0);
