@@ -6,9 +6,12 @@ import {IAdapter} from "../interfaces/IAdapter.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
+import {MathLib} from "../libraries/MathLib.sol";
 
 /// Vaults should transfer exactly the input in deposit and withdraw.
 contract ERC4626Adapter is IAdapter {
+    using MathLib for uint256;
+
     /* IMMUTABLES */
 
     address public immutable parentVault;
@@ -18,7 +21,7 @@ contract ERC4626Adapter is IAdapter {
 
     address public skimRecipient;
     uint256 public realisableLoss;
-    uint256 public lastAssetsInVault;
+    uint256 public assetsInVault;
 
     /* EVENTS */
 
@@ -51,11 +54,12 @@ contract ERC4626Adapter is IAdapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
-        if (assetsInVault < lastAssetsInVault) realisableLoss += lastAssetsInVault - assetsInVault;
-        lastAssetsInVault = assetsInVault + assets;
+        uint256 loss =
+            assetsInVault.zeroFloorSub(IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this))));
+        if (loss > 0) realisableLoss += loss;
 
         IERC4626(vault).deposit(assets, address(this));
+        assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
 
         bytes32[] memory ids = new bytes32[](1);
         ids[0] = keccak256(abi.encode("vault", vault));
@@ -67,11 +71,12 @@ contract ERC4626Adapter is IAdapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
-        if (assetsInVault < lastAssetsInVault) realisableLoss += lastAssetsInVault - assetsInVault;
-        lastAssetsInVault = assetsInVault - assets;
+        uint256 loss =
+            assetsInVault.zeroFloorSub(IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this))));
+        if (loss > 0) realisableLoss += loss;
 
         IERC4626(vault).withdraw(assets, address(this), address(this));
+        assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
 
         bytes32[] memory ids = new bytes32[](1);
         ids[0] = keccak256(abi.encode("vault", vault));
