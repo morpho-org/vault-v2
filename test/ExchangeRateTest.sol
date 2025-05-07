@@ -30,29 +30,29 @@ contract ExchangeRateTest is BaseTest {
         assertEq(vault.totalAssets(), 2 * initialDeposit, "wrong totalAssets after");
     }
 
-    function testExchangeRateRedeem(uint256 amount, uint256 redeemShares) public {
-        amount = bound(amount, MIN_DEPOSIT, MAX_DEPOSIT);
-        startWithDoubleExchangeRate(amount);
+    function testExchangeRateRedeem(uint256 assets, uint256 redeemShares) public {
+        assets = bound(assets, MIN_DEPOSIT, MAX_DEPOSIT);
+        startWithDoubleExchangeRate(assets);
 
         redeemShares = bound(redeemShares, MIN_DEPOSIT, vault.balanceOf(address(this)));
-        uint256 redeemedAmount = vault.redeem(redeemShares, address(this), address(this));
+        uint256 redeemedAssets = vault.redeem(redeemShares, address(this), address(this));
 
-        assertApproxEqRel(redeemedAmount, 2 * redeemShares, PRECISION);
+        assertApproxEqRel(redeemedAssets, 2 * redeemShares, PRECISION);
     }
 
-    function testExchangeRateWithdraw(uint256 amount, uint256 withdrawAmount) public {
-        amount = bound(amount, MIN_DEPOSIT, MAX_DEPOSIT);
-        startWithDoubleExchangeRate(amount);
+    function testExchangeRateWithdraw(uint256 assets, uint256 withdrawAssets) public {
+        assets = bound(assets, MIN_DEPOSIT, MAX_DEPOSIT);
+        startWithDoubleExchangeRate(assets);
 
-        withdrawAmount = bound(withdrawAmount, MIN_DEPOSIT, amount);
-        uint256 withdrawShares = vault.withdraw(withdrawAmount, address(this), address(this));
+        withdrawAssets = bound(withdrawAssets, MIN_DEPOSIT, assets);
+        uint256 withdrawShares = vault.withdraw(withdrawAssets, address(this), address(this));
 
-        assertApproxEqRel(withdrawAmount, 2 * withdrawShares, PRECISION);
+        assertApproxEqRel(withdrawAssets, 2 * withdrawShares, PRECISION);
     }
 
-    function testExchangeRateMint(uint256 amount, uint256 mintShares) public {
-        amount = bound(amount, MIN_DEPOSIT, MAX_DEPOSIT);
-        startWithDoubleExchangeRate(amount);
+    function testExchangeRateMint(uint256 assets, uint256 mintShares) public {
+        assets = bound(assets, MIN_DEPOSIT, MAX_DEPOSIT);
+        startWithDoubleExchangeRate(assets);
 
         mintShares = bound(mintShares, MIN_DEPOSIT, MAX_DEPOSIT);
         uint256 mintAssets = vault.mint(mintShares, address(this));
@@ -60,13 +60,13 @@ contract ExchangeRateTest is BaseTest {
         assertApproxEqRel(mintAssets, 2 * mintShares, PRECISION);
     }
 
-    function testExchangeRateDeposit(uint256 amount, uint256 depositAmount) public {
-        amount = bound(amount, MIN_DEPOSIT, MAX_DEPOSIT);
-        startWithDoubleExchangeRate(amount);
+    function testExchangeRateDeposit(uint256 assets, uint256 depositAssets) public {
+        assets = bound(assets, MIN_DEPOSIT, MAX_DEPOSIT);
+        startWithDoubleExchangeRate(assets);
 
-        depositAmount = bound(depositAmount, MIN_DEPOSIT, MAX_DEPOSIT);
-        uint256 depositShares = vault.deposit(depositAmount, address(this));
+        depositAssets = bound(depositAssets, MIN_DEPOSIT, MAX_DEPOSIT);
+        uint256 depositShares = vault.deposit(depositAssets, address(this));
 
-        assertApproxEqRel(depositAmount, 2 * depositShares, PRECISION);
+        assertApproxEqRel(depositAssets, 2 * depositShares, PRECISION);
     }
 }

@@ -5,17 +5,17 @@ import "./BaseTest.sol";
 
 contract RecordingAdapter {
     bytes public recordedData;
-    uint256 public recordedAmount;
+    uint256 public recordedAssets;
 
-    function allocateIn(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {
+    function allocateIn(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {
         recordedData = data;
-        recordedAmount = amount;
+        recordedAssets = assets;
         ids = new bytes32[](0);
     }
 
-    function allocateOut(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {
+    function allocateOut(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {
         recordedData = data;
-        recordedAmount = amount;
+        recordedAssets = assets;
         ids = new bytes32[](0);
     }
 }
@@ -54,7 +54,7 @@ contract LiquidityMarketTest is BaseTest {
         vault.deposit(assets, address(this));
 
         assertEq(adapter.recordedData(), data);
-        assertEq(adapter.recordedAmount(), assets);
+        assertEq(adapter.recordedAssets(), assets);
     }
 
     function testLiquidityMarketMint(bytes memory data, uint256 shares) public {
@@ -66,7 +66,7 @@ contract LiquidityMarketTest is BaseTest {
         uint256 assets = vault.mint(shares, address(this));
 
         assertEq(adapter.recordedData(), data);
-        assertEq(adapter.recordedAmount(), assets);
+        assertEq(adapter.recordedAssets(), assets);
     }
 
     function testLiquidityMarketWithdraw(bytes memory data, uint256 deposit) public {
@@ -80,7 +80,7 @@ contract LiquidityMarketTest is BaseTest {
         vault.withdraw(assets, address(this), address(this));
 
         assertEq(adapter.recordedData(), data);
-        assertEq(adapter.recordedAmount(), assets);
+        assertEq(adapter.recordedAssets(), assets);
     }
 
     function testLiquidityMarketRedeem(bytes memory data, uint256 deposit) public {
@@ -93,6 +93,6 @@ contract LiquidityMarketTest is BaseTest {
         uint256 assets = vault.redeem(vault.balanceOf(address(this)), address(this), address(this));
 
         assertEq(adapter.recordedData(), data);
-        assertEq(adapter.recordedAmount(), assets);
+        assertEq(adapter.recordedAssets(), assets);
     }
 }
