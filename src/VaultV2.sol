@@ -35,8 +35,6 @@ contract VaultV2 is IVaultV2 {
     uint256 public totalAssets;
     uint256 public lossToRealise;
     uint256 public lastUpdate;
-    /// @dev block => loss realised
-    mapping(uint256 => bool) public lossRealised;
 
     /* CURATION AND ALLOCATION STORAGE */
     address public interestController;
@@ -432,7 +430,6 @@ contract VaultV2 is IVaultV2 {
     }
 
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
-        require(!lossRealised[block.number], ErrorsLib.LossRealisedInBlock());
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
             this.reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
