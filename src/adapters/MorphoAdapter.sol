@@ -8,8 +8,10 @@ import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IAdapter} from "../interfaces/IAdapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
+import {MathLib} from "../libraries/MathLib.sol";
 
 contract MorphoAdapter is IAdapter {
+    using MathLib for uint256;
     using MorphoBalancesLib for IMorpho;
     using MarketParamsLib for MarketParams;
 
@@ -21,7 +23,7 @@ contract MorphoAdapter is IAdapter {
     /* STORAGE */
 
     address public skimRecipient;
-    mapping(Id => uint256) public lastAssetsInMarket;
+    mapping(Id => uint256) public assetsInMarket;
     mapping(Id => uint256) public realisableLoss;
 
     /* EVENTS */
@@ -62,16 +64,14 @@ contract MorphoAdapter is IAdapter {
     function allocateIn(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-
-        IMorpho(morpho).accrueInterest(marketParams);
-        uint256 assetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
         Id marketId = marketParams.id();
-        if (assetsInMarket < lastAssetsInMarket[marketId]) {
-            realisableLoss[marketId] += lastAssetsInMarket[marketId] - assetsInMarket;
-        }
-        lastAssetsInMarket[marketId] = assetsInMarket + assets;
+
+        uint256 loss =
+            assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this)));
+        if (loss > 0) realisableLoss[marketId] += loss;
 
         if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+        assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
 
         return ids(marketParams);
     }
@@ -82,14 +82,12 @@ contract MorphoAdapter is IAdapter {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
 
-        IMorpho(morpho).accrueInterest(marketParams);
-        uint256 assetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
-        if (assetsInMarket < lastAssetsInMarket[marketId]) {
-            realisableLoss[marketId] += lastAssetsInMarket[marketId] - assetsInMarket;
-        }
-        lastAssetsInMarket[marketId] = assetsInMarket - assets;
+        uint256 loss =
+            assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this)));
+        if (loss > 0) realisableLoss[marketId] += loss;
 
         if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+        assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
 
         return ids(marketParams);
     }

@@ -214,7 +214,7 @@ contract MorphoAdapterTest is Test {
         deal(address(loanToken), address(adapter), initialAmount);
         vm.prank(address(parentVault));
         adapter.allocateIn(abi.encode(marketParams), initialAmount);
-        assertEq(adapter.lastAssetsInMarket(marketId), initialAmount, "Initial lastAssetsInMarket incorrect");
+        assertEq(adapter.assetsInMarket(marketId), initialAmount, "Initial assetsInMarket incorrect");
 
         // Loss detection during allocate
         _overrideMarketTotalSupplyAssets(initialAmount - lossAmount);
