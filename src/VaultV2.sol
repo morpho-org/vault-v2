@@ -90,7 +90,7 @@ contract VaultV2 is IVaultV2 {
         owner = _owner;
         lastUpdate = block.timestamp;
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
-        emit EventsLib.Construction(_owner, _asset);
+        emit EventsLib.Constructor(_owner, _asset);
     }
 
     /* OWNER ACTIONS */
@@ -316,11 +316,11 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterest() public {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        emit EventsLib.AccrueInterest(totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         totalAssets = newTotalAssets;
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
         lastUpdate = block.timestamp;
-        emit EventsLib.AccrueInterest(newTotalAssets, performanceFeeShares, managementFeeShares);
     }
 
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
@@ -474,13 +474,15 @@ contract VaultV2 is IVaultV2 {
 
         if (msg.sender != from) {
             uint256 _allowance = allowance[from][msg.sender];
-            if (_allowance != type(uint256).max) allowance[from][msg.sender] = _allowance - shares;
+            if (_allowance != type(uint256).max) {
+                allowance[from][msg.sender] = _allowance - shares;
+                emit EventsLib.AllowanceUpdatedByTransferFrom(from, msg.sender, _allowance - shares);
+            }
         }
 
         balanceOf[from] -= shares;
         balanceOf[to] += shares;
         emit EventsLib.Transfer(from, to, shares);
-        emit EventsLib.TransferFrom(msg.sender, from, to, shares);
         return true;
     }
 
