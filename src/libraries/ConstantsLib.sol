@@ -12,5 +12,5 @@ uint256 constant MAX_MANAGEMENT_FEE = 0.05e18 / uint256(365 days); // 5%
 uint256 constant MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY = 0.01e18; // 1%
 
 bytes32 constant NULL_SLOT = bytes32(uint256(0));
-bytes32 constant END_SLOT = bytes32(uint256(1));
+bytes32 constant END_SLOT = keccak256("END SLOT");
 bytes32 constant HINTS_SLOT_PREFIX = keccak256("Hints Slot Prefix");

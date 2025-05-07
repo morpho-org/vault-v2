@@ -552,13 +552,10 @@ contract VaultV2 is IVaultV2 {
         // invariant must hold: node(removed).next != NULL_SLOT
 
         bytes32 prev = slot(prevId);
+        bytes32 next;
 
         if (node(prev).next == NULL_SLOT || ceiling(node(prev)) < ceiling(node(removed))) {
             prev = END_SLOT;
-        }
-
-        bytes32 next;
-        if (prev == END_SLOT) {
             next = root;
         } else {
             next = node(prev).next;
@@ -582,13 +579,10 @@ contract VaultV2 is IVaultV2 {
         bytes32 inserted = slot(insertedId);
         node(inserted).id = insertedId;
         bytes32 prev = slot(prevId);
+        bytes32 next;
         uint256 insertedCeiling = ceiling(node(inserted));
         if (node(prev).next == NULL_SLOT || ceiling(node(prev)) < insertedCeiling) {
             prev = END_SLOT;
-        }
-
-        bytes32 next;
-        if (prev == END_SLOT) {
             next = root;
         } else {
             next = node(prev).next;
