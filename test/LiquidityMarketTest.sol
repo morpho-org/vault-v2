@@ -5,22 +5,22 @@ import "./BaseTest.sol";
 
 contract RecordingAdapter {
     bytes public recordedData;
-    uint256 public recordedAmount;
+    uint256 public recordedAssets;
 
-    function allocateIn(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {
+    function allocateIn(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {
         recordedData = data;
-        recordedAmount = amount;
+        recordedAssets = assets;
         ids = new bytes32[](0);
     }
 
-    function allocateOut(bytes memory data, uint256 amount)
+    function allocateOut(bytes memory data, uint256 assets)
         external
         returns (uint256 proportionalCost, bytes32[] memory ids)
     {
         recordedData = data;
-        recordedAmount = amount;
+        recordedAssets = assets;
         ids = new bytes32[](0);
-        proportionalCost = amount;
+        proportionalCost = assets;
     }
 }
 
@@ -28,7 +28,8 @@ contract LiquidityMarketTest is BaseTest {
     using MathLib for uint256;
 
     RecordingAdapter public adapter;
-    uint256 MAX_DEPOSIT = 1e18 ether;
+    uint256 internal constant MAX_TEST_ASSETS = 1e18 ether;
+    uint256 internal constant MAX_TEST_SHARES = 1e18 ether;
 
     function setUp() public override {
         super.setUp();
@@ -50,7 +51,7 @@ contract LiquidityMarketTest is BaseTest {
     }
 
     function testLiquidityMarketDeposit(bytes memory data, uint256 assets) public {
-        assets = bound(assets, 0, MAX_DEPOSIT);
+        assets = bound(assets, 0, MAX_TEST_ASSETS);
 
         vm.prank(allocator);
         vault.setLiquidityData(data);
@@ -58,11 +59,11 @@ contract LiquidityMarketTest is BaseTest {
         vault.deposit(assets, address(this));
 
         assertEq(adapter.recordedData(), data);
-        assertEq(adapter.recordedAmount(), assets);
+        assertEq(adapter.recordedAssets(), assets);
     }
 
     function testLiquidityMarketMint(bytes memory data, uint256 shares) public {
-        shares = bound(shares, 0, MAX_DEPOSIT);
+        shares = bound(shares, 0, MAX_TEST_SHARES);
 
         vm.prank(allocator);
         vault.setLiquidityData(data);
@@ -70,11 +71,11 @@ contract LiquidityMarketTest is BaseTest {
         uint256 assets = vault.mint(shares, address(this));
 
         assertEq(adapter.recordedData(), data);
-        assertEq(adapter.recordedAmount(), assets);
+        assertEq(adapter.recordedAssets(), assets);
     }
 
     function testLiquidityMarketWithdraw(bytes memory data, uint256 deposit) public {
-        deposit = bound(deposit, 0, MAX_DEPOSIT);
+        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
 
         vm.prank(allocator);
         vault.setLiquidityData(data);
@@ -84,11 +85,11 @@ contract LiquidityMarketTest is BaseTest {
         vault.withdraw(assets, address(this), address(this));
 
         assertEq(adapter.recordedData(), data);
-        assertEq(adapter.recordedAmount(), assets);
+        assertEq(adapter.recordedAssets(), assets);
     }
 
     function testLiquidityMarketRedeem(bytes memory data, uint256 deposit) public {
-        deposit = bound(deposit, 0, MAX_DEPOSIT);
+        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
 
         vm.prank(allocator);
         vault.setLiquidityData(data);
@@ -97,6 +98,6 @@ contract LiquidityMarketTest is BaseTest {
         uint256 assets = vault.redeem(vault.balanceOf(address(this)), address(this), address(this));
 
         assertEq(adapter.recordedData(), data);
-        assertEq(adapter.recordedAmount(), assets);
+        assertEq(adapter.recordedAssets(), assets);
     }
 }

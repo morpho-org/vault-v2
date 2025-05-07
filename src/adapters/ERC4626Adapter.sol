@@ -21,7 +21,7 @@ contract ERC4626Adapter is IAdapter {
     /* EVENTS */
 
     event SetSkimRecipient(address indexed newSkimRecipient);
-    event Skim(address indexed token, uint256 amount);
+    event Skim(address indexed token, uint256 assets);
 
     /* ERRORS */
 

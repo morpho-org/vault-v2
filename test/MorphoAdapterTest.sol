@@ -29,8 +29,8 @@ contract MorphoAdapterTest is Test {
     address internal owner;
     address internal recipient;
 
-    uint256 internal constant MIN_TEST_AMOUNT = 1;
-    uint256 internal constant MAX_TEST_AMOUNT = 1e24;
+    uint256 internal constant MIN_TEST_ASSETS = 1;
+    uint256 internal constant MAX_TEST_ASSETS = 1e24;
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -64,8 +64,8 @@ contract MorphoAdapterTest is Test {
         adapter = MorphoAdapter(factory.createMorphoAdapter(address(parentVault)));
     }
 
-    function _boundAmount(uint256 amount) internal pure returns (uint256) {
-        return bound(amount, MIN_TEST_AMOUNT, MAX_TEST_AMOUNT);
+    function _boundsAssets(uint256 assets) internal pure returns (uint256) {
+        return bound(assets, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
     }
 
     function testParentVaultAndMorphoSet() public view {
@@ -73,27 +73,27 @@ contract MorphoAdapterTest is Test {
         assertEq(adapter.morpho(), address(morpho), "Incorrect morpho set");
     }
 
-    function testAllocateInNotAuthorizedReverts(uint256 amount) public {
-        amount = _boundAmount(amount);
+    function testAllocateInNotAuthorizedReverts(uint256 assets) public {
+        assets = _boundsAssets(assets);
         vm.expectRevert(MorphoAdapter.NotAuthorized.selector);
-        adapter.allocateIn(abi.encode(marketParams), amount);
+        adapter.allocateIn(abi.encode(marketParams), assets);
     }
 
-    function testAllocateOutNotAuthorizedReverts(uint256 amount) public {
-        amount = _boundAmount(amount);
+    function testAllocateOutNotAuthorizedReverts(uint256 assets) public {
+        assets = _boundsAssets(assets);
         vm.expectRevert(MorphoAdapter.NotAuthorized.selector);
-        adapter.allocateOut(abi.encode(marketParams), amount);
+        adapter.allocateOut(abi.encode(marketParams), assets);
     }
 
-    function testAllocateInSuppliesAssetsToMorpho(uint256 amount) public {
-        amount = _boundAmount(amount);
-        deal(address(loanToken), address(adapter), amount);
+    function testAllocateInSuppliesAssetsToMorpho(uint256 assets) public {
+        assets = _boundsAssets(assets);
+        deal(address(loanToken), address(adapter), assets);
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.allocateIn(abi.encode(marketParams), amount);
+        bytes32[] memory ids = adapter.allocateIn(abi.encode(marketParams), assets);
 
         uint256 supplied = morpho.expectedSupplyAssets(marketParams, address(adapter));
-        assertEq(supplied, amount, "Incorrect supplied amount in Morpho");
+        assertEq(supplied, assets, "Incorrect supplied assets in Morpho");
 
         bytes32 expectedId = keccak256(
             abi.encode(
@@ -104,25 +104,25 @@ contract MorphoAdapterTest is Test {
         assertEq(ids[0], expectedId, "Incorrect id returned");
     }
 
-    function testAllocateOutWithdrawsAssetsFromMorpho(uint256 initialAmount, uint256 withdrawAmount) public {
-        initialAmount = _boundAmount(initialAmount);
-        withdrawAmount = bound(withdrawAmount, 1, initialAmount);
+    function testAllocateOutWithdrawsAssetsFromMorpho(uint256 initialAssets, uint256 withdrawAssets) public {
+        initialAssets = _boundsAssets(initialAssets);
+        withdrawAssets = bound(withdrawAssets, 1, initialAssets);
 
-        deal(address(loanToken), address(adapter), initialAmount);
+        deal(address(loanToken), address(adapter), initialAssets);
         vm.prank(address(parentVault));
-        adapter.allocateIn(abi.encode(marketParams), initialAmount);
+        adapter.allocateIn(abi.encode(marketParams), initialAssets);
 
         uint256 beforeSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
-        assertEq(beforeSupply, initialAmount, "Precondition failed: supply not set");
+        assertEq(beforeSupply, initialAssets, "Precondition failed: supply not set");
 
         vm.prank(address(parentVault));
-        (, bytes32[] memory ids) = adapter.allocateOut(abi.encode(marketParams), withdrawAmount);
+        (, bytes32[] memory ids) = adapter.allocateOut(abi.encode(marketParams), withdrawAssets);
 
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
-        assertEq(afterSupply, initialAmount - withdrawAmount, "Supply not decreased correctly");
+        assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
 
         uint256 adapterBalance = loanToken.balanceOf(address(adapter));
-        assertEq(adapterBalance, withdrawAmount, "Adapter did not receive withdrawn tokens");
+        assertEq(adapterBalance, withdrawAssets, "Adapter did not receive withdrawn tokens");
 
         bytes32 expectedId = keccak256(
             abi.encode(
@@ -169,24 +169,24 @@ contract MorphoAdapterTest is Test {
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
     }
 
-    function testSkim(uint256 amount) public {
-        amount = _boundAmount(amount);
+    function testSkim(uint256 assets) public {
+        assets = _boundsAssets(assets);
 
         ERC20Mock token = new ERC20Mock();
 
         vm.prank(owner);
         adapter.setSkimRecipient(recipient);
 
-        deal(address(token), address(adapter), amount);
-        assertEq(token.balanceOf(address(adapter)), amount, "Adapter did not receive tokens");
+        deal(address(token), address(adapter), assets);
+        assertEq(token.balanceOf(address(adapter)), assets, "Adapter did not receive tokens");
 
         vm.expectEmit();
-        emit MorphoAdapter.Skim(address(token), amount);
+        emit MorphoAdapter.Skim(address(token), assets);
         vm.prank(recipient);
         adapter.skim(address(token));
 
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
-        assertEq(token.balanceOf(recipient), amount, "Recipient did not receive tokens");
+        assertEq(token.balanceOf(recipient), assets, "Recipient did not receive tokens");
 
         vm.expectRevert(MorphoAdapter.NotAuthorized.selector);
         adapter.skim(address(token));

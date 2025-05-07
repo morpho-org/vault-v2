@@ -2,10 +2,10 @@
 pragma solidity ^0.8.0;
 
 library EventsLib {
-    event Transfer(address indexed from, address indexed to, uint256 amount);
-    event TransferFrom(address indexed sender, address indexed from, address indexed to, uint256 amount);
-    event Approval(address indexed owner, address indexed spender, uint256 amount);
-    event Permit(address indexed owner, address indexed spender, uint256 amount, uint256 nonce, uint256 deadline);
+    event Transfer(address indexed from, address indexed to, uint256 shares);
+    event TransferFrom(address indexed sender, address indexed from, address indexed to, uint256 shares);
+    event Approval(address indexed owner, address indexed spender, uint256 shares);
+    event Permit(address indexed owner, address indexed spender, uint256 shares, uint256 nonce, uint256 deadline);
     event Construction(address indexed owner, address indexed asset);
     event SetOwner(address indexed owner);
     event SetCurator(address indexed curator);
@@ -24,8 +24,8 @@ library EventsLib {
     event IncreaseRelativeCap(bytes32 indexed id, uint256 newRelativeCap);
     event DecreaseRelativeCap(bytes32 indexed id, uint256 newRelativeCap);
     event SetForceReallocateToIdlePenalty(uint256 forceReallocateToIdleFee);
-    event ReallocateFromIdle(address indexed sender, address indexed adapter, uint256 amount, bytes32[] ids);
-    event ReallocateToIdle(address indexed sender, address indexed adapter, uint256 amount, bytes32[] ids);
+    event ReallocateFromIdle(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids);
+    event ReallocateToIdle(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids);
     event SetLiquidityAdapter(address indexed sender, address indexed liquidityAdapter);
     event SetLiquidityData(address indexed sender, bytes indexed data);
     event Deposit(address indexed sender, address indexed onBehalf, uint256 assets, uint256 shares);
