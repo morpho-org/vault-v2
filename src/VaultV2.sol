@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {IVaultV2, IERC20, IAdapter} from "./interfaces/IVaultV2.sol";
+import {IVaultV2, IERC20} from "./interfaces/IVaultV2.sol";
+import {IAdapter} from "./interfaces/IAdapter.sol";
 import {IInterestController} from "./interfaces/IInterestController.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
@@ -63,6 +64,12 @@ contract VaultV2 is IVaultV2 {
     /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint256 public managementFee;
     address public managementFeeRecipient;
+
+    /* GETTERS */
+
+    function idsWithRelativeCapLength() public view returns (uint256) {
+        return idsWithRelativeCap.length;
+    }
 
     /* MULTICALL */
 
@@ -200,7 +207,7 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
         require(newRelativeCap >= relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
 
-        if (relativeCap[id] == 0) idsWithRelativeCap.push(id);
+        if (relativeCap[id] == 0 && newRelativeCap != 0) idsWithRelativeCap.push(id);
         relativeCap[id] = newRelativeCap;
         emit EventsLib.IncreaseRelativeCap(id, newRelativeCap);
     }
@@ -209,7 +216,7 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap <= relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
         require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
 
-        if (newRelativeCap == 0) {
+        if (newRelativeCap == 0 && relativeCap[id] != 0) {
             uint256 i;
             while (idsWithRelativeCap[i] != id) i++;
             idsWithRelativeCap[i] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
@@ -238,9 +245,12 @@ contract VaultV2 is IVaultV2 {
             allocation[ids[i]] += amount;
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
-            require(
-                allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD), ErrorsLib.RelativeCapExceeded()
-            );
+            if (relativeCap[ids[i]] != 0) {
+                require(
+                    allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD),
+                    ErrorsLib.RelativeCapExceeded()
+                );
+            }
         }
         emit EventsLib.ReallocateFromIdle(msg.sender, adapter, amount, ids);
     }
