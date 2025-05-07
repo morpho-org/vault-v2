@@ -3,11 +3,6 @@ pragma solidity >=0.5.0;
 
 import {IERC20} from "./IERC20.sol";
 
-interface IAdapter {
-    function allocateIn(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
-    function allocateOut(bytes memory data, uint256 amount) external returns (bytes32[] memory ids);
-}
-
 interface IVaultV2 is IERC20 {
     // Multicall
     function multicall(bytes[] calldata) external;
@@ -17,7 +12,7 @@ interface IVaultV2 is IERC20 {
     function canUseAssets(address account) external view returns (bool);
 
     // ERC-2612 (Permit)
-    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+    function permit(address owner, address spender, uint256 shares, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         external;
     function nonces(address owner) external view returns (uint256);
     function DOMAIN_SEPARATOR() external view returns (bytes32);
@@ -55,6 +50,9 @@ interface IVaultV2 is IERC20 {
     function timelock(bytes4) external view returns (uint256);
     function liquidityAdapter() external view returns (address);
     function liquidityData() external view returns (bytes memory);
+
+    // Getters
+    function idsWithRelativeCapLength() external view returns (uint256);
 
     // Owner actions
     function setOwner(address) external;

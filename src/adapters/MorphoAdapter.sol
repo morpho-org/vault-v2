@@ -4,9 +4,10 @@ pragma solidity 0.8.28;
 import {IMorpho, MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
+import {IAdapter} from "../interfaces/IAdapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
-contract MorphoAdapter {
+contract MorphoAdapter is IAdapter {
     /* IMMUTABLES */
 
     address public immutable parentVault;
@@ -19,7 +20,7 @@ contract MorphoAdapter {
     /* EVENTS */
 
     event SetSkimRecipient(address indexed newSkimRecipient);
-    event Skim(address indexed token, uint256 amount);
+    event Skim(address indexed token, uint256 assets);
 
     /* ERRORS */
 
@@ -34,7 +35,7 @@ contract MorphoAdapter {
         SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
     }
 
-    function ids(MarketParams memory marketParams) public pure returns (bytes32[] memory) {
+    function ids(MarketParams memory marketParams) internal pure returns (bytes32[] memory) {
         bytes32[] memory ids_ = new bytes32[](1);
         ids_[0] = keccak256(
             abi.encode(
