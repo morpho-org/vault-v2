@@ -8,15 +8,15 @@ contract Adapter is IAdapter {
         IERC20(_underlyingToken).approve(_vault, type(uint256).max);
     }
 
-    function reallocateFromAdapter(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {}
+    function reallocateFromAdapter(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {}
 
-    function reallocateToAdapter(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {}
+    function reallocateToAdapter(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {}
 }
 
 contract ForceReallocateTest is BaseTest {
     using MathLib for uint256;
 
-    uint256 constant MAX_DEPOSIT = 1e18 ether;
+    uint256 constant MAX_TEST_ASSETS = 1e36;
     address adapter;
 
     function setUp() public override {
@@ -47,7 +47,7 @@ contract ForceReallocateTest is BaseTest {
     }
 
     function testForceReallocate(uint256 supplied, uint256 reallocated, uint256 forceReallocatePenalty) public {
-        supplied = bound(supplied, 0, MAX_DEPOSIT);
+        supplied = bound(supplied, 0, MAX_TEST_ASSETS);
         reallocated = bound(reallocated, 0, supplied);
         forceReallocatePenalty = bound(forceReallocatePenalty, 0, MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY);
 

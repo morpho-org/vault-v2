@@ -9,25 +9,25 @@ import {MathLib} from "../src/libraries/MathLib.sol";
 contract MockAdapter is IAdapter {
     address public immutable vault;
     bytes public recordedData;
-    uint256 public recordedAmount;
+    uint256 public recordedAssets;
 
     constructor(address _vault) {
         vault = _vault;
         IERC20(IVaultV2(_vault).asset()).approve(_vault, type(uint256).max);
     }
 
-    function reallocateFromAdapter(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {
+    function reallocateFromAdapter(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {
         recordedData = data;
-        recordedAmount = amount;
+        recordedAssets = assets;
         bytes32[] memory _ids = new bytes32[](2);
         _ids[0] = keccak256("id-0");
         _ids[1] = keccak256("id-1");
         return _ids;
     }
 
-    function reallocateToAdapter(bytes memory data, uint256 amount) external returns (bytes32[] memory ids) {
+    function reallocateToAdapter(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {
         recordedData = data;
-        recordedAmount = amount;
+        recordedAssets = assets;
         bytes32[] memory _ids = new bytes32[](2);
         _ids[0] = keccak256("id-0");
         _ids[1] = keccak256("id-1");
@@ -58,8 +58,8 @@ contract ReallocateTest is BaseTest {
         ids[1] = keccak256("id-1");
     }
 
-    function _boundAmount(uint256 amount) internal pure returns (uint256) {
-        return bound(amount, 1, type(uint256).max);
+    function _boundAssets(uint256 assets) internal pure returns (uint256) {
+        return bound(assets, 1, type(uint256).max);
     }
 
     function _setAbsoluteCap(bytes memory idData, uint256 absoluteCap) internal {
@@ -75,15 +75,15 @@ contract ReallocateTest is BaseTest {
         assertEq(vault.absoluteCap(id), absoluteCap);
     }
 
-    function testReallocateFromIdle(bytes memory data, uint256 amount, address rdm, uint256 absoluteCap) public {
+    function testReallocateFromIdle(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(vault));
-        amount = _boundAmount(amount);
-        absoluteCap = bound(absoluteCap, amount, type(uint256).max);
+        assets = _boundAssets(assets);
+        absoluteCap = bound(absoluteCap, assets, type(uint256).max);
 
         // Setup.
-        deal(address(underlyingToken), address(vault), amount);
-        assertEq(underlyingToken.balanceOf(address(vault)), amount, "Initial vault balance incorrect");
+        deal(address(underlyingToken), address(vault), assets);
+        assertEq(underlyingToken.balanceOf(address(vault)), assets, "Initial vault balance incorrect");
         assertEq(underlyingToken.balanceOf(mockAdapter), 0, "Initial adapter balance incorrect");
         assertEq(vault.allocation(keccak256("id-0")), 0, "Initial allocation incorrect");
         assertEq(vault.allocation(keccak256("id-1")), 0, "Initial allocation incorrect");
@@ -91,7 +91,7 @@ contract ReallocateTest is BaseTest {
         // Access control.
         vm.prank(rdm);
         vm.expectRevert(ErrorsLib.NotAllocator.selector);
-        vault.reallocateFromIdle(mockAdapter, data, amount);
+        vault.reallocateFromIdle(mockAdapter, data, assets);
         vm.prank(address(vault));
         vault.reallocateFromIdle(mockAdapter, hex"", 0);
         vm.prank(allocator);
@@ -103,47 +103,47 @@ contract ReallocateTest is BaseTest {
         vault.reallocateFromIdle(address(this), hex"", 0);
 
         // Absolute cap check.
-        _setAbsoluteCap("id-0", amount - 1);
-        _setAbsoluteCap("id-1", amount - 1);
+        _setAbsoluteCap("id-0", assets - 1);
+        _setAbsoluteCap("id-1", assets - 1);
         vm.expectRevert(ErrorsLib.AbsoluteCapExceeded.selector);
         vm.prank(allocator);
-        vault.reallocateFromIdle(mockAdapter, data, amount);
+        vault.reallocateFromIdle(mockAdapter, data, assets);
 
         // Normal path.
-        _setAbsoluteCap("id-0", amount);
-        _setAbsoluteCap("id-1", amount);
+        _setAbsoluteCap("id-0", assets);
+        _setAbsoluteCap("id-1", assets);
         vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.ReallocateFromIdle(allocator, mockAdapter, amount, ids);
-        vault.reallocateFromIdle(mockAdapter, data, amount);
+        emit EventsLib.ReallocateFromIdle(allocator, mockAdapter, assets, ids);
+        vault.reallocateFromIdle(mockAdapter, data, assets);
         assertEq(underlyingToken.balanceOf(address(vault)), 0, "Vault balance should be zero after reallocation");
-        assertEq(underlyingToken.balanceOf(mockAdapter), amount, "Adapter balance incorrect after reallocation");
-        assertEq(vault.allocation(keccak256("id-0")), amount, "Allocation incorrect after reallocation");
-        assertEq(vault.allocation(keccak256("id-1")), amount, "Allocation incorrect after reallocation");
+        assertEq(underlyingToken.balanceOf(mockAdapter), assets, "Adapter balance incorrect after reallocation");
+        assertEq(vault.allocation(keccak256("id-0")), assets, "Allocation incorrect after reallocation");
+        assertEq(vault.allocation(keccak256("id-1")), assets, "Allocation incorrect after reallocation");
         assertEq(MockAdapter(mockAdapter).recordedData(), data, "Data incorrect after reallocation");
-        assertEq(MockAdapter(mockAdapter).recordedAmount(), amount, "Amount incorrect after reallocation");
+        assertEq(MockAdapter(mockAdapter).recordedAssets(), assets, "Assets incorrect after reallocation");
     }
 
     function testReallocateToIdle(
         bytes memory data,
-        uint256 amountIn,
-        uint256 amountOut,
+        uint256 assetsIn,
+        uint256 assetsOut,
         address rdm,
         uint256 absoluteCap
     ) public {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(sentinel));
         vm.assume(rdm != address(vault));
-        amountIn = _boundAmount(amountIn);
-        amountOut = bound(amountOut, 1, amountIn);
-        absoluteCap = bound(absoluteCap, amountIn, type(uint256).max);
+        assetsIn = _boundAssets(assetsIn);
+        assetsOut = bound(assetsOut, 1, assetsIn);
+        absoluteCap = bound(absoluteCap, assetsIn, type(uint256).max);
 
         // Setup.
-        deal(address(underlyingToken), address(vault), amountIn);
-        _setAbsoluteCap("id-0", amountIn);
-        _setAbsoluteCap("id-1", amountIn);
+        deal(address(underlyingToken), address(vault), assetsIn);
+        _setAbsoluteCap("id-0", assetsIn);
+        _setAbsoluteCap("id-1", assetsIn);
         vm.prank(allocator);
-        vault.reallocateFromIdle(mockAdapter, data, amountIn);
+        vault.reallocateFromIdle(mockAdapter, data, assetsIn);
 
         // Access control.
         vm.prank(rdm);
@@ -159,22 +159,22 @@ contract ReallocateTest is BaseTest {
         // Can't reallocate to idle if not adapter.
         vm.prank(allocator);
         vm.expectRevert(ErrorsLib.NotAdapter.selector);
-        vault.reallocateToIdle(address(this), data, amountOut);
+        vault.reallocateToIdle(address(this), data, assetsOut);
 
         // Normal path.
-        _setAbsoluteCap("id-0", amountIn);
-        _setAbsoluteCap("id-1", amountIn);
+        _setAbsoluteCap("id-0", assetsIn);
+        _setAbsoluteCap("id-1", assetsIn);
         vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.ReallocateToIdle(allocator, mockAdapter, amountOut, ids);
-        vault.reallocateToIdle(mockAdapter, data, amountOut);
-        assertEq(underlyingToken.balanceOf(address(vault)), amountOut, "Vault balance incorrect after reallocation");
+        emit EventsLib.ReallocateToIdle(allocator, mockAdapter, assetsOut, ids);
+        vault.reallocateToIdle(mockAdapter, data, assetsOut);
+        assertEq(underlyingToken.balanceOf(address(vault)), assetsOut, "Vault balance incorrect after reallocation");
         assertEq(
-            underlyingToken.balanceOf(mockAdapter), amountIn - amountOut, "Adapter balance incorrect after reallocation"
+            underlyingToken.balanceOf(mockAdapter), assetsIn - assetsOut, "Adapter balance incorrect after reallocation"
         );
-        assertEq(vault.allocation(keccak256("id-0")), amountIn - amountOut, "Allocation incorrect after reallocation");
-        assertEq(vault.allocation(keccak256("id-1")), amountIn - amountOut, "Allocation incorrect after reallocation");
+        assertEq(vault.allocation(keccak256("id-0")), assetsIn - assetsOut, "Allocation incorrect after reallocation");
+        assertEq(vault.allocation(keccak256("id-1")), assetsIn - assetsOut, "Allocation incorrect after reallocation");
         assertEq(MockAdapter(mockAdapter).recordedData(), data, "Data incorrect after reallocation");
-        assertEq(MockAdapter(mockAdapter).recordedAmount(), amountOut, "Amount incorrect after reallocation");
+        assertEq(MockAdapter(mockAdapter).recordedAssets(), assetsOut, "Assets incorrect after reallocation");
     }
 }

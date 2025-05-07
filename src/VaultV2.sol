@@ -234,15 +234,15 @@ contract VaultV2 is IVaultV2 {
 
     /* ALLOCATOR ACTIONS */
 
-    function reallocateFromIdle(address adapter, bytes memory data, uint256 amount) external {
+    function reallocateFromIdle(address adapter, bytes memory data, uint256 assets) external {
         require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        SafeERC20Lib.safeTransfer(asset, adapter, amount);
-        bytes32[] memory ids = IAdapter(adapter).reallocateFromAdapter(data, amount);
+        SafeERC20Lib.safeTransfer(asset, adapter, assets);
+        bytes32[] memory ids = IAdapter(adapter).reallocateFromAdapter(data, assets);
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] += amount;
+            allocation[ids[i]] += assets;
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
             if (relativeCap[ids[i]] != 0) {
@@ -252,23 +252,23 @@ contract VaultV2 is IVaultV2 {
                 );
             }
         }
-        emit EventsLib.ReallocateFromIdle(msg.sender, adapter, amount, ids);
+        emit EventsLib.ReallocateFromIdle(msg.sender, adapter, assets, ids);
     }
 
-    function reallocateToIdle(address adapter, bytes memory data, uint256 amount) external {
+    function reallocateToIdle(address adapter, bytes memory data, uint256 assets) external {
         require(
             isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        bytes32[] memory ids = IAdapter(adapter).reallocateToAdapter(data, amount);
+        bytes32[] memory ids = IAdapter(adapter).reallocateToAdapter(data, assets);
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(amount);
+            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(assets);
         }
 
-        SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), amount);
-        emit EventsLib.ReallocateToIdle(msg.sender, adapter, amount, ids);
+        SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
+        emit EventsLib.ReallocateToIdle(msg.sender, adapter, assets, ids);
     }
 
     function setLiquidityAdapter(address newLiquidityAdapter) external {
@@ -460,67 +460,67 @@ contract VaultV2 is IVaultV2 {
 
     /* ERC20 */
 
-    function transfer(address to, uint256 amount) external returns (bool) {
+    function transfer(address to, uint256 shares) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
-        balanceOf[msg.sender] -= amount;
-        balanceOf[to] += amount;
-        emit EventsLib.Transfer(msg.sender, to, amount);
+        balanceOf[msg.sender] -= shares;
+        balanceOf[to] += shares;
+        emit EventsLib.Transfer(msg.sender, to, shares);
         return true;
     }
 
-    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+    function transferFrom(address from, address to, uint256 shares) external returns (bool) {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
 
         if (msg.sender != from) {
             uint256 _allowance = allowance[from][msg.sender];
-            if (_allowance != type(uint256).max) allowance[from][msg.sender] = _allowance - amount;
+            if (_allowance != type(uint256).max) allowance[from][msg.sender] = _allowance - shares;
         }
 
-        balanceOf[from] -= amount;
-        balanceOf[to] += amount;
-        emit EventsLib.Transfer(from, to, amount);
-        emit EventsLib.TransferFrom(msg.sender, from, to, amount);
+        balanceOf[from] -= shares;
+        balanceOf[to] += shares;
+        emit EventsLib.Transfer(from, to, shares);
+        emit EventsLib.TransferFrom(msg.sender, from, to, shares);
         return true;
     }
 
-    function approve(address spender, uint256 amount) external returns (bool) {
-        allowance[msg.sender][spender] = amount;
-        emit EventsLib.Approval(msg.sender, spender, amount);
+    function approve(address spender, uint256 shares) external returns (bool) {
+        allowance[msg.sender][spender] = shares;
+        emit EventsLib.Approval(msg.sender, spender, shares);
         return true;
     }
 
-    function permit(address _owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+    function permit(address _owner, address spender, uint256 shares, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         external
     {
         require(deadline >= block.timestamp, ErrorsLib.PermitDeadlineExpired());
 
         uint256 nonce = nonces[_owner]++;
-        bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonce, deadline));
+        bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, shares, nonce, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
         address recoveredAddress = ecrecover(digest, v, r, s);
         require(recoveredAddress != address(0) && recoveredAddress == _owner, ErrorsLib.InvalidSigner());
 
-        allowance[_owner][spender] = value;
-        emit EventsLib.Approval(_owner, spender, value);
-        emit EventsLib.Permit(_owner, spender, value, nonce, deadline);
+        allowance[_owner][spender] = shares;
+        emit EventsLib.Approval(_owner, spender, shares);
+        emit EventsLib.Permit(_owner, spender, shares, nonce, deadline);
     }
 
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
         return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
     }
 
-    function createShares(address to, uint256 amount) internal {
+    function createShares(address to, uint256 shares) internal {
         require(to != address(0), ErrorsLib.ZeroAddress());
-        balanceOf[to] += amount;
-        totalSupply += amount;
-        emit EventsLib.Transfer(address(0), to, amount);
+        balanceOf[to] += shares;
+        totalSupply += shares;
+        emit EventsLib.Transfer(address(0), to, shares);
     }
 
-    function deleteShares(address from, uint256 amount) internal {
+    function deleteShares(address from, uint256 shares) internal {
         require(from != address(0), ErrorsLib.ZeroAddress());
-        balanceOf[from] -= amount;
-        totalSupply -= amount;
-        emit EventsLib.Transfer(from, address(0), amount);
+        balanceOf[from] -= shares;
+        totalSupply -= shares;
+        emit EventsLib.Transfer(from, address(0), shares);
     }
 }
