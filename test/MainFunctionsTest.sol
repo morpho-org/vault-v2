@@ -4,8 +4,7 @@ pragma solidity ^0.8.0;
 import "./BaseTest.sol";
 
 contract MainFunctionsTest is BaseTest {
-    uint256 internal constant MIN_TEST_AMOUNT = 1e6;
-    uint256 internal constant MAX_TEST_AMOUNT = 1e24;
+    uint256 internal constant MAX_TEST_AMOUNT = 1e36;
     uint256 internal constant INITIAL_DEPOSIT = 1e18;
 
     uint256 internal initialSharesDeposit;
@@ -27,7 +26,7 @@ contract MainFunctionsTest is BaseTest {
 
     function testMint(uint256 shares, address receiver) public {
         vm.assume(receiver != address(0));
-        shares = bound(shares, MIN_TEST_AMOUNT, MAX_TEST_AMOUNT);
+        shares = bound(shares, 0, MAX_TEST_AMOUNT);
 
         uint256 assets = vault.previewMint(shares);
         deal(address(underlyingToken), address(this), assets, true);
@@ -47,7 +46,7 @@ contract MainFunctionsTest is BaseTest {
 
     function testDeposit(uint256 assets, address receiver) public {
         vm.assume(receiver != address(0));
-        assets = bound(assets, MIN_TEST_AMOUNT, MAX_TEST_AMOUNT);
+        assets = bound(assets, 0, MAX_TEST_AMOUNT);
 
         uint256 shares = vault.previewDeposit(assets);
         deal(address(underlyingToken), address(this), assets, true);
