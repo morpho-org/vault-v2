@@ -43,8 +43,9 @@ contract BaseTest is Test {
         vault = IVaultV2(vaultFactory.createVaultV2(owner, address(underlyingToken), bytes32(0)));
         vm.label(address(vault), "vault");
         interestControllerFactory = IManualInterestControllerFactory(address(new ManualInterestControllerFactory()));
-        interestController =
-            ManualInterestController(interestControllerFactory.createManualInterestController(address(vault), bytes32(0)));
+        interestController = ManualInterestController(
+            interestControllerFactory.createManualInterestController(address(vault), bytes32(0))
+        );
         vm.label(address(interestController), "InterestController");
 
         vm.startPrank(owner);
