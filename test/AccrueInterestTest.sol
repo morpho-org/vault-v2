@@ -8,7 +8,7 @@ contract AccrueInterestTest is BaseTest {
 
     address performanceFeeRecipient = makeAddr("performanceFeeRecipient");
     address managementFeeRecipient = makeAddr("managementFeeRecipient");
-    uint256 constant MAX_DEPOSIT = 1e18 ether;
+    uint256 constant MAX_TEST_AMOUNT = 1e36;
 
     function setUp() public override {
         super.setUp();
@@ -32,7 +32,7 @@ contract AccrueInterestTest is BaseTest {
         uint256 interestPerSecond,
         uint256 elapsed
     ) public {
-        deposit = bound(deposit, 0, MAX_DEPOSIT);
+        deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
@@ -69,7 +69,7 @@ contract AccrueInterestTest is BaseTest {
     ) public {
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
-        deposit = bound(deposit, 0, MAX_DEPOSIT);
+        deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
         elapsed = bound(elapsed, 1, 20 * 365 days);
 
@@ -116,7 +116,7 @@ contract AccrueInterestTest is BaseTest {
         uint256 elapsed
     ) public {
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
-        deposit = bound(deposit, 0, MAX_DEPOSIT);
+        deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
         elapsed = bound(elapsed, 0, 1000 weeks);
 
@@ -149,7 +149,7 @@ contract AccrueInterestTest is BaseTest {
         uint256 elapsed
     ) public {
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
-        deposit = bound(deposit, 0, MAX_DEPOSIT);
+        deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
         elapsed = bound(elapsed, 0, 20 * 365 days);
 

@@ -10,7 +10,7 @@ import {stdStorage, StdStorage} from "forge-std/Test.sol";
 contract ERC20Test is BaseTest {
     using stdStorage for StdStorage;
 
-    uint256 constant MAX_DEPOSIT = 1e18 ether;
+    uint256 constant MAX_TEST_AMOUNT = 1e36;
 
     struct PermitInfo {
         uint256 privateKey;
@@ -51,7 +51,7 @@ contract ERC20Test is BaseTest {
     }
 
     function testCreateShares(uint256 amount) public {
-        vm.assume(amount <= MAX_DEPOSIT);
+        vm.assume(amount <= MAX_TEST_AMOUNT);
 
         vm.expectEmit();
         emit EventsLib.Transfer(address(0), address(this), amount);
@@ -67,7 +67,7 @@ contract ERC20Test is BaseTest {
     }
 
     function testDeleteShares(uint256 amount, uint256 amountRedeemed) public {
-        vm.assume(amount <= MAX_DEPOSIT);
+        vm.assume(amount <= MAX_TEST_AMOUNT);
         amountRedeemed = bound(amountRedeemed, 0, amount);
 
         vault.mint(amount, address(this));
@@ -86,7 +86,7 @@ contract ERC20Test is BaseTest {
     }
 
     function testApprove(address spender, uint256 amount) public {
-        vm.assume(amount <= MAX_DEPOSIT);
+        vm.assume(amount <= MAX_TEST_AMOUNT);
         vm.expectEmit();
         emit EventsLib.Approval(address(this), address(spender), amount);
 
@@ -95,7 +95,7 @@ contract ERC20Test is BaseTest {
     }
 
     function testTransfer(address to, uint256 amount, uint256 amountTransferred) public {
-        vm.assume(amount <= MAX_DEPOSIT);
+        vm.assume(amount <= MAX_TEST_AMOUNT);
         vm.assume(to != address(0));
         amountTransferred = bound(amountTransferred, 0, amount);
 
@@ -128,7 +128,7 @@ contract ERC20Test is BaseTest {
         uint256 amountTransferred,
         uint256 amountApproved
     ) public {
-        vm.assume(amount <= MAX_DEPOSIT);
+        vm.assume(amount <= MAX_TEST_AMOUNT);
         amountApproved = bound(amountApproved, 0, amount);
         amountTransferred = bound(amountTransferred, 0, amountApproved);
 
@@ -177,7 +177,7 @@ contract ERC20Test is BaseTest {
     function testInfiniteApproveTransferFrom(address from, address to, uint256 amount, uint256 amountTransferred)
         public
     {
-        vm.assume(amount <= MAX_DEPOSIT);
+        vm.assume(amount <= MAX_TEST_AMOUNT);
         amountTransferred = bound(amountTransferred, 0, amount);
 
         vm.assume(from != address(0));
