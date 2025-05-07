@@ -3,43 +3,34 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 import {VaultV2AddressLib} from "../src/libraries/periphery/VaultV2AddressLib.sol";
-import {
-    ManualInterestControllerFactory,
-    ManualInterestController
-} from "../src/interest-controllers/ManualInterestControllerFactory.sol";
-import {IInterestController} from "../src/interfaces/IInterestController.sol";
+import {ManualInterestControllerAddressLib} from
+    "../src/interest-controllers/libraries/periphery/ManualInterestControllerAddressLib.sol";
 
 contract FactoryTest is BaseTest {
-    function testCreateVaultV2(address _owner, address _asset, bytes32 _salt) public {
+    function testCreateVaultV2(address _owner, address asset, bytes32 salt) public {
         address expectedVaultAddress =
-            VaultV2AddressLib.computeVaultV2Address(address(vaultFactory), _owner, _asset, _salt);
+            VaultV2AddressLib.computeVaultV2Address(address(vaultFactory), _owner, asset, salt);
         vm.expectEmit();
-        emit EventsLib.CreateVaultV2(expectedVaultAddress, _owner, _asset);
-        IVaultV2 vault = IVaultV2(vaultFactory.createVaultV2(_owner, _asset, _salt));
-        assertEq(address(vault), expectedVaultAddress);
-        assertTrue(vaultFactory.isVaultV2(address(vault)));
-        assertEq(vault.owner(), _owner);
-        assertEq(vault.asset(), _asset);
-    }
-
-    function testCreateVaultV2Event(address _owner, address _asset, bytes32 _salt) public {
+        emit EventsLib.Construction(_owner, asset);
         vm.expectEmit();
-        emit EventsLib.Construction(_owner, _asset);
-        vaultFactory.createVaultV2(_owner, _asset, _salt);
+        emit EventsLib.CreateVaultV2(expectedVaultAddress, _owner, asset);
+        IVaultV2 newVault = IVaultV2(vaultFactory.createVaultV2(_owner, asset, salt));
+        assertEq(address(newVault), expectedVaultAddress);
+        assertTrue(vaultFactory.isVaultV2(address(newVault)));
+        assertEq(newVault.owner(), _owner);
+        assertEq(newVault.asset(), asset);
     }
 
     function testCreateManualInterestController(address vault, bytes32 salt) public {
-        ManualInterestControllerFactory manualInterestControllerFactory = new ManualInterestControllerFactory();
-
-        bytes32 initCodeHash =
-            keccak256(abi.encodePacked(type(ManualInterestController).creationCode, abi.encode(vault)));
-        address expectedAddress = vm.computeCreate2Address(salt, initCodeHash, address(manualInterestControllerFactory));
+        address expectedManualInterestControllerAddress = ManualInterestControllerAddressLib
+            .computeManualInterestControllerAddress(address(interestControllerFactory), vault, salt);
         vm.expectEmit();
-        emit ManualInterestControllerFactory.CreateManualInterestController(expectedAddress, vault);
-        ManualInterestController manualInterestController =
-            ManualInterestController(manualInterestControllerFactory.createManualInterestController(vault, salt));
-        assertEq(address(manualInterestController), expectedAddress);
-        assertTrue(manualInterestControllerFactory.isManualInterestController(address(manualInterestController)));
-        assertEq(manualInterestController.vault(), address(vault));
+        emit ManualInterestControllerFactory.CreateManualInterestController(
+            expectedManualInterestControllerAddress, vault
+        );
+        address newInterestController = interestControllerFactory.createManualInterestController(vault, salt);
+        assertEq(newInterestController, expectedManualInterestControllerAddress);
+        assertTrue(interestControllerFactory.isManualInterestController(newInterestController));
+        assertEq(ManualInterestController(newInterestController).vault(), vault);
     }
 }
