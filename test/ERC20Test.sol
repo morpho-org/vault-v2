@@ -10,7 +10,7 @@ import {stdStorage, StdStorage} from "forge-std/Test.sol";
 contract ERC20Test is BaseTest {
     using stdStorage for StdStorage;
 
-    uint256 constant MAX_MINT = 1e18 ether;
+    uint256 constant MAX_TEST_SHARES = 1e36;
 
     struct PermitInfo {
         uint256 privateKey;
@@ -50,8 +50,8 @@ contract ERC20Test is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
     }
 
-    function testMint(uint256 shares) public {
-        vm.assume(shares <= MAX_MINT);
+    function testCreateShares(uint256 shares) public {
+        vm.assume(shares <= MAX_TEST_SHARES);
 
         vm.expectEmit();
         emit EventsLib.Transfer(address(0), address(this), shares);
@@ -61,13 +61,13 @@ contract ERC20Test is BaseTest {
         assertEq(vault.balanceOf(address(this)), shares, "balance");
     }
 
-    function testMintZeroAddress(uint256 shares) public {
+    function testCreateSharesZeroAddress(uint256 shares) public {
         vm.expectRevert(ErrorsLib.ZeroAddress.selector);
         vault.mint(shares, address(0));
     }
 
-    function testBurn(uint256 shares, uint256 sharesRedeemed) public {
-        vm.assume(shares <= MAX_MINT);
+    function testDeleteShares(uint256 shares, uint256 sharesRedeemed) public {
+        vm.assume(shares <= MAX_TEST_SHARES);
         sharesRedeemed = bound(sharesRedeemed, 0, shares);
 
         vault.mint(shares, address(this));
@@ -80,13 +80,13 @@ contract ERC20Test is BaseTest {
         assertEq(vault.balanceOf(address(this)), shares - sharesRedeemed, "balance");
     }
 
-    function testBurnZeroAddress() public {
+    function testDeleteSharesZeroAddress() public {
         vm.expectRevert(ErrorsLib.ZeroAddress.selector);
         vault.redeem(0, address(this), address(0));
     }
 
     function testApprove(address spender, uint256 shares) public {
-        vm.assume(shares <= MAX_MINT);
+        vm.assume(shares <= MAX_TEST_SHARES);
         vm.expectEmit();
         emit EventsLib.Approval(address(this), address(spender), shares);
 
@@ -95,7 +95,7 @@ contract ERC20Test is BaseTest {
     }
 
     function testTransfer(address to, uint256 shares, uint256 sharesTransferred) public {
-        vm.assume(shares <= MAX_MINT);
+        vm.assume(shares <= MAX_TEST_SHARES);
         vm.assume(to != address(0));
         sharesTransferred = bound(sharesTransferred, 0, shares);
 
@@ -128,7 +128,7 @@ contract ERC20Test is BaseTest {
         uint256 sharesTransferred,
         uint256 sharesApproved
     ) public {
-        vm.assume(shares <= MAX_MINT);
+        vm.assume(shares <= MAX_TEST_SHARES);
         sharesApproved = bound(sharesApproved, 0, shares);
         sharesTransferred = bound(sharesTransferred, 0, sharesApproved);
 
@@ -177,7 +177,7 @@ contract ERC20Test is BaseTest {
     function testInfiniteApproveTransferFrom(address from, address to, uint256 shares, uint256 sharesTransferred)
         public
     {
-        vm.assume(shares <= MAX_MINT);
+        vm.assume(shares <= MAX_TEST_SHARES);
         sharesTransferred = bound(sharesTransferred, 0, shares);
 
         vm.assume(from != address(0));
@@ -200,7 +200,7 @@ contract ERC20Test is BaseTest {
         }
     }
 
-    function testMintOverMaxUintReverts() public {
+    function testCreateSharesOverMaxUintReverts() public {
         vault.mint(type(uint256).max, address(this));
         vm.expectRevert(stdError.arithmeticError);
         vault.mint(1, address(this));
@@ -242,14 +242,16 @@ contract ERC20Test is BaseTest {
         vault.transferFrom(from, to, allowance);
     }
 
-    function testBurnInsufficientBalanceReverts(address to, uint256 mintShares, uint256 burnShares) public {
+    function testDeleteSharesInsufficientBalanceReverts(address to, uint256 createShares, uint256 deletedShares)
+        public
+    {
         vm.assume(to != address(0));
-        mintShares = bound(mintShares, 0, type(uint256).max - 1);
-        burnShares = _bound(burnShares, mintShares + 1, type(uint256).max);
+        createShares = bound(createShares, 0, type(uint256).max - 1);
+        deletedShares = _bound(deletedShares, createShares + 1, type(uint256).max);
 
-        vault.mint(mintShares, to);
+        vault.mint(createShares, to);
         vm.expectRevert(stdError.arithmeticError);
-        vault.redeem(burnShares, to, to);
+        vault.redeem(deletedShares, to, to);
     }
 
     function testPermitOK(PermitInfo calldata p, address to, uint256 shares) public {

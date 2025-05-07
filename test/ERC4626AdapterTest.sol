@@ -21,8 +21,7 @@ contract ERC4626AdapterTest is Test {
     address internal owner;
     address internal recipient;
 
-    uint256 internal constant MIN_TEST_ASSETS = 1e6;
-    uint256 internal constant MAX_TEST_ASSETS = 1e24;
+    uint256 internal constant MAX_TEST_ASSETS = 1e36;
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -37,29 +36,25 @@ contract ERC4626AdapterTest is Test {
         adapter = ERC4626Adapter(factory.createERC4626Adapter(address(parentVault), address(vault)));
     }
 
-    function _boundAssets(uint256 assets) internal pure returns (uint256) {
-        return bound(assets, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
-    }
-
     function testParentVaultAndAssetSet() public view {
         assertEq(adapter.parentVault(), address(parentVault), "Incorrect parent vault set");
         assertEq(adapter.vault(), address(vault), "Incorrect vault set");
     }
 
     function testAllocateInNotAuthorizedReverts(uint256 assets) public {
-        assets = _boundAssets(assets);
+        assets = bound(assets, 0, MAX_TEST_ASSETS);
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
         adapter.allocateIn(hex"", assets);
     }
 
     function testAllocateOutNotAuthorizedReverts(uint256 assets) public {
-        assets = _boundAssets(assets);
+        assets = bound(assets, 0, MAX_TEST_ASSETS);
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
         adapter.allocateOut(hex"", assets);
     }
 
     function testAllocateInDepositsAssetsToERC4626Vault(uint256 assets) public {
-        assets = _boundAssets(assets);
+        assets = bound(assets, 0, MAX_TEST_ASSETS);
         deal(address(asset), address(adapter), assets);
 
         vm.prank(address(parentVault));
@@ -76,7 +71,7 @@ contract ERC4626AdapterTest is Test {
     }
 
     function testAllocateOutWithdrawsAssetsFromERC4626Vault(uint256 initialAssets, uint256 withdrawAssets) public {
-        initialAssets = _boundAssets(initialAssets);
+        initialAssets = bound(initialAssets, 0, MAX_TEST_ASSETS);
         withdrawAssets = bound(withdrawAssets, 0, initialAssets);
 
         deal(address(asset), address(adapter), initialAssets);
@@ -143,7 +138,7 @@ contract ERC4626AdapterTest is Test {
     }
 
     function testSkim(uint256 assets) public {
-        assets = _boundAssets(assets);
+        assets = bound(assets, 0, MAX_TEST_ASSETS);
 
         ERC20Mock token = new ERC20Mock();
 
