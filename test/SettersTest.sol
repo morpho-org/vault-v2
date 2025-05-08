@@ -677,7 +677,7 @@ contract SettersTest is BaseTest {
 }
 
 contract BasicAdapter {
-    function allocateIn(bytes memory, uint256) external pure returns (bytes32[] memory) {
+    function allocate(bytes memory, uint256) external pure returns (bytes32[] memory) {
         bytes32[] memory ids = new bytes32[](1);
         ids[0] = keccak256("id");
         return ids;

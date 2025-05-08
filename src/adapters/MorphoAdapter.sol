@@ -52,7 +52,7 @@ contract MorphoAdapter is IAdapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    function allocateIn(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
@@ -60,7 +60,7 @@ contract MorphoAdapter is IAdapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    function allocateOut(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));

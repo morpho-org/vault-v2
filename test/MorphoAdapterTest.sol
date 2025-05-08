@@ -73,24 +73,24 @@ contract MorphoAdapterTest is Test {
         assertEq(adapter.morpho(), address(morpho), "Incorrect morpho set");
     }
 
-    function testAllocateInNotAuthorizedReverts(uint256 assets) public {
+    function testAllocateNotAuthorizedReverts(uint256 assets) public {
         assets = _boundsAssets(assets);
         vm.expectRevert(MorphoAdapter.NotAuthorized.selector);
-        adapter.allocateIn(abi.encode(marketParams), assets);
+        adapter.allocate(abi.encode(marketParams), assets);
     }
 
-    function testAllocateOutNotAuthorizedReverts(uint256 assets) public {
+    function testDeallocateNotAuthorizedReverts(uint256 assets) public {
         assets = _boundsAssets(assets);
         vm.expectRevert(MorphoAdapter.NotAuthorized.selector);
-        adapter.allocateOut(abi.encode(marketParams), assets);
+        adapter.deallocate(abi.encode(marketParams), assets);
     }
 
-    function testAllocateInSuppliesAssetsToMorpho(uint256 assets) public {
+    function testAllocateSuppliesAssetsToMorpho(uint256 assets) public {
         assets = _boundsAssets(assets);
         deal(address(loanToken), address(adapter), assets);
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.allocateIn(abi.encode(marketParams), assets);
+        bytes32[] memory ids = adapter.allocate(abi.encode(marketParams), assets);
 
         uint256 supplied = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(supplied, assets, "Incorrect supplied assets in Morpho");
@@ -104,19 +104,19 @@ contract MorphoAdapterTest is Test {
         assertEq(ids[0], expectedId, "Incorrect id returned");
     }
 
-    function testAllocateOutWithdrawsAssetsFromMorpho(uint256 initialAssets, uint256 withdrawAssets) public {
+    function testAllocateWithdrawsAssetsFromMorpho(uint256 initialAssets, uint256 withdrawAssets) public {
         initialAssets = _boundsAssets(initialAssets);
         withdrawAssets = bound(withdrawAssets, 1, initialAssets);
 
         deal(address(loanToken), address(adapter), initialAssets);
         vm.prank(address(parentVault));
-        adapter.allocateIn(abi.encode(marketParams), initialAssets);
+        adapter.allocate(abi.encode(marketParams), initialAssets);
 
         uint256 beforeSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(beforeSupply, initialAssets, "Precondition failed: supply not set");
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.allocateOut(abi.encode(marketParams), withdrawAssets);
+        bytes32[] memory ids = adapter.deallocate(abi.encode(marketParams), withdrawAssets);
 
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
