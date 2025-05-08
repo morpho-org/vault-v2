@@ -2,11 +2,11 @@
 pragma solidity ^0.8.0;
 
 library EventsLib {
-    event Transfer(address indexed from, address indexed to, uint256 amount);
-    event TransferFrom(address indexed sender, address indexed from, address indexed to, uint256 amount);
-    event Approval(address indexed owner, address indexed spender, uint256 amount);
-    event Permit(address indexed owner, address indexed spender, uint256 amount, uint256 nonce, uint256 deadline);
-    event Construction(address indexed owner, address indexed asset);
+    event Constructor(address indexed owner, address indexed asset);
+    event Transfer(address indexed from, address indexed to, uint256 shares);
+    event AllowanceUpdatedByTransferFrom(address indexed owner, address indexed spender, uint256 shares);
+    event Approval(address indexed owner, address indexed spender, uint256 shares);
+    event Permit(address indexed owner, address indexed spender, uint256 shares, uint256 nonce, uint256 deadline);
     event SetOwner(address indexed owner);
     event SetCurator(address indexed curator);
     event SetInterestController(address indexed interestController);
@@ -24,8 +24,8 @@ library EventsLib {
     event IncreaseRelativeCap(bytes32 indexed id, uint256 newRelativeCap);
     event DecreaseRelativeCap(bytes32 indexed id, uint256 newRelativeCap);
     event SetForceReallocateToIdlePenalty(uint256 forceReallocateToIdleFee);
-    event ReallocateFromIdle(address indexed sender, address indexed adapter, uint256 amount, bytes32[] ids);
-    event ReallocateToIdle(address indexed sender, address indexed adapter, uint256 amount, bytes32[] ids);
+    event ReallocateFromIdle(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids);
+    event ReallocateToIdle(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids);
     event SetLiquidityAdapter(address indexed sender, address indexed liquidityAdapter);
     event SetLiquidityData(address indexed sender, bytes indexed data);
     event Deposit(address indexed sender, address indexed onBehalf, uint256 assets, uint256 shares);
@@ -34,8 +34,10 @@ library EventsLib {
     );
     event Submit(address indexed sender, bytes4 indexed selector, bytes data, uint256 validAt);
     event Revoke(address indexed sender, bytes4 indexed selector, bytes data);
-    event AccrueInterest(uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares);
+    event AccrueInterest(
+        uint256 previousTotalAssets, uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares
+    );
     event ForceReallocateToIdle(address indexed sender, address indexed onBehalf, uint256 assets);
-    event CreateVaultV2(address indexed vaultV2, address indexed owner, address indexed asset);
+    event CreateVaultV2(address indexed vaultV2, address indexed asset);
     event SetInterestPerSecond(uint256 interestPerSecond);
 }
