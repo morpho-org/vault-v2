@@ -41,19 +41,19 @@ contract ERC4626AdapterTest is Test {
         assertEq(adapter.vault(), address(vault), "Incorrect vault set");
     }
 
-    function testallocateNotAuthorizedReverts(uint256 assets) public {
+    function testAllocateNotAuthorizedReverts(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
         adapter.allocate(hex"", assets);
     }
 
-    function testdeallocateNotAuthorizedReverts(uint256 assets) public {
+    function testDeallocateNotAuthorizedReverts(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
         adapter.deallocate(hex"", assets);
     }
 
-    function testallocateDepositsAssetsToERC4626Vault(uint256 assets) public {
+    function testAllocateDepositsAssetsToERC4626Vault(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
         deal(address(asset), address(adapter), assets);
 
@@ -70,7 +70,7 @@ contract ERC4626AdapterTest is Test {
         assertEq(ids[0], expectedId, "Incorrect id returned");
     }
 
-    function testdeallocateWithdrawsAssetsFromERC4626Vault(uint256 initialAssets, uint256 withdrawAssets) public {
+    function testDeallocateWithdrawsAssetsFromERC4626Vault(uint256 initialAssets, uint256 withdrawAssets) public {
         initialAssets = bound(initialAssets, 0, MAX_TEST_ASSETS);
         withdrawAssets = bound(withdrawAssets, 0, initialAssets);
 

@@ -73,19 +73,19 @@ contract MorphoAdapterTest is Test {
         assertEq(adapter.morpho(), address(morpho), "Incorrect morpho set");
     }
 
-    function testallocateNotAuthorizedReverts(uint256 assets) public {
+    function testAllocateNotAuthorizedReverts(uint256 assets) public {
         assets = _boundsAssets(assets);
         vm.expectRevert(MorphoAdapter.NotAuthorized.selector);
         adapter.allocate(abi.encode(marketParams), assets);
     }
 
-    function testdeallocateNotAuthorizedReverts(uint256 assets) public {
+    function testDeallocateNotAuthorizedReverts(uint256 assets) public {
         assets = _boundsAssets(assets);
         vm.expectRevert(MorphoAdapter.NotAuthorized.selector);
         adapter.deallocate(abi.encode(marketParams), assets);
     }
 
-    function testallocateSuppliesAssetsToMorpho(uint256 assets) public {
+    function testAllocateSuppliesAssetsToMorpho(uint256 assets) public {
         assets = _boundsAssets(assets);
         deal(address(loanToken), address(adapter), assets);
 
@@ -104,7 +104,7 @@ contract MorphoAdapterTest is Test {
         assertEq(ids[0], expectedId, "Incorrect id returned");
     }
 
-    function testallocateWithdrawsAssetsFromMorpho(uint256 initialAssets, uint256 withdrawAssets) public {
+    function testAllocateWithdrawsAssetsFromMorpho(uint256 initialAssets, uint256 withdrawAssets) public {
         initialAssets = _boundsAssets(initialAssets);
         withdrawAssets = bound(withdrawAssets, 1, initialAssets);
 
