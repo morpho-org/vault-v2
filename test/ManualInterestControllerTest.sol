@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 import "../lib/forge-std/src/Test.sol";
 import "../src/interest-controllers/ManualInterestController.sol";
-import "../src/libraries/ErrorsLib.sol";
 import "./mocks/VaultV2Mock.sol";
 
 contract ManualInterestControllerTest is Test {
@@ -32,7 +31,7 @@ contract ManualInterestControllerTest is Test {
 
         // Access control.
         vm.prank(rdm);
-        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.expectRevert(ManualInterestController.Unauthorized.selector);
         manualInterestController.increaseMaxInterestPerSecond(newMaxInterestPerSecond);
 
         // Normal path.
@@ -52,10 +51,19 @@ contract ManualInterestControllerTest is Test {
 
         // Access control.
         vm.prank(rdm);
-        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.expectRevert(ManualInterestController.Unauthorized.selector);
+        manualInterestController.decreaseMaxInterestPerSecond(newMaxInterestPerSecond);
+
+        // Interest per second too high.
+        vm.prank(allocator);
+        manualInterestController.setInterestPerSecond(newMaxInterestPerSecond + 1);
+        vm.prank(curator);
+        vm.expectRevert(ManualInterestController.InterestPerSecondTooHigh.selector);
         manualInterestController.decreaseMaxInterestPerSecond(newMaxInterestPerSecond);
 
         // Normal path.
+        vm.prank(allocator);
+        manualInterestController.setInterestPerSecond(0);
         vm.prank(curator);
         vm.expectEmit();
         emit ManualInterestController.DecreaseMaxInterestPerSecond(curator, newMaxInterestPerSecond);
@@ -71,7 +79,7 @@ contract ManualInterestControllerTest is Test {
 
         // Access control.
         vm.prank(rdm);
-        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.expectRevert(ManualInterestController.Unauthorized.selector);
         manualInterestController.setInterestPerSecond(newInterestPerSecond);
 
         // Normal path.

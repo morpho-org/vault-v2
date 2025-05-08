@@ -43,6 +43,7 @@ contract ManualInterestController is IInterestController {
     function decreaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond) public {
         require(msg.sender == IVaultV2(vault).curator() || IVaultV2(vault).isSentinel(msg.sender), Unauthorized());
         require(newMaxInterestPerSecond <= maxInterestPerSecond, NotDecreasing());
+        require(_interestPerSecond <= newMaxInterestPerSecond, InterestPerSecondTooHigh());
         maxInterestPerSecond = newMaxInterestPerSecond;
         emit DecreaseMaxInterestPerSecond(msg.sender, maxInterestPerSecond);
     }
