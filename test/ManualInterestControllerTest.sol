@@ -19,8 +19,6 @@ contract ManualInterestControllerTest is Test {
         sentinel = makeAddr("sentinel");
         vault = IVaultV2(address(new VaultV2Mock(address(0), address(0), curator, allocator, sentinel)));
         manualInterestController = new ManualInterestController(address(vault));
-        vm.prank(curator);
-        manualInterestController.setMaxInterestPerSecond(type(uint256).max);
     }
 
     function testConstructor(address _vault) public {
@@ -28,25 +26,48 @@ contract ManualInterestControllerTest is Test {
         assertEq(manualInterestController.vault(), _vault);
     }
 
-    function testSetMaxInterestPerSecond(address rdm, uint256 newMaxInterestPerSecond) public {
+    function testIncreaseMaxInterestPerSecond(address rdm, uint256 newMaxInterestPerSecond) public {
         vm.assume(rdm != curator);
         vm.assume(newMaxInterestPerSecond == 0);
 
         // Access control.
         vm.prank(rdm);
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
-        manualInterestController.setMaxInterestPerSecond(newMaxInterestPerSecond);
+        manualInterestController.increaseMaxInterestPerSecond(newMaxInterestPerSecond);
 
         // Normal path.
         vm.prank(curator);
         vm.expectEmit();
-        emit ManualInterestController.SetMaxInterestPerSecond(newMaxInterestPerSecond);
-        manualInterestController.setMaxInterestPerSecond(newMaxInterestPerSecond);
+        emit ManualInterestController.IncreaseMaxInterestPerSecond(newMaxInterestPerSecond);
+        manualInterestController.increaseMaxInterestPerSecond(newMaxInterestPerSecond);
+        assertEq(manualInterestController.maxInterestPerSecond(), newMaxInterestPerSecond);
+    }
+
+    function testDecreaseMaxInterestPerSecond(address rdm, uint256 newMaxInterestPerSecond) public {
+        vm.assume(rdm != curator && rdm != sentinel);
+        vm.assume(newMaxInterestPerSecond == 0);
+
+        vm.prank(curator);
+        manualInterestController.increaseMaxInterestPerSecond(type(uint256).max);
+
+        // Access control.
+        vm.prank(rdm);
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        manualInterestController.decreaseMaxInterestPerSecond(newMaxInterestPerSecond);
+
+        // Normal path.
+        vm.prank(curator);
+        vm.expectEmit();
+        emit ManualInterestController.DecreaseMaxInterestPerSecond(curator, newMaxInterestPerSecond);
+        manualInterestController.decreaseMaxInterestPerSecond(newMaxInterestPerSecond);
         assertEq(manualInterestController.maxInterestPerSecond(), newMaxInterestPerSecond);
     }
 
     function testSetInterestPerSecond(address rdm, uint256 newInterestPerSecond) public {
         vm.assume(rdm != allocator && rdm != sentinel);
+
+        vm.prank(curator);
+        manualInterestController.increaseMaxInterestPerSecond(type(uint256).max);
 
         // Access control.
         vm.prank(rdm);

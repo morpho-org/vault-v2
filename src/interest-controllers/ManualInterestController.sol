@@ -17,12 +17,15 @@ contract ManualInterestController is IInterestController {
     /* EVENTS */
 
     event SetInterestPerSecond(address indexed caller, uint256 newInterestPerSecond);
-    event SetMaxInterestPerSecond(uint256 newMaxInterestPerSecond);
+    event IncreaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond);
+    event DecreaseMaxInterestPerSecond(address caller, uint256 newMaxInterestPerSecond);
 
     /* ERRORS */
 
     error Unauthorized();
     error InterestPerSecondTooHigh();
+    error NotIncreasing();
+    error NotDecreasing();
 
     /* FUNCTIONS */
 
@@ -30,10 +33,18 @@ contract ManualInterestController is IInterestController {
         vault = _vault;
     }
 
-    function setMaxInterestPerSecond(uint256 newMaxInterestPerSecond) public {
+    function increaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond) public {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
+        require(newMaxInterestPerSecond >= maxInterestPerSecond, NotIncreasing());
         maxInterestPerSecond = newMaxInterestPerSecond;
-        emit SetMaxInterestPerSecond(newMaxInterestPerSecond);
+        emit IncreaseMaxInterestPerSecond(maxInterestPerSecond);
+    }
+
+    function decreaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond) public {
+        require(msg.sender == IVaultV2(vault).curator() || IVaultV2(vault).isSentinel(msg.sender), Unauthorized());
+        require(newMaxInterestPerSecond <= maxInterestPerSecond, NotDecreasing());
+        maxInterestPerSecond = newMaxInterestPerSecond;
+        emit DecreaseMaxInterestPerSecond(msg.sender, maxInterestPerSecond);
     }
 
     function setInterestPerSecond(uint256 newInterestPerSecond) public {

@@ -54,7 +54,7 @@ contract BaseTest is Test {
         vm.stopPrank();
 
         vm.startPrank(curator);
-        ManualInterestController(interestController).setMaxInterestPerSecond(type(uint256).max);
+        ManualInterestController(interestController).increaseMaxInterestPerSecond(type(uint256).max);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, allocator, true));
         vault.submit(abi.encodeWithSelector(IVaultV2.setInterestController.selector, address(interestController)));
         vm.stopPrank();
