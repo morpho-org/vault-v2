@@ -161,7 +161,7 @@ contract ERC4626AdapterTest is Test {
         adapter.skim(address(token));
 
         // Cant skim vault
-        vm.expectRevert(ERC4626Adapter.CantSkimVault.selector);
+        vm.expectRevert(ERC4626Adapter.CannotSkimVault.selector);
         vm.prank(recipient);
         adapter.skim(address(vault));
     }
