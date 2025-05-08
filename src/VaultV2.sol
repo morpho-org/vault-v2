@@ -326,8 +326,16 @@ contract VaultV2 is IVaultV2 {
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (totalAssets, 0, 0);
-        uint256 interestPerSecond = IInterestController(interestController).interestPerSecond(totalAssets, elapsed);
-        require(interestPerSecond <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
+        uint256 interestPerSecond;
+        try IInterestController(interestController).interestPerSecond(totalAssets, elapsed) returns (
+            uint256 interestPerSecond
+        ) {
+            if (interestPerSecond > totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD)) {
+                interestPerSecond = 0;
+            }
+        } catch {
+            interestPerSecond = 0;
+        }
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssets + interest;
 

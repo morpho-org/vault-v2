@@ -84,12 +84,15 @@ contract AccrueInterestTest is BaseTest {
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
         // Rate too high.
+        uint256 snapshotId = vm.snapshot();
         vm.prank(manager);
         interestController.setInterestPerSecond(deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD) + 1);
-        vm.expectRevert(ErrorsLib.InvalidRate.selector);
+        uint256 totalAssetsBefore = vault.totalAssets();
         vault.accrueInterest();
+        assertEq(vault.totalAssets(), totalAssetsBefore);
 
         // Normal path.
+        vm.revertTo(snapshotId);
         vm.prank(manager);
         interestController.setInterestPerSecond(interestPerSecond);
         uint256 interest = interestPerSecond * elapsed;
