@@ -65,7 +65,7 @@ contract ERC4626AdapterTest is Test {
         assertEq(adapterShares, assets, "Incorrect share balance after deposit");
         assertEq(asset.balanceOf(address(adapter)), 0, "Underlying tokens not transferred to vault");
 
-        bytes32 expectedId = keccak256(abi.encode("vault", address(vault)));
+        bytes32 expectedId = keccak256(abi.encode("adapter", address(adapter)));
         assertEq(ids.length, 1, "Unexpected number of ids returned");
         assertEq(ids[0], expectedId, "Incorrect id returned");
     }
@@ -91,7 +91,7 @@ contract ERC4626AdapterTest is Test {
         uint256 adapterBalance = asset.balanceOf(address(adapter));
         assertEq(adapterBalance, withdrawAssets, "Adapter did not receive withdrawn tokens");
 
-        bytes32 expectedId = keccak256(abi.encode("vault", address(vault)));
+        bytes32 expectedId = keccak256(abi.encode("adapter", address(adapter)));
         assertEq(ids.length, 1, "Unexpected number of ids returned");
         assertEq(ids[0], expectedId, "Incorrect id returned");
     }
@@ -161,7 +161,7 @@ contract ERC4626AdapterTest is Test {
         adapter.skim(address(token));
 
         // Cant skim vault
-        vm.expectRevert(ERC4626Adapter.CantSkimVault.selector);
+        vm.expectRevert(ERC4626Adapter.CannotSkimVault.selector);
         vm.prank(recipient);
         adapter.skim(address(vault));
     }

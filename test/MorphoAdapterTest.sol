@@ -95,13 +95,17 @@ contract MorphoAdapterTest is Test {
         uint256 supplied = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(supplied, assets, "Incorrect supplied assets in Morpho");
 
-        bytes32 expectedId = keccak256(
+        bytes32 expectedId0 = keccak256(abi.encode("adapter", address(adapter)));
+        bytes32 expectedId1 = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
+        bytes32 expectedId2 = keccak256(
             abi.encode(
                 "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
             )
         );
-        assertEq(ids.length, 1, "Unexpected number of ids returned");
-        assertEq(ids[0], expectedId, "Incorrect id returned");
+        assertEq(ids.length, 3, "Unexpected number of ids returned");
+        assertEq(ids[0], expectedId0, "Incorrect id #0 returned");
+        assertEq(ids[1], expectedId1, "Incorrect id #1 returned");
+        assertEq(ids[2], expectedId2, "Incorrect id #2 returned");
     }
 
     function testAllocateWithdrawsAssetsFromMorpho(uint256 initialAssets, uint256 withdrawAssets) public {
@@ -124,13 +128,17 @@ contract MorphoAdapterTest is Test {
         uint256 adapterBalance = loanToken.balanceOf(address(adapter));
         assertEq(adapterBalance, withdrawAssets, "Adapter did not receive withdrawn tokens");
 
-        bytes32 expectedId = keccak256(
+        bytes32 expectedId0 = keccak256(abi.encode("adapter", address(adapter)));
+        bytes32 expectedId1 = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
+        bytes32 expectedId2 = keccak256(
             abi.encode(
                 "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
             )
         );
-        assertEq(ids.length, 1, "Unexpected number of ids returned");
-        assertEq(ids[0], expectedId, "Incorrect id returned");
+        assertEq(ids.length, 3, "Unexpected number of ids returned");
+        assertEq(ids[0], expectedId0, "Incorrect id #0 returned");
+        assertEq(ids[1], expectedId1, "Incorrect id #1 returned");
+        assertEq(ids[2], expectedId2, "Incorrect id #2 returned");
     }
 
     function testFactoryCreateMorphoAdapter() public {
