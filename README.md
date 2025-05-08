@@ -35,7 +35,7 @@ such as the collateral asset or the oracle in the case of a lending market.
 The vault tracks assets allocation across the different IDs.
 Absolute caps and relative caps can be set by the curator for each of the IDs.
 Upon allocation in a market, the allocation is increased and caps are checked.
-On withdrawal, the allocation is decreased without checks.
+Upon deallocation from a market, the allocation is decreased without checks.
 The vault does not enforce any structure or semantics on IDs.
 
 IDs of lending markets for a given `LoanToken` can be defined using a tuple of the form `(CollateralToken, LLTV, Oracle)`.
