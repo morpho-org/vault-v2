@@ -75,6 +75,41 @@ contract ReallocateTest is BaseTest {
         assertEq(vault.absoluteCap(id), absoluteCap);
     }
 
+    function _setRelativeCap(bytes memory idData, uint256 relativeCap) internal {
+        bytes32 id = keccak256(idData);
+        if (relativeCap > vault.relativeCap(id)) {
+            vm.prank(curator);
+            vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, id, relativeCap));
+            vault.increaseRelativeCap(id, relativeCap);
+        } else {
+            vm.prank(curator);
+            vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, id, relativeCap));
+            vault.decreaseRelativeCap(id, relativeCap);
+        }
+        assertEq(vault.relativeCap(id), relativeCap);
+    }
+
+    function testRelativeCapOneAndZeroBehaveDifferently() public {
+        uint assets = 3e18;
+
+        _setAbsoluteCap("id-0",type(uint).max);
+        _setAbsoluteCap("id-1",type(uint).max);
+
+        deal(address(underlyingToken), address(vault), assets);
+
+        uint snapshot = vm.snapshot();
+
+        vm.prank(allocator);
+        vault.reallocateFromIdle(mockAdapter, "", assets);
+
+        vm.revertToAndDelete(snapshot);
+
+        _setRelativeCap("id-0",WAD);
+        vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
+        vm.prank(allocator);
+        vault.reallocateFromIdle(mockAdapter, "", assets);
+    }
+
     function testReallocateFromIdle(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(vault));
