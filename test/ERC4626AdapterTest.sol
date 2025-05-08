@@ -41,24 +41,24 @@ contract ERC4626AdapterTest is Test {
         assertEq(adapter.vault(), address(vault), "Incorrect vault set");
     }
 
-    function testReallocateFromAdapterNotAuthorizedReverts(uint256 assets) public {
+    function testallocateNotAuthorizedReverts(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
-        adapter.reallocateFromAdapter(hex"", assets);
+        adapter.allocate(hex"", assets);
     }
 
-    function testReallocateToAdapterNotAuthorizedReverts(uint256 assets) public {
+    function testdeallocateNotAuthorizedReverts(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
-        adapter.reallocateToAdapter(hex"", assets);
+        adapter.deallocate(hex"", assets);
     }
 
-    function testReallocateFromAdapterDepositsAssetsToERC4626Vault(uint256 assets) public {
+    function testallocateDepositsAssetsToERC4626Vault(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
         deal(address(asset), address(adapter), assets);
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.reallocateFromAdapter(hex"", assets);
+        bytes32[] memory ids = adapter.allocate(hex"", assets);
 
         uint256 adapterShares = vault.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
@@ -70,22 +70,20 @@ contract ERC4626AdapterTest is Test {
         assertEq(ids[0], expectedId, "Incorrect id returned");
     }
 
-    function testReallocateToAdapterWithdrawsAssetsFromERC4626Vault(uint256 initialAssets, uint256 withdrawAssets)
-        public
-    {
+    function testdeallocateWithdrawsAssetsFromERC4626Vault(uint256 initialAssets, uint256 withdrawAssets) public {
         initialAssets = bound(initialAssets, 0, MAX_TEST_ASSETS);
         withdrawAssets = bound(withdrawAssets, 0, initialAssets);
 
         deal(address(asset), address(adapter), initialAssets);
         vm.prank(address(parentVault));
-        adapter.reallocateFromAdapter(hex"", initialAssets);
+        adapter.allocate(hex"", initialAssets);
 
         uint256 beforeShares = vault.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(beforeShares, initialAssets, "Precondition failed: shares not set");
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.reallocateToAdapter(hex"", withdrawAssets);
+        bytes32[] memory ids = adapter.deallocate(hex"", withdrawAssets);
 
         uint256 afterShares = vault.balanceOf(address(adapter));
         assertEq(afterShares, initialAssets - withdrawAssets, "Share balance not decreased correctly");
@@ -172,9 +170,9 @@ contract ERC4626AdapterTest is Test {
         vm.assume(data.length > 0);
 
         vm.expectRevert(ERC4626Adapter.InvalidData.selector);
-        adapter.reallocateFromAdapter(data, 0);
+        adapter.allocate(data, 0);
 
         vm.expectRevert(ERC4626Adapter.InvalidData.selector);
-        adapter.reallocateToAdapter(data, 0);
+        adapter.deallocate(data, 0);
     }
 }
