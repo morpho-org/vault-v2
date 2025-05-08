@@ -21,16 +21,16 @@ contract FactoryTest is BaseTest {
         assertEq(newVault.asset(), asset);
     }
 
-    function testCreateManualInterestController(address _owner, bytes32 salt) public {
+    function testCreateManualInterestController(address vault, bytes32 salt) public {
         address expectedManualInterestControllerAddress = ManualInterestControllerAddressLib
-            .computeManualInterestControllerAddress(address(interestControllerFactory), _owner, salt);
+            .computeManualInterestControllerAddress(address(interestControllerFactory), vault, salt);
         vm.expectEmit();
         emit ManualInterestControllerFactory.CreateManualInterestController(
-            expectedManualInterestControllerAddress, _owner
+            expectedManualInterestControllerAddress, vault
         );
-        address newInterestController = interestControllerFactory.createManualInterestController(_owner, salt);
+        address newInterestController = interestControllerFactory.createManualInterestController(vault, salt);
         assertEq(newInterestController, expectedManualInterestControllerAddress);
         assertTrue(interestControllerFactory.isManualInterestController(newInterestController));
-        assertEq(ManualInterestController(newInterestController).owner(), _owner);
+        assertEq(ManualInterestController(newInterestController).vault(), vault);
     }
 }

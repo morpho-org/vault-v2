@@ -17,7 +17,6 @@ contract SettersTest is BaseTest {
         assertEq(address(vault.curator()), curator);
         assertTrue(vault.isAllocator(address(allocator)));
         assertEq(address(vault.interestController()), address(interestController));
-        assertEq(interestController.owner(), manager);
     }
 
     /* OWNER SETTERS */
@@ -182,7 +181,7 @@ contract SettersTest is BaseTest {
 
     function testSetInterestController(address rdm) public {
         vm.assume(rdm != curator);
-        address newInterestController = address(new ManualInterestController(manager));
+        address newInterestController = address(new ManualInterestController(address(vault)));
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);

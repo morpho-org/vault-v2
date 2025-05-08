@@ -39,7 +39,7 @@ contract AccrueInterestTest is BaseTest {
         elapsed = bound(elapsed, 0, 20 * 365 days);
 
         // Setup.
-        vm.prank(manager);
+        vm.prank(allocator);
         interestController.setInterestPerSecond(interestPerSecond);
         vm.startPrank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, performanceFee));
@@ -84,13 +84,13 @@ contract AccrueInterestTest is BaseTest {
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
         // Rate too high.
-        vm.prank(manager);
+        vm.prank(allocator);
         interestController.setInterestPerSecond(deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD) + 1);
         vm.expectRevert(ErrorsLib.InvalidRate.selector);
         vault.accrueInterest();
 
         // Normal path.
-        vm.prank(manager);
+        vm.prank(allocator);
         interestController.setInterestPerSecond(interestPerSecond);
         uint256 interest = interestPerSecond * elapsed;
         uint256 totalAssets = deposit + interest;
@@ -126,7 +126,7 @@ contract AccrueInterestTest is BaseTest {
 
         vault.deposit(deposit, address(this));
 
-        vm.prank(manager);
+        vm.prank(allocator);
         interestController.setInterestPerSecond(interestPerSecond);
 
         vm.warp(block.timestamp + elapsed);
@@ -159,7 +159,7 @@ contract AccrueInterestTest is BaseTest {
 
         vault.deposit(deposit, address(this));
 
-        vm.prank(manager);
+        vm.prank(allocator);
         interestController.setInterestPerSecond(interestPerSecond);
 
         vm.warp(block.timestamp + elapsed);
