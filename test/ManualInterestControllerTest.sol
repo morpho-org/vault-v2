@@ -46,7 +46,7 @@ contract ManualInterestControllerTest is Test {
     }
 
     function testSetInterestPerSecond(address rdm, uint256 newInterestPerSecond) public {
-        vm.assume(rdm != allocator);
+        vm.assume(rdm != allocator && rdm != sentinel);
 
         // Access control.
         vm.prank(rdm);
