@@ -72,7 +72,7 @@ contract ERC4626Adapter is IAdapter {
         return ids();
     }
 
-    function ids() internal returns (bytes32[] memory) {
+    function ids() internal view returns (bytes32[] memory) {
         bytes32[] memory ids_ = new bytes32[](1);
         ids_[0] = keccak256(abi.encode("adapter", address(this)));
         return ids_;
