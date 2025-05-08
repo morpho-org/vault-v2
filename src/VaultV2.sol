@@ -121,6 +121,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setInterestController(address newInterestController) external timelocked {
+        accrueInterest();
         interestController = newInterestController;
         emit EventsLib.SetInterestController(newInterestController);
     }
