@@ -35,20 +35,17 @@ contract MorphoAdapter is IAdapter {
         SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
     }
 
-    function ids(MarketParams memory marketParams) internal pure returns (bytes32[] memory) {
-        bytes32[] memory ids_ = new bytes32[](1);
-        ids_[0] = keccak256(
-            abi.encode(
-                "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
-            )
-        );
-        return ids_;
-    }
-
     function setSkimRecipient(address newSkimRecipient) external {
         require(msg.sender == IVaultV2(parentVault).owner(), NotAuthorized());
         skimRecipient = newSkimRecipient;
         emit SetSkimRecipient(newSkimRecipient);
+    }
+
+    function skim(address token) external {
+        require(msg.sender == skimRecipient, NotAuthorized());
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
+        emit Skim(token, balance);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -67,10 +64,15 @@ contract MorphoAdapter is IAdapter {
         return ids(marketParams);
     }
 
-    function skim(address token) external {
-        require(msg.sender == skimRecipient, NotAuthorized());
-        uint256 balance = IERC20(token).balanceOf(address(this));
-        SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
-        emit Skim(token, balance);
+    function ids(MarketParams memory marketParams) internal view returns (bytes32[] memory) {
+        bytes32[] memory ids_ = new bytes32[](3);
+        ids_[0] = keccak256(abi.encode("adapter", address(this)));
+        ids_[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
+        ids_[2] = keccak256(
+            abi.encode(
+                "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
+            )
+        );
+        return ids_;
     }
 }

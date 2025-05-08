@@ -44,6 +44,14 @@ contract ERC4626Adapter is IAdapter {
         emit SetSkimRecipient(newSkimRecipient);
     }
 
+    function skim(address token) external {
+        require(msg.sender == skimRecipient, NotAuthorized());
+        require(token != vault, CantSkimVault());
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
+        emit Skim(token, balance);
+    }
+
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     function allocateIn(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(data.length == 0, InvalidData());
@@ -51,9 +59,7 @@ contract ERC4626Adapter is IAdapter {
 
         IERC4626(vault).deposit(assets, address(this));
 
-        bytes32[] memory ids = new bytes32[](1);
-        ids[0] = keccak256(abi.encode("vault", vault));
-        return ids;
+        return ids();
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -63,16 +69,12 @@ contract ERC4626Adapter is IAdapter {
 
         IERC4626(vault).withdraw(assets, address(this), address(this));
 
-        bytes32[] memory ids = new bytes32[](1);
-        ids[0] = keccak256(abi.encode("vault", vault));
-        return ids;
+        return ids();
     }
 
-    function skim(address token) external {
-        require(msg.sender == skimRecipient, NotAuthorized());
-        require(token != vault, CantSkimVault());
-        uint256 balance = IERC20(token).balanceOf(address(this));
-        SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
-        emit Skim(token, balance);
+    function ids() internal returns (bytes32[] memory) {
+        bytes32[] memory ids_ = new bytes32[](1);
+        ids_[0] = keccak256(abi.encode("adapter", address(this)));
+        return ids_;
     }
 }
