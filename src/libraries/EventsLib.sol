@@ -39,5 +39,4 @@ library EventsLib {
     );
     event ForceReallocateToIdle(address indexed sender, address indexed onBehalf, uint256 assets);
     event CreateVaultV2(address indexed vaultV2, address indexed asset);
-    event SetInterestPerSecond(uint256 interestPerSecond);
 }
