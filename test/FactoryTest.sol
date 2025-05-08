@@ -11,9 +11,9 @@ contract FactoryTest is BaseTest {
         address expectedVaultAddress =
             VaultV2AddressLib.computeVaultV2Address(address(vaultFactory), _owner, asset, salt);
         vm.expectEmit();
-        emit EventsLib.Construction(_owner, asset);
+        emit EventsLib.Constructor(_owner, asset);
         vm.expectEmit();
-        emit EventsLib.CreateVaultV2(expectedVaultAddress, _owner, asset);
+        emit EventsLib.CreateVaultV2(expectedVaultAddress, asset);
         IVaultV2 newVault = IVaultV2(vaultFactory.createVaultV2(_owner, asset, salt));
         assertEq(address(newVault), expectedVaultAddress);
         assertTrue(vaultFactory.isVaultV2(address(newVault)));

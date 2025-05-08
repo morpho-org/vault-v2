@@ -102,7 +102,7 @@ contract AccrueInterestTest is BaseTest {
             vault.totalSupply() + 1 + performanceFeeShares, totalAssets + 1 - managementFeeAssets
         );
         vm.expectEmit();
-        emit EventsLib.AccrueInterest(totalAssets, performanceFeeShares, managementFeeShares);
+        emit EventsLib.AccrueInterest(deposit, totalAssets, performanceFeeShares, managementFeeShares);
         vault.accrueInterest();
         assertEq(vault.totalAssets(), totalAssets);
         assertEq(vault.balanceOf(performanceFeeRecipient), performanceFeeShares);

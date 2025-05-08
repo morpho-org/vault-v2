@@ -13,7 +13,7 @@ contract VaultV2Factory is IVaultV2Factory {
         address vaultV2 = address(new VaultV2{salt: salt}(owner, asset));
 
         isVaultV2[vaultV2] = true;
-        emit EventsLib.CreateVaultV2(vaultV2, owner, asset);
+        emit EventsLib.CreateVaultV2(vaultV2, asset);
 
         return vaultV2;
     }
