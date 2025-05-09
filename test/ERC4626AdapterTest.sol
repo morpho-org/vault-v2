@@ -106,7 +106,7 @@ contract ERC4626AdapterTest is Test {
         address expectedNewAdapter =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
-        emit ERC4626AdapterFactory.CreateERC4626Adapter(address(newParentVault), address(newVault), expectedNewAdapter);
+        emit ERC4626AdapterFactory.CreateERC4626Adapter(expectedNewAdapter, address(newParentVault), address(newVault));
 
         address newAdapter = factory.createERC4626Adapter(address(newParentVault), address(newVault));
 
@@ -114,9 +114,11 @@ contract ERC4626AdapterTest is Test {
         assertEq(ERC4626Adapter(newAdapter).parentVault(), address(newParentVault), "Incorrect parent vault");
         assertEq(ERC4626Adapter(newAdapter).vault(), address(newVault), "Incorrect vault");
         assertEq(
-            factory.adapter(address(newParentVault), address(newVault)), newAdapter, "Adapter not tracked correctly"
+            factory.erc4626Adapter(address(newParentVault), address(newVault)),
+            newAdapter,
+            "Adapter not tracked correctly"
         );
-        assertTrue(factory.isAdapter(newAdapter), "Adapter not tracked correctly");
+        assertTrue(factory.isERC4626Adapter(newAdapter), "Adapter not tracked correctly");
     }
 
     function testSetSkimRecipient(address newRecipient, address caller) public {

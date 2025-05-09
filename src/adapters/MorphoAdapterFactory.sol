@@ -11,8 +11,8 @@ contract MorphoAdapterFactory {
     /* STORAGE */
 
     // vault => adapter
-    mapping(address => address) public adapter;
-    mapping(address => bool) public isAdapter;
+    mapping(address => address) public morphoAdapter;
+    mapping(address => bool) public isMorphoAdapter;
 
     /* EVENTS */
 
@@ -25,10 +25,10 @@ contract MorphoAdapterFactory {
     }
 
     function createMorphoAdapter(address vault) external returns (address) {
-        address morphoAdapter = address(new MorphoAdapter{salt: bytes32(0)}(vault, morpho));
-        adapter[vault] = morphoAdapter;
-        isAdapter[morphoAdapter] = true;
-        emit CreateMorphoAdapter(morphoAdapter, vault);
-        return morphoAdapter;
+        address _morphoAdapter = address(new MorphoAdapter{salt: bytes32(0)}(vault, morpho));
+        morphoAdapter[vault] = _morphoAdapter;
+        isMorphoAdapter[_morphoAdapter] = true;
+        emit CreateMorphoAdapter(_morphoAdapter, vault);
+        return _morphoAdapter;
     }
 }

@@ -24,7 +24,7 @@ contract ManualVicTest is Test {
     }
 
     function testConstructor(address _vault) public {
-        manualVic = ManualVic(vicFactory.createManualVic(_vault));
+        manualVic = ManualVic(new ManualVic(_vault));
         assertEq(manualVic.vault(), _vault);
     }
 

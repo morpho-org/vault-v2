@@ -157,8 +157,8 @@ contract MorphoAdapterTest is Test {
         assertTrue(newAdapter != address(0), "Adapter not created");
         assertEq(MorphoAdapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
         assertEq(MorphoAdapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
-        assertEq(factory.adapter(newParentVaultAddr), newAdapter, "Adapter not tracked correctly");
-        assertTrue(factory.isAdapter(newAdapter), "Adapter not tracked correctly");
+        assertEq(factory.morphoAdapter(newParentVaultAddr), newAdapter, "Adapter not tracked correctly");
+        assertTrue(factory.isMorphoAdapter(newAdapter), "Adapter not tracked correctly");
     }
 
     function testSetSkimRecipient(address newRecipient, address caller) public {
