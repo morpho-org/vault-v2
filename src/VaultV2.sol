@@ -91,7 +91,7 @@ contract VaultV2 is IVaultV2 {
         owner = _owner;
         lastUpdate = block.timestamp;
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
-        emit EventsLib.Construction(_owner, _asset);
+        emit EventsLib.Constructor(_owner, _asset);
     }
 
     /* OWNER ACTIONS */
@@ -252,7 +252,7 @@ contract VaultV2 is IVaultV2 {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
-        bytes32[] memory ids = IAdapter(adapter).allocateIn(data, assets);
+        bytes32[] memory ids = IAdapter(adapter).allocate(data, assets);
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] += assets;
@@ -274,7 +274,7 @@ contract VaultV2 is IVaultV2 {
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        bytes32[] memory ids = IAdapter(adapter).allocateOut(data, assets);
+        bytes32[] memory ids = IAdapter(adapter).deallocate(data, assets);
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(assets);
@@ -329,12 +329,12 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterest() public {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        emit EventsLib.AccrueInterest(totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         totalAssets = newTotalAssets;
         lossToRealise = 0;
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
         lastUpdate = block.timestamp;
-        emit EventsLib.AccrueInterest(newTotalAssets, performanceFeeShares, managementFeeShares);
     }
 
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
@@ -347,16 +347,20 @@ contract VaultV2 is IVaultV2 {
 
         uint256 performanceFeeShares;
         uint256 managementFeeShares;
-        // Note that the fee assets is subtracted from the total assets in the fee shares calculation to compensate for
-        // the fact that total assets is already increased by the total interest (including the fee assets).
-        // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
+        // Note: the fee assets is subtracted from the total assets in the fee shares calculation to compensate for the
+        // fact that total assets is already increased by the total interest (including the fee assets).
+        // Note: `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
         if (interest > 0 && performanceFee != 0) {
+            // Note: the accrued performance fee might be smaller than this because of the management fee.
             uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
             performanceFeeShares =
                 performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
         }
         if (managementFee != 0) {
-            // Using newTotalAssets to make all approximations consistent.
+            // Note: The vault must be pinged at least once every 20 years to avoid management fees exceeding total
+            // assets and revert forever.
+            // Note: The management fee is taken on newTotalAssets to make all approximations consistent (interacting
+            // less increases management fees).
             uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
             managementFeeShares = managementFeeAssets.mulDivDown(
                 totalSupply + 1 + performanceFeeShares, newTotalAssets + 1 - managementFeeAssets
@@ -488,13 +492,15 @@ contract VaultV2 is IVaultV2 {
 
         if (msg.sender != from) {
             uint256 _allowance = allowance[from][msg.sender];
-            if (_allowance != type(uint256).max) allowance[from][msg.sender] = _allowance - shares;
+            if (_allowance != type(uint256).max) {
+                allowance[from][msg.sender] = _allowance - shares;
+                emit EventsLib.AllowanceUpdatedByTransferFrom(from, msg.sender, _allowance - shares);
+            }
         }
 
         balanceOf[from] -= shares;
         balanceOf[to] += shares;
         emit EventsLib.Transfer(from, to, shares);
-        emit EventsLib.TransferFrom(msg.sender, from, to, shares);
         return true;
     }
 

@@ -44,24 +44,21 @@ contract MorphoAdapter is IAdapter {
         SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
     }
 
-    function ids(MarketParams memory marketParams) internal pure returns (bytes32[] memory) {
-        bytes32[] memory ids_ = new bytes32[](1);
-        ids_[0] = keccak256(
-            abi.encode(
-                "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
-            )
-        );
-        return ids_;
-    }
-
     function setSkimRecipient(address newSkimRecipient) external {
         require(msg.sender == IVaultV2(parentVault).owner(), NotAuthorized());
         skimRecipient = newSkimRecipient;
         emit SetSkimRecipient(newSkimRecipient);
     }
 
+    function skim(address token) external {
+        require(msg.sender == skimRecipient, NotAuthorized());
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
+        emit Skim(token, balance);
+    }
+
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    function allocateIn(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
@@ -72,14 +69,14 @@ contract MorphoAdapter is IAdapter {
 
         if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
         assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
-
         return ids(marketParams);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    function allocateOut(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
+
         Id marketId = marketParams.id();
 
         uint256 loss =
@@ -92,6 +89,18 @@ contract MorphoAdapter is IAdapter {
         return ids(marketParams);
     }
 
+    function ids(MarketParams memory marketParams) internal view returns (bytes32[] memory) {
+        bytes32[] memory ids_ = new bytes32[](3);
+        ids_[0] = keccak256(abi.encode("adapter", address(this)));
+        ids_[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
+        ids_[2] = keccak256(
+            abi.encode(
+                "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
+            )
+        );
+        return ids_;
+    }
+
     function realiseLoss(bytes memory data) external returns (uint256, bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
@@ -99,12 +108,5 @@ contract MorphoAdapter is IAdapter {
         uint256 res = realisableLoss[marketId];
         realisableLoss[marketId] = 0;
         return (res, ids(marketParams));
-    }
-
-    function skim(address token) external {
-        require(msg.sender == skimRecipient, NotAuthorized());
-        uint256 balance = IERC20(token).balanceOf(address(this));
-        SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
-        emit Skim(token, balance);
     }
 }
