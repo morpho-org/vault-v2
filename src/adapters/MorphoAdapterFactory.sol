@@ -2,21 +2,18 @@
 pragma solidity 0.8.28;
 
 import {MorphoAdapter} from "./MorphoAdapter.sol";
+import {IMorphoAdapterFactory} from "./interfaces/IMorphoAdapterFactory.sol";
 
-contract MorphoAdapterFactory {
+contract MorphoAdapterFactory is IMorphoAdapterFactory {
     /* IMMUTABLES */
 
-    address immutable morpho;
+    address public immutable morpho;
 
     /* STORAGE */
 
     // vault => adapter
     mapping(address => address) public morphoAdapter;
     mapping(address => bool) public isMorphoAdapter;
-
-    /* EVENTS */
-
-    event CreateMorphoAdapter(address indexed morphoAdapter, address indexed vault);
 
     /* FUNCTIONS */
 

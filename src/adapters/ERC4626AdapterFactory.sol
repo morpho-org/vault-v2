@@ -2,17 +2,14 @@
 pragma solidity 0.8.28;
 
 import {ERC4626Adapter} from "./ERC4626Adapter.sol";
+import {IERC4626AdapterFactory} from "./interfaces/IERC4626AdapterFactory.sol";
 
-contract ERC4626AdapterFactory {
+contract ERC4626AdapterFactory is IERC4626AdapterFactory {
     /* STORAGE */
 
     // parent vault => vault => adapter
     mapping(address => mapping(address => address)) public erc4626Adapter;
     mapping(address => bool) public isERC4626Adapter;
-
-    /* EVENTS */
-
-    event CreateERC4626Adapter(address indexed erc4626Adapter, address indexed parentVault, address indexed vault);
 
     /* FUNCTIONS */
 

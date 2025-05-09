@@ -9,10 +9,7 @@ interface IMorphoAdapterFactory {
     /* FUNCTIONS */
 
     function createMorphoAdapter(address vault) external returns (address);
-
     function morphoAdapter(address vault) external view returns (address);
-
     function isMorphoAdapter(address adapter) external view returns (bool);
-
     function morpho() external view returns (address);
 }

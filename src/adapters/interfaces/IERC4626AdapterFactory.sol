@@ -9,8 +9,6 @@ interface IERC4626AdapterFactory {
     /* FUNCTIONS */
 
     function createERC4626Adapter(address parentVault, address vault) external returns (address);
-
     function erc4626Adapter(address parentVault, address vault) external view returns (address);
-
     function isERC4626Adapter(address adapter) external view returns (bool);
 }

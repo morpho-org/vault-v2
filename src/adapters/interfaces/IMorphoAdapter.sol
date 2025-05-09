@@ -2,8 +2,9 @@
 pragma solidity 0.8.28;
 
 import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {IAdapter} from "../../interfaces/IAdapter.sol";
 
-interface IMorphoAdapter {
+interface IMorphoAdapter is IAdapter {
     /* EVENTS */
 
     event SetSkimRecipient(address indexed newSkimRecipient);
@@ -16,16 +17,10 @@ interface IMorphoAdapter {
     /* FUNCTIONS */
 
     function setSkimRecipient(address newSkimRecipient) external;
-
     function skim(address token) external;
-
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory);
-
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory);
-
     function parentVault() external view returns (address);
-
     function morpho() external view returns (address);
-
     function skimRecipient() external view returns (address);
 }

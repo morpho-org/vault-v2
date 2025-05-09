@@ -12,10 +12,6 @@ contract ManualVicFactory is IManualVicFactory {
     // vault => vic
     mapping(address => address) public manualVic;
 
-    /* EVENTS */
-
-    event CreateManualVic(address indexed vic, address indexed vault);
-
     /* FUNCTIONS */
 
     function createManualVic(address vault) external returns (address) {
