@@ -329,11 +329,8 @@ contract VaultV2 is IVaultV2 {
         if (elapsed == 0) return (totalAssets, 0, 0);
         uint256 interestPerSecond;
         try IInterestController(interestController).interestPerSecond(totalAssets, elapsed) returns (uint256 output) {
-            if (output > totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD)) {
-                interestPerSecond = 0;
-            } else {
-                interestPerSecond = output;
-            }
+            if (output > totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD)) interestPerSecond = 0;
+            else interestPerSecond = output;
         } catch {
             interestPerSecond = 0;
         }
