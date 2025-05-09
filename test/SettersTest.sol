@@ -533,7 +533,9 @@ contract SettersTest is BaseTest {
         }
     }
 
-    function testDecreaseRelativeCap(address rdm, bytes memory id, uint256 oldRelativeCap, uint256 newRelativeCap) public {
+    function testDecreaseRelativeCap(address rdm, bytes memory id, uint256 oldRelativeCap, uint256 newRelativeCap)
+        public
+    {
         newRelativeCap = bound(newRelativeCap, 0, WAD - 1);
         oldRelativeCap = bound(oldRelativeCap, newRelativeCap, WAD - 1);
 
@@ -673,9 +675,9 @@ contract SettersTest is BaseTest {
 }
 
 contract BasicAdapter {
-    function allocate(bytes memory, uint256) external pure returns (bytes32[] memory) {
-        bytes32[] memory ids = new bytes32[](1);
-        ids[0] = keccak256("id");
+    function allocate(bytes memory, uint256) external pure returns (bytes[] memory) {
+        bytes[] memory ids = new bytes[](1);
+        ids[0] = abi.encode("id");
         return ids;
     }
 }

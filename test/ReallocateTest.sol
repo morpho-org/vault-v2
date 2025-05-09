@@ -19,18 +19,16 @@ contract MockAdapter is IAdapter {
     function allocate(bytes memory data, uint256 assets) external returns (bytes[] memory ids) {
         recordedData = data;
         recordedAssets = assets;
-        bytes[] memory _ids = new bytes[](2);
+        bytes[] memory _ids = new bytes[](1);
         _ids[0] = abi.encode("id-0");
-        _ids[1] = abi.encode("id-1");
         return _ids;
     }
 
     function deallocate(bytes memory data, uint256 assets) external returns (bytes[] memory ids) {
         recordedData = data;
         recordedAssets = assets;
-        bytes[] memory _ids = new bytes[](2);
+        bytes[] memory _ids = new bytes[](1);
         _ids[0] = abi.encode("id-0");
-        _ids[1] = abi.encode("id-1");
         return _ids;
     }
 }
@@ -71,7 +69,7 @@ contract ReallocateTest is BaseTest {
             vm.prank(curator);
             vault.decreaseAbsoluteCap(id, absoluteCap);
         }
-        assertEq(vault.absoluteCap(id), absoluteCap);
+        assertEq(vault.absoluteCap(id), absoluteCap, "_setAbsoluteCap: issue with absolute cap");
     }
 
     function testReallocateFromIdle(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
@@ -103,14 +101,12 @@ contract ReallocateTest is BaseTest {
 
         // Absolute cap check.
         _setAbsoluteCap("id-0", assets - 1);
-        _setAbsoluteCap("id-1", assets - 1);
         vm.expectRevert(ErrorsLib.AbsoluteCapExceeded.selector);
         vm.prank(allocator);
         vault.reallocateFromIdle(mockAdapter, data, assets);
 
         // Normal path.
         _setAbsoluteCap("id-0", assets);
-        _setAbsoluteCap("id-1", assets);
         vm.prank(allocator);
         vm.expectEmit();
         emit EventsLib.ReallocateFromIdle(allocator, mockAdapter, assets, ids);
@@ -140,7 +136,6 @@ contract ReallocateTest is BaseTest {
         // Setup.
         deal(address(underlyingToken), address(vault), assetsIn);
         _setAbsoluteCap("id-0", assetsIn);
-        _setAbsoluteCap("id-1", assetsIn);
         vm.prank(allocator);
         vault.reallocateFromIdle(mockAdapter, data, assetsIn);
 
@@ -162,7 +157,6 @@ contract ReallocateTest is BaseTest {
 
         // Normal path.
         _setAbsoluteCap("id-0", assetsIn);
-        _setAbsoluteCap("id-1", assetsIn);
         vm.prank(allocator);
         vm.expectEmit();
         emit EventsLib.ReallocateToIdle(allocator, mockAdapter, assetsOut, ids);
