@@ -446,7 +446,7 @@ contract VaultV2 is IVaultV2 {
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
-            // relativeCap(id) < WAD, is true for all ids in idsWithRelativeCap
+            // relativeCap(id) < WAD is true for all ids in idsWithRelativeCap
             require(allocation[id] <= totalAssets.mulDivDown(relativeCap(id), WAD), ErrorsLib.RelativeCapExceeded());
         }
 
