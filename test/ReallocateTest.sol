@@ -90,21 +90,21 @@ contract ReallocateTest is BaseTest {
     }
 
     function testRelativeCapOneAndZeroBehaveDifferently() public {
-        uint assets = 3e18;
+        uint256 assets = 3e18;
 
-        _setAbsoluteCap("id-0",type(uint).max);
-        _setAbsoluteCap("id-1",type(uint).max);
+        _setAbsoluteCap("id-0", type(uint256).max);
+        _setAbsoluteCap("id-1", type(uint256).max);
 
         deal(address(underlyingToken), address(vault), assets);
 
-        uint snapshot = vm.snapshot();
+        uint256 snapshot = vm.snapshot();
 
         vm.prank(allocator);
         vault.reallocateFromIdle(mockAdapter, "", assets);
 
         vm.revertToAndDelete(snapshot);
 
-        _setRelativeCap("id-0",WAD);
+        _setRelativeCap("id-0", WAD);
         vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
         vm.prank(allocator);
         vault.reallocateFromIdle(mockAdapter, "", assets);
