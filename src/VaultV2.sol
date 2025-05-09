@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {IVaultV2, IERC20} from "./interfaces/IVaultV2.sol";
 import {IAdapter} from "./interfaces/IAdapter.sol";
-import {IInterestController} from "./interfaces/IInterestController.sol";
+import {IVic} from "./interfaces/IVic.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
@@ -42,15 +42,17 @@ contract VaultV2 is IVaultV2 {
     uint256 public lastUpdate;
 
     /* CURATION AND ALLOCATION STORAGE */
-    address public interestController;
+    address public vic;
     uint256 public forceReallocateToIdlePenalty;
     /// @dev Adapter is trusted to pass the expected ids when supplying assets.
     mapping(address => bool) public isAdapter;
     /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
     mapping(bytes32 => uint256) public absoluteCap;
     /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
-    /// @dev Relative cap = 0 is interpreted as no relative cap.
-    mapping(bytes32 => uint256) public relativeCap;
+    /// @dev The relative cap is relative to `totalAssets`.
+    /// @dev Units are in WAD.
+    /// @dev A relative cap of 1 WAD means no relative cap.
+    mapping(bytes32 => uint256) internal oneMinusRelativeCap;
     /// @dev Useful to iterate over all ids with relative cap in withdrawals.
     bytes32[] public idsWithRelativeCap;
     /// @dev Interests are not counted in the allocation.
@@ -76,6 +78,10 @@ contract VaultV2 is IVaultV2 {
         return idsWithRelativeCap.length;
     }
 
+    function relativeCap(bytes32 id) public view returns (uint256) {
+        return WAD - oneMinusRelativeCap[id];
+    }
+
     /* MULTICALL */
 
     function multicall(bytes[] calldata data) external {
@@ -96,7 +102,7 @@ contract VaultV2 is IVaultV2 {
         owner = _owner;
         lastUpdate = block.timestamp;
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
-        emit EventsLib.Construction(_owner, _asset);
+        emit EventsLib.Constructor(_owner, _asset);
     }
 
     /* OWNER ACTIONS */
@@ -136,9 +142,9 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetReceiveGate(newReceiveGate);
     }
 
-    function setInterestController(address newInterestController) external timelocked {
-        interestController = newInterestController;
-        emit EventsLib.SetInterestController(newInterestController);
+    function setVic(address newVic) external timelocked {
+        vic = newVic;
+        emit EventsLib.SetVic(newVic);
     }
 
     function setIsAdapter(address account, bool newIsAdapter) external timelocked {
@@ -232,24 +238,35 @@ contract VaultV2 is IVaultV2 {
 
     function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
-        require(newRelativeCap >= relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
+        require(newRelativeCap >= relativeCap(id), ErrorsLib.RelativeCapNotIncreasing());
 
-        if (relativeCap[id] == 0 && newRelativeCap != 0) idsWithRelativeCap.push(id);
-        relativeCap[id] = newRelativeCap;
+        if (newRelativeCap > relativeCap(id)) {
+            if (newRelativeCap == WAD) {
+                uint256 i;
+                while (idsWithRelativeCap[i] != id) i++;
+                idsWithRelativeCap[i] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
+                idsWithRelativeCap.pop();
+            }
+
+            oneMinusRelativeCap[id] = WAD - newRelativeCap;
+        }
+
         emit EventsLib.IncreaseRelativeCap(id, newRelativeCap);
     }
 
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
-        require(newRelativeCap <= relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
-        require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
+        // To set a cap to 0, use `decreaseAbsoluteCap`.
+        require(newRelativeCap > 0, ErrorsLib.RelativeCapZero());
+        require(newRelativeCap <= relativeCap(id), ErrorsLib.RelativeCapNotDecreasing());
 
-        if (newRelativeCap == 0 && relativeCap[id] != 0) {
-            uint256 i;
-            while (idsWithRelativeCap[i] != id) i++;
-            idsWithRelativeCap[i] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
-            idsWithRelativeCap.pop();
+        if (newRelativeCap < relativeCap(id)) {
+            require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
+
+            if (relativeCap(id) == WAD) idsWithRelativeCap.push(id);
+
+            oneMinusRelativeCap[id] = WAD - newRelativeCap;
         }
-        relativeCap[id] = newRelativeCap;
+
         emit EventsLib.DecreaseRelativeCap(id, newRelativeCap);
     }
 
@@ -266,15 +283,15 @@ contract VaultV2 is IVaultV2 {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
-        bytes32[] memory ids = IAdapter(adapter).allocateIn(data, assets);
+        bytes32[] memory ids = IAdapter(adapter).allocate(data, assets);
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] += assets;
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
-            if (relativeCap[ids[i]] != 0) {
+            if (relativeCap(ids[i]) < WAD) {
                 require(
-                    allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD),
+                    allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap(ids[i]), WAD),
                     ErrorsLib.RelativeCapExceeded()
                 );
             }
@@ -288,7 +305,7 @@ contract VaultV2 is IVaultV2 {
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        bytes32[] memory ids = IAdapter(adapter).allocateOut(data, assets);
+        bytes32[] memory ids = IAdapter(adapter).deallocate(data, assets);
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(assets);
@@ -343,33 +360,37 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterest() public {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        emit EventsLib.AccrueInterest(totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         totalAssets = newTotalAssets;
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
         lastUpdate = block.timestamp;
-        emit EventsLib.AccrueInterest(newTotalAssets, performanceFeeShares, managementFeeShares);
     }
 
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (totalAssets, 0, 0);
-        uint256 interestPerSecond = IInterestController(interestController).interestPerSecond(totalAssets, elapsed);
+        uint256 interestPerSecond = IVic(vic).interestPerSecond(totalAssets, elapsed);
         require(interestPerSecond <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssets + interest;
 
         uint256 performanceFeeShares;
         uint256 managementFeeShares;
-        // Note that the fee assets is subtracted from the total assets in the fee shares calculation to compensate for
-        // the fact that total assets is already increased by the total interest (including the fee assets).
-        // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
+        // Note: the fee assets is subtracted from the total assets in the fee shares calculation to compensate for the
+        // fact that total assets is already increased by the total interest (including the fee assets).
+        // Note: `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
         if (interest > 0 && performanceFee != 0) {
+            // Note: the accrued performance fee might be smaller than this because of the management fee.
             uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
             performanceFeeShares =
                 performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
         }
         if (managementFee != 0) {
-            // Using newTotalAssets to make all approximations consistent.
+            // Note: The vault must be pinged at least once every 20 years to avoid management fees exceeding total
+            // assets and revert forever.
+            // Note: The management fee is taken on newTotalAssets to make all approximations consistent (interacting
+            // less increases management fees).
             uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
             managementFeeShares = managementFeeAssets.mulDivDown(
                 totalSupply + 1 + performanceFeeShares, newTotalAssets + 1 - managementFeeAssets
@@ -470,7 +491,8 @@ contract VaultV2 is IVaultV2 {
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
-            require(allocation[id] <= totalAssets.mulDivDown(relativeCap[id], WAD), ErrorsLib.RelativeCapExceeded());
+            // relativeCap(id) < WAD is true for all ids in idsWithRelativeCap
+            require(allocation[id] <= totalAssets.mulDivDown(relativeCap(id), WAD), ErrorsLib.RelativeCapExceeded());
         }
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
@@ -532,13 +554,15 @@ contract VaultV2 is IVaultV2 {
 
         if (msg.sender != from) {
             uint256 _allowance = allowance[from][msg.sender];
-            if (_allowance != type(uint256).max) allowance[from][msg.sender] = _allowance - shares;
+            if (_allowance != type(uint256).max) {
+                allowance[from][msg.sender] = _allowance - shares;
+                emit EventsLib.AllowanceUpdatedByTransferFrom(from, msg.sender, _allowance - shares);
+            }
         }
 
         balanceOf[from] -= shares;
         balanceOf[to] += shares;
         emit EventsLib.Transfer(from, to, shares);
-        emit EventsLib.TransferFrom(msg.sender, from, to, shares);
         return true;
     }
 

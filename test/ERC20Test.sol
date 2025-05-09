@@ -139,10 +139,14 @@ contract ERC20Test is BaseTest {
         vm.prank(from);
         vault.approve(address(this), sharesApproved);
 
+        if (address(this) != from) {
+            vm.expectEmit();
+            emit EventsLib.AllowanceUpdatedByTransferFrom(from, address(this), sharesApproved - sharesTransferred);
+        }
+
         vm.expectEmit();
         emit EventsLib.Transfer(from, to, sharesTransferred);
-        vm.expectEmit();
-        emit EventsLib.TransferFrom(address(this), from, to, sharesTransferred);
+
         vault.transferFrom(from, to, sharesTransferred);
 
         if (address(this) != from) {

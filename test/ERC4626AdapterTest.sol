@@ -7,14 +7,14 @@ import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {ERC4626Mock} from "./mocks/ERC4626Mock.sol";
 import {ERC4626Adapter} from "src/adapters/ERC4626Adapter.sol";
 import {ERC4626AdapterFactory} from "src/adapters/ERC4626AdapterFactory.sol";
-import {VaultMock} from "./mocks/VaultV2Mock.sol";
+import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {IERC20} from "src/interfaces/IERC20.sol";
 import {IVaultV2} from "src/interfaces/IVaultV2.sol";
 
 contract ERC4626AdapterTest is Test {
     ERC20Mock internal asset;
     ERC20Mock internal rewardToken;
-    VaultMock internal parentVault;
+    VaultV2Mock internal parentVault;
     ERC4626Mock internal vault;
     ERC4626AdapterFactory internal factory;
     ERC4626Adapter internal adapter;
@@ -30,7 +30,7 @@ contract ERC4626AdapterTest is Test {
         asset = new ERC20Mock();
         rewardToken = new ERC20Mock();
         vault = new ERC4626Mock(address(asset));
-        parentVault = new VaultMock(address(asset), owner);
+        parentVault = new VaultV2Mock(address(asset), owner, address(0), address(0), address(0));
 
         factory = new ERC4626AdapterFactory();
         adapter = ERC4626Adapter(factory.createERC4626Adapter(address(parentVault), address(vault)));
@@ -41,49 +41,49 @@ contract ERC4626AdapterTest is Test {
         assertEq(adapter.vault(), address(vault), "Incorrect vault set");
     }
 
-    function testAllocateInNotAuthorizedReverts(uint256 assets) public {
+    function testAllocateNotAuthorizedReverts(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
-        adapter.allocateIn(hex"", assets);
+        adapter.allocate(hex"", assets);
     }
 
-    function testAllocateOutNotAuthorizedReverts(uint256 assets) public {
+    function testDeallocateNotAuthorizedReverts(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
-        adapter.allocateOut(hex"", assets);
+        adapter.deallocate(hex"", assets);
     }
 
-    function testAllocateInDepositsAssetsToERC4626Vault(uint256 assets) public {
+    function testAllocateDepositsAssetsToERC4626Vault(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
         deal(address(asset), address(adapter), assets);
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.allocateIn(hex"", assets);
+        bytes32[] memory ids = adapter.allocate(hex"", assets);
 
         uint256 adapterShares = vault.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(adapterShares, assets, "Incorrect share balance after deposit");
         assertEq(asset.balanceOf(address(adapter)), 0, "Underlying tokens not transferred to vault");
 
-        bytes32 expectedId = keccak256(abi.encode("vault", address(vault)));
+        bytes32 expectedId = keccak256(abi.encode("adapter", address(adapter)));
         assertEq(ids.length, 1, "Unexpected number of ids returned");
         assertEq(ids[0], expectedId, "Incorrect id returned");
     }
 
-    function testAllocateOutWithdrawsAssetsFromERC4626Vault(uint256 initialAssets, uint256 withdrawAssets) public {
+    function testDeallocateWithdrawsAssetsFromERC4626Vault(uint256 initialAssets, uint256 withdrawAssets) public {
         initialAssets = bound(initialAssets, 0, MAX_TEST_ASSETS);
         withdrawAssets = bound(withdrawAssets, 0, initialAssets);
 
         deal(address(asset), address(adapter), initialAssets);
         vm.prank(address(parentVault));
-        adapter.allocateIn(hex"", initialAssets);
+        adapter.allocate(hex"", initialAssets);
 
         uint256 beforeShares = vault.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(beforeShares, initialAssets, "Precondition failed: shares not set");
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.allocateOut(hex"", withdrawAssets);
+        bytes32[] memory ids = adapter.deallocate(hex"", withdrawAssets);
 
         uint256 afterShares = vault.balanceOf(address(adapter));
         assertEq(afterShares, initialAssets - withdrawAssets, "Share balance not decreased correctly");
@@ -91,13 +91,13 @@ contract ERC4626AdapterTest is Test {
         uint256 adapterBalance = asset.balanceOf(address(adapter));
         assertEq(adapterBalance, withdrawAssets, "Adapter did not receive withdrawn tokens");
 
-        bytes32 expectedId = keccak256(abi.encode("vault", address(vault)));
+        bytes32 expectedId = keccak256(abi.encode("adapter", address(adapter)));
         assertEq(ids.length, 1, "Unexpected number of ids returned");
         assertEq(ids[0], expectedId, "Incorrect id returned");
     }
 
     function testFactoryCreateAdapter() public {
-        VaultMock newParentVault = new VaultMock(address(asset), owner);
+        VaultV2Mock newParentVault = new VaultV2Mock(address(asset), owner, address(0), address(0), address(0));
         ERC4626Mock newVault = new ERC4626Mock(address(asset));
 
         bytes32 initCodeHash = keccak256(
@@ -161,7 +161,7 @@ contract ERC4626AdapterTest is Test {
         adapter.skim(address(token));
 
         // Cant skim vault
-        vm.expectRevert(ERC4626Adapter.CantSkimVault.selector);
+        vm.expectRevert(ERC4626Adapter.CannotSkimVault.selector);
         vm.prank(recipient);
         adapter.skim(address(vault));
     }
@@ -170,9 +170,9 @@ contract ERC4626AdapterTest is Test {
         vm.assume(data.length > 0);
 
         vm.expectRevert(ERC4626Adapter.InvalidData.selector);
-        adapter.allocateIn(data, 0);
+        adapter.allocate(data, 0);
 
         vm.expectRevert(ERC4626Adapter.InvalidData.selector);
-        adapter.allocateOut(data, 0);
+        adapter.deallocate(data, 0);
     }
 }

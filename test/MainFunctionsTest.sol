@@ -86,6 +86,7 @@ contract MainFunctionsTest is BaseTest {
 
     function testWithdraw(uint256 assets, address receiver) public {
         vm.assume(receiver != address(0));
+        vm.assume(receiver != address(this));
         assets = bound(assets, 0, INITIAL_DEPOSIT);
 
         uint256 shares = vault.previewWithdraw(assets);

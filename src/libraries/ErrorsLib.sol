@@ -41,4 +41,5 @@ library ErrorsLib {
     error TransferOnlyMarker();
     error CannotSendShares();
     error CannotReceiveShares();
+    error RelativeCapZero();
 }

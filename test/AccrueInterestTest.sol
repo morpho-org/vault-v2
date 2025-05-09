@@ -39,8 +39,8 @@ contract AccrueInterestTest is BaseTest {
         elapsed = bound(elapsed, 0, 20 * 365 days);
 
         // Setup.
-        vm.prank(manager);
-        interestController.setInterestPerSecond(interestPerSecond);
+        vm.prank(allocator);
+        vic.setInterestPerSecond(interestPerSecond);
         vm.startPrank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, performanceFee));
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, managementFee));
@@ -84,14 +84,14 @@ contract AccrueInterestTest is BaseTest {
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
         // Rate too high.
-        vm.prank(manager);
-        interestController.setInterestPerSecond(deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD) + 1);
+        vm.prank(allocator);
+        vic.setInterestPerSecond(deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD) + 1);
         vm.expectRevert(ErrorsLib.InvalidRate.selector);
         vault.accrueInterest();
 
         // Normal path.
-        vm.prank(manager);
-        interestController.setInterestPerSecond(interestPerSecond);
+        vm.prank(allocator);
+        vic.setInterestPerSecond(interestPerSecond);
         uint256 interest = interestPerSecond * elapsed;
         uint256 totalAssets = deposit + interest;
         uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
@@ -102,7 +102,7 @@ contract AccrueInterestTest is BaseTest {
             vault.totalSupply() + 1 + performanceFeeShares, totalAssets + 1 - managementFeeAssets
         );
         vm.expectEmit();
-        emit EventsLib.AccrueInterest(totalAssets, performanceFeeShares, managementFeeShares);
+        emit EventsLib.AccrueInterest(deposit, totalAssets, performanceFeeShares, managementFeeShares);
         vault.accrueInterest();
         assertEq(vault.totalAssets(), totalAssets);
         assertEq(vault.balanceOf(performanceFeeRecipient), performanceFeeShares);
@@ -126,8 +126,8 @@ contract AccrueInterestTest is BaseTest {
 
         vault.deposit(deposit, address(this));
 
-        vm.prank(manager);
-        interestController.setInterestPerSecond(interestPerSecond);
+        vm.prank(allocator);
+        vic.setInterestPerSecond(interestPerSecond);
 
         vm.warp(block.timestamp + elapsed);
 
@@ -159,8 +159,8 @@ contract AccrueInterestTest is BaseTest {
 
         vault.deposit(deposit, address(this));
 
-        vm.prank(manager);
-        interestController.setInterestPerSecond(interestPerSecond);
+        vm.prank(allocator);
+        vic.setInterestPerSecond(interestPerSecond);
 
         vm.warp(block.timestamp + elapsed);
 
