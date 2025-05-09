@@ -212,6 +212,7 @@ contract VaultV2 is IVaultV2 {
     function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
         require(newRelativeCap >= relativeCap(id), ErrorsLib.RelativeCapNotIncreasing());
+
         if (newRelativeCap > relativeCap(id)) {
             if (newRelativeCap == WAD) {
                 uint256 i;
