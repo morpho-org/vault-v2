@@ -22,7 +22,8 @@ methods {
     function totalAssets() external returns uint256 envfree;
     function balanceOf(address) external returns uint256 envfree;
 
-    function setGate(address) external;
+    function setSendGate(address) external;
+    function setReceiveGate(address) external;
     function decreaseTimelock(address) external;
 }
 
@@ -31,7 +32,8 @@ definition MAX_PERFOMANCE_FEE() returns uint256 = 10^18 / 2;
 definition MAX_MANAGEMENT_FEE() returns uint256 = 10^18 / 20 / (365 * 24 * 60 * 60);
 definition MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY() returns uint256 = 10^18 / 100;
 
-definition setGateSelector() returns bytes4 = to_bytes4(sig:setGate(address).selector);
+definition setSendGateSelector() returns bytes4 = to_bytes4(sig:setSendGate(address).selector);
+definition setReceiveGateSelector() returns bytes4 = to_bytes4(sig:setReceiveGate(address).selector);
 definition decreaseTimelockSelector() returns bytes4 = to_bytes4(sig:decreaseTimelock(bytes4,uint256).selector);
 
 
@@ -55,11 +57,14 @@ strong invariant forceReallocateToIdlePenalty()
 strong invariant balanceOfZero()
     balanceOf(0) == 0;
 
-strong invariant timelockCapExceptSetGate(bytes4 selector)
-    selector != setGateSelector() => timelock(selector) <= TIMELOCK_CAP();
+strong invariant timelockCapExceptSetSendOrReceiveGate(bytes4 selector)
+    (selector != setSendGateSelector() && selector != setReceiveGateSelector()) => timelock(selector) <= TIMELOCK_CAP();
 
-strong invariant timelockSetGate()
-    timelock(setGateSelector()) <= TIMELOCK_CAP() || timelock(setGateSelector()) == max_uint256;
+strong invariant timelockSetSendGate()
+    timelock(setSendGateSelector()) <= TIMELOCK_CAP() || timelock(setSendGateSelector()) == max_uint256;
+
+strong invariant timelockSetReceiveGate()
+    timelock(setReceiveGateSelector()) <= TIMELOCK_CAP() || timelock(setReceiveGateSelector()) == max_uint256;
 
 strong invariant timelockTimelock()
     timelock(decreaseTimelockSelector()) == TIMELOCK_CAP();
