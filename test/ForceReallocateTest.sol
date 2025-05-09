@@ -8,9 +8,8 @@ contract Adapter is IAdapter {
         IERC20(_underlyingToken).approve(_vault, type(uint256).max);
     }
 
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {}
-
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {}
+    function allocate(bytes memory data, uint256 assets) external returns (bytes[] memory ids) {}
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes[] memory ids) {}
 }
 
 contract ForceReallocateTest is BaseTest {

@@ -41,14 +41,14 @@ contract VaultV2 is IVaultV2 {
     /// @dev Adapter is trusted to pass the expected ids when supplying assets.
     mapping(address => bool) public isAdapter;
     /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
-    mapping(bytes32 => uint256) public absoluteCap;
+    mapping(bytes => uint256) public absoluteCap;
     /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
     /// @dev Relative cap = 0 is interpreted as no relative cap.
-    mapping(bytes32 => uint256) public relativeCap;
+    mapping(bytes => uint256) public relativeCap;
     /// @dev Useful to iterate over all ids with relative cap in withdrawals.
-    bytes32[] public idsWithRelativeCap;
+    bytes[] public idsWithRelativeCap;
     /// @dev Interests are not counted in the allocation.
-    mapping(bytes32 => uint256) public allocation;
+    mapping(bytes => uint256) public allocation;
     /// @dev calldata => executable at
     mapping(bytes => uint256) public validAt;
     /// @dev function selector => timelock duration
@@ -187,15 +187,14 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetManagementFeeRecipient(newManagementFeeRecipient);
     }
 
-    function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external timelocked {
-        bytes32 id = keccak256(idData);
+    function increaseAbsoluteCap(bytes memory id, uint256 newAbsoluteCap) external timelocked {
         require(newAbsoluteCap >= absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
 
         absoluteCap[id] = newAbsoluteCap;
-        emit EventsLib.IncreaseAbsoluteCap(id, idData, newAbsoluteCap);
+        emit EventsLib.IncreaseAbsoluteCap(id, newAbsoluteCap);
     }
 
-    function decreaseAbsoluteCap(bytes32 id, uint256 newAbsoluteCap) external {
+    function decreaseAbsoluteCap(bytes memory id, uint256 newAbsoluteCap) external {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(newAbsoluteCap <= absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
 
@@ -203,7 +202,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseAbsoluteCap(id, newAbsoluteCap);
     }
 
-    function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
+    function increaseRelativeCap(bytes memory id, uint256 newRelativeCap) external timelocked {
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
         require(newRelativeCap >= relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
 
@@ -212,13 +211,13 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.IncreaseRelativeCap(id, newRelativeCap);
     }
 
-    function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
+    function decreaseRelativeCap(bytes memory id, uint256 newRelativeCap) external timelocked {
         require(newRelativeCap <= relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
         require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
 
         if (newRelativeCap == 0 && relativeCap[id] != 0) {
             uint256 i;
-            while (idsWithRelativeCap[i] != id) i++;
+            while (keccak256(idsWithRelativeCap[i]) != keccak256(id)) i++;
             idsWithRelativeCap[i] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
             idsWithRelativeCap.pop();
         }
@@ -239,7 +238,7 @@ contract VaultV2 is IVaultV2 {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
-        bytes32[] memory ids = IAdapter(adapter).allocate(data, assets);
+        bytes[] memory ids = IAdapter(adapter).allocate(data, assets);
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] += assets;
@@ -261,7 +260,7 @@ contract VaultV2 is IVaultV2 {
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        bytes32[] memory ids = IAdapter(adapter).deallocate(data, assets);
+        bytes[] memory ids = IAdapter(adapter).deallocate(data, assets);
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(assets);
@@ -434,7 +433,7 @@ contract VaultV2 is IVaultV2 {
         totalAssets -= assets;
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
-            bytes32 id = idsWithRelativeCap[i];
+            bytes memory id = idsWithRelativeCap[i];
             require(allocation[id] <= totalAssets.mulDivDown(relativeCap[id], WAD), ErrorsLib.RelativeCapExceeded());
         }
 

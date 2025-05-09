@@ -90,17 +90,15 @@ contract MorphoAdapterTest is Test {
         deal(address(loanToken), address(adapter), assets);
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.allocate(abi.encode(marketParams), assets);
+        bytes[] memory ids = adapter.allocate(abi.encode(marketParams), assets);
 
         uint256 supplied = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(supplied, assets, "Incorrect supplied assets in Morpho");
 
-        bytes32 expectedId0 = keccak256(abi.encode("adapter", address(adapter)));
-        bytes32 expectedId1 = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
-        bytes32 expectedId2 = keccak256(
-            abi.encode(
-                "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
-            )
+        bytes memory expectedId0 = abi.encode("adapter", address(adapter));
+        bytes memory expectedId1 = abi.encode("collateralToken", marketParams.collateralToken);
+        bytes memory expectedId2 = abi.encode(
+            "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
         );
         assertEq(ids.length, 3, "Unexpected number of ids returned");
         assertEq(ids[0], expectedId0, "Incorrect id #0 returned");
@@ -120,7 +118,7 @@ contract MorphoAdapterTest is Test {
         assertEq(beforeSupply, initialAssets, "Precondition failed: supply not set");
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.deallocate(abi.encode(marketParams), withdrawAssets);
+        bytes[] memory ids = adapter.deallocate(abi.encode(marketParams), withdrawAssets);
 
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
@@ -128,12 +126,10 @@ contract MorphoAdapterTest is Test {
         uint256 adapterBalance = loanToken.balanceOf(address(adapter));
         assertEq(adapterBalance, withdrawAssets, "Adapter did not receive withdrawn tokens");
 
-        bytes32 expectedId0 = keccak256(abi.encode("adapter", address(adapter)));
-        bytes32 expectedId1 = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
-        bytes32 expectedId2 = keccak256(
-            abi.encode(
-                "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
-            )
+        bytes memory expectedId0 = abi.encode("adapter", address(adapter));
+        bytes memory expectedId1 = abi.encode("collateralToken", marketParams.collateralToken);
+        bytes memory expectedId2 = abi.encode(
+            "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
         );
         assertEq(ids.length, 3, "Unexpected number of ids returned");
         assertEq(ids[0], expectedId0, "Incorrect id #0 returned");
@@ -145,8 +141,8 @@ contract MorphoAdapterTest is Test {
         address newParentVaultAddr =
             address(new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0)));
 
-        bytes32 initCodeHash =
-            keccak256(abi.encodePacked(type(MorphoAdapter).creationCode, abi.encode(newParentVaultAddr, morpho)));
+        bytes memory initCodeHash =
+            abi.encodePacked(type(MorphoAdapter).creationCode, abi.encode(newParentVaultAddr, morpho));
         address expectedNewAdapter =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();

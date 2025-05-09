@@ -58,14 +58,14 @@ contract ERC4626AdapterTest is Test {
         deal(address(asset), address(adapter), assets);
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.allocate(hex"", assets);
+        bytes[] memory ids = adapter.allocate(hex"", assets);
 
         uint256 adapterShares = vault.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(adapterShares, assets, "Incorrect share balance after deposit");
         assertEq(asset.balanceOf(address(adapter)), 0, "Underlying tokens not transferred to vault");
 
-        bytes32 expectedId = keccak256(abi.encode("adapter", address(adapter)));
+        bytes memory expectedId = abi.encode("adapter", address(adapter));
         assertEq(ids.length, 1, "Unexpected number of ids returned");
         assertEq(ids[0], expectedId, "Incorrect id returned");
     }
@@ -83,7 +83,7 @@ contract ERC4626AdapterTest is Test {
         assertEq(beforeShares, initialAssets, "Precondition failed: shares not set");
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.deallocate(hex"", withdrawAssets);
+        bytes[] memory ids = adapter.deallocate(hex"", withdrawAssets);
 
         uint256 afterShares = vault.balanceOf(address(adapter));
         assertEq(afterShares, initialAssets - withdrawAssets, "Share balance not decreased correctly");
@@ -91,7 +91,7 @@ contract ERC4626AdapterTest is Test {
         uint256 adapterBalance = asset.balanceOf(address(adapter));
         assertEq(adapterBalance, withdrawAssets, "Adapter did not receive withdrawn tokens");
 
-        bytes32 expectedId = keccak256(abi.encode("adapter", address(adapter)));
+        bytes memory expectedId = abi.encode("adapter", address(adapter));
         assertEq(ids.length, 1, "Unexpected number of ids returned");
         assertEq(ids[0], expectedId, "Incorrect id returned");
     }
@@ -100,9 +100,8 @@ contract ERC4626AdapterTest is Test {
         VaultV2Mock newParentVault = new VaultV2Mock(address(asset), owner, address(0), address(0), address(0));
         ERC4626Mock newVault = new ERC4626Mock(address(asset));
 
-        bytes32 initCodeHash = keccak256(
-            abi.encodePacked(type(ERC4626Adapter).creationCode, abi.encode(address(newParentVault), address(newVault)))
-        );
+        bytes memory initCodeHash =
+            abi.encodePacked(type(ERC4626Adapter).creationCode, abi.encode(address(newParentVault), address(newVault)));
         address expectedNewAdapter =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();

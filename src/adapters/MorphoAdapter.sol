@@ -49,7 +49,7 @@ contract MorphoAdapter is IAdapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
@@ -57,21 +57,19 @@ contract MorphoAdapter is IAdapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
         return ids(marketParams);
     }
 
-    function ids(MarketParams memory marketParams) internal view returns (bytes32[] memory) {
-        bytes32[] memory ids_ = new bytes32[](3);
-        ids_[0] = keccak256(abi.encode("adapter", address(this)));
-        ids_[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
-        ids_[2] = keccak256(
-            abi.encode(
-                "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
-            )
+    function ids(MarketParams memory marketParams) internal view returns (bytes[] memory) {
+        bytes[] memory ids_ = new bytes[](3);
+        ids_[0] = abi.encode("adapter", address(this));
+        ids_[1] = abi.encode("collateralToken", marketParams.collateralToken);
+        ids_[2] = abi.encode(
+            "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
         );
         return ids_;
     }

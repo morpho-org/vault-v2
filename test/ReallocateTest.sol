@@ -16,21 +16,21 @@ contract MockAdapter is IAdapter {
         IERC20(IVaultV2(_vault).asset()).approve(_vault, type(uint256).max);
     }
 
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes[] memory ids) {
         recordedData = data;
         recordedAssets = assets;
-        bytes32[] memory _ids = new bytes32[](2);
-        _ids[0] = keccak256("id-0");
-        _ids[1] = keccak256("id-1");
+        bytes[] memory _ids = new bytes[](2);
+        _ids[0] = abi.encode("id-0");
+        _ids[1] = abi.encode("id-1");
         return _ids;
     }
 
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes[] memory ids) {
         recordedData = data;
         recordedAssets = assets;
-        bytes32[] memory _ids = new bytes32[](2);
-        _ids[0] = keccak256("id-0");
-        _ids[1] = keccak256("id-1");
+        bytes[] memory _ids = new bytes[](2);
+        _ids[0] = abi.encode("id-0");
+        _ids[1] = abi.encode("id-1");
         return _ids;
     }
 }
@@ -39,7 +39,7 @@ contract ReallocateTest is BaseTest {
     using MathLib for uint256;
 
     address mockAdapter;
-    bytes32[] public ids;
+    bytes[] public ids;
 
     function setUp() public override {
         super.setUp();
@@ -53,21 +53,20 @@ contract ReallocateTest is BaseTest {
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, mockAdapter, true));
         vault.setIsAdapter(mockAdapter, true);
 
-        ids = new bytes32[](2);
-        ids[0] = keccak256("id-0");
-        ids[1] = keccak256("id-1");
+        ids = new bytes[](2);
+        ids[0] = abi.encode("id-0");
+        ids[1] = abi.encode("id-1");
     }
 
     function _boundAssets(uint256 assets) internal pure returns (uint256) {
         return bound(assets, 1, type(uint256).max);
     }
 
-    function _setAbsoluteCap(bytes memory idData, uint256 absoluteCap) internal {
-        bytes32 id = keccak256(idData);
+    function _setAbsoluteCap(bytes memory id, uint256 absoluteCap) internal {
         if (absoluteCap > vault.absoluteCap(id)) {
             vm.prank(curator);
-            vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, absoluteCap));
-            vault.increaseAbsoluteCap(idData, absoluteCap);
+            vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, id, absoluteCap));
+            vault.increaseAbsoluteCap(id, absoluteCap);
         } else {
             vm.prank(curator);
             vault.decreaseAbsoluteCap(id, absoluteCap);
@@ -85,8 +84,8 @@ contract ReallocateTest is BaseTest {
         deal(address(underlyingToken), address(vault), assets);
         assertEq(underlyingToken.balanceOf(address(vault)), assets, "Initial vault balance incorrect");
         assertEq(underlyingToken.balanceOf(mockAdapter), 0, "Initial adapter balance incorrect");
-        assertEq(vault.allocation(keccak256("id-0")), 0, "Initial allocation incorrect");
-        assertEq(vault.allocation(keccak256("id-1")), 0, "Initial allocation incorrect");
+        assertEq(vault.allocation(abi.encode("id-0")), 0, "Initial allocation incorrect");
+        assertEq(vault.allocation(abi.encode("id-1")), 0, "Initial allocation incorrect");
 
         // Access control.
         vm.prank(rdm);
@@ -118,8 +117,8 @@ contract ReallocateTest is BaseTest {
         vault.reallocateFromIdle(mockAdapter, data, assets);
         assertEq(underlyingToken.balanceOf(address(vault)), 0, "Vault balance should be zero after reallocation");
         assertEq(underlyingToken.balanceOf(mockAdapter), assets, "Adapter balance incorrect after reallocation");
-        assertEq(vault.allocation(keccak256("id-0")), assets, "Allocation incorrect after reallocation");
-        assertEq(vault.allocation(keccak256("id-1")), assets, "Allocation incorrect after reallocation");
+        assertEq(vault.allocation(abi.encode("id-0")), assets, "Allocation incorrect after reallocation");
+        assertEq(vault.allocation(abi.encode("id-1")), assets, "Allocation incorrect after reallocation");
         assertEq(MockAdapter(mockAdapter).recordedData(), data, "Data incorrect after reallocation");
         assertEq(MockAdapter(mockAdapter).recordedAssets(), assets, "Assets incorrect after reallocation");
     }
@@ -172,8 +171,8 @@ contract ReallocateTest is BaseTest {
         assertEq(
             underlyingToken.balanceOf(mockAdapter), assetsIn - assetsOut, "Adapter balance incorrect after reallocation"
         );
-        assertEq(vault.allocation(keccak256("id-0")), assetsIn - assetsOut, "Allocation incorrect after reallocation");
-        assertEq(vault.allocation(keccak256("id-1")), assetsIn - assetsOut, "Allocation incorrect after reallocation");
+        assertEq(vault.allocation(abi.encode("id-0")), assetsIn - assetsOut, "Allocation incorrect after reallocation");
+        assertEq(vault.allocation(abi.encode("id-1")), assetsIn - assetsOut, "Allocation incorrect after reallocation");
         assertEq(MockAdapter(mockAdapter).recordedData(), data, "Data incorrect after reallocation");
         assertEq(MockAdapter(mockAdapter).recordedAssets(), assetsOut, "Assets incorrect after reallocation");
     }
