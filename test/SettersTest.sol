@@ -451,22 +451,22 @@ contract SettersTest is BaseTest {
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
-        vault.increaseAbsoluteCap(idData, newAbsoluteCap);
+        vault.increaseAbsoluteCap(id, newAbsoluteCap, idData);
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, newAbsoluteCap));
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, id, newAbsoluteCap, idData));
         vm.expectEmit();
         emit EventsLib.IncreaseAbsoluteCap(id, idData, newAbsoluteCap);
-        vault.increaseAbsoluteCap(idData, newAbsoluteCap);
+        vault.increaseAbsoluteCap(id, newAbsoluteCap, idData);
         assertEq(vault.absoluteCap(id), newAbsoluteCap);
 
         // Can't decrease absolute cap
         if (newAbsoluteCap > 0) {
             vm.prank(curator);
-            vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, newAbsoluteCap - 1));
+            vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, id, newAbsoluteCap - 1, idData));
             vm.expectRevert(ErrorsLib.AbsoluteCapNotIncreasing.selector);
-            vault.increaseAbsoluteCap(idData, newAbsoluteCap - 1);
+            vault.increaseAbsoluteCap(id, newAbsoluteCap - 1, idData);
         }
     }
 
@@ -482,8 +482,8 @@ contract SettersTest is BaseTest {
         bytes32 id = keccak256(idData);
 
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, oldAbsoluteCap));
-        vault.increaseAbsoluteCap(idData, oldAbsoluteCap);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, id, oldAbsoluteCap, idData));
+        vault.increaseAbsoluteCap(id, oldAbsoluteCap, idData);
 
         // Access control
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
@@ -579,8 +579,8 @@ contract SettersTest is BaseTest {
         vault.increaseRelativeCap(id, oldRelativeCap + 1);
 
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, "id", oldRelativeCap + 1));
-        vault.increaseAbsoluteCap("id", oldRelativeCap + 1);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, id, oldRelativeCap + 1, "id"));
+        vault.increaseAbsoluteCap(id, oldRelativeCap + 1, "id");
         vault.deposit(1 ether, address(this));
         address adapter = address(new BasicAdapter());
 

@@ -19,6 +19,7 @@ library EventsLib {
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event SetPerformanceFee(uint256 performanceFee);
     event SetManagementFee(uint256 managementFee);
+    event OpenAbsoluteCap(bytes32 indexed id, bytes idData);
     event IncreaseAbsoluteCap(bytes32 indexed id, bytes idData, uint256 newAbsoluteCap);
     event DecreaseAbsoluteCap(bytes32 indexed id, uint256 newAbsoluteCap);
     event IncreaseRelativeCap(bytes32 indexed id, uint256 newRelativeCap);

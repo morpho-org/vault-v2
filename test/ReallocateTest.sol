@@ -66,8 +66,8 @@ contract ReallocateTest is BaseTest {
         bytes32 id = keccak256(idData);
         if (absoluteCap > vault.absoluteCap(id)) {
             vm.prank(curator);
-            vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, absoluteCap));
-            vault.increaseAbsoluteCap(idData, absoluteCap);
+            vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, id, absoluteCap, idData));
+            vault.increaseAbsoluteCap(id, absoluteCap, idData);
         } else {
             vm.prank(curator);
             vault.decreaseAbsoluteCap(id, absoluteCap);
