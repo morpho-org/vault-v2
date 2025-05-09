@@ -167,11 +167,6 @@ contract ERC4626AdapterTest is Test {
         adapter.skim(address(vault));
     }
 
-    function testLossRealizationInitiallyZero() public {
-        uint256 initialLoss = adapter.realisableLoss();
-        assertEq(initialLoss, 0, "Initial realizable loss should be zero");
-    }
-
     function testRealiseLossNotAuthorizedReverts() public {
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
         adapter.realiseLoss(hex"");
@@ -195,17 +190,17 @@ contract ERC4626AdapterTest is Test {
         uint256 snapshot = vm.snapshot();
         vm.prank(address(parentVault));
         adapter.allocate(hex"", 0);
-        assertEq(adapter.realisableLoss(), lossAssets, "Loss should have been tracked");
+        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets, "Assets in vault should be tracked");
         vm.revertTo(snapshot);
         vm.prank(address(parentVault));
         adapter.deallocate(hex"", 0);
-        assertEq(adapter.realisableLoss(), lossAssets, "Loss should have been tracked");
+        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets, "Assets in vault should be tracked");
 
         // Realisation.
         vm.prank(address(parentVault));
         (uint256 realizedLoss, bytes32[] memory ids) = adapter.realiseLoss(hex"");
         assertEq(realizedLoss, lossAssets, "Realized loss should match expected loss");
-        assertEq(adapter.realisableLoss(), 0, "Realizable loss should be reset to zero");
+        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets - realizedLoss, "Assets in vault should be tracked");
         assertEq(ids.length, 1, "Unexpected number of ids returned");
         assertEq(ids[0], keccak256(abi.encode("adapter", address(adapter))), "Incorrect id returned");
 
@@ -242,7 +237,7 @@ contract ERC4626AdapterTest is Test {
         );
         vm.prank(address(parentVault));
         adapter.allocate(hex"", 0);
-        assertEq(adapter.realisableLoss(), firstLoss, "First loss should be tracked");
+        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets, "Assets in vault should be tracked");
 
         // Second loss
         vm.mockCall(
@@ -252,23 +247,31 @@ contract ERC4626AdapterTest is Test {
         );
         vm.prank(address(parentVault));
         adapter.allocate(hex"", 0);
-        assertEq(adapter.realisableLoss(), firstLoss + secondLoss, "Cumulative loss should be tracked");
+        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets, "Assets in vault should be tracked");
 
         // Depositing doesn't change the loss.
         vm.prank(address(parentVault));
         adapter.allocate(hex"", depositAssets);
-        assertEq(adapter.realisableLoss(), firstLoss + secondLoss, "Loss should not change");
+        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets + depositAssets, "Assets in vault should be tracked");
 
         // Withdrawing doesn't change the loss.
         vm.prank(address(parentVault));
         adapter.deallocate(hex"", withdrawAssets);
-        assertEq(adapter.realisableLoss(), firstLoss + secondLoss, "Loss should not change");
+        assertEq(
+            adapter.assetsInVaultIfNoLoss(),
+            initialAssets + depositAssets - withdrawAssets,
+            "Assets in vault should be tracked"
+        );
 
         // Realise loss
         vm.prank(address(parentVault));
         (uint256 realizedLoss, bytes32[] memory ids) = adapter.realiseLoss(hex"");
         assertEq(realizedLoss, firstLoss + secondLoss, "Should realize the full cumulative loss");
-        assertEq(adapter.realisableLoss(), 0, "Realizable loss should be reset to zero");
+        assertEq(
+            adapter.assetsInVaultIfNoLoss(),
+            initialAssets + depositAssets - withdrawAssets - realizedLoss,
+            "Assets in vault should be tracked"
+        );
         assertEq(ids.length, 1, "Unexpected number of ids returned");
     }
 

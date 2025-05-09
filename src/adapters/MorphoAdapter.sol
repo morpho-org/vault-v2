@@ -84,6 +84,16 @@ contract MorphoAdapter is IAdapter {
         return ids(marketParams);
     }
 
+    function realiseLoss(bytes memory data) external returns (uint256, bytes32[] memory) {
+        require(msg.sender == parentVault, NotAuthorized());
+        MarketParams memory marketParams = abi.decode(data, (MarketParams));
+        Id marketId = marketParams.id();
+        uint256 assetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+        uint256 loss = assetsInMarketIfNoLoss[marketId].zeroFloorSub(assetsInMarket);
+        assetsInMarketIfNoLoss[marketId] = assetsInMarket;
+        return (loss, ids(marketParams));
+    }
+
     function ids(MarketParams memory marketParams) internal view returns (bytes32[] memory) {
         bytes32[] memory ids_ = new bytes32[](3);
         ids_[0] = keccak256(abi.encode("adapter", address(this)));
@@ -94,16 +104,6 @@ contract MorphoAdapter is IAdapter {
             )
         );
         return ids_;
-    }
-
-    function realiseLoss(bytes memory data) external returns (uint256, bytes32[] memory) {
-        require(msg.sender == parentVault, NotAuthorized());
-        MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Id marketId = marketParams.id();
-        uint256 assetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
-        uint256 loss = assetsInMarketIfNoLoss[marketId].zeroFloorSub(assetsInMarket);
-        assetsInMarketIfNoLoss[marketId] = assetsInMarket;
-        return (loss, ids(marketParams));
     }
 }
 

@@ -20,8 +20,7 @@ contract ERC4626Adapter is IAdapter {
     /* STORAGE */
 
     address public skimRecipient;
-    uint256 public realisableLoss;
-    uint256 public assetsInVault;
+    uint256 public assetsInVaultIfNoLoss;
 
     /* EVENTS */
 
@@ -62,12 +61,9 @@ contract ERC4626Adapter is IAdapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 loss =
-            assetsInVault.zeroFloorSub(IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this))));
-        if (loss > 0) realisableLoss += loss;
-
         IERC4626(vault).deposit(assets, address(this));
-        assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
+        uint256 assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
+        assetsInVaultIfNoLoss = max(assetsInVaultIfNoLoss + assets, assetsInVault);
 
         return ids();
     }
@@ -77,22 +73,19 @@ contract ERC4626Adapter is IAdapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 loss =
-            assetsInVault.zeroFloorSub(IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this))));
-        if (loss > 0) realisableLoss += loss;
-
         IERC4626(vault).withdraw(assets, address(this), address(this));
-        assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
+        uint256 assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
+        assetsInVaultIfNoLoss = max(assetsInVaultIfNoLoss - assets, assetsInVault);
 
         return ids();
     }
 
     function realiseLoss(bytes memory) external returns (uint256, bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
-        uint256 res = realisableLoss;
-        realisableLoss = 0;
-
-        return (res, ids());
+        uint256 assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
+        uint256 loss = assetsInVaultIfNoLoss.zeroFloorSub(assetsInVault);
+        assetsInVaultIfNoLoss = assetsInVault;
+        return (loss, ids());
     }
 
     function ids() internal view returns (bytes32[] memory) {
@@ -100,4 +93,8 @@ contract ERC4626Adapter is IAdapter {
         ids_[0] = keccak256(abi.encode("adapter", address(this)));
         return ids_;
     }
+}
+
+function max(uint256 a, uint256 b) pure returns (uint256) {
+    return a > b ? a : b;
 }
