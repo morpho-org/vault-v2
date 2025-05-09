@@ -60,16 +60,16 @@ When defined, the liquidity market $M$ is also used as the market users are depo
 
 The market $M$ would typically be a very liquid Market V1.
 
-### Interest Controller
+### Vault Interest Controller
 
 Vault V2 can allocate assets across many markets, especially when interacting with Morpho Markets V2.
 Looping through all markets to compute the total assets is not realistic in the general case.
 This differs from Vault V1, where total assets were automatically computed from the vault's underlying allocations.
 As a result, in Vault V2, curators are responsible for monitoring the vault’s total assets and setting an appropriate interest rate.
-The interest rate is set through the `interestController`, a contract responsible for returning the `interestPerSecond` used to accrue fees.
+The interest rate is set through the VIC, a contract responsible for returning the `interestPerSecond` used to accrue fees.
 
-The interest controller can typically be simple smart contract storing the `interestPerSecond`, whose value is regularly set by the curator.
-The rate returned by the interest controller must be below `200% APR`.
+The vault interest controller can typically be simple smart contract storing the `interestPerSecond`, whose value is regularly set by the curator.
+The rate returned by the VIC must be below `200% APR`.
 
 ### Bad debt
 
@@ -101,7 +101,7 @@ It can:
 - Decrease absolute caps.
 - [Timelockable] Increase relative caps.
 - [Timelockable] Decrease relative caps.
-- [Timelockable] Set the `interestController`.
+- [Timelockable] Set the `vic`.
 - [Timelockable] Set adapters.
 - [Timelockable] Set allocators.
 - Increase timelocks.

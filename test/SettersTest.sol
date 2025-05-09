@@ -16,7 +16,7 @@ contract SettersTest is BaseTest {
         assertEq(address(vault.asset()), address(underlyingToken));
         assertEq(address(vault.curator()), curator);
         assertTrue(vault.isAllocator(address(allocator)));
-        assertEq(address(vault.interestController()), address(interestController));
+        assertEq(address(vault.vic()), address(vic));
     }
 
     /* OWNER SETTERS */
@@ -133,9 +133,9 @@ contract SettersTest is BaseTest {
 
         // Setup.
         vm.prank(curator);
-        vault.increaseTimelock(IVaultV2.setInterestController.selector, timelock);
-        assertEq(vault.timelock(IVaultV2.setInterestController.selector), timelock);
-        bytes memory data = abi.encodeWithSelector(IVaultV2.setInterestController.selector, address(1));
+        vault.increaseTimelock(IVaultV2.setVic.selector, timelock);
+        assertEq(vault.timelock(IVaultV2.setVic.selector), timelock);
+        bytes memory data = abi.encodeWithSelector(IVaultV2.setVic.selector, address(1));
         vm.prank(curator);
         vault.submit(data);
         assertEq(vault.validAt(data), block.timestamp + timelock);
@@ -143,15 +143,15 @@ contract SettersTest is BaseTest {
         // Timelock didn't pass.
         vm.warp(vm.getBlockTimestamp() + timelock - 1);
         vm.expectRevert(ErrorsLib.TimelockNotExpired.selector);
-        vault.setInterestController(address(1));
+        vault.setVic(address(1));
 
         // Normal path.
         vm.warp(vm.getBlockTimestamp() + 1);
-        vault.setInterestController(address(1));
+        vault.setVic(address(1));
 
         // Data not timelocked.
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setInterestController(address(1));
+        vault.setVic(address(1));
     }
 
     function testSetIsAllocator(address rdm) public {
@@ -179,22 +179,22 @@ contract SettersTest is BaseTest {
         assertFalse(vault.isAllocator(newAllocator));
     }
 
-    function testSetInterestController(address rdm) public {
+    function testSetVic(address rdm) public {
         vm.assume(rdm != curator);
-        address newInterestController = address(new ManualInterestController(address(vault)));
+        address newVic = address(new ManualVic(address(vault)));
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
-        vault.setInterestController(newInterestController);
+        vault.setVic(newVic);
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setInterestController.selector, newInterestController));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setVic.selector, newVic));
         vm.expectEmit();
-        emit EventsLib.SetInterestController(newInterestController);
-        vault.setInterestController(newInterestController);
-        assertEq(address(vault.interestController()), newInterestController);
+        emit EventsLib.SetVic(newVic);
+        vault.setVic(newVic);
+        assertEq(address(vault.vic()), newVic);
     }
 
     function testSetIsAdapter(address rdm) public {

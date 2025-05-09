@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {IInterestController} from "../interfaces/IInterestController.sol";
+import {IVic} from "../interfaces/IVic.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 
-contract ManualInterestController is IInterestController {
+contract ManualVic is IVic {
     /* IMMUTABLES */
 
     address public immutable vault;

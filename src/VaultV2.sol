@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {IVaultV2, IERC20} from "./interfaces/IVaultV2.sol";
 import {IAdapter} from "./interfaces/IAdapter.sol";
-import {IInterestController} from "./interfaces/IInterestController.sol";
+import {IVic} from "./interfaces/IVic.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
@@ -37,7 +37,7 @@ contract VaultV2 is IVaultV2 {
     uint256 public lastUpdate;
 
     /* CURATION AND ALLOCATION STORAGE */
-    address public interestController;
+    address public vic;
     uint256 public forceReallocateToIdlePenalty;
     /// @dev Adapter is trusted to pass the expected ids when supplying assets.
     mapping(address => bool) public isAdapter;
@@ -121,9 +121,9 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
 
-    function setInterestController(address newInterestController) external timelocked {
-        interestController = newInterestController;
-        emit EventsLib.SetInterestController(newInterestController);
+    function setVic(address newVic) external timelocked {
+        vic = newVic;
+        emit EventsLib.SetVic(newVic);
     }
 
     function setIsAdapter(address account, bool newIsAdapter) external timelocked {
@@ -340,7 +340,7 @@ contract VaultV2 is IVaultV2 {
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (totalAssets - lossToRealise, 0, 0);
-        uint256 interestPerSecond = IInterestController(interestController).interestPerSecond(totalAssets, elapsed);
+        uint256 interestPerSecond = IVic(vic).interestPerSecond(totalAssets, elapsed);
         require(interestPerSecond <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssets - lossToRealise + interest;
