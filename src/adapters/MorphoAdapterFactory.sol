@@ -16,7 +16,7 @@ contract MorphoAdapterFactory {
 
     /* EVENTS */
 
-    event CreateMorphoAdapter(address indexed vault, address indexed morphoAdapter);
+    event CreateMorphoAdapter(address indexed morphoAdapter, address indexed vault);
 
     /* FUNCTIONS */
 
@@ -28,7 +28,7 @@ contract MorphoAdapterFactory {
         address morphoAdapter = address(new MorphoAdapter{salt: bytes32(0)}(vault, morpho));
         adapter[vault] = morphoAdapter;
         isAdapter[morphoAdapter] = true;
-        emit CreateMorphoAdapter(vault, morphoAdapter);
+        emit CreateMorphoAdapter(morphoAdapter, vault);
         return morphoAdapter;
     }
 }

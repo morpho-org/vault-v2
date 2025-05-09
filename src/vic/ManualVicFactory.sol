@@ -9,18 +9,21 @@ contract ManualVicFactory is IManualVicFactory {
     /*  STORAGE */
 
     mapping(address => bool) public isManualVic;
+    // vault => vic
+    mapping(address => address) public manualVic;
 
     /* EVENTS */
 
-    event CreateManualVic(address indexed vic, address indexed owner);
+    event CreateManualVic(address indexed vic, address indexed vault);
 
     /* FUNCTIONS */
 
-    function createManualVic(address owner, bytes32 salt) external returns (address) {
-        address vic = address(new ManualVic{salt: salt}(owner));
+    function createManualVic(address vault) external returns (address) {
+        address vic = address(new ManualVic{salt: 0}(vault));
 
         isManualVic[vic] = true;
-        emit CreateManualVic(vic, owner);
+        manualVic[vault] = vic;
+        emit CreateManualVic(vic, vault);
 
         return vic;
     }

@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 import {VaultV2AddressLib} from "../src/libraries/periphery/VaultV2AddressLib.sol";
-import {ManualVicAddressLib} from "../src/vic/libraries/periphery/ManualVicAddressLib.sol";
 
 contract FactoryTest is BaseTest {
     function testCreateVaultV2(address _owner, address asset, bytes32 salt) public {

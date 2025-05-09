@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 import "../lib/forge-std/src/Test.sol";
 import "../src/vic/ManualVic.sol";
 import "../src/vic/ManualVicFactory.sol";
-import "../src/vic/libraries/periphery/ManualVicAddressLib.sol";
 import "./mocks/VaultV2Mock.sol";
 
 contract ManualVicTest is Test {
@@ -21,11 +20,11 @@ contract ManualVicTest is Test {
         sentinel = makeAddr("sentinel");
         vault = IVaultV2(address(new VaultV2Mock(address(0), address(0), curator, allocator, sentinel)));
         vicFactory = new ManualVicFactory();
-        manualVic = ManualVic(vicFactory.createManualVic(address(vault), bytes32(0)));
+        manualVic = ManualVic(vicFactory.createManualVic(address(vault)));
     }
 
     function testConstructor(address _vault) public {
-        manualVic = ManualVic(vicFactory.createManualVic(_vault, bytes32(0)));
+        manualVic = ManualVic(vicFactory.createManualVic(_vault));
         assertEq(manualVic.vault(), _vault);
     }
 
@@ -94,14 +93,17 @@ contract ManualVicTest is Test {
         assertEq(manualVic.interestPerSecond(0, 0), newInterestPerSecond);
     }
 
-    function testCreateManualVic(address _vault, bytes32 salt) public {
-        address expectedManualVicAddress =
-            ManualVicAddressLib.computeManualVicAddress(address(vicFactory), _vault, salt);
+    function testCreateManualVic(address _vault) public {
+        bytes32 initCodeHash = keccak256(abi.encodePacked(type(ManualVic).creationCode, abi.encode(_vault)));
+        address expectedManualVicAddress = address(
+            uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), address(vicFactory), bytes32(0), initCodeHash))))
+        );
         vm.expectEmit();
         emit ManualVicFactory.CreateManualVic(expectedManualVicAddress, _vault);
-        address newVic = vicFactory.createManualVic(_vault, salt);
+        address newVic = vicFactory.createManualVic(_vault);
         assertEq(newVic, expectedManualVicAddress);
         assertTrue(vicFactory.isManualVic(newVic));
+        assertEq(vicFactory.manualVic(_vault), newVic);
         assertEq(ManualVic(newVic).vault(), _vault);
     }
 }
