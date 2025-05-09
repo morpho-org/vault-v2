@@ -2,6 +2,8 @@
 pragma solidity >=0.5.0;
 
 interface IGate {
-    function canUseShares(address account) external view returns (bool);
-    function canUseAssets(address account) external view returns (bool);
+    function canSendShares(address account) external view returns (bool);
+    function canReceiveShares(address account) external view returns (bool);
+    function canSupplyAssets(address account) external view returns (bool);
+    function canWithdrawAssets(address account) external view returns (bool);
 }

@@ -15,8 +15,10 @@ contract Gate is IGate {
     address public owner;
 
     mapping(address => bool) public isBundlerAdapter;
-    mapping(address => bool) internal _canUseShares;
-    mapping(address => bool) internal _canUseAssets;
+    mapping(address => bool) internal _canSendShares;
+    mapping(address => bool) internal _canReceiveShares;
+    mapping(address => bool) internal _canSupplyAssets;
+    mapping(address => bool) internal _canWithdrawAssets;
 
     constructor(address _owner) {
         owner = _owner;
@@ -40,15 +42,17 @@ contract Gate is IGate {
     }
 
     /// @notice Set who is allowed to send and receive shares.
-    function setCanUseShares(address account, bool newCanUseShares) external {
+    function setCanUseShares(address account, bool newCanSendShares, bool newCanReceiveShares) external {
         require(msg.sender == owner, Unauthorized());
-        _canUseShares[account] = newCanUseShares;
+        _canSendShares[account] = newCanSendShares;
+        _canReceiveShares[account] = newCanReceiveShares;
     }
 
     /// @notice Set who is allowed to supply and withdraw assets.
-    function setCanUseAssets(address account, bool newCanUseAssets) external {
+    function setCanUseAssets(address account, bool newCanSupplyAssets, bool newCanWithdrawAssets) external {
         require(msg.sender == owner, Unauthorized());
-        _canUseAssets[account] = newCanUseAssets;
+        _canSupplyAssets[account] = newCanSupplyAssets;
+        _canWithdrawAssets[account] = newCanWithdrawAssets;
     }
 
     /// @notice Set who is allowed to handle shares and assets on behalf of another account.
@@ -59,15 +63,29 @@ contract Gate is IGate {
 
     /* VIEW FUNCTIONS */
 
-    /// @notice Check if `account` can currently send and receive shares.
-    function canUseShares(address account) external view returns (bool) {
-        return _canUseShares[account]
-            || (isBundlerAdapter[account] && _canUseShares[IAdapter(account).BUNDLER3().initiator()]);
+    /// @notice Check if `account` can currently send shares.
+    function canSendShares(address account) external view returns (bool) {
+        return canDo(_canSendShares, account);
     }
 
-    /// @notice Check if `account` can currently supply and withdraw assets.
-    function canUseAssets(address account) external view returns (bool) {
-        return _canUseAssets[account]
-            || (isBundlerAdapter[account] && _canUseAssets[IAdapter(account).BUNDLER3().initiator()]);
+    /// @notice Check if `account` can currently receive shares.
+    function canReceiveShares(address account) external view returns (bool) {
+        return canDo(_canReceiveShares, account);
+    }
+
+    /// @notice Check if `account` can currently supply assets.
+    function canSupplyAssets(address account) external view returns (bool) {
+        return canDo(_canSupplyAssets, account);
+    }
+
+    /// @notice Check if `account` can currently withdraw assets.
+    function canWithdrawAssets(address account) external view returns (bool) {
+        return canDo(_canWithdrawAssets, account);
+    }
+
+    /* INTERNAL FUNCTIONS */
+
+    function canDo(mapping(address => bool) storage allowed, address account) internal view returns (bool) {
+        return allowed[account] || (isBundlerAdapter[account] && allowed[IAdapter(account).BUNDLER3().initiator()]);
     }
 }

@@ -21,12 +21,20 @@ methods {
 
     function totalAssets() external returns uint256 envfree;
     function balanceOf(address) external returns uint256 envfree;
+
+    function setGate(address) external;
+    function decreaseTimelock(address) external;
 }
 
 definition TIMELOCK_CAP() returns uint256 = 14 * 24 * 60 * 60;
 definition MAX_PERFOMANCE_FEE() returns uint256 = 10^18 / 2;
 definition MAX_MANAGEMENT_FEE() returns uint256 = 10^18 / 20 / (365 * 24 * 60 * 60);
 definition MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY() returns uint256 = 10^18 / 100;
+
+definition setGateSelector() returns bytes4 = to_bytes4(sig:setGate(address).selector);
+definition decreaseTimelockSelector() returns bytes4 = to_bytes4(sig:decreaseTimelock(bytes4,uint256).selector);
+
+
 
 
 strong invariant performanceFeeRecipient()
@@ -48,13 +56,13 @@ strong invariant balanceOfZero()
     balanceOf(0) == 0;
 
 strong invariant timelockCapExceptSetGate(bytes4 selector)
-    selector != to_bytes4(0x88315a40) => timelock(selector) <= TIMELOCK_CAP();
+    selector != setGateSelector() => timelock(selector) <= TIMELOCK_CAP();
 
 strong invariant timelockSetGate()
-    timelock(to_bytes4(0x88315a40)) <= TIMELOCK_CAP() || timelock(to_bytes4(0x88315a40)) == max_uint256;
+    timelock(setGateSelector()) <= TIMELOCK_CAP() || timelock(setGateSelector()) == max_uint256;
 
 strong invariant timelockTimelock()
-    timelock(to_bytes4(0x5c1a1a4f)) == TIMELOCK_CAP();
+    timelock(decreaseTimelockSelector()) == TIMELOCK_CAP();
 
 strong invariant liquidityAdapterInvariant()
     liquidityAdapter() == 0 || isAdapter(liquidityAdapter());

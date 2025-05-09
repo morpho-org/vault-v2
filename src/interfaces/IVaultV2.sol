@@ -2,14 +2,15 @@
 pragma solidity >=0.5.0;
 
 import {IERC20} from "./IERC20.sol";
+import {IPermissionedToken} from "./IPermissionedToken.sol";
 
-interface IVaultV2 is IERC20 {
+interface IVaultV2 is IERC20, IPermissionedToken {
     // Multicall
     function multicall(bytes[] calldata) external;
 
     // Gating
-    function canUseShares(address account) external view returns (bool);
-    function canUseAssets(address account) external view returns (bool);
+    function canSupplyAssets(address account) external view returns (bool);
+    function canWithdrawAssets(address account) external view returns (bool);
 
     // ERC-2612 (Permit)
     function permit(address owner, address spender, uint256 shares, uint256 deadline, uint8 v, bytes32 r, bytes32 s)

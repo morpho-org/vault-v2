@@ -11,6 +11,7 @@ import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {IGate} from "./interfaces/IGate.sol";
+import {IPermissionedToken} from "./interfaces/IPermissionedToken.sol";
 
 /// @dev Zero checks are not performed.
 /// @dev No-ops are allowed.
@@ -124,6 +125,7 @@ contract VaultV2 is IVaultV2 {
 
     function setGate(address newGate) external timelocked {
         gate = newGate;
+        emit EventsLib.SetGate(newGate);
     }
 
     function setInterestController(address newInterestController) external timelocked {
@@ -154,7 +156,7 @@ contract VaultV2 is IVaultV2 {
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(
             selector != IVaultV2.setGate.selector || timelock[selector] != type(uint256).max,
-            ErrorsLib.GateTimelockCannotDecrease()
+            ErrorsLib.InfiniteGateTimelock()
         );
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
@@ -406,8 +408,8 @@ contract VaultV2 is IVaultV2 {
 
     function enter(uint256 assets, uint256 shares, address receiver) internal {
         if (gate != address(0)) {
-            require(IGate(gate).canUseAssets(msg.sender), ErrorsLib.CannotUseAssets());
-            require(IGate(gate).canUseShares(receiver), ErrorsLib.CannotUseShares());
+            require(IGate(gate).canSupplyAssets(msg.sender), ErrorsLib.CannotUseAssets());
+            require(IGate(gate).canReceiveShares(receiver), ErrorsLib.CannotUseShares());
         }
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(receiver, shares);
@@ -434,8 +436,8 @@ contract VaultV2 is IVaultV2 {
 
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         if (gate != address(0)) {
-            require(IGate(gate).canUseAssets(receiver), ErrorsLib.CannotUseAssets());
-            require(IGate(gate).canUseShares(onBehalf), ErrorsLib.CannotUseShares());
+            require(IGate(gate).canWithdrawAssets(receiver), ErrorsLib.CannotUseAssets());
+            require(IGate(gate).canSendShares(onBehalf), ErrorsLib.CannotUseShares());
         }
 
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
@@ -485,8 +487,8 @@ contract VaultV2 is IVaultV2 {
     function transfer(address to, uint256 shares) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
         if (gate != address(0)) {
-            require(IGate(gate).canUseShares(msg.sender), ErrorsLib.CannotUseShares());
-            require(IGate(gate).canUseShares(to), ErrorsLib.CannotUseShares());
+            require(IGate(gate).canSendShares(msg.sender), ErrorsLib.CannotUseShares());
+            require(IGate(gate).canReceiveShares(to), ErrorsLib.CannotUseShares());
         }
 
         balanceOf[msg.sender] -= shares;
@@ -499,8 +501,8 @@ contract VaultV2 is IVaultV2 {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
         if (gate != address(0)) {
-            require(IGate(gate).canUseShares(from), ErrorsLib.CannotUseShares());
-            require(IGate(gate).canUseShares(to), ErrorsLib.CannotUseShares());
+            require(IGate(gate).canSendShares(from), ErrorsLib.CannotUseShares());
+            require(IGate(gate).canReceiveShares(to), ErrorsLib.CannotUseShares());
         }
 
         if (msg.sender != from) {
@@ -555,11 +557,19 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Transfer(from, address(0), shares);
     }
 
-    function canUseShares(address account) external view returns (bool) {
-        return (gate == address(0) || IGate(gate).canUseShares(account));
+    function canSend(address account) external view returns (bool) {
+        return (gate == address(0) || IGate(gate).canSendShares(account));
     }
 
-    function canUseAssets(address account) external view returns (bool) {
-        return (gate == address(0) || IGate(gate).canUseShares(account));
+    function canReceive(address account) external view returns (bool) {
+        return (gate == address(0) || IGate(gate).canReceiveShares(account));
+    }
+
+    function canSupplyAssets(address account) external view returns (bool) {
+        return (gate == address(0) || IGate(gate).canSupplyAssets(account));
+    }
+
+    function canWithdrawAssets(address account) external view returns (bool) {
+        return (gate == address(0) || IGate(gate).canWithdrawAssets(account));
     }
 }
