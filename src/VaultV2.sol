@@ -228,6 +228,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
+        // To set a cap to 0, use `decreaseAbsoluteCap`.
         require(newRelativeCap > 0, ErrorsLib.RelativeCapZero());
         require(newRelativeCap <= relativeCap(id), ErrorsLib.RelativeCapNotDecreasing());
 
