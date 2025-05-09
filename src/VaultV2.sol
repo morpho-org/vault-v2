@@ -10,7 +10,7 @@ import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
-import {IGate} from "./interfaces/IGate.sol";
+import {ISendGate, IReceiveGate} from "./interfaces/IGate.sol";
 import {IPermissionedToken} from "./interfaces/IPermissionedToken.sol";
 
 /// @dev Zero checks are not performed.
@@ -24,7 +24,10 @@ contract VaultV2 is IVaultV2 {
     /* ROLES STORAGE */
     address public owner;
     address public curator;
-    address public gate;
+    address public sendGate;
+    /// @dev Gates sending shares and withdrawing.
+    address public receiveGate;
+    /// @notice Gates receiving shares and supplying.
     mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
 
@@ -123,9 +126,14 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
 
-    function setGate(address newGate) external timelocked {
-        gate = newGate;
-        emit EventsLib.SetGate(newGate);
+    function setSendGate(address newSendGate) external timelocked {
+        sendGate = newSendGate;
+        emit EventsLib.SetSendGate(newSendGate);
+    }
+
+    function setReceiveGate(address newReceiveGate) external timelocked {
+        sendGate = newReceiveGate;
+        emit EventsLib.SetReceiveGate(newReceiveGate);
     }
 
     function setInterestController(address newInterestController) external timelocked {
@@ -143,7 +151,10 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(
-            (selector == IVaultV2.setGate.selector && newDuration == type(uint256).max) || newDuration <= TIMELOCK_CAP,
+            (
+                (selector == IVaultV2.setSendGate.selector || selector == IVaultV2.setReceiveGate.selector)
+                    && newDuration == type(uint256).max
+            ) || newDuration <= TIMELOCK_CAP,
             ErrorsLib.TimelockDurationTooHigh()
         );
         require(newDuration >= timelock[selector], ErrorsLib.TimelockNotIncreasing());
@@ -155,7 +166,8 @@ contract VaultV2 is IVaultV2 {
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(
-            selector != IVaultV2.setGate.selector || timelock[selector] != type(uint256).max,
+            (selector != IVaultV2.setSendGate.selector && selector != IVaultV2.setReceiveGate.selector)
+                || timelock[selector] != type(uint256).max,
             ErrorsLib.InfiniteGateTimelock()
         );
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
@@ -407,10 +419,11 @@ contract VaultV2 is IVaultV2 {
     }
 
     function enter(uint256 assets, uint256 shares, address receiver) internal {
-        if (gate != address(0)) {
-            require(IGate(gate).canSupplyAssets(msg.sender), ErrorsLib.CannotUseAssets());
-            require(IGate(gate).canReceiveShares(receiver), ErrorsLib.CannotUseShares());
-        }
+        require(
+            receiveGate == address(0) || IReceiveGate(receiveGate).canReceiveShares(receiver, msg.sender),
+            ErrorsLib.CannotReceiveShares()
+        );
+
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(receiver, shares);
         totalAssets += assets;
@@ -435,10 +448,12 @@ contract VaultV2 is IVaultV2 {
     }
 
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
-        if (gate != address(0)) {
-            require(IGate(gate).canWithdrawAssets(receiver), ErrorsLib.CannotUseAssets());
-            require(IGate(gate).canSendShares(onBehalf), ErrorsLib.CannotUseShares());
-        }
+        require(receiver != TRANSFER_ONLY_MARKER, ErrorsLib.TransferOnlyMarker());
+
+        require(
+            sendGate == address(0) || ISendGate(sendGate).canSendShares(onBehalf, receiver),
+            ErrorsLib.CannotSendShares()
+        );
 
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
@@ -486,10 +501,15 @@ contract VaultV2 is IVaultV2 {
 
     function transfer(address to, uint256 shares) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
-        if (gate != address(0)) {
-            require(IGate(gate).canSendShares(msg.sender), ErrorsLib.CannotUseShares());
-            require(IGate(gate).canReceiveShares(to), ErrorsLib.CannotUseShares());
-        }
+
+        require(
+            sendGate == address(0) || ISendGate(sendGate).canSendShares(msg.sender, TRANSFER_ONLY_MARKER),
+            ErrorsLib.CannotSendShares()
+        );
+        require(
+            receiveGate == address(0) || IReceiveGate(receiveGate).canReceiveShares(to, TRANSFER_ONLY_MARKER),
+            ErrorsLib.CannotReceiveShares()
+        );
 
         balanceOf[msg.sender] -= shares;
         balanceOf[to] += shares;
@@ -500,10 +520,15 @@ contract VaultV2 is IVaultV2 {
     function transferFrom(address from, address to, uint256 shares) external returns (bool) {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
-        if (gate != address(0)) {
-            require(IGate(gate).canSendShares(from), ErrorsLib.CannotUseShares());
-            require(IGate(gate).canReceiveShares(to), ErrorsLib.CannotUseShares());
-        }
+
+        require(
+            sendGate == address(0) || ISendGate(sendGate).canSendShares(from, TRANSFER_ONLY_MARKER),
+            ErrorsLib.CannotSendShares()
+        );
+        require(
+            receiveGate == address(0) || IReceiveGate(receiveGate).canReceiveShares(to, TRANSFER_ONLY_MARKER),
+            ErrorsLib.CannotReceiveShares()
+        );
 
         if (msg.sender != from) {
             uint256 _allowance = allowance[from][msg.sender];
@@ -557,19 +582,13 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Transfer(from, address(0), shares);
     }
 
+    /* PERMISSIONED TOKEN INTERFACE */
+
     function canSend(address account) external view returns (bool) {
-        return (gate == address(0) || IGate(gate).canSendShares(account));
+        return (sendGate == address(0) || ISendGate(sendGate).canSendShares(account, TRANSFER_ONLY_MARKER));
     }
 
     function canReceive(address account) external view returns (bool) {
-        return (gate == address(0) || IGate(gate).canReceiveShares(account));
-    }
-
-    function canSupplyAssets(address account) external view returns (bool) {
-        return (gate == address(0) || IGate(gate).canSupplyAssets(account));
-    }
-
-    function canWithdrawAssets(address account) external view returns (bool) {
-        return (gate == address(0) || IGate(gate).canWithdrawAssets(account));
+        return (receiveGate == address(0) || IReceiveGate(receiveGate).canReceiveShares(account, TRANSFER_ONLY_MARKER));
     }
 }

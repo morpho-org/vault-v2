@@ -12,7 +12,8 @@ library EventsLib {
     event SetInterestController(address indexed interestController);
     event SetIsSentinel(address indexed account, bool isSentinel);
     event SetIsAllocator(address indexed account, bool isAllocator);
-    event SetGate(address indexed gate);
+    event SetSendGate(address indexed sendGate);
+    event SetReceiveGate(address indexed receiveGate);
     event SetPerformanceFeeRecipient(address indexed);
     event SetManagementFeeRecipient(address indexed);
     event SetIsAdapter(address indexed account, bool isAdapter);

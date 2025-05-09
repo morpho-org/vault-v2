@@ -38,6 +38,7 @@ library ErrorsLib {
     error ApproveReverted();
     error ApproveReturnedFalse();
     error InfiniteGateTimelock();
-    error CannotUseAssets();
-    error CannotUseShares();
+    error TransferOnlyMarker();
+    error CannotSendShares();
+    error CannotReceiveShares();
 }

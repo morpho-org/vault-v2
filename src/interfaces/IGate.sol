@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity >=0.5.0;
 
-interface IGate {
-    function canSendShares(address account) external view returns (bool);
-    function canReceiveShares(address account) external view returns (bool);
-    function canSupplyAssets(address account) external view returns (bool);
-    function canWithdrawAssets(address account) external view returns (bool);
+interface ISendGate {
+    function canSendShares(address account, address assetReceive) external view returns (bool);
+}
+
+interface IReceiveGate {
+    function canReceiveShares(address account, address assetSender) external view returns (bool);
 }

@@ -8,10 +8,6 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     // Multicall
     function multicall(bytes[] calldata) external;
 
-    // Gating
-    function canSupplyAssets(address account) external view returns (bool);
-    function canWithdrawAssets(address account) external view returns (bool);
-
     // ERC-2612 (Permit)
     function permit(address owner, address spender, uint256 shares, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         external;
@@ -57,7 +53,8 @@ interface IVaultV2 is IERC20, IPermissionedToken {
 
     // Owner actions
     function setOwner(address) external;
-    function setGate(address) external;
+    function setSendGate(address) external;
+    function setReceiveGate(address) external;
     function setCurator(address) external;
     function setIsSentinel(address, bool) external;
 
