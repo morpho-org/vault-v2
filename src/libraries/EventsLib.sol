@@ -38,5 +38,5 @@ library EventsLib {
         uint256 previousTotalAssets, uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares
     );
     event ForceReallocateToIdle(address indexed sender, address indexed onBehalf, uint256 assets);
-    event CreateVaultV2(address indexed vaultV2, address indexed asset);
+    event CreateVaultV2(address indexed vaultV2, address indexed owner, address indexed asset);
 }
