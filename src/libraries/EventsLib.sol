@@ -9,7 +9,7 @@ library EventsLib {
     event Permit(address indexed owner, address indexed spender, uint256 shares, uint256 nonce, uint256 deadline);
     event SetOwner(address indexed owner);
     event SetCurator(address indexed curator);
-    event SetInterestController(address indexed interestController);
+    event SetVic(address indexed vic);
     event SetIsSentinel(address indexed account, bool isSentinel);
     event SetIsAllocator(address indexed account, bool isAllocator);
     event SetPerformanceFeeRecipient(address indexed);
