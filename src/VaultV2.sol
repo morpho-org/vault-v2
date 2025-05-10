@@ -43,8 +43,10 @@ contract VaultV2 is IVaultV2 {
     /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
     mapping(bytes32 => uint256) public absoluteCap;
     /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
-    /// @dev Relative cap = 0 is interpreted as no relative cap.
-    mapping(bytes32 => uint256) public relativeCap;
+    /// @dev The relative cap is relative to `totalAssets`.
+    /// @dev Units are in WAD.
+    /// @dev A relative cap of 1 WAD means no relative cap.
+    mapping(bytes32 => uint256) internal oneMinusRelativeCap;
     /// @dev Useful to iterate over all ids with relative cap in withdrawals.
     bytes32[] public idsWithRelativeCap;
     /// @dev Interests are not counted in the allocation.
@@ -68,6 +70,10 @@ contract VaultV2 is IVaultV2 {
 
     function idsWithRelativeCapLength() public view returns (uint256) {
         return idsWithRelativeCap.length;
+    }
+
+    function relativeCap(bytes32 id) public view returns (uint256) {
+        return WAD - oneMinusRelativeCap[id];
     }
 
     /* MULTICALL */
@@ -207,25 +213,36 @@ contract VaultV2 is IVaultV2 {
     function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
         bytes32 id = keccak256(idData);
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
-        require(newRelativeCap >= relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
+        require(newRelativeCap >= relativeCap(id), ErrorsLib.RelativeCapNotIncreasing());
 
-        if (relativeCap[id] == 0 && newRelativeCap != 0) idsWithRelativeCap.push(id);
-        relativeCap[id] = newRelativeCap;
+        if (newRelativeCap > relativeCap(id)) {
+            if (newRelativeCap == WAD) {
+                uint256 i;
+                while (idsWithRelativeCap[i] != id) i++;
+                idsWithRelativeCap[i] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
+                idsWithRelativeCap.pop();
+            }
+
+            oneMinusRelativeCap[id] = WAD - newRelativeCap;
+        }
+
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
 
     function decreaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
         bytes32 id = keccak256(idData);
-        require(newRelativeCap <= relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
-        require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
+        // To set a cap to 0, use `decreaseAbsoluteCap`.
+        require(newRelativeCap > 0, ErrorsLib.RelativeCapZero());
+        require(newRelativeCap <= relativeCap(id), ErrorsLib.RelativeCapNotDecreasing());
 
-        if (newRelativeCap == 0 && relativeCap[id] != 0) {
-            uint256 i;
-            while (idsWithRelativeCap[i] != id) i++;
-            idsWithRelativeCap[i] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
-            idsWithRelativeCap.pop();
+        if (newRelativeCap < relativeCap(id)) {
+            require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
+
+            if (relativeCap(id) == WAD) idsWithRelativeCap.push(id);
+
+            oneMinusRelativeCap[id] = WAD - newRelativeCap;
         }
-        relativeCap[id] = newRelativeCap;
+
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }
 
@@ -248,9 +265,9 @@ contract VaultV2 is IVaultV2 {
             allocation[ids[i]] += assets;
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
-            if (relativeCap[ids[i]] != 0) {
+            if (relativeCap(ids[i]) < WAD) {
                 require(
-                    allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD),
+                    allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap(ids[i]), WAD),
                     ErrorsLib.RelativeCapExceeded()
                 );
             }
@@ -438,7 +455,8 @@ contract VaultV2 is IVaultV2 {
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
-            require(allocation[id] <= totalAssets.mulDivDown(relativeCap[id], WAD), ErrorsLib.RelativeCapExceeded());
+            // relativeCap(id) < WAD is true for all ids in idsWithRelativeCap
+            require(allocation[id] <= totalAssets.mulDivDown(relativeCap(id), WAD), ErrorsLib.RelativeCapExceeded());
         }
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
