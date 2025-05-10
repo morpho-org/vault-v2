@@ -21,18 +21,18 @@ methods {
 
     function totalAssets() external returns uint256 envfree;
     function balanceOf(address) external returns uint256 envfree;
+
+    function idsWithRelativeCapLength() external returns uint256 envfree;
+    function idsWithRelativeCap(uint256 i) external returns bytes32 envfree;
 }
 
+definition WAD() returns uint256 = 10^18;
 definition TIMELOCK_CAP() returns uint256 = 14 * 24 * 60 * 60;
 definition MAX_PERFOMANCE_FEE() returns uint256 = 10^18 / 2;
 definition MAX_MANAGEMENT_FEE() returns uint256 = 10^18 / 20 / (365 * 24 * 60 * 60);
 definition MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY() returns uint256 = 10^18 / 100;
 
-strong invariant performanceFeeRecipient()
-    performanceFee() != 0 => performanceFeeRecipient() != 0;
-
-strong invariant managementFeeRecipient()
-    managementFee() != 0 => managementFeeRecipient() != 0;
+/* BOUNDS */
 
 strong invariant performanceFee()
     performanceFee() <= MAX_PERFOMANCE_FEE();
@@ -43,8 +43,11 @@ strong invariant managementFee()
 strong invariant forceReallocateToIdlePenalty()
     forceReallocateToIdlePenalty() <= MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY();
 
-strong invariant balanceOfZero()
-    balanceOf(0) == 0;
+strong invariant relativeCapNonNull(bytes32 id)
+    relativeCap(id) > 0;
+
+strong invariant relativeCapNotAboveOne(bytes32 id)
+    relativeCap(id) <= WAD();
 
 strong invariant timelockCap(bytes4 selector)
     timelock(selector) <= TIMELOCK_CAP();
@@ -52,5 +55,28 @@ strong invariant timelockCap(bytes4 selector)
 strong invariant timelockTimelock()
     timelock(to_bytes4(0x5c1a1a4f)) == TIMELOCK_CAP();
 
+/* OTHER INVARIANTS */
+
+strong invariant performanceFeeRecipient()
+    performanceFee() != 0 => performanceFeeRecipient() != 0;
+
+strong invariant managementFeeRecipient()
+    managementFee() != 0 => managementFeeRecipient() != 0;
+
+strong invariant balanceOfZero()
+    balanceOf(0) == 0;
+
 strong invariant liquidityAdapterInvariant()
     liquidityAdapter() == 0 || isAdapter(liquidityAdapter());
+
+// strong invariant idsWithRelativeCapDistinct(uint256 i, uint256 j)
+//     i != j => idsWithRelativeCap(i) != idsWithRelativeCap(j);
+
+// function isInListHasRelativeCap(uint256 i) returns bool {
+//     if(i >= idsWithRelativeCapLength()) return true;
+//     bytes32 id = idsWithRelativeCap(i);
+//     return relativeCap(id) != WAD();
+// }
+
+// strong invariant idsWithRelativeCapHaveRelativeCap(uint256 i)
+//     isInListHasRelativeCap(i);
