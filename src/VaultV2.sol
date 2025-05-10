@@ -127,6 +127,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setVic(address newVic) external timelocked {
+        accrueInterest();
         vic = newVic;
         emit EventsLib.SetVic(newVic);
     }
@@ -201,15 +202,17 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.IncreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
-    function decreaseAbsoluteCap(bytes32 id, uint256 newAbsoluteCap) external {
+    function decreaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
+        bytes32 id = keccak256(idData);
         require(newAbsoluteCap <= absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
 
         absoluteCap[id] = newAbsoluteCap;
-        emit EventsLib.DecreaseAbsoluteCap(id, newAbsoluteCap);
+        emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
-    function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
+    function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
+        bytes32 id = keccak256(idData);
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
         require(newRelativeCap >= relativeCap(id), ErrorsLib.RelativeCapNotIncreasing());
 
@@ -224,10 +227,11 @@ contract VaultV2 is IVaultV2 {
             oneMinusRelativeCap[id] = WAD - newRelativeCap;
         }
 
-        emit EventsLib.IncreaseRelativeCap(id, newRelativeCap);
+        emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
 
-    function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
+    function decreaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
+        bytes32 id = keccak256(idData);
         // To set a cap to 0, use `decreaseAbsoluteCap`.
         require(newRelativeCap > 0, ErrorsLib.RelativeCapZero());
         require(newRelativeCap <= relativeCap(id), ErrorsLib.RelativeCapNotDecreasing());
@@ -240,7 +244,7 @@ contract VaultV2 is IVaultV2 {
             oneMinusRelativeCap[id] = WAD - newRelativeCap;
         }
 
-        emit EventsLib.DecreaseRelativeCap(id, newRelativeCap);
+        emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }
 
     function setForceReallocateToIdlePenalty(uint256 newForceReallocateToIdlePenalty) external timelocked {
@@ -343,8 +347,13 @@ contract VaultV2 is IVaultV2 {
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (totalAssets, 0, 0);
-        uint256 interestPerSecond = IVic(vic).interestPerSecond(totalAssets, elapsed);
-        require(interestPerSecond <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
+        uint256 interestPerSecond;
+        try IVic(vic).interestPerSecond(totalAssets, elapsed) returns (uint256 output) {
+            if (output <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD)) interestPerSecond = output;
+            else interestPerSecond = 0;
+        } catch {
+            interestPerSecond = 0;
+        }
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssets + interest;
 
