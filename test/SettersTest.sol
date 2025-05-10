@@ -503,7 +503,9 @@ contract SettersTest is BaseTest {
         assertEq(vault.absoluteCap(id), newAbsoluteCap);
     }
 
-    function testIncreaseRelativeCap(address rdm, bytes memory idData, uint256 oldRelativeCap, uint256 newRelativeCap) public {
+    function testIncreaseRelativeCap(address rdm, bytes memory idData, uint256 oldRelativeCap, uint256 newRelativeCap)
+        public
+    {
         oldRelativeCap = bound(oldRelativeCap, 1, WAD - 1);
         newRelativeCap = bound(newRelativeCap, oldRelativeCap, WAD - 1);
         bytes32 id = keccak256(idData);
@@ -554,9 +556,12 @@ contract SettersTest is BaseTest {
         vault.decreaseRelativeCap(idData, 0);
     }
 
-    function testDecreaseRelativeCapSequence(address rdm, bytes memory idData, uint256 oldRelativeCap, uint256 newRelativeCap)
-        public
-    {
+    function testDecreaseRelativeCapSequence(
+        address rdm,
+        bytes memory idData,
+        uint256 oldRelativeCap,
+        uint256 newRelativeCap
+    ) public {
         bytes32 id = keccak256(idData);
         oldRelativeCap = bound(oldRelativeCap, 1, WAD);
         newRelativeCap = bound(newRelativeCap, 1, oldRelativeCap);
@@ -585,7 +590,12 @@ contract SettersTest is BaseTest {
         vault.decreaseRelativeCap(idData, newRelativeCap + 1);
     }
 
-    function testDecreaseRelativeCapExceedsCap(address rdm, bytes memory idData, uint256 oldRelativeCap, uint256 newRelativeCap) public {
+    function testDecreaseRelativeCapExceedsCap(
+        address rdm,
+        bytes memory idData,
+        uint256 oldRelativeCap,
+        uint256 newRelativeCap
+    ) public {
         oldRelativeCap = bound(oldRelativeCap, 1, WAD - 1);
         newRelativeCap = bound(newRelativeCap, oldRelativeCap + 1, WAD);
         bytes32 id = keccak256(idData);
