@@ -16,4 +16,6 @@ contract VaultV2Mock {
         isAllocator[_allocator] = true;
         isSentinel[_sentinel] = true;
     }
+
+    function accrueInterest() public {}
 }
