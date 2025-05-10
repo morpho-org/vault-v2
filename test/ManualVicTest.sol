@@ -96,6 +96,7 @@ contract ManualVicTest is Test {
     }
 
     function testCreateManualVic(address _vault) public {
+        vm.assume(_vault != address(vault));
         bytes32 initCodeHash = keccak256(abi.encodePacked(type(ManualVic).creationCode, abi.encode(_vault)));
         address expectedManualVicAddress = address(
             uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), address(vicFactory), bytes32(0), initCodeHash))))
