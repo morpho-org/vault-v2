@@ -253,7 +253,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         if (root != END_SLOT) {
-            require(ceiling(node(root)) <= totalAssets, ErrorsLib.RelativeCapExceeded());
+            require(totalAssetsFloor(root) <= totalAssets, ErrorsLib.RelativeCapExceeded());
         }
 
         emit EventsLib.ReallocateFromIdle(msg.sender, adapter, assets, ids);
@@ -437,7 +437,7 @@ contract VaultV2 is IVaultV2 {
         totalAssets -= assets;
 
         if (root != END_SLOT) {
-            require(ceiling(node(root)) <= totalAssets, ErrorsLib.RelativeCapExceeded());
+            require(totalAssetsFloor(root) <= totalAssets, ErrorsLib.RelativeCapExceeded());
         }
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
@@ -538,8 +538,8 @@ contract VaultV2 is IVaultV2 {
         }
     }
 
-    function ceiling(Node storage _node) internal view returns (uint256) {
-        bytes32 id = _node.id;
+    function totalAssetsFloor(bytes32 slot) internal view returns (uint256) {
+        bytes32 id = node(slot).id;
         return allocation[id] * WAD / relativeCap[id];
     }
 
@@ -554,7 +554,7 @@ contract VaultV2 is IVaultV2 {
         bytes32 prev = slot(prevId);
         bytes32 next;
 
-        if (node(prev).next == NULL_SLOT || ceiling(node(prev)) < ceiling(node(removed))) {
+        if (node(prev).next == NULL_SLOT || totalAssetsFloor(prev) < totalAssetsFloor(removed)) {
             prev = END_SLOT;
             next = root;
         } else {
@@ -580,8 +580,8 @@ contract VaultV2 is IVaultV2 {
         node(inserted).id = insertedId;
         bytes32 prev = slot(prevId);
         bytes32 next;
-        uint256 insertedCeiling = ceiling(node(inserted));
-        if (node(prev).next == NULL_SLOT || ceiling(node(prev)) < insertedCeiling) {
+        uint256 insertedFloor = totalAssetsFloor(inserted);
+        if (node(prev).next == NULL_SLOT || totalAssetsFloor(prev) < insertedFloor) {
             prev = END_SLOT;
             next = root;
         } else {
@@ -589,7 +589,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         while (next != END_SLOT) {
-            if (ceiling(node(next)) > insertedCeiling) {
+            if (totalAssetsFloor(next) > insertedFloor) {
                 prev = next;
                 next = node(next).next;
             } else {
