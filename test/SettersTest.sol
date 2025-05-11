@@ -487,99 +487,130 @@ contract SettersTest is BaseTest {
         // Access control
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.decreaseAbsoluteCap(id, newAbsoluteCap);
+        vault.decreaseAbsoluteCap(idData, newAbsoluteCap);
 
         // Can't increase absolute cap
         vm.expectRevert(ErrorsLib.AbsoluteCapNotDecreasing.selector);
         vm.prank(curator);
-        vault.decreaseAbsoluteCap(id, oldAbsoluteCap + 1);
+        vault.decreaseAbsoluteCap(idData, oldAbsoluteCap + 1);
 
         // Normal path
         vm.expectEmit();
-        emit EventsLib.DecreaseAbsoluteCap(id, newAbsoluteCap);
+        emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
         vm.prank(curator);
-        vault.decreaseAbsoluteCap(id, newAbsoluteCap);
+        vault.decreaseAbsoluteCap(idData, newAbsoluteCap);
         assertEq(vault.absoluteCap(id), newAbsoluteCap);
     }
 
-    function testIncreaseRelativeCap(address rdm, bytes32 id, uint256 newRelativeCap) public {
-        vm.assume(newRelativeCap >= 0);
-        vm.assume(newRelativeCap <= WAD);
+    function testIncreaseRelativeCap(address rdm, bytes memory idData, uint256 oldRelativeCap, uint256 newRelativeCap)
+        public
+    {
+        oldRelativeCap = bound(oldRelativeCap, 1, WAD - 1);
+        newRelativeCap = bound(newRelativeCap, oldRelativeCap, WAD - 1);
+        bytes32 id = keccak256(idData);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, oldRelativeCap));
+        vault.decreaseRelativeCap(idData, oldRelativeCap);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
-        vault.increaseRelativeCap(id, newRelativeCap);
+        vault.increaseRelativeCap(idData, newRelativeCap);
 
         // Can't increase relative cap above 1
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, id, WAD + 1));
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, WAD + 1));
         vm.expectRevert(ErrorsLib.RelativeCapAboveOne.selector);
-        vault.increaseRelativeCap(id, WAD + 1);
+        vault.increaseRelativeCap(idData, WAD + 1);
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, id, newRelativeCap));
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, newRelativeCap));
         vm.expectEmit();
-        emit EventsLib.IncreaseRelativeCap(id, newRelativeCap);
-        vault.increaseRelativeCap(id, newRelativeCap);
+        emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
+        vault.increaseRelativeCap(idData, newRelativeCap);
         assertEq(vault.relativeCap(id), newRelativeCap);
-        if (newRelativeCap > 0) assertEq(vault.idsWithRelativeCap(0), id);
+        if (newRelativeCap < WAD) assertEq(vault.idsWithRelativeCap(0), id);
 
         // Can't decrease relative cap
-        if (newRelativeCap > 0) {
+        if (newRelativeCap < WAD) {
             vm.prank(curator);
-            vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, id, newRelativeCap - 1));
+            vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, newRelativeCap - 1));
             vm.expectRevert(ErrorsLib.RelativeCapNotIncreasing.selector);
-            vault.increaseRelativeCap(id, newRelativeCap - 1);
+            vault.increaseRelativeCap(idData, newRelativeCap - 1);
         }
     }
 
-    function testDecreaseRelativeCap(address rdm, bytes32 id, uint256 oldRelativeCap, uint256 newRelativeCap) public {
-        newRelativeCap = bound(newRelativeCap, 0, WAD - 1);
-        oldRelativeCap = bound(oldRelativeCap, newRelativeCap, WAD - 1);
+    function testDecreaseRelativeCapZero(address rdm, bytes memory idData, uint256 oldRelativeCap) public {
+        bytes32 id = keccak256(idData);
+        oldRelativeCap = bound(oldRelativeCap, 1, WAD);
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, oldRelativeCap));
+        vault.decreaseRelativeCap(idData, oldRelativeCap);
 
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, id, oldRelativeCap));
-        vault.increaseRelativeCap(id, oldRelativeCap);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, 0));
+        vm.expectRevert(ErrorsLib.RelativeCapZero.selector);
+        vault.decreaseRelativeCap(idData, 0);
+    }
+
+    function testDecreaseRelativeCapSequence(
+        address rdm,
+        bytes memory idData,
+        uint256 oldRelativeCap,
+        uint256 newRelativeCap
+    ) public {
+        bytes32 id = keccak256(idData);
+        oldRelativeCap = bound(oldRelativeCap, 1, WAD);
+        newRelativeCap = bound(newRelativeCap, 1, oldRelativeCap);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, oldRelativeCap));
+        vault.decreaseRelativeCap(idData, oldRelativeCap);
 
         // Access control
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
-        vault.decreaseRelativeCap(id, newRelativeCap);
+        vault.decreaseRelativeCap(idData, newRelativeCap);
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, id, newRelativeCap));
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, newRelativeCap));
         vm.expectEmit();
-        emit EventsLib.DecreaseRelativeCap(id, newRelativeCap);
-        vault.decreaseRelativeCap(id, newRelativeCap);
+        emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
+        vault.decreaseRelativeCap(idData, newRelativeCap);
         assertEq(vault.relativeCap(id), newRelativeCap);
 
         // Can't increase relative cap
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, id, newRelativeCap + 1));
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, newRelativeCap + 1));
         vm.expectRevert(ErrorsLib.RelativeCapNotDecreasing.selector);
-        vault.decreaseRelativeCap(id, newRelativeCap + 1);
+        vault.decreaseRelativeCap(idData, newRelativeCap + 1);
+    }
 
-        // The relative cap decreased to 0.
-        vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, id, 0));
-        vault.decreaseRelativeCap(id, 0);
-        vm.expectRevert();
-        vault.idsWithRelativeCap(0);
-        assertEq(vault.idsWithRelativeCapLength(), 0);
-
-        // The relative cap exceeded.
-        id = keccak256("id");
-
-        vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, id, oldRelativeCap + 1));
-        vault.increaseRelativeCap(id, oldRelativeCap + 1);
+    function testDecreaseRelativeCapExceedsCap(
+        address rdm,
+        bytes memory idData,
+        uint256 oldRelativeCap,
+        uint256 newRelativeCap
+    ) public {
+        oldRelativeCap = bound(oldRelativeCap, 1, WAD - 1);
+        newRelativeCap = bound(newRelativeCap, oldRelativeCap + 1, WAD);
+        bytes32 id = keccak256(idData);
 
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, "id", oldRelativeCap + 1));
-        vault.increaseAbsoluteCap("id", oldRelativeCap + 1);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, oldRelativeCap));
+        vault.decreaseRelativeCap(idData, oldRelativeCap);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, newRelativeCap));
+        vault.increaseRelativeCap(idData, newRelativeCap);
+        return;
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, newRelativeCap));
+        vault.increaseAbsoluteCap(idData, newRelativeCap);
         vault.deposit(1 ether, address(this));
         address adapter = address(new BasicAdapter());
 
@@ -588,13 +619,13 @@ contract SettersTest is BaseTest {
         vault.setIsAdapter(adapter, true);
 
         vm.prank(allocator);
-        vault.reallocateFromIdle(adapter, hex"", oldRelativeCap + 1);
+        vault.reallocateFromIdle(adapter, idData, oldRelativeCap + 1);
         assertEq(vault.allocation(id), oldRelativeCap + 1);
 
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, id, newRelativeCap));
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, newRelativeCap));
         vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
-        vault.decreaseRelativeCap(id, newRelativeCap);
+        vault.decreaseRelativeCap(idData, newRelativeCap);
     }
 
     function testSetForceReallocateToIdlePenalty(address rdm, uint256 newForceReallocateToIdlePenalty) public {
@@ -675,9 +706,9 @@ contract SettersTest is BaseTest {
 }
 
 contract BasicAdapter {
-    function allocate(bytes memory, uint256) external pure returns (bytes32[] memory) {
+    function allocate(bytes memory idData, uint256) external pure returns (bytes32[] memory) {
         bytes32[] memory ids = new bytes32[](1);
-        ids[0] = keccak256("id");
+        ids[0] = keccak256(idData);
         return ids;
     }
 }

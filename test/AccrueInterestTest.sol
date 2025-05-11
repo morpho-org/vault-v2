@@ -81,17 +81,11 @@ contract AccrueInterestTest is BaseTest {
         vm.stopPrank();
         vault.setPerformanceFee(performanceFee);
         vault.setManagementFee(managementFee);
-        vm.warp(vm.getBlockTimestamp() + elapsed);
-
-        // Rate too high.
-        vm.prank(allocator);
-        vic.setInterestPerSecond(deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD) + 1);
-        vm.expectRevert(ErrorsLib.InvalidRate.selector);
-        vault.accrueInterest();
-
-        // Normal path.
         vm.prank(allocator);
         vic.setInterestPerSecond(interestPerSecond);
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        // Normal path.
         uint256 interest = interestPerSecond * elapsed;
         uint256 totalAssets = deposit + interest;
         uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
@@ -107,6 +101,37 @@ contract AccrueInterestTest is BaseTest {
         assertEq(vault.totalAssets(), totalAssets);
         assertEq(vault.balanceOf(performanceFeeRecipient), performanceFeeShares);
         assertEq(vault.balanceOf(managementFeeRecipient), managementFeeShares);
+    }
+
+    function testAccrueInterestTooHigh(
+        uint256 deposit,
+        uint256 performanceFee,
+        uint256 managementFee,
+        uint256 interestPerSecond,
+        uint256 elapsed
+    ) public {
+        performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
+        managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
+        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        interestPerSecond = bound(interestPerSecond, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD), type(uint256).max);
+        elapsed = bound(elapsed, 0, 1000 weeks);
+
+        // Setup.
+        vault.deposit(deposit, address(this));
+        vm.startPrank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, performanceFee));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, managementFee));
+        vm.stopPrank();
+        vault.setPerformanceFee(performanceFee);
+        vault.setManagementFee(managementFee);
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        // Rate too high.
+        vm.prank(allocator);
+        vic.setInterestPerSecond(interestPerSecond);
+        uint256 totalAssetsBefore = vault.totalAssets();
+        vault.accrueInterest();
+        assertEq(vault.totalAssets(), totalAssetsBefore);
     }
 
     function testPerformanceFeeWithoutManagementFee(

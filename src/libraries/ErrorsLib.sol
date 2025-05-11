@@ -38,4 +38,5 @@ library ErrorsLib {
     error LossRealisedInBlock();
     error ApproveReverted();
     error ApproveReturnedFalse();
+    error RelativeCapZero();
 }

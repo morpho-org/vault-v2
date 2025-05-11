@@ -72,7 +72,7 @@ contract ReallocateTest is BaseTest {
             vault.increaseAbsoluteCap(idData, absoluteCap);
         } else {
             vm.prank(curator);
-            vault.decreaseAbsoluteCap(id, absoluteCap);
+            vault.decreaseAbsoluteCap(idData, absoluteCap);
         }
         assertEq(vault.absoluteCap(id), absoluteCap);
     }
