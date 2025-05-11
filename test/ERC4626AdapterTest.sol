@@ -16,7 +16,7 @@ contract ERC4626AdapterTest is Test {
     ERC20Mock internal asset;
     ERC20Mock internal rewardToken;
     VaultV2Mock internal parentVault;
-    ERC4626Mock internal vault;
+    ERC4626MockExtended internal vault;
     ERC4626AdapterFactory internal factory;
     ERC4626Adapter internal adapter;
     address internal owner;
@@ -30,7 +30,7 @@ contract ERC4626AdapterTest is Test {
 
         asset = new ERC20Mock();
         rewardToken = new ERC20Mock();
-        vault = new ERC4626Mock(address(asset));
+        vault = new ERC4626MockExtended(address(asset));
         parentVault = new VaultV2Mock(address(asset), owner, address(0), address(0), address(0));
 
         factory = new ERC4626AdapterFactory();
@@ -182,11 +182,7 @@ contract ERC4626AdapterTest is Test {
         adapter.allocate(hex"", initialAssets);
 
         // Loss detection.
-        vm.mockCall(
-            address(vault),
-            abi.encodeWithSelector(IERC4626.previewRedeem.selector, initialAssets),
-            abi.encode(initialAssets - lossAssets)
-        );
+        vault.loose(lossAssets);
         uint256 snapshot = vm.snapshot();
         vm.prank(address(parentVault));
         adapter.allocate(hex"", 0);
@@ -228,28 +224,31 @@ contract ERC4626AdapterTest is Test {
         deal(address(asset), address(adapter), initialAssets + depositAssets);
         vm.prank(address(parentVault));
         adapter.allocate(hex"", initialAssets);
+        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets, "Assets in vault should be tracked");
 
         // First loss
-        vm.mockCall(
-            address(vault),
-            abi.encodeWithSelector(IERC4626.previewRedeem.selector, initialAssets),
-            abi.encode(initialAssets - firstLoss)
-        );
+        vault.loose(firstLoss);
         vm.prank(address(parentVault));
         adapter.allocate(hex"", 0);
-        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets, "Assets in vault should be tracked");
+        assertEq(
+            vault.previewRedeem(vault.balanceOf(address(adapter))),
+            initialAssets - firstLoss,
+            "Preview redeem should be initial assets - first loss"
+        );
+        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets, "Assets in vault should not change");
 
         // Second loss
-        vm.mockCall(
-            address(vault),
-            abi.encodeWithSelector(IERC4626.previewRedeem.selector, initialAssets),
-            abi.encode(initialAssets - firstLoss - secondLoss)
-        );
+        vault.loose(secondLoss);
         vm.prank(address(parentVault));
         adapter.allocate(hex"", 0);
-        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets, "Assets in vault should be tracked");
+        assertEq(
+            vault.previewRedeem(vault.balanceOf(address(adapter))),
+            initialAssets - firstLoss - secondLoss,
+            "Preview redeem should be initial assets - first loss - second loss"
+        );
+        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets, "Assets in vault should not change");
 
-        // Depositing doesn't change the loss.
+        // Deposit.
         vm.prank(address(parentVault));
         adapter.allocate(hex"", depositAssets);
         assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets + depositAssets, "Assets in vault should be tracked");
@@ -283,5 +282,16 @@ contract ERC4626AdapterTest is Test {
 
         vm.expectRevert(ERC4626Adapter.InvalidData.selector);
         adapter.deallocate(data, 0);
+
+        vm.expectRevert(ERC4626Adapter.InvalidData.selector);
+        adapter.realiseLoss(data);
+    }
+}
+
+contract ERC4626MockExtended is ERC4626Mock {
+    constructor(address _asset) ERC4626Mock(_asset) {}
+
+    function loose(uint256 assets) public {
+        IERC20(asset()).transfer(address(0xdead), assets);
     }
 }

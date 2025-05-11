@@ -63,9 +63,8 @@ contract MorphoAdapter is IAdapter {
         Id marketId = marketParams.id();
 
         if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-        assetsInMarketIfNoLoss[marketId] = max(
-            assetsInMarketIfNoLoss[marketId] + assets, IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))
-        );
+        uint256 assetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+        assetsInMarketIfNoLoss[marketId] = max(assetsInMarketIfNoLoss[marketId] + assets, assetsInMarket);
 
         return ids(marketParams);
     }
@@ -77,9 +76,8 @@ contract MorphoAdapter is IAdapter {
         Id marketId = marketParams.id();
 
         if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-        assetsInMarketIfNoLoss[marketId] = max(
-            assetsInMarketIfNoLoss[marketId] - assets, IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))
-        );
+        uint256 assetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+        assetsInMarketIfNoLoss[marketId] = max(assetsInMarketIfNoLoss[marketId] - assets, assetsInMarket);
 
         return ids(marketParams);
     }

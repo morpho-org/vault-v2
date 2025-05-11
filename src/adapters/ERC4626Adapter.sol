@@ -80,7 +80,8 @@ contract ERC4626Adapter is IAdapter {
         return ids();
     }
 
-    function realiseLoss(bytes memory) external returns (uint256, bytes32[] memory) {
+    function realiseLoss(bytes memory data) external returns (uint256, bytes32[] memory) {
+        require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
         uint256 assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
         uint256 loss = assetsInVaultIfNoLoss.zeroFloorSub(assetsInVault);
