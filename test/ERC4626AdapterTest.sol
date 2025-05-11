@@ -35,6 +35,9 @@ contract ERC4626AdapterTest is Test {
 
         factory = new ERC4626AdapterFactory();
         adapter = ERC4626Adapter(factory.createERC4626Adapter(address(parentVault), address(vault)));
+
+        deal(address(asset), address(this), type(uint256).max);
+        asset.approve(address(vault), type(uint256).max);
     }
 
     function testParentVaultAndAssetSet() public view {
@@ -213,14 +216,15 @@ contract ERC4626AdapterTest is Test {
         uint256 firstLoss,
         uint256 secondLoss,
         uint256 depositAssets,
-        uint256 withdrawAssets
+        uint256 withdrawAssets,
+        uint256 interest
     ) public {
         initialAssets = bound(initialAssets, 0, MAX_TEST_ASSETS);
         firstLoss = bound(firstLoss, 0, initialAssets);
         secondLoss = bound(secondLoss, 0, initialAssets - firstLoss);
         depositAssets = bound(depositAssets, 0, MAX_TEST_ASSETS);
         withdrawAssets = bound(withdrawAssets, 0, depositAssets);
-
+        interest = bound(interest, 0, firstLoss + secondLoss);
         deal(address(asset), address(adapter), initialAssets + depositAssets);
         vm.prank(address(parentVault));
         adapter.allocate(hex"", initialAssets);
@@ -230,47 +234,35 @@ contract ERC4626AdapterTest is Test {
         vault.loose(firstLoss);
         vm.prank(address(parentVault));
         adapter.allocate(hex"", 0);
-        assertEq(
-            vault.previewRedeem(vault.balanceOf(address(adapter))),
-            initialAssets - firstLoss,
-            "Preview redeem should be initial assets - first loss"
-        );
-        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets, "Assets in vault should not change");
+        assertEq(_loss(), firstLoss, "Loss should not change");
 
         // Second loss
         vault.loose(secondLoss);
         vm.prank(address(parentVault));
         adapter.allocate(hex"", 0);
-        assertEq(
-            vault.previewRedeem(vault.balanceOf(address(adapter))),
-            initialAssets - firstLoss - secondLoss,
-            "Preview redeem should be initial assets - first loss - second loss"
-        );
-        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets, "Assets in vault should not change");
+        assertEq(_loss(), firstLoss + secondLoss, "Loss should not change");
 
-        // Deposit.
+        // Deposit doesn't change the loss.
         vm.prank(address(parentVault));
         adapter.allocate(hex"", depositAssets);
-        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets + depositAssets, "Assets in vault should be tracked");
+        assertApproxEqAbs(_loss(), firstLoss + secondLoss, 1, "Loss should not change");
 
         // Withdrawing doesn't change the loss.
         vm.prank(address(parentVault));
         adapter.deallocate(hex"", withdrawAssets);
-        assertEq(
-            adapter.assetsInVaultIfNoLoss(),
-            initialAssets + depositAssets - withdrawAssets,
-            "Assets in vault should be tracked"
-        );
+        assertApproxEqAbs(_loss(), firstLoss + secondLoss, 1, "Loss should not change");
+
+        // Interest cover the loss.
+        asset.transfer(address(vault), interest);
+        vm.prank(address(parentVault));
+        adapter.allocate(hex"", 0);
+        assertApproxEqAbs(_loss(), firstLoss + secondLoss - interest, 1, "Loss should not change");
 
         // Realise loss
         vm.prank(address(parentVault));
         (uint256 realizedLoss, bytes32[] memory ids) = adapter.realiseLoss(hex"");
-        assertEq(realizedLoss, firstLoss + secondLoss, "Should realize the full cumulative loss");
-        assertEq(
-            adapter.assetsInVaultIfNoLoss(),
-            initialAssets + depositAssets - withdrawAssets - realizedLoss,
-            "Assets in vault should be tracked"
-        );
+        assertApproxEqAbs(realizedLoss, firstLoss + secondLoss - interest, 1, "Should realize the full cumulative loss");
+        assertEq(_loss(), 0, "Loss should be zero");
         assertEq(ids.length, 1, "Unexpected number of ids returned");
     }
 
@@ -285,6 +277,10 @@ contract ERC4626AdapterTest is Test {
 
         vm.expectRevert(ERC4626Adapter.InvalidData.selector);
         adapter.realiseLoss(data);
+    }
+
+    function _loss() internal view returns (uint256) {
+        return adapter.assetsInVaultIfNoLoss() - vault.previewRedeem(vault.balanceOf(address(adapter)));
     }
 }
 
