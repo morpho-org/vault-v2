@@ -66,8 +66,8 @@ interface IVaultV2 is IERC20 {
     function increaseRelativeCap(bytes memory, uint256) external;
     function decreaseAbsoluteCap(bytes memory, uint256) external;
     function decreaseRelativeCap(bytes memory, uint256) external;
-    function setPerformanceFee(uint96) external;
-    function setManagementFee(uint96) external;
+    function setPerformanceFee(uint256) external;
+    function setManagementFee(uint256) external;
     function setPerformanceFeeRecipient(address) external;
     function setManagementFeeRecipient(address) external;
 

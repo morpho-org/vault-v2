@@ -154,23 +154,23 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseTimelock(selector, newDuration);
     }
 
-    function setPerformanceFee(uint96 newPerformanceFee) external timelocked {
+    function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
         require(newPerformanceFee <= MAX_PERFORMANCE_FEE, ErrorsLib.FeeTooHigh());
         require(performanceFeeRecipient != address(0) || newPerformanceFee == 0, ErrorsLib.FeeInvariantBroken());
 
         accrueInterest();
 
-        performanceFee = newPerformanceFee;
+        performanceFee = uint96(newPerformanceFee); // Safe because 2^96 > MAX_PERFORMANCE_FEE.
         emit EventsLib.SetPerformanceFee(newPerformanceFee);
     }
 
-    function setManagementFee(uint96 newManagementFee) external timelocked {
+    function setManagementFee(uint256 newManagementFee) external timelocked {
         require(newManagementFee <= MAX_MANAGEMENT_FEE, ErrorsLib.FeeTooHigh());
         require(managementFeeRecipient != address(0) || newManagementFee == 0, ErrorsLib.FeeInvariantBroken());
 
         accrueInterest();
 
-        managementFee = newManagementFee;
+        managementFee = uint96(newManagementFee); // Safe because 2^96 > MAX_MANAGEMENT_FEE.
         emit EventsLib.SetManagementFee(newManagementFee);
     }
 
