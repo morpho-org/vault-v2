@@ -309,9 +309,9 @@ contract SettersTest is BaseTest {
         vault.decreaseTimelock(IVaultV2.decreaseTimelock.selector, 1 weeks);
     }
 
-    function testSetPerformanceFee(address rdm, uint256 newPerformanceFee) public {
+    function testSetPerformanceFee(address rdm, uint96 newPerformanceFee) public {
         vm.assume(rdm != curator);
-        newPerformanceFee = bound(newPerformanceFee, 1, MAX_PERFORMANCE_FEE);
+        newPerformanceFee = bound96(newPerformanceFee, 1, MAX_PERFORMANCE_FEE);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
@@ -324,7 +324,7 @@ contract SettersTest is BaseTest {
         vault.setPerformanceFee(0);
 
         // Can't go over fee cap
-        uint256 tooHighFee = 1 ether + 1;
+        uint96 tooHighFee = 1 ether + 1;
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, tooHighFee));
         vm.expectRevert(ErrorsLib.FeeTooHigh.selector);
@@ -348,9 +348,9 @@ contract SettersTest is BaseTest {
         assertEq(vault.performanceFee(), newPerformanceFee);
     }
 
-    function testSetManagementFee(address rdm, uint256 newManagementFee) public {
+    function testSetManagementFee(address rdm, uint96 newManagementFee) public {
         vm.assume(rdm != curator);
-        newManagementFee = bound(newManagementFee, 1, MAX_MANAGEMENT_FEE);
+        newManagementFee = bound96(newManagementFee, 1, MAX_MANAGEMENT_FEE);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
@@ -363,7 +363,7 @@ contract SettersTest is BaseTest {
         vault.setManagementFee(0);
 
         // Can't go over fee cap
-        uint256 tooHighFee = 1 ether + 1;
+        uint96 tooHighFee = 1 ether + 1;
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, tooHighFee));
         vm.expectRevert(ErrorsLib.FeeTooHigh.selector);
@@ -405,7 +405,7 @@ contract SettersTest is BaseTest {
         assertEq(vault.performanceFeeRecipient(), newPerformanceFeeRecipient);
 
         // Fee invariant
-        uint256 newPerformanceFee = 0.05 ether;
+        uint96 newPerformanceFee = 0.05 ether;
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, newPerformanceFee));
         vault.setPerformanceFee(newPerformanceFee);
@@ -433,7 +433,7 @@ contract SettersTest is BaseTest {
         assertEq(vault.managementFeeRecipient(), newManagementFeeRecipient);
 
         // Fee invariant
-        uint256 newManagementFee = 0.01 ether / uint256(365.25 days);
+        uint96 newManagementFee = 0.01 ether / uint96(365.25 days);
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, newManagementFee));
         vault.setManagementFee(newManagementFee);

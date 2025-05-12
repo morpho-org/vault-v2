@@ -27,14 +27,14 @@ contract AccrueInterestTest is BaseTest {
 
     function testAccrueInterestView(
         uint256 deposit,
-        uint256 performanceFee,
-        uint256 managementFee,
+        uint96 performanceFee,
+        uint96 managementFee,
         uint256 interestPerSecond,
         uint256 elapsed
     ) public {
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
-        performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
-        managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
+        performanceFee = bound96(performanceFee, 0, MAX_PERFORMANCE_FEE);
+        managementFee = bound96(managementFee, 0, MAX_MANAGEMENT_FEE);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
         elapsed = bound(elapsed, 0, 20 * 365 days);
 
@@ -62,13 +62,13 @@ contract AccrueInterestTest is BaseTest {
 
     function testAccrueInterest(
         uint256 deposit,
-        uint256 performanceFee,
-        uint256 managementFee,
+        uint96 performanceFee,
+        uint96 managementFee,
         uint256 interestPerSecond,
         uint256 elapsed
     ) public {
-        performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
-        managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
+        performanceFee = bound96(performanceFee, 0, MAX_PERFORMANCE_FEE);
+        managementFee = bound96(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
         elapsed = bound(elapsed, 1, 20 * 365 days);
@@ -105,13 +105,13 @@ contract AccrueInterestTest is BaseTest {
 
     function testAccrueInterestTooHigh(
         uint256 deposit,
-        uint256 performanceFee,
-        uint256 managementFee,
+        uint96 performanceFee,
+        uint96 managementFee,
         uint256 interestPerSecond,
         uint256 elapsed
     ) public {
-        performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
-        managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
+        performanceFee = bound96(performanceFee, 0, MAX_PERFORMANCE_FEE);
+        managementFee = bound96(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         interestPerSecond = bound(interestPerSecond, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD), type(uint256).max);
         elapsed = bound(elapsed, 0, 1000 weeks);
@@ -135,12 +135,12 @@ contract AccrueInterestTest is BaseTest {
     }
 
     function testPerformanceFeeWithoutManagementFee(
-        uint256 performanceFee,
+        uint96 performanceFee,
         uint256 interestPerSecond,
         uint256 deposit,
         uint256 elapsed
     ) public {
-        performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
+        performanceFee = bound96(performanceFee, 0, MAX_PERFORMANCE_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
         elapsed = bound(elapsed, 0, 1000 weeks);
@@ -168,12 +168,12 @@ contract AccrueInterestTest is BaseTest {
     }
 
     function testManagementFeeWithoutPerformanceFee(
-        uint256 managementFee,
+        uint96 managementFee,
         uint256 interestPerSecond,
         uint256 deposit,
         uint256 elapsed
     ) public {
-        managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
+        managementFee = bound96(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
         elapsed = bound(elapsed, 0, 20 * 365 days);

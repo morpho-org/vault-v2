@@ -56,6 +56,10 @@ contract BaseTest is Test {
         vault.setIsAllocator(allocator, true);
         vault.setVic(address(vic));
     }
+
+    function bound96(uint96 x, uint96 _min, uint96 _max) public pure returns (uint96) {
+        return uint96(bound(uint256(x), uint256(_min), uint256(_max)));
+    }
 }
 
 function min(uint256 a, uint256 b) pure returns (uint256) {
