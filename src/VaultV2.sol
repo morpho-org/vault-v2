@@ -233,7 +233,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
 
-    ///@dev To set a cap to 0, use `decreaseAbsoluteCap`.
+    /// @dev To set a cap to 0, use `decreaseAbsoluteCap`.
     function decreaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
         bytes32 id = keccak256(idData);
         require(newRelativeCap > 0, ErrorsLib.RelativeCapZero());
