@@ -10,9 +10,8 @@ contract MorphoAdapterFactory {
 
     /* STORAGE */
 
-    // vault => adapter
-    mapping(address => address) public adapter;
-    mapping(address => bool) public isAdapter;
+    mapping(address vault => address) public adapter;
+    mapping(address account => bool) public isAdapter;
 
     /* EVENTS */
 
@@ -24,6 +23,7 @@ contract MorphoAdapterFactory {
         morpho = _morpho;
     }
 
+    /// @dev Returns the address of the deployed MorphoAdapter.
     function createMorphoAdapter(address vault) external returns (address) {
         address morphoAdapter = address(new MorphoAdapter{salt: bytes32(0)}(vault, morpho));
         adapter[vault] = morphoAdapter;

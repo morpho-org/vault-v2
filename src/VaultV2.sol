@@ -17,53 +17,85 @@ contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
 
     /* IMMUTABLE */
+
+    /// TODO add spec.
     address public immutable asset;
 
     /* ROLES STORAGE */
+
+    /// @dev The owner is not two-step so one much check if they are really the owner.
     address public owner;
+
+    /// @dev The curator is not two-step so one much check if they are really the curator.
     address public curator;
-    mapping(address => bool) public isSentinel;
-    mapping(address => bool) public isAllocator;
+
+    mapping(address account => bool) public isSentinel;
+
+    mapping(address account => bool) public isAllocator;
 
     /* TOKEN STORAGE */
+
     uint256 public totalSupply;
-    mapping(address => uint256) public balanceOf;
-    mapping(address => mapping(address => uint256)) public allowance;
-    mapping(address => uint256) public nonces;
+
+    mapping(address account => uint256) public balanceOf;
+
+    mapping(address owner => mapping(address spender => uint256)) public allowance;
+
+    mapping(address account => uint256) public nonces;
 
     /* VAULT STORAGE */
+
     uint256 public totalAssets;
+
     uint256 public lastUpdate;
 
     /* CURATION AND ALLOCATION STORAGE */
+
     address public vic;
-    uint256 public forceReallocateToIdlePenalty;
-    /// @dev Adapter is trusted to pass the expected ids when supplying assets.
-    mapping(address => bool) public isAdapter;
-    /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
-    mapping(bytes32 => uint256) public absoluteCap;
-    /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
+
+    /// TODO Adapter spec.
+    mapping(address account => bool) public isAdapter;
+
+    /// TODO Id spec.
+    mapping(bytes32 id => uint256) public absoluteCap;
+
+    /// @dev Unit is WAD.
+    /// @dev 1-relativeCap is stored such that the default is 1 and 0 is unreachable.
     /// @dev The relative cap is relative to `totalAssets`.
-    /// @dev Units are in WAD.
-    /// @dev A relative cap of 1 WAD means no relative cap.
-    mapping(bytes32 => uint256) internal oneMinusRelativeCap;
-    /// @dev Useful to iterate over all ids with relative cap in withdrawals.
+    /// @dev A relative cap of 100% (1 WAD) means no relative cap.
+    mapping(bytes32 id => uint256) internal oneMinusRelativeCap;
+
+    /// @dev Ids with active relative cap (relativeCap < 100%).
     bytes32[] public idsWithRelativeCap;
-    /// @dev Interests are not counted in the allocation.
-    mapping(bytes32 => uint256) public allocation;
-    /// @dev calldata => executable at
-    mapping(bytes => uint256) public validAt;
-    /// @dev function selector => timelock duration
-    mapping(bytes4 => uint256) public timelock;
+
+    mapping(bytes32 id => uint256) public allocation;
+
+    uint256 public forceReallocateToIdlePenalty;
+
+    /// @dev Adapter to call on enter/exit.
     address public liquidityAdapter;
+
+    /// @dev Data with which to call the liquidity adapter on enter/exit.
     bytes public liquidityData;
 
+    /* TIMELOCKS STORAGE */
+
+    mapping(bytes data => uint256) public executableAt;
+
+    /// @dev The timelock of decreaseTimelock is hard-coded at TIMELOCK_CAP.
+    /// @dev Only functions with the modifier timelocked are timelocked.
+    mapping(bytes4 selector => uint256) public timelock;
+
     /* FEES STORAGE */
+
     /// @dev invariant: performanceFee != 0 => performanceFeeRecipient != address(0)
     uint256 public performanceFee;
+
     address public performanceFeeRecipient;
+
     /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint256 public managementFee;
+
     address public managementFeeRecipient;
 
     /* GETTERS */
@@ -74,6 +106,10 @@ contract VaultV2 is IVaultV2 {
 
     function relativeCap(bytes32 id) public view returns (uint256) {
         return WAD - oneMinusRelativeCap[id];
+    }
+
+    function DOMAIN_SEPARATOR() public view returns (bytes32) {
+        return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
     }
 
     /* MULTICALL */
@@ -185,6 +221,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetPerformanceFeeRecipient(newPerformanceFeeRecipient);
     }
 
+    /// @notice Sets management fee recipient.
     function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
         require(newManagementFeeRecipient != address(0) || managementFee == 0, ErrorsLib.FeeInvariantBroken());
 
@@ -312,24 +349,24 @@ contract VaultV2 is IVaultV2 {
 
     function submit(bytes calldata data) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        require(validAt[data] == 0, ErrorsLib.DataAlreadyPending());
+        require(executableAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
         bytes4 selector = bytes4(data);
-        validAt[data] = block.timestamp + timelock[selector];
-        emit EventsLib.Submit(msg.sender, selector, data, validAt[data]);
+        executableAt[data] = block.timestamp + timelock[selector];
+        emit EventsLib.Submit(msg.sender, selector, data, executableAt[data]);
     }
 
     modifier timelocked() {
-        require(validAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
-        require(block.timestamp >= validAt[msg.data], ErrorsLib.TimelockNotExpired());
-        validAt[msg.data] = 0;
+        require(executableAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
+        require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
+        executableAt[msg.data] = 0;
         _;
     }
 
     function revoke(bytes calldata data) external {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        require(validAt[data] != 0, ErrorsLib.DataNotTimelocked());
-        validAt[data] = 0;
+        require(executableAt[data] != 0, ErrorsLib.DataNotTimelocked());
+        executableAt[data] = 0;
         emit EventsLib.Revoke(msg.sender, bytes4(data), data);
     }
 
@@ -344,6 +381,7 @@ contract VaultV2 is IVaultV2 {
         lastUpdate = block.timestamp;
     }
 
+    /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (totalAssets, 0, 0);
@@ -381,32 +419,37 @@ contract VaultV2 is IVaultV2 {
         return (newTotalAssets, performanceFeeShares, managementFeeShares);
     }
 
+    /// @dev Returns previewed minted shares.
     function previewDeposit(uint256 assets) public view returns (uint256) {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return assets.mulDivDown(newTotalSupply + 1, newTotalAssets + 1);
     }
 
-    function previewWithdraw(uint256 assets) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
-        uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
-        return assets.mulDivUp(newTotalSupply + 1, newTotalAssets + 1);
-    }
-
+    /// @dev Returns previewed deposited assets.
     function previewMint(uint256 shares) public view returns (uint256) {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivUp(newTotalAssets + 1, newTotalSupply + 1);
     }
 
+    /// @dev Returns previewed redeemed shares.
+    function previewWithdraw(uint256 assets) public view returns (uint256) {
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
+        return assets.mulDivUp(newTotalSupply + 1, newTotalAssets + 1);
+    }
+
+    /// @dev Returns previewed withdrawn assets.
     function previewRedeem(uint256 shares) public view returns (uint256) {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + 1);
     }
 
-    /* USER VAULT INTERACTIONS */
+    /* USER MAIN FUNCTIONS */
 
+    /// @dev Returns minted shares.
     function deposit(uint256 assets, address receiver) external returns (uint256) {
         accrueInterest();
         uint256 shares = previewDeposit(assets);
@@ -414,6 +457,7 @@ contract VaultV2 is IVaultV2 {
         return shares;
     }
 
+    /// @dev Returns deposited assets.
     function mint(uint256 shares, address receiver) external returns (uint256) {
         accrueInterest();
         uint256 assets = previewMint(shares);
@@ -421,6 +465,7 @@ contract VaultV2 is IVaultV2 {
         return assets;
     }
 
+    /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address receiver) internal {
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(receiver, shares);
@@ -431,6 +476,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Deposit(msg.sender, receiver, assets, shares);
     }
 
+    /// @dev Returns redeemed shares.
     function withdraw(uint256 assets, address receiver, address onBehalf) public returns (uint256) {
         accrueInterest();
         uint256 shares = previewWithdraw(assets);
@@ -438,6 +484,7 @@ contract VaultV2 is IVaultV2 {
         return shares;
     }
 
+    /// @dev Returns withdrawn assets.
     function redeem(uint256 shares, address receiver, address onBehalf) external returns (uint256) {
         accrueInterest();
         uint256 assets = previewRedeem(shares);
@@ -445,6 +492,7 @@ contract VaultV2 is IVaultV2 {
         return assets;
     }
 
+    /// @dev Internal function for withdraw and redeem.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
@@ -470,6 +518,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Loop to make the relative cap check at the end.
+    /// @dev Returns shares withdrawn as penalty.
     function forceReallocateToIdle(
         address[] memory adapters,
         bytes[] memory data,
@@ -491,6 +540,7 @@ contract VaultV2 is IVaultV2 {
 
     /* ERC20 */
 
+    /// @dev Returns success (always true).
     function transfer(address to, uint256 shares) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
         balanceOf[msg.sender] -= shares;
@@ -499,6 +549,7 @@ contract VaultV2 is IVaultV2 {
         return true;
     }
 
+    /// @dev Returns success (always true).
     function transferFrom(address from, address to, uint256 shares) external returns (bool) {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
@@ -517,6 +568,7 @@ contract VaultV2 is IVaultV2 {
         return true;
     }
 
+    /// @dev Returns success (always true).
     function approve(address spender, uint256 shares) external returns (bool) {
         allowance[msg.sender][spender] = shares;
         emit EventsLib.Approval(msg.sender, spender, shares);
@@ -537,10 +589,6 @@ contract VaultV2 is IVaultV2 {
         allowance[_owner][spender] = shares;
         emit EventsLib.Approval(_owner, spender, shares);
         emit EventsLib.Permit(_owner, spender, shares, nonce, deadline);
-    }
-
-    function DOMAIN_SEPARATOR() public view returns (bytes32) {
-        return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
     }
 
     function createShares(address to, uint256 shares) internal {

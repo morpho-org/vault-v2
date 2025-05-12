@@ -59,6 +59,7 @@ contract ManualVic is IVic {
         emit SetInterestPerSecond(msg.sender, newInterestPerSecond);
     }
 
+    /// @dev Returns the interest per second.
     function interestPerSecond(uint256, uint256) external view returns (uint256) {
         return _interestPerSecond;
     }

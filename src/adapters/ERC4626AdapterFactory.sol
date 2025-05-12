@@ -7,13 +7,14 @@ contract ERC4626AdapterFactory {
     /* STORAGE */
 
     // parent vault => vault => adapter
-    mapping(address => mapping(address => address)) public adapter;
-    mapping(address => bool) public isAdapter;
+    mapping(address parentVault => mapping(address vault => address)) public adapter;
+    mapping(address adapter => bool) public isAdapter;
 
     /* EVENTS */
 
     event CreateERC4626Adapter(address indexed parentVault, address indexed vault, address indexed erc4626Adapter);
 
+    /// @dev Returns the address of the deployed ERC4626Adapter.
     function createERC4626Adapter(address parentVault, address vault) external returns (address) {
         address erc4626Adapter = address(new ERC4626Adapter{salt: bytes32(0)}(parentVault, vault));
         adapter[parentVault][vault] = erc4626Adapter;

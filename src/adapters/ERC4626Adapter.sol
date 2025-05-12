@@ -53,6 +53,7 @@ contract ERC4626Adapter is IAdapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
+    /// @dev Returns the ids of the allocation.
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
@@ -63,6 +64,7 @@ contract ERC4626Adapter is IAdapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
+    /// @dev Returns the ids of the deallocation.
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
@@ -72,6 +74,7 @@ contract ERC4626Adapter is IAdapter {
         return ids();
     }
 
+    /// @dev Returns adapter's ids.
     function ids() internal view returns (bytes32[] memory) {
         bytes32[] memory ids_ = new bytes32[](1);
         ids_[0] = keccak256(abi.encode("adapter", address(this)));

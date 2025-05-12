@@ -8,7 +8,7 @@ import {ManualVic} from "./ManualVic.sol";
 contract ManualVicFactory is IManualVicFactory {
     /*  STORAGE */
 
-    mapping(address => bool) public isManualVic;
+    mapping(address account => bool) public isManualVic;
 
     /* EVENTS */
 
@@ -16,6 +16,7 @@ contract ManualVicFactory is IManualVicFactory {
 
     /* FUNCTIONS */
 
+    /// @dev Returns the address of the deployed ManualVic.
     function createManualVic(address owner, bytes32 salt) external returns (address) {
         address vic = address(new ManualVic{salt: salt}(owner));
 
