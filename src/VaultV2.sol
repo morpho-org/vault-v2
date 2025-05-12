@@ -10,6 +10,9 @@ import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
+import {FixedPointMathLib} from "../lib/solady/src/utils/FixedPointMathLib.sol";
+import {LibBit} from "../lib/solady/src/utils/LibBit.sol";
+import "forge-std/console.sol";
 
 /// @dev Zero checks are not performed.
 /// @dev No-ops are allowed.
@@ -32,8 +35,11 @@ contract VaultV2 is IVaultV2 {
     mapping(address => uint256) public nonces;
 
     /* VAULT STORAGE */
-    uint256 public totalAssets;
-    uint256 public lastUpdate;
+    uint public totalAssets;
+    mapping(uint256 => uint256) nodes;
+    mapping(uint256 => uint256) numCapsAtPos;
+    uint128 root;
+    uint128 public lastUpdate;
 
     /* CURATION AND ALLOCATION STORAGE */
     address public vic;
@@ -47,8 +53,6 @@ contract VaultV2 is IVaultV2 {
     /// @dev Units are in WAD.
     /// @dev A relative cap of 1 WAD means no relative cap.
     mapping(bytes32 => uint256) internal oneMinusRelativeCap;
-    /// @dev Useful to iterate over all ids with relative cap in withdrawals.
-    bytes32[] public idsWithRelativeCap;
     /// @dev Interests are not counted in the allocation.
     mapping(bytes32 => uint256) public allocation;
     /// @dev calldata => executable at
@@ -57,6 +61,7 @@ contract VaultV2 is IVaultV2 {
     mapping(bytes4 => uint256) public timelock;
     address public liquidityAdapter;
     bytes public liquidityData;
+
 
     /* FEES STORAGE */
     /// @dev invariant: performanceFee != 0 => performanceFeeRecipient != address(0)
@@ -67,10 +72,6 @@ contract VaultV2 is IVaultV2 {
     address public managementFeeRecipient;
 
     /* GETTERS */
-
-    function idsWithRelativeCapLength() public view returns (uint256) {
-        return idsWithRelativeCap.length;
-    }
 
     function relativeCap(bytes32 id) public view returns (uint256) {
         return WAD - oneMinusRelativeCap[id];
@@ -94,7 +95,7 @@ contract VaultV2 is IVaultV2 {
     constructor(address _owner, address _asset) {
         asset = _asset;
         owner = _owner;
-        lastUpdate = block.timestamp;
+        lastUpdate = uint128(block.timestamp);
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         emit EventsLib.Constructor(_owner, _asset);
     }
@@ -217,14 +218,9 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap >= relativeCap(id), ErrorsLib.RelativeCapNotIncreasing());
 
         if (newRelativeCap > relativeCap(id)) {
-            if (newRelativeCap == WAD) {
-                uint256 i;
-                while (idsWithRelativeCap[i] != id) i++;
-                idsWithRelativeCap[i] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
-                idsWithRelativeCap.pop();
-            }
-
+            removeFloorIfNeeded(allocation[id], relativeCap(id));
             oneMinusRelativeCap[id] = WAD - newRelativeCap;
+            addFloorIfNeeded(allocation[id], relativeCap(id));
         }
 
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
@@ -239,9 +235,9 @@ contract VaultV2 is IVaultV2 {
         if (newRelativeCap < relativeCap(id)) {
             require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
 
-            if (relativeCap(id) == WAD) idsWithRelativeCap.push(id);
-
+            removeFloorIfNeeded(allocation[id], relativeCap(id));
             oneMinusRelativeCap[id] = WAD - newRelativeCap;
+            addFloorIfNeeded(allocation[id], relativeCap(id));
         }
 
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
@@ -263,16 +259,21 @@ contract VaultV2 is IVaultV2 {
         bytes32[] memory ids = IAdapter(adapter).allocate(data, assets);
 
         for (uint256 i; i < ids.length; i++) {
+            removeFloorIfNeeded(allocation[ids[i]], relativeCap(ids[i]));
             allocation[ids[i]] += assets;
+            addFloorIfNeeded(allocation[ids[i]], relativeCap(ids[i]));
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
+
             if (relativeCap(ids[i]) < WAD) {
-                require(
-                    allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap(ids[i]), WAD),
-                    ErrorsLib.RelativeCapExceeded()
-                );
+                if(
+                    allocation[ids[i]] >= totalAssets.mulDivDown(relativeCap(ids[i]), WAD))  {
+                        console.log("CAP REACHED");
+                    }
             }
         }
+        require(noRelativeCapExceeded(), ErrorsLib.RelativeCapExceeded());
+
         emit EventsLib.ReallocateFromIdle(msg.sender, adapter, assets, ids);
     }
 
@@ -285,7 +286,9 @@ contract VaultV2 is IVaultV2 {
         bytes32[] memory ids = IAdapter(adapter).deallocate(data, assets);
 
         for (uint256 i; i < ids.length; i++) {
+            removeFloorIfNeeded(allocation[ids[i]], relativeCap(ids[i]));
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(assets);
+            addFloorIfNeeded(allocation[ids[i]], relativeCap(ids[i]));
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
@@ -341,7 +344,7 @@ contract VaultV2 is IVaultV2 {
         totalAssets = newTotalAssets;
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
-        lastUpdate = block.timestamp;
+        lastUpdate = uint128(block.timestamp);
     }
 
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
@@ -459,11 +462,7 @@ contract VaultV2 is IVaultV2 {
         deleteShares(onBehalf, shares);
         totalAssets -= assets;
 
-        for (uint256 i; i < idsWithRelativeCap.length; i++) {
-            bytes32 id = idsWithRelativeCap[i];
-            // relativeCap(id) < WAD is true for all ids in idsWithRelativeCap
-            require(allocation[id] <= totalAssets.mulDivDown(relativeCap(id), WAD), ErrorsLib.RelativeCapExceeded());
-        }
+        require(noRelativeCapExceeded(), ErrorsLib.RelativeCapExceeded());
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
@@ -555,5 +554,111 @@ contract VaultV2 is IVaultV2 {
         balanceOf[from] -= shares;
         totalSupply -= shares;
         emit EventsLib.Transfer(from, address(0), shares);
+    }
+
+    // Assumes floor > 0
+    // Compute ln_base(floor).
+    function getPosition(uint256 floor) internal returns (uint256) {
+        // Safe to convert from uint because floor < 2**255-1/1e18.
+        // Safe to convert to uint because the input is at least WAD.
+        return uint256(FixedPointMathLib.lnWad(int256(floor * WAD))) / LN_BASE_E18;
+    }
+
+    function noRelativeCapExceeded() internal returns (bool) {
+
+        if (root == 0) {
+            return true;
+        } else {
+            // node with highest nonempty cap
+            uint256 posInRoot = 127 - LibBit.ffs(uint256(root));
+            console.log("noRelativeCapExceeded, posInRoot %s",posInRoot);
+            // Cannot be 0 by invariant
+            // nodes[p] == 0 iff 255-pth bit of root == 0
+            uint256 node = nodes[posInRoot];
+            console.logBytes32(bytes32(node));
+            uint256 posInNode = 255 - LibBit.ffs(node);
+            console.log("noRelativeCapExceeded, posInNode %s",posInNode);
+
+            uint256 largestFloorPos = (256 * posInRoot) + posInNode;
+            uint256 currentTotalAssetsPos = getPosition(totalAssets);
+            console.log("largestFloorPos %s",largestFloorPos);
+            console.log("currentTotalAssetsPos %s",currentTotalAssetsPos);
+            console.log("(computed from totalAssets %e",totalAssets);
+
+            return largestFloorPos < currentTotalAssetsPos;
+        }
+    }
+
+    function bin(uint v) internal returns (string memory) {
+        bytes memory res = new bytes(256);
+        for (uint i=0;i<256;i++) {
+            if (((v << i) >> 255) > 0) { res[i] = "1"; } else { res[i] = "0"; }
+        }
+        return string(res);
+    }
+
+    function removeFloorIfNeeded(uint256 _allocation, uint256 _relativeCap) internal {
+        console.log("removing floor if needed, alloc %e, cap %e",_allocation, _relativeCap);
+        if (_allocation > 0 && _relativeCap < WAD) {
+            uint256 floor = _allocation * WAD / _relativeCap;
+            uint256 floorPos = getPosition(floor);
+            console.log("floor %e",floor);
+
+            uint256 newNumCaps = --numCapsAtPos[floorPos];
+
+            console.log("newNumCaps %s",newNumCaps);
+            if (newNumCaps == 0) {
+
+                uint256 posInRoot = floorPos / 256;
+
+                console.log("root & node before");
+                console.log(bin(root));
+                console.log(bin(nodes[posInRoot]));
+                uint256 rootMask = ~(TOP128 >> posInRoot);
+                root &= uint128(rootMask);
+
+                uint256 posInNode = floorPos % 256;
+                uint256 nodeMask = ~(TOP256 >> posInNode);
+                nodes[posInRoot] &= nodeMask;
+
+                console.log("root & node after");
+                console.log(bin(root));
+                console.log(bin(nodes[posInRoot]));
+            }
+        }
+    }
+
+    function addFloorIfNeeded(uint256 _allocation, uint256 _relativeCap) internal {
+        console.log("adding floor if needed, alloc %e, cap %e",_allocation, _relativeCap);
+        if (_allocation > 0 && _relativeCap < WAD) {
+            uint256 floor = _allocation * WAD / _relativeCap;
+            uint256 floorPos = getPosition(floor);
+            console.log("floor %e",floor);
+            console.log("floorPos %s",floorPos);
+
+            uint256 oldNumCaps = numCapsAtPos[floorPos]++;
+
+            console.log("newNumCaps %s",oldNumCaps+1);
+            if (oldNumCaps == 0) {
+                uint256 posInRoot = floorPos / 256;
+                uint256 posInNode = floorPos % 256;
+
+                console.log("posInRoot %s",posInRoot);
+                console.log("posInNode %s",posInNode);
+
+                console.log("root & node before");
+                console.log(bin(root));
+                console.log(bin(nodes[posInRoot]));
+                uint256 rootMask = TOP128 >> posInRoot;
+                root |= uint128(rootMask);
+
+                uint256 nodeMask = TOP256 >> posInNode;
+                nodes[posInRoot] |= nodeMask;
+
+                console.log("root & node after");
+                console.log(bin(root));
+                console.log(bin(nodes[posInRoot]));
+            }
+        }
     }
 }
