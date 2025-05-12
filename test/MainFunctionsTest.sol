@@ -76,9 +76,14 @@ contract MainFunctionsTest is BaseTest {
 
         assertEq(assets, redeemed, "assets != redeemed");
 
-        assertEq(underlyingToken.balanceOf(address(vault)), INITIAL_DEPOSIT - assets, "balanceOf(vault)");
-        assertEq(underlyingToken.balanceOf(receiver), assets, "balanceOf(receiver)");
-        assertEq(underlyingToken.totalSupply(), INITIAL_DEPOSIT, "total supply");
+        if (receiver == address(vault)) {
+            assertEq(underlyingToken.balanceOf(address(vault)), INITIAL_DEPOSIT, "balanceOf(vault)");
+            assertEq(underlyingToken.totalSupply(), INITIAL_DEPOSIT, "total supply");
+        } else {
+            assertEq(underlyingToken.balanceOf(address(vault)), INITIAL_DEPOSIT - assets, "balanceOf(vault)");
+            assertEq(underlyingToken.balanceOf(receiver), assets, "balanceOf(receiver)");
+            assertEq(underlyingToken.totalSupply(), INITIAL_DEPOSIT, "total supply");
+        }
 
         assertEq(vault.balanceOf(address(this)), initialSharesDeposit - shares, "balanceOf(address(this))");
         assertEq(vault.totalSupply(), initialSharesDeposit - shares, "total supply");
@@ -86,8 +91,6 @@ contract MainFunctionsTest is BaseTest {
 
     function testWithdraw(uint256 assets, address receiver) public {
         vm.assume(receiver != address(0));
-        vm.assume(receiver != address(this));
-        vm.assume(receiver != address(vault));
         assets = bound(assets, 0, INITIAL_DEPOSIT);
 
         uint256 shares = vault.previewWithdraw(assets);
@@ -97,9 +100,14 @@ contract MainFunctionsTest is BaseTest {
 
         assertEq(withdrawn, shares, "withdrawn != shares");
 
-        assertEq(underlyingToken.balanceOf(address(vault)), INITIAL_DEPOSIT - assets, "balanceOf(vault)");
-        assertEq(underlyingToken.balanceOf(receiver), assets, "balanceOf(receiver)");
-        assertEq(underlyingToken.totalSupply(), INITIAL_DEPOSIT, "total supply");
+        if (receiver == address(vault)) {
+            assertEq(underlyingToken.balanceOf(address(vault)), INITIAL_DEPOSIT, "balanceOf(vault)");
+            assertEq(underlyingToken.totalSupply(), INITIAL_DEPOSIT, "total supply");
+        } else {
+            assertEq(underlyingToken.balanceOf(address(vault)), INITIAL_DEPOSIT - assets, "balanceOf(vault)");
+            assertEq(underlyingToken.balanceOf(receiver), assets, "balanceOf(receiver)");
+            assertEq(underlyingToken.totalSupply(), INITIAL_DEPOSIT, "total supply");
+        }
 
         assertEq(vault.balanceOf(address(this)), initialSharesDeposit - shares, "balanceOf(address(this))");
         assertEq(vault.totalSupply(), initialSharesDeposit - shares, "total supply");
