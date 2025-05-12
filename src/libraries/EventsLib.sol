@@ -23,7 +23,7 @@ library EventsLib {
     event DecreaseAbsoluteCap(bytes32 indexed id, bytes idData, uint256 newAbsoluteCap);
     event IncreaseRelativeCap(bytes32 indexed id, bytes idData, uint256 newRelativeCap);
     event DecreaseRelativeCap(bytes32 indexed id, bytes idData, uint256 newRelativeCap);
-    event SetForceDeallocatePenalty(uint256 forceDeallocatePenalty);
+    event SetForceDeallocatePenalty(address indexed adapter, uint256 forceDeallocatePenalty);
     event Allocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids);
     event Deallocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids);
     event SetLiquidityAdapter(address indexed sender, address indexed liquidityAdapter);
@@ -37,6 +37,6 @@ library EventsLib {
     event AccrueInterest(
         uint256 previousTotalAssets, uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares
     );
-    event ForceDeallocate(address indexed sender, address indexed onBehalf, uint256 assets);
+    event ForceDeallocate(address indexed sender, address indexed onBehalf, uint256 penalty);
     event CreateVaultV2(address indexed owner, address indexed asset, address indexed vaultV2);
 }

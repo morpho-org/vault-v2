@@ -35,7 +35,8 @@ contract VaultV2 is IVaultV2 {
     uint256 public totalAssets;
     uint96 public lastUpdate;
     address public vic;
-    uint256 public forceDeallocatePenalty;
+    /// @dev adapter => force deallocate penalty
+    mapping(address => uint256) public forceDeallocatePenalty;
     /// @dev Adapter is trusted to pass the expected ids when supplying assets.
     mapping(address => bool) public isAdapter;
     /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
@@ -245,10 +246,11 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }
 
-    function setForceDeallocatePenalty(uint256 newForceDeallocatePenalty) external timelocked {
+    function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external timelocked {
+        require(isAdapter[adapter], ErrorsLib.NotAdapter());
         require(newForceDeallocatePenalty <= MAX_FORCE_DEALLOCATE_PENALTY, ErrorsLib.PenaltyTooHigh());
-        forceDeallocatePenalty = newForceDeallocatePenalty;
-        emit EventsLib.SetForceDeallocatePenalty(newForceDeallocatePenalty);
+        forceDeallocatePenalty[adapter] = newForceDeallocatePenalty;
+        emit EventsLib.SetForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
     }
 
     /* ALLOCATOR ACTIONS */
@@ -473,15 +475,15 @@ contract VaultV2 is IVaultV2 {
         returns (uint256)
     {
         require(adapters.length == data.length && adapters.length == assets.length, ErrorsLib.InvalidInputLength());
-        uint256 total;
+        uint256 penalty;
         for (uint256 i; i < adapters.length; i++) {
             this.deallocate(adapters[i], data[i], assets[i]);
-            total += assets[i];
+            penalty += assets[i].mulDivDown(forceDeallocatePenalty[adapters[i]], WAD);
         }
 
         // The penalty is taken as a withdrawal that is donated to the vault.
-        uint256 shares = withdraw(total.mulDivDown(forceDeallocatePenalty, WAD), address(this), onBehalf);
-        emit EventsLib.ForceDeallocate(msg.sender, onBehalf, total);
+        uint256 shares = withdraw(penalty, address(this), onBehalf);
+        emit EventsLib.ForceDeallocate(msg.sender, onBehalf, penalty);
         return shares;
     }
 
