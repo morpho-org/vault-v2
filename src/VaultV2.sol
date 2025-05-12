@@ -160,7 +160,7 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        performanceFee = uint96(newPerformanceFee); // Safe because 2^96 > MAX_PERFORMANCE_FEE.
+        performanceFee = uint96(newPerformanceFee); // Safe because 2**96 > MAX_PERFORMANCE_FEE.
         emit EventsLib.SetPerformanceFee(newPerformanceFee);
     }
 
