@@ -24,10 +24,10 @@ contract VaultV2 is IVaultV2 {
     /* ROLES STORAGE */
     address public owner;
     address public curator;
+    /// @notice Gates sending shares and withdrawing.
     address public sendGate;
-    /// @dev Gates sending shares and withdrawing.
-    address public receiveGate;
     /// @notice Gates receiving shares and supplying.
+    address public receiveGate;
     mapping(address => bool) public isSentinel;
     mapping(address => bool) public isAllocator;
 
