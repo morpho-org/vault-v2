@@ -25,7 +25,7 @@ contract MorphoAdapterFactory is IMorphoAdapterFactory {
         address _morphoAdapter = address(new MorphoAdapter{salt: bytes32(0)}(vault, morpho));
         morphoAdapter[vault] = _morphoAdapter;
         isMorphoAdapter[_morphoAdapter] = true;
-        emit CreateMorphoAdapter(_morphoAdapter, vault);
+        emit CreateMorphoAdapter(vault, _morphoAdapter);
         return _morphoAdapter;
     }
 }

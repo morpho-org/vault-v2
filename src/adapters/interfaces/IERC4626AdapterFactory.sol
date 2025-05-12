@@ -4,7 +4,7 @@ pragma solidity >=0.5.0;
 interface IERC4626AdapterFactory {
     /* EVENTS */
 
-    event CreateERC4626Adapter(address indexed erc4626Adapter, address indexed parentVault, address indexed vault);
+    event CreateERC4626Adapter(address indexed parentVault, address indexed vault, address indexed erc4626Adapter);
 
     /* FUNCTIONS */
 

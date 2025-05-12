@@ -152,7 +152,7 @@ contract MorphoAdapterTest is Test {
         address expectedNewAdapter =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
-        emit IMorphoAdapterFactory.CreateMorphoAdapter(expectedNewAdapter, newParentVaultAddr);
+        emit IMorphoAdapterFactory.CreateMorphoAdapter(newParentVaultAddr, expectedNewAdapter);
 
         address newAdapter = factory.createMorphoAdapter(newParentVaultAddr);
 

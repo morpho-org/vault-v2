@@ -4,7 +4,7 @@ pragma solidity >=0.5.0;
 interface IMorphoAdapterFactory {
     /* EVENTS */
 
-    event CreateMorphoAdapter(address indexed morphoAdapter, address indexed vault);
+    event CreateMorphoAdapter(address indexed vault, address indexed morphoAdapter);
 
     /* FUNCTIONS */
 

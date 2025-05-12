@@ -108,7 +108,7 @@ contract ERC4626AdapterTest is Test {
         address expectedNewAdapter =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
-        emit IERC4626AdapterFactory.CreateERC4626Adapter(expectedNewAdapter, address(newParentVault), address(newVault));
+        emit IERC4626AdapterFactory.CreateERC4626Adapter(address(newParentVault), address(newVault), expectedNewAdapter);
 
         address newAdapter = factory.createERC4626Adapter(address(newParentVault), address(newVault));
 

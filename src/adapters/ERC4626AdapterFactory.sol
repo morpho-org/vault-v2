@@ -17,7 +17,7 @@ contract ERC4626AdapterFactory is IERC4626AdapterFactory {
         address _erc4626Adapter = address(new ERC4626Adapter{salt: bytes32(0)}(parentVault, vault));
         erc4626Adapter[parentVault][vault] = _erc4626Adapter;
         isERC4626Adapter[_erc4626Adapter] = true;
-        emit CreateERC4626Adapter(_erc4626Adapter, parentVault, vault);
+        emit CreateERC4626Adapter(parentVault, vault, _erc4626Adapter);
         return _erc4626Adapter;
     }
 }
