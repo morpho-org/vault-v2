@@ -138,7 +138,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setReceiveGate(address newReceiveGate) external timelocked {
-        sendGate = newReceiveGate;
+        receiveGate = newReceiveGate;
         emit EventsLib.SetReceiveGate(newReceiveGate);
     }
 
