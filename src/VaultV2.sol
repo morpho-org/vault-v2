@@ -10,6 +10,8 @@ import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
+import {FixedPointMathLib} from "../lib/solady/src/utils/FixedPointMathLib.sol";
+import {LibBit} from "../lib/solady/src/utils/LibBit.sol";
 
 /// @dev Zero checks are not performed.
 /// @dev No-ops are allowed.
@@ -47,8 +49,6 @@ contract VaultV2 is IVaultV2 {
     /// @dev Units are in WAD.
     /// @dev A relative cap of 1 WAD means no relative cap.
     mapping(bytes32 => uint256) internal oneMinusRelativeCap;
-    /// @dev Useful to iterate over all ids with relative cap in withdrawals.
-    bytes32[] public idsWithRelativeCap;
     /// @dev Interests are not counted in the allocation.
     mapping(bytes32 => uint256) public allocation;
     /// @dev calldata => executable at
@@ -57,6 +57,9 @@ contract VaultV2 is IVaultV2 {
     mapping(bytes4 => uint256) public timelock;
     address public liquidityAdapter;
     bytes public liquidityData;
+
+    uint256 root;
+    mapping(uint256 => uint256) leafBitmap;
 
     /* FEES STORAGE */
     /// @dev invariant: performanceFee != 0 => performanceFeeRecipient != address(0)
@@ -67,10 +70,6 @@ contract VaultV2 is IVaultV2 {
     address public managementFeeRecipient;
 
     /* GETTERS */
-
-    function idsWithRelativeCapLength() public view returns (uint256) {
-        return idsWithRelativeCap.length;
-    }
 
     function relativeCap(bytes32 id) public view returns (uint256) {
         return WAD - oneMinusRelativeCap[id];
@@ -217,14 +216,9 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap >= relativeCap(id), ErrorsLib.RelativeCapNotIncreasing());
 
         if (newRelativeCap > relativeCap(id)) {
-            if (newRelativeCap == WAD) {
-                uint256 i;
-                while (idsWithRelativeCap[i] != id) i++;
-                idsWithRelativeCap[i] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
-                idsWithRelativeCap.pop();
-            }
-
+            removeFloorIfNeeded(allocation[id], relativeCap(id));
             oneMinusRelativeCap[id] = WAD - newRelativeCap;
+            addFloorIfNeeded(allocation[id], relativeCap(id));
         }
 
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
@@ -239,9 +233,9 @@ contract VaultV2 is IVaultV2 {
         if (newRelativeCap < relativeCap(id)) {
             require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
 
-            if (relativeCap(id) == WAD) idsWithRelativeCap.push(id);
-
+            removeFloorIfNeeded(allocation[id], relativeCap(id));
             oneMinusRelativeCap[id] = WAD - newRelativeCap;
+            addFloorIfNeeded(allocation[id], relativeCap(id));
         }
 
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
@@ -263,16 +257,14 @@ contract VaultV2 is IVaultV2 {
         bytes32[] memory ids = IAdapter(adapter).allocate(data, assets);
 
         for (uint256 i; i < ids.length; i++) {
+            removeFloorIfNeeded(allocation[ids[i]], relativeCap(ids[i]));
             allocation[ids[i]] += assets;
+            addFloorIfNeeded(allocation[ids[i]], relativeCap(ids[i]));
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
-            if (relativeCap(ids[i]) < WAD) {
-                require(
-                    allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap(ids[i]), WAD),
-                    ErrorsLib.RelativeCapExceeded()
-                );
-            }
         }
+        require(noRelativeCapExceeded(), ErrorsLib.RelativeCapExceeded());
+
         emit EventsLib.ReallocateFromIdle(msg.sender, adapter, assets, ids);
     }
 
@@ -285,7 +277,9 @@ contract VaultV2 is IVaultV2 {
         bytes32[] memory ids = IAdapter(adapter).deallocate(data, assets);
 
         for (uint256 i; i < ids.length; i++) {
+            removeFloorIfNeeded(allocation[ids[i]], relativeCap(ids[i]));
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(assets);
+            addFloorIfNeeded(allocation[ids[i]], relativeCap(ids[i]));
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
@@ -459,11 +453,7 @@ contract VaultV2 is IVaultV2 {
         deleteShares(onBehalf, shares);
         totalAssets -= assets;
 
-        for (uint256 i; i < idsWithRelativeCap.length; i++) {
-            bytes32 id = idsWithRelativeCap[i];
-            // relativeCap(id) < WAD is true for all ids in idsWithRelativeCap
-            require(allocation[id] <= totalAssets.mulDivDown(relativeCap(id), WAD), ErrorsLib.RelativeCapExceeded());
-        }
+        require(noRelativeCapExceeded(), ErrorsLib.RelativeCapExceeded());
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
@@ -555,5 +545,70 @@ contract VaultV2 is IVaultV2 {
         balanceOf[from] -= shares;
         totalSupply -= shares;
         emit EventsLib.Transfer(from, address(0), shares);
+    }
+
+    // Assumes floor > 0
+    // Compute ln_base(floor).
+    function getIndex(uint256 floor) internal pure returns (uint256) {
+        // Safe to convert from uint because floor < 2**255-1/1e18.
+        // Safe to convert to uint because the input is at least WAD.
+        return uint256(FixedPointMathLib.lnWad(int256(floor * WAD))) / LN_BASE_E18;
+    }
+
+    function noRelativeCapExceeded() internal view returns (bool) {
+        if (root == 0) {
+            return true;
+        } else {
+            // index of leaf with highest nonempty cap
+            uint256 maxIndexInRoot = 255 - LibBit.ffs(root);
+
+            // Cannot be 0 by invariant
+            // leaves[p] == 0 iff 255-pth bit of root == 0
+            uint256 leaf = leafBitmap[maxIndexInRoot];
+            uint256 maxIndexInLeaf = 31 - (LibBit.ffs(leaf) / 8);
+
+            uint256 maxIndex = (32 * maxIndexInRoot) + maxIndexInLeaf;
+            uint256 totalAssetsIndex = getIndex(totalAssets);
+
+            return maxIndex < totalAssetsIndex;
+        }
+    }
+
+    function removeFloorIfNeeded(uint256 _allocation, uint256 _relativeCap) internal {
+        if (_allocation > 0 && _relativeCap < WAD) {
+            uint256 index = getIndex(_allocation * WAD / _relativeCap);
+            uint256 indexInRoot = index / 32;
+            uint256 indexInLeaf = index % 32;
+            uint256 leaf = leafBitmap[indexInRoot];
+            uint256 oldNumCaps = byteAt(indexInLeaf, leaf);
+
+            if (oldNumCaps == 1) root &= ~(TOP >> indexInRoot);
+
+            uint256 decrement = TOP >> (8 * indexInLeaf + 7);
+            leafBitmap[indexInRoot] = leaf - decrement;
+        }
+    }
+
+    function addFloorIfNeeded(uint256 _allocation, uint256 _relativeCap) internal {
+        if (_allocation > 0 && _relativeCap < WAD) {
+            uint256 index = getIndex(_allocation * WAD / _relativeCap);
+            uint256 indexInRoot = index / 32;
+            uint256 indexInLeaf = index % 32;
+            uint256 leaf = leafBitmap[indexInRoot];
+            uint256 oldNumCaps = byteAt(indexInLeaf, leaf);
+
+            require(oldNumCaps < 255, ErrorsLib.MaximumRelativeCapsAtFloor());
+
+            if (oldNumCaps == 0) root |= TOP >> indexInRoot;
+
+            uint256 increment = TOP >> (8 * indexInLeaf + 7);
+            leafBitmap[indexInRoot] = leaf + increment;
+        }
+    }
+
+    function byteAt(uint256 pos, uint256 word) internal pure returns (uint256 b) {
+        assembly {
+            b := byte(pos, word)
+        }
     }
 }

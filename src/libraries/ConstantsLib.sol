@@ -10,3 +10,5 @@ uint256 constant TIMELOCK_CAP = 2 weeks;
 uint256 constant MAX_PERFORMANCE_FEE = 0.5e18; // 50%
 uint256 constant MAX_MANAGEMENT_FEE = 0.05e18 / uint256(365 days); // 5%
 uint256 constant MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY = 0.01e18; // 1%
+uint256 constant TOP = 1 << 255;
+uint256 constant LN_BASE_E18 = 10939940038334263; // ln(1.011) * 1e18
