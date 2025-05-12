@@ -2,21 +2,18 @@
 pragma solidity 0.8.28;
 
 import {MorphoAdapter} from "./MorphoAdapter.sol";
+import {IMorphoAdapterFactory} from "./interfaces/IMorphoAdapterFactory.sol";
 
-contract MorphoAdapterFactory {
+contract MorphoAdapterFactory is IMorphoAdapterFactory {
     /* IMMUTABLES */
 
-    address immutable morpho;
+    address public immutable morpho;
 
     /* STORAGE */
 
-    // vault => adapter
-    mapping(address => address) public adapter;
-    mapping(address => bool) public isAdapter;
-
-    /* EVENTS */
-
-    event CreateMorphoAdapter(address indexed vault, address indexed morphoAdapter);
+    /// @dev vault => adapter
+    mapping(address => address) public morphoAdapter;
+    mapping(address => bool) public isMorphoAdapter;
 
     /* FUNCTIONS */
 
@@ -25,10 +22,10 @@ contract MorphoAdapterFactory {
     }
 
     function createMorphoAdapter(address vault) external returns (address) {
-        address morphoAdapter = address(new MorphoAdapter{salt: bytes32(0)}(vault, morpho));
-        adapter[vault] = morphoAdapter;
-        isAdapter[morphoAdapter] = true;
-        emit CreateMorphoAdapter(vault, morphoAdapter);
-        return morphoAdapter;
+        address _morphoAdapter = address(new MorphoAdapter{salt: bytes32(0)}(vault, morpho));
+        morphoAdapter[vault] = _morphoAdapter;
+        isMorphoAdapter[_morphoAdapter] = true;
+        emit CreateMorphoAdapter(vault, _morphoAdapter);
+        return _morphoAdapter;
     }
 }
