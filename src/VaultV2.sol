@@ -45,7 +45,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
     /// @dev The relative cap is relative to `totalAssets`.
     /// @dev Units are in WAD.
-    /// @dev The default relative cap is WAD and it means that there is no relative cap.
+    /// @dev The default relative cap is WAD and it corresponds to no relative cap.
     mapping(bytes32 => uint256) internal oneMinusRelativeCap;
     /// @dev Useful to iterate over all ids with relative cap in withdrawals.
     bytes32[] public idsWithRelativeCap;
