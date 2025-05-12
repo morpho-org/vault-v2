@@ -34,7 +34,7 @@ contract MockAdapter is IAdapter {
         return _ids;
     }
 
-    function realizeLoss(bytes memory data) external returns (uint256, bytes32[] memory ids) {}
+    function realizeLoss(bytes memory, uint256) external returns (bytes32[] memory) {}
 }
 
 contract ReallocateTest is BaseTest {

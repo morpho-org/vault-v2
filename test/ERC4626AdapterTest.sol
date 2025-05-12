@@ -21,6 +21,7 @@ contract ERC4626AdapterTest is Test {
     ERC4626Adapter internal adapter;
     address internal owner;
     address internal recipient;
+    bytes32[] internal expectedIds;
 
     uint256 internal constant MAX_TEST_ASSETS = 1e36;
 
@@ -38,6 +39,9 @@ contract ERC4626AdapterTest is Test {
 
         deal(address(asset), address(this), type(uint256).max);
         asset.approve(address(vault), type(uint256).max);
+
+        expectedIds = new bytes32[](1);
+        expectedIds[0] = keccak256(abi.encode("adapter", address(adapter)));
     }
 
     function testParentVaultAndAssetSet() public view {
@@ -69,10 +73,7 @@ contract ERC4626AdapterTest is Test {
         // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(adapterShares, assets, "Incorrect share balance after deposit");
         assertEq(asset.balanceOf(address(adapter)), 0, "Underlying tokens not transferred to vault");
-
-        bytes32 expectedId = keccak256(abi.encode("adapter", address(adapter)));
-        assertEq(ids.length, 1, "Unexpected number of ids returned");
-        assertEq(ids[0], expectedId, "Incorrect id returned");
+        assertEq(ids, expectedIds, "Incorrect ids returned");
     }
 
     function testDeallocate(uint256 initialAssets, uint256 withdrawAssets) public {
@@ -96,10 +97,7 @@ contract ERC4626AdapterTest is Test {
 
         uint256 adapterBalance = asset.balanceOf(address(adapter));
         assertEq(adapterBalance, withdrawAssets, "Adapter did not receive withdrawn tokens");
-
-        bytes32 expectedId = keccak256(abi.encode("adapter", address(adapter)));
-        assertEq(ids.length, 1, "Unexpected number of ids returned");
-        assertEq(ids[0], expectedId, "Incorrect id returned");
+        assertEq(ids, expectedIds, "Incorrect ids returned");
     }
 
     function testFactoryCreateAdapter() public {
@@ -174,12 +172,13 @@ contract ERC4626AdapterTest is Test {
 
     function testRealizeLossNotAuthorizedReverts() public {
         vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
-        adapter.realizeLoss(hex"");
+        adapter.realizeLoss(hex"", 0);
     }
 
-    function testLossRealization(uint256 initialAssets, uint256 lossAssets) public {
-        initialAssets = bound(initialAssets, 0, MAX_TEST_ASSETS);
-        lossAssets = bound(lossAssets, 0, initialAssets);
+    function testLossRealization(uint256 initialAssets, uint256 lossAssets, uint256 realizedLoss) public {
+        initialAssets = bound(initialAssets, 1, MAX_TEST_ASSETS);
+        lossAssets = bound(lossAssets, 1, initialAssets);
+        realizedLoss = bound(realizedLoss, 0, lossAssets - 1);
 
         // Setup.
         deal(address(asset), address(adapter), initialAssets);
@@ -197,20 +196,28 @@ contract ERC4626AdapterTest is Test {
         adapter.deallocate(hex"", 0);
         assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets, "Assets in vault should be tracked");
 
-        // Realisation.
+        // Can't realize too much.
+        vm.expectRevert(ERC4626Adapter.CannotRealizeAsMuch.selector);
         vm.prank(address(parentVault));
-        (uint256 realizedLoss, bytes32[] memory ids) = adapter.realizeLoss(hex"");
-        assertEq(realizedLoss, lossAssets, "Realized loss should match expected loss");
-        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets - realizedLoss, "Assets in vault should be tracked");
-        assertEq(ids.length, 1, "Unexpected number of ids returned");
-        assertEq(ids[0], keccak256(abi.encode("adapter", address(adapter))), "Incorrect id returned");
+        adapter.realizeLoss(hex"", lossAssets + 1);
 
-        // Can't realize loss twice.
+        // Partial realisation.
         vm.prank(address(parentVault));
-        (uint256 secondRealizedLoss, bytes32[] memory secondIds) = adapter.realizeLoss(hex"");
-        assertEq(secondRealizedLoss, 0, "Second realized loss should be zero");
-        assertEq(secondIds.length, 1, "Unexpected number of ids returned");
-        assertEq(secondIds[0], keccak256(abi.encode("adapter", address(adapter))), "Incorrect id returned");
+        bytes32[] memory ids = adapter.realizeLoss(hex"", realizedLoss);
+        assertEq(_loss(), lossAssets - realizedLoss, "Assets in vault should be tracked");
+        assertEq(ids, expectedIds, "Incorrect ids returned");
+
+        // Full realisation.
+        uint256 remainingLoss = _loss();
+        vm.prank(address(parentVault));
+        ids = adapter.realizeLoss(hex"", remainingLoss);
+        assertEq(_loss(), 0, "Assets in vault should be tracked");
+        assertEq(ids, expectedIds, "Incorrect ids returned");
+
+        // Can't realize more.
+        vm.prank(address(parentVault));
+        vm.expectRevert(ERC4626Adapter.CannotRealizeAsMuch.selector);
+        adapter.realizeLoss(hex"", 1);
     }
 
     function testCumulativeLossRealization(
@@ -261,11 +268,11 @@ contract ERC4626AdapterTest is Test {
         assertApproxEqAbs(_loss(), firstLoss + secondLoss - interest, 1, "Loss should not change");
 
         // Realize loss
+        uint256 finalLoss = _loss();
         vm.prank(address(parentVault));
-        (uint256 realizedLoss, bytes32[] memory ids) = adapter.realizeLoss(hex"");
-        assertApproxEqAbs(realizedLoss, firstLoss + secondLoss - interest, 1, "Should realize the full cumulative loss");
-        assertEq(_loss(), 0, "Loss should be zero");
-        assertEq(ids.length, 1, "Unexpected number of ids returned");
+        bytes32[] memory ids = adapter.realizeLoss(hex"", finalLoss);
+        assertApproxEqAbs(_loss(), 0, 1, "Loss should be zero");
+        assertEq(ids, expectedIds, "Incorrect ids returned");
     }
 
     function testInvalidData(bytes memory data) public {
@@ -278,7 +285,7 @@ contract ERC4626AdapterTest is Test {
         adapter.deallocate(data, 0);
 
         vm.expectRevert(ERC4626Adapter.InvalidData.selector);
-        adapter.realizeLoss(data);
+        adapter.realizeLoss(data, 0);
     }
 
     function _loss() internal view returns (uint256) {

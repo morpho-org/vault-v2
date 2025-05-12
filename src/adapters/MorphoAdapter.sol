@@ -33,6 +33,7 @@ contract MorphoAdapter is IAdapter {
     /* ERRORS */
 
     error NotAuthorized();
+    error CannotRealizeAsMuch();
 
     /* FUNCTIONS */
 
@@ -82,14 +83,18 @@ contract MorphoAdapter is IAdapter {
         return ids(marketParams);
     }
 
-    function realizeLoss(bytes memory data) external returns (uint256, bytes32[] memory) {
+    function realizeLoss(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
+
         uint256 assetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
         uint256 loss = assetsInMarketIfNoLoss[marketId].zeroFloorSub(assetsInMarket);
-        assetsInMarketIfNoLoss[marketId] = assetsInMarket;
-        return (loss, ids(marketParams));
+        require(loss >= assets, CannotRealizeAsMuch());
+
+        assetsInMarketIfNoLoss[marketId] -= assets;
+
+        return ids(marketParams);
     }
 
     function ids(MarketParams memory marketParams) internal view returns (bytes32[] memory) {
