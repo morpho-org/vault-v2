@@ -11,7 +11,6 @@ contract MorphoAdapterFactory is IMorphoAdapterFactory {
 
     /* STORAGE */
 
-    // vault => adapter
     /// @dev vault => adapter
     mapping(address => address) public morphoAdapter;
     mapping(address => bool) public isMorphoAdapter;
