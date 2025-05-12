@@ -4,10 +4,10 @@ pragma solidity 0.8.28;
 import {IMorpho, MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IAdapter} from "../interfaces/IAdapter.sol";
+import {IMorphoAdapter} from "./interfaces/IMorphoAdapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
-contract MorphoAdapter is IAdapter {
+contract MorphoAdapter is IMorphoAdapter {
     /* IMMUTABLES */
 
     address public immutable parentVault;
@@ -16,15 +16,6 @@ contract MorphoAdapter is IAdapter {
     /* STORAGE */
 
     address public skimRecipient;
-
-    /* EVENTS */
-
-    event SetSkimRecipient(address indexed newSkimRecipient);
-    event Skim(address indexed token, uint256 assets);
-
-    /* ERRORS */
-
-    error NotAuthorized();
 
     /* FUNCTIONS */
 

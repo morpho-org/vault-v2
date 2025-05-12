@@ -2,24 +2,22 @@
 pragma solidity 0.8.28;
 
 import {ERC4626Adapter} from "./ERC4626Adapter.sol";
+import {IERC4626AdapterFactory} from "./interfaces/IERC4626AdapterFactory.sol";
 
-contract ERC4626AdapterFactory {
+contract ERC4626AdapterFactory is IERC4626AdapterFactory {
     /* STORAGE */
 
-    // parent vault => vault => adapter
-    mapping(address parentVault => mapping(address vault => address)) public adapter;
-    mapping(address adapter => bool) public isAdapter;
+    mapping(address parentVault => mapping(address vault => address)) public erc4626Adapter;
+    mapping(address account => bool) public isERC4626Adapter;
 
-    /* EVENTS */
-
-    event CreateERC4626Adapter(address indexed parentVault, address indexed vault, address indexed erc4626Adapter);
+    /* FUNCTIONS */
 
     /// @dev Returns the address of the deployed ERC4626Adapter.
     function createERC4626Adapter(address parentVault, address vault) external returns (address) {
-        address erc4626Adapter = address(new ERC4626Adapter{salt: bytes32(0)}(parentVault, vault));
-        adapter[parentVault][vault] = erc4626Adapter;
-        isAdapter[erc4626Adapter] = true;
-        emit CreateERC4626Adapter(parentVault, vault, erc4626Adapter);
-        return erc4626Adapter;
+        address _erc4626Adapter = address(new ERC4626Adapter{salt: bytes32(0)}(parentVault, vault));
+        erc4626Adapter[parentVault][vault] = _erc4626Adapter;
+        isERC4626Adapter[_erc4626Adapter] = true;
+        emit CreateERC4626Adapter(parentVault, vault, _erc4626Adapter);
+        return _erc4626Adapter;
     }
 }

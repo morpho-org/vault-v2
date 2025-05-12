@@ -31,16 +31,15 @@ interface IVaultV2 is IERC20 {
     function isSentinel(address account) external view returns (bool isSentinel);
     function isAllocator(address account) external view returns (bool isAllocator);
     function isAdapter(address account) external view returns (bool isAdapter);
-    function performanceFee() external view returns (uint256 performanceFee);
-    function managementFee() external view returns (uint256 managementFee);
+    function performanceFee() external view returns (uint96 performanceFee);
+    function managementFee() external view returns (uint96 managementFee);
     function performanceFeeRecipient() external view returns (address performanceFeeRecipient);
     function managementFeeRecipient() external view returns (address managementFeeRecipient);
-    function forceReallocateToIdlePenalty() external view returns (uint256 forceReallocateToIdlePenalty);
+    function forceDeallocatePenalty() external view returns (uint256 forceDeallocatePenalty);
     function vic() external view returns (address vic);
     function allocation(bytes32 id) external view returns (uint256 allocation);
     function lastUpdate() external view returns (uint256 lastUpdate);
     function absoluteCap(bytes32 id) external view returns (uint256 absoluteCap);
-    function relativeCap(bytes32 id) external view returns (uint256 relativeCap);
     function idsWithRelativeCap(uint256 index) external view returns (bytes32 id);
     function executableAt(bytes calldata data) external view returns (uint256 executableAt);
     function timelock(bytes4 selector) external view returns (uint256 timelock);
@@ -49,6 +48,7 @@ interface IVaultV2 is IERC20 {
 
     // Getters
     function idsWithRelativeCapLength() external view returns (uint256 idsWithRelativeCapLength);
+    function relativeCap(bytes32 id) external view returns (uint256 relativeCap);
 
     // Owner actions
     function setOwner(address account) external;
@@ -61,7 +61,7 @@ interface IVaultV2 is IERC20 {
     function decreaseTimelock(bytes4 selector, uint256 duration) external;
     function setIsAllocator(address account, bool isAllocator) external;
     function setIsAdapter(address account, bool isAdapter) external;
-    function setForceReallocateToIdlePenalty(uint256 penalty) external;
+    function setForceDeallocatePenalty(uint256 forceDeallocatePenalty) external;
     function increaseAbsoluteCap(bytes memory idData, uint256 absoluteCap) external;
     function increaseRelativeCap(bytes memory idData, uint256 relativeCap) external;
     function decreaseAbsoluteCap(bytes memory idData, uint256 absoluteCap) external;
@@ -72,8 +72,8 @@ interface IVaultV2 is IERC20 {
     function setManagementFeeRecipient(address recipient) external;
 
     // Allocator actions
-    function reallocateFromIdle(address adapter, bytes memory data, uint256 assets) external;
-    function reallocateToIdle(address adapter, bytes memory data, uint256 assets) external;
+    function allocate(address adapter, bytes memory data, uint256 assets) external;
+    function deallocate(address adapter, bytes memory data, uint256 assets) external;
     function setLiquidityAdapter(address adapter) external;
     function setLiquidityData(bytes memory data) external;
 
@@ -89,10 +89,7 @@ interface IVaultV2 is IERC20 {
     function revoke(bytes calldata data) external;
 
     // Force reallocate to idle
-    function forceReallocateToIdle(
-        address[] memory adapters,
-        bytes[] memory data,
-        uint256[] memory assets,
-        address onBehalf
-    ) external returns (uint256 withdrawnShares);
+    function forceDeallocate(address[] memory adapters, bytes[] memory data, uint256[] memory assets, address onBehalf)
+        external
+        returns (uint256 withdrawnShares);
 }
