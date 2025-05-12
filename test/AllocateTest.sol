@@ -116,12 +116,12 @@ contract AllocateTest is BaseTest {
         vm.expectEmit();
         emit EventsLib.Allocate(allocator, mockAdapter, assets, ids);
         vault.allocate(mockAdapter, data, assets);
-        assertEq(underlyingToken.balanceOf(address(vault)), 0, "Vault balance should be zero after reallocation");
-        assertEq(underlyingToken.balanceOf(mockAdapter), assets, "Adapter balance incorrect after reallocation");
-        assertEq(vault.allocation(keccak256("id-0")), assets, "Allocation incorrect after reallocation");
-        assertEq(vault.allocation(keccak256("id-1")), assets, "Allocation incorrect after reallocation");
-        assertEq(MockAdapter(mockAdapter).recordedData(), data, "Data incorrect after reallocation");
-        assertEq(MockAdapter(mockAdapter).recordedAssets(), assets, "Assets incorrect after reallocation");
+        assertEq(underlyingToken.balanceOf(address(vault)), 0, "Vault balance should be zero after allocation");
+        assertEq(underlyingToken.balanceOf(mockAdapter), assets, "Adapter balance incorrect after allocation");
+        assertEq(vault.allocation(keccak256("id-0")), assets, "Allocation incorrect after allocation");
+        assertEq(vault.allocation(keccak256("id-1")), assets, "Allocation incorrect after allocation");
+        assertEq(MockAdapter(mockAdapter).recordedData(), data, "Data incorrect after allocation");
+        assertEq(MockAdapter(mockAdapter).recordedAssets(), assets, "Assets incorrect after allocation");
     }
 
     function testDeallocate(bytes memory data, uint256 assetsIn, uint256 assetsOut, address rdm, uint256 absoluteCap)
@@ -164,13 +164,13 @@ contract AllocateTest is BaseTest {
         vm.expectEmit();
         emit EventsLib.Deallocate(allocator, mockAdapter, assetsOut, ids);
         vault.deallocate(mockAdapter, data, assetsOut);
-        assertEq(underlyingToken.balanceOf(address(vault)), assetsOut, "Vault balance incorrect after reallocation");
+        assertEq(underlyingToken.balanceOf(address(vault)), assetsOut, "Vault balance incorrect after deallocation");
         assertEq(
-            underlyingToken.balanceOf(mockAdapter), assetsIn - assetsOut, "Adapter balance incorrect after reallocation"
+            underlyingToken.balanceOf(mockAdapter), assetsIn - assetsOut, "Adapter balance incorrect after deallocation"
         );
-        assertEq(vault.allocation(keccak256("id-0")), assetsIn - assetsOut, "Allocation incorrect after reallocation");
-        assertEq(vault.allocation(keccak256("id-1")), assetsIn - assetsOut, "Allocation incorrect after reallocation");
-        assertEq(MockAdapter(mockAdapter).recordedData(), data, "Data incorrect after reallocation");
-        assertEq(MockAdapter(mockAdapter).recordedAssets(), assetsOut, "Assets incorrect after reallocation");
+        assertEq(vault.allocation(keccak256("id-0")), assetsIn - assetsOut, "Allocation incorrect after deallocation");
+        assertEq(vault.allocation(keccak256("id-1")), assetsIn - assetsOut, "Allocation incorrect after deallocation");
+        assertEq(MockAdapter(mockAdapter).recordedData(), data, "Data incorrect after deallocation");
+        assertEq(MockAdapter(mockAdapter).recordedAssets(), assetsOut, "Assets incorrect after deallocation");
     }
 }
