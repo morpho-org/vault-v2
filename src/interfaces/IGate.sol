@@ -2,7 +2,7 @@
 pragma solidity >=0.5.0;
 
 interface ISendGate {
-    function canSendShares(address account, address assetReceive) external view returns (bool);
+    function canSendShares(address account, address assetReceiver) external view returns (bool);
 }
 
 interface IReceiveGate {
