@@ -31,14 +31,14 @@ interface IVaultV2 is IERC20 {
     function isSentinel(address) external view returns (bool);
     function isAllocator(address) external view returns (bool);
     function isAdapter(address) external view returns (bool);
-    function performanceFee() external view returns (uint256);
-    function managementFee() external view returns (uint256);
+    function performanceFee() external view returns (uint96);
+    function managementFee() external view returns (uint96);
     function performanceFeeRecipient() external view returns (address);
     function managementFeeRecipient() external view returns (address);
     function forceDeallocatePenalty() external view returns (uint256);
     function vic() external view returns (address);
     function allocation(bytes32) external view returns (uint256);
-    function lastUpdate() external view returns (uint256);
+    function lastUpdate() external view returns (uint96);
     function absoluteCap(bytes32) external view returns (uint256);
     function relativeCap(bytes32) external view returns (uint256);
     function idsWithRelativeCap(uint256) external view returns (bytes32);

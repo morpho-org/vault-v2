@@ -31,11 +31,9 @@ contract VaultV2 is IVaultV2 {
     mapping(address => mapping(address => uint256)) public allowance;
     mapping(address => uint256) public nonces;
 
-    /* VAULT STORAGE */
-    uint256 public totalAssets;
-    uint256 public lastUpdate;
-
     /* CURATION AND ALLOCATION STORAGE */
+    uint256 public totalAssets;
+    uint96 public lastUpdate;
     address public vic;
     uint256 public forceDeallocatePenalty;
     /// @dev Adapter is trusted to pass the expected ids when supplying assets.
@@ -60,10 +58,10 @@ contract VaultV2 is IVaultV2 {
 
     /* FEES STORAGE */
     /// @dev invariant: performanceFee != 0 => performanceFeeRecipient != address(0)
-    uint256 public performanceFee;
+    uint96 public performanceFee;
     address public performanceFeeRecipient;
     /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
-    uint256 public managementFee;
+    uint96 public managementFee;
     address public managementFeeRecipient;
 
     /* GETTERS */
@@ -94,7 +92,7 @@ contract VaultV2 is IVaultV2 {
     constructor(address _owner, address _asset) {
         asset = _asset;
         owner = _owner;
-        lastUpdate = block.timestamp;
+        lastUpdate = uint96(block.timestamp);
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         emit EventsLib.Constructor(_owner, _asset);
     }
@@ -162,7 +160,7 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        performanceFee = newPerformanceFee;
+        performanceFee = uint96(newPerformanceFee); // Safe because 2**96 > MAX_PERFORMANCE_FEE.
         emit EventsLib.SetPerformanceFee(newPerformanceFee);
     }
 
@@ -172,7 +170,7 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        managementFee = newManagementFee;
+        managementFee = uint96(newManagementFee); // Safe because 2**96 > MAX_MANAGEMENT_FEE.
         emit EventsLib.SetManagementFee(newManagementFee);
     }
 
@@ -341,7 +339,7 @@ contract VaultV2 is IVaultV2 {
         totalAssets = newTotalAssets;
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
-        lastUpdate = block.timestamp;
+        lastUpdate = uint96(block.timestamp);
     }
 
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
