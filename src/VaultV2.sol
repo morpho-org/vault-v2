@@ -170,7 +170,7 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        managementFee = uint96(newManagementFee); // Safe because 2^96 > MAX_MANAGEMENT_FEE.
+        managementFee = uint96(newManagementFee); // Safe because 2**96 > MAX_MANAGEMENT_FEE.
         emit EventsLib.SetManagementFee(newManagementFee);
     }
 
