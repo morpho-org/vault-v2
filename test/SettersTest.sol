@@ -114,7 +114,7 @@ contract SettersTest is BaseTest {
         vault.revoke(data);
 
         // Normal path
-        uint256 snapshot = vm.snapshot();
+        uint256 snapshot = vm.snapshotState();
         vm.prank(sentinel);
         vm.expectEmit();
         emit EventsLib.Revoke(sentinel, bytes4(data), data);
@@ -122,7 +122,7 @@ contract SettersTest is BaseTest {
         assertEq(vault.validAt(data), 0);
 
         // Curator can revoke as well
-        vm.revertTo(snapshot);
+        vm.revertToState(snapshot);
         vm.prank(curator);
         vault.revoke(data);
         assertEq(vault.validAt(data), 0);
@@ -543,8 +543,7 @@ contract SettersTest is BaseTest {
         }
     }
 
-    function testDecreaseRelativeCapZero(address rdm, bytes memory idData, uint256 oldRelativeCap) public {
-        bytes32 id = keccak256(idData);
+    function testDecreaseRelativeCapZero(bytes memory idData, uint256 oldRelativeCap) public {
         oldRelativeCap = bound(oldRelativeCap, 1, WAD);
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, oldRelativeCap));
