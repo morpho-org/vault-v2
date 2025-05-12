@@ -3,9 +3,9 @@
 methods {
     function multicall(bytes[]) external => NONDET DELETE;
 
-    function performanceFee() external returns uint256 envfree;
+    function performanceFee() external returns uint96 envfree;
     function performanceFeeRecipient() external returns address envfree;
-    function managementFee() external returns uint256 envfree;
+    function managementFee() external returns uint96 envfree;
     function managementFeeRecipient() external returns address envfree;
 
     function forceReallocateToIdlePenalty() external returns uint256 envfree;
