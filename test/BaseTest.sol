@@ -58,6 +58,7 @@ contract BaseTest is Test {
     }
 
     function bound96(uint96 x, uint256 _min, uint256 _max) public pure returns (uint96) {
+        require(_max <= type(uint96).max));
         return uint96(bound(uint256(x), _min, _max));
     }
 }
