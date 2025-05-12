@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity 0.8.28;
+pragma solidity >= 0.5.0;
 
 import {IAdapter} from "../../interfaces/IAdapter.sol";
 
@@ -19,8 +19,6 @@ interface IERC4626Adapter is IAdapter {
 
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory);
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory);
     function parentVault() external view returns (address);
     function vault() external view returns (address);
     function skimRecipient() external view returns (address);
