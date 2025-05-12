@@ -130,7 +130,7 @@ Multiple addresses can have this role.
 
 It can:
 
-- Allocate funds from enabled markets to the “idle market”.
+- Deallocate funds from enabled markets to the “idle market”.
 - Decrease absolute caps.
 - Revoke timelocked actions.
 
