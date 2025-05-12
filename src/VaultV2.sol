@@ -33,7 +33,7 @@ contract VaultV2 is IVaultV2 {
 
     /* VAULT STORAGE */
     uint256 public totalAssets;
-    uint256 public lossToRealise;
+    uint256 public lossToRealize;
     uint256 public lastUpdate;
 
     /* CURATION AND ALLOCATION STORAGE */
@@ -254,16 +254,20 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetForceReallocateToIdlePenalty(newForceReallocateToIdlePenalty);
     }
 
-    function realiseLoss(address adapter, bytes memory data) external {
+    /// @dev Loss is not realized instantly to prevent manipulations. It can be realized the block after the accounting.
+    function accountLoss(address adapter, bytes memory data) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
-        (uint256 loss, bytes32[] memory ids) = IAdapter(adapter).realiseLoss(data);
-        lossToRealise += loss;
 
+        accrueInterest();
+
+        (uint256 loss, bytes32[] memory ids) = IAdapter(adapter).realizeLoss(data);
+        lossToRealize += loss;
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss);
         }
-        emit EventsLib.RealiseLoss(adapter, data, loss, ids);
+
+        emit EventsLib.RealizeLoss(adapter, data, loss, ids);
     }
 
     /* ALLOCATOR ACTIONS */
@@ -349,18 +353,19 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares, uint256 newLossToRealize) =
+            accrueInterestView();
         emit EventsLib.AccrueInterest(totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         totalAssets = newTotalAssets;
-        lossToRealise = 0;
+        lossToRealize = newLossToRealize;
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
         lastUpdate = block.timestamp;
     }
 
-    function accrueInterestView() public view returns (uint256, uint256, uint256) {
+    function accrueInterestView() public view returns (uint256, uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        if (elapsed == 0) return (totalAssets - lossToRealise, 0, 0);
+        if (elapsed == 0) return (totalAssets, 0, 0, lossToRealize);
         uint256 interestPerSecond;
         try IVic(vic).interestPerSecond(totalAssets, elapsed) returns (uint256 output) {
             if (output <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD)) interestPerSecond = output;
@@ -369,7 +374,8 @@ contract VaultV2 is IVaultV2 {
             interestPerSecond = 0;
         }
         uint256 interest = interestPerSecond * elapsed;
-        uint256 newTotalAssets = totalAssets - lossToRealise + interest;
+        // The loss realisation does not happen in the block of the loss accounting to prevent manipulations.
+        uint256 newTotalAssets = totalAssets.zeroFloorSub(lossToRealize) + interest;
 
         uint256 performanceFeeShares;
         uint256 managementFeeShares;
@@ -392,29 +398,29 @@ contract VaultV2 is IVaultV2 {
                 totalSupply + 1 + performanceFeeShares, newTotalAssets + 1 - managementFeeAssets
             );
         }
-        return (newTotalAssets, performanceFeeShares, managementFeeShares);
+        return (newTotalAssets, performanceFeeShares, managementFeeShares, 0);
     }
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares,) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return assets.mulDivDown(newTotalSupply + 1, newTotalAssets + 1);
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares,) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return assets.mulDivUp(newTotalSupply + 1, newTotalAssets + 1);
     }
 
     function previewMint(uint256 shares) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares,) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivUp(newTotalAssets + 1, newTotalSupply + 1);
     }
 
     function previewRedeem(uint256 shares) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares,) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + 1);
     }

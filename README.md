@@ -146,7 +146,7 @@ It can:
 - The `Guardian` role of Vault V1 has been replaced by a `Sentinel` role.
   The scope of the sentinel is slightly different than that of the guardian role.
 - Timelocked actions are subject to configurable timelock durations, set individually for each action.
-- Bad debt should be monitored and realised by the curator and bad debt realisation is not atomic.
+- Bad debt should be monitored and realized by the curator and bad debt realisation is not atomic.
 
 ## Getting started
 

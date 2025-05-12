@@ -82,7 +82,7 @@ contract MorphoAdapter is IAdapter {
         return ids(marketParams);
     }
 
-    function realiseLoss(bytes memory data) external returns (uint256, bytes32[] memory) {
+    function realizeLoss(bytes memory data) external returns (uint256, bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
