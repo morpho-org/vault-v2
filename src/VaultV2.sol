@@ -11,7 +11,6 @@ import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {ISendGate, IReceiveGate} from "./interfaces/IGate.sol";
-import {IPermissionedToken} from "./interfaces/IPermissionedToken.sol";
 
 /// @dev Zero checks are not performed.
 /// @dev No-ops are allowed.
