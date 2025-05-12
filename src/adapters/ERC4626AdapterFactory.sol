@@ -8,6 +8,7 @@ contract ERC4626AdapterFactory is IERC4626AdapterFactory {
     /* STORAGE */
 
     // parent vault => vault => adapter
+    /// @dev parent vault => vault => adapter
     mapping(address => mapping(address => address)) public erc4626Adapter;
     mapping(address => bool) public isERC4626Adapter;
 
