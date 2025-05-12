@@ -36,7 +36,7 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     function managementFee() external view returns (uint256);
     function performanceFeeRecipient() external view returns (address);
     function managementFeeRecipient() external view returns (address);
-    function forceReallocateToIdlePenalty() external view returns (uint256);
+    function forceDeallocatePenalty() external view returns (uint256);
     function vic() external view returns (address);
     function allocation(bytes32) external view returns (uint256);
     function lastUpdate() external view returns (uint256);
@@ -64,19 +64,19 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     function decreaseTimelock(bytes4, uint256) external;
     function setIsAllocator(address, bool) external;
     function setIsAdapter(address, bool) external;
-    function setForceReallocateToIdlePenalty(uint256) external;
+    function setForceDeallocatePenalty(uint256) external;
     function increaseAbsoluteCap(bytes memory, uint256) external;
-    function increaseRelativeCap(bytes32, uint256) external;
-    function decreaseAbsoluteCap(bytes32, uint256) external;
-    function decreaseRelativeCap(bytes32, uint256) external;
+    function increaseRelativeCap(bytes memory, uint256) external;
+    function decreaseAbsoluteCap(bytes memory, uint256) external;
+    function decreaseRelativeCap(bytes memory, uint256) external;
     function setPerformanceFee(uint256) external;
     function setManagementFee(uint256) external;
     function setPerformanceFeeRecipient(address) external;
     function setManagementFeeRecipient(address) external;
 
     // Allocator actions
-    function reallocateFromIdle(address, bytes memory, uint256) external;
-    function reallocateToIdle(address, bytes memory, uint256) external;
+    function allocate(address, bytes memory, uint256) external;
+    function deallocate(address, bytes memory, uint256) external;
     function setLiquidityAdapter(address) external;
     function setLiquidityData(bytes memory) external;
 
@@ -88,11 +88,6 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     function submit(bytes calldata) external;
     function revoke(bytes calldata) external;
 
-    // Force reallocate to idle
-    function forceReallocateToIdle(
-        address[] memory adapters,
-        bytes[] memory data,
-        uint256[] memory assets,
-        address onBehalf
-    ) external returns (uint256);
+    // Force deallocate
+    function forceDeallocate(address[] memory, bytes[] memory, uint256[] memory, address) external returns (uint256);
 }
