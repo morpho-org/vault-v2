@@ -9,4 +9,4 @@
 	url = git@github.com:morpho-org/morpho-blue.git
 [submodule "lib/solady"]
 	path = lib/solady
-	url = https://github.com/vectorized/solady
+	url = https://github.com/Vectorized/solady
