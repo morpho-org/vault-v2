@@ -4,8 +4,9 @@ pragma solidity ^0.8.0;
 import "../lib/forge-std/src/Test.sol";
 import "../src/vic/ManualVic.sol";
 import "../src/vic/ManualVicFactory.sol";
-import "../src/vic/libraries/periphery/ManualVicAddressLib.sol";
 import "./mocks/VaultV2Mock.sol";
+import "../src/vic/interfaces/IManualVic.sol";
+import "../src/vic/interfaces/IManualVicFactory.sol";
 
 contract ManualVicTest is Test {
     IManualVicFactory vicFactory;
@@ -21,12 +22,11 @@ contract ManualVicTest is Test {
         sentinel = makeAddr("sentinel");
         vault = IVaultV2(address(new VaultV2Mock(address(0), address(0), curator, allocator, sentinel)));
         vicFactory = new ManualVicFactory();
-        manualVic = ManualVic(vicFactory.createManualVic(address(vault), bytes32(0)));
+        manualVic = ManualVic(vicFactory.createManualVic(address(vault)));
     }
 
     function testConstructor(address _vault) public {
-        vm.assume(_vault != address(vault));
-        manualVic = ManualVic(vicFactory.createManualVic(_vault, bytes32(0)));
+        manualVic = ManualVic(new ManualVic(_vault));
         assertEq(manualVic.vault(), _vault);
     }
 
@@ -36,13 +36,13 @@ contract ManualVicTest is Test {
 
         // Access control.
         vm.prank(rdm);
-        vm.expectRevert(ManualVic.Unauthorized.selector);
+        vm.expectRevert(IManualVic.Unauthorized.selector);
         manualVic.increaseMaxInterestPerSecond(newMaxInterestPerSecond);
 
         // Normal path.
         vm.prank(curator);
         vm.expectEmit();
-        emit ManualVic.IncreaseMaxInterestPerSecond(newMaxInterestPerSecond);
+        emit IManualVic.IncreaseMaxInterestPerSecond(newMaxInterestPerSecond);
         manualVic.increaseMaxInterestPerSecond(newMaxInterestPerSecond);
         assertEq(manualVic.maxInterestPerSecond(), newMaxInterestPerSecond);
     }
@@ -56,14 +56,14 @@ contract ManualVicTest is Test {
 
         // Access control.
         vm.prank(rdm);
-        vm.expectRevert(ManualVic.Unauthorized.selector);
+        vm.expectRevert(IManualVic.Unauthorized.selector);
         manualVic.decreaseMaxInterestPerSecond(newMaxInterestPerSecond);
 
         // Interest per second too high.
         vm.prank(allocator);
         manualVic.setInterestPerSecond(newMaxInterestPerSecond + 1);
         vm.prank(curator);
-        vm.expectRevert(ManualVic.InterestPerSecondTooHigh.selector);
+        vm.expectRevert(IManualVic.InterestPerSecondTooHigh.selector);
         manualVic.decreaseMaxInterestPerSecond(newMaxInterestPerSecond);
 
         // Normal path.
@@ -71,7 +71,7 @@ contract ManualVicTest is Test {
         manualVic.setInterestPerSecond(0);
         vm.prank(curator);
         vm.expectEmit();
-        emit ManualVic.DecreaseMaxInterestPerSecond(curator, newMaxInterestPerSecond);
+        emit IManualVic.DecreaseMaxInterestPerSecond(curator, newMaxInterestPerSecond);
         manualVic.decreaseMaxInterestPerSecond(newMaxInterestPerSecond);
         assertEq(manualVic.maxInterestPerSecond(), newMaxInterestPerSecond);
     }
@@ -84,25 +84,29 @@ contract ManualVicTest is Test {
 
         // Access control.
         vm.prank(rdm);
-        vm.expectRevert(ManualVic.Unauthorized.selector);
+        vm.expectRevert(IManualVic.Unauthorized.selector);
         manualVic.setInterestPerSecond(newInterestPerSecond);
 
         // Normal path.
         vm.prank(allocator);
         vm.expectEmit();
-        emit ManualVic.SetInterestPerSecond(allocator, newInterestPerSecond);
+        emit IManualVic.SetInterestPerSecond(allocator, newInterestPerSecond);
         manualVic.setInterestPerSecond(newInterestPerSecond);
         assertEq(manualVic.interestPerSecond(0, 0), newInterestPerSecond);
     }
 
-    function testCreateManualVic(address _vault, bytes32 salt) public {
-        address expectedManualVicAddress =
-            ManualVicAddressLib.computeManualVicAddress(address(vicFactory), _vault, salt);
+    function testCreateManualVic(address _vault) public {
+        vm.assume(_vault != address(vault));
+        bytes32 initCodeHash = keccak256(abi.encodePacked(type(ManualVic).creationCode, abi.encode(_vault)));
+        address expectedManualVicAddress = address(
+            uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), address(vicFactory), bytes32(0), initCodeHash))))
+        );
         vm.expectEmit();
-        emit ManualVicFactory.CreateManualVic(expectedManualVicAddress, _vault);
-        address newVic = vicFactory.createManualVic(_vault, salt);
+        emit IManualVicFactory.CreateManualVic(expectedManualVicAddress, _vault);
+        address newVic = vicFactory.createManualVic(_vault);
         assertEq(newVic, expectedManualVicAddress);
         assertTrue(vicFactory.isManualVic(newVic));
-        assertEq(ManualVic(newVic).vault(), _vault);
+        assertEq(vicFactory.manualVic(_vault), newVic);
+        assertEq(IManualVic(newVic).vault(), _vault);
     }
 }

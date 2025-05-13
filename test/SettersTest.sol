@@ -602,7 +602,7 @@ contract SettersTest is BaseTest {
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, adapter, true));
         vault.setIsAdapter(adapter, true);
         vm.prank(allocator);
-        vault.reallocateFromIdle(adapter, idData, relativeCap + 1);
+        vault.allocate(adapter, idData, relativeCap + 1);
         assertEq(vault.allocation(id), relativeCap + 1);
 
         // Test.
@@ -612,31 +612,36 @@ contract SettersTest is BaseTest {
         vault.decreaseRelativeCap(idData, relativeCap);
     }
 
-    function testSetForceReallocateToIdlePenalty(address rdm, uint256 newForceReallocateToIdlePenalty) public {
+    function testSetForceDeallocatePenalty(address rdm, uint256 newForceDeallocatePenalty) public {
         vm.assume(rdm != curator);
-        newForceReallocateToIdlePenalty =
-            bound(newForceReallocateToIdlePenalty, 0, MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY);
+        newForceDeallocatePenalty = bound(newForceDeallocatePenalty, 0, MAX_FORCE_DEALLOCATE_PENALTY);
+
+        // Setup.
+        address adapter = address(new BasicAdapter());
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, adapter, true));
+        vault.setIsAdapter(adapter, true);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setForceReallocateToIdlePenalty(newForceReallocateToIdlePenalty);
+        vault.setForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
 
         // Normal path
         vm.prank(curator);
         vault.submit(
-            abi.encodeWithSelector(IVaultV2.setForceReallocateToIdlePenalty.selector, newForceReallocateToIdlePenalty)
+            abi.encodeWithSelector(IVaultV2.setForceDeallocatePenalty.selector, adapter, newForceDeallocatePenalty)
         );
         vm.expectEmit();
-        emit EventsLib.SetForceReallocateToIdlePenalty(newForceReallocateToIdlePenalty);
-        vault.setForceReallocateToIdlePenalty(newForceReallocateToIdlePenalty);
-        assertEq(vault.forceReallocateToIdlePenalty(), newForceReallocateToIdlePenalty);
+        emit EventsLib.SetForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
+        vault.setForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
+        assertEq(vault.forceDeallocatePenalty(adapter), newForceDeallocatePenalty);
 
         // Can't set fee above cap
-        uint256 tooHighPenalty = MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY + 1;
+        uint256 tooHighPenalty = MAX_FORCE_DEALLOCATE_PENALTY + 1;
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdlePenalty.selector, tooHighPenalty));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setForceDeallocatePenalty.selector, adapter, tooHighPenalty));
         vm.expectRevert(ErrorsLib.PenaltyTooHigh.selector);
-        vault.setForceReallocateToIdlePenalty(tooHighPenalty);
+        vault.setForceDeallocatePenalty(adapter, tooHighPenalty);
     }
 
     /* ALLOCATOR SETTERS */

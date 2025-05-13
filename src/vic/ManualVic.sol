@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {IVic} from "../interfaces/IVic.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
+import {IManualVic} from "./interfaces/IManualVic.sol";
 
-contract ManualVic is IVic {
+contract ManualVic is IManualVic {
     /* IMMUTABLES */
 
     address public immutable vault;
@@ -13,19 +13,6 @@ contract ManualVic is IVic {
 
     uint256 internal _interestPerSecond;
     uint256 public maxInterestPerSecond;
-
-    /* EVENTS */
-
-    event SetInterestPerSecond(address indexed caller, uint256 newInterestPerSecond);
-    event IncreaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond);
-    event DecreaseMaxInterestPerSecond(address caller, uint256 newMaxInterestPerSecond);
-
-    /* ERRORS */
-
-    error Unauthorized();
-    error InterestPerSecondTooHigh();
-    error NotIncreasing();
-    error NotDecreasing();
 
     /* FUNCTIONS */
 
