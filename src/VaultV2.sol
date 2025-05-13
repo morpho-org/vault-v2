@@ -10,7 +10,6 @@ import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
-import "forge-std/console.sol";
 
 /// @dev Zero checks are not performed.
 /// @dev No-ops are allowed.
@@ -512,9 +511,7 @@ contract VaultV2 is IVaultV2 {
 
     // Negative value means idle assets availabel for withdrawal.
     function updateMissingExitAssets() public returns (int256 missingExitAssets) {
-        int256 idleAssets = int(MathLib.min(uint(type(int256).max),IERC20(asset).balanceOf(address(this))));
-        console.log(totalMaxExitAssets);
-        console.log(idleAssets);
+        int256 idleAssets = int256(MathLib.min(uint256(type(int256).max), IERC20(asset).balanceOf(address(this))));
         missingExitAssets = int256(totalMaxExitAssets) - idleAssets;
 
         if (missingExitAssets <= 0) {

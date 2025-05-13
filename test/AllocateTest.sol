@@ -41,7 +41,7 @@ contract AllocateTest is BaseTest {
     address mockAdapter;
     bytes32[] public ids;
 
-    uint constant MAX_TEST_ASSETS = 1e36;
+    uint256 constant MAX_TEST_ASSETS = 1e36;
 
     function setUp() public override {
         super.setUp();
@@ -78,7 +78,12 @@ contract AllocateTest is BaseTest {
     }
 
     function testX() public {
-        testAllocate(hex"00000000000000000000000000000000000000000000000000000000000026c2", 104037028092515893726001520362636891260727956781316711601021079992931996139521 , 0x0000000000000000000000000000000000004F01, 919);
+        testAllocate(
+            hex"00000000000000000000000000000000000000000000000000000000000026c2",
+            104037028092515893726001520362636891260727956781316711601021079992931996139521,
+            0x0000000000000000000000000000000000004F01,
+            919
+        );
     }
 
     function testAllocate(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
