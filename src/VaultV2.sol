@@ -247,7 +247,6 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external timelocked {
-        require(isAdapter[adapter], ErrorsLib.NotAdapter());
         require(newForceDeallocatePenalty <= MAX_FORCE_DEALLOCATE_PENALTY, ErrorsLib.PenaltyTooHigh());
         forceDeallocatePenalty[adapter] = newForceDeallocatePenalty;
         emit EventsLib.SetForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
@@ -475,15 +474,15 @@ contract VaultV2 is IVaultV2 {
         returns (uint256)
     {
         require(adapters.length == data.length && adapters.length == assets.length, ErrorsLib.InvalidInputLength());
-        uint256 penalty;
+        uint256 penaltyAssets;
         for (uint256 i; i < adapters.length; i++) {
             this.deallocate(adapters[i], data[i], assets[i]);
-            penalty += assets[i].mulDivDown(forceDeallocatePenalty[adapters[i]], WAD);
+            penaltyAssets += assets[i].mulDivDown(forceDeallocatePenalty[adapters[i]], WAD);
         }
 
         // The penalty is taken as a withdrawal that is donated to the vault.
-        uint256 shares = withdraw(penalty, address(this), onBehalf);
-        emit EventsLib.ForceDeallocate(msg.sender, onBehalf, penalty);
+        uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
+        emit EventsLib.ForceDeallocate(msg.sender, onBehalf, penaltyAssets);
         return shares;
     }
 
