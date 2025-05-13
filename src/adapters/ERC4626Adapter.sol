@@ -5,11 +5,12 @@ import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IAdapter} from "../interfaces/IAdapter.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
+import {IERC4626Adapter} from "./interfaces/IERC4626Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 
 /// Vaults should transfer exactly the input in deposit and withdraw.
-contract ERC4626Adapter is IAdapter {
+contract ERC4626Adapter is IERC4626Adapter {
     using MathLib for uint256;
 
     /* IMMUTABLES */
@@ -21,17 +22,6 @@ contract ERC4626Adapter is IAdapter {
 
     address public skimRecipient;
     uint256 public assetsInVaultIfNoLoss;
-
-    /* EVENTS */
-
-    event SetSkimRecipient(address indexed newSkimRecipient);
-    event Skim(address indexed token, uint256 assets);
-
-    /* ERRORS */
-
-    error NotAuthorized();
-    error InvalidData();
-    error CannotSkimVault();
 
     /* FUNCTIONS */
 

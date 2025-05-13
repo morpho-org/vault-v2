@@ -6,11 +6,11 @@ import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/M
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IAdapter} from "../interfaces/IAdapter.sol";
+import {IMorphoAdapter} from "./interfaces/IMorphoAdapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 
-contract MorphoAdapter is IAdapter {
+contract MorphoAdapter is IMorphoAdapter {
     using MathLib for uint256;
     using MorphoBalancesLib for IMorpho;
     using MarketParamsLib for MarketParams;
@@ -24,15 +24,6 @@ contract MorphoAdapter is IAdapter {
 
     address public skimRecipient;
     mapping(Id => uint256) public assetsInMarketIfNoLoss;
-
-    /* EVENTS */
-
-    event SetSkimRecipient(address indexed newSkimRecipient);
-    event Skim(address indexed token, uint256 assets);
-
-    /* ERRORS */
-
-    error NotAuthorized();
 
     /* FUNCTIONS */
 

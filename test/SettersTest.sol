@@ -114,7 +114,7 @@ contract SettersTest is BaseTest {
         vault.revoke(data);
 
         // Normal path
-        uint256 snapshot = vm.snapshot();
+        uint256 snapshot = vm.snapshotState();
         vm.prank(sentinel);
         vm.expectEmit();
         emit EventsLib.Revoke(sentinel, bytes4(data), data);
@@ -122,7 +122,7 @@ contract SettersTest is BaseTest {
         assertEq(vault.validAt(data), 0);
 
         // Curator can revoke as well
-        vm.revertTo(snapshot);
+        vm.revertToState(snapshot);
         vm.prank(curator);
         vault.revoke(data);
         assertEq(vault.validAt(data), 0);
@@ -542,8 +542,7 @@ contract SettersTest is BaseTest {
         }
     }
 
-    function testDecreaseRelativeCapZero(address rdm, bytes memory idData, uint256 oldRelativeCap) public {
-        bytes32 id = keccak256(idData);
+    function testDecreaseRelativeCapZero(bytes memory idData, uint256 oldRelativeCap) public {
         oldRelativeCap = bound(oldRelativeCap, 1, WAD);
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, oldRelativeCap));
@@ -589,70 +588,52 @@ contract SettersTest is BaseTest {
         vault.decreaseRelativeCap(idData, newRelativeCap + 1);
     }
 
-    function testDecreaseRelativeCapExceedsCap(
-        address rdm,
-        bytes memory idData,
-        uint256 oldRelativeCap,
-        uint256 newRelativeCap
-    ) public {
-        oldRelativeCap = bound(oldRelativeCap, 1, WAD - 1);
-        newRelativeCap = bound(newRelativeCap, oldRelativeCap + 1, WAD);
+    function testDecreaseRelativeCapExceedsCap(bytes memory idData, uint256 relativeCap) public {
+        relativeCap = bound(relativeCap, 1, WAD - 1);
         bytes32 id = keccak256(idData);
 
+        // Setup.
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, oldRelativeCap));
-        vault.decreaseRelativeCap(idData, oldRelativeCap);
-
-        vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, newRelativeCap));
-        vault.increaseRelativeCap(idData, newRelativeCap);
-        return;
-
-        vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, newRelativeCap));
-        vault.increaseAbsoluteCap(idData, newRelativeCap);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, type(uint256).max));
+        vault.increaseAbsoluteCap(idData, type(uint256).max);
         vault.deposit(1 ether, address(this));
         address adapter = address(new BasicAdapter());
-
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, adapter, true));
         vault.setIsAdapter(adapter, true);
-
         vm.prank(allocator);
-        vault.reallocateFromIdle(adapter, idData, oldRelativeCap + 1);
-        assertEq(vault.allocation(id), oldRelativeCap + 1);
+        vault.allocate(adapter, idData, relativeCap + 1);
+        assertEq(vault.allocation(id), relativeCap + 1);
 
+        // Test.
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, newRelativeCap));
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, relativeCap));
         vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
-        vault.decreaseRelativeCap(idData, newRelativeCap);
+        vault.decreaseRelativeCap(idData, relativeCap);
     }
 
-    function testSetForceReallocateToIdlePenalty(address rdm, uint256 newForceReallocateToIdlePenalty) public {
+    function testSetForceDeallocatePenalty(address rdm, uint256 newForceDeallocatePenalty) public {
         vm.assume(rdm != curator);
-        newForceReallocateToIdlePenalty =
-            bound(newForceReallocateToIdlePenalty, 0, MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY);
+        newForceDeallocatePenalty = bound(newForceDeallocatePenalty, 0, MAX_FORCE_DEALLOCATE_PENALTY);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setForceReallocateToIdlePenalty(newForceReallocateToIdlePenalty);
+        vault.setForceDeallocatePenalty(newForceDeallocatePenalty);
 
         // Normal path
         vm.prank(curator);
-        vault.submit(
-            abi.encodeWithSelector(IVaultV2.setForceReallocateToIdlePenalty.selector, newForceReallocateToIdlePenalty)
-        );
+        vault.submit(abi.encodeWithSelector(IVaultV2.setForceDeallocatePenalty.selector, newForceDeallocatePenalty));
         vm.expectEmit();
-        emit EventsLib.SetForceReallocateToIdlePenalty(newForceReallocateToIdlePenalty);
-        vault.setForceReallocateToIdlePenalty(newForceReallocateToIdlePenalty);
-        assertEq(vault.forceReallocateToIdlePenalty(), newForceReallocateToIdlePenalty);
+        emit EventsLib.SetForceDeallocatePenalty(newForceDeallocatePenalty);
+        vault.setForceDeallocatePenalty(newForceDeallocatePenalty);
+        assertEq(vault.forceDeallocatePenalty(), newForceDeallocatePenalty);
 
         // Can't set fee above cap
-        uint256 tooHighPenalty = MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY + 1;
+        uint256 tooHighPenalty = MAX_FORCE_DEALLOCATE_PENALTY + 1;
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdlePenalty.selector, tooHighPenalty));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setForceDeallocatePenalty.selector, tooHighPenalty));
         vm.expectRevert(ErrorsLib.PenaltyTooHigh.selector);
-        vault.setForceReallocateToIdlePenalty(tooHighPenalty);
+        vault.setForceDeallocatePenalty(tooHighPenalty);
     }
 
     /* ALLOCATOR SETTERS */

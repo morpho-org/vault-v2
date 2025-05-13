@@ -119,8 +119,8 @@ Multiple addresses can have this role.
 
 It can:
 
-- Reallocate funds from the “idle market” to enabled markets.
-- Reallocate funds from enabled markets to the “idle market”.
+- Allocate funds from the “idle market” to enabled markets.
+- Deallocate funds from enabled markets to the “idle market”.
 - Set the `liquidityAdapter`.
 - Set the `liquidityData`.
 
@@ -130,7 +130,7 @@ Multiple addresses can have this role.
 
 It can:
 
-- Reallocate funds from enabled markets to the “idle market”.
+- Deallocate funds from enabled markets to the “idle market”.
 - Decrease absolute caps.
 - Revoke timelocked actions.
 

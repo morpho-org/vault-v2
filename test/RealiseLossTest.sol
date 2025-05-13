@@ -103,7 +103,7 @@ contract RealizeLossTest is BaseTest {
         vault.submit(abi.encodeWithSelector(vault.increaseAbsoluteCap.selector, idData, type(uint256).max));
         vault.increaseAbsoluteCap(idData, type(uint256).max);
         vm.prank(allocator);
-        vault.reallocateFromIdle(address(adapter), hex"", deposit);
+        vault.allocate(address(adapter), hex"", deposit);
         assertEq(vault.allocation(id), deposit, "allocation should be set");
 
         // Account the loss.
