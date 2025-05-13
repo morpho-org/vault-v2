@@ -617,7 +617,6 @@ contract VaultV2 is IVaultV2 {
 
                 uint256 nodeMask = TOP256 >> posInNode;
                 nodes[posInRoot] |= nodeMask;
-
             }
         }
     }

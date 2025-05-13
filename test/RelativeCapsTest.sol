@@ -57,5 +57,4 @@ contract RelativeCapsTest is BaseTest {
         vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
         vault.allocate(adapter, idData, alloc);
     }
-
 }
