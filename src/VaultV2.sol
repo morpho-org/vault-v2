@@ -17,12 +17,12 @@ import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
 
-    /// IMMUTABLE
+    /* IMMUTABLE */
 
     /// @dev Underlying token of the vault.
     address public immutable asset;
 
-    /// ROLES STORAGE
+    /* ROLES STORAGE */
     /// The roles are not "two-step" so one must check if they are really the owner.
 
     address public owner;
@@ -30,7 +30,7 @@ contract VaultV2 is IVaultV2 {
     mapping(address account => bool) public isSentinel;
     mapping(address account => bool) public isAllocator;
 
-    /// TOKEN STORAGE
+    /* TOKEN STORAGE */
     /// The shares are represented with EIP-20.
 
     uint256 public totalSupply;
@@ -38,7 +38,7 @@ contract VaultV2 is IVaultV2 {
     mapping(address owner => mapping(address spender => uint256)) public allowance;
     mapping(address account => uint256) public nonces;
 
-    /// INTEREST STORAGE
+    /* INTEREST STORAGE */
     /// To accrue interest, the vault queries the Vault Interest Controller (VIC) which returns the interest per second
     /// that must be distributed on the period (since `lastUpdate`).
 
@@ -46,7 +46,7 @@ contract VaultV2 is IVaultV2 {
     uint96 public lastUpdate;
     address public vic;
 
-    /// CURATION STORAGE
+    /* CURATION STORAGE */
     /// The funds allocation of the vault is constrained by the id system. An id is an abstract identifier of a common
     /// risk factor of some markets (a collateral, an oracle, a protocol, etc.). The allocation on markets with a common
     /// id is limited by absolute caps and relative caps that can be set by the curator.
@@ -78,11 +78,11 @@ contract VaultV2 is IVaultV2 {
     /// @dev Ids with active relative cap (relativeCap < 100%).
     bytes32[] public idsWithRelativeCap;
 
-    /// FORCE DEALLOCATE STORAGE
+    /* FORCE DEALLOCATE STORAGE */
 
     mapping(address adapter => uint256) public forceDeallocatePenalty;
 
-    /// LIQUIDITY ADAPTER STORAGE
+    /* LIQUIDITY ADAPTER STORAGE */
     /// `liquidityAdapter` is called with `liquidityData` on deposit/mint and withdraw/redeem.
     /// The same adapter/data is used for both entry and exit to have the property that in the general case looping
     /// supply-withdraw or withdraw-supply should not change the allocation. The liquidity market is more useful on
@@ -92,7 +92,7 @@ contract VaultV2 is IVaultV2 {
     address public liquidityAdapter;
     bytes public liquidityData;
 
-    /// TIMELOCKS STORAGE
+    /* TIMELOCKS STORAGE */
 
     /// @dev The timelock of decreaseTimelock is hard-coded at TIMELOCK_CAP.
     /// @dev Only functions with the modifier `timelocked` are timelocked.
@@ -102,7 +102,7 @@ contract VaultV2 is IVaultV2 {
     /// conditions are not met, etc.).
     mapping(bytes data => uint256) public executableAt;
 
-    /// FEES STORAGE
+    /* FEES STORAGE */
     /// This invariant holds for both fees: fee != 0 => recipient != address(0).
     /// Fees unit is WAD.
 
