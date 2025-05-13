@@ -37,11 +37,11 @@ contract VaultV2 is IVaultV2 {
     uint256 public totalAssets;
 
     /* CURATION AND ALLOCATION STORAGE */
-    /// @dev position in root => occupancy bitmap
-    mapping(uint256 => uint256) relativeCapsNode;
-    /// @dev position => number of relative caps
-    mapping(uint256 => uint256) numRelativeCapsAtPos;
-    uint48 public relativeCapsRoot; // occupancy bitmap
+    /// @dev index in root bitmap => occupancy bitmap
+    mapping(uint256 => uint256) nodeBitmap;
+    /// @dev index => number of relative caps at this index
+    mapping(uint256 => uint256) numRelativeCapsAtIndex;
+    uint48 public rootBitmap; // occupancy bitmap
     uint48 public lastUpdate;
     address public vic;
     /// @dev adapter => force deallocate penalty
@@ -550,66 +550,64 @@ contract VaultV2 is IVaultV2 {
 
     // Assumes floor > 0
     // Compute ln_base(floor).
-    function getPosition(uint256 floor) internal pure returns (uint256) {
+    function getIndex(uint256 floor) internal pure returns (uint256) {
         // Safe to convert from uint because floor < 2**255-1/1e18.
         // Safe to convert to uint because the input is at least WAD.
         return uint256(FixedPointMathLib.lnWad(int256(floor * WAD))) / LN_BASE_E18;
     }
 
     function noRelativeCapExceeded() internal view returns (bool) {
-        if (relativeCapsRoot == 0) {
+        if (rootBitmap == 0) {
             return true;
         } else {
             // node with highest nonempty cap
-            uint256 posInRoot = 47 - LibBit.ffs(uint256(relativeCapsRoot));
+            uint256 maxIndexInRoot = 47 - LibBit.ffs(uint256(rootBitmap));
             // Cannot be 0 by invariant
-            // nodes[p] == 0 iff 255-pth bit of root == 0
-            uint256 node = relativeCapsNode[posInRoot];
-            uint256 posInNode = 255 - LibBit.ffs(node);
+            // nodes[p] == 0 iff pth bit of rootBitmap == 0
+            uint256 node = nodeBitmap[maxIndexInRoot];
+            uint256 maxIndexInNode = 255 - LibBit.ffs(node);
 
-            uint256 largestFloorPos = (256 * posInRoot) + posInNode;
-            uint256 currentTotalAssetsPos = getPosition(totalAssets);
+            uint256 maxIndex = (256 * maxIndexInRoot) + maxIndexInNode;
+            uint256 totalAssetsIndex = getIndex(totalAssets);
 
-            return largestFloorPos < currentTotalAssetsPos;
+            return maxIndex < totalAssetsIndex;
         }
     }
 
     function removeFloorIfNeeded(uint256 _allocation, uint256 _relativeCap) internal {
         if (_allocation > 0 && _relativeCap < WAD) {
-            uint256 floor = _allocation * WAD / _relativeCap;
-            uint256 floorPos = getPosition(floor);
+            uint256 index = getIndex(_allocation * WAD / _relativeCap);
 
-            uint256 newNumCaps = --numRelativeCapsAtPos[floorPos];
+            uint256 newNumCaps = --numRelativeCapsAtIndex[index];
 
             if (newNumCaps == 0) {
-                uint256 posInRoot = floorPos / 256;
-                uint256 posInNode = floorPos % 256;
+                uint256 indexInRoot = index / 256;
+                uint256 indexInNode = index % 256;
 
-                uint48 rootMask = ~(TOP48 >> posInRoot);
-                relativeCapsRoot &= rootMask;
+                uint48 rootMask = ~(TOP48 >> indexInRoot);
+                rootBitmap &= rootMask;
 
-                uint256 nodeMask = ~(TOP256 >> posInNode);
-                relativeCapsNode[posInRoot] &= nodeMask;
+                uint256 nodeMask = ~(TOP256 >> indexInNode);
+                nodeBitmap[indexInRoot] &= nodeMask;
             }
         }
     }
 
     function addFloorIfNeeded(uint256 _allocation, uint256 _relativeCap) internal {
         if (_allocation > 0 && _relativeCap < WAD) {
-            uint256 floor = _allocation * WAD / _relativeCap;
-            uint256 floorPos = getPosition(floor);
+            uint256 index = getIndex(_allocation * WAD / _relativeCap);
 
-            uint256 oldNumCaps = numRelativeCapsAtPos[floorPos]++;
+            uint256 oldNumCaps = numRelativeCapsAtIndex[index]++;
 
             if (oldNumCaps == 0) {
-                uint256 posInRoot = floorPos / 256;
-                uint256 posInNode = floorPos % 256;
+                uint256 indexInRoot = index / 256;
+                uint256 indexInNode = index % 256;
 
-                uint48 rootMask = TOP48 >> posInRoot;
-                relativeCapsRoot |= rootMask;
+                uint48 rootMask = TOP48 >> indexInRoot;
+                rootBitmap |= rootMask;
 
-                uint256 nodeMask = TOP256 >> posInNode;
-                relativeCapsNode[posInRoot] |= nodeMask;
+                uint256 nodeMask = TOP256 >> indexInNode;
+                nodeBitmap[indexInRoot] |= nodeMask;
             }
         }
     }
