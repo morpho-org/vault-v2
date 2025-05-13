@@ -37,8 +37,8 @@ contract VaultV2 is IVaultV2 {
     uint256 public totalAssets;
     /// @dev index in root bitmap => occupancy bitmap
     mapping(uint256 => uint256) nodeBitmap;
-    /// @dev index => number of relative caps at this index
-    mapping(uint256 => uint256) numRelativeCapsAtIndex;
+    /// @dev bucket => number of ids in this bucket
+    mapping(uint256 => uint256) numIdsInBucket;
     uint48 public rootBitmap; // occupancy bitmap
     uint48 public lastUpdate;
     address public vic;
@@ -548,7 +548,7 @@ contract VaultV2 is IVaultV2 {
 
     // Assumes floor > 0
     // Compute ln_base(floor).
-    function getIndex(uint256 floor) internal pure returns (uint256) {
+    function getBucket(uint256 floor) internal pure returns (uint256) {
         // Safe to convert from uint because floor < 2**255-1/1e18.
         // Safe to convert to uint because the input is at least WAD.
         return uint256(FixedPointMathLib.lnWad(int256(floor * WAD))) / LN_BASE_E18;
@@ -565,22 +565,22 @@ contract VaultV2 is IVaultV2 {
             uint256 node = nodeBitmap[maxIndexInRoot];
             uint256 maxIndexInNode = 255 - LibBit.ffs(node);
 
-            uint256 maxIndex = (256 * maxIndexInRoot) + maxIndexInNode;
-            uint256 totalAssetsIndex = getIndex(totalAssets);
+            uint256 maxBucket = (256 * maxIndexInRoot) + maxIndexInNode;
+            uint256 totalAssetsBucket = getBucket(totalAssets);
 
-            return maxIndex < totalAssetsIndex;
+            return maxBucket < totalAssetsBucket;
         }
     }
 
     function removeFloorIfNeeded(uint256 _allocation, uint256 _relativeCap) internal {
         if (_allocation > 0 && _relativeCap < WAD) {
-            uint256 index = getIndex(_allocation * WAD / _relativeCap);
+            uint256 bucket = getBucket(_allocation * WAD / _relativeCap);
 
-            uint256 newNumCaps = --numRelativeCapsAtIndex[index];
+            uint256 newNumCaps = --numIdsInBucket[bucket];
 
             if (newNumCaps == 0) {
-                uint256 indexInRoot = index / 256;
-                uint256 indexInNode = index % 256;
+                uint256 indexInRoot = bucket / 256;
+                uint256 indexInNode = bucket % 256;
 
                 uint48 rootMask = ~(TOP48 >> indexInRoot);
                 rootBitmap &= rootMask;
@@ -593,13 +593,13 @@ contract VaultV2 is IVaultV2 {
 
     function addFloorIfNeeded(uint256 _allocation, uint256 _relativeCap) internal {
         if (_allocation > 0 && _relativeCap < WAD) {
-            uint256 index = getIndex(_allocation * WAD / _relativeCap);
+            uint256 bucket = getBucket(_allocation * WAD / _relativeCap);
 
-            uint256 oldNumCaps = numRelativeCapsAtIndex[index]++;
+            uint256 oldNumCaps = numIdsInBucket[bucket]++;
 
             if (oldNumCaps == 0) {
-                uint256 indexInRoot = index / 256;
-                uint256 indexInNode = index % 256;
+                uint256 indexInRoot = bucket / 256;
+                uint256 indexInNode = bucket % 256;
 
                 uint48 rootMask = TOP48 >> indexInRoot;
                 rootBitmap |= rootMask;
