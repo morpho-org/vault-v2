@@ -617,24 +617,32 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != curator);
         newForceDeallocatePenalty = bound(newForceDeallocatePenalty, 0, MAX_FORCE_DEALLOCATE_PENALTY);
 
+        // Setup.
+        address adapter = address(new BasicAdapter());
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, adapter, true));
+        vault.setIsAdapter(adapter, true);
+
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setForceDeallocatePenalty(newForceDeallocatePenalty);
+        vault.setForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setForceDeallocatePenalty.selector, newForceDeallocatePenalty));
+        vault.submit(
+            abi.encodeWithSelector(IVaultV2.setForceDeallocatePenalty.selector, adapter, newForceDeallocatePenalty)
+        );
         vm.expectEmit();
-        emit EventsLib.SetForceDeallocatePenalty(newForceDeallocatePenalty);
-        vault.setForceDeallocatePenalty(newForceDeallocatePenalty);
-        assertEq(vault.forceDeallocatePenalty(), newForceDeallocatePenalty);
+        emit EventsLib.SetForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
+        vault.setForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
+        assertEq(vault.forceDeallocatePenalty(adapter), newForceDeallocatePenalty);
 
         // Can't set fee above cap
         uint256 tooHighPenalty = MAX_FORCE_DEALLOCATE_PENALTY + 1;
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setForceDeallocatePenalty.selector, tooHighPenalty));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setForceDeallocatePenalty.selector, adapter, tooHighPenalty));
         vm.expectRevert(ErrorsLib.PenaltyTooHigh.selector);
-        vault.setForceDeallocatePenalty(tooHighPenalty);
+        vault.setForceDeallocatePenalty(adapter, tooHighPenalty);
     }
 
     /* ALLOCATOR SETTERS */
