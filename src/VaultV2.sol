@@ -230,11 +230,11 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap <= relativeCap(id), ErrorsLib.RelativeCapNotDecreasing());
 
         if (newRelativeCap < relativeCap(id)) {
-            require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
-
             removeFloorIfNeeded(allocation[id], relativeCap(id));
             oneMinusRelativeCap[id] = WAD - newRelativeCap;
             addFloorIfNeeded(allocation[id], relativeCap(id));
+
+            require(noRelativeCapExceeded(), ErrorsLib.RelativeCapExceeded());
         }
 
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
@@ -546,7 +546,10 @@ contract VaultV2 is IVaultV2 {
 
     // Assumes floor > 0
     // Compute ln_base(floor).
-    function getIndex(uint256 floor) internal pure returns (uint256) {
+    // All amounts >= type(uint128).max occupy the last index.
+    // So caps that would be maxed on all totalAssets <= type(uint128).max are considered reached.
+    function getIndex(uint256 floor) public pure returns (uint256) {
+        if (floor > type(uint128).max) floor = type(uint128).max;
         // Safe to convert from uint because floor < 2**255-1/1e18.
         // Safe to convert to uint because the input is at least WAD.
         return uint256(FixedPointMathLib.lnWad(int256(floor * WAD))) / LN_BASE_E18;
