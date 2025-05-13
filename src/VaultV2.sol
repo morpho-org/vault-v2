@@ -33,7 +33,6 @@ contract VaultV2 is IVaultV2 {
     mapping(address => mapping(address => uint256)) public allowance;
     mapping(address => uint256) public nonces;
 
-
     /* CURATION AND ALLOCATION STORAGE */
     uint256 public totalAssets;
     /// @dev index in root bitmap => occupancy bitmap
