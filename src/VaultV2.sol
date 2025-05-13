@@ -35,6 +35,9 @@ contract VaultV2 is IVaultV2 {
 
     /* CURATION AND ALLOCATION STORAGE */
     uint256 public totalAssets;
+    uint256 rootBitmap; // root occupancy bitmap
+    /// @dev index in root => leaf occupancy bitmap
+    mapping(uint256 => uint256) leafBitmap;
     uint96 public lastUpdate;
     address public vic;
     /// @dev adapter => force deallocate penalty
@@ -56,10 +59,6 @@ contract VaultV2 is IVaultV2 {
     mapping(bytes4 => uint256) public timelock;
     address public liquidityAdapter;
     bytes public liquidityData;
-
-    uint256 rootBitmap; // root occupancy bitmap
-    /// @dev index in root => leaf occupancy bitmap
-    mapping(uint256 => uint256) leafBitmap;
 
     /* FEES STORAGE */
     /// @dev invariant: performanceFee != 0 => performanceFeeRecipient != address(0)
@@ -564,7 +563,7 @@ contract VaultV2 is IVaultV2 {
             uint256 maxIndexInRoot = 255 - LibBit.ffs(rootBitmap);
 
             // Cannot be 0 by invariant
-            // leaves[p] == 0 iff pth bit of relativeCapsRoot == 0
+            // leaves[p] == 0 iff pth bit of rootBitmap == 0
             uint256 leaf = leafBitmap[maxIndexInRoot];
             uint256 maxIndexInLeaf = 31 - (LibBit.ffs(leaf) / 8);
 
