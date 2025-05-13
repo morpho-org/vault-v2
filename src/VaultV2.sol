@@ -482,7 +482,7 @@ contract VaultV2 is IVaultV2 {
 
         // The penalty is taken as a withdrawal that is donated to the vault.
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
-        emit EventsLib.ForceDeallocate(msg.sender, onBehalf, penaltyAssets);
+        emit EventsLib.ForceDeallocate(msg.sender, adapters, data, assets, onBehalf);
         return shares;
     }
 

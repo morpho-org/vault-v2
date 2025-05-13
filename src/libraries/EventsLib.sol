@@ -37,6 +37,8 @@ library EventsLib {
     event AccrueInterest(
         uint256 previousTotalAssets, uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares
     );
-    event ForceDeallocate(address indexed sender, address indexed onBehalf, uint256 penalty);
+    event ForceDeallocate(
+        address indexed sender, address[] adapters, bytes[] data, uint256[] assets, address indexed onBehalf
+    );
     event CreateVaultV2(address indexed owner, address indexed asset, address indexed vaultV2);
 }
