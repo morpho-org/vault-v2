@@ -80,7 +80,7 @@ contract VaultV2 is IVaultV2 {
 
     /// FORCE DEALLOCATE STORAGE
 
-    uint256 public forceDeallocatePenalty;
+    mapping(address adapter => uint256) public forceDeallocatePenalty;
 
     /// LIQUIDITY ADAPTER STORAGE
     /// `liquidityAdapter` is called with `liquidityData` on deposit/mint and withdraw/redeem.
@@ -296,10 +296,10 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }
 
-    function setForceDeallocatePenalty(uint256 newForceDeallocatePenalty) external timelocked {
+    function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external timelocked {
         require(newForceDeallocatePenalty <= MAX_FORCE_DEALLOCATE_PENALTY, ErrorsLib.PenaltyTooHigh());
-        forceDeallocatePenalty = newForceDeallocatePenalty;
-        emit EventsLib.SetForceDeallocatePenalty(newForceDeallocatePenalty);
+        forceDeallocatePenalty[adapter] = newForceDeallocatePenalty;
+        emit EventsLib.SetForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
     }
 
     /* ALLOCATOR ACTIONS */
@@ -537,15 +537,15 @@ contract VaultV2 is IVaultV2 {
         returns (uint256)
     {
         require(adapters.length == data.length && adapters.length == assets.length, ErrorsLib.InvalidInputLength());
-        uint256 total;
+        uint256 penaltyAssets;
         for (uint256 i; i < adapters.length; i++) {
             this.deallocate(adapters[i], data[i], assets[i]);
-            total += assets[i];
+            penaltyAssets += assets[i].mulDivDown(forceDeallocatePenalty[adapters[i]], WAD);
         }
 
         // The penalty is taken as a withdrawal that is donated to the vault.
-        uint256 shares = withdraw(total.mulDivDown(forceDeallocatePenalty, WAD), address(this), onBehalf);
-        emit EventsLib.ForceDeallocate(msg.sender, onBehalf, total);
+        uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
+        emit EventsLib.ForceDeallocate(msg.sender, adapters, data, assets, onBehalf);
         return shares;
     }
 

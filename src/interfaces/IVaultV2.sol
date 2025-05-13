@@ -35,7 +35,7 @@ interface IVaultV2 is IERC20 {
     function managementFee() external view returns (uint96 managementFee);
     function performanceFeeRecipient() external view returns (address performanceFeeRecipient);
     function managementFeeRecipient() external view returns (address managementFeeRecipient);
-    function forceDeallocatePenalty() external view returns (uint256 forceDeallocatePenalty);
+    function forceDeallocatePenalty(address adapter) external view returns (uint256 forceDeallocatePenalty);
     function vic() external view returns (address vic);
     function allocation(bytes32 id) external view returns (uint256 allocation);
     function lastUpdate() external view returns (uint96 lastUpdate);
@@ -61,7 +61,7 @@ interface IVaultV2 is IERC20 {
     function decreaseTimelock(bytes4 selector, uint256 duration) external;
     function setIsAllocator(address account, bool isAllocator) external;
     function setIsAdapter(address account, bool isAdapter) external;
-    function setForceDeallocatePenalty(uint256 forceDeallocatePenalty) external;
+    function setForceDeallocatePenalty(address adapter, uint256 forceDeallocatePenalty) external;
     function increaseAbsoluteCap(bytes memory idData, uint256 absoluteCap) external;
     function increaseRelativeCap(bytes memory idData, uint256 relativeCap) external;
     function decreaseAbsoluteCap(bytes memory idData, uint256 absoluteCap) external;
