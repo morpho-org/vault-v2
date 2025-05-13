@@ -35,9 +35,9 @@ contract VaultV2 is IVaultV2 {
 
     /* CURATION AND ALLOCATION STORAGE */
     uint256 public totalAssets;
-    uint256 rootBitmap; // root occupancy bitmap
     /// @dev index in root => leaf occupancy bitmap
     mapping(uint256 => uint256) leafBitmap;
+    uint256 rootBitmap; // root occupancy bitmap
     uint96 public lastUpdate;
     address public vic;
     /// @dev adapter => force deallocate penalty
