@@ -8,7 +8,7 @@ contract BasicAdapter is IAdapter {
         IERC20(_underlyingToken).approve(_vault, type(uint256).max);
     }
 
-    function allocate(bytes memory idData, uint256 assets) external returns (bytes32[] memory) {
+    function allocate(bytes memory idData, uint256) external pure returns (bytes32[] memory) {
         bytes32[] memory ids = new bytes32[](1);
         ids[0] = keccak256(idData);
         return ids;
@@ -44,7 +44,7 @@ contract RelativeCapsTest is BaseTest {
         vault.setIsAdapter(adapter, true);
     }
 
-    function test_capReachedExactOnReallocate(uint256 cap, uint256 alloc, uint256 allocation) public {
+    function test_relativeCapExceededOnAllocate(uint256 cap, uint256 alloc) public {
         cap = bound(cap, 1, WAD - 1);
         alloc = bound(alloc, 1, MAX_TEST_ASSETS);
         uint256 total = alloc * WAD / cap;
@@ -56,5 +56,38 @@ contract RelativeCapsTest is BaseTest {
         vm.prank(allocator);
         vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
         vault.allocate(adapter, idData, alloc);
+    }
+
+    function test_relativeCapExceededOnDecreaseRelativeCap(uint256 cap, uint256 alloc, uint newCap) public {
+        cap = bound(cap, 100, WAD - 1);
+        alloc = bound(alloc,1,cap * 0.99e18 / WAD);
+        newCap = bound(newCap,1,alloc);
+        bytes memory idData = "id";
+
+        _setUpRelativeCap(idData, cap);
+
+        vault.deposit(WAD, address(this));
+        vm.prank(allocator);
+        vault.allocate(adapter, idData, alloc);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, newCap));
+        vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
+        vault.decreaseRelativeCap(idData, newCap);
+    }
+
+    function test_relativeCapExceededOnExit(uint256 cap, uint256 alloc) public {
+        cap = bound(cap, 100, WAD - 1);
+        alloc = bound(alloc,1,cap * 0.99e18 / WAD);
+        bytes memory idData = "id";
+
+        _setUpRelativeCap(idData, cap);
+
+        vault.deposit(WAD, address(this));
+        vm.prank(allocator);
+        vault.allocate(adapter, idData, alloc);
+
+        vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
+        vault.withdraw(WAD - alloc, address(this), address(this));
     }
 }

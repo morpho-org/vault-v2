@@ -232,11 +232,11 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap <= relativeCap(id), ErrorsLib.RelativeCapNotDecreasing());
 
         if (newRelativeCap < relativeCap(id)) {
-            require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
-
             removeFloorIfNeeded(allocation[id], relativeCap(id));
             oneMinusRelativeCap[id] = WAD - newRelativeCap;
             addFloorIfNeeded(allocation[id], relativeCap(id));
+
+            require(noRelativeCapExceeded(), ErrorsLib.RelativeCapExceeded());
         }
 
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
@@ -548,13 +548,13 @@ contract VaultV2 is IVaultV2 {
 
     // Assumes floor > 0
     // Compute ln_base(floor).
-    function getPosition(uint256 floor) internal returns (uint256) {
+    function getPosition(uint256 floor) internal pure returns (uint256) {
         // Safe to convert from uint because floor < 2**255-1/1e18.
         // Safe to convert to uint because the input is at least WAD.
         return uint256(FixedPointMathLib.lnWad(int256(floor * WAD))) / LN_BASE_E18;
     }
 
-    function noRelativeCapExceeded() internal returns (bool) {
+    function noRelativeCapExceeded() internal view returns (bool) {
         if (root == 0) {
             return true;
         } else {
@@ -570,15 +570,6 @@ contract VaultV2 is IVaultV2 {
 
             return largestFloorPos < currentTotalAssetsPos;
         }
-    }
-
-    function bin(uint256 v) internal returns (string memory) {
-        bytes memory res = new bytes(256);
-        for (uint256 i = 0; i < 256; i++) {
-            if (((v << i) >> 255) > 0) res[i] = "1";
-            else res[i] = "0";
-        }
-        return string(res);
     }
 
     function removeFloorIfNeeded(uint256 _allocation, uint256 _relativeCap) internal {
