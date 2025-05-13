@@ -1,19 +1,26 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 methods {
-    function performanceFee() external returns uint256 envfree;
+    function multicall(bytes[]) external => NONDET DELETE;
+
+    function performanceFee() external returns uint96 envfree;
     function performanceFeeRecipient() external returns address envfree;
-    function managementFee() external returns uint256 envfree;
+    function managementFee() external returns uint96 envfree;
     function managementFeeRecipient() external returns address envfree;
     function exitFee() external returns uint256 envfree;
     function exitFeeRecipient() external returns address envfree;
 
     function decreaseTimelock(bytes4 functionSelector, uint256 newDuration) external;
+    function forceDeallocatePenalty() external returns uint256 envfree;
 
     function absoluteCap(bytes32 id) external returns uint256 envfree;
     function relativeCap(bytes32 id) external returns uint256 envfree;
     function allocation(bytes32 id) external returns uint256 envfree;
     function timelock(bytes4 selector) external returns uint256 envfree;
+    function liquidityAdapter() external returns address envfree;
+    function liquidityData() external returns bytes memory envfree;
+
+    function isAdapter(address adapter) external returns bool envfree;
 
     function totalAssets() external returns uint256 envfree;
     function balanceOf(address) external returns uint256 envfree;
@@ -22,8 +29,7 @@ methods {
 definition TIMELOCK_CAP() returns uint256 = 14 * 24 * 60 * 60;
 definition MAX_PERFOMANCE_FEE() returns uint256 = 10^18 / 2;
 definition MAX_MANAGEMENT_FEE() returns uint256 = 10^18 / 20 / (365 * 24 * 60 * 60);
-
-/// INVARIANTS ///
+definition MAX_FORCE_DEALLOCATE_PENALTY() returns uint256 = 10^18 / 100;
 
 strong invariant performanceFeeRecipient()
     performanceFee() != 0 => performanceFeeRecipient() != 0;
@@ -47,9 +53,17 @@ strong invariant balanceOfZero()
             requireInvariant exitFeeRecipient();
         }
     }
+strong invariant forceDeallocatePenalty()
+    forceDeallocatePenalty() <= MAX_FORCE_DEALLOCATE_PENALTY();
+
+strong invariant balanceOfZero()
+    balanceOf(0) == 0;
 
 strong invariant timelockCap(bytes4 selector)
     timelock(selector) <= TIMELOCK_CAP();
 
 strong invariant timelockTimelock()
     timelock(to_bytes4(0x5c1a1a4f)) == TIMELOCK_CAP();
+
+strong invariant liquidityAdapterInvariant()
+    liquidityAdapter() == 0 || isAdapter(liquidityAdapter());

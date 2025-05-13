@@ -9,13 +9,14 @@ library ErrorsLib {
     error TransferFromReturnedFalse();
     error FeeTooHigh();
     error ExitFeeTooHigh();
+    error PenaltyTooHigh();
     error ZeroAddress();
     error Unauthorized();
     error TimelockNotExpired();
     error TimelockCapIsFixed();
     error TimelockDurationTooHigh();
-    error WrongPendingValue();
     error CapExceeded();
+    error InvalidInputLength();
     error DataNotTimelocked();
     error DataAlreadyPending();
     error TimelockNotIncreasing();
@@ -26,6 +27,7 @@ library ErrorsLib {
     error RelativeCapNotDecreasing();
     error AbsoluteCapExceeded();
     error RelativeCapExceeded();
+    error RelativeCapAboveOne();
     error IdNotFound();
     error NotAllocator();
     error NotAdapter();
@@ -34,4 +36,8 @@ library ErrorsLib {
     error PermitDeadlineExpired();
     error InvalidSigner();
     error MissingExitAssets();
+    error LiquidityAdapterInvariantBroken();
+    error ApproveReverted();
+    error ApproveReturnedFalse();
+    error RelativeCapZero();
 }

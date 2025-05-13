@@ -1,35 +1,40 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity 0.8.28;
+pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
 contract SettersTest is BaseTest {
+    function setUp() public override {
+        super.setUp();
+
+        deal(address(underlyingToken), address(this), type(uint256).max);
+        underlyingToken.approve(address(vault), type(uint256).max);
+    }
+
     function testConstructor() public view {
         assertEq(vault.owner(), owner);
         assertEq(address(vault.asset()), address(underlyingToken));
         assertEq(address(vault.curator()), curator);
         assertTrue(vault.isAllocator(address(allocator)));
-        assertEq(address(vault.irm()), address(irm));
-        assertEq(irm.owner(), manager);
+        assertEq(address(vault.vic()), address(vic));
     }
+
+    /* OWNER SETTERS */
 
     function testSetOwner(address rdm) public {
         vm.assume(rdm != owner);
         address newOwner = makeAddr("newOwner");
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setOwner(newOwner);
-
-        // Only owner can submit
+        // Access control
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setOwner.selector, newOwner));
-
-        vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setOwner.selector, newOwner));
         vault.setOwner(newOwner);
 
+        // Normal path
+        vm.prank(owner);
+        vm.expectEmit();
+        emit EventsLib.SetOwner(newOwner);
+        vault.setOwner(newOwner);
         assertEq(vault.owner(), newOwner);
     }
 
@@ -37,208 +42,655 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != owner);
         address newCurator = makeAddr("newCurator");
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setCurator(newCurator);
-
-        // Only owner can submit
+        // Access control
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setCurator.selector, newCurator));
-
-        vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setCurator.selector, newCurator));
         vault.setCurator(newCurator);
 
+        // Normal path
+        vm.prank(owner);
+        vm.expectEmit();
+        emit EventsLib.SetCurator(newCurator);
+        vault.setCurator(newCurator);
         assertEq(vault.curator(), newCurator);
     }
 
-    function testSetIRM(address rdm) public {
+    function testSetIsSentinel(address rdm, bool newIsSentinel) public {
         vm.assume(rdm != owner);
-        address newIRM = address(new IRM(manager));
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setIRM(newIRM);
-
-        // Only owner can submit
+        // Access control
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, newIRM));
+        vault.setIsSentinel(rdm, newIsSentinel);
 
+        // Normal path
         vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIRM.selector, newIRM));
-        vault.setIRM(newIRM);
+        vm.expectEmit();
+        emit EventsLib.SetIsSentinel(rdm, newIsSentinel);
+        vault.setIsSentinel(rdm, newIsSentinel);
+        assertEq(vault.isSentinel(rdm), newIsSentinel);
+    }
 
-        assertEq(address(vault.irm()), newIRM);
+    /* CURATOR SETTERS */
+
+    function testSubmit(bytes memory data, address rdm) public {
+        vm.assume(rdm != curator);
+
+        // Only curator can submit
+        vm.assume(rdm != curator);
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.submit(data);
+
+        // Normal path
+        vm.expectEmit();
+        emit EventsLib.Submit(curator, bytes4(data), data, block.timestamp + vault.timelock(bytes4(data)));
+        vm.prank(curator);
+        vault.submit(data);
+        assertEq(vault.validAt(data), block.timestamp + vault.timelock(bytes4(data)));
+
+        // Data already pending
+        vm.expectRevert(ErrorsLib.DataAlreadyPending.selector);
+        vm.prank(curator);
+        vault.submit(data);
+    }
+
+    function testRevoke(bytes memory data, address rdm) public {
+        vm.assume(rdm != curator);
+        vm.assume(rdm != sentinel);
+
+        // No pending data
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(sentinel);
+        vault.revoke(data);
+
+        // Setup
+        vm.prank(curator);
+        vault.submit(data);
+
+        // Access control
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.revoke(data);
+
+        // Normal path
+        uint256 snapshot = vm.snapshotState();
+        vm.prank(sentinel);
+        vm.expectEmit();
+        emit EventsLib.Revoke(sentinel, bytes4(data), data);
+        vault.revoke(data);
+        assertEq(vault.validAt(data), 0);
+
+        // Curator can revoke as well
+        vm.revertToState(snapshot);
+        vm.prank(curator);
+        vault.revoke(data);
+        assertEq(vault.validAt(data), 0);
+    }
+
+    function testTimelocked(uint256 timelock) public {
+        timelock = bound(timelock, 1, TIMELOCK_CAP);
+
+        // Setup.
+        vm.prank(curator);
+        vault.increaseTimelock(IVaultV2.setVic.selector, timelock);
+        assertEq(vault.timelock(IVaultV2.setVic.selector), timelock);
+        bytes memory data = abi.encodeWithSelector(IVaultV2.setVic.selector, address(1));
+        vm.prank(curator);
+        vault.submit(data);
+        assertEq(vault.validAt(data), block.timestamp + timelock);
+
+        // Timelock didn't pass.
+        vm.warp(vm.getBlockTimestamp() + timelock - 1);
+        vm.expectRevert(ErrorsLib.TimelockNotExpired.selector);
+        vault.setVic(address(1));
+
+        // Normal path.
+        vm.warp(vm.getBlockTimestamp() + 1);
+        vault.setVic(address(1));
+
+        // Data not timelocked.
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vault.setVic(address(1));
     }
 
     function testSetIsAllocator(address rdm) public {
-        vm.assume(rdm != owner);
         address newAllocator = makeAddr("newAllocator");
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setIsAllocator(newAllocator, true);
-
-        // Only owner can submit
-        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, true));
-
-        vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, true));
         vault.setIsAllocator(newAllocator, true);
 
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, true));
+        vm.expectEmit();
+        emit EventsLib.SetIsAllocator(newAllocator, true);
+        vault.setIsAllocator(newAllocator, true);
         assertTrue(vault.isAllocator(newAllocator));
 
-        // Owner can remove an allocator
-        vm.prank(owner);
+        // Removal
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, newAllocator, false));
+        vm.expectEmit();
+        emit EventsLib.SetIsAllocator(newAllocator, false);
         vault.setIsAllocator(newAllocator, false);
-
         assertFalse(vault.isAllocator(newAllocator));
     }
 
-    function testSetPerformanceFee(address rdm, uint256 newPerformanceFee) public {
-        vm.assume(rdm != treasurer);
-        newPerformanceFee = bound(newPerformanceFee, 0, MAX_PERFORMANCE_FEE);
+    function testSetVic(address rdm) public {
+        vm.assume(rdm != curator);
+        address newVic = address(new ManualVic(address(vault)));
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setPerformanceFee(newPerformanceFee);
+        vm.prank(rdm);
+        vault.setVic(newVic);
 
-        // Only treasurer can submit
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setVic.selector, newVic));
+        vm.expectEmit();
+        emit EventsLib.SetVic(newVic);
+        vault.setVic(newVic);
+        assertEq(address(vault.vic()), newVic);
+    }
+
+    function testSetIsAdapter(address rdm) public {
+        vm.assume(rdm != curator);
+        address newAdapter = makeAddr("newAdapter");
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.setIsAdapter(newAdapter, true);
+
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, newAdapter, true));
+        vm.expectEmit();
+        emit EventsLib.SetIsAdapter(newAdapter, true);
+        vault.setIsAdapter(newAdapter, true);
+        assertTrue(vault.isAdapter(newAdapter));
+
+        // Removal
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, newAdapter, false));
+        vm.expectEmit();
+        emit EventsLib.SetIsAdapter(newAdapter, false);
+        vault.setIsAdapter(newAdapter, false);
+        assertFalse(vault.isAdapter(newAdapter));
+
+        // Liquidity adapter invariant
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, newAdapter, true));
+        vault.setIsAdapter(newAdapter, true);
+        vm.prank(allocator);
+        vault.setLiquidityAdapter(newAdapter);
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, newAdapter, false));
+        vm.expectRevert(ErrorsLib.LiquidityAdapterInvariantBroken.selector);
+        vault.setIsAdapter(newAdapter, false);
+    }
+
+    function testIncreaseTimelock(address rdm, bytes4 selector, uint256 newTimelock) public {
+        vm.assume(rdm != curator);
+        newTimelock = bound(newTimelock, 0, 2 weeks);
+        vm.assume(selector != IVaultV2.decreaseTimelock.selector);
+
+        // Access control
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, newPerformanceFee));
+        vault.increaseTimelock(selector, newTimelock);
 
+        // Cannot increase timelock of decreaseTimelock
+        vm.expectRevert(ErrorsLib.TimelockCapIsFixed.selector);
+        vm.prank(curator);
+        vault.increaseTimelock(IVaultV2.decreaseTimelock.selector, 3 weeks);
+
+        // Can't go over timelock cap
+        vm.expectRevert(ErrorsLib.TimelockDurationTooHigh.selector);
+        vm.prank(curator);
+        vault.increaseTimelock(selector, TIMELOCK_CAP + 1);
+
+        // Normal path
+        vm.expectEmit();
+        emit EventsLib.IncreaseTimelock(selector, newTimelock);
+        vm.prank(curator);
+        vault.increaseTimelock(selector, newTimelock);
+        assertEq(vault.timelock(selector), newTimelock);
+
+        // Can't decrease timelock
+        if (newTimelock > 0) {
+            vm.expectRevert(ErrorsLib.TimelockNotIncreasing.selector);
+            vm.prank(curator);
+            vault.increaseTimelock(selector, newTimelock - 1);
+        }
+    }
+
+    function testDecreaseTimelock(address rdm, bytes4 selector, uint256 oldTimelock, uint256 newTimelock) public {
+        vm.assume(rdm != curator);
+        vm.assume(selector != IVaultV2.decreaseTimelock.selector);
+        oldTimelock = bound(oldTimelock, 1, 2 weeks);
+        newTimelock = bound(newTimelock, 0, oldTimelock);
+
+        vm.prank(curator);
+        vault.increaseTimelock(selector, oldTimelock);
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.decreaseTimelock(selector, newTimelock);
+
+        // Can't increase timelock with decreaseTimelock
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, selector, oldTimelock + 1));
+        vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
+        vm.expectRevert(ErrorsLib.TimelockNotDecreasing.selector);
+        vault.decreaseTimelock(selector, oldTimelock + 1);
+
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, selector, newTimelock));
+        vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
+        vm.expectEmit();
+        emit EventsLib.DecreaseTimelock(selector, newTimelock);
+        vault.decreaseTimelock(selector, newTimelock);
+        assertEq(vault.timelock(selector), newTimelock);
+
+        // Cannot decrease decreaseTimelock's timelock
+        vm.prank(curator);
+        vault.submit(
+            abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, IVaultV2.decreaseTimelock.selector, 1 weeks)
+        );
+        vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
+        vm.expectRevert(ErrorsLib.TimelockCapIsFixed.selector);
+        vault.decreaseTimelock(IVaultV2.decreaseTimelock.selector, 1 weeks);
+    }
+
+    function testSetPerformanceFee(address rdm, uint256 newPerformanceFee) public {
+        vm.assume(rdm != curator);
+        newPerformanceFee = bound(newPerformanceFee, 1, MAX_PERFORMANCE_FEE);
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.setPerformanceFee(newPerformanceFee);
+
+        // No op works
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, 0));
+        vault.setPerformanceFee(0);
+
+        // Can't go over fee cap
         uint256 tooHighFee = 1 ether + 1;
-        vm.prank(treasurer);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, tooHighFee));
-
         vm.expectRevert(ErrorsLib.FeeTooHigh.selector);
         vault.setPerformanceFee(tooHighFee);
 
-        vm.prank(treasurer);
+        // Fee invariant
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, newPerformanceFee));
-
-        assertEq(
-            vault.validAt(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, newPerformanceFee)),
-            block.timestamp
-        );
-
         vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
         vault.setPerformanceFee(newPerformanceFee);
 
-        vm.prank(owner);
+        // Normal path
+        vm.prank(curator);
         vault.submit(
             abi.encodeWithSelector(IVaultV2.setPerformanceFeeRecipient.selector, makeAddr("newPerformanceFeeRecipient"))
         );
         vault.setPerformanceFeeRecipient(makeAddr("newPerformanceFeeRecipient"));
-
+        vm.expectEmit();
+        emit EventsLib.SetPerformanceFee(newPerformanceFee);
         vault.setPerformanceFee(newPerformanceFee);
-
         assertEq(vault.performanceFee(), newPerformanceFee);
     }
 
+    function testSetManagementFee(address rdm, uint256 newManagementFee) public {
+        vm.assume(rdm != curator);
+        newManagementFee = bound(newManagementFee, 1, MAX_MANAGEMENT_FEE);
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.setManagementFee(newManagementFee);
+
+        // No op works
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, 0));
+        vault.setManagementFee(0);
+
+        // Can't go over fee cap
+        uint256 tooHighFee = 1 ether + 1;
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, tooHighFee));
+        vm.expectRevert(ErrorsLib.FeeTooHigh.selector);
+        vault.setManagementFee(tooHighFee);
+
+        // Fee invariant
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, newManagementFee));
+        vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
+        vault.setManagementFee(newManagementFee);
+
+        // Normal path
+        vm.prank(curator);
+        vault.submit(
+            abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, makeAddr("newManagementFeeRecipient"))
+        );
+        vault.setManagementFeeRecipient(makeAddr("newManagementFeeRecipient"));
+        vm.expectEmit();
+        emit EventsLib.SetManagementFee(newManagementFee);
+        vault.setManagementFee(newManagementFee);
+        assertEq(vault.managementFee(), newManagementFee);
+    }
+
     function testSetPerformanceFeeRecipient(address rdm, address newPerformanceFeeRecipient) public {
-        vm.assume(rdm != owner);
+        vm.assume(rdm != curator);
         vm.assume(newPerformanceFeeRecipient != address(0));
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setPerformanceFeeRecipient(newPerformanceFeeRecipient);
-
-        // Only owner can submit
-        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFeeRecipient.selector, newPerformanceFeeRecipient));
-
-        vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFeeRecipient.selector, newPerformanceFeeRecipient));
         vault.setPerformanceFeeRecipient(newPerformanceFeeRecipient);
 
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFeeRecipient.selector, newPerformanceFeeRecipient));
+        vm.expectEmit();
+        emit EventsLib.SetPerformanceFeeRecipient(newPerformanceFeeRecipient);
+        vault.setPerformanceFeeRecipient(newPerformanceFeeRecipient);
         assertEq(vault.performanceFeeRecipient(), newPerformanceFeeRecipient);
 
+        // Fee invariant
         uint256 newPerformanceFee = 0.05 ether;
-        vm.prank(treasurer);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, newPerformanceFee));
         vault.setPerformanceFee(newPerformanceFee);
-
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFeeRecipient.selector, address(0)));
         vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
         vault.setPerformanceFeeRecipient(address(0));
     }
 
-    function testSetManagementFee(address rdm, uint256 newManagementFee) public {
-        vm.assume(rdm != treasurer);
-        newManagementFee = bound(newManagementFee, 0, MAX_MANAGEMENT_FEE);
-
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setManagementFee(newManagementFee);
-
-        // Only treasurer can submit
-        vm.expectRevert(ErrorsLib.Unauthorized.selector);
-        vm.prank(rdm);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, newManagementFee));
-
-        uint256 tooHighFee = 1 ether + 1;
-        vm.prank(treasurer);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, tooHighFee));
-        vm.expectRevert(ErrorsLib.FeeTooHigh.selector);
-        vault.setManagementFee(tooHighFee);
-
-        vm.prank(treasurer);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, newManagementFee));
-
-        assertEq(
-            vault.validAt(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, newManagementFee)), block.timestamp
-        );
-
-        vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
-        vault.setManagementFee(newManagementFee);
-
-        vm.prank(owner);
-        vault.submit(
-            abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, makeAddr("newManagementFeeRecipient"))
-        );
-        vault.setManagementFeeRecipient(makeAddr("newManagementFeeRecipient"));
-
-        vault.setManagementFee(newManagementFee);
-
-        assertEq(vault.managementFee(), newManagementFee);
-    }
-
     function testSetManagementFeeRecipient(address rdm, address newManagementFeeRecipient) public {
-        vm.assume(rdm != owner);
+        vm.assume(rdm != curator);
         vm.assume(newManagementFeeRecipient != address(0));
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setManagementFeeRecipient(newManagementFeeRecipient);
-
-        // Only owner can submit
-        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, newManagementFeeRecipient));
-
-        vm.prank(owner);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, newManagementFeeRecipient));
         vault.setManagementFeeRecipient(newManagementFeeRecipient);
 
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, newManagementFeeRecipient));
+        vm.expectEmit();
+        emit EventsLib.SetManagementFeeRecipient(newManagementFeeRecipient);
+        vault.setManagementFeeRecipient(newManagementFeeRecipient);
         assertEq(vault.managementFeeRecipient(), newManagementFeeRecipient);
 
+        // Fee invariant
         uint256 newManagementFee = 0.01 ether / uint256(365.25 days);
-        vm.prank(treasurer);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFee.selector, newManagementFee));
         vault.setManagementFee(newManagementFee);
-
-        vm.prank(owner);
+        vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setManagementFeeRecipient.selector, address(0)));
         vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
         vault.setManagementFeeRecipient(address(0));
+    }
+
+    function testIncreaseAbsoluteCap(address rdm, bytes memory idData, uint256 newAbsoluteCap) public {
+        vm.assume(rdm != curator);
+        vm.assume(newAbsoluteCap >= 0);
+        bytes32 id = keccak256(idData);
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.increaseAbsoluteCap(idData, newAbsoluteCap);
+
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, newAbsoluteCap));
+        vm.expectEmit();
+        emit EventsLib.IncreaseAbsoluteCap(id, idData, newAbsoluteCap);
+        vault.increaseAbsoluteCap(idData, newAbsoluteCap);
+        assertEq(vault.absoluteCap(id), newAbsoluteCap);
+
+        // Can't decrease absolute cap
+        if (newAbsoluteCap > 0) {
+            vm.prank(curator);
+            vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, newAbsoluteCap - 1));
+            vm.expectRevert(ErrorsLib.AbsoluteCapNotIncreasing.selector);
+            vault.increaseAbsoluteCap(idData, newAbsoluteCap - 1);
+        }
+    }
+
+    function testDecreaseAbsoluteCap(address rdm, bytes memory idData, uint256 oldAbsoluteCap, uint256 newAbsoluteCap)
+        public
+    {
+        vm.assume(rdm != curator);
+        vm.assume(!vault.isSentinel(rdm));
+        vm.assume(newAbsoluteCap >= 0);
+        vm.assume(idData.length > 0);
+        newAbsoluteCap = bound(newAbsoluteCap, 0, type(uint256).max - 1);
+        oldAbsoluteCap = bound(oldAbsoluteCap, newAbsoluteCap, type(uint256).max - 1);
+        bytes32 id = keccak256(idData);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, oldAbsoluteCap));
+        vault.increaseAbsoluteCap(idData, oldAbsoluteCap);
+
+        // Access control
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.decreaseAbsoluteCap(idData, newAbsoluteCap);
+
+        // Can't increase absolute cap
+        vm.expectRevert(ErrorsLib.AbsoluteCapNotDecreasing.selector);
+        vm.prank(curator);
+        vault.decreaseAbsoluteCap(idData, oldAbsoluteCap + 1);
+
+        // Normal path
+        vm.expectEmit();
+        emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
+        vm.prank(curator);
+        vault.decreaseAbsoluteCap(idData, newAbsoluteCap);
+        assertEq(vault.absoluteCap(id), newAbsoluteCap);
+    }
+
+    function testIncreaseRelativeCap(address rdm, bytes memory idData, uint256 oldRelativeCap, uint256 newRelativeCap)
+        public
+    {
+        oldRelativeCap = bound(oldRelativeCap, 1, WAD - 1);
+        newRelativeCap = bound(newRelativeCap, oldRelativeCap, WAD - 1);
+        bytes32 id = keccak256(idData);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, oldRelativeCap));
+        vault.decreaseRelativeCap(idData, oldRelativeCap);
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.increaseRelativeCap(idData, newRelativeCap);
+
+        // Can't increase relative cap above 1
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, WAD + 1));
+        vm.expectRevert(ErrorsLib.RelativeCapAboveOne.selector);
+        vault.increaseRelativeCap(idData, WAD + 1);
+
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, newRelativeCap));
+        vm.expectEmit();
+        emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
+        vault.increaseRelativeCap(idData, newRelativeCap);
+        assertEq(vault.relativeCap(id), newRelativeCap);
+        if (newRelativeCap < WAD) assertEq(vault.idsWithRelativeCap(0), id);
+
+        // Can't decrease relative cap
+        if (newRelativeCap < WAD) {
+            vm.prank(curator);
+            vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, newRelativeCap - 1));
+            vm.expectRevert(ErrorsLib.RelativeCapNotIncreasing.selector);
+            vault.increaseRelativeCap(idData, newRelativeCap - 1);
+        }
+    }
+
+    function testDecreaseRelativeCapZero(bytes memory idData, uint256 oldRelativeCap) public {
+        oldRelativeCap = bound(oldRelativeCap, 1, WAD);
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, oldRelativeCap));
+        vault.decreaseRelativeCap(idData, oldRelativeCap);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, 0));
+        vm.expectRevert(ErrorsLib.RelativeCapZero.selector);
+        vault.decreaseRelativeCap(idData, 0);
+    }
+
+    function testDecreaseRelativeCapSequence(
+        address rdm,
+        bytes memory idData,
+        uint256 oldRelativeCap,
+        uint256 newRelativeCap
+    ) public {
+        bytes32 id = keccak256(idData);
+        oldRelativeCap = bound(oldRelativeCap, 1, WAD);
+        newRelativeCap = bound(newRelativeCap, 1, oldRelativeCap);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, oldRelativeCap));
+        vault.decreaseRelativeCap(idData, oldRelativeCap);
+
+        // Access control
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.decreaseRelativeCap(idData, newRelativeCap);
+
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, newRelativeCap));
+        vm.expectEmit();
+        emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
+        vault.decreaseRelativeCap(idData, newRelativeCap);
+        assertEq(vault.relativeCap(id), newRelativeCap);
+
+        // Can't increase relative cap
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, newRelativeCap + 1));
+        vm.expectRevert(ErrorsLib.RelativeCapNotDecreasing.selector);
+        vault.decreaseRelativeCap(idData, newRelativeCap + 1);
+    }
+
+    function testDecreaseRelativeCapExceedsCap(bytes memory idData, uint256 relativeCap) public {
+        relativeCap = bound(relativeCap, 1, WAD - 1);
+        bytes32 id = keccak256(idData);
+
+        // Setup.
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, type(uint256).max));
+        vault.increaseAbsoluteCap(idData, type(uint256).max);
+        vault.deposit(1 ether, address(this));
+        address adapter = address(new BasicAdapter());
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, adapter, true));
+        vault.setIsAdapter(adapter, true);
+        vm.prank(allocator);
+        vault.allocate(adapter, idData, relativeCap + 1);
+        assertEq(vault.allocation(id), relativeCap + 1);
+
+        // Test.
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseRelativeCap.selector, idData, relativeCap));
+        vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
+        vault.decreaseRelativeCap(idData, relativeCap);
+    }
+
+    function testSetForceDeallocatePenalty(address rdm, uint256 newForceDeallocatePenalty) public {
+        vm.assume(rdm != curator);
+        newForceDeallocatePenalty = bound(newForceDeallocatePenalty, 0, MAX_FORCE_DEALLOCATE_PENALTY);
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vault.setForceDeallocatePenalty(newForceDeallocatePenalty);
+
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setForceDeallocatePenalty.selector, newForceDeallocatePenalty));
+        vm.expectEmit();
+        emit EventsLib.SetForceDeallocatePenalty(newForceDeallocatePenalty);
+        vault.setForceDeallocatePenalty(newForceDeallocatePenalty);
+        assertEq(vault.forceDeallocatePenalty(), newForceDeallocatePenalty);
+
+        // Can't set fee above cap
+        uint256 tooHighPenalty = MAX_FORCE_DEALLOCATE_PENALTY + 1;
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setForceDeallocatePenalty.selector, tooHighPenalty));
+        vm.expectRevert(ErrorsLib.PenaltyTooHigh.selector);
+        vault.setForceDeallocatePenalty(tooHighPenalty);
+    }
+
+    /* ALLOCATOR SETTERS */
+
+    function testSetLiquidityAdapter(address rdm, address liquidityAdapter) public {
+        vm.assume(rdm != allocator);
+        vm.assume(liquidityAdapter != address(0));
+        vm.assume(rdm != allocator);
+        vm.prank(allocator);
+        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
+        vault.setLiquidityAdapter(liquidityAdapter);
+
+        // Access control
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.setLiquidityAdapter(liquidityAdapter);
+
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, liquidityAdapter, true));
+        vault.setIsAdapter(liquidityAdapter, true);
+        vm.prank(allocator);
+        vm.expectEmit();
+        emit EventsLib.SetLiquidityAdapter(allocator, liquidityAdapter);
+        vault.setLiquidityAdapter(liquidityAdapter);
+        assertEq(vault.liquidityAdapter(), liquidityAdapter);
+
+        // Liquidity adapter invariant
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, liquidityAdapter, false));
+        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
+        vault.setIsAdapter(liquidityAdapter, false);
+    }
+
+    function testSetLiquidityData(address rdm) public {
+        vm.assume(rdm != allocator);
+        bytes memory newData = abi.encode("newData");
+
+        // Access control
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.setLiquidityData(newData);
+
+        // Normal path
+        vm.prank(allocator);
+        vm.expectEmit();
+        emit EventsLib.SetLiquidityData(allocator, newData);
+        vault.setLiquidityData(newData);
+        assertEq(vault.liquidityData(), newData);
+    }
+}
+
+contract BasicAdapter {
+    function allocate(bytes memory idData, uint256) external pure returns (bytes32[] memory) {
+        bytes32[] memory ids = new bytes32[](1);
+        ids[0] = keccak256(idData);
+        return ids;
     }
 }
