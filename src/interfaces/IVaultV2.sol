@@ -38,7 +38,7 @@ interface IVaultV2 is IERC20 {
     function forceDeallocatePenalty() external view returns (uint256 forceDeallocatePenalty);
     function vic() external view returns (address vic);
     function allocation(bytes32 id) external view returns (uint256 allocation);
-    function lastUpdate() external view returns (uint256 lastUpdate);
+    function lastUpdate() external view returns (uint96 lastUpdate);
     function absoluteCap(bytes32 id) external view returns (uint256 absoluteCap);
     function idsWithRelativeCap(uint256 index) external view returns (bytes32 id);
     function executableAt(bytes calldata data) external view returns (uint256 executableAt);

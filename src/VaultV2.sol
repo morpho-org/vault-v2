@@ -13,89 +13,102 @@ import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 
 /// @dev Zero checks are not performed.
 /// @dev No-ops are allowed.
+/// @dev Natspec are specified only when it brings clarity.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
 
-    /* IMMUTABLE */
+    /// IMMUTABLE
 
-    /// TODO add spec.
+    /// @dev Underlying token of the vault.
     address public immutable asset;
 
-    /* ROLES STORAGE */
+    /// ROLES STORAGE
+    /// The roles are not "two-step" so one must check if they are really the owner.
 
-    /// @dev The owner is not two-step so one much check if they are really the owner.
     address public owner;
-
-    /// @dev The curator is not two-step so one much check if they are really the curator.
     address public curator;
-
     mapping(address account => bool) public isSentinel;
-
     mapping(address account => bool) public isAllocator;
 
-    /* TOKEN STORAGE */
+    /// TOKEN STORAGE
+    /// The shares are represented with EIP-20.
 
     uint256 public totalSupply;
-
     mapping(address account => uint256) public balanceOf;
-
     mapping(address owner => mapping(address spender => uint256)) public allowance;
-
     mapping(address account => uint256) public nonces;
 
-    /* CURATION AND ALLOCATION STORAGE */
+    /// INTEREST STORAGE
+    /// To accrue interest, the vault queries the Vault Interest Controller (VIC) which returns the interest per second
+    /// that must be distributed on the period (since `lastUpdate`).
 
     uint256 public totalAssets;
-
-    uint256 public lastUpdate;
-
+    uint96 public lastUpdate;
     address public vic;
 
-    /// TODO Adapter spec.
+    /// CURATION STORAGE
+    /// The funds allocation of the vault is constrained by the id system. An id is an abstract identifier of a common
+    /// risk factor of some markets (a collateral, an oracle, a protocol, etc.). The allocation on markets with a common
+    /// id is limited by absolute caps and relative caps that can be set by the curator.
+    /// The curator enables adapters to invest on behalf of the vault. They are notably trusted to return the ids
+    /// associated with a given market.
+
+    /// @dev Loose specification of adapters:
+    /// - They must enforce that only the vault can call allocate/deallocate.
+    /// - They must enter/exit markets only in allocate/deallocate.
+    /// - They must return the right ids on allocate/deallocate.
+    /// - They must have approved `assets` for the vault at the end of deallocate.
     mapping(address account => bool) public isAdapter;
 
-    /// TODO Id spec.
+    /// @dev On some markets, the allocation does not take into account interest.
+    mapping(bytes32 id => uint256) public allocation;
+
+    /// @dev The absolute cap is checked on allocate (where allocations can increase) for the ids returned by the
+    /// adapter.
     mapping(bytes32 id => uint256) public absoluteCap;
 
     /// @dev Unit is WAD.
     /// @dev 1-relativeCap is stored such that the default is 1 and 0 is unreachable.
     /// @dev The relative cap is relative to `totalAssets`.
     /// @dev A relative cap of 100% (1 WAD) means no relative cap.
+    /// @dev Checked on allocate (where allocations can increase) for the ids returned by the adapter, and on exit
+    /// (where totalAssets can decrease), for all ids that have an active relative cap.
     mapping(bytes32 id => uint256) internal oneMinusRelativeCap;
 
     /// @dev Ids with active relative cap (relativeCap < 100%).
     bytes32[] public idsWithRelativeCap;
 
-    mapping(bytes32 id => uint256) public allocation;
+    /// FORCE DEALLOCATE STORAGE
 
     uint256 public forceDeallocatePenalty;
 
-    /// @dev Adapter to call on enter/exit.
-    address public liquidityAdapter;
+    /// LIQUIDITY ADAPTER STORAGE
+    /// `liquidityAdapter` is called with `liquidityData` on deposit/mint and withdraw/redeem.
+    /// The same adapter/data is used for both entry and exit to have the property that in the general case looping
+    /// supply-withdraw or withdraw-supply should not change the allocation. The liquidity market is more useful on
+    /// withdraw, but it's on both for the same reason.
+    /// This invariant holds: liquidityAdapter != address(0) => isAdapter[liquidityAdapter].
 
-    /// @dev Data with which to call the liquidity adapter on enter/exit.
+    address public liquidityAdapter;
     bytes public liquidityData;
 
-    /* TIMELOCKS STORAGE */
-
-    mapping(bytes data => uint256) public executableAt;
+    /// TIMELOCKS STORAGE
 
     /// @dev The timelock of decreaseTimelock is hard-coded at TIMELOCK_CAP.
-    /// @dev Only functions with the modifier timelocked are timelocked.
+    /// @dev Only functions with the modifier `timelocked` are timelocked.
     mapping(bytes4 selector => uint256) public timelock;
 
-    /* FEES STORAGE */
+    /// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist,
+    /// conditions are not met, etc.).
+    mapping(bytes data => uint256) public executableAt;
 
-    /// @dev invariant: performanceFee != 0 => performanceFeeRecipient != address(0)
+    /// FEES STORAGE
+    /// This invariant holds for both fees: fee != 0 => recipient != address(0).
+    /// Fees unit is WAD.
+
     uint96 public performanceFee;
-
-    /// @dev invariant: performanceFee != 0 => performanceFeeRecipient != address(0)
     address public performanceFeeRecipient;
-
-    /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint96 public managementFee;
-
-    /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     address public managementFeeRecipient;
 
     /* GETTERS */
@@ -221,7 +234,6 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetPerformanceFeeRecipient(newPerformanceFeeRecipient);
     }
 
-    /// @notice Sets management fee recipient.
     function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
         require(newManagementFeeRecipient != address(0) || managementFee == 0, ErrorsLib.FeeInvariantBroken());
 
@@ -267,9 +279,9 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
 
+    /// @dev To set a cap to 0, use `decreaseAbsoluteCap`.
     function decreaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
         bytes32 id = keccak256(idData);
-        // To set a cap to 0, use `decreaseAbsoluteCap`.
         require(newRelativeCap > 0, ErrorsLib.RelativeCapZero());
         require(newRelativeCap <= relativeCap(id), ErrorsLib.RelativeCapNotDecreasing());
 
@@ -493,6 +505,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Internal function for withdraw and redeem.
+    /// @dev Loops in idsWithRelativeCap to make the relative cap check.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
@@ -517,7 +530,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }
 
-    /// @dev Loop to make the relative cap check at the end.
+    /// @dev Loops in idsWithRelativeCap to make the relative cap check.
     /// @dev Returns shares withdrawn as penalty.
     function forceDeallocate(address[] memory adapters, bytes[] memory data, uint256[] memory assets, address onBehalf)
         external
