@@ -42,46 +42,20 @@ contract RelativeCapsTest is BaseTest {
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, adapter, true));
         vault.setIsAdapter(adapter, true);
-        // vm.prank(allocator);
-        // vault.reallocateFromIdle(adapter, idData, relativeCap + 1);
-        // assertEq(vault.allocation(id), relativeCap + 1);
-    }
-
-    function testX() public {
-        test_capReachedExactOnReallocate(1088668, 598795885243903270580918234905483452046738053477, 1384109319904);
     }
 
     function test_capReachedExactOnReallocate(uint256 cap, uint256 alloc, uint256 allocation) public {
         cap = bound(cap, 1, WAD - 1);
         alloc = bound(alloc, 1, MAX_TEST_ASSETS);
         uint256 total = alloc * WAD / cap;
-        // total = bound(total, 1, MAX_TEST_ASSETS);
         bytes memory idData = "id";
 
         _setUpRelativeCap(idData, cap);
 
         vault.deposit(total, address(this));
         vm.prank(allocator);
-        // uint256 alloc = total * cap / WAD;
-        // if (alloc == 0) alloc = 1;
         vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
-        console.log("will represent share: %e", alloc * WAD / total);
-        vault.reallocateFromIdle(adapter, idData, alloc);
+        vault.allocate(adapter, idData, alloc);
     }
 
-    // function test_capReachedExactOnWithdraw(uint256 cap, uint256 total, uint256 allocation) public {
-    //     cap = bound(cap, 1, WAD - 1);
-    //     total = bound(total, 1, MAX_TEST_ASSETS);
-    //     bytes memory idData = "id";
-
-    //     _setUpRelativeCap(idData, cap);
-
-    //     vault.deposit(total, address(this));
-    //     vm.prank(allocator);
-    //     uint256 alloc = total * cap / WAD;
-    //     if (alloc == 0) alloc = 2;
-    //     vault.reallocateFromIdle(adapter, idData, alloc/2);
-    //     vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
-    //     vault.withdraw(WAD - cap,address(this),address(this));
-    // }
 }

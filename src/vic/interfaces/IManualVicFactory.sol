@@ -2,6 +2,13 @@
 pragma solidity >=0.5.0;
 
 interface IManualVicFactory {
+    /* EVENTS */
+
+    event CreateManualVic(address indexed vic, address indexed vault);
+
+    /* FUNCTIONS */
+
     function isManualVic(address) external view returns (bool);
-    function createManualVic(address, bytes32) external returns (address);
+    function manualVic(address) external view returns (address);
+    function createManualVic(address) external returns (address);
 }

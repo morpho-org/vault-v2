@@ -12,7 +12,6 @@ import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {FixedPointMathLib} from "../lib/solady/src/utils/FixedPointMathLib.sol";
 import {LibBit} from "../lib/solady/src/utils/LibBit.sol";
-import "forge-std/console.sol";
 
 /// @dev Zero checks are not performed.
 /// @dev No-ops are allowed.
@@ -35,15 +34,16 @@ contract VaultV2 is IVaultV2 {
     mapping(address => uint256) public nonces;
 
     /* VAULT STORAGE */
-    uint public totalAssets;
+    uint256 public totalAssets;
     mapping(uint256 => uint256) nodes;
     mapping(uint256 => uint256) numCapsAtPos;
     uint128 root;
-    uint128 public lastUpdate;
 
     /* CURATION AND ALLOCATION STORAGE */
+    uint96 public lastUpdate;
     address public vic;
-    uint256 public forceReallocateToIdlePenalty;
+    /// @dev adapter => force deallocate penalty
+    mapping(address => uint256) public forceDeallocatePenalty;
     /// @dev Adapter is trusted to pass the expected ids when supplying assets.
     mapping(address => bool) public isAdapter;
     /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
@@ -62,13 +62,12 @@ contract VaultV2 is IVaultV2 {
     address public liquidityAdapter;
     bytes public liquidityData;
 
-
     /* FEES STORAGE */
     /// @dev invariant: performanceFee != 0 => performanceFeeRecipient != address(0)
-    uint256 public performanceFee;
+    uint96 public performanceFee;
     address public performanceFeeRecipient;
     /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
-    uint256 public managementFee;
+    uint96 public managementFee;
     address public managementFeeRecipient;
 
     /* GETTERS */
@@ -95,7 +94,7 @@ contract VaultV2 is IVaultV2 {
     constructor(address _owner, address _asset) {
         asset = _asset;
         owner = _owner;
-        lastUpdate = uint128(block.timestamp);
+        lastUpdate = uint96(block.timestamp);
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         emit EventsLib.Constructor(_owner, _asset);
     }
@@ -163,7 +162,7 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        performanceFee = newPerformanceFee;
+        performanceFee = uint96(newPerformanceFee); // Safe because 2**96 > MAX_PERFORMANCE_FEE.
         emit EventsLib.SetPerformanceFee(newPerformanceFee);
     }
 
@@ -173,7 +172,7 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        managementFee = newManagementFee;
+        managementFee = uint96(newManagementFee); // Safe because 2**96 > MAX_MANAGEMENT_FEE.
         emit EventsLib.SetManagementFee(newManagementFee);
     }
 
@@ -243,15 +242,15 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }
 
-    function setForceReallocateToIdlePenalty(uint256 newForceReallocateToIdlePenalty) external timelocked {
-        require(newForceReallocateToIdlePenalty <= MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY, ErrorsLib.PenaltyTooHigh());
-        forceReallocateToIdlePenalty = newForceReallocateToIdlePenalty;
-        emit EventsLib.SetForceReallocateToIdlePenalty(newForceReallocateToIdlePenalty);
+    function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external timelocked {
+        require(newForceDeallocatePenalty <= MAX_FORCE_DEALLOCATE_PENALTY, ErrorsLib.PenaltyTooHigh());
+        forceDeallocatePenalty[adapter] = newForceDeallocatePenalty;
+        emit EventsLib.SetForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
     }
 
     /* ALLOCATOR ACTIONS */
 
-    function reallocateFromIdle(address adapter, bytes memory data, uint256 assets) external {
+    function allocate(address adapter, bytes memory data, uint256 assets) external {
         require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
@@ -264,20 +263,13 @@ contract VaultV2 is IVaultV2 {
             addFloorIfNeeded(allocation[ids[i]], relativeCap(ids[i]));
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
-
-            if (relativeCap(ids[i]) < WAD) {
-                if(
-                    allocation[ids[i]] >= totalAssets.mulDivDown(relativeCap(ids[i]), WAD))  {
-                        console.log("CAP REACHED");
-                    }
-            }
         }
         require(noRelativeCapExceeded(), ErrorsLib.RelativeCapExceeded());
 
-        emit EventsLib.ReallocateFromIdle(msg.sender, adapter, assets, ids);
+        emit EventsLib.Allocate(msg.sender, adapter, assets, ids);
     }
 
-    function reallocateToIdle(address adapter, bytes memory data, uint256 assets) external {
+    function deallocate(address adapter, bytes memory data, uint256 assets) external {
         require(
             isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
         );
@@ -292,7 +284,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
-        emit EventsLib.ReallocateToIdle(msg.sender, adapter, assets, ids);
+        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids);
     }
 
     function setLiquidityAdapter(address newLiquidityAdapter) external {
@@ -344,7 +336,7 @@ contract VaultV2 is IVaultV2 {
         totalAssets = newTotalAssets;
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
-        lastUpdate = uint128(block.timestamp);
+        lastUpdate = uint96(block.timestamp);
     }
 
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
@@ -429,7 +421,7 @@ contract VaultV2 is IVaultV2 {
         createShares(receiver, shares);
         totalAssets += assets;
         if (liquidityAdapter != address(0)) {
-            try this.reallocateFromIdle(liquidityAdapter, liquidityData, assets) {} catch {}
+            try this.allocate(liquidityAdapter, liquidityData, assets) {} catch {}
         }
         emit EventsLib.Deposit(msg.sender, receiver, assets, shares);
     }
@@ -451,7 +443,7 @@ contract VaultV2 is IVaultV2 {
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
-            this.reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
+            this.deallocate(liquidityAdapter, liquidityData, assets - idleAssets);
         }
 
         if (msg.sender != onBehalf) {
@@ -469,22 +461,20 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Loop to make the relative cap check at the end.
-    function forceReallocateToIdle(
-        address[] memory adapters,
-        bytes[] memory data,
-        uint256[] memory assets,
-        address onBehalf
-    ) external returns (uint256) {
+    function forceDeallocate(address[] memory adapters, bytes[] memory data, uint256[] memory assets, address onBehalf)
+        external
+        returns (uint256)
+    {
         require(adapters.length == data.length && adapters.length == assets.length, ErrorsLib.InvalidInputLength());
-        uint256 total;
+        uint256 penaltyAssets;
         for (uint256 i; i < adapters.length; i++) {
-            this.reallocateToIdle(adapters[i], data[i], assets[i]);
-            total += assets[i];
+            this.deallocate(adapters[i], data[i], assets[i]);
+            penaltyAssets += assets[i].mulDivDown(forceDeallocatePenalty[adapters[i]], WAD);
         }
 
         // The penalty is taken as a withdrawal that is donated to the vault.
-        uint256 shares = withdraw(total.mulDivDown(forceReallocateToIdlePenalty, WAD), address(this), onBehalf);
-        emit EventsLib.ForceReallocateToIdle(msg.sender, onBehalf, total);
+        uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
+        emit EventsLib.ForceDeallocate(msg.sender, adapters, data, assets, onBehalf);
         return shares;
     }
 
@@ -565,99 +555,69 @@ contract VaultV2 is IVaultV2 {
     }
 
     function noRelativeCapExceeded() internal returns (bool) {
-
         if (root == 0) {
             return true;
         } else {
             // node with highest nonempty cap
             uint256 posInRoot = 127 - LibBit.ffs(uint256(root));
-            console.log("noRelativeCapExceeded, posInRoot %s",posInRoot);
             // Cannot be 0 by invariant
             // nodes[p] == 0 iff 255-pth bit of root == 0
             uint256 node = nodes[posInRoot];
-            console.logBytes32(bytes32(node));
             uint256 posInNode = 255 - LibBit.ffs(node);
-            console.log("noRelativeCapExceeded, posInNode %s",posInNode);
 
             uint256 largestFloorPos = (256 * posInRoot) + posInNode;
             uint256 currentTotalAssetsPos = getPosition(totalAssets);
-            console.log("largestFloorPos %s",largestFloorPos);
-            console.log("currentTotalAssetsPos %s",currentTotalAssetsPos);
-            console.log("(computed from totalAssets %e",totalAssets);
 
             return largestFloorPos < currentTotalAssetsPos;
         }
     }
 
-    function bin(uint v) internal returns (string memory) {
+    function bin(uint256 v) internal returns (string memory) {
         bytes memory res = new bytes(256);
-        for (uint i=0;i<256;i++) {
-            if (((v << i) >> 255) > 0) { res[i] = "1"; } else { res[i] = "0"; }
+        for (uint256 i = 0; i < 256; i++) {
+            if (((v << i) >> 255) > 0) res[i] = "1";
+            else res[i] = "0";
         }
         return string(res);
     }
 
     function removeFloorIfNeeded(uint256 _allocation, uint256 _relativeCap) internal {
-        console.log("removing floor if needed, alloc %e, cap %e",_allocation, _relativeCap);
         if (_allocation > 0 && _relativeCap < WAD) {
             uint256 floor = _allocation * WAD / _relativeCap;
             uint256 floorPos = getPosition(floor);
-            console.log("floor %e",floor);
 
             uint256 newNumCaps = --numCapsAtPos[floorPos];
 
-            console.log("newNumCaps %s",newNumCaps);
             if (newNumCaps == 0) {
-
                 uint256 posInRoot = floorPos / 256;
+                uint256 posInNode = floorPos % 256;
 
-                console.log("root & node before");
-                console.log(bin(root));
-                console.log(bin(nodes[posInRoot]));
                 uint256 rootMask = ~(TOP128 >> posInRoot);
                 root &= uint128(rootMask);
 
-                uint256 posInNode = floorPos % 256;
                 uint256 nodeMask = ~(TOP256 >> posInNode);
                 nodes[posInRoot] &= nodeMask;
-
-                console.log("root & node after");
-                console.log(bin(root));
-                console.log(bin(nodes[posInRoot]));
             }
         }
     }
 
     function addFloorIfNeeded(uint256 _allocation, uint256 _relativeCap) internal {
-        console.log("adding floor if needed, alloc %e, cap %e",_allocation, _relativeCap);
         if (_allocation > 0 && _relativeCap < WAD) {
             uint256 floor = _allocation * WAD / _relativeCap;
             uint256 floorPos = getPosition(floor);
-            console.log("floor %e",floor);
-            console.log("floorPos %s",floorPos);
 
             uint256 oldNumCaps = numCapsAtPos[floorPos]++;
 
-            console.log("newNumCaps %s",oldNumCaps+1);
             if (oldNumCaps == 0) {
                 uint256 posInRoot = floorPos / 256;
                 uint256 posInNode = floorPos % 256;
 
-                console.log("posInRoot %s",posInRoot);
-                console.log("posInNode %s",posInNode);
-
-                console.log("root & node before");
-                console.log(bin(root));
-                console.log(bin(nodes[posInRoot]));
                 uint256 rootMask = TOP128 >> posInRoot;
                 root |= uint128(rootMask);
 
                 uint256 nodeMask = TOP256 >> posInNode;
                 nodes[posInRoot] |= nodeMask;
 
-                console.log("root & node after");
-                console.log(bin(root));
-                console.log(bin(nodes[posInRoot]));
             }
         }
     }
