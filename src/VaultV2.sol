@@ -31,7 +31,8 @@ contract VaultV2 is IVaultV2 {
     mapping(address account => bool) public isAllocator;
 
     /* TOKEN STORAGE */
-    /// The shares are represented with EIP-20.
+    /// The shares are represented with ERC-20.
+    /// The token is also ERC-2612-compliant (permit extension).
 
     uint256 public totalSupply;
     mapping(address account => uint256) public balanceOf;
@@ -40,7 +41,8 @@ contract VaultV2 is IVaultV2 {
 
     /* INTEREST STORAGE */
     /// To accrue interest, the vault queries the Vault Interest Controller (VIC) which returns the interest per second
-    /// that must be distributed on the period (since `lastUpdate`).
+    /// that must be distributed on the period (since `lastUpdate`). The VIC must be chosen and managed carefully to not
+    /// distribute more than what the vault's investments are earning.
 
     uint256 public totalAssets;
     uint96 public lastUpdate;
