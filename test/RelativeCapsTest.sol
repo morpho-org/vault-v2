@@ -60,7 +60,7 @@ contract RelativeCapsTest is BaseTest {
 
     function test_relativeCapExceededOnDecreaseRelativeCap(uint256 cap, uint256 alloc, uint256 newCap) public {
         cap = bound(cap, 100, WAD - 1);
-        alloc = bound(alloc, 1, cap * 0.99e18 / WAD);
+        alloc = bound(alloc, 1, cap * 0.95e18 / WAD);
         newCap = bound(newCap, 1, alloc);
         bytes memory idData = "id";
 
@@ -78,7 +78,7 @@ contract RelativeCapsTest is BaseTest {
 
     function test_relativeCapExceededOnExit(uint256 cap, uint256 alloc) public {
         cap = bound(cap, 100, WAD - 1);
-        alloc = bound(alloc, 1, cap * 0.99e18 / WAD);
+        alloc = bound(alloc, 1, cap * 0.95e18 / WAD);
         bytes memory idData = "id";
 
         _setUpRelativeCap(idData, cap);

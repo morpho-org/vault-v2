@@ -35,12 +35,14 @@ contract VaultV2 is IVaultV2 {
 
     /* VAULT STORAGE */
     uint256 public totalAssets;
-    mapping(uint256 => uint256) nodes;
-    mapping(uint256 => uint256) numCapsAtPos;
-    uint128 root;
 
     /* CURATION AND ALLOCATION STORAGE */
-    uint96 public lastUpdate;
+    /// @dev position in root => bitfield
+    mapping(uint256 => uint256) relativeCapsNode;
+    /// @dev position => number of relative caps
+    mapping(uint256 => uint256) numRelativeCapsAtPos;
+    uint48 public relativeCapsRoot; // bitfield of occupied nodes
+    uint48 public lastUpdate;
     address public vic;
     /// @dev adapter => force deallocate penalty
     mapping(address => uint256) public forceDeallocatePenalty;
@@ -94,7 +96,7 @@ contract VaultV2 is IVaultV2 {
     constructor(address _owner, address _asset) {
         asset = _asset;
         owner = _owner;
-        lastUpdate = uint96(block.timestamp);
+        lastUpdate = uint48(block.timestamp);
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         emit EventsLib.Constructor(_owner, _asset);
     }
@@ -336,7 +338,7 @@ contract VaultV2 is IVaultV2 {
         totalAssets = newTotalAssets;
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
-        lastUpdate = uint96(block.timestamp);
+        lastUpdate = uint48(block.timestamp);
     }
 
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
@@ -555,14 +557,14 @@ contract VaultV2 is IVaultV2 {
     }
 
     function noRelativeCapExceeded() internal view returns (bool) {
-        if (root == 0) {
+        if (relativeCapsRoot == 0) {
             return true;
         } else {
             // node with highest nonempty cap
-            uint256 posInRoot = 127 - LibBit.ffs(uint256(root));
+            uint256 posInRoot = 47 - LibBit.ffs(uint256(relativeCapsRoot));
             // Cannot be 0 by invariant
             // nodes[p] == 0 iff 255-pth bit of root == 0
-            uint256 node = nodes[posInRoot];
+            uint256 node = relativeCapsNode[posInRoot];
             uint256 posInNode = 255 - LibBit.ffs(node);
 
             uint256 largestFloorPos = (256 * posInRoot) + posInNode;
@@ -577,17 +579,17 @@ contract VaultV2 is IVaultV2 {
             uint256 floor = _allocation * WAD / _relativeCap;
             uint256 floorPos = getPosition(floor);
 
-            uint256 newNumCaps = --numCapsAtPos[floorPos];
+            uint256 newNumCaps = --numRelativeCapsAtPos[floorPos];
 
             if (newNumCaps == 0) {
                 uint256 posInRoot = floorPos / 256;
                 uint256 posInNode = floorPos % 256;
 
-                uint256 rootMask = ~(TOP128 >> posInRoot);
-                root &= uint128(rootMask);
+                uint48 rootMask = ~(TOP48 >> posInRoot);
+                relativeCapsRoot &= rootMask;
 
                 uint256 nodeMask = ~(TOP256 >> posInNode);
-                nodes[posInRoot] &= nodeMask;
+                relativeCapsNode[posInRoot] &= nodeMask;
             }
         }
     }
@@ -597,17 +599,17 @@ contract VaultV2 is IVaultV2 {
             uint256 floor = _allocation * WAD / _relativeCap;
             uint256 floorPos = getPosition(floor);
 
-            uint256 oldNumCaps = numCapsAtPos[floorPos]++;
+            uint256 oldNumCaps = numRelativeCapsAtPos[floorPos]++;
 
             if (oldNumCaps == 0) {
                 uint256 posInRoot = floorPos / 256;
                 uint256 posInNode = floorPos % 256;
 
-                uint256 rootMask = TOP128 >> posInRoot;
-                root |= uint128(rootMask);
+                uint48 rootMask = TOP48 >> posInRoot;
+                relativeCapsRoot |= rootMask;
 
                 uint256 nodeMask = TOP256 >> posInNode;
-                nodes[posInRoot] |= nodeMask;
+                relativeCapsNode[posInRoot] |= nodeMask;
             }
         }
     }

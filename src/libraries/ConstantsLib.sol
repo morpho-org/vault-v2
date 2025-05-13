@@ -11,5 +11,5 @@ uint256 constant MAX_PERFORMANCE_FEE = 0.5e18; // 50%
 uint256 constant MAX_MANAGEMENT_FEE = 0.05e18 / uint256(365 days); // 5%
 uint256 constant MAX_FORCE_DEALLOCATE_PENALTY = 0.01e18; // 1%
 uint256 constant TOP256 = 1 << 255;
-uint256 constant TOP128 = 1 << 127;
-uint256 constant LN_BASE_E18 = 9950330853168091; // ln(1.01) * 1e18
+uint48 constant TOP48 = 1 << 47;
+uint256 constant LN_BASE_E18 = 14888612493750558; // ln(1.015) * 1e18
