@@ -57,7 +57,8 @@ contract VaultV2 is IVaultV2 {
     address public liquidityAdapter;
     bytes public liquidityData;
 
-    uint256 root;
+    uint256 rootBitmap; // root occupancy bitmap
+    /// @dev index in root => leaf occupancy bitmap
     mapping(uint256 => uint256) leafBitmap;
 
     /* FEES STORAGE */
@@ -556,14 +557,14 @@ contract VaultV2 is IVaultV2 {
     }
 
     function noRelativeCapExceeded() internal view returns (bool) {
-        if (root == 0) {
+        if (rootBitmap == 0) {
             return true;
         } else {
             // index of leaf with highest nonempty cap
-            uint256 maxIndexInRoot = 255 - LibBit.ffs(root);
+            uint256 maxIndexInRoot = 255 - LibBit.ffs(rootBitmap);
 
             // Cannot be 0 by invariant
-            // leaves[p] == 0 iff 255-pth bit of root == 0
+            // leaves[p] == 0 iff pth bit of relativeCapsRoot == 0
             uint256 leaf = leafBitmap[maxIndexInRoot];
             uint256 maxIndexInLeaf = 31 - (LibBit.ffs(leaf) / 8);
 
@@ -582,7 +583,7 @@ contract VaultV2 is IVaultV2 {
             uint256 leaf = leafBitmap[indexInRoot];
             uint256 oldNumCaps = byteAt(indexInLeaf, leaf);
 
-            if (oldNumCaps == 1) root &= ~(TOP >> indexInRoot);
+            if (oldNumCaps == 1) rootBitmap &= ~(TOP >> indexInRoot);
 
             uint256 decrement = TOP >> (8 * indexInLeaf + 7);
             leafBitmap[indexInRoot] = leaf - decrement;
@@ -599,7 +600,7 @@ contract VaultV2 is IVaultV2 {
 
             require(oldNumCaps < 255, ErrorsLib.MaximumRelativeCapsAtFloor());
 
-            if (oldNumCaps == 0) root |= TOP >> indexInRoot;
+            if (oldNumCaps == 0) rootBitmap |= TOP >> indexInRoot;
 
             uint256 increment = TOP >> (8 * indexInLeaf + 7);
             leafBitmap[indexInRoot] = leaf + increment;
