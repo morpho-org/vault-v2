@@ -6,12 +6,7 @@ import "./BaseTest.sol";
 uint256 constant MAX_TEST_AMOUNT = 1e36;
 
 contract MockAdapter is IAdapter {
-    uint256 public loss;
     bytes32[] public ids;
-
-    function setLoss(uint256 _loss) external {
-        loss = _loss;
-    }
 
     function setIds(bytes32[] memory _ids) external {
         ids = _ids;
@@ -23,8 +18,8 @@ contract MockAdapter is IAdapter {
 
     function deallocate(bytes memory, uint256) external view returns (bytes32[] memory) {}
 
-    function realizeLoss(bytes memory) external view returns (uint256, bytes32[] memory) {
-        return (loss, ids);
+    function realizeLoss(bytes memory, uint256) external view returns (bytes32[] memory) {
+        return ids;
     }
 }
 
@@ -48,14 +43,14 @@ contract RealizeLossTest is BaseTest {
         vm.assume(rdm != curator);
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.accountLoss(address(adapter), hex"");
+        vault.accountLoss(address(adapter), hex"", 0);
     }
 
     function testAccountLossNotAdapter(address rdm) public {
         vm.assume(rdm != address(adapter));
         vm.expectRevert(ErrorsLib.NotAdapter.selector);
         vm.prank(curator);
-        vault.accountLoss(address(rdm), hex"");
+        vault.accountLoss(address(rdm), hex"", 0);
     }
 
     function testRealizeLoss(uint256 deposit, uint256 loss) public {
@@ -67,9 +62,8 @@ contract RealizeLossTest is BaseTest {
         vault.deposit(deposit, address(this));
 
         // Account the loss.
-        adapter.setLoss(loss);
         vm.prank(curator);
-        vault.accountLoss(address(adapter), hex"");
+        vault.accountLoss(address(adapter), hex"", loss);
         assertEq(vault.lossToRealize(), loss, "loss to realize should be set");
         assertEq(vault.totalAssets(), deposit, "total assets should not change during the block");
 
@@ -96,7 +90,6 @@ contract RealizeLossTest is BaseTest {
 
         vault.deposit(deposit, address(this));
         adapter.setIds(ids);
-        adapter.setLoss(loss);
 
         // Allocate into id.
         vm.prank(curator);
@@ -108,7 +101,7 @@ contract RealizeLossTest is BaseTest {
 
         // Account the loss.
         vm.prank(curator);
-        vault.accountLoss(address(adapter), hex"");
+        vault.accountLoss(address(adapter), hex"", loss);
         assertEq(vault.allocation(id), deposit - loss, "allocation should have decreased by the loss");
     }
 }

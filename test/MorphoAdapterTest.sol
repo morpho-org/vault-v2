@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
-import "forge-std/Test.sol";
-import {MorphoAdapter} from "src/adapters/MorphoAdapter.sol";
-import {MorphoAdapterFactory} from "src/adapters/MorphoAdapterFactory.sol";
+import "../lib/forge-std/src/Test.sol";
+import {MorphoAdapter} from "../src/adapters/MorphoAdapter.sol";
+import {MorphoAdapterFactory} from "../src/adapters/MorphoAdapterFactory.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
-import {OracleMock} from "lib/morpho-blue/src/mocks/OracleMock.sol";
+import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {IrmMock} from "lib/morpho-blue/src/mocks/IrmMock.sol";
 import {IMorpho, MarketParams, Id, Market} from "lib/morpho-blue/src/interfaces/IMorpho.sol";
@@ -200,12 +200,13 @@ contract MorphoAdapterTest is Test {
 
     function testRealizeLossNotAuthorizedReverts() public {
         vm.expectRevert(IMorphoAdapter.NotAuthorized.selector);
-        adapter.realizeLoss(abi.encode(marketParams));
+        adapter.realizeLoss(abi.encode(marketParams), 0);
     }
 
-    function testLossRealization(uint256 initialAssets, uint256 lossAssets) public {
+    function testLossRealization(uint256 initialAssets, uint256 lossAssets, uint256 realizedLoss) public {
         initialAssets = _boundAssets(initialAssets);
         lossAssets = bound(lossAssets, 1, initialAssets);
+        realizedLoss = bound(realizedLoss, 0, lossAssets - 1);
 
         // Setup: deposit assets
         deal(address(loanToken), address(adapter), initialAssets);
@@ -218,42 +219,52 @@ contract MorphoAdapterTest is Test {
         uint256 snapshot = vm.snapshot();
         vm.prank(address(parentVault));
         adapter.allocate(abi.encode(marketParams), 0);
-        assertEq(adapter.assetsInMarketIfNoLoss(marketId), initialAssets, "Assets in market should not change");
+        assertEq(_loss(), lossAssets, "Assets in market should not change");
         vm.revertTo(snapshot);
         vm.prank(address(parentVault));
         adapter.deallocate(abi.encode(marketParams), 0);
-        assertEq(adapter.assetsInMarketIfNoLoss(marketId), initialAssets, "Assets in market should not change");
+        assertEq(_loss(), lossAssets, "Assets in market should not change");
 
-        // Realize loss
+        // Can't realize too much
+        vm.expectRevert(IMorphoAdapter.CannotRealizeAsMuch.selector);
         vm.prank(address(parentVault));
-        (uint256 realizedLoss, bytes32[] memory ids) = adapter.realizeLoss(abi.encode(marketParams));
-        assertEq(realizedLoss, lossAssets, "Realized loss should match expected loss");
-        assertEq(adapter.assetsInMarketIfNoLoss(marketId), initialAssets - lossAssets, "Assets in market should change");
-        assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
+        adapter.realizeLoss(abi.encode(marketParams), lossAssets + 1);
+
+        // Partial realization.
+        vm.prank(address(parentVault));
+        bytes32[] memory ids = adapter.realizeLoss(abi.encode(marketParams), realizedLoss);
+        assertEq(_loss(), lossAssets - realizedLoss, "Assets in market should change");
+        assertEq(ids, expectedIds, "Incorrect ids returned");
+
+        // Full realization.
+        uint256 remainingLoss = _loss();
+        vm.prank(address(parentVault));
+        ids = adapter.realizeLoss(abi.encode(marketParams), remainingLoss);
+        assertEq(_loss(), 0, "Assets in market should be zero");
         assertEq(ids, expectedIds, "Incorrect ids returned");
 
         // Can't realize loss twice
         vm.prank(address(parentVault));
-        (realizedLoss, ids) = adapter.realizeLoss(abi.encode(marketParams));
-        assertEq(realizedLoss, 0, "Second realized loss should be zero");
-        assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
-        assertEq(ids, expectedIds, "Incorrect ids returned");
+        vm.expectRevert(IMorphoAdapter.CannotRealizeAsMuch.selector);
+        ids = adapter.realizeLoss(abi.encode(marketParams), 1);
     }
 
     function testCumulativeLossRealization(
         uint256 initialAssets,
         uint256 firstLoss,
         uint256 secondLoss,
+        uint256 realizedLoss,
         uint256 depositAssets,
         uint256 withdrawAssets,
         uint256 interest
     ) public {
         initialAssets = _boundAssets(initialAssets);
-        firstLoss = bound(firstLoss, 0, initialAssets / 2); // no too big otherwise next deposits' shares overflow
+        firstLoss = bound(firstLoss, 1, initialAssets / 2);
         secondLoss = bound(secondLoss, 0, (initialAssets - firstLoss) / 2);
         depositAssets = _boundAssets(depositAssets);
         withdrawAssets = bound(withdrawAssets, 1, depositAssets);
-        interest = bound(interest, 0, firstLoss + secondLoss);
+        interest = bound(interest, 0, firstLoss + secondLoss - 1);
+        realizedLoss = bound(realizedLoss, 0, firstLoss + secondLoss - interest - 1);
         // Setup
         deal(address(loanToken), address(adapter), initialAssets + depositAssets);
         vm.prank(address(parentVault));
@@ -287,12 +298,16 @@ contract MorphoAdapterTest is Test {
         adapter.allocate(abi.encode(marketParams), 0);
         assertApproxEqAbs(_loss(), firstLoss + secondLoss - interest, 1, "Loss should be covered");
 
-        // Realize loss
+        // Can't realize too much
+        vm.expectRevert(IMorphoAdapter.CannotRealizeAsMuch.selector);
         vm.prank(address(parentVault));
-        (uint256 realizedLoss, bytes32[] memory ids) = adapter.realizeLoss(abi.encode(marketParams));
-        assertApproxEqAbs(realizedLoss, firstLoss + secondLoss - interest, 1, "Should realize the full cumulative loss");
-        assertEq(_loss(), 0, "Loss should be zero");
-        assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
+        adapter.realizeLoss(abi.encode(marketParams), firstLoss + secondLoss - interest + 1);
+
+        // Realize loss
+        uint256 finalLoss = firstLoss + secondLoss - interest;
+        vm.prank(address(parentVault));
+        bytes32[] memory ids = adapter.realizeLoss(abi.encode(marketParams), realizedLoss);
+        assertEq(_loss(), finalLoss - realizedLoss, "Loss should be zero");
         assertEq(ids, expectedIds, "Incorrect ids returned");
     }
 

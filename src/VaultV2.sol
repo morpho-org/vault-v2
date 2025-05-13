@@ -253,19 +253,19 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Loss is not realized instantly to prevent manipulations. It can be realized the block after the accounting.
-    function accountLoss(address adapter, bytes memory data) external {
+    function accountLoss(address adapter, bytes memory data, uint256 assets) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
 
-        (uint256 loss, bytes32[] memory ids) = IAdapter(adapter).realizeLoss(data);
-        lossToRealize += loss;
+        bytes32[] memory ids = IAdapter(adapter).realizeLoss(data, assets);
+        lossToRealize += assets;
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss);
+            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(assets);
         }
 
-        emit EventsLib.RealizeLoss(adapter, data, loss, ids);
+        emit EventsLib.RealizeLoss(adapter, data, assets, ids);
     }
 
     /* ALLOCATOR ACTIONS */

@@ -13,6 +13,7 @@ interface IMorphoAdapter is IAdapter {
     /* ERRORS */
 
     error NotAuthorized();
+    error CannotRealizeAsMuch();
 
     /* FUNCTIONS */
 

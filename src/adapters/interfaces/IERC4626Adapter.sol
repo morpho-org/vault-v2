@@ -14,6 +14,7 @@ interface IERC4626Adapter is IAdapter {
     error NotAuthorized();
     error InvalidData();
     error CannotSkimVault();
+    error CannotRealizeAsMuch();
 
     /* FUNCTIONS */
 

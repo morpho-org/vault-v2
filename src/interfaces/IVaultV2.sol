@@ -71,7 +71,7 @@ interface IVaultV2 is IERC20 {
     function setManagementFee(uint256) external;
     function setPerformanceFeeRecipient(address) external;
     function setManagementFeeRecipient(address) external;
-    function accountLoss(address, bytes memory) external;
+    function accountLoss(address, bytes memory, uint256) external;
 
     // Allocator actions
     function allocate(address, bytes memory, uint256) external;
