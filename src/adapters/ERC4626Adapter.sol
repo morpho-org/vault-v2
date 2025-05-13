@@ -32,6 +32,7 @@ contract ERC4626Adapter is IAdapter {
     error NotAuthorized();
     error InvalidData();
     error CannotSkimVault();
+    error CannotRealizeAsMuch();
 
     /* FUNCTIONS */
 
@@ -80,13 +81,18 @@ contract ERC4626Adapter is IAdapter {
         return ids();
     }
 
-    function realizeLoss(bytes memory data) external returns (uint256, bytes32[] memory) {
+    function realizeLoss(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
+
         uint256 assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
         uint256 loss = assetsInVaultIfNoLoss.zeroFloorSub(assetsInVault);
-        assetsInVaultIfNoLoss = assetsInVault;
-        return (loss, ids());
+
+        require(loss >= assets, CannotRealizeAsMuch());
+
+        assetsInVaultIfNoLoss -= assets;
+
+        return ids();
     }
 
     function ids() internal view returns (bytes32[] memory) {
