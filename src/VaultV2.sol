@@ -546,9 +546,9 @@ contract VaultV2 is IVaultV2 {
 
     // Assumes floor > 0
     // Compute ln_base(floor).
-    // All amounts >= type(uint128).max occupy the last index.
+    // All amounts >= type(uint128).max occupy the last bucket.
     // So caps that would be maxed on all totalAssets <= type(uint128).max are considered reached.
-    function getIndex(uint256 floor) public pure returns (uint256) {
+    function getBucket(uint256 floor) public pure returns (uint256) {
         if (floor > type(uint128).max) floor = type(uint128).max;
         // Safe to convert from uint because floor < 2**255-1/1e18.
         // Safe to convert to uint because the input is at least WAD.
@@ -567,18 +567,18 @@ contract VaultV2 is IVaultV2 {
             uint256 leaf = leafBitmap[maxIndexInRoot];
             uint256 maxIndexInLeaf = 31 - (LibBit.ffs(leaf) / 8);
 
-            uint256 maxIndex = (32 * maxIndexInRoot) + maxIndexInLeaf;
-            uint256 totalAssetsIndex = getIndex(totalAssets);
+            uint256 maxBucket = (32 * maxIndexInRoot) + maxIndexInLeaf;
+            uint256 totalAssetsBucket = getBucket(totalAssets);
 
-            return maxIndex < totalAssetsIndex;
+            return maxBucket < totalAssetsBucket;
         }
     }
 
     function removeFloorIfNeeded(uint256 _allocation, uint256 _relativeCap) internal {
         if (_allocation > 0 && _relativeCap < WAD) {
-            uint256 index = getIndex(_allocation * WAD / _relativeCap);
-            uint256 indexInRoot = index / 32;
-            uint256 indexInLeaf = index % 32;
+            uint256 bucket = getBucket(_allocation * WAD / _relativeCap);
+            uint256 indexInRoot = bucket / 32;
+            uint256 indexInLeaf = bucket % 32;
             uint256 leaf = leafBitmap[indexInRoot];
             uint256 oldNumCaps = byteAt(indexInLeaf, leaf);
 
@@ -591,9 +591,9 @@ contract VaultV2 is IVaultV2 {
 
     function addFloorIfNeeded(uint256 _allocation, uint256 _relativeCap) internal {
         if (_allocation > 0 && _relativeCap < WAD) {
-            uint256 index = getIndex(_allocation * WAD / _relativeCap);
-            uint256 indexInRoot = index / 32;
-            uint256 indexInLeaf = index % 32;
+            uint256 bucket = getBucket(_allocation * WAD / _relativeCap);
+            uint256 indexInRoot = bucket / 32;
+            uint256 indexInLeaf = bucket % 32;
             uint256 leaf = leafBitmap[indexInRoot];
             uint256 oldNumCaps = byteAt(indexInLeaf, leaf);
 
