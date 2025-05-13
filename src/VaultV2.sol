@@ -37,11 +37,11 @@ contract VaultV2 is IVaultV2 {
     uint256 public totalAssets;
 
     /* CURATION AND ALLOCATION STORAGE */
-    /// @dev position in root => bitfield
+    /// @dev position in root => occupancy bitmap
     mapping(uint256 => uint256) relativeCapsNode;
     /// @dev position => number of relative caps
     mapping(uint256 => uint256) numRelativeCapsAtPos;
-    uint48 public relativeCapsRoot; // bitfield of occupied nodes
+    uint48 public relativeCapsRoot; // occupancy bitmap
     uint48 public lastUpdate;
     address public vic;
     /// @dev adapter => force deallocate penalty
