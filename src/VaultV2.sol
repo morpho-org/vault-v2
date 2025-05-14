@@ -334,13 +334,13 @@ contract VaultV2 is IVaultV2 {
 
         ExitRequest storage request = exitRequests[supplier];
         uint256 claimedAssets = request.maxAssets.mulDivUp(claimedShares, request.shares);
-        uint256 quotedClaimedShares = previewRedeem(claimedShares);
 
         request.shares -= claimedShares;
         request.maxAssets = request.maxAssets.zeroFloorSub(claimedAssets);
         totalMaxExitAssets = totalMaxExitAssets.zeroFloorSub(claimedAssets);
 
-        exitAssets = MathLib.min(claimedAssets, quotedClaimedShares);
+        // Apply share price reduction, if any.
+        exitAssets = MathLib.min(claimedAssets, previewRedeem(claimedShares));
         IERC20(asset).transfer(receiver, exitAssets);
 
         updatedAssetsAreMissing();
