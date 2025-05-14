@@ -207,7 +207,7 @@ contract ERC20Test is BaseTest {
     }
 
     function testCreateTooManySharesReverts() public {
-        vault.mint(type(uint160).max, address(this));
+        vault.mint(type(uint192).max, address(this));
         vm.expectRevert(stdError.arithmeticError);
         vault.mint(1, address(this));
     }

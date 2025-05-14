@@ -66,8 +66,8 @@ contract BaseTest is Test {
 
     function writeTotalAssets(uint256 newTotalAssets) internal {
         bytes32 value = vm.load(address(vault), PACKED_SLOT);
-        bytes32 strippedValue = (value >> 160) << 160;
-        require(newTotalAssets <= type(uint160).max, "wrong written value");
+        bytes32 strippedValue = (value >> 192) << 192;
+        require(newTotalAssets <= type(uint192).max, "wrong written value");
         vm.store(address(vault), PACKED_SLOT, strippedValue | bytes32(newTotalAssets));
     }
 }

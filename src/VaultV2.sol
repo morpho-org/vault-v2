@@ -32,8 +32,8 @@ contract VaultV2 is IVaultV2 {
     mapping(address => uint256) public nonces;
 
     /* CURATION AND ALLOCATION STORAGE */
-    uint160 internal _totalAssets;
-    uint96 public lastUpdate;
+    uint192 internal _totalAssets;
+    uint64 public lastUpdate;
     address public vic;
     /// @dev adapter => force deallocate penalty
     mapping(address => uint256) public forceDeallocatePenalty;
@@ -98,7 +98,7 @@ contract VaultV2 is IVaultV2 {
     constructor(address _owner, address _asset) {
         asset = _asset;
         owner = _owner;
-        lastUpdate = uint96(block.timestamp);
+        lastUpdate = uint64(block.timestamp);
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         emit EventsLib.Constructor(_owner, _asset);
     }
@@ -348,10 +348,10 @@ contract VaultV2 is IVaultV2 {
     function accrueInterest() public {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
-        _totalAssets = newTotalAssets.toUint160();
+        _totalAssets = newTotalAssets.toUint192();
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
-        lastUpdate = uint96(block.timestamp);
+        lastUpdate = uint64(block.timestamp);
     }
 
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
@@ -434,7 +434,7 @@ contract VaultV2 is IVaultV2 {
     function enter(uint256 assets, uint256 shares, address receiver) internal {
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(receiver, shares);
-        _totalAssets += assets.toUint160();
+        _totalAssets += assets.toUint192();
         if (liquidityAdapter != address(0)) {
             try this.allocate(liquidityAdapter, liquidityData, assets) {} catch {}
         }
@@ -467,7 +467,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         deleteShares(onBehalf, shares);
-        _totalAssets -= assets.toUint160();
+        _totalAssets -= assets.toUint192();
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
             bytes32 id = idsWithRelativeCap[i];
