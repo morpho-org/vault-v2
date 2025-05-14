@@ -623,12 +623,9 @@ contract VaultV2 is IVaultV2 {
             }
 
             while (next != END_SLOT) {
-                if (totalAssetsFloor(next) > insertedFloor) {
-                    prev = next;
-                    next = node(next).next;
-                } else {
-                    break;
-                }
+                if (totalAssetsFloor(next) <= insertedFloor) break;
+                prev = next;
+                next = node(next).next;
             }
 
             node(prev).next = inserted;
