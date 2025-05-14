@@ -14,29 +14,29 @@ library EventsLib {
 
     event Permit(address indexed owner, address indexed spender, uint256 shares, uint256 nonce, uint256 deadline);
 
-    event SetOwner(address indexed owner);
+    event SetOwner(address indexed newOwner);
 
-    event SetCurator(address indexed curator);
+    event SetCurator(address indexed newCurator);
 
-    event SetVic(address indexed vic);
+    event SetVic(address indexed newVic);
 
-    event SetIsSentinel(address indexed account, bool isSentinel);
+    event SetIsSentinel(address indexed account, bool newIsSentinel);
 
-    event SetIsAllocator(address indexed account, bool isAllocator);
+    event SetIsAllocator(address indexed account, bool newIsAllocator);
 
     event SetPerformanceFeeRecipient(address indexed);
 
     event SetManagementFeeRecipient(address indexed);
 
-    event SetIsAdapter(address indexed account, bool isAdapter);
+    event SetIsAdapter(address indexed account, bool newIsAdapter);
 
     event IncreaseTimelock(bytes4 indexed selector, uint256 newDuration);
 
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
 
-    event SetPerformanceFee(uint256 performanceFee);
+    event SetPerformanceFee(uint256 newPerformanceFee);
 
-    event SetManagementFee(uint256 managementFee);
+    event SetManagementFee(uint256 newManagementFee);
 
     event IncreaseAbsoluteCap(bytes32 indexed id, bytes idData, uint256 newAbsoluteCap);
 
@@ -52,9 +52,9 @@ library EventsLib {
 
     event Deallocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids);
 
-    event SetLiquidityAdapter(address indexed sender, address indexed liquidityAdapter);
+    event SetLiquidityAdapter(address indexed sender, address indexed newLiquidityAdapter);
 
-    event SetLiquidityData(address indexed sender, bytes indexed data);
+    event SetLiquidityData(address indexed sender, bytes indexed newLiquidityData);
 
     event Deposit(address indexed sender, address indexed onBehalf, uint256 assets, uint256 shares);
 
@@ -62,7 +62,7 @@ library EventsLib {
         address indexed sender, address indexed receiver, address indexed onBehalf, uint256 assets, uint256 shares
     );
 
-    event Submit(address indexed sender, bytes4 indexed selector, bytes data, uint256 executableAt);
+    event Submit(bytes4 indexed selector, bytes data, uint256 executableAt);
 
     event Revoke(address indexed sender, bytes4 indexed selector, bytes data);
 
