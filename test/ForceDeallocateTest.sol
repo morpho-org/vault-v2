@@ -8,12 +8,12 @@ contract Adapter is IAdapter {
         IERC20(_underlyingToken).approve(_vault, type(uint256).max);
     }
 
-    function allocateIn(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {}
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {}
 
-    function allocateOut(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {}
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {}
 }
 
-contract ForceReallocateTest is BaseTest {
+contract ForceDeallocateTest is BaseTest {
     using MathLib for uint256;
 
     uint256 constant MAX_TEST_ASSETS = 1e36;
@@ -46,10 +46,10 @@ contract ForceReallocateTest is BaseTest {
         return list;
     }
 
-    function testForceReallocate(uint256 supplied, uint256 reallocated, uint256 forceReallocatePenalty) public {
+    function testForceDeallocate(uint256 supplied, uint256 deallocated, uint256 forceDeallocatePenalty) public {
         supplied = bound(supplied, 0, MAX_TEST_ASSETS);
-        reallocated = bound(reallocated, 0, supplied);
-        forceReallocatePenalty = bound(forceReallocatePenalty, 0, MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY);
+        deallocated = bound(deallocated, 0, supplied);
+        forceDeallocatePenalty = bound(forceDeallocatePenalty, 0, MAX_FORCE_DEALLOCATE_PENALTY);
 
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, adapter, true));
@@ -60,33 +60,38 @@ contract ForceReallocateTest is BaseTest {
         assertEq(underlyingToken.balanceOf(address(vault)), supplied);
 
         vm.prank(allocator);
-        vault.reallocateFromIdle(address(adapter), hex"", supplied);
+        vault.allocate(address(adapter), hex"", supplied);
         assertEq(underlyingToken.balanceOf(adapter), supplied);
 
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setForceReallocateToIdlePenalty.selector, forceReallocatePenalty));
-        vault.setForceReallocateToIdlePenalty(forceReallocatePenalty);
+        vault.submit(
+            abi.encodeWithSelector(IVaultV2.setForceDeallocatePenalty.selector, adapter, forceDeallocatePenalty)
+        );
+        vault.setForceDeallocatePenalty(adapter, forceDeallocatePenalty);
 
-        uint256 expectedShares = shares - vault.previewWithdraw(reallocated.mulDivDown(forceReallocatePenalty, WAD));
+        uint256 penaltyAssets = deallocated.mulDivDown(forceDeallocatePenalty, WAD);
+        uint256 expectedShares = shares - vault.previewWithdraw(penaltyAssets);
+        address[] memory adapters = _list(address(adapter));
+        bytes[] memory data = _list(hex"");
+        uint256[] memory assets = _list(deallocated);
         vm.expectEmit();
-        emit EventsLib.ForceReallocateToIdle(address(this), address(this), reallocated);
-        uint256 withdrawnShares =
-            vault.forceReallocateToIdle(_list(address(adapter)), _list(hex""), _list(reallocated), address(this));
+        emit EventsLib.ForceDeallocate(address(this), adapters, data, assets, address(this));
+        uint256 withdrawnShares = vault.forceDeallocate(adapters, data, assets, address(this));
         assertEq(shares - expectedShares, withdrawnShares);
-        assertEq(underlyingToken.balanceOf(adapter), supplied - reallocated);
-        assertEq(underlyingToken.balanceOf(address(vault)), reallocated);
+        assertEq(underlyingToken.balanceOf(adapter), supplied - deallocated);
+        assertEq(underlyingToken.balanceOf(address(vault)), deallocated);
         assertEq(vault.balanceOf(address(this)), expectedShares);
 
-        vault.withdraw(min(reallocated, vault.previewRedeem(expectedShares)), address(this), address(this));
+        vault.withdraw(min(deallocated, vault.previewRedeem(expectedShares)), address(this), address(this));
     }
 
-    function testForceReallocateInvalidInputLength(
+    function testForceDeallocateInvalidInputLength(
         address[] memory adapters,
         bytes[] memory data,
         uint256[] memory assets
     ) public {
         vm.assume(adapters.length != data.length || adapters.length != assets.length);
         vm.expectRevert(ErrorsLib.InvalidInputLength.selector);
-        vault.forceReallocateToIdle(adapters, data, assets, address(this));
+        vault.forceDeallocate(adapters, data, assets, address(this));
     }
 }

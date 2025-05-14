@@ -1,9 +1,10 @@
 # Vault v2
 
-Morpho Vault V2 enables anyone to create vaults in which users may deposit liquidity for vault operators to invest in different venues including, but not limited to, Morpho markets.
+Morpho Vault V2 enables anyone to create vaults that allocate assets to any protocols, including but not limited to Morpho Market V1, Morpho Market V2, and ERC-4626 strategies.
+Depositors of Morpho Vault V2 earn from the underlying protocols without having to actively manage the risk of their position.
+Management of deposited assets is the responsability of a set of different roles (owner, curator and allocators).
+The active management of invested positions involve enabling and allocating liquidity to protocols.
 
-Depositors of Morpho Vault V2 earn from borrowing interest without having to actively manage the risk of their position.
-The active management of invested positions involve choosing and allocating liquidity into target markets.
 [Morpho Vault V2](https://github.com/morpho-org/vaults-v2/blob/main/src/VaultV2.sol) vaults are [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) compliant, with [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) permit.
 A given Morpho Vault V2 has one unique deposit asset.
 The [VaultV2Factory](https://github.com/morpho-org/vaults-v2/blob/main/src/VaultV2Factory.sol) deploys instances of Vaults V2.
@@ -21,16 +22,21 @@ but also to external protocols, such as ERC-4626 vaults.
 Curators enable protocols in which the vault can supply through the use of adapters.
 
 In order to enable a given protocol, a corresponding adapter need to be used.
-Adapters for the following protocols are available:
-- Morpho Market V1
-- ERC-4626
+Adapters for the following protocols are currently available:
+- [Morpho Market V1](./src/adapters/MorphoAdapter.sol)
+- [ERC-4626](./src/adapters/ERC4626Adapter.sol)
+
+A Morpho Market V2 adapter will be released together with Market V2.
+Additional adapters can be developed to support other protocols as needed.
 
 When supplying through an adapter, the adapter returns arbitrary bytes32 identifiers (IDs).
 Those IDs can be thought as some properties of the protocol the adapter supply to,
 such as the collateral asset or the oracle in the case of a lending market.
-For each ID, the vault tracks an absolute cap and an allocation.
-On supply, the allocation is increased and the cap is checked.
-On withdrawal, the allocation is decreased without checks.
+The vault tracks assets allocation across the different IDs.
+Absolute caps and relative caps can be set by the curator for each of the IDs.
+Upon allocation in a market, the allocation is increased and caps are checked.
+Upon deallocation from a market, the allocation is decreased without checks.
+On withdrawals from the vault, the relative caps are checked.
 The vault does not enforce any structure or semantics on IDs.
 
 IDs of lending markets for a given `LoanToken` can be defined using a tuple of the form `(CollateralToken, LLTV, Oracle)`.
@@ -54,16 +60,16 @@ When defined, the liquidity market $M$ is also used as the market users are depo
 
 The market $M$ would typically be a very liquid Market V1.
 
-### Interest Controller
+### Vault Interest Controller
 
 Vault V2 can allocate assets across many markets, especially when interacting with Morpho Markets V2.
 Looping through all markets to compute the total assets is not realistic in the general case.
 This differs from Vault V1, where total assets were automatically computed from the vault's underlying allocations.
 As a result, in Vault V2, curators are responsible for monitoring the vault’s total assets and setting an appropriate interest rate.
-The interest rate is set through the `interestController`, a contract responsible for returning the `interestPerSecond` used to accrue fees.
+The interest rate is set through the VIC, a contract responsible for returning the `interestPerSecond` used to accrue fees.
 
-The interest controller can typically be simple smart contract storing the `interestPerSecond`, whose value is regularly set by the curator.
-The rate returned by the interest controller must be below `200% APR`.
+The vault interest controller can typically be simple smart contract storing the `interestPerSecond`, whose value is regularly set by the curator.
+The rate returned by the VIC must be below `200% APR`.
 
 ### Bad debt
 
@@ -95,7 +101,7 @@ It can:
 - Decrease absolute caps.
 - [Timelockable] Increase relative caps.
 - [Timelockable] Decrease relative caps.
-- [Timelockable] Set the `interestController`.
+- [Timelockable] Set the `vic`.
 - [Timelockable] Set adapters.
 - [Timelockable] Set allocators.
 - Increase timelocks.
@@ -113,8 +119,8 @@ Multiple addresses can have this role.
 
 It can:
 
-- Reallocate funds from the “idle market” to enabled markets.
-- Reallocate funds from enabled markets to the “idle market”.
+- Allocate funds from the “idle market” to enabled markets.
+- Deallocate funds from enabled markets to the “idle market”.
 - Set the `liquidityAdapter`.
 - Set the `liquidityData`.
 
@@ -124,7 +130,7 @@ Multiple addresses can have this role.
 
 It can:
 
-- Reallocate funds from enabled markets to the “idle market”.
+- Deallocate funds from enabled markets to the “idle market”.
 - Decrease absolute caps.
 - Revoke timelocked actions.
 
@@ -133,11 +139,13 @@ It can:
 - Vault V2 can supply to arbitrary protocols, including, but not limited to, Morpho Market V1 and Morpho Market V2.
 - The curator is responsible for setting the interest of the vault.
   This implies monitoring interests generated by the vault in order to set an interest that is in line with the profits generated by the vault.
+- Caps on markets can be set with more granularity than in Vault V1.
+- Curators can set relative caps, limiting the maximum relative exposure of the vault to arbitrary factors (e.g. colaterral assets or oracle).
 - The owner no longer inherits the other roles.
 - Most management actions are done by the curator, not the owner.
 - The `Guardian` role of Vault V1 has been replaced by a `Sentinel` role.
   The scope of the sentinel is slightly different than that of the guardian role.
-- Critical actions can have a different timelock.
+- Timelocked actions are subject to configurable timelock durations, set individually for each action.
 - Bad debt should be monitored and realised by the curator and bad debt realisation is not atomic.
 
 ## Getting started

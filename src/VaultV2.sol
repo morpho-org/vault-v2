@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {IVaultV2, IERC20} from "./interfaces/IVaultV2.sol";
 import {IAdapter} from "./interfaces/IAdapter.sol";
-import {IInterestController} from "./interfaces/IInterestController.sol";
+import {IVic} from "./interfaces/IVic.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
@@ -36,20 +36,21 @@ contract VaultV2 is IVaultV2 {
     mapping(address => mapping(address => uint256)) public allowance;
     mapping(address => uint256) public nonces;
 
-    /* VAULT STORAGE */
-    uint256 public totalAssets;
-    uint256 public lastUpdate;
-
     /* CURATION AND ALLOCATION STORAGE */
-    address public interestController;
-    uint256 public forceReallocateToIdlePenalty;
+    uint256 public totalAssets;
+    uint96 public lastUpdate;
+    address public vic;
+    /// @dev adapter => force deallocate penalty
+    mapping(address => uint256) public forceDeallocatePenalty;
     /// @dev Adapter is trusted to pass the expected ids when supplying assets.
     mapping(address => bool) public isAdapter;
     /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
     mapping(bytes32 => uint256) public absoluteCap;
     /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
-    /// @dev Relative cap = 0 is interpreted as no relative cap.
-    mapping(bytes32 => uint256) public relativeCap;
+    /// @dev The relative cap is relative to `totalAssets`.
+    /// @dev Units are in WAD.
+    /// @dev A relative cap of 1 WAD means no relative cap.
+    mapping(bytes32 => uint256) internal oneMinusRelativeCap;
     /// @dev Useful to iterate over all ids with relative cap in withdrawals.
 
     bytes32 root;
@@ -64,11 +65,17 @@ contract VaultV2 is IVaultV2 {
 
     /* FEES STORAGE */
     /// @dev invariant: performanceFee != 0 => performanceFeeRecipient != address(0)
-    uint256 public performanceFee;
+    uint96 public performanceFee;
     address public performanceFeeRecipient;
     /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
-    uint256 public managementFee;
+    uint96 public managementFee;
     address public managementFeeRecipient;
+
+    /* GETTERS */
+
+    function relativeCap(bytes32 id) public view returns (uint256) {
+        return WAD - oneMinusRelativeCap[id];
+    }
 
     /* MULTICALL */
 
@@ -88,9 +95,9 @@ contract VaultV2 is IVaultV2 {
     constructor(address _owner, address _asset) {
         asset = _asset;
         owner = _owner;
-        lastUpdate = block.timestamp;
+        lastUpdate = uint96(block.timestamp);
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
-        emit EventsLib.Construction(_owner, _asset);
+        emit EventsLib.Constructor(_owner, _asset);
         root = END_SLOT;
     }
 
@@ -121,9 +128,10 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
 
-    function setInterestController(address newInterestController) external timelocked {
-        interestController = newInterestController;
-        emit EventsLib.SetInterestController(newInterestController);
+    function setVic(address newVic) external timelocked {
+        accrueInterest();
+        vic = newVic;
+        emit EventsLib.SetVic(newVic);
     }
 
     function setIsAdapter(address account, bool newIsAdapter) external timelocked {
@@ -156,7 +164,7 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        performanceFee = newPerformanceFee;
+        performanceFee = uint96(newPerformanceFee); // Safe because 2**96 > MAX_PERFORMANCE_FEE.
         emit EventsLib.SetPerformanceFee(newPerformanceFee);
     }
 
@@ -166,7 +174,7 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        managementFee = newManagementFee;
+        managementFee = uint96(newManagementFee); // Safe because 2**96 > MAX_MANAGEMENT_FEE.
         emit EventsLib.SetManagementFee(newManagementFee);
     }
 
@@ -196,58 +204,70 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.IncreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
-    function decreaseAbsoluteCap(bytes32 id, uint256 newAbsoluteCap) external {
+    function decreaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
+        bytes32 id = keccak256(idData);
         require(newAbsoluteCap <= absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
 
         absoluteCap[id] = newAbsoluteCap;
-        emit EventsLib.DecreaseAbsoluteCap(id, newAbsoluteCap);
+        emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
-    function increaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
+    function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
+        bytes32 id = keccak256(idData);
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
-        require(newRelativeCap >= relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
+        require(newRelativeCap >= relativeCap(id), ErrorsLib.RelativeCapNotIncreasing());
 
-        (bytes32 oldPrevId, bytes32 newPrevId) = hints(id);
-        if (relativeCap[id] != 0) removeNode(id, oldPrevId);
-        relativeCap[id] = newRelativeCap;
-        if (newRelativeCap != 0) insertNode(id, newPrevId);
+        if (newRelativeCap > relativeCap(id)) {
+            (bytes32 oldPrevId, bytes32 newPrevId) = hints(id);
+            removeNodeIfNeeded(id, oldPrevId);
+            oneMinusRelativeCap[id] = WAD - newRelativeCap;
+            insertNodeIfNeeded(id, newPrevId);
+        }
 
-        emit EventsLib.IncreaseRelativeCap(id, newRelativeCap);
+        emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
 
-    function decreaseRelativeCap(bytes32 id, uint256 newRelativeCap) external timelocked {
-        require(newRelativeCap <= relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
-        require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
+    function decreaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
+        bytes32 id = keccak256(idData);
+        // To set a cap to 0, use `decreaseAbsoluteCap`.
+        require(newRelativeCap > 0, ErrorsLib.RelativeCapZero());
+        require(newRelativeCap <= relativeCap(id), ErrorsLib.RelativeCapNotDecreasing());
 
-        (bytes32 oldPrevId, bytes32 newPrevId) = hints(id);
-        if (relativeCap[id] != 0) removeNode(id, oldPrevId);
-        relativeCap[id] = newRelativeCap;
-        if (newRelativeCap != 0) insertNode(id, newPrevId);
+        if (newRelativeCap < relativeCap(id)) {
+            (bytes32 oldPrevId, bytes32 newPrevId) = hints(id);
+            removeNodeIfNeeded(id, oldPrevId);
+            oneMinusRelativeCap[id] = WAD - newRelativeCap;
+            insertNodeIfNeeded(id, oldPrevId);
 
-        emit EventsLib.DecreaseRelativeCap(id, newRelativeCap);
+            if (root != END_SLOT) {
+                require(totalAssetsFloor(root) <= totalAssets, ErrorsLib.RelativeCapExceeded());
+            }
+        }
+
+        emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }
 
-    function setForceReallocateToIdlePenalty(uint256 newForceReallocateToIdlePenalty) external timelocked {
-        require(newForceReallocateToIdlePenalty <= MAX_FORCE_REALLOCATE_TO_IDLE_PENALTY, ErrorsLib.PenaltyTooHigh());
-        forceReallocateToIdlePenalty = newForceReallocateToIdlePenalty;
-        emit EventsLib.SetForceReallocateToIdlePenalty(newForceReallocateToIdlePenalty);
+    function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external timelocked {
+        require(newForceDeallocatePenalty <= MAX_FORCE_DEALLOCATE_PENALTY, ErrorsLib.PenaltyTooHigh());
+        forceDeallocatePenalty[adapter] = newForceDeallocatePenalty;
+        emit EventsLib.SetForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
     }
 
     /* ALLOCATOR ACTIONS */
 
-    function reallocateFromIdle(address adapter, bytes memory data, uint256 assets) external {
+    function allocate(address adapter, bytes memory data, uint256 assets) external {
         require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
-        bytes32[] memory ids = IAdapter(adapter).allocateIn(data, assets);
+        bytes32[] memory ids = IAdapter(adapter).allocate(data, assets);
 
         for (uint256 i; i < ids.length; i++) {
             (bytes32 oldPrevId, bytes32 newPrevId) = hints(ids[i]);
-            if (relativeCap[ids[i]] != 0) removeNode(ids[i], oldPrevId);
+            removeNodeIfNeeded(ids[i], oldPrevId);
             allocation[ids[i]] += assets;
-            if (relativeCap[ids[i]] != 0) insertNode(ids[i], newPrevId);
+            insertNodeIfNeeded(ids[i], newPrevId);
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
         }
@@ -256,26 +276,26 @@ contract VaultV2 is IVaultV2 {
             require(totalAssetsFloor(root) <= totalAssets, ErrorsLib.RelativeCapExceeded());
         }
 
-        emit EventsLib.ReallocateFromIdle(msg.sender, adapter, assets, ids);
+        emit EventsLib.Allocate(msg.sender, adapter, assets, ids);
     }
 
-    function reallocateToIdle(address adapter, bytes memory data, uint256 assets) external {
+    function deallocate(address adapter, bytes memory data, uint256 assets) external {
         require(
             isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        bytes32[] memory ids = IAdapter(adapter).allocateOut(data, assets);
+        bytes32[] memory ids = IAdapter(adapter).deallocate(data, assets);
 
         for (uint256 i; i < ids.length; i++) {
             (bytes32 oldPrevId, bytes32 newPrevId) = hints(ids[i]);
-            if (relativeCap[ids[i]] != 0) removeNode(ids[i], oldPrevId);
+            removeNodeIfNeeded(ids[i], oldPrevId);
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(assets);
-            if (relativeCap[ids[i]] != 0) insertNode(ids[i], newPrevId);
+            insertNodeIfNeeded(ids[i], newPrevId);
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
-        emit EventsLib.ReallocateToIdle(msg.sender, adapter, assets, ids);
+        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids);
     }
 
     function setLiquidityAdapter(address newLiquidityAdapter) external {
@@ -323,33 +343,42 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterest() public {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        emit EventsLib.AccrueInterest(totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         totalAssets = newTotalAssets;
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
-        lastUpdate = block.timestamp;
-        emit EventsLib.AccrueInterest(newTotalAssets, performanceFeeShares, managementFeeShares);
+        lastUpdate = uint96(block.timestamp);
     }
 
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (totalAssets, 0, 0);
-        uint256 interestPerSecond = IInterestController(interestController).interestPerSecond(totalAssets, elapsed);
-        require(interestPerSecond <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD), ErrorsLib.InvalidRate());
+        uint256 interestPerSecond;
+        try IVic(vic).interestPerSecond(totalAssets, elapsed) returns (uint256 output) {
+            if (output <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD)) interestPerSecond = output;
+            else interestPerSecond = 0;
+        } catch {
+            interestPerSecond = 0;
+        }
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssets + interest;
 
         uint256 performanceFeeShares;
         uint256 managementFeeShares;
-        // Note that the fee assets is subtracted from the total assets in the fee shares calculation to compensate for
-        // the fact that total assets is already increased by the total interest (including the fee assets).
-        // Note that `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
+        // Note: the fee assets is subtracted from the total assets in the fee shares calculation to compensate for the
+        // fact that total assets is already increased by the total interest (including the fee assets).
+        // Note: `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
         if (interest > 0 && performanceFee != 0) {
+            // Note: the accrued performance fee might be smaller than this because of the management fee.
             uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
             performanceFeeShares =
                 performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
         }
         if (managementFee != 0) {
-            // Using newTotalAssets to make all approximations consistent.
+            // Note: The vault must be pinged at least once every 20 years to avoid management fees exceeding total
+            // assets and revert forever.
+            // Note: The management fee is taken on newTotalAssets to make all approximations consistent (interacting
+            // less increases management fees).
             uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
             managementFeeShares = managementFeeAssets.mulDivDown(
                 totalSupply + 1 + performanceFeeShares, newTotalAssets + 1 - managementFeeAssets
@@ -403,7 +432,7 @@ contract VaultV2 is IVaultV2 {
         createShares(receiver, shares);
         totalAssets += assets;
         if (liquidityAdapter != address(0)) {
-            try this.reallocateFromIdle(liquidityAdapter, liquidityData, assets) {} catch {}
+            try this.allocate(liquidityAdapter, liquidityData, assets) {} catch {}
         }
         emit EventsLib.Deposit(msg.sender, receiver, assets, shares);
     }
@@ -425,7 +454,7 @@ contract VaultV2 is IVaultV2 {
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
-            this.reallocateToIdle(liquidityAdapter, liquidityData, assets - idleAssets);
+            this.deallocate(liquidityAdapter, liquidityData, assets - idleAssets);
         }
 
         if (msg.sender != onBehalf) {
@@ -445,22 +474,20 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Loop to make the relative cap check at the end.
-    function forceReallocateToIdle(
-        address[] memory adapters,
-        bytes[] memory data,
-        uint256[] memory assets,
-        address onBehalf
-    ) external returns (uint256) {
+    function forceDeallocate(address[] memory adapters, bytes[] memory data, uint256[] memory assets, address onBehalf)
+        external
+        returns (uint256)
+    {
         require(adapters.length == data.length && adapters.length == assets.length, ErrorsLib.InvalidInputLength());
-        uint256 total;
+        uint256 penaltyAssets;
         for (uint256 i; i < adapters.length; i++) {
-            this.reallocateToIdle(adapters[i], data[i], assets[i]);
-            total += assets[i];
+            this.deallocate(adapters[i], data[i], assets[i]);
+            penaltyAssets += assets[i].mulDivDown(forceDeallocatePenalty[adapters[i]], WAD);
         }
 
         // The penalty is taken as a withdrawal that is donated to the vault.
-        uint256 shares = withdraw(total.mulDivDown(forceReallocateToIdlePenalty, WAD), address(this), onBehalf);
-        emit EventsLib.ForceReallocateToIdle(msg.sender, onBehalf, total);
+        uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
+        emit EventsLib.ForceDeallocate(msg.sender, adapters, data, assets, onBehalf);
         return shares;
     }
 
@@ -480,13 +507,15 @@ contract VaultV2 is IVaultV2 {
 
         if (msg.sender != from) {
             uint256 _allowance = allowance[from][msg.sender];
-            if (_allowance != type(uint256).max) allowance[from][msg.sender] = _allowance - shares;
+            if (_allowance != type(uint256).max) {
+                allowance[from][msg.sender] = _allowance - shares;
+                emit EventsLib.AllowanceUpdatedByTransferFrom(from, msg.sender, _allowance - shares);
+            }
         }
 
         balanceOf[from] -= shares;
         balanceOf[to] += shares;
         emit EventsLib.Transfer(from, to, shares);
-        emit EventsLib.TransferFrom(msg.sender, from, to, shares);
         return true;
     }
 
@@ -538,68 +567,74 @@ contract VaultV2 is IVaultV2 {
         }
     }
 
-    function totalAssetsFloor(bytes32 slot) internal view returns (uint256) {
-        bytes32 id = node(slot).id;
-        return allocation[id] * WAD / relativeCap[id];
+    function totalAssetsFloor(bytes32 _slot) internal view returns (uint256) {
+        bytes32 id = node(_slot).id;
+        return allocation[id] * WAD / relativeCap(id);
     }
 
     function slot(bytes32 id) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked("Linked List", id));
     }
 
-    function removeNode(bytes32 removedId, bytes32 prevId) internal {
-        bytes32 removed = slot(removedId);
-        // invariant must hold: node(removed).next != NULL_SLOT
+    function removeNodeIfNeeded(bytes32 removedId, bytes32 prevId) internal {
+        if (relativeCap(removedId) < WAD) {
+            bytes32 removed = slot(removedId);
+            // invariant must hold: node(removed).next != NULL_SLOT
 
-        bytes32 prev = slot(prevId);
-        bytes32 next;
+            bytes32 prev = slot(prevId);
+            bytes32 next;
 
-        if (node(prev).next == NULL_SLOT || totalAssetsFloor(prev) < totalAssetsFloor(removed)) {
-            prev = END_SLOT;
-            next = root;
-        } else {
-            next = node(prev).next;
-        }
+            if (node(prev).next == NULL_SLOT || totalAssetsFloor(prev) < totalAssetsFloor(removed)) {
+                prev = END_SLOT;
+                next = root;
+            } else {
+                next = node(prev).next;
+            }
 
-        while (next != removed) {
-            require(next != END_SLOT, ErrorsLib.NodeNotFound());
-            prev = next;
-            next = node(next).next;
-        }
-
-        if (prev == END_SLOT) {
-            root = node(removed).next;
-        } else {
-            node(prev).next = node(removed).next;
-        }
-        node(removed).next = NULL_SLOT;
-    }
-
-    function insertNode(bytes32 insertedId, bytes32 prevId) internal {
-        bytes32 inserted = slot(insertedId);
-        node(inserted).id = insertedId;
-        bytes32 prev = slot(prevId);
-        bytes32 next;
-        uint256 insertedFloor = totalAssetsFloor(inserted);
-        if (node(prev).next == NULL_SLOT || totalAssetsFloor(prev) < insertedFloor) {
-            prev = END_SLOT;
-            next = root;
-        } else {
-            next = node(prev).next;
-        }
-
-        while (next != END_SLOT) {
-            if (totalAssetsFloor(next) > insertedFloor) {
+            while (next != removed) {
+                require(next != END_SLOT, ErrorsLib.NodeNotFound());
                 prev = next;
                 next = node(next).next;
-            } else {
-                break;
             }
-        }
 
-        node(prev).next = inserted;
-        node(inserted).next = next;
-        if (prev == END_SLOT) root = inserted;
+            if (prev == END_SLOT) {
+                root = node(removed).next;
+            } else {
+                node(prev).next = node(removed).next;
+            }
+            node(removed).next = NULL_SLOT;
+        }
+    }
+
+    // ids are put in the list even if allocation is 0,
+    // so the function idsWithRelativeCaps can exist.
+    function insertNodeIfNeeded(bytes32 insertedId, bytes32 prevId) internal {
+        if (relativeCap(insertedId) < WAD) {
+            bytes32 inserted = slot(insertedId);
+            node(inserted).id = insertedId;
+            bytes32 prev = slot(prevId);
+            bytes32 next;
+            uint256 insertedFloor = totalAssetsFloor(inserted);
+            if (node(prev).next == NULL_SLOT || totalAssetsFloor(prev) < insertedFloor) {
+                prev = END_SLOT;
+                next = root;
+            } else {
+                next = node(prev).next;
+            }
+
+            while (next != END_SLOT) {
+                if (totalAssetsFloor(next) > insertedFloor) {
+                    prev = next;
+                    next = node(next).next;
+                } else {
+                    break;
+                }
+            }
+
+            node(prev).next = inserted;
+            node(inserted).next = next;
+            if (prev == END_SLOT) root = inserted;
+        }
     }
 
     function setHints(bytes32[] calldata ids, bytes32[] calldata oldPrevIds, bytes32[] calldata newPrevIds) external {

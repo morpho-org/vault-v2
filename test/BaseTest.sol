@@ -3,14 +3,10 @@ pragma solidity ^0.8.0;
 
 import {IVaultV2Factory} from "../src/interfaces/IVaultV2Factory.sol";
 import {IVaultV2, IERC20} from "../src/interfaces/IVaultV2.sol";
-import {IManualInterestControllerFactory} from
-    "../src/interest-controllers/interfaces/IManualInterestControllerFactory.sol";
+import {IManualVicFactory} from "../src/vic/interfaces/IManualVicFactory.sol";
 
 import {VaultV2Factory} from "../src/VaultV2Factory.sol";
-import {
-    ManualInterestController,
-    ManualInterestControllerFactory
-} from "../src/interest-controllers/ManualInterestControllerFactory.sol";
+import {ManualVic, ManualVicFactory} from "../src/vic/ManualVicFactory.sol";
 import "../src/VaultV2.sol";
 
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
@@ -19,7 +15,6 @@ import {Test, console} from "../lib/forge-std/src/Test.sol";
 import {stdError} from "forge-std/StdError.sol";
 
 contract BaseTest is Test {
-    address immutable manager = makeAddr("manager");
     address immutable owner = makeAddr("owner");
     address immutable curator = makeAddr("curator");
     address immutable allocator = makeAddr("allocator");
@@ -28,8 +23,8 @@ contract BaseTest is Test {
     ERC20Mock underlyingToken;
     IVaultV2Factory vaultFactory;
     IVaultV2 vault;
-    IManualInterestControllerFactory interestControllerFactory;
-    ManualInterestController interestController;
+    IManualVicFactory vicFactory;
+    ManualVic vic;
 
     bytes[] bundle;
 
@@ -43,10 +38,9 @@ contract BaseTest is Test {
 
         vault = IVaultV2(vaultFactory.createVaultV2(owner, address(underlyingToken), bytes32(0)));
         vm.label(address(vault), "vault");
-        interestControllerFactory = IManualInterestControllerFactory(address(new ManualInterestControllerFactory()));
-        interestController =
-            ManualInterestController(interestControllerFactory.createManualInterestController(manager, bytes32(0)));
-        vm.label(address(interestController), "InterestController");
+        vicFactory = IManualVicFactory(address(new ManualVicFactory()));
+        vic = ManualVic(vicFactory.createManualVic(address(vault)));
+        vm.label(address(vic), "vic");
 
         vm.startPrank(owner);
         vault.setCurator(curator);
@@ -54,12 +48,13 @@ contract BaseTest is Test {
         vm.stopPrank();
 
         vm.startPrank(curator);
+        ManualVic(vic).increaseMaxInterestPerSecond(type(uint256).max);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, allocator, true));
-        vault.submit(abi.encodeWithSelector(IVaultV2.setInterestController.selector, address(interestController)));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setVic.selector, address(vic)));
         vm.stopPrank();
 
         vault.setIsAllocator(allocator, true);
-        vault.setInterestController(address(interestController));
+        vault.setVic(address(vic));
     }
 }
 

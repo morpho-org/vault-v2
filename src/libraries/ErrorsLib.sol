@@ -39,4 +39,5 @@ library ErrorsLib {
     error ApproveReturnedFalse();
     error LengthMismatch();
     error NodeNotFound();
+    error RelativeCapZero();
 }
