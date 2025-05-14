@@ -35,7 +35,7 @@ contract VaultV2 is IVaultV2 {
     uint256 public totalAssets;
     uint96 public lastUpdate;
     address public vic;
-    uint256 public forceDeallocatePenalty;
+    uint256 public exitPenalty;
     /// @dev Adapter is trusted to pass the expected ids when supplying assets.
     mapping(address => bool) public isAdapter;
     /// @dev Key is an abstract id, which can represent a protocol, a collateral, a duration etc.
@@ -63,9 +63,6 @@ contract VaultV2 is IVaultV2 {
     /// @dev invariant: managementFee != 0 => managementFeeRecipient != address(0)
     uint96 public managementFee;
     address public managementFeeRecipient;
-    /// @dev invariant: exitFee != 0 => exitFeeRecipient != address(0)
-    uint96 public exitFee;
-    address public exitFeeRecipient;
 
     /* GETTERS */
 
@@ -146,7 +143,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setIsAdapter(address account, bool newIsAdapter) external timelocked {
-        if (!newIsAdapter) require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
+        if (!newIsAdapter) require(!updatedAssetsAreMissing(), ErrorsLib.MissingExitAssets());
         require(account != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
         isAdapter[account] = newIsAdapter;
         emit EventsLib.SetIsAdapter(account, newIsAdapter);
@@ -190,14 +187,13 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetManagementFee(newManagementFee);
     }
 
-    function setExitFee(uint256 newExitFee) external timelocked {
-        require(newExitFee < WAD, ErrorsLib.ExitFeeTooHigh());
-        require(exitFeeRecipient != address(0), ErrorsLib.FeeInvariantBroken());
+    function setExitPenalty(uint256 newExitPenalty) external timelocked {
+        require(newExitPenalty < WAD, ErrorsLib.ExitPenaltyTooHigh());
 
-        if (newExitFee > exitFee) require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
+        if (newExitPenalty > exitPenalty) require(!updatedAssetsAreMissing(), ErrorsLib.MissingExitAssets());
 
-        // safe cast because newExitFee < WAD < type(uint96).max
-        exitFee = uint96(newExitFee);
+        exitPenalty = newExitPenalty;
+        emit EventsLib.SetExitPenalty(newExitPenalty);
     }
 
     /* CURATOR ACTIONS */
@@ -217,11 +213,6 @@ contract VaultV2 is IVaultV2 {
 
         managementFeeRecipient = newManagementFeeRecipient;
         emit EventsLib.SetManagementFeeRecipient(newManagementFeeRecipient);
-    }
-
-    function setExitFeeRecipient(address newExitFeeRecipient) external timelocked {
-        require(newExitFeeRecipient != address(0) || exitFee == 0, ErrorsLib.FeeInvariantBroken());
-        exitFeeRecipient = newExitFeeRecipient;
     }
 
     function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external timelocked {
@@ -277,15 +268,9 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }
 
-    function setForceDeallocatePenalty(uint256 newForceDeallocatePenalty) external timelocked {
-        require(newForceDeallocatePenalty <= MAX_FORCE_DEALLOCATE_PENALTY, ErrorsLib.PenaltyTooHigh());
-        forceDeallocatePenalty = newForceDeallocatePenalty;
-        emit EventsLib.SetForceDeallocatePenalty(newForceDeallocatePenalty);
-    }
-
     function setMaxMissingExitAssetsDuration(uint256 newMaxMissingExitAssetsDuration) external timelocked {
         if (newMaxMissingExitAssetsDuration > maxMissingExitAssetsDuration) {
-            require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
+            require(!updatedAssetsAreMissing(), ErrorsLib.MissingExitAssets());
         }
 
         maxMissingExitAssetsDuration = newMaxMissingExitAssetsDuration;
@@ -300,7 +285,7 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
         bytes32[] memory ids = IAdapter(adapter).allocate(data, assets);
 
-        require(updateMissingExitAssets() <= 0, ErrorsLib.MissingExitAssets());
+        require(!updatedAssetsAreMissing(), ErrorsLib.MissingExitAssets());
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] += assets;
@@ -318,42 +303,47 @@ contract VaultV2 is IVaultV2 {
 
     // Do not try to redeem normally first
     function requestExit(uint256 requestedShares, address supplier) external {
-        if (msg.sender != supplier) require(canRequestExit[supplier][msg.sender], ErrorsLib.Unauthorized());
+        require(msg.sender == supplier || canRequestExit[supplier][msg.sender], ErrorsLib.Unauthorized());
 
-        ExitRequest storage request = exitRequests[supplier];
-        uint256 exitShares = requestedShares.mulDivUp(WAD - exitFee, WAD);
+        accrueInterest();
+
+        uint256 exitShares = requestedShares.mulDivUp(WAD - exitPenalty, WAD);
         uint256 exitAssets = previewRedeem(exitShares);
 
-        deleteShares(supplier, exitShares);
-        _transfer(supplier, exitFeeRecipient, requestedShares - exitShares);
-        request.shares += exitShares;
-        request.maxAssets += exitAssets;
+        exitRequests[supplier].shares += exitShares;
+        exitRequests[supplier].maxAssets += exitAssets;
         totalMaxExitAssets += exitAssets;
-        totalAssets -= exitAssets;
 
-        updateMissingExitAssets();
+        // The penalty is taken as a virtual withdrawal that is donated to the vault.
+        deleteShares(supplier, requestedShares);
+        totalAssets -= previewRedeem(requestedShares);
+
+        updatedAssetsAreMissing();
     }
 
     function claimExit(uint256 claimedShares, address receiver, address supplier)
         external
         returns (uint256 exitAssets)
     {
-        uint256 _allowance = allowance[supplier][msg.sender];
-        if (msg.sender != supplier && _allowance != type(uint256).max) {
+        accrueInterest();
+
+        if (msg.sender != supplier) {
+            uint256 _allowance = allowance[supplier][msg.sender];
             if (_allowance < type(uint256).max) allowance[supplier][msg.sender] = _allowance - claimedShares;
         }
 
         ExitRequest storage request = exitRequests[supplier];
         uint256 claimedAssets = request.maxAssets.mulDivUp(claimedShares, request.shares);
         uint256 quotedClaimedShares = previewRedeem(claimedShares);
-        exitAssets = MathLib.min(claimedAssets, quotedClaimedShares);
 
         request.shares -= claimedShares;
         request.maxAssets = request.maxAssets.zeroFloorSub(claimedAssets);
         totalMaxExitAssets = totalMaxExitAssets.zeroFloorSub(claimedAssets);
+
+        exitAssets = MathLib.min(claimedAssets, quotedClaimedShares);
         IERC20(asset).transfer(receiver, exitAssets);
 
-        updateMissingExitAssets();
+        updatedAssetsAreMissing();
     }
 
     function approveExit(address spender, bool allowed) external {
@@ -370,7 +360,7 @@ contract VaultV2 is IVaultV2 {
 
         bytes32[] memory ids = IAdapter(adapter).deallocate(data, assets);
 
-        updateMissingExitAssets();
+        updatedAssetsAreMissing();
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(assets);
@@ -509,12 +499,11 @@ contract VaultV2 is IVaultV2 {
         return assets;
     }
 
-    // Negative value means idle assets availabel for withdrawal.
-    function updateMissingExitAssets() public returns (int256 missingExitAssets) {
-        int256 idleAssets = int256(MathLib.min(uint256(type(int256).max), IERC20(asset).balanceOf(address(this))));
-        missingExitAssets = int256(totalMaxExitAssets) - idleAssets;
+    function updatedAssetsAreMissing() public returns (bool assetsAreMissing) {
+        uint256 idleAssets = IERC20(asset).balanceOf(address(this));
 
-        if (missingExitAssets <= 0) {
+        assetsAreMissing = idleAssets < totalMaxExitAssets;
+        if (!assetsAreMissing) {
             // can only happen when called by requestExit
             missingExitAssetsSince = 0;
         } else if (missingExitAssetsSince == 0) {
@@ -527,9 +516,10 @@ contract VaultV2 is IVaultV2 {
         createShares(receiver, shares);
         totalAssets += assets;
 
-        int256 missingAssets = updateMissingExitAssets();
-        if (missingAssets <= 0 && liquidityAdapter != address(0)) {
-            uint256 toReallocate = MathLib.min(uint256(-missingAssets), assets);
+        bool exitAssetsAreMissing = updatedAssetsAreMissing();
+        if (!exitAssetsAreMissing && liquidityAdapter != address(0)) {
+            uint256 idleAssets = IERC20(asset).balanceOf(address(this));
+            uint256 toReallocate = MathLib.min(idleAssets - totalMaxExitAssets, assets);
             try this.allocate(liquidityAdapter, liquidityData, assets) {} catch {}
         }
         emit EventsLib.Deposit(msg.sender, receiver, assets, shares);
@@ -550,10 +540,12 @@ contract VaultV2 is IVaultV2 {
     }
 
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
-        int256 missingAssets = int256(assets);
+        updatedAssetsAreMissing();
 
-        if (missingAssets > 0 && liquidityAdapter != address(0)) {
-            this.deallocate(liquidityAdapter, liquidityData, uint256(missingAssets));
+        uint256 idleAssets = IERC20(asset).balanceOf(address(this));
+        uint256 missingAssets = assets + totalMaxExitAssets;
+        if (liquidityAdapter != address(0) && missingAssets > idleAssets) {
+            this.deallocate(liquidityAdapter, liquidityData, missingAssets - idleAssets);
         }
 
         if (msg.sender != onBehalf) {
@@ -574,28 +566,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }
 
-    /// @dev Loop to make the relative cap check at the end.
-    function forceDeallocate(address[] memory adapters, bytes[] memory data, uint256[] memory assets, address onBehalf)
-        external
-        returns (uint256)
-    {
-        require(adapters.length == data.length && adapters.length == assets.length, ErrorsLib.InvalidInputLength());
-        uint256 total;
-        for (uint256 i; i < adapters.length; i++) {
-            this.deallocate(adapters[i], data[i], assets[i]);
-            total += assets[i];
-        }
-
-        // The penalty is taken as a withdrawal that is donated to the vault.
-        uint256 shares = withdraw(total.mulDivDown(forceDeallocatePenalty, WAD), address(this), onBehalf);
-        emit EventsLib.ForceDeallocate(msg.sender, onBehalf, total);
-        return shares;
-    }
-
     /* ERC20 */
 
-    // if (selector == IVaultV2.setExitFeeRecipient.selector) return sender == owner;
-    // if (selector == IVaultV2.setExitFee.selector) return sender == treasurer;
     function transfer(address to, uint256 shares) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
         _transfer(msg.sender, to, shares);

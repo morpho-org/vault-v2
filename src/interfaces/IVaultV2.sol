@@ -43,11 +43,9 @@ interface IVaultV2 is IERC20 {
     function isAdapter(address) external view returns (bool);
     function performanceFee() external view returns (uint96);
     function managementFee() external view returns (uint96);
-    function exitFee() external view returns (uint96);
+    function exitPenalty() external view returns (uint256);
     function performanceFeeRecipient() external view returns (address);
     function managementFeeRecipient() external view returns (address);
-    function exitFeeRecipient() external view returns (address);
-    function forceDeallocatePenalty() external view returns (uint256);
     function vic() external view returns (address);
     function allocation(bytes32) external view returns (uint256);
     function lastUpdate() external view returns (uint96);
@@ -69,7 +67,6 @@ interface IVaultV2 is IERC20 {
     // Owner actions
     function setPerformanceFeeRecipient(address) external;
     function setManagementFeeRecipient(address) external;
-    function setExitFeeRecipient(address) external;
     function setOwner(address) external;
     function setCurator(address) external;
     function setIsSentinel(address, bool) external;
@@ -80,14 +77,13 @@ interface IVaultV2 is IERC20 {
     function decreaseTimelock(bytes4, uint256) external;
     function setIsAllocator(address, bool) external;
     function setIsAdapter(address, bool) external;
-    function setForceDeallocatePenalty(uint256) external;
     function increaseAbsoluteCap(bytes memory, uint256) external;
     function increaseRelativeCap(bytes memory, uint256) external;
     function decreaseAbsoluteCap(bytes memory, uint256) external;
     function decreaseRelativeCap(bytes memory, uint256) external;
     function setPerformanceFee(uint256) external;
     function setManagementFee(uint256) external;
-    function setExitFee(uint256) external;
+    function setExitPenalty(uint256) external;
     function setMaxMissingExitAssetsDuration(uint256) external;
 
     // Allocator actions
@@ -104,10 +100,7 @@ interface IVaultV2 is IERC20 {
     function submit(bytes calldata) external;
     function revoke(bytes calldata) external;
 
-    // Force deallocate
-    function forceDeallocate(address[] memory, bytes[] memory, uint256[] memory, address) external returns (uint256);
-
-    // User actions
+    // Exit requests
     function requestExit(uint256, address) external;
     function claimExit(uint256, address, address) external returns (uint256);
 }

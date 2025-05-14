@@ -613,30 +613,6 @@ contract SettersTest is BaseTest {
         vault.decreaseRelativeCap(idData, relativeCap);
     }
 
-    function testSetForceDeallocatePenalty(address rdm, uint256 newForceDeallocatePenalty) public {
-        vm.assume(rdm != curator);
-        newForceDeallocatePenalty = bound(newForceDeallocatePenalty, 0, MAX_FORCE_DEALLOCATE_PENALTY);
-
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setForceDeallocatePenalty(newForceDeallocatePenalty);
-
-        // Normal path
-        vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setForceDeallocatePenalty.selector, newForceDeallocatePenalty));
-        vm.expectEmit();
-        emit EventsLib.SetForceDeallocatePenalty(newForceDeallocatePenalty);
-        vault.setForceDeallocatePenalty(newForceDeallocatePenalty);
-        assertEq(vault.forceDeallocatePenalty(), newForceDeallocatePenalty);
-
-        // Can't set fee above cap
-        uint256 tooHighPenalty = MAX_FORCE_DEALLOCATE_PENALTY + 1;
-        vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setForceDeallocatePenalty.selector, tooHighPenalty));
-        vm.expectRevert(ErrorsLib.PenaltyTooHigh.selector);
-        vault.setForceDeallocatePenalty(tooHighPenalty);
-    }
-
     /* ALLOCATOR SETTERS */
 
     function testSetLiquidityAdapter(address rdm, address liquidityAdapter) public {

@@ -24,6 +24,7 @@ library EventsLib {
     event IncreaseRelativeCap(bytes32 indexed id, bytes idData, uint256 newRelativeCap);
     event DecreaseRelativeCap(bytes32 indexed id, bytes idData, uint256 newRelativeCap);
     event SetForceDeallocatePenalty(uint256 forceDeallocatePenalty);
+    event SetExitPenalty(uint256 exitPenalty);
     event Allocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids);
     event Deallocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids);
     event SetLiquidityAdapter(address indexed sender, address indexed liquidityAdapter);
