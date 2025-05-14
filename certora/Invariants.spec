@@ -40,11 +40,11 @@ strong invariant performanceFee()
 strong invariant managementFee()
     managementFee() <= MAX_MANAGEMENT_FEE();
 
-strong invariant balanceOfZero()
-    balanceOf(0) == 0;
-
 strong invariant exitPenalty()
     exitPenalty() <= MAX_EXIT_PENALTY();
+
+strong invariant balanceOfZero()
+    balanceOf(0) == 0;
 
 strong invariant timelockCap(bytes4 selector)
     timelock(selector) <= TIMELOCK_CAP();

@@ -90,13 +90,11 @@ contract VaultV2 is IVaultV2 {
     mapping(address => mapping(address => bool)) public canRequestExit;
     mapping(address => ExitRequest) public exitRequests;
 
-    // Not updated by share price changes.
-    // May create deadweight idle assets if share price goes down, until a) it comes back up or b) until all exit claims
-    // have been processed.
+    /// @dev Maximum claimable assets.
+    /// @dev Not updated by share price changes.
     uint256 public totalMaxExitAssets;
-
     uint256 public maxMissingExitAssetsDuration = 12 weeks;
-    // Can become incorrect as share price moves.
+    /// @dev Can become incorrect as share price moves or vault receives donations.
     uint256 public missingExitAssetsSince;
 
     /* CONSTRUCTOR */
@@ -355,6 +353,9 @@ contract VaultV2 is IVaultV2 {
     }
 
     function deallocate(address adapter, bytes memory data, uint256 assets) external {
+
+        updatedAssetsAreMissing();
+
         require(
             isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this)
                 || (missingExitAssetsSince != 0 && block.timestamp - missingExitAssetsSince <= maxMissingExitAssetsDuration),
@@ -363,8 +364,6 @@ contract VaultV2 is IVaultV2 {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         bytes32[] memory ids = IAdapter(adapter).deallocate(data, assets);
-
-        updatedAssetsAreMissing();
 
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(assets);
@@ -521,6 +520,7 @@ contract VaultV2 is IVaultV2 {
         totalAssets += assets;
 
         updatedAssetsAreMissing();
+
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (idleAssets >= totalMaxExitAssets && liquidityAdapter != address(0)) {
             uint256 toReallocate = MathLib.min(idleAssets - totalMaxExitAssets, assets);

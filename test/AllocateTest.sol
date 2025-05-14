@@ -77,15 +77,6 @@ contract AllocateTest is BaseTest {
         assertEq(vault.absoluteCap(id), absoluteCap);
     }
 
-    function testX() public {
-        testAllocate(
-            hex"00000000000000000000000000000000000000000000000000000000000026c2",
-            104037028092515893726001520362636891260727956781316711601021079992931996139521,
-            0x0000000000000000000000000000000000004F01,
-            919
-        );
-    }
-
     function testAllocate(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(vault));
