@@ -8,7 +8,6 @@ methods {
     function managementFee() external returns uint96 envfree;
     function managementFeeRecipient() external returns address envfree;
 
-    function decreaseTimelock(bytes4 functionSelector, uint256 newDuration) external;
     function exitPenalty() external returns uint256 envfree;
 
     function absoluteCap(bytes32 id) external returns uint256 envfree;
@@ -46,9 +45,6 @@ strong invariant balanceOfZero()
 
 strong invariant exitPenalty()
     exitPenalty() <= MAX_EXIT_PENALTY();
-
-strong invariant balanceOfZero()
-    balanceOf(0) == 0;
 
 strong invariant timelockCap(bytes4 selector)
     timelock(selector) <= TIMELOCK_CAP();
