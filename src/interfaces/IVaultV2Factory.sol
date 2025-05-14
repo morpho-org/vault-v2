@@ -2,6 +2,6 @@
 pragma solidity >=0.5.0;
 
 interface IVaultV2Factory {
-    function isVaultV2(address account) external view returns (bool isVaultV2);
+    function isVaultV2(address account) external view returns (bool);
     function createVaultV2(address owner, address asset, bytes32 salt) external returns (address vaultV2);
 }

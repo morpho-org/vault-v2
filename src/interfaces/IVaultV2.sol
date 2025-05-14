@@ -10,45 +10,45 @@ interface IVaultV2 is IERC20 {
     // ERC-2612 (Permit)
     function permit(address owner, address spender, uint256 shares, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         external;
-    function nonces(address owner) external view returns (uint256 nonce);
-    function DOMAIN_SEPARATOR() external view returns (bytes32 domainSeparator);
+    function nonces(address owner) external view returns (uint256);
+    function DOMAIN_SEPARATOR() external view returns (bytes32);
 
     // ERC-4626-v2
-    function asset() external view returns (address asset);
-    function totalAssets() external view returns (uint256 totalAssets);
-    function previewDeposit(uint256 assets) external view returns (uint256 previewDeposit);
+    function asset() external view returns (address);
+    function totalAssets() external view returns (uint256);
+    function previewDeposit(uint256 assets) external view returns (uint256);
     function deposit(uint256 assets, address receiver) external returns (uint256 shares);
-    function previewMint(uint256 shares) external view returns (uint256 previewMint);
+    function previewMint(uint256 shares) external view returns (uint256);
     function mint(uint256 shares, address receiver) external returns (uint256 assets);
-    function previewWithdraw(uint256 assets) external view returns (uint256 previewWithdraw);
+    function previewWithdraw(uint256 assets) external view returns (uint256);
     function withdraw(uint256 assets, address receiver, address owner) external returns (uint256 shares);
-    function previewRedeem(uint256 shares) external view returns (uint256 previewRedeem);
+    function previewRedeem(uint256 shares) external view returns (uint256);
     function redeem(uint256 shares, address receiver, address owner) external returns (uint256 assets);
 
     // State variables
-    function owner() external view returns (address owner);
-    function curator() external view returns (address curator);
-    function isSentinel(address account) external view returns (bool isSentinel);
-    function isAllocator(address account) external view returns (bool isAllocator);
-    function isAdapter(address account) external view returns (bool isAdapter);
-    function performanceFee() external view returns (uint96 performanceFee);
-    function managementFee() external view returns (uint96 managementFee);
-    function performanceFeeRecipient() external view returns (address performanceFeeRecipient);
-    function managementFeeRecipient() external view returns (address managementFeeRecipient);
-    function forceDeallocatePenalty(address adapter) external view returns (uint256 forceDeallocatePenalty);
-    function vic() external view returns (address vic);
-    function allocation(bytes32 id) external view returns (uint256 allocation);
-    function lastUpdate() external view returns (uint96 lastUpdate);
-    function absoluteCap(bytes32 id) external view returns (uint256 absoluteCap);
-    function idsWithRelativeCap(uint256 index) external view returns (bytes32 id);
-    function executableAt(bytes calldata data) external view returns (uint256 executableAt);
-    function timelock(bytes4 selector) external view returns (uint256 timelock);
-    function liquidityAdapter() external view returns (address liquidityAdapter);
-    function liquidityData() external view returns (bytes memory liquidityData);
+    function owner() external view returns (address);
+    function curator() external view returns (address);
+    function isSentinel(address account) external view returns (bool);
+    function isAllocator(address account) external view returns (bool);
+    function isAdapter(address account) external view returns (bool);
+    function performanceFee() external view returns (uint96);
+    function managementFee() external view returns (uint96);
+    function performanceFeeRecipient() external view returns (address);
+    function managementFeeRecipient() external view returns (address);
+    function forceDeallocatePenalty(address adapter) external view returns (uint256);
+    function vic() external view returns (address);
+    function allocation(bytes32 id) external view returns (uint256);
+    function lastUpdate() external view returns (uint96);
+    function absoluteCap(bytes32 id) external view returns (uint256);
+    function idsWithRelativeCap(uint256 index) external view returns (bytes32);
+    function executableAt(bytes calldata data) external view returns (uint256);
+    function timelock(bytes4 selector) external view returns (uint256);
+    function liquidityAdapter() external view returns (address);
+    function liquidityData() external view returns (bytes memory);
 
     // Getters
-    function idsWithRelativeCapLength() external view returns (uint256 idsWithRelativeCapLength);
-    function relativeCap(bytes32 id) external view returns (uint256 relativeCap);
+    function idsWithRelativeCapLength() external view returns (uint256);
+    function relativeCap(bytes32 id) external view returns (uint256);
 
     // Owner actions
     function setOwner(address account) external;
