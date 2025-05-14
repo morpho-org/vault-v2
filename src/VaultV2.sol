@@ -238,7 +238,7 @@ contract VaultV2 is IVaultV2 {
             (bytes32 oldPrevId, bytes32 newPrevId) = hints(id);
             removeNodeIfNeeded(id, oldPrevId);
             oneMinusRelativeCap[id] = WAD - newRelativeCap;
-            insertNodeIfNeeded(id, oldPrevId);
+            insertNodeIfNeeded(id, newPrevId);
 
             if (root != END_SLOT) {
                 require(totalAssetsFloor(root) <= totalAssets, ErrorsLib.RelativeCapExceeded());
