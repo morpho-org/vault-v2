@@ -5,7 +5,7 @@ import {IERC20} from "./IERC20.sol";
 
 interface IVaultV2 is IERC20 {
     // Multicall
-    function multicall(bytes[] calldata data) external;
+    function multicall(bytes[] memory data) external;
 
     // ERC-2612 (Permit)
     function permit(address owner, address spender, uint256 shares, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
