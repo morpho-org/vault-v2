@@ -129,7 +129,7 @@ contract VaultV2 is IVaultV2 {
 
     /* MULTICALL */
 
-    /// @dev Mostly useful to batch admin actions together and to withdraw after a forceDeallocate.
+    /// @dev Mostly useful to batch admin actions together.
     function multicall(bytes[] calldata data) external {
         for (uint256 i = 0; i < data.length; i++) {
             (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
