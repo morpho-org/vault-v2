@@ -85,8 +85,8 @@ interface IVaultV2 is IERC20 {
         returns (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares);
 
     // Timelocks
-    function submit(bytes calldata data) external;
-    function revoke(bytes calldata data) external;
+    function submit(bytes memory data) external;
+    function revoke(bytes memory data) external;
 
     // Force reallocate to idle
     function forceDeallocate(address[] memory adapters, bytes[] memory data, uint256[] memory assets, address onBehalf)
