@@ -5,11 +5,13 @@ import "forge-std/Test.sol";
 
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {ERC4626Mock} from "./mocks/ERC4626Mock.sol";
+import {IERC4626Adapter} from "src/adapters/interfaces/IERC4626Adapter.sol";
 import {ERC4626Adapter} from "src/adapters/ERC4626Adapter.sol";
 import {ERC4626AdapterFactory} from "src/adapters/ERC4626AdapterFactory.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {IERC20} from "src/interfaces/IERC20.sol";
 import {IVaultV2} from "src/interfaces/IVaultV2.sol";
+import {IERC4626AdapterFactory} from "src/adapters/interfaces/IERC4626AdapterFactory.sol";
 
 contract ERC4626AdapterTest is Test {
     ERC20Mock internal asset;
@@ -43,13 +45,13 @@ contract ERC4626AdapterTest is Test {
 
     function testAllocateNotAuthorizedReverts(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
-        vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
+        vm.expectRevert(IERC4626Adapter.NotAuthorized.selector);
         adapter.allocate(hex"", assets);
     }
 
     function testDeallocateNotAuthorizedReverts(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
-        vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
+        vm.expectRevert(IERC4626Adapter.NotAuthorized.selector);
         adapter.deallocate(hex"", assets);
     }
 
@@ -106,7 +108,7 @@ contract ERC4626AdapterTest is Test {
         address expectedNewAdapter =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
-        emit ERC4626AdapterFactory.CreateERC4626Adapter(address(newParentVault), address(newVault), expectedNewAdapter);
+        emit IERC4626AdapterFactory.CreateERC4626Adapter(address(newParentVault), address(newVault), expectedNewAdapter);
 
         address newAdapter = factory.createERC4626Adapter(address(newParentVault), address(newVault));
 
@@ -114,9 +116,11 @@ contract ERC4626AdapterTest is Test {
         assertEq(ERC4626Adapter(newAdapter).parentVault(), address(newParentVault), "Incorrect parent vault");
         assertEq(ERC4626Adapter(newAdapter).vault(), address(newVault), "Incorrect vault");
         assertEq(
-            factory.adapter(address(newParentVault), address(newVault)), newAdapter, "Adapter not tracked correctly"
+            factory.erc4626Adapter(address(newParentVault), address(newVault)),
+            newAdapter,
+            "Adapter not tracked correctly"
         );
-        assertTrue(factory.isAdapter(newAdapter), "Adapter not tracked correctly");
+        assertTrue(factory.isERC4626Adapter(newAdapter), "Adapter not tracked correctly");
     }
 
     function testSetSkimRecipient(address newRecipient, address caller) public {
@@ -126,13 +130,13 @@ contract ERC4626AdapterTest is Test {
 
         // Access control
         vm.prank(caller);
-        vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
+        vm.expectRevert(IERC4626Adapter.NotAuthorized.selector);
         adapter.setSkimRecipient(newRecipient);
 
         // Normal path
         vm.prank(owner);
         vm.expectEmit();
-        emit ERC4626Adapter.SetSkimRecipient(newRecipient);
+        emit IERC4626Adapter.SetSkimRecipient(newRecipient);
         adapter.setSkimRecipient(newRecipient);
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
     }
@@ -150,18 +154,18 @@ contract ERC4626AdapterTest is Test {
 
         // Normal path
         vm.expectEmit();
-        emit ERC4626Adapter.Skim(address(token), assets);
+        emit IERC4626Adapter.Skim(address(token), assets);
         vm.prank(recipient);
         adapter.skim(address(token));
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
         assertEq(token.balanceOf(recipient), assets, "Recipient did not receive tokens");
 
         // Access control
-        vm.expectRevert(ERC4626Adapter.NotAuthorized.selector);
+        vm.expectRevert(IERC4626Adapter.NotAuthorized.selector);
         adapter.skim(address(token));
 
         // Cant skim vault
-        vm.expectRevert(ERC4626Adapter.CannotSkimVault.selector);
+        vm.expectRevert(IERC4626Adapter.CannotSkimVault.selector);
         vm.prank(recipient);
         adapter.skim(address(vault));
     }
@@ -169,10 +173,10 @@ contract ERC4626AdapterTest is Test {
     function testInvalidData(bytes memory data) public {
         vm.assume(data.length > 0);
 
-        vm.expectRevert(ERC4626Adapter.InvalidData.selector);
+        vm.expectRevert(IERC4626Adapter.InvalidData.selector);
         adapter.allocate(data, 0);
 
-        vm.expectRevert(ERC4626Adapter.InvalidData.selector);
+        vm.expectRevert(IERC4626Adapter.InvalidData.selector);
         adapter.deallocate(data, 0);
     }
 }

@@ -3,12 +3,12 @@
 methods {
     function multicall(bytes[]) external => NONDET DELETE;
 
-    function performanceFee() external returns uint256 envfree;
+    function performanceFee() external returns uint96 envfree;
     function performanceFeeRecipient() external returns address envfree;
-    function managementFee() external returns uint256 envfree;
+    function managementFee() external returns uint96 envfree;
     function managementFeeRecipient() external returns address envfree;
 
-    function forceDeallocatePenalty() external returns uint256 envfree;
+    function forceDeallocatePenalty(address) external returns uint256 envfree;
 
     function absoluteCap(bytes32 id) external returns uint256 envfree;
     function relativeCap(bytes32 id) external returns uint256 envfree;
@@ -51,8 +51,8 @@ strong invariant performanceFee()
 strong invariant managementFee()
     managementFee() <= MAX_MANAGEMENT_FEE();
 
-strong invariant forceDeallocatePenalty()
-    forceDeallocatePenalty() <= MAX_FORCE_DEALLOCATE_PENALTY();
+strong invariant forceDeallocatePenalty(address adapter)
+    forceDeallocatePenalty(adapter) <= MAX_FORCE_DEALLOCATE_PENALTY();
 
 strong invariant balanceOfZero()
     balanceOf(0) == 0;
