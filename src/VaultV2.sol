@@ -49,17 +49,13 @@ contract VaultV2 is IVaultV2 {
     address public vic;
 
     /* CURATION STORAGE */
-    /// The funds allocation of the vault is constrained by the id system. An id is an abstract identifier of a common
-    /// risk factor of some markets (a collateral, an oracle, a protocol, etc.). The allocation on markets with a common
-    /// id is limited by absolute caps and relative caps that can be set by the curator.
-    /// The curator enables adapters to invest on behalf of the vault. They are notably trusted to return the ids
-    /// associated with a given market.
 
     /// @dev Loose specification of adapters:
     /// - They must enforce that only the vault can call allocate/deallocate.
     /// - They must enter/exit markets only in allocate/deallocate.
     /// - They must return the right ids on allocate/deallocate.
     /// - They must have approved `assets` for the vault at the end of deallocate.
+    /// - They must make it possible to make deallocate possible (for in-kind redemptions).
     mapping(address account => bool) public isAdapter;
 
     /// @dev On some markets, the allocation does not take into account interest.
