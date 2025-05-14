@@ -367,7 +367,7 @@ contract VaultV2 is IVaultV2 {
 
         bytes4 selector = bytes4(data);
         executableAt[data] = block.timestamp + timelock[selector];
-        emit EventsLib.Submit(msg.sender, selector, data, executableAt[data]);
+        emit EventsLib.Submit(selector, data, executableAt[data]);
     }
 
     modifier timelocked() {
@@ -464,30 +464,30 @@ contract VaultV2 is IVaultV2 {
     /* USER MAIN FUNCTIONS */
 
     /// @dev Returns minted shares.
-    function deposit(uint256 assets, address receiver) external returns (uint256) {
+    function deposit(uint256 assets, address onBehalf) external returns (uint256) {
         accrueInterest();
         uint256 shares = previewDeposit(assets);
-        enter(assets, shares, receiver);
+        enter(assets, shares, onBehalf);
         return shares;
     }
 
     /// @dev Returns deposited assets.
-    function mint(uint256 shares, address receiver) external returns (uint256) {
+    function mint(uint256 shares, address onBehalf) external returns (uint256) {
         accrueInterest();
         uint256 assets = previewMint(shares);
-        enter(assets, shares, receiver);
+        enter(assets, shares, onBehalf);
         return assets;
     }
 
     /// @dev Internal function for deposit and mint.
-    function enter(uint256 assets, uint256 shares, address receiver) internal {
+    function enter(uint256 assets, uint256 shares, address onBehalf) internal {
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
-        createShares(receiver, shares);
+        createShares(onBehalf, shares);
         totalAssets += assets;
         if (liquidityAdapter != address(0)) {
             try this.allocate(liquidityAdapter, liquidityData, assets) {} catch {}
         }
-        emit EventsLib.Deposit(msg.sender, receiver, assets, shares);
+        emit EventsLib.Deposit(msg.sender, onBehalf, assets, shares);
     }
 
     /// @dev Returns redeemed shares.
