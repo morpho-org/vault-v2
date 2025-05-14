@@ -14,16 +14,31 @@ import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 /// @dev Zero checks are not performed.
 /// @dev No-ops are allowed.
 /// @dev Natspec are specified only when it brings clarity.
+/// @dev Roles are not "two-step" so one must check if they really have this role.
+/// @dev The shares are represented with ERC-20.
+/// @dev The token also complies with ERC-2612 (permit extension).
+/// @dev To accrue interest, the vault queries the Vault Interest Controller (VIC) which returns the interest per second
+/// that must be distributed on the period (since `lastUpdate`). The VIC must be chosen and managed carefully to not
+/// distribute more than what the vault's investments are earning.
+/// @dev Loose specification of adapters:
+/// - They must enforce that only the vault can call allocate/deallocate.
+/// - They must enter/exit markets only in allocate/deallocate.
+/// - They must return the right ids on allocate/deallocate.
+/// - They must have approved `assets` for the vault at the end of deallocate.
+/// - They must make it possible to make deallocate possible (for in-kind redemptions).
+/// @dev Liquidity market:
+/// - `liquidityAdapter` is called with `liquidityData` on deposit/mint and withdraw/redeem.
+/// - The same adapter/data is used for both entry and exit to have the property that in the general case looping
+/// supply-withdraw or withdraw-supply should not change the allocation. The liquidity market is more useful on
+/// withdraw, but it's on both for the same reason.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
 
     /* IMMUTABLE */
 
-    /// @dev Underlying token of the vault.
     address public immutable asset;
 
     /* ROLES STORAGE */
-    /// The roles are not "two-step" so one must check if they are really the owner.
 
     address public owner;
     address public curator;
@@ -31,8 +46,6 @@ contract VaultV2 is IVaultV2 {
     mapping(address account => bool) public isAllocator;
 
     /* TOKEN STORAGE */
-    /// The shares are represented with ERC-20.
-    /// The token is also ERC-2612-compliant (permit extension).
 
     uint256 public totalSupply;
     mapping(address account => uint256) public balanceOf;
@@ -40,9 +53,6 @@ contract VaultV2 is IVaultV2 {
     mapping(address account => uint256) public nonces;
 
     /* INTEREST STORAGE */
-    /// To accrue interest, the vault queries the Vault Interest Controller (VIC) which returns the interest per second
-    /// that must be distributed on the period (since `lastUpdate`). The VIC must be chosen and managed carefully to not
-    /// distribute more than what the vault's investments are earning.
 
     uint256 public totalAssets;
     uint96 public lastUpdate;
@@ -50,15 +60,9 @@ contract VaultV2 is IVaultV2 {
 
     /* CURATION STORAGE */
 
-    /// @dev Loose specification of adapters:
-    /// - They must enforce that only the vault can call allocate/deallocate.
-    /// - They must enter/exit markets only in allocate/deallocate.
-    /// - They must return the right ids on allocate/deallocate.
-    /// - They must have approved `assets` for the vault at the end of deallocate.
-    /// - They must make it possible to make deallocate possible (for in-kind redemptions).
     mapping(address account => bool) public isAdapter;
 
-    /// @dev On some markets, the allocation does not take into account interest.
+    /// @dev Adapters might not all manage On some markets, the allocation does not take into account interest.
     mapping(bytes32 id => uint256) public allocation;
 
     /// @dev The absolute cap is checked on allocate (where allocations can increase) for the ids returned by the
@@ -76,17 +80,11 @@ contract VaultV2 is IVaultV2 {
     /// @dev Ids with active relative cap (relativeCap < 100%).
     bytes32[] public idsWithRelativeCap;
 
-    /* FORCE DEALLOCATE STORAGE */
-
     mapping(address adapter => uint256) public forceDeallocatePenalty;
 
     /* LIQUIDITY ADAPTER STORAGE */
-    /// `liquidityAdapter` is called with `liquidityData` on deposit/mint and withdraw/redeem.
-    /// The same adapter/data is used for both entry and exit to have the property that in the general case looping
-    /// supply-withdraw or withdraw-supply should not change the allocation. The liquidity market is more useful on
-    /// withdraw, but it's on both for the same reason.
-    /// This invariant holds: liquidityAdapter != address(0) => isAdapter[liquidityAdapter].
 
+    /// @dev This invariant holds: liquidityAdapter != address(0) => isAdapter[liquidityAdapter].
     address public liquidityAdapter;
     bytes public liquidityData;
 
@@ -101,11 +99,13 @@ contract VaultV2 is IVaultV2 {
     mapping(bytes data => uint256) public executableAt;
 
     /* FEES STORAGE */
-    /// This invariant holds for both fees: fee != 0 => recipient != address(0).
-    /// Fees unit is WAD.
 
+    /// @dev Fees unit is WAD.
+    /// @dev This invariant holds for both fees: fee != 0 => recipient != address(0).
     uint96 public performanceFee;
     address public performanceFeeRecipient;
+    /// @dev Fees unit is WAD.
+    /// @dev This invariant holds for both fees: fee != 0 => recipient != address(0).
     uint96 public managementFee;
     address public managementFeeRecipient;
 
@@ -549,7 +549,7 @@ contract VaultV2 is IVaultV2 {
 
     /* ERC20 */
 
-    /// @dev Returns success (always true).
+    /// @dev Returns success (always true because reverts on failure).
     function transfer(address to, uint256 shares) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
         balanceOf[msg.sender] -= shares;
@@ -558,7 +558,7 @@ contract VaultV2 is IVaultV2 {
         return true;
     }
 
-    /// @dev Returns success (always true).
+    /// @dev Returns success (always true because reverts on failure).
     function transferFrom(address from, address to, uint256 shares) external returns (bool) {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
@@ -577,7 +577,7 @@ contract VaultV2 is IVaultV2 {
         return true;
     }
 
-    /// @dev Returns success (always true).
+    /// @dev Returns success (always true because reverts on failure).
     function approve(address spender, uint256 shares) external returns (bool) {
         allowance[msg.sender][spender] = shares;
         emit EventsLib.Approval(msg.sender, spender, shares);
