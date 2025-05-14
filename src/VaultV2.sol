@@ -362,8 +362,20 @@ contract VaultV2 is IVaultV2 {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         emit EventsLib.AccrueInterest(totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         totalAssets = newTotalAssets;
-        if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
-        if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
+        if (
+            performanceFeeShares != 0
+                && (
+                    receiveGate == address(0)
+                        || IReceiveGate(receiveGate).canReceiveShares(performanceFeeRecipient, address(this))
+                )
+        ) createShares(performanceFeeRecipient, performanceFeeShares);
+        if (
+            managementFeeShares != 0
+                && (
+                    receiveGate == address(0)
+                        || IReceiveGate(receiveGate).canReceiveShares(managementFeeRecipient, address(this))
+                )
+        ) createShares(managementFeeRecipient, managementFeeShares);
         lastUpdate = block.timestamp;
     }
 
