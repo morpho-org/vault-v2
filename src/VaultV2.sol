@@ -319,6 +319,8 @@ contract VaultV2 is IVaultV2 {
         totalAssets -= previewRedeem(requestedShares);
 
         updatedAssetsAreMissing();
+
+        emit EventsLib.RequestExit(msg.sender, requestedShares, supplier);
     }
 
     function claimExit(uint256 claimedShares, address receiver, address supplier)
@@ -344,6 +346,8 @@ contract VaultV2 is IVaultV2 {
         IERC20(asset).transfer(receiver, exitAssets);
 
         updatedAssetsAreMissing();
+
+        emit EventsLib.ClaimExit(msg.sender, claimedShares, receiver, supplier);
     }
 
     function approveExit(address spender, bool allowed) external {
@@ -516,11 +520,11 @@ contract VaultV2 is IVaultV2 {
         createShares(receiver, shares);
         totalAssets += assets;
 
-        bool exitAssetsAreMissing = updatedAssetsAreMissing();
-        if (!exitAssetsAreMissing && liquidityAdapter != address(0)) {
-            uint256 idleAssets = IERC20(asset).balanceOf(address(this));
+        updatedAssetsAreMissing();
+        uint256 idleAssets = IERC20(asset).balanceOf(address(this));
+        if (idleAssets >= totalMaxExitAssets && liquidityAdapter != address(0)) {
             uint256 toReallocate = MathLib.min(idleAssets - totalMaxExitAssets, assets);
-            try this.allocate(liquidityAdapter, liquidityData, assets) {} catch {}
+            try this.allocate(liquidityAdapter, liquidityData, toReallocate) {} catch {}
         }
         emit EventsLib.Deposit(msg.sender, receiver, assets, shares);
     }
