@@ -7,7 +7,7 @@ library EventsLib {
     event Transfer(address indexed from, address indexed to, uint256 shares);
 
     /// @dev Emitted when the allowance is updated by transferFrom (not when it is updated by permit, approve, withdraw,
-    /// because their respective events allow to track the allowance).
+    /// redeem because their respective events allow to track the allowance.
     event AllowanceUpdatedByTransferFrom(address indexed owner, address indexed spender, uint256 shares);
 
     event Approval(address indexed owner, address indexed spender, uint256 shares);
@@ -74,5 +74,5 @@ library EventsLib {
         address indexed sender, address[] adapters, bytes[] data, uint256[] assets, address indexed onBehalf
     );
 
-    event CreateVaultV2(address indexed vaultV2, address indexed owner, address indexed asset);
+    event CreateVaultV2(address indexed owner, address indexed asset, address indexed vaultV2);
 }

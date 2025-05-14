@@ -21,9 +21,9 @@ interface IVaultV2 is IERC20 {
     function previewMint(uint256 shares) external view returns (uint256 assets);
     function mint(uint256 shares, address receiver) external returns (uint256 assets);
     function previewWithdraw(uint256 assets) external view returns (uint256 shares);
-    function withdraw(uint256 assets, address receiver, address owner) external returns (uint256 shares);
+    function withdraw(uint256 assets, address receiver, address onBehalf) external returns (uint256 shares);
     function previewRedeem(uint256 shares) external view returns (uint256 assets);
-    function redeem(uint256 shares, address receiver, address owner) external returns (uint256 assets);
+    function redeem(uint256 shares, address receiver, address onBehalf) external returns (uint256 assets);
 
     // State variables
     function owner() external view returns (address);
@@ -51,31 +51,31 @@ interface IVaultV2 is IERC20 {
     function relativeCap(bytes32 id) external view returns (uint256);
 
     // Owner actions
-    function setOwner(address account) external;
-    function setCurator(address account) external;
+    function setOwner(address newOwner) external;
+    function setCurator(address newCurator) external;
     function setIsSentinel(address account, bool isSentinel) external;
 
     // Curator actions
-    function setVic(address vic) external;
-    function increaseTimelock(bytes4 selector, uint256 duration) external;
-    function decreaseTimelock(bytes4 selector, uint256 duration) external;
-    function setIsAllocator(address account, bool isAllocator) external;
-    function setIsAdapter(address account, bool isAdapter) external;
-    function setForceDeallocatePenalty(address adapter, uint256 forceDeallocatePenalty) external;
-    function increaseAbsoluteCap(bytes memory idData, uint256 absoluteCap) external;
-    function increaseRelativeCap(bytes memory idData, uint256 relativeCap) external;
-    function decreaseAbsoluteCap(bytes memory idData, uint256 absoluteCap) external;
-    function decreaseRelativeCap(bytes memory idData, uint256 relativeCap) external;
-    function setPerformanceFee(uint256 performanceFee) external;
-    function setManagementFee(uint256 managementFee) external;
-    function setPerformanceFeeRecipient(address recipient) external;
-    function setManagementFeeRecipient(address recipient) external;
+    function setVic(address newVic) external;
+    function increaseTimelock(bytes4 selector, uint256 newDuration) external;
+    function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
+    function setIsAllocator(address account, bool newIsAllocator) external;
+    function setIsAdapter(address account, bool newIsAdapter) external;
+    function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external;
+    function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external;
+    function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external;
+    function decreaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external;
+    function decreaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external;
+    function setPerformanceFee(uint256 newPerformanceFee) external;
+    function setManagementFee(uint256 newManagementFee) external;
+    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external;
+    function setManagementFeeRecipient(address newManagementFeeRecipient) external;
 
     // Allocator actions
     function allocate(address adapter, bytes memory data, uint256 assets) external;
     function deallocate(address adapter, bytes memory data, uint256 assets) external;
-    function setLiquidityAdapter(address adapter) external;
-    function setLiquidityData(bytes memory data) external;
+    function setLiquidityAdapter(address newLiquidityAdapter) external;
+    function setLiquidityData(bytes memory newLiquidityData) external;
 
     // Exchange rate
     function accrueInterest() external;
