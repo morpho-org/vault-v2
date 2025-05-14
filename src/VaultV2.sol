@@ -535,7 +535,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }
 
-    /// @dev Loops in idsWithRelativeCap to make the relative cap check.
+    /// @dev Loops in idsWithRelativeCap to check relative caps.
     /// @dev Returns shares withdrawn as penalty.
     function forceDeallocate(address[] memory adapters, bytes[] memory data, uint256[] memory assets, address onBehalf)
         external
