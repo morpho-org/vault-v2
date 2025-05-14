@@ -7,8 +7,6 @@ methods {
     function performanceFeeRecipient() external returns address envfree;
     function managementFee() external returns uint96 envfree;
     function managementFeeRecipient() external returns address envfree;
-    function exitFee() external returns uint256 envfree;
-    function exitFeeRecipient() external returns address envfree;
 
     function decreaseTimelock(bytes4 functionSelector, uint256 newDuration) external;
     function exitPenalty() external returns uint256 envfree;
