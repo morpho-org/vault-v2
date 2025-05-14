@@ -84,7 +84,7 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.expectEmit();
-        emit EventsLib.Submit(curator, bytes4(data), data, block.timestamp + vault.timelock(bytes4(data)));
+        emit EventsLib.Submit(bytes4(data), data, block.timestamp + vault.timelock(bytes4(data)));
         vm.prank(curator);
         vault.submit(data);
         assertEq(vault.executableAt(data), block.timestamp + vault.timelock(bytes4(data)));

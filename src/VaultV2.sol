@@ -125,6 +125,7 @@ contract VaultV2 is IVaultV2 {
 
     /* MULTICALL */
 
+    /// @dev Mostly useful to batch admin actions together.
     function multicall(bytes[] calldata data) external {
         for (uint256 i = 0; i < data.length; i++) {
             (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
@@ -209,7 +210,8 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        performanceFee = uint96(newPerformanceFee); // Safe because 2**96 > MAX_PERFORMANCE_FEE.
+        // Safe because 2**96 > MAX_PERFORMANCE_FEE.
+        performanceFee = uint96(newPerformanceFee);
         emit EventsLib.SetPerformanceFee(newPerformanceFee);
     }
 
@@ -219,7 +221,8 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        managementFee = uint96(newManagementFee); // Safe because 2**96 > MAX_MANAGEMENT_FEE.
+        // Safe because 2**96 > MAX_MANAGEMENT_FEE.
+        managementFee = uint96(newManagementFee);
         emit EventsLib.SetManagementFee(newManagementFee);
     }
 
@@ -258,6 +261,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
+    /// @dev If a relative cap is deleted, this function loops in `idsWithRelativeCap` to find it.
     function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
         bytes32 id = keccak256(idData);
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
@@ -363,7 +367,7 @@ contract VaultV2 is IVaultV2 {
 
         bytes4 selector = bytes4(data);
         executableAt[data] = block.timestamp + timelock[selector];
-        emit EventsLib.Submit(msg.sender, selector, data, executableAt[data]);
+        emit EventsLib.Submit(selector, data, executableAt[data]);
     }
 
     modifier timelocked() {
@@ -460,30 +464,30 @@ contract VaultV2 is IVaultV2 {
     /* USER MAIN FUNCTIONS */
 
     /// @dev Returns minted shares.
-    function deposit(uint256 assets, address receiver) external returns (uint256) {
+    function deposit(uint256 assets, address onBehalf) external returns (uint256) {
         accrueInterest();
         uint256 shares = previewDeposit(assets);
-        enter(assets, shares, receiver);
+        enter(assets, shares, onBehalf);
         return shares;
     }
 
     /// @dev Returns deposited assets.
-    function mint(uint256 shares, address receiver) external returns (uint256) {
+    function mint(uint256 shares, address onBehalf) external returns (uint256) {
         accrueInterest();
         uint256 assets = previewMint(shares);
-        enter(assets, shares, receiver);
+        enter(assets, shares, onBehalf);
         return assets;
     }
 
     /// @dev Internal function for deposit and mint.
-    function enter(uint256 assets, uint256 shares, address receiver) internal {
+    function enter(uint256 assets, uint256 shares, address onBehalf) internal {
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
-        createShares(receiver, shares);
+        createShares(onBehalf, shares);
         totalAssets += assets;
         if (liquidityAdapter != address(0)) {
             try this.allocate(liquidityAdapter, liquidityData, assets) {} catch {}
         }
-        emit EventsLib.Deposit(msg.sender, receiver, assets, shares);
+        emit EventsLib.Deposit(msg.sender, onBehalf, assets, shares);
     }
 
     /// @dev Returns redeemed shares.
