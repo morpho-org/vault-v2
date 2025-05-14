@@ -353,7 +353,6 @@ contract VaultV2 is IVaultV2 {
     }
 
     function deallocate(address adapter, bytes memory data, uint256 assets) external {
-
         updatedAssetsAreMissing();
 
         require(
