@@ -27,10 +27,11 @@ import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 /// - They must have approved `assets` for the vault at the end of deallocate.
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
 /// @dev Liquidity market:
-/// - `liquidityAdapter` is called with `liquidityData` on deposit/mint and withdraw/redeem.
-/// - The same adapter/data is used for both entry and exit to have the property that in the general case looping
-/// supply-withdraw or withdraw-supply should not change the allocation. The liquidity market is more useful on
-/// withdraw, but it's on both for the same reason.
+/// - `liquidityAdapter` is allocated to on deposit/mint, and deallocated from on withdraw/redeem if idle assets don't
+/// cover the withdraw.
+/// - The liquidity market is mostly useful on exit, so that exit liquidity is available in addition to the idle assets.
+/// But the same adapter/data is used for both entry and exit to have the property that in the general case looping
+/// supply-withdraw or withdraw-supply should not change the allocation.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
 
@@ -62,7 +63,8 @@ contract VaultV2 is IVaultV2 {
 
     mapping(address account => bool) public isAdapter;
 
-    /// @dev Adapters might not all manage On some markets, the allocation does not take into account interest.
+    /// @dev The allocation is not updated to take interests into account.
+    /// @dev Some underlying markets might allow to take into account interest (fixed rate, fixed term), some might not.
     mapping(bytes32 id => uint256) public allocation;
 
     /// @dev The absolute cap is checked on allocate (where allocations can increase) for the ids returned by the
@@ -73,8 +75,9 @@ contract VaultV2 is IVaultV2 {
     /// @dev 1-relativeCap is stored such that the default is 1 and 0 is unreachable.
     /// @dev The relative cap is relative to `totalAssets`.
     /// @dev A relative cap of 100% (1 WAD) means no relative cap.
-    /// @dev Checked on allocate (where allocations can increase) for the ids returned by the adapter, and on exit
-    /// (where totalAssets can decrease), for all ids that have an active relative cap.
+    /// @dev Checked on allocate (where allocations can increase) for the ids returned by the adapter, on
+    /// decreaseRelativeCap for the given id, and on exit (where totalAssets can decrease), for all ids that have an
+    /// active relative cap.
     mapping(bytes32 id => uint256) internal oneMinusRelativeCap;
 
     /// @dev Ids with active relative cap (relativeCap < 100%).
