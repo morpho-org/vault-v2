@@ -265,7 +265,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
-    /// @dev Can loop in idsWithRelativeCap to find the relative cap to delete.
+    /// @dev If a relative cap is deleted, this function loops in `idsWithRelativeCap` to find it.
     function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
         bytes32 id = keccak256(idData);
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
