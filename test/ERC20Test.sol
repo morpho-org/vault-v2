@@ -116,6 +116,7 @@ contract ERC20Test is BaseTest {
     }
 
     function testTransferZeroAddress(uint256 shares) public {
+        shares = bound(shares, 0, MAX_TEST_SHARES);
         vault.mint(shares, address(this));
         vm.expectRevert(ErrorsLib.ZeroAddress.selector);
         vault.transfer(address(0), shares);
@@ -170,6 +171,7 @@ contract ERC20Test is BaseTest {
     }
 
     function testTransferFromReceiverZeroAddress(address from, uint256 shares) public {
+        shares = bound(shares, 0, MAX_TEST_SHARES);
         vm.assume(from != address(0));
         vault.mint(shares, from);
         vm.prank(from);
@@ -181,7 +183,7 @@ contract ERC20Test is BaseTest {
     function testInfiniteApproveTransferFrom(address from, address to, uint256 shares, uint256 sharesTransferred)
         public
     {
-        vm.assume(shares <= MAX_TEST_SHARES);
+        shares = bound(shares, 0, MAX_TEST_SHARES);
         sharesTransferred = bound(sharesTransferred, 0, shares);
 
         vm.assume(from != address(0));
@@ -204,14 +206,14 @@ contract ERC20Test is BaseTest {
         }
     }
 
-    function testCreateSharesOverMaxUintReverts() public {
-        vault.mint(type(uint256).max, address(this));
+    function testCreateTooManySharesReverts() public {
+        vault.mint(type(uint160).max, address(this));
         vm.expectRevert(stdError.arithmeticError);
         vault.mint(1, address(this));
     }
 
     function testTransferInsufficientBalanceReverts(address to, uint256 shares) public {
-        shares = bound(shares, 0, type(uint256).max - 1);
+        shares = bound(shares, 0, MAX_TEST_SHARES);
         vm.assume(to != address(0));
         vault.mint(shares, address(this));
         vm.expectRevert(stdError.arithmeticError);
@@ -223,7 +225,7 @@ contract ERC20Test is BaseTest {
         vm.assume(to != address(0));
         vm.assume(from != address(this));
 
-        allowance = bound(allowance, 0, type(uint256).max - 1);
+        allowance = bound(allowance, 0, MAX_TEST_SHARES);
         vault.mint(allowance + 1, from);
 
         vm.prank(from);
@@ -236,7 +238,7 @@ contract ERC20Test is BaseTest {
     function testTransferFromInsufficientBalanceReverts(address from, address to, uint256 allowance) public {
         vm.assume(from != address(0));
         vm.assume(to != address(0));
-        allowance = bound(allowance, 1, type(uint256).max);
+        allowance = bound(allowance, 1, MAX_TEST_SHARES);
         vault.mint(allowance - 1, from);
 
         vm.prank(from);
@@ -250,7 +252,7 @@ contract ERC20Test is BaseTest {
         public
     {
         vm.assume(to != address(0));
-        createShares = bound(createShares, 0, type(uint256).max - 1);
+        createShares = bound(createShares, 0, MAX_TEST_SHARES);
         deletedShares = _bound(deletedShares, createShares + 1, type(uint256).max);
 
         vault.mint(createShares, to);

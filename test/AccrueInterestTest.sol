@@ -114,7 +114,7 @@ contract AccrueInterestTest is BaseTest {
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         interestPerSecond = bound(interestPerSecond, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD), type(uint256).max);
-        elapsed = bound(elapsed, 0, 1000 weeks);
+        elapsed = bound(elapsed, 0, 20 * 365 days);
 
         // Setup.
         vault.deposit(deposit, address(this));
@@ -143,7 +143,7 @@ contract AccrueInterestTest is BaseTest {
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        elapsed = bound(elapsed, 0, 1000 weeks);
+        elapsed = bound(elapsed, 0, 20 * 365 days);
 
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, performanceFee));
@@ -157,7 +157,7 @@ contract AccrueInterestTest is BaseTest {
         vm.warp(block.timestamp + elapsed);
 
         uint256 interest = interestPerSecond * elapsed;
-        uint256 newTotalAssets = vault.totalAssets() + interest;
+        uint256 newTotalAssets = readTotalAssets() + interest;
         uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
         uint256 expectedShares =
             performanceFeeAssets.mulDivDown(vault.totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets);
@@ -190,7 +190,7 @@ contract AccrueInterestTest is BaseTest {
         vm.warp(block.timestamp + elapsed);
 
         uint256 interest = interestPerSecond * elapsed;
-        uint256 newTotalAssets = vault.totalAssets() + interest;
+        uint256 newTotalAssets = readTotalAssets() + interest;
         uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
         uint256 expectedShares =
             managementFeeAssets.mulDivDown(vault.totalSupply() + 1, newTotalAssets + 1 - managementFeeAssets);
