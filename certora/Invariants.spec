@@ -11,7 +11,7 @@ methods {
     function exitFeeRecipient() external returns address envfree;
 
     function decreaseTimelock(bytes4 functionSelector, uint256 newDuration) external;
-    function forceDeallocatePenalty() external returns uint256 envfree;
+    function exitPenalty() external returns uint256 envfree;
 
     function absoluteCap(bytes32 id) external returns uint256 envfree;
     function relativeCap(bytes32 id) external returns uint256 envfree;
@@ -29,16 +29,13 @@ methods {
 definition TIMELOCK_CAP() returns uint256 = 14 * 24 * 60 * 60;
 definition MAX_PERFOMANCE_FEE() returns uint256 = 10^18 / 2;
 definition MAX_MANAGEMENT_FEE() returns uint256 = 10^18 / 20 / (365 * 24 * 60 * 60);
-definition MAX_FORCE_DEALLOCATE_PENALTY() returns uint256 = 10^18 / 100;
+definition MAX_EXIT_PENALTY() returns uint256 = 10^18 / 100;
 
 strong invariant performanceFeeRecipient()
     performanceFee() != 0 => performanceFeeRecipient() != 0;
 
 strong invariant managementFeeRecipient()
     managementFee() != 0 => managementFeeRecipient() != 0;
-
-strong invariant exitFeeRecipient()
-    exitFee() != 0 => exitFeeRecipient() != 0;
 
 strong invariant performanceFee()
     performanceFee() <= MAX_PERFOMANCE_FEE();
@@ -47,14 +44,10 @@ strong invariant managementFee()
     managementFee() <= MAX_MANAGEMENT_FEE();
 
 strong invariant balanceOfZero()
-    balanceOf(0) == 0
-    {
-        preserved {
-            requireInvariant exitFeeRecipient();
-        }
-    }
-strong invariant forceDeallocatePenalty()
-    forceDeallocatePenalty() <= MAX_FORCE_DEALLOCATE_PENALTY();
+    balanceOf(0) == 0;
+
+strong invariant exitPenalty()
+    exitPenalty() <= MAX_EXIT_PENALTY();
 
 strong invariant balanceOfZero()
     balanceOf(0) == 0;

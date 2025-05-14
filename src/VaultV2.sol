@@ -188,7 +188,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setExitPenalty(uint256 newExitPenalty) external timelocked {
-        require(newExitPenalty < WAD, ErrorsLib.ExitPenaltyTooHigh());
+        require(newExitPenalty < MAX_EXIT_PENALTY, ErrorsLib.ExitPenaltyTooHigh());
 
         if (newExitPenalty > exitPenalty) require(!updatedAssetsAreMissing(), ErrorsLib.MissingExitAssets());
 
