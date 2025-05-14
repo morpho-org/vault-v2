@@ -15,7 +15,7 @@ All the contracts are immutable.
 ### Curation
 
 Vaults can allocate assets not only to Morpho Markets V1 and V2, but also to external protocols, such as ERC-4626 vaults.
-The funds allocation of the vault is constrained by an ID system. 
+The funds allocation of the vault is constrained by an id system. 
 An ID is an abstract identifier of a common risk factor of some markets (a collateral, an oracle, a protocol, etc.).
 The allocation on markets with a common ID is limited by absolute caps and relative caps that can be set by the curator.
 The curator enables adapters to invest on behalf of the vault.
