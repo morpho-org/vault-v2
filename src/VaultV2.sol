@@ -125,6 +125,7 @@ contract VaultV2 is IVaultV2 {
 
     /* MULTICALL */
 
+    /// @dev Mostly useful to batch admin actions together.
     function multicall(bytes[] calldata data) external {
         for (uint256 i = 0; i < data.length; i++) {
             (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
@@ -209,7 +210,8 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        performanceFee = uint96(newPerformanceFee); // Safe because 2**96 > MAX_PERFORMANCE_FEE.
+        // Safe because 2**96 > MAX_PERFORMANCE_FEE.
+        performanceFee = uint96(newPerformanceFee);
         emit EventsLib.SetPerformanceFee(newPerformanceFee);
     }
 
@@ -219,7 +221,8 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        managementFee = uint96(newManagementFee); // Safe because 2**96 > MAX_MANAGEMENT_FEE.
+        // Safe because 2**96 > MAX_MANAGEMENT_FEE.
+        managementFee = uint96(newManagementFee);
         emit EventsLib.SetManagementFee(newManagementFee);
     }
 
@@ -258,6 +261,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
+    /// @dev If a relative cap is deleted, this function loops in `idsWithRelativeCap` to find it.
     function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
         bytes32 id = keccak256(idData);
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
