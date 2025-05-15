@@ -111,6 +111,12 @@ contract VaultV2 is IVaultV2 {
     uint96 public managementFee;
     address public managementFeeRecipient;
 
+    /* MAX EXIT RATE STORAGE */
+
+    /// @dev withdrawals still in the buffer
+    uint256 public exitBufer;
+    uint256 public lastExitBufferUpdate;
+
     /* GETTERS */
 
     function idsWithRelativeCapLength() public view returns (uint256) {
@@ -488,9 +494,23 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Deposit(msg.sender, onBehalf, assets, shares);
     }
 
+    /// @dev linearly decays buffer toward 0 and add assets to it.
+    function updateExitBuffer(uint assets) internal {
+        uint256 elapsed = Math.min(EXIT_BUFFER_TIME,block.timestamp - last);
+        if (elapsed != 0) {
+            exitBufer -= exitBufer.mulDivDown(elapsed, EXIT_BUFFER_TIME);
+            lastExitBufferUpdate = block.timestamp;
+        }
+
+        exitBufer += assets;
+        require(exitBufer <= totalAssets.mulDivDown(EXIT_BUFFER_SIZE,WAD), ErrorsLib.RateLimit());
+    }
+
     /// @dev Returns redeemed shares.
     function withdraw(uint256 assets, address receiver, address onBehalf) public returns (uint256) {
         accrueInterest();
+        updateExitBuffer(assets);
+
         uint256 shares = previewWithdraw(assets);
         exit(assets, shares, receiver, onBehalf);
         return shares;
