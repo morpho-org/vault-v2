@@ -397,6 +397,13 @@ contract VaultV2 is IVaultV2 {
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
         lastUpdate = uint96(block.timestamp);
+
+        // update exit buffer
+        uint256 elapsed = MathLib.min(EXIT_BUFFER_TIME, block.timestamp - lastExitBufferUpdate);
+        if (elapsed != 0) {
+            exitBuffer -= exitBuffer.mulDivDown(elapsed, EXIT_BUFFER_TIME);
+            lastExitBufferUpdate = block.timestamp;
+        }
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
@@ -494,22 +501,12 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Deposit(msg.sender, onBehalf, assets, shares);
     }
 
-    /// @dev linearly decays buffer toward 0 and add assets to it.
-    function updateExitBuffer(uint256 assets) internal {
-        uint256 elapsed = MathLib.min(EXIT_BUFFER_TIME, block.timestamp - lastExitBufferUpdate);
-        if (elapsed != 0) {
-            exitBuffer -= exitBuffer.mulDivDown(elapsed, EXIT_BUFFER_TIME);
-            lastExitBufferUpdate = block.timestamp;
-        }
-
-        exitBuffer += assets;
-        require(exitBuffer <= totalAssets.mulDivDown(EXIT_BUFFER_SIZE, WAD), ErrorsLib.RateLimit());
-    }
-
     /// @dev Returns redeemed shares.
     function withdraw(uint256 assets, address receiver, address onBehalf) public returns (uint256) {
         accrueInterest();
-        updateExitBuffer(assets);
+
+        exitBuffer += assets;
+        require(exitBuffer <= totalAssets.mulDivDown(EXIT_BUFFER_SIZE, WAD), ErrorsLib.RateLimit());
 
         uint256 shares = previewWithdraw(assets);
         exit(assets, shares, receiver, onBehalf);
