@@ -2,9 +2,8 @@
 pragma solidity >=0.5.0;
 
 import {IERC20} from "./IERC20.sol";
-import {IPermissionedToken} from "./IPermissionedToken.sol";
 
-interface IVaultV2 is IERC20, IPermissionedToken {
+interface IVaultV2 is IERC20 {
     // Multicall
     function multicall(bytes[] memory data) external;
 
