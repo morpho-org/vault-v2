@@ -7,19 +7,22 @@ uint256 constant MAX_TEST_AMOUNT = 1e36;
 
 contract MockAdapter is IAdapter {
     bytes32[] public ids;
+    uint256 public loss;
 
     function setIds(bytes32[] memory _ids) external {
         ids = _ids;
     }
 
-    function allocate(bytes memory, uint256) external view returns (bytes32[] memory) {
-        return ids;
+    function setLoss(uint256 _loss) external {
+        loss = _loss;
     }
 
-    function deallocate(bytes memory, uint256) external view returns (bytes32[] memory) {}
+    function allocate(bytes memory, uint256) external view returns (bytes32[] memory, uint256) {
+        return (ids, loss);
+    }
 
-    function realizeLoss(bytes memory, uint256) external view returns (bytes32[] memory) {
-        return ids;
+    function deallocate(bytes memory, uint256) external view returns (bytes32[] memory, uint256) {
+        return (ids, loss);
     }
 }
 

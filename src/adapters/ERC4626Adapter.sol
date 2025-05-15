@@ -21,7 +21,7 @@ contract ERC4626Adapter is IERC4626Adapter {
     /* STORAGE */
 
     address public skimRecipient;
-    uint256 public assetsInVaultIfNoLoss;
+    uint256 public assetsInVault;
 
     /* FUNCTIONS */
 
@@ -50,42 +50,30 @@ contract ERC4626Adapter is IERC4626Adapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256 loss) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
+        uint256 loss =
+            assetsInVault.zeroFloorSub(IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this))));
         IERC4626(vault).deposit(assets, address(this));
-        uint256 assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
-        assetsInVaultIfNoLoss = max(assetsInVaultIfNoLoss + assets, assetsInVault);
+        assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
 
-        return ids();
+        return (ids(), loss);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation.
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256 loss) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
+        uint256 loss =
+            assetsInVault.zeroFloorSub(IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this))));
         IERC4626(vault).withdraw(assets, address(this), address(this));
-        uint256 assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
-        assetsInVaultIfNoLoss = max(assetsInVaultIfNoLoss - assets, assetsInVault);
+        assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
 
-        return ids();
-    }
-
-    function realizeLoss(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
-        require(data.length == 0, InvalidData());
-        require(msg.sender == parentVault, NotAuthorized());
-
-        uint256 assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
-        uint256 loss = assetsInVaultIfNoLoss.zeroFloorSub(assetsInVault);
-
-        require(loss >= assets, CannotRealizeAsMuch());
-
-        assetsInVaultIfNoLoss -= assets;
-
-        return ids();
+        return (ids(), loss);
     }
 
     /// @dev Returns adapter's ids.
@@ -94,8 +82,4 @@ contract ERC4626Adapter is IERC4626Adapter {
         ids_[0] = keccak256(abi.encode("adapter", address(this)));
         return ids_;
     }
-}
-
-function max(uint256 a, uint256 b) pure returns (uint256) {
-    return a > b ? a : b;
 }
