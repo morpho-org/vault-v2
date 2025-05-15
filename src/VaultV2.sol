@@ -65,7 +65,7 @@ contract VaultV2 is IVaultV2 {
     uint96 public managementFee;
     address public managementFeeRecipient;
 
-    /* RELATIVE CAPS HELPERS */
+    /* GETTERS */
 
     function idsWithRelativeCapLength() public view returns (uint256) {
         return idsWithRelativeCap.length;
@@ -73,11 +73,6 @@ contract VaultV2 is IVaultV2 {
 
     function relativeCap(bytes32 id) public view returns (uint256) {
         return WAD - oneMinusRelativeCap[id];
-    }
-
-    function checkRelativeCap(bytes32 id) internal view {
-        uint256 cap = relativeCap(id);
-        require(cap == WAD || allocation[id] <= totalAssets.mulDivDown(cap, WAD), ErrorsLib.RelativeCapExceeded());
     }
 
     /* MULTICALL */
@@ -237,12 +232,14 @@ contract VaultV2 is IVaultV2 {
         bytes32 id = keccak256(idData);
         require(newRelativeCap > 0, ErrorsLib.RelativeCapZero());
         require(newRelativeCap <= relativeCap(id), ErrorsLib.RelativeCapNotDecreasing());
+        require(
+            newRelativeCap == WAD || allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD),
+            ErrorsLib.RelativeCapExceeded()
+        );
 
         if (relativeCap(id) == WAD && newRelativeCap < WAD) idsWithRelativeCap.push(id);
 
         oneMinusRelativeCap[id] = WAD - newRelativeCap;
-
-        checkRelativeCap(id);
 
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }
@@ -266,7 +263,10 @@ contract VaultV2 is IVaultV2 {
             allocation[ids[i]] += assets;
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
-            checkRelativeCap(ids[i]);
+            require(
+                relativeCap(ids[i]) == WAD || allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap(ids[i]), WAD),
+                ErrorsLib.RelativeCapExceeded()
+            );
         }
         emit EventsLib.Allocate(msg.sender, adapter, assets, ids);
     }
@@ -455,7 +455,9 @@ contract VaultV2 is IVaultV2 {
         totalAssets -= assets;
 
         for (uint256 i; i < idsWithRelativeCap.length; i++) {
-            checkRelativeCap(idsWithRelativeCap[i]);
+            bytes32 id = idsWithRelativeCap[i];
+            // relativeCap(id) < WAD is true for all ids in idsWithRelativeCap
+            require(allocation[id] <= totalAssets.mulDivDown(relativeCap(id), WAD), ErrorsLib.RelativeCapExceeded());
         }
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
