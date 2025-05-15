@@ -113,7 +113,7 @@ contract VaultV2 is IVaultV2 {
 
     /* GETTERS */
 
-    function totalAssets() public view returns (uint256) {
+    function totalAssets() external view returns (uint256) {
         (uint256 newTotalAssets,,) = accrueInterestView();
         return newTotalAssets;
     }
