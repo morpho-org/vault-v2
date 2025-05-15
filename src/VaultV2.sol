@@ -324,7 +324,8 @@ contract VaultV2 is IVaultV2 {
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
             require(
-                relativeCap(ids[i]) == WAD || allocation[ids[i]] <= uint256(_totalAssets).mulDivDown(relativeCap(ids[i]), WAD),
+                relativeCap(ids[i]) == WAD
+                    || allocation[ids[i]] <= uint256(_totalAssets).mulDivDown(relativeCap(ids[i]), WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
