@@ -15,8 +15,7 @@ import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 /// @dev No-ops are allowed.
 /// @dev Natspec are specified only when it brings clarity.
 /// @dev Roles are not "two-step" so one must check if they really have this role.
-/// @dev The shares are represented with ERC-20.
-/// @dev The token also complies with ERC-2612 (permit extension).
+/// @dev The shares are represented with ERC-20, also compliant with ERC-2612 (permit extension).
 /// @dev To accrue interest, the vault queries the Vault Interest Controller (VIC) which returns the interest per second
 /// that must be distributed on the period (since `lastUpdate`). The VIC must be chosen and managed carefully to not
 /// distribute more than what the vault's investments are earning.

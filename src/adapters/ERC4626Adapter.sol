@@ -33,6 +33,8 @@ contract ERC4626Adapter is IERC4626Adapter {
         emit SetSkimRecipient(newSkimRecipient);
     }
 
+    /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
+    /// @dev This is useful to handle rewards that the adapter has earned.
     function skim(address token) external {
         require(msg.sender == skimRecipient, NotAuthorized());
         require(token != vault, CannotSkimVault());
