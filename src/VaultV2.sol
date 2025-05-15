@@ -114,7 +114,7 @@ contract VaultV2 is IVaultV2 {
     /* MAX EXIT RATE STORAGE */
 
     /// @dev withdrawals still in the buffer
-    uint256 public exitBufer;
+    uint256 public exitBuffer;
     uint256 public lastExitBufferUpdate;
 
     /* GETTERS */
@@ -495,15 +495,15 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev linearly decays buffer toward 0 and add assets to it.
-    function updateExitBuffer(uint assets) internal {
-        uint256 elapsed = Math.min(EXIT_BUFFER_TIME,block.timestamp - last);
+    function updateExitBuffer(uint256 assets) internal {
+        uint256 elapsed = MathLib.min(EXIT_BUFFER_TIME, block.timestamp - lastExitBufferUpdate);
         if (elapsed != 0) {
-            exitBufer -= exitBufer.mulDivDown(elapsed, EXIT_BUFFER_TIME);
+            exitBuffer -= exitBuffer.mulDivDown(elapsed, EXIT_BUFFER_TIME);
             lastExitBufferUpdate = block.timestamp;
         }
 
-        exitBufer += assets;
-        require(exitBufer <= totalAssets.mulDivDown(EXIT_BUFFER_SIZE,WAD), ErrorsLib.RateLimit());
+        exitBuffer += assets;
+        require(exitBuffer <= totalAssets.mulDivDown(EXIT_BUFFER_SIZE, WAD), ErrorsLib.RateLimit());
     }
 
     /// @dev Returns redeemed shares.
