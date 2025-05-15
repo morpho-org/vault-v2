@@ -174,13 +174,23 @@ contract ERC4626AdapterTest is Test {
         adapter.skim(address(vault));
     }
 
-    function testLossRealization(uint256 initialAssets, uint256 lossAssets, uint256 realizedLoss) public {
+    function testLossRealization(
+        uint256 initialAssets,
+        uint256 lossAssets,
+        uint256 realizedLoss,
+        uint256 deposit,
+        uint256 withdraw,
+        uint256 interest
+    ) public {
         initialAssets = bound(initialAssets, 1, MAX_TEST_ASSETS);
         lossAssets = bound(lossAssets, 1, initialAssets);
         realizedLoss = bound(realizedLoss, 0, lossAssets - 1);
+        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        withdraw = bound(withdraw, 0, initialAssets - lossAssets);
+        interest = bound(interest, 0, initialAssets);
 
         // Setup.
-        deal(address(asset), address(adapter), initialAssets);
+        deal(address(asset), address(adapter), initialAssets + deposit);
         vm.prank(address(parentVault));
         adapter.allocate(hex"", initialAssets);
 
@@ -191,7 +201,7 @@ contract ERC4626AdapterTest is Test {
         (bytes32[] memory ids, uint256 loss) = adapter.allocate(hex"", 0);
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(loss, lossAssets, "Loss should be realized");
-        assertEq(adapter.assetsInVault(), initialAssets - lossAssets, "Assets in vault should be tracked");
+        assertEq(adapter.assetsInVault(), initialAssets - lossAssets, "AssetsInVault after allocate");
 
         // Loss realisation with deallocate.
         vm.revertTo(snapshot);
@@ -199,63 +209,39 @@ contract ERC4626AdapterTest is Test {
         (ids, loss) = adapter.deallocate(hex"", 0);
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(loss, lossAssets, "Loss should be realized");
-        assertEq(adapter.assetsInVault(), initialAssets - lossAssets, "Assets in vault should be tracked");
+        assertEq(adapter.assetsInVault(), initialAssets - lossAssets, "AssetsInVault after deallocate");
 
         // Can't realize more.
         vm.prank(address(parentVault));
-        (ids, loss) = adapter.deallocate(hex"", 1);
+        (ids, loss) = adapter.deallocate(hex"", 0);
+        assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(loss, 0, "loss should be zero");
-    }
+        assertEq(adapter.assetsInVault(), initialAssets - lossAssets, "AssetsInVault after rerealization");
 
-    function testCumulativeLossRealization(
-        uint256 initialAssets,
-        uint256 firstLoss,
-        uint256 secondLoss,
-        uint256 depositAssets,
-        uint256 withdrawAssets,
-        uint256 interest
-    ) public {
-        initialAssets = bound(initialAssets, 0, MAX_TEST_ASSETS);
-        firstLoss = bound(firstLoss, 0, initialAssets);
-        secondLoss = bound(secondLoss, 0, initialAssets - firstLoss);
-        depositAssets = bound(depositAssets, 0, MAX_TEST_ASSETS);
-        withdrawAssets = bound(withdrawAssets, 0, initialAssets);
-        interest = bound(interest, 0, firstLoss + secondLoss);
-        deal(address(asset), address(adapter), initialAssets + depositAssets);
+        // Deposit realizes the right loss.
+        vm.revertTo(snapshot);
         vm.prank(address(parentVault));
-        adapter.allocate(hex"", initialAssets);
-        assertEq(adapter.assetsInVault(), initialAssets, "Assets in vault should be tracked");
-
-        vault.loose(firstLoss);
-        vault.loose(secondLoss);
-
-        // Deposit realizes the loss
-        uint256 snapshot = vm.snapshotState();
-        vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.allocate(hex"", depositAssets);
+        (ids, loss) = adapter.allocate(hex"", deposit);
         assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertApproxEqAbs(loss, firstLoss + secondLoss, 1, "Loss should not change");
+        assertEq(loss, lossAssets, "Loss should be correct after deposit");
+        assertEq(adapter.assetsInVault(), initialAssets - lossAssets + deposit, "AssetsInVault after deposit");
 
-        // Withdrawing doesn't change the loss.
-        vm.revertToState(snapshot);
+        // Withdraw doesn't change the loss.
+        vm.revertTo(snapshot);
         vm.prank(address(parentVault));
-        (ids, loss) = adapter.deallocate(hex"", withdrawAssets);
+        (ids, loss) = adapter.deallocate(hex"", withdraw);
         assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertApproxEqAbs(loss, firstLoss + secondLoss, 1, "Loss should not change");
+        assertEq(loss, lossAssets, "Loss should be correct after withdraw");
+        assertEq(adapter.assetsInVault(), initialAssets - lossAssets - withdraw, "AssetsInVault after withdraw");
 
         // Interest cover the loss.
-        vm.revertToState(snapshot);
+        vm.revertTo(snapshot);
         asset.transfer(address(vault), interest);
         vm.prank(address(parentVault));
         (ids, loss) = adapter.allocate(hex"", 0);
-        assertApproxEqAbs(loss, firstLoss + secondLoss - interest, 1, "Loss should not change");
-
-        // Basic loss realization
-        vm.revertToState(snapshot);
-        vm.prank(address(parentVault));
-        (ids, loss) = adapter.deallocate(hex"", 0);
-        assertApproxEqAbs(loss, firstLoss + secondLoss - interest, 1, "Loss should be zero");
         assertEq(ids, expectedIds, "Incorrect ids returned");
+        assertEq(loss, zeroFloorSub(lossAssets, interest), "Loss should be correct after interest");
+        assertEq(adapter.assetsInVault(), initialAssets - lossAssets + interest, "AssetsInVault after interest");
     }
 
     function testInvalidData(bytes memory data) public {
@@ -275,4 +261,9 @@ contract ERC4626MockExtended is ERC4626Mock {
     function loose(uint256 assets) public {
         IERC20(asset()).transfer(address(0xdead), assets);
     }
+}
+
+function zeroFloorSub(uint256 a, uint256 b) pure returns (uint256) {
+    if (a < b) return 0;
+    return a - b;
 }

@@ -316,7 +316,7 @@ contract VaultV2 is IVaultV2 {
         (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).allocate(data, assets);
 
         if (loss > 0) {
-            totalAssets -= loss;
+            totalAssets = totalAssets.zeroFloorSub(loss);
             canSupply[block.number] = false;
         }
 
@@ -342,7 +342,7 @@ contract VaultV2 is IVaultV2 {
         (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).deallocate(data, assets);
 
         if (loss > 0) {
-            totalAssets -= loss;
+            totalAssets = totalAssets.zeroFloorSub(loss);
             canSupply[block.number] = false;
         }
 
