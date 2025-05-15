@@ -70,7 +70,7 @@ contract ERC4626AdapterTest is Test {
         vm.prank(address(parentVault));
         (bytes32[] memory ids,) = adapter.allocate(hex"", assets);
 
-        assertEq(adapter.assetsInVaultIfNoLoss(), assets, "incorrect assetsInVaultIfNoLoss");
+        assertEq(adapter.assetsInVault(), assets, "incorrect assetsInVault");
         uint256 adapterShares = vault.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(adapterShares, assets, "Incorrect share balance after deposit");
@@ -93,7 +93,7 @@ contract ERC4626AdapterTest is Test {
         vm.prank(address(parentVault));
         (bytes32[] memory ids,) = adapter.deallocate(hex"", withdrawAssets);
 
-        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets - withdrawAssets, "incorrect assetsInVaultIfNoLoss");
+        assertEq(adapter.assetsInVault(), initialAssets - withdrawAssets, "incorrect assetsInVault");
         uint256 afterShares = vault.balanceOf(address(adapter));
         assertEq(afterShares, initialAssets - withdrawAssets, "Share balance not decreased correctly");
 
@@ -184,27 +184,22 @@ contract ERC4626AdapterTest is Test {
         vm.prank(address(parentVault));
         adapter.allocate(hex"", initialAssets);
 
-        // Loss detection.
+        // Loss realisation with allocate.
         vault.loose(lossAssets);
         uint256 snapshot = vm.snapshot();
         vm.prank(address(parentVault));
-        adapter.allocate(hex"", 0);
-        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets, "Assets in vault should be tracked");
+        (bytes32[] memory ids, uint256 loss) = adapter.allocate(hex"", 0);
+        assertEq(ids, expectedIds, "Incorrect ids returned");
+        assertEq(loss, lossAssets, "Loss should be realized");
+        assertEq(adapter.assetsInVault(), initialAssets - lossAssets, "Assets in vault should be tracked");
+
+        // Loss realisation with deallocate.
         vm.revertTo(snapshot);
         vm.prank(address(parentVault));
-        adapter.deallocate(hex"", 0);
-        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets, "Assets in vault should be tracked");
-
-        // Can't realize too much.
-        vm.expectRevert(IERC4626Adapter.CannotRealizeAsMuch.selector);
-        vm.prank(address(parentVault));
-        // adapter.realizeLoss(hex"", lossAssets + 1);
-
-        // realisation.
-        vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.deallocate(hex"", 0);
-        assertEq(loss, lossAssets, "Assets in vault should be tracked");
+        (ids, loss) = adapter.deallocate(hex"", 0);
         assertEq(ids, expectedIds, "Incorrect ids returned");
+        assertEq(loss, lossAssets, "Loss should be realized");
+        assertEq(adapter.assetsInVault(), initialAssets - lossAssets, "Assets in vault should be tracked");
 
         // Can't realize more.
         vm.prank(address(parentVault));
@@ -224,44 +219,41 @@ contract ERC4626AdapterTest is Test {
         firstLoss = bound(firstLoss, 0, initialAssets);
         secondLoss = bound(secondLoss, 0, initialAssets - firstLoss);
         depositAssets = bound(depositAssets, 0, MAX_TEST_ASSETS);
-        withdrawAssets = bound(withdrawAssets, 0, depositAssets);
+        withdrawAssets = bound(withdrawAssets, 0, initialAssets);
         interest = bound(interest, 0, firstLoss + secondLoss);
         deal(address(asset), address(adapter), initialAssets + depositAssets);
         vm.prank(address(parentVault));
         adapter.allocate(hex"", initialAssets);
-        assertEq(adapter.assetsInVaultIfNoLoss(), initialAssets, "Assets in vault should be tracked");
+        assertEq(adapter.assetsInVault(), initialAssets, "Assets in vault should be tracked");
 
-        // First loss
         vault.loose(firstLoss);
-        vm.prank(address(parentVault));
-        adapter.allocate(hex"", 0);
-        assertEq(_loss(), firstLoss, "Loss should not change");
-
-        // Second loss
         vault.loose(secondLoss);
-        vm.prank(address(parentVault));
-        adapter.allocate(hex"", 0);
-        assertEq(_loss(), firstLoss + secondLoss, "Loss should not change");
 
-        // Deposit doesn't change the loss.
+        // Deposit realizes the loss
+        uint256 snapshot = vm.snapshotState();
         vm.prank(address(parentVault));
-        adapter.allocate(hex"", depositAssets);
-        assertApproxEqAbs(_loss(), firstLoss + secondLoss, 1, "Loss should not change");
+        (bytes32[] memory ids, uint256 loss) = adapter.allocate(hex"", depositAssets);
+        assertEq(ids, expectedIds, "Incorrect ids returned");
+        assertApproxEqAbs(loss, firstLoss + secondLoss, 1, "Loss should not change");
 
         // Withdrawing doesn't change the loss.
+        vm.revertToState(snapshot);
         vm.prank(address(parentVault));
-        adapter.deallocate(hex"", withdrawAssets);
-        assertApproxEqAbs(_loss(), firstLoss + secondLoss, 1, "Loss should not change");
+        (ids, loss) = adapter.deallocate(hex"", withdrawAssets);
+        assertEq(ids, expectedIds, "Incorrect ids returned");
+        assertApproxEqAbs(loss, firstLoss + secondLoss, 1, "Loss should not change");
 
         // Interest cover the loss.
+        vm.revertToState(snapshot);
         asset.transfer(address(vault), interest);
         vm.prank(address(parentVault));
-        adapter.allocate(hex"", 0);
-        assertApproxEqAbs(_loss(), firstLoss + secondLoss - interest, 1, "Loss should not change");
+        (ids, loss) = adapter.allocate(hex"", 0);
+        assertApproxEqAbs(loss, firstLoss + secondLoss - interest, 1, "Loss should not change");
 
-        // Realize loss
+        // Basic loss realization
+        vm.revertToState(snapshot);
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.deallocate(hex"", 0);
+        (ids, loss) = adapter.deallocate(hex"", 0);
         assertApproxEqAbs(loss, firstLoss + secondLoss - interest, 1, "Loss should be zero");
         assertEq(ids, expectedIds, "Incorrect ids returned");
     }
