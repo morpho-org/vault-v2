@@ -73,7 +73,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Unit is WAD.
     /// @dev 1-relativeCap is stored such that the default is 1 and 0 is unreachable.
     /// @dev The relative cap is relative to `totalAssets`.
-    /// @dev A relative cap of 100% (1 WAD) means no relative cap.
+    /// @dev The default relative cap is WAD and it corresponds to no relative cap.
     /// @dev Checked on allocate (where allocations can increase) for the ids returned by the adapter, on
     /// decreaseRelativeCap for the given id, and on exit (where totalAssets can decrease), for all ids that have an
     /// active relative cap.
@@ -269,16 +269,14 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
         require(newRelativeCap >= relativeCap(id), ErrorsLib.RelativeCapNotIncreasing());
 
-        if (newRelativeCap > relativeCap(id)) {
-            if (newRelativeCap == WAD) {
-                uint256 i;
-                while (idsWithRelativeCap[i] != id) i++;
-                idsWithRelativeCap[i] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
-                idsWithRelativeCap.pop();
-            }
-
-            oneMinusRelativeCap[id] = WAD - newRelativeCap;
+        if (relativeCap(id) < WAD && newRelativeCap == WAD) {
+            uint256 i;
+            while (idsWithRelativeCap[i] != id) i++;
+            idsWithRelativeCap[i] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
+            idsWithRelativeCap.pop();
         }
+
+        oneMinusRelativeCap[id] = WAD - newRelativeCap;
 
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
@@ -288,14 +286,14 @@ contract VaultV2 is IVaultV2 {
         bytes32 id = keccak256(idData);
         require(newRelativeCap > 0, ErrorsLib.RelativeCapZero());
         require(newRelativeCap <= relativeCap(id), ErrorsLib.RelativeCapNotDecreasing());
+        require(
+            newRelativeCap == WAD || allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD),
+            ErrorsLib.RelativeCapExceeded()
+        );
 
-        if (newRelativeCap < relativeCap(id)) {
-            require(allocation[id] <= totalAssets.mulDivDown(newRelativeCap, WAD), ErrorsLib.RelativeCapExceeded());
+        if (relativeCap(id) == WAD && newRelativeCap < WAD) idsWithRelativeCap.push(id);
 
-            if (relativeCap(id) == WAD) idsWithRelativeCap.push(id);
-
-            oneMinusRelativeCap[id] = WAD - newRelativeCap;
-        }
+        oneMinusRelativeCap[id] = WAD - newRelativeCap;
 
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }
@@ -319,12 +317,10 @@ contract VaultV2 is IVaultV2 {
             allocation[ids[i]] += assets;
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
-            if (relativeCap(ids[i]) < WAD) {
-                require(
-                    allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap(ids[i]), WAD),
-                    ErrorsLib.RelativeCapExceeded()
-                );
-            }
+            require(
+                relativeCap(ids[i]) == WAD || allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap(ids[i]), WAD),
+                ErrorsLib.RelativeCapExceeded()
+            );
         }
         emit EventsLib.Allocate(msg.sender, adapter, assets, ids);
     }
