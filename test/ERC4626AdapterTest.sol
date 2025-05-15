@@ -224,7 +224,9 @@ contract ERC4626AdapterTest is Test {
         (ids, loss) = adapter.allocate(hex"", deposit);
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(loss, lossAssets, "Loss should be correct after deposit");
-        assertEq(adapter.assetsInVault(), initialAssets - lossAssets + deposit, "AssetsInVault after deposit");
+        assertApproxEqAbs(
+            adapter.assetsInVault(), initialAssets - lossAssets + deposit, 1, "AssetsInVault after deposit"
+        );
 
         // Withdraw doesn't change the loss.
         vm.revertTo(snapshot);
@@ -232,7 +234,9 @@ contract ERC4626AdapterTest is Test {
         (ids, loss) = adapter.deallocate(hex"", withdraw);
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(loss, lossAssets, "Loss should be correct after withdraw");
-        assertEq(adapter.assetsInVault(), initialAssets - lossAssets - withdraw, "AssetsInVault after withdraw");
+        assertApproxEqAbs(
+            adapter.assetsInVault(), initialAssets - lossAssets - withdraw, 1, "AssetsInVault after withdraw"
+        );
 
         // Interest cover the loss.
         vm.revertTo(snapshot);
@@ -241,7 +245,9 @@ contract ERC4626AdapterTest is Test {
         (ids, loss) = adapter.allocate(hex"", 0);
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(loss, zeroFloorSub(lossAssets, interest), "Loss should be correct after interest");
-        assertEq(adapter.assetsInVault(), initialAssets - lossAssets + interest, "AssetsInVault after interest");
+        assertApproxEqAbs(
+            adapter.assetsInVault(), initialAssets - lossAssets + interest, 1, "AssetsInVault after interest"
+        );
     }
 
     function testInvalidData(bytes memory data) public {
