@@ -22,13 +22,15 @@ The curator enables adapters to invest on behalf of the vault.
 They are notably trusted to return the IDs associated with a given market.
 
 Adapters for the following protocols are currently available:
-- [Morpho Market V1](./src/adapters/MorphoAdapter.sol)
+
+- [Morpho Market V1](./src/adapters/MorphoBlueAdapter.sol)
 - [ERC-4626](./src/adapters/ERC4626Adapter.sol)
 
 A Morpho Market V2 adapter will be released together with Market V2.
 
 IDs of Morpho V1 lending markets could be for example the tuple `(CollateralToken, LLTV, Oracle)` and `CollateralToken` alone.
 A vault could be setup to enforce the following caps:
+
 - `(stETH, 86%, Chainlink)`: 10M
 - `(stETH, 86%, Redstone)`: 10M
 - `(stETH)`: 15M

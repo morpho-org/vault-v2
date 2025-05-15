@@ -4,7 +4,7 @@ pragma solidity >=0.5.0;
 import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {IAdapter} from "../../interfaces/IAdapter.sol";
 
-interface IMorphoAdapter is IAdapter {
+interface IMorphoBlueAdapter is IAdapter {
     /* EVENTS */
 
     event SetSkimRecipient(address indexed newSkimRecipient);

@@ -2,8 +2,8 @@
 pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
-import {MorphoAdapter} from "src/adapters/MorphoAdapter.sol";
-import {MorphoAdapterFactory} from "src/adapters/MorphoAdapterFactory.sol";
+import {MorphoBlueAdapter} from "src/adapters/MorphoBlueAdapter.sol";
+import {MorphoBlueAdapterFactory} from "src/adapters/MorphoBlueAdapterFactory.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
@@ -12,14 +12,14 @@ import {IMorpho, MarketParams} from "lib/morpho-blue/src/interfaces/IMorpho.sol"
 import {MorphoBalancesLib} from "lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 import {IERC20} from "src/interfaces/IERC20.sol";
 import {IVaultV2} from "src/interfaces/IVaultV2.sol";
-import {IMorphoAdapter} from "src/adapters/interfaces/IMorphoAdapter.sol";
-import {IMorphoAdapterFactory} from "src/adapters/interfaces/IMorphoAdapterFactory.sol";
+import {IMorphoBlueAdapter} from "src/adapters/interfaces/IMorphoBlueAdapter.sol";
+import {IMorphoBlueAdapterFactory} from "src/adapters/interfaces/IMorphoBlueAdapterFactory.sol";
 
-contract MorphoAdapterTest is Test {
+contract MorphoBlueAdapterTest is Test {
     using MorphoBalancesLib for IMorpho;
 
-    MorphoAdapterFactory internal factory;
-    MorphoAdapter internal adapter;
+    MorphoBlueAdapterFactory internal factory;
+    MorphoBlueAdapter internal adapter;
     VaultV2Mock internal parentVault;
     MarketParams internal marketParams;
     ERC20Mock internal loanToken;
@@ -62,8 +62,8 @@ contract MorphoAdapterTest is Test {
 
         morpho.createMarket(marketParams);
         parentVault = new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0));
-        factory = new MorphoAdapterFactory(address(morpho));
-        adapter = MorphoAdapter(factory.createMorphoAdapter(address(parentVault)));
+        factory = new MorphoBlueAdapterFactory(address(morpho));
+        adapter = MorphoBlueAdapter(factory.createMorphoBlueAdapter(address(parentVault)));
     }
 
     function _boundsAssets(uint256 assets) internal pure returns (uint256) {
@@ -77,13 +77,13 @@ contract MorphoAdapterTest is Test {
 
     function testAllocateNotAuthorizedReverts(uint256 assets) public {
         assets = _boundsAssets(assets);
-        vm.expectRevert(IMorphoAdapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoBlueAdapter.NotAuthorized.selector);
         adapter.allocate(abi.encode(marketParams), assets);
     }
 
     function testDeallocateNotAuthorizedReverts(uint256 assets) public {
         assets = _boundsAssets(assets);
-        vm.expectRevert(IMorphoAdapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoBlueAdapter.NotAuthorized.selector);
         adapter.deallocate(abi.encode(marketParams), assets);
     }
 
@@ -143,24 +143,24 @@ contract MorphoAdapterTest is Test {
         assertEq(ids[2], expectedId2, "Incorrect id #2 returned");
     }
 
-    function testFactoryCreateMorphoAdapter() public {
+    function testFactoryCreateMorphoBlueAdapter() public {
         address newParentVaultAddr =
             address(new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0)));
 
         bytes32 initCodeHash =
-            keccak256(abi.encodePacked(type(MorphoAdapter).creationCode, abi.encode(newParentVaultAddr, morpho)));
+            keccak256(abi.encodePacked(type(MorphoBlueAdapter).creationCode, abi.encode(newParentVaultAddr, morpho)));
         address expectedNewAdapter =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
-        emit IMorphoAdapterFactory.CreateMorphoAdapter(newParentVaultAddr, expectedNewAdapter);
+        emit IMorphoBlueAdapterFactory.CreateMorphoBlueAdapter(newParentVaultAddr, expectedNewAdapter);
 
-        address newAdapter = factory.createMorphoAdapter(newParentVaultAddr);
+        address newAdapter = factory.createMorphoBlueAdapter(newParentVaultAddr);
 
         assertTrue(newAdapter != address(0), "Adapter not created");
-        assertEq(MorphoAdapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
-        assertEq(MorphoAdapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
-        assertEq(factory.morphoAdapter(newParentVaultAddr), newAdapter, "Adapter not tracked correctly");
-        assertTrue(factory.isMorphoAdapter(newAdapter), "Adapter not tracked correctly");
+        assertEq(MorphoBlueAdapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
+        assertEq(MorphoBlueAdapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
+        assertEq(factory.morphoBlueAdapter(newParentVaultAddr), newAdapter, "Adapter not tracked correctly");
+        assertTrue(factory.isMorphoBlueAdapter(newAdapter), "Adapter not tracked correctly");
     }
 
     function testSetSkimRecipient(address newRecipient, address caller) public {
@@ -169,12 +169,12 @@ contract MorphoAdapterTest is Test {
         vm.assume(caller != owner);
 
         vm.prank(caller);
-        vm.expectRevert(IMorphoAdapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoBlueAdapter.NotAuthorized.selector);
         adapter.setSkimRecipient(newRecipient);
 
         vm.prank(owner);
         vm.expectEmit();
-        emit IMorphoAdapter.SetSkimRecipient(newRecipient);
+        emit IMorphoBlueAdapter.SetSkimRecipient(newRecipient);
         adapter.setSkimRecipient(newRecipient);
 
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
@@ -192,14 +192,14 @@ contract MorphoAdapterTest is Test {
         assertEq(token.balanceOf(address(adapter)), assets, "Adapter did not receive tokens");
 
         vm.expectEmit();
-        emit IMorphoAdapter.Skim(address(token), assets);
+        emit IMorphoBlueAdapter.Skim(address(token), assets);
         vm.prank(recipient);
         adapter.skim(address(token));
 
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
         assertEq(token.balanceOf(recipient), assets, "Recipient did not receive tokens");
 
-        vm.expectRevert(IMorphoAdapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoBlueAdapter.NotAuthorized.selector);
         adapter.skim(address(token));
     }
 }

@@ -4,10 +4,10 @@ pragma solidity 0.8.28;
 import {IMorpho, MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IMorphoAdapter} from "./interfaces/IMorphoAdapter.sol";
+import {IMorphoBlueAdapter} from "./interfaces/IMorphoBlueAdapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
-contract MorphoAdapter is IMorphoAdapter {
+contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /* IMMUTABLES */
 
     address public immutable parentVault;
