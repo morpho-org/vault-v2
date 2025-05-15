@@ -23,7 +23,8 @@ Curators enable protocols in which the vault can supply through the use of adapt
 
 In order to enable a given protocol, a corresponding adapter need to be used.
 Adapters for the following protocols are currently available:
-- [Morpho Market V1](./src/adapters/MorphoAdapter.sol)
+
+- [Morpho Market V1](./src/adapters/MorphoBlueAdapter.sol)
 - [ERC-4626](./src/adapters/ERC4626Adapter.sol)
 
 A Morpho Market V2 adapter will be released together with Market V2.
@@ -41,6 +42,7 @@ The vault does not enforce any structure or semantics on IDs.
 
 IDs of lending markets for a given `LoanToken` can be defined using a tuple of the form `(CollateralToken, LLTV, Oracle)`.
 A vault could be setup to enforce the following caps:
+
 - `(stETH, *, Chainlink)`: 6M
 - `(stETH, *, Redstone)`: 6M
 - `(stETH, *, *)`: 10M
