@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {VaultV2} from "../../VaultV2.sol";
 
 library VaultV2AddressLib {
+    /// @dev Returns the address of the deployed VaultV2.
     function computeVaultV2Address(address factory, address owner, address asset, bytes32 salt)
         internal
         pure

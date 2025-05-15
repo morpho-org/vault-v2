@@ -84,10 +84,10 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.expectEmit();
-        emit EventsLib.Submit(curator, bytes4(data), data, block.timestamp + vault.timelock(bytes4(data)));
+        emit EventsLib.Submit(bytes4(data), data, block.timestamp + vault.timelock(bytes4(data)));
         vm.prank(curator);
         vault.submit(data);
-        assertEq(vault.validAt(data), block.timestamp + vault.timelock(bytes4(data)));
+        assertEq(vault.executableAt(data), block.timestamp + vault.timelock(bytes4(data)));
 
         // Data already pending
         vm.expectRevert(ErrorsLib.DataAlreadyPending.selector);
@@ -119,13 +119,13 @@ contract SettersTest is BaseTest {
         vm.expectEmit();
         emit EventsLib.Revoke(sentinel, bytes4(data), data);
         vault.revoke(data);
-        assertEq(vault.validAt(data), 0);
+        assertEq(vault.executableAt(data), 0);
 
         // Curator can revoke as well
         vm.revertToState(snapshot);
         vm.prank(curator);
         vault.revoke(data);
-        assertEq(vault.validAt(data), 0);
+        assertEq(vault.executableAt(data), 0);
     }
 
     function testTimelocked(uint256 timelock) public {
@@ -138,7 +138,7 @@ contract SettersTest is BaseTest {
         bytes memory data = abi.encodeWithSelector(IVaultV2.setVic.selector, address(1));
         vm.prank(curator);
         vault.submit(data);
-        assertEq(vault.validAt(data), block.timestamp + timelock);
+        assertEq(vault.executableAt(data), block.timestamp + timelock);
 
         // Timelock didn't pass.
         vm.warp(vm.getBlockTimestamp() + timelock - 1);
