@@ -22,8 +22,8 @@ methods {
     function totalAssets() external returns uint256 envfree;
     function balanceOf(address) external returns uint256 envfree;
 
-    function setSendGate(address) external;
-    function setReceiveGate(address) external;
+    function setExitGate(address) external;
+    function setEnterGate(address) external;
     function decreaseTimelock(address) external;
 }
 
@@ -32,8 +32,8 @@ definition MAX_PERFOMANCE_FEE() returns uint256 = 10^18 / 2;
 definition MAX_MANAGEMENT_FEE() returns uint256 = 10^18 / 20 / (365 * 24 * 60 * 60);
 definition MAX_FORCE_DEALLOCATE_PENALTY() returns uint256 = 10^18 / 100;
 
-definition setSendGateSelector() returns bytes4 = to_bytes4(sig:setSendGate(address).selector);
-definition setReceiveGateSelector() returns bytes4 = to_bytes4(sig:setReceiveGate(address).selector);
+definition setExitGateSelector() returns bytes4 = to_bytes4(sig:setExitGate(address).selector);
+definition setEnterGateSelector() returns bytes4 = to_bytes4(sig:setEnterGate(address).selector);
 definition decreaseTimelockSelector() returns bytes4 = to_bytes4(sig:decreaseTimelock(bytes4,uint256).selector);
 
 
@@ -57,14 +57,14 @@ strong invariant forceDeallocatePenalty(address adapter)
 strong invariant balanceOfZero()
     balanceOf(0) == 0;
 
-strong invariant timelockCapExceptSetSendOrReceiveGate(bytes4 selector)
-    (selector != setSendGateSelector() && selector != setReceiveGateSelector()) => timelock(selector) <= TIMELOCK_CAP();
+strong invariant timelockCapExceptSetSendOrEnterGate(bytes4 selector)
+    (selector != setExitGateSelector() && selector != setEnterGateSelector()) => timelock(selector) <= TIMELOCK_CAP();
 
-strong invariant timelockSetSendGate()
-    timelock(setSendGateSelector()) <= TIMELOCK_CAP() || timelock(setSendGateSelector()) == max_uint256;
+strong invariant timelockSetExitGate()
+    timelock(setExitGateSelector()) <= TIMELOCK_CAP() || timelock(setExitGateSelector()) == max_uint256;
 
-strong invariant timelockSetReceiveGate()
-    timelock(setReceiveGateSelector()) <= TIMELOCK_CAP() || timelock(setReceiveGateSelector()) == max_uint256;
+strong invariant timelockSetEnterGate()
+    timelock(setEnterGateSelector()) <= TIMELOCK_CAP() || timelock(setEnterGateSelector()) == max_uint256;
 
 strong invariant timelockTimelock()
     timelock(decreaseTimelockSelector()) == TIMELOCK_CAP();

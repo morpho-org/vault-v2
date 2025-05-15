@@ -52,8 +52,8 @@ interface IVaultV2 is IERC20 {
 
     // Owner actions
     function setOwner(address newOwner) external;
-    function setSendGate(address newSendGate) external;
-    function setReceiveGate(address newReceiveGate) external;
+    function setExitGate(address newExitGate) external;
+    function setEnterGate(address newEnterGate) external;
     function setCurator(address newCurator) external;
     function setIsSentinel(address account, bool isSentinel) external;
 
