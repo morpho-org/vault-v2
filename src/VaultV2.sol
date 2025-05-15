@@ -402,7 +402,6 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.AccrueInterest(totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         totalAssets = newTotalAssets;
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
-        if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
         lastUpdate = uint96(block.timestamp);
     }
