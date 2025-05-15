@@ -6,7 +6,7 @@ import {IPermissionedToken} from "./IPermissionedToken.sol";
 
 interface IVaultV2 is IERC20, IPermissionedToken {
     // Multicall
-    function multicall(bytes[] calldata) external;
+    function multicall(bytes[] memory data) external;
 
     // ERC-2612 (Permit)
     function permit(address owner, address spender, uint256 shares, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
@@ -17,77 +17,82 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     // ERC-4626-v2
     function asset() external view returns (address);
     function totalAssets() external view returns (uint256);
-    function previewDeposit(uint256 assets) external view returns (uint256);
-    function deposit(uint256 assets, address receiver) external returns (uint256);
-    function previewMint(uint256 shares) external view returns (uint256);
-    function mint(uint256 shares, address receiver) external returns (uint256);
-    function previewWithdraw(uint256 assets) external view returns (uint256);
-    function withdraw(uint256 assets, address receiver, address owner) external returns (uint256);
-    function previewRedeem(uint256 shares) external view returns (uint256);
-    function redeem(uint256 shares, address receiver, address owner) external returns (uint256);
+    function previewDeposit(uint256 assets) external view returns (uint256 shares);
+    function deposit(uint256 assets, address receiver) external returns (uint256 shares);
+    function previewMint(uint256 shares) external view returns (uint256 assets);
+    function mint(uint256 shares, address receiver) external returns (uint256 assets);
+    function previewWithdraw(uint256 assets) external view returns (uint256 shares);
+    function withdraw(uint256 assets, address receiver, address onBehalf) external returns (uint256 shares);
+    function previewRedeem(uint256 shares) external view returns (uint256 assets);
+    function redeem(uint256 shares, address receiver, address onBehalf) external returns (uint256 assets);
 
     // State variables
     function owner() external view returns (address);
     function curator() external view returns (address);
-    function isSentinel(address) external view returns (bool);
-    function isAllocator(address) external view returns (bool);
-    function isAdapter(address) external view returns (bool);
+    function isSentinel(address account) external view returns (bool);
+    function isAllocator(address account) external view returns (bool);
+    function isAdapter(address account) external view returns (bool);
     function performanceFee() external view returns (uint96);
     function managementFee() external view returns (uint96);
     function performanceFeeRecipient() external view returns (address);
     function managementFeeRecipient() external view returns (address);
-    function forceDeallocatePenalty(address) external view returns (uint256);
+    function forceDeallocatePenalty(address adapter) external view returns (uint256);
     function vic() external view returns (address);
-    function allocation(bytes32) external view returns (uint256);
+    function allocation(bytes32 id) external view returns (uint256);
     function lastUpdate() external view returns (uint96);
-    function absoluteCap(bytes32) external view returns (uint256);
-    function idsWithRelativeCap(uint256) external view returns (bytes32);
-    function validAt(bytes calldata) external view returns (uint256);
-    function timelock(bytes4) external view returns (uint256);
+    function absoluteCap(bytes32 id) external view returns (uint256);
+    function idsWithRelativeCap(uint256 index) external view returns (bytes32);
+    function executableAt(bytes memory data) external view returns (uint256);
+    function timelock(bytes4 selector) external view returns (uint256);
     function liquidityAdapter() external view returns (address);
     function liquidityData() external view returns (bytes memory);
 
     // Getters
     function idsWithRelativeCapLength() external view returns (uint256);
-    function relativeCap(bytes32) external view returns (uint256);
+    function relativeCap(bytes32 id) external view returns (uint256);
 
     // Owner actions
-    function setOwner(address) external;
-    function setSendGate(address) external;
-    function setReceiveGate(address) external;
-    function setCurator(address) external;
-    function setIsSentinel(address, bool) external;
+    function setOwner(address newOwner) external;
+    function setSendGate(address newSendGate) external;
+    function setReceiveGate(address newReceiveGate) external;
+    function setCurator(address newCurator) external;
+    function setIsSentinel(address account, bool isSentinel) external;
 
     // Curator actions
-    function setVic(address) external;
-    function increaseTimelock(bytes4, uint256) external;
-    function decreaseTimelock(bytes4, uint256) external;
-    function setIsAllocator(address, bool) external;
-    function setIsAdapter(address, bool) external;
-    function setForceDeallocatePenalty(address, uint256) external;
-    function increaseAbsoluteCap(bytes memory, uint256) external;
-    function increaseRelativeCap(bytes memory, uint256) external;
-    function decreaseAbsoluteCap(bytes memory, uint256) external;
-    function decreaseRelativeCap(bytes memory, uint256) external;
-    function setPerformanceFee(uint256) external;
-    function setManagementFee(uint256) external;
-    function setPerformanceFeeRecipient(address) external;
-    function setManagementFeeRecipient(address) external;
+    function setVic(address newVic) external;
+    function increaseTimelock(bytes4 selector, uint256 newDuration) external;
+    function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
+    function setIsAllocator(address account, bool newIsAllocator) external;
+    function setIsAdapter(address account, bool newIsAdapter) external;
+    function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external;
+    function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external;
+    function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external;
+    function decreaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external;
+    function decreaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external;
+    function setPerformanceFee(uint256 newPerformanceFee) external;
+    function setManagementFee(uint256 newManagementFee) external;
+    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external;
+    function setManagementFeeRecipient(address newManagementFeeRecipient) external;
 
     // Allocator actions
-    function allocate(address, bytes memory, uint256) external;
-    function deallocate(address, bytes memory, uint256) external;
-    function setLiquidityAdapter(address) external;
-    function setLiquidityData(bytes memory) external;
+    function allocate(address adapter, bytes memory data, uint256 assets) external;
+    function deallocate(address adapter, bytes memory data, uint256 assets) external;
+    function setLiquidityAdapter(address newLiquidityAdapter) external;
+    function setLiquidityData(bytes memory newLiquidityData) external;
 
     // Exchange rate
     function accrueInterest() external;
-    function accrueInterestView() external view returns (uint256, uint256, uint256);
+    function accrueInterestView()
+        external
+        view
+        returns (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares);
 
     // Timelocks
-    function submit(bytes calldata) external;
-    function revoke(bytes calldata) external;
+    function submit(bytes memory data) external;
+    function revoke(bytes memory data) external;
 
-    // Force deallocate
-    function forceDeallocate(address[] memory, bytes[] memory, uint256[] memory, address) external returns (uint256);
+    // Force reallocate to idle
+    function forceDeallocate(address[] memory adapters, bytes[] memory data, uint256[] memory assets, address onBehalf)
+        external
+        returns (uint256 withdrawnShares);
 }
