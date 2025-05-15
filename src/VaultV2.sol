@@ -45,7 +45,7 @@ contract VaultV2 is IVaultV2 {
     address public curator;
     /// @notice Gates sending shares and withdrawing.
     address public exitGate;
-    /// @notice Gates receiving shares and supplying.
+    /// @notice Gates receiving shares and depositing.
     address public enterGate;
     mapping(address account => bool) public isSentinel;
     mapping(address account => bool) public isAllocator;
