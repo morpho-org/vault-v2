@@ -16,10 +16,10 @@ All the contracts are immutable.
 
 Vaults can allocate assets not only to Morpho Markets V1 and V2, but also to external protocols, such as ERC-4626 vaults.
 The funds allocation of the vault is constrained by an id system. 
-An ID is an abstract identifier of a common risk factor of some markets (a collateral, an oracle, a protocol, etc.).
-The allocation on markets with a common ID is limited by absolute caps and relative caps that can be set by the curator.
+An id is an abstract identifier of a common risk factor of some markets (a collateral, an oracle, a protocol, etc.).
+The allocation on markets with a common id is limited by absolute caps and relative caps that can be set by the curator.
 The curator enables adapters to invest on behalf of the vault.
-They are notably trusted to return the IDs associated with a given market.
+They are notably trusted to return the ids associated with a given market.
 
 Adapters for the following protocols are currently available:
 
@@ -28,7 +28,7 @@ Adapters for the following protocols are currently available:
 
 A Morpho Market V2 adapter will be released together with Market V2.
 
-IDs of Morpho V1 lending markets could be for example the tuple `(CollateralToken, LLTV, Oracle)` and `CollateralToken` alone.
+The ids of Morpho V1 lending markets could be for example the tuple `(CollateralToken, LLTV, Oracle)` and `CollateralToken` alone.
 A vault could be setup to enforce the following caps:
 
 - `(stETH, 86%, Chainlink)`: 10M
