@@ -60,10 +60,6 @@ contract BaseTest is Test {
         vault.setVic(address(vic));
     }
 
-    function readTotalAssets() internal view returns (uint256) {
-        return uint256((vm.load(address(vault), PACKED_SLOT) << 96) >> 96);
-    }
-
     function writeTotalAssets(uint256 newTotalAssets) internal {
         bytes32 value = vm.load(address(vault), PACKED_SLOT);
         bytes32 strippedValue = (value >> 192) << 192;

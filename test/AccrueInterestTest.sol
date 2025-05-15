@@ -157,8 +157,7 @@ contract AccrueInterestTest is BaseTest {
         vm.warp(block.timestamp + elapsed);
 
         uint256 interest = interestPerSecond * elapsed;
-        uint256 newTotalAssets = readTotalAssets() + interest;
-        assertEq(newTotalAssets, vault.totalAssets());
+        uint256 newTotalAssets = vault.totalAssets() + interest;
         uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
         uint256 expectedShares =
             performanceFeeAssets.mulDivDown(vault.totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets);
@@ -191,8 +190,7 @@ contract AccrueInterestTest is BaseTest {
         vm.warp(block.timestamp + elapsed);
 
         uint256 interest = interestPerSecond * elapsed;
-        uint256 newTotalAssets = readTotalAssets() + interest;
-        assertEq(newTotalAssets, vault.totalAssets());
+        uint256 newTotalAssets = vault.totalAssets() + interest;
         uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
         uint256 expectedShares =
             managementFeeAssets.mulDivDown(vault.totalSupply() + 1, newTotalAssets + 1 - managementFeeAssets);
