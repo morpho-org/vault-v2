@@ -415,10 +415,10 @@ contract VaultV2 is IVaultV2 {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         emit EventsLib.AccrueInterest(totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         totalAssets = newTotalAssets;
-        if (performanceFeeShares != 0 && canReceive(performanceFeeRecipient, address(this))) {
+        if (performanceFeeShares != 0) {
             createShares(performanceFeeRecipient, performanceFeeShares);
         }
-        if (managementFeeShares != 0 && canReceive(managementFeeRecipient, address(this))) {
+        if (managementFeeShares != 0) {
             createShares(managementFeeRecipient, managementFeeShares);
         }
         lastUpdate = uint96(block.timestamp);
@@ -443,13 +443,14 @@ contract VaultV2 is IVaultV2 {
         // Note: the fee assets is subtracted from the total assets in the fee shares calculation to compensate for the
         // fact that total assets is already increased by the total interest (including the fee assets).
         // Note: `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
-        if (interest > 0 && performanceFee != 0) {
+
+        if (interest > 0 && performanceFee != 0 && canReceive(performanceFeeRecipient, address(this))) {
             // Note: the accrued performance fee might be smaller than this because of the management fee.
             uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
             performanceFeeShares =
                 performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
         }
-        if (managementFee != 0) {
+        if (managementFee != 0 && canReceive(managementFeeRecipient, address(this))) {
             // Note: The vault must be pinged at least once every 20 years to avoid management fees exceeding total
             // assets and revert forever.
             // Note: The management fee is taken on newTotalAssets to make all approximations consistent (interacting
