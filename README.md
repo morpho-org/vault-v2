@@ -12,43 +12,30 @@ All the contracts are immutable.
 
 ## Overview
 
-### Adapters
+### Curation
 
-Vault V1 strategies were defined by a tuple of the form `(CollateralToken, LoanToken, LLTV, Oracle, IRM)`,
-which defined offers accepted by the vault.
-Vault V2 introduces more flexibility in defining strategies.
-Vaults can allocate assets not only to Morpho Markets V1 and V2,
-but also to external protocols, such as ERC-4626 vaults.
-Curators enable protocols in which the vault can supply through the use of adapters.
+Vaults can allocate assets not only to Morpho Markets V1 and V2, but also to external protocols, such as ERC-4626 vaults.
+The funds allocation of the vault is constrained by an id system. 
+An id is an abstract identifier of a common risk factor of some markets (a collateral, an oracle, a protocol, etc.).
+The allocation on markets with a common id is limited by absolute caps and relative caps that can be set by the curator.
+The curator enables adapters to invest on behalf of the vault.
+They are notably trusted to return the ids associated with a given market.
 
-In order to enable a given protocol, a corresponding adapter need to be used.
 Adapters for the following protocols are currently available:
 
 - [Morpho Market V1](./src/adapters/MorphoBlueAdapter.sol)
 - [ERC-4626](./src/adapters/ERC4626Adapter.sol)
 
 A Morpho Market V2 adapter will be released together with Market V2.
-Additional adapters can be developed to support other protocols as needed.
 
-When supplying through an adapter, the adapter returns arbitrary bytes32 identifiers (IDs).
-Those IDs can be thought as some properties of the protocol the adapter supply to,
-such as the collateral asset or the oracle in the case of a lending market.
-The vault tracks assets allocation across the different IDs.
-Absolute caps and relative caps can be set by the curator for each of the IDs.
-Upon allocation in a market, the allocation is increased and caps are checked.
-Upon deallocation from a market, the allocation is decreased without checks.
-On withdrawals from the vault, the relative caps are checked.
-The vault does not enforce any structure or semantics on IDs.
-
-IDs of lending markets for a given `LoanToken` can be defined using a tuple of the form `(CollateralToken, LLTV, Oracle)`.
+The ids of Morpho V1 lending markets could be for example the tuple `(CollateralToken, LLTV, Oracle)` and `CollateralToken` alone.
 A vault could be setup to enforce the following caps:
 
-- `(stETH, *, Chainlink)`: 6M
-- `(stETH, *, Redstone)`: 6M
-- `(stETH, *, *)`: 10M
+- `(stETH, 86%, Chainlink)`: 10M
+- `(stETH, 86%, Redstone)`: 10M
+- `(stETH)`: 15M
 
-This would ensure that the vault never have more than 10M exposure to the stETH asset,
-and never more than 6M exposure to markets using chainlink or redstone oracles, for any LLTV.
+This would ensure that the vault never have more than 15M exposure to markets with stETH as collateral, and never more than 10M exposure to an individual market.
 
 ### Liquidity
 

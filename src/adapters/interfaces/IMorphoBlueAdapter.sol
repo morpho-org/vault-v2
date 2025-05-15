@@ -16,9 +16,9 @@ interface IMorphoBlueAdapter is IAdapter {
 
     /* FUNCTIONS */
 
-    function setSkimRecipient(address newSkimRecipient) external;
-    function skim(address token) external;
     function parentVault() external view returns (address);
     function morpho() external view returns (address);
     function skimRecipient() external view returns (address);
+    function setSkimRecipient(address newSkimRecipient) external;
+    function skim(address token) external;
 }

@@ -32,6 +32,8 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         emit SetSkimRecipient(newSkimRecipient);
     }
 
+    /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
+    /// @dev This is useful to handle rewards that the adapter has earned.
     function skim(address token) external {
         require(msg.sender == skimRecipient, NotAuthorized());
         uint256 balance = IERC20(token).balanceOf(address(this));
@@ -40,6 +42,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
+    /// @dev Returns the ids of the allocation.
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
@@ -48,6 +51,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
+    /// @dev Returns the ids of the deallocation.
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
@@ -55,6 +59,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         return ids(marketParams);
     }
 
+    /// @dev Returns adapter's ids.
     function ids(MarketParams memory marketParams) internal view returns (bytes32[] memory) {
         bytes32[] memory ids_ = new bytes32[](3);
         ids_[0] = keccak256(abi.encode("adapter", address(this)));
