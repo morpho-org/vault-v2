@@ -94,4 +94,8 @@ interface IVaultV2 is IERC20 {
     function forceDeallocate(address[] memory adapters, bytes[] memory data, uint256[] memory assets, address onBehalf)
         external
         returns (uint256 withdrawnShares);
+
+    // Permissioned token
+    function canSend(address account) external returns (bool);
+    function canReceive(address account) external returns (bool);
 }

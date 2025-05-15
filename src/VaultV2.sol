@@ -444,13 +444,13 @@ contract VaultV2 is IVaultV2 {
         // fact that total assets is already increased by the total interest (including the fee assets).
         // Note: `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
 
-        if (interest > 0 && performanceFee != 0 && canReceiveShares(performanceFeeRecipient)) {
+        if (interest > 0 && performanceFee != 0 && canReceive(performanceFeeRecipient)) {
             // Note: the accrued performance fee might be smaller than this because of the management fee.
             uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
             performanceFeeShares =
                 performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
         }
-        if (managementFee != 0 && canReceiveShares(managementFeeRecipient)) {
+        if (managementFee != 0 && canReceive(managementFeeRecipient)) {
             // Note: The vault must be pinged at least once every 20 years to avoid management fees exceeding total
             // assets and revert forever.
             // Note: The management fee is taken on newTotalAssets to make all approximations consistent (interacting
@@ -511,7 +511,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
-        require(canReceiveShares(onBehalf) && canSendAssets(msg.sender), ErrorsLib.CannotReceiveShares());
+        require(canReceive(onBehalf) && canSendAssets(msg.sender), ErrorsLib.CannotEnter());
 
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
@@ -541,7 +541,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Internal function for withdraw and redeem.
     /// @dev Loops in idsWithRelativeCap to check relative caps.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
-        require(canSendShares(onBehalf) && canReceiveAssets(receiver), ErrorsLib.CannotSendShares());
+        require(canSend(onBehalf) && canReceiveAssets(receiver), ErrorsLib.CannotExit());
 
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
@@ -591,8 +591,8 @@ contract VaultV2 is IVaultV2 {
     function transfer(address to, uint256 shares) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
 
-        require(canSendShares(msg.sender), ErrorsLib.CannotSendShares());
-        require(canReceiveShares(to), ErrorsLib.CannotReceiveShares());
+        require(canSend(msg.sender), ErrorsLib.CannotExit());
+        require(canReceive(to), ErrorsLib.CannotEnter());
 
         balanceOf[msg.sender] -= shares;
         balanceOf[to] += shares;
@@ -605,8 +605,8 @@ contract VaultV2 is IVaultV2 {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
 
-        require(canSendShares(from), ErrorsLib.CannotSendShares());
-        require(canReceiveShares(to), ErrorsLib.CannotReceiveShares());
+        require(canSend(from), ErrorsLib.CannotExit());
+        require(canReceive(to), ErrorsLib.CannotEnter());
 
         if (msg.sender != from) {
             uint256 _allowance = allowance[from][msg.sender];
@@ -659,21 +659,23 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Transfer(from, address(0), shares);
     }
 
-    /* PERMISSION FUNCTION HELPERS */
-
-    function canSendShares(address account) internal view returns (bool) {
-        return exitGate == address(0) || IExitGate(exitGate).canSendShares(account);
-    }
+    /* INTERNAL PERMISSION FUNCTIONS HELPERS */
 
     function canReceiveAssets(address account) internal view returns (bool) {
         return exitGate == address(0) || IExitGate(exitGate).canReceiveAssets(account);
     }
 
-    function canReceiveShares(address account) internal view returns (bool) {
-        return enterGate == address(0) || IEnterGate(enterGate).canReceiveShares(account);
-    }
-
     function canSendAssets(address account) internal view returns (bool) {
         return enterGate == address(0) || IEnterGate(enterGate).canSendAssets(account);
+    }
+
+    /* PUBLIC PERMISSION FUNCTIONS HELPERS */
+
+    function canSend(address account) public view returns (bool) {
+        return exitGate == address(0) || IExitGate(exitGate).canSendShares(account);
+    }
+
+    function canReceive(address account) public view returns (bool) {
+        return enterGate == address(0) || IEnterGate(enterGate).canReceiveShares(account);
     }
 }

@@ -39,7 +39,7 @@ library ErrorsLib {
     error ApproveReturnedFalse();
     error InfiniteGateTimelock();
     error TransferOnlyMarker();
-    error CannotSendShares();
-    error CannotReceiveShares();
+    error CannotExit();
+    error CannotEnter();
     error RelativeCapZero();
 }
