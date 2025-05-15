@@ -415,9 +415,12 @@ contract VaultV2 is IVaultV2 {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         emit EventsLib.AccrueInterest(totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         totalAssets = newTotalAssets;
-        // Mint fees for both or none. Avoids management taking too many fees
-        if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
-        if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
+        if (performanceFeeShares != 0) {
+            createShares(performanceFeeRecipient, performanceFeeShares);
+        }
+        if (managementFeeShares != 0) {
+            createShares(managementFeeRecipient, managementFeeShares);
+        }
         lastUpdate = uint96(block.timestamp);
     }
 
@@ -441,25 +444,13 @@ contract VaultV2 is IVaultV2 {
         // fact that total assets is already increased by the total interest (including the fee assets).
         // Note: `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
 
-        if (
-            interest > 0 && performanceFee != 0
-                && (
-                    receiveGate == address(0)
-                        || IReceiveGate(receiveGate).canReceiveShares(performanceFeeRecipient, address(this))
-                )
-        ) {
+        if (interest > 0 && performanceFee != 0 && canReceive(performanceFeeRecipient, address(this))) {
             // Note: the accrued performance fee might be smaller than this because of the management fee.
             uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
             performanceFeeShares =
                 performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
         }
-        if (
-            managementFee != 0
-                && (
-                    receiveGate == address(0)
-                        || IReceiveGate(receiveGate).canReceiveShares(managementFeeRecipient, address(this))
-                )
-        ) {
+        if (managementFee != 0 && canReceive(managementFeeRecipient, address(this))) {
             // Note: The vault must be pinged at least once every 20 years to avoid management fees exceeding total
             // assets and revert forever.
             // Note: The management fee is taken on newTotalAssets to make all approximations consistent (interacting
@@ -520,10 +511,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
-        require(
-            receiveGate == address(0) || IReceiveGate(receiveGate).canReceiveShares(onBehalf, msg.sender),
-            ErrorsLib.CannotReceiveShares()
-        );
+        require(canReceive(onBehalf, msg.sender), ErrorsLib.CannotReceiveShares());
 
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
@@ -555,10 +543,7 @@ contract VaultV2 is IVaultV2 {
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         require(receiver != TRANSFER_ONLY_MARKER, ErrorsLib.TransferOnlyMarker());
 
-        require(
-            sendGate == address(0) || ISendGate(sendGate).canSendShares(onBehalf, receiver),
-            ErrorsLib.CannotSendShares()
-        );
+        require(canSend(onBehalf, receiver), ErrorsLib.CannotSendShares());
 
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
@@ -608,14 +593,8 @@ contract VaultV2 is IVaultV2 {
     function transfer(address to, uint256 shares) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
 
-        require(
-            sendGate == address(0) || ISendGate(sendGate).canSendShares(msg.sender, TRANSFER_ONLY_MARKER),
-            ErrorsLib.CannotSendShares()
-        );
-        require(
-            receiveGate == address(0) || IReceiveGate(receiveGate).canReceiveShares(to, TRANSFER_ONLY_MARKER),
-            ErrorsLib.CannotReceiveShares()
-        );
+        require(canSend(msg.sender, TRANSFER_ONLY_MARKER), ErrorsLib.CannotSendShares());
+        require(canReceive(to, TRANSFER_ONLY_MARKER), ErrorsLib.CannotReceiveShares());
 
         balanceOf[msg.sender] -= shares;
         balanceOf[to] += shares;
@@ -628,14 +607,8 @@ contract VaultV2 is IVaultV2 {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
 
-        require(
-            sendGate == address(0) || ISendGate(sendGate).canSendShares(from, TRANSFER_ONLY_MARKER),
-            ErrorsLib.CannotSendShares()
-        );
-        require(
-            receiveGate == address(0) || IReceiveGate(receiveGate).canReceiveShares(to, TRANSFER_ONLY_MARKER),
-            ErrorsLib.CannotReceiveShares()
-        );
+        require(canSend(from, TRANSFER_ONLY_MARKER), ErrorsLib.CannotSendShares());
+        require(canReceive(to, TRANSFER_ONLY_MARKER), ErrorsLib.CannotReceiveShares());
 
         if (msg.sender != from) {
             uint256 _allowance = allowance[from][msg.sender];
@@ -688,13 +661,13 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Transfer(from, address(0), shares);
     }
 
-    /* PERMISSIONED TOKEN INTERFACE */
+    /* PERMISSION FUNCTION HELPERS */
 
-    function canSend(address account) external view returns (bool) {
-        return (sendGate == address(0) || ISendGate(sendGate).canSendShares(account, TRANSFER_ONLY_MARKER));
+    function canSend(address sharesSender, address assetsReceiver) internal view returns (bool) {
+        return sendGate == address(0) || ISendGate(sendGate).canSendShares(sharesSender, assetsReceiver);
     }
 
-    function canReceive(address account) external view returns (bool) {
-        return (receiveGate == address(0) || IReceiveGate(receiveGate).canReceiveShares(account, TRANSFER_ONLY_MARKER));
+    function canReceive(address sharesReceiver, address assetsSender) internal view returns (bool) {
+        return receiveGate == address(0) || IReceiveGate(receiveGate).canReceiveShares(sharesReceiver, assetsSender);
     }
 }
