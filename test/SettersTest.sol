@@ -236,7 +236,7 @@ contract SettersTest is BaseTest {
 
     function testIncreaseTimelock(address rdm, bytes4 selector, uint256 newTimelock) public {
         vm.assume(rdm != curator);
-        newTimelock = bound(newTimelock, 0, 2 weeks);
+        newTimelock = bound(newTimelock, 0, TIMELOCK_CAP);
         vm.assume(selector != IVaultV2.decreaseTimelock.selector);
         vm.assume(selector != IVaultV2.increaseTimelock.selector);
 
@@ -244,11 +244,6 @@ contract SettersTest is BaseTest {
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.increaseTimelock(selector, newTimelock);
-
-        // Cannot increase timelock of decreaseTimelock
-        vm.expectRevert(ErrorsLib.TimelockCapIsFixed.selector);
-        vm.prank(curator);
-        vault.increaseTimelock(IVaultV2.decreaseTimelock.selector, 3 weeks);
 
         // Can't go over timelock cap
         vm.expectRevert(ErrorsLib.TimelockDurationTooHigh.selector);
