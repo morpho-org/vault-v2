@@ -368,13 +368,16 @@ contract VaultV2 is IVaultV2 {
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (totalAssets, 0, 0);
-        uint256 interestPerSecond;
-        try IVic(vic).interestPerSecond(totalAssets, elapsed) returns (uint256 output) {
-            if (output <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD)) interestPerSecond = output;
-            else interestPerSecond = 0;
-        } catch {
-            interestPerSecond = 0;
+
+        (bool success, bytes memory data) =
+            address(vic).staticcall(abi.encodeWithSelector(IVic.interestPerSecond.selector, totalAssets, elapsed));
+        uint256 output;
+        if (success) {
+            assembly ("memory-safe") {
+                output := mload(add(data, 32))
+            }
         }
+        uint256 interestPerSecond = output <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD) ? output : 0;
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssets + interest;
 
