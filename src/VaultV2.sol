@@ -71,16 +71,10 @@ contract VaultV2 is IVaultV2 {
     mapping(bytes32 id => uint256) public absoluteCap;
 
     /// @dev Unit is WAD.
-    /// @dev 1-relativeCap is stored such that the default is 1 and 0 is unreachable.
     /// @dev The relative cap is relative to `totalAssets`.
-    /// @dev The default relative cap is WAD and it corresponds to no relative cap.
-    /// @dev Checked on allocate (where allocations can increase) for the ids returned by the adapter, on
-    /// decreaseRelativeCap for the given id, and on exit (where totalAssets can decrease), for all ids that have an
-    /// active relative cap.
-    mapping(bytes32 id => uint256) internal oneMinusRelativeCap;
-
-    /// @dev Ids with active relative cap (relativeCap < 100%).
-    bytes32[] public idsWithRelativeCap;
+    /// @dev Relative caps are "soft" in the sense that they are only checked on allocate for the ids returned by the
+    /// adapter.
+    mapping(bytes32 id => uint256) public relativeCap;
 
     mapping(address adapter => uint256) public forceDeallocatePenalty;
 
@@ -115,14 +109,6 @@ contract VaultV2 is IVaultV2 {
 
     function totalAssets() external view returns (uint256) {
         return _totalAssets;
-    }
-
-    function idsWithRelativeCapLength() public view returns (uint256) {
-        return idsWithRelativeCap.length;
-    }
-
-    function relativeCap(bytes32 id) public view returns (uint256) {
-        return WAD - oneMinusRelativeCap[id];
     }
 
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
@@ -259,45 +245,30 @@ contract VaultV2 is IVaultV2 {
     }
 
     function decreaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external {
-        require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         bytes32 id = keccak256(idData);
+        require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(newAbsoluteCap <= absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
 
         absoluteCap[id] = newAbsoluteCap;
         emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
-    /// @dev If a relative cap is deleted, this function loops in `idsWithRelativeCap` to find it.
     function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
         bytes32 id = keccak256(idData);
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
-        require(newRelativeCap >= relativeCap(id), ErrorsLib.RelativeCapNotIncreasing());
+        require(newRelativeCap >= relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
 
-        if (relativeCap(id) < WAD && newRelativeCap == WAD) {
-            uint256 i;
-            while (idsWithRelativeCap[i] != id) i++;
-            idsWithRelativeCap[i] = idsWithRelativeCap[idsWithRelativeCap.length - 1];
-            idsWithRelativeCap.pop();
-        }
-
-        oneMinusRelativeCap[id] = WAD - newRelativeCap;
+        relativeCap[id] = newRelativeCap;
 
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
 
-    /// @dev To set a cap to 0, use `decreaseAbsoluteCap`.
-    function decreaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
+    function decreaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external {
         bytes32 id = keccak256(idData);
-        require(newRelativeCap > 0, ErrorsLib.RelativeCapZero());
-        require(newRelativeCap <= relativeCap(id), ErrorsLib.RelativeCapNotDecreasing());
-        require(
-            newRelativeCap == WAD || allocation[id] <= uint256(_totalAssets).mulDivDown(newRelativeCap, WAD),
-            ErrorsLib.RelativeCapExceeded()
-        );
+        require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
+        require(newRelativeCap <= relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
 
-        if (relativeCap(id) == WAD && newRelativeCap < WAD) idsWithRelativeCap.push(id);
-
-        oneMinusRelativeCap[id] = WAD - newRelativeCap;
+        relativeCap[id] = newRelativeCap;
 
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }
@@ -324,8 +295,8 @@ contract VaultV2 is IVaultV2 {
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
             require(
-                relativeCap(ids[i]) == WAD
-                    || allocation[ids[i]] <= uint256(_totalAssets).mulDivDown(relativeCap(ids[i]), WAD),
+                relativeCap[ids[i]] == WAD
+                    || allocation[ids[i]] <= uint256(_totalAssets).mulDivDown(relativeCap[ids[i]], WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
@@ -515,7 +486,6 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Internal function for withdraw and redeem.
-    /// @dev Loops in idsWithRelativeCap to check relative caps.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
@@ -530,20 +500,10 @@ contract VaultV2 is IVaultV2 {
         deleteShares(onBehalf, shares);
         _totalAssets -= assets.toUint192();
 
-        for (uint256 i; i < idsWithRelativeCap.length; i++) {
-            bytes32 id = idsWithRelativeCap[i];
-            // relativeCap(id) < WAD is true for all ids in idsWithRelativeCap
-            require(
-                allocation[id] <= uint256(_totalAssets).mulDivDown(relativeCap(id), WAD),
-                ErrorsLib.RelativeCapExceeded()
-            );
-        }
-
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }
 
-    /// @dev Loops in idsWithRelativeCap to check relative caps.
     /// @dev Returns shares withdrawn as penalty.
     function forceDeallocate(address[] memory adapters, bytes[] memory data, uint256[] memory assets, address onBehalf)
         external

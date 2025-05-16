@@ -75,6 +75,19 @@ contract AllocateTest is BaseTest {
         assertEq(vault.absoluteCap(id), absoluteCap);
     }
 
+    function _setRelativeCap(bytes memory idData, uint256 relativeCap) internal {
+        bytes32 id = keccak256(idData);
+        if (relativeCap > vault.relativeCap(id)) {
+            vm.prank(curator);
+            vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, relativeCap));
+            vault.increaseRelativeCap(idData, relativeCap);
+        } else {
+            vm.prank(curator);
+            vault.decreaseRelativeCap(idData, relativeCap);
+        }
+        assertEq(vault.relativeCap(id), relativeCap);
+    }
+
     function testAllocate(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(vault));
@@ -109,9 +122,16 @@ contract AllocateTest is BaseTest {
         vm.prank(allocator);
         vault.allocate(mockAdapter, data, assets);
 
-        // Normal path.
+        // Relative cap check.
         _setAbsoluteCap("id-0", assets);
         _setAbsoluteCap("id-1", assets);
+        vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
+        vm.prank(allocator);
+        vault.allocate(mockAdapter, data, assets);
+
+        // Normal path.
+        _setRelativeCap("id-0", WAD);
+        _setRelativeCap("id-1", WAD);
         vm.prank(allocator);
         vm.expectEmit();
         emit EventsLib.Allocate(allocator, mockAdapter, assets, ids);
@@ -138,6 +158,8 @@ contract AllocateTest is BaseTest {
         deal(address(underlyingToken), address(vault), assetsIn);
         _setAbsoluteCap("id-0", assetsIn);
         _setAbsoluteCap("id-1", assetsIn);
+        _setRelativeCap("id-0", WAD);
+        _setRelativeCap("id-1", WAD);
         vm.prank(allocator);
         vault.allocate(mockAdapter, data, assetsIn);
 
@@ -158,8 +180,6 @@ contract AllocateTest is BaseTest {
         vault.deallocate(address(this), data, assetsOut);
 
         // Normal path.
-        _setAbsoluteCap("id-0", assetsIn);
-        _setAbsoluteCap("id-1", assetsIn);
         vm.prank(allocator);
         vm.expectEmit();
         emit EventsLib.Deallocate(allocator, mockAdapter, assetsOut, ids);
