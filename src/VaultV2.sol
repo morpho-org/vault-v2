@@ -418,7 +418,6 @@ contract VaultV2 is IVaultV2 {
             interestPerSecond = 0;
         }
         uint256 interest = interestPerSecond * elapsed;
-        // The loss realisation does not happen in the block of the loss accounting to prevent manipulations.
         uint256 newTotalAssets = totalAssets + interest;
 
         uint256 performanceFeeShares;
