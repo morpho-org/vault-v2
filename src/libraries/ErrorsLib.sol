@@ -39,7 +39,9 @@ library ErrorsLib {
     error ApproveReverted();
     error ApproveReturnedFalse();
     error InfiniteTimelock();
-    error CannotExit();
-    error CannotEnter();
+    error CannotSend();
+    error CannotReceive();
+    error CannotSendAssets();
+    error CannotReceiveAssets();
     error RelativeCapZero();
 }

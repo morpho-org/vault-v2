@@ -504,7 +504,8 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
-        require(canReceive(onBehalf) && canSendAssets(msg.sender), ErrorsLib.CannotEnter());
+        require(canReceive(onBehalf), ErrorsLib.CannotReceive());
+        require(canSendAssets(msg.sender), ErrorsLib.CannotSendAssets());
 
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
@@ -534,7 +535,8 @@ contract VaultV2 is IVaultV2 {
     /// @dev Internal function for withdraw and redeem.
     /// @dev Loops in idsWithRelativeCap to check relative caps.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
-        require(canSend(onBehalf) && canReceiveAssets(receiver), ErrorsLib.CannotExit());
+        require(canSend(onBehalf), ErrorsLib.CannotSend());
+        require(canReceiveAssets(receiver), ErrorsLib.CannotReceiveAssets());
 
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
@@ -584,8 +586,8 @@ contract VaultV2 is IVaultV2 {
     function transfer(address to, uint256 shares) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
 
-        require(canSend(msg.sender), ErrorsLib.CannotExit());
-        require(canReceive(to), ErrorsLib.CannotEnter());
+        require(canSend(msg.sender), ErrorsLib.CannotSend());
+        require(canReceive(to), ErrorsLib.CannotReceive());
 
         balanceOf[msg.sender] -= shares;
         balanceOf[to] += shares;
@@ -598,8 +600,8 @@ contract VaultV2 is IVaultV2 {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
 
-        require(canSend(from), ErrorsLib.CannotExit());
-        require(canReceive(to), ErrorsLib.CannotEnter());
+        require(canSend(from), ErrorsLib.CannotSend());
+        require(canReceive(to), ErrorsLib.CannotReceive());
 
         if (msg.sender != from) {
             uint256 _allowance = allowance[from][msg.sender];
