@@ -139,7 +139,7 @@ contract AccrueInterestTest is BaseTest {
 
         // Setup.
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setVic.selector, address(curator)));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setVic.selector, address(42)));
         vault.setVic(address(curator));
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
