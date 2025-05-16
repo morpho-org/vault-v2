@@ -151,6 +151,7 @@ contract VaultV2 is IVaultV2 {
         owner = _owner;
         lastUpdate = uint96(block.timestamp);
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
+        timelock[IVaultV2.finalize.selector] = TIMELOCK_CAP;
         emit EventsLib.Constructor(_owner, _asset);
     }
 
@@ -203,17 +204,30 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetIsAdapter(account, newIsAdapter);
     }
 
-    function increaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
-        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
-        require(newDuration <= TIMELOCK_CAP || newDuration == type(uint256).max, ErrorsLib.TimelockDurationTooHigh());
+    function increaseTimelock(bytes4 selector, uint256 newDuration) external {
+        require(msg.sender == curator, ErrorsLib.Unauthorized());
+        require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
         require(newDuration >= timelock[selector], ErrorsLib.TimelockNotIncreasing());
 
         timelock[selector] = newDuration;
         emit EventsLib.IncreaseTimelock(selector, newDuration);
     }
 
+    function finalize(bytes4 selector) external timelocked {
+        require(
+            selector != IVaultV2.decreaseTimelock.selector && selector != IVaultV2.finalize.selector,
+            ErrorsLib.CannotFinalize()
+        );
+
+        timelock[selector] = type(uint256).max;
+        emit EventsLib.Finalize(selector);
+    }
+
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
-        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
+        require(
+            selector != IVaultV2.decreaseTimelock.selector && selector != IVaultV2.finalize.selector,
+            ErrorsLib.TimelockCapIsFixed()
+        );
         require(timelock[selector] != type(uint256).max, ErrorsLib.InfiniteTimelock());
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
