@@ -57,8 +57,8 @@ strong invariant forceDeallocatePenalty(address adapter)
 strong invariant balanceOfZero()
     balanceOf(0) == 0;
 
-strong invariant timelockCapExceptSetSendOrEnterGate(bytes4 selector)
-    (selector != setExitGateSelector() && selector != setEnterGateSelector()) => timelock(selector) <= TIMELOCK_CAP();
+strong invariant timelockBounds(bytes4 selector)
+    timelock(selector) <= TIMELOCK_CAP() || timelock(selector) == max_uint256;
 
 strong invariant timelockSetExitGate()
     timelock(setExitGateSelector()) <= TIMELOCK_CAP() || timelock(setExitGateSelector()) == max_uint256;
