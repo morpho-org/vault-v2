@@ -276,7 +276,6 @@ contract VaultV2 is IVaultV2 {
 
     /* ALLOCATOR ACTIONS */
 
-    /// @dev This function will automatically realize potential losses.
     function allocate(address adapter, bytes memory data, uint256 assets) external {
         require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
@@ -296,7 +295,6 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Allocate(msg.sender, adapter, assets, ids);
     }
 
-    /// @dev This function will automatically realize potential losses.
     function deallocate(address adapter, bytes memory data, uint256 assets) external {
         require(
             isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
@@ -377,7 +375,6 @@ contract VaultV2 is IVaultV2 {
             interestPerSecond = 0;
         }
         uint256 interest = interestPerSecond * elapsed;
-        // The loss realisation does not happen in the block of the loss accounting to prevent manipulations.
         uint256 newTotalAssets = totalAssets + interest;
 
         uint256 performanceFeeShares;
@@ -497,7 +494,6 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns shares withdrawn as penalty.
-    /// @dev This function will automatically realize potential losses.
     function forceDeallocate(address[] memory adapters, bytes[] memory data, uint256[] memory assets, address onBehalf)
         external
         returns (uint256)
