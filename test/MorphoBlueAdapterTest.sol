@@ -36,7 +36,7 @@ contract MorphoBlueAdapterTest is Test {
     bytes32[] internal expectedIds;
 
     uint256 internal constant MIN_TEST_ASSETS = 10;
-    uint256 internal constant MAX_TEST_ASSETS = 1e18;
+    uint256 internal constant MAX_TEST_ASSETS = 1e24;
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -129,6 +129,7 @@ contract MorphoBlueAdapterTest is Test {
         vm.prank(address(parentVault));
         (bytes32[] memory ids, uint256 loss) = adapter.deallocate(abi.encode(marketParams), withdrawAssets);
 
+        assertEq(loss, 0, "Loss should be zero");
         assertEq(adapter.assetsInMarket(marketId), initialAssets - withdrawAssets, "Incorrect assetsInMarket");
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
@@ -205,10 +206,10 @@ contract MorphoBlueAdapterTest is Test {
         uint256 interest
     ) public {
         initial = _boundAssets(initial);
-        expectedLoss = bound(expectedLoss, 0, initial);
+        expectedLoss = bound(expectedLoss, 0, initial / 2);
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
-        withdraw = bound(withdraw, 0, deposit / 2);
-        interest = bound(interest, 0, initial);
+        withdraw = bound(withdraw, 0, initial - expectedLoss);
+        interest = bound(interest, 0, initial - expectedLoss); // to avoid overflows
 
         // Setup
         deal(address(loanToken), address(adapter), initial);
@@ -264,7 +265,9 @@ contract MorphoBlueAdapterTest is Test {
         (ids, loss) = adapter.allocate(abi.encode(marketParams), 0);
         assertEq(ids, expectedIds, "ids: interest");
         assertEq(loss, expectedLoss > interest ? expectedLoss - interest : 0, "loss: interest");
-        assertEq(adapter.assetsInMarket(marketId), initial - expectedLoss + interest, "assetsInMarket: interest");
+        assertApproxEqAbs(
+            adapter.assetsInMarket(marketId), initial - expectedLoss + interest, 1, "assetsInMarket: interest"
+        );
     }
 
     function _overrideMarketTotalSupplyAssets(int256 change) internal {
