@@ -667,6 +667,42 @@ contract SettersTest is BaseTest {
         vault.setForceDeallocatePenalty(adapter, tooHighPenalty);
     }
 
+    function testSetEnterGate(address rdm) public {
+        vm.assume(rdm != curator);
+        address newEnterGate = makeAddr("newEnterGate");
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.setEnterGate(newEnterGate);
+
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setEnterGate.selector, newEnterGate));
+        vm.expectEmit();
+        emit EventsLib.SetEnterGate(newEnterGate);
+        vault.setEnterGate(newEnterGate);
+        assertEq(vault.enterGate(), newEnterGate);
+    }
+
+    function testSetExitGate(address rdm) public {
+        vm.assume(rdm != curator);
+        address newExitGate = makeAddr("newExitGate");
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.setExitGate(newExitGate);
+
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setExitGate.selector, newExitGate));
+        vm.expectEmit();
+        emit EventsLib.SetExitGate(newExitGate);
+        vault.setExitGate(newExitGate);
+        assertEq(vault.exitGate(), newExitGate);
+    }
+
     /* ALLOCATOR SETTERS */
 
     function testSetLiquidityAdapter(address rdm, address liquidityAdapter) public {

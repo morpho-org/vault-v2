@@ -45,6 +45,8 @@ interface IVaultV2 is IERC20 {
     function timelock(bytes4 selector) external view returns (uint256);
     function liquidityAdapter() external view returns (address);
     function liquidityData() external view returns (bytes memory);
+    function enterGate() external view returns (address);
+    function exitGate() external view returns (address);
 
     // Getters
     function idsWithRelativeCapLength() external view returns (uint256);
