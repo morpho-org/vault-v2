@@ -6,8 +6,8 @@ import "./BaseTest.sol";
 contract MulticallTest is BaseTest {
     function testMulticall(address newCurator, address newOwner) public {
         bytes[] memory data = new bytes[](2);
-        data[0] = abi.encodeWithSelector(IVaultV2.setCurator.selector, newCurator);
-        data[1] = abi.encodeWithSelector(IVaultV2.setOwner.selector, newOwner);
+        data[0] = abi.encodeCall(IVaultV2.setCurator, (newCurator));
+        data[1] = abi.encodeCall(IVaultV2.setOwner, (newOwner));
 
         vm.prank(owner);
         vault.multicall(data);
@@ -20,8 +20,8 @@ contract MulticallTest is BaseTest {
         vm.assume(rdm != curator);
 
         bytes[] memory data = new bytes[](2);
-        data[0] = abi.encodeWithSelector(IVaultV2.setCurator.selector, address(1));
-        data[1] = abi.encodeWithSelector(IVaultV2.submit.selector, hex"");
+        data[0] = abi.encodeCall(IVaultV2.setCurator, (address(1)));
+        data[1] = abi.encodeCall(IVaultV2.submit, (hex""));
         vm.prank(rdm);
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vault.multicall(data);
