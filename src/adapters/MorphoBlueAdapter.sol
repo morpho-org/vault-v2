@@ -51,32 +51,32 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
 
-        uint256 loss =
-            assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this)));
+        int256 change =
+            int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(assetsInMarket[marketId]);
         if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
         assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
 
-        return (ids(marketParams), loss);
+        return (ids(marketParams), change);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation.
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
 
-        uint256 loss =
-            assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this)));
+        int256 change =
+            int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(assetsInMarket[marketId]);
         if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
         assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
 
-        return (ids(marketParams), loss);
+        return (ids(marketParams), change);
     }
 
     /// @dev Returns adapter's ids.

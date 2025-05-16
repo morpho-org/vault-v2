@@ -283,23 +283,24 @@ contract VaultV2 is IVaultV2 {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
-        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).allocate(data, assets);
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets);
 
-        if (loss > 0) {
-            totalAssets = totalAssets.zeroFloorSub(loss);
+        if (change < 0) {
+            totalAssets = totalAssets.zeroFloorSub(uint256(-change));
             enterBlocked[block.number] = true;
         }
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss) + assets;
+            allocation[ids[i]] = allocation[ids[i]].zeroFloorAddInt(change) + assets;
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
+            uint256 _relativeCap = relativeCap[ids[i]];
             require(
-                relativeCap[ids[i]] == WAD || allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD),
+                _relativeCap == WAD || allocation[ids[i]] <= totalAssets.mulDivDown(_relativeCap, WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
-        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, loss);
+        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, change);
     }
 
     /// @dev This function will automatically realize potential losses.
@@ -309,19 +310,19 @@ contract VaultV2 is IVaultV2 {
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).deallocate(data, assets);
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets);
 
-        if (loss > 0) {
-            totalAssets = totalAssets.zeroFloorSub(loss);
+        if (change < 0) {
+            totalAssets = totalAssets.zeroFloorSub(uint256(-change));
             enterBlocked[block.number] = true;
         }
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss + assets);
+            allocation[ids[i]] = allocation[ids[i]].zeroFloorAddInt(change) - assets;
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
-        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, loss);
+        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, change);
     }
 
     function setLiquidityAdapter(address newLiquidityAdapter) external {

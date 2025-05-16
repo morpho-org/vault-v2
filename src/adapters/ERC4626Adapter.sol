@@ -50,30 +50,30 @@ contract ERC4626Adapter is IERC4626Adapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 loss =
-            assetsInVault.zeroFloorSub(IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this))));
+        int256 change =
+            int256(IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)))) - int256(assetsInVault);
         IERC4626(vault).deposit(assets, address(this));
         assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
 
-        return (ids(), loss);
+        return (ids(), change);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation.
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 loss =
-            assetsInVault.zeroFloorSub(IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this))));
+        int256 change =
+            int256(IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)))) - int256(assetsInVault);
         IERC4626(vault).withdraw(assets, address(this), address(this));
         assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
 
-        return (ids(), loss);
+        return (ids(), change);
     }
 
     /// @dev Returns adapter's ids.
