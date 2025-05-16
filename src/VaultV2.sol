@@ -11,7 +11,6 @@ import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
-import "forge-std/console.sol";
 
 /// @dev Zero checks are not performed.
 /// @dev No-ops are allowed.
@@ -233,7 +232,6 @@ contract VaultV2 is IVaultV2 {
             selector != IVaultV2.decreaseTimelock.selector && selector != IVaultV2.finalize.selector,
             ErrorsLib.TimelockCapIsFixed()
         );
-        console.log(newDuration, timelock[selector]);
         require(timelock[selector] != type(uint256).max, ErrorsLib.InfiniteTimelock());
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
