@@ -151,7 +151,6 @@ contract VaultV2 is IVaultV2 {
         owner = _owner;
         lastUpdate = uint96(block.timestamp);
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
-        timelock[IVaultV2.finalize.selector] = TIMELOCK_CAP;
         emit EventsLib.Constructor(_owner, _asset);
     }
 
@@ -220,7 +219,7 @@ contract VaultV2 is IVaultV2 {
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
         require(
-            selector != IVaultV2.decreaseTimelock.selector && selector != IVaultV2.finalize.selector,
+            selector != IVaultV2.decreaseTimelock.selector,
             ErrorsLib.TimelockCapIsFixed()
         );
         require(timelock[selector] != type(uint256).max, ErrorsLib.InfiniteTimelock());

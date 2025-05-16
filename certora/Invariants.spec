@@ -60,8 +60,8 @@ strong invariant balanceOfZero()
 strong invariant timelockBounds(bytes4 selector)
     timelock(selector) <= TIMELOCK_CAP() || timelock(selector) == max_uint256;
 
-strong invariant timelockTimelock()
-    timelock(decreaseTimelockSelector()) == TIMELOCK_CAP();
+strong invariant decreaseTimelockTimelock()
+    timelock(decreaseTimelockSelector()) == TIMELOCK_CAP() || timelock(decreaseTimelockSelector()) == max_uint256;
 
 strong invariant liquidityAdapterInvariant()
     liquidityAdapter() == 0 || isAdapter(liquidityAdapter());

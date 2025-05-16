@@ -267,8 +267,6 @@ contract SettersTest is BaseTest {
 
     function testFinalize(address rdm, bytes4 selector) public {
         vm.assume(rdm != curator);
-        // vm.assume(selector != IVaultV2.decreaseTimelock.selector);
-        // vm.assume(selector != IVaultV2.finalize.selector);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
@@ -283,11 +281,18 @@ contract SettersTest is BaseTest {
         assertEq(vault.timelock(selector), type(uint256).max);
 
         // Then it cannot be decreased
-        vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, selector, 1 weeks));
-        vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
-        vm.expectRevert(ErrorsLib.InfiniteTimelock.selector);
-        vault.decreaseTimelock(selector, 1 weeks);
+        // If the selector is decreasetimelock itself, submit will revert by overflow
+        if (selector == IVaultV2.decreaseTimelock.selector) {
+            vm.expectRevert(stdError.arithmeticError);
+            vm.prank(curator);
+            vault.submit(abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, selector, 1 weeks));
+        } else {
+            vm.prank(curator);
+            vault.submit(abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, selector, 1 weeks));
+            vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
+            vm.expectRevert(ErrorsLib.InfiniteTimelock.selector);
+            vault.decreaseTimelock(selector, 1 weeks);
+        }
     }
 
     function testDecreaseTimelock(address rdm, bytes4 selector, uint256 oldTimelock, uint256 newTimelock) public {
@@ -329,13 +334,6 @@ contract SettersTest is BaseTest {
         vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
         vm.expectRevert(ErrorsLib.TimelockCapIsFixed.selector);
         vault.decreaseTimelock(IVaultV2.decreaseTimelock.selector, 1 weeks);
-
-        // Cannot decrease finalize's timelock
-        vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, IVaultV2.finalize.selector, 1 weeks));
-        vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
-        vm.expectRevert(ErrorsLib.TimelockCapIsFixed.selector);
-        vault.decreaseTimelock(IVaultV2.finalize.selector, 1 weeks);
     }
 
     function testSetPerformanceFee(address rdm, uint256 newPerformanceFee) public {
