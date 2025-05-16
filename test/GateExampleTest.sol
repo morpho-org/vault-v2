@@ -31,24 +31,13 @@ contract AdapterMock {
 contract GateExampleTest is BaseTest {
     GateExample gate;
     address gateOwner;
-    // address user1;
-    // address user2;
-    // address adapter;
-    // address initiator;
 
     function setUp() public override {
         super.setUp();
 
         gateOwner = makeAddr("gateOwner");
-        // user1 = makeAddr("user1");
-        // user2 = makeAddr("user2");
-        // initiator = makeAddr("initiator");
 
-        // Deploy the gate with the owner
         gate = new GateExample(gateOwner);
-
-        // Deploy mock contracts for adapter and bundler3
-        // adapter = address(new AdapterMock(IBundler3(bundler3)));
     }
 
     function testConstructor() public {
@@ -106,7 +95,6 @@ contract GateExampleTest is BaseTest {
         assertEq(gate.isBundlerAdapter(adapterAddr), isAdapter);
     }
 
-    // Fuzzing test for adapter with whitelisted initiator
     function testAdapterWithWhitelistedInitiator(address initiatorAddr, bool isWhitelisted) public {
         vm.assume(initiatorAddr != address(0));
 
