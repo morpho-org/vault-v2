@@ -57,7 +57,7 @@ contract VaultV2 is IVaultV2 {
     uint256 public totalAssets;
     uint96 public lastUpdate;
     address public vic;
-    mapping(uint256 block => bool) public enterBlocked;
+    bool public transient enterBlocked;
 
     /* CURATION STORAGE */
 
@@ -317,7 +317,7 @@ contract VaultV2 is IVaultV2 {
 
         if (loss > 0) {
             totalAssets = totalAssets.zeroFloorSub(loss);
-            enterBlocked[block.number] = true;
+            enterBlocked = true;
         }
 
         for (uint256 i; i < ids.length; i++) {
@@ -343,7 +343,7 @@ contract VaultV2 is IVaultV2 {
 
         if (loss > 0) {
             totalAssets = totalAssets.zeroFloorSub(loss);
-            enterBlocked[block.number] = true;
+            enterBlocked = true;
         }
 
         for (uint256 i; i < ids.length; i++) {
@@ -493,7 +493,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
-        require(!enterBlocked[block.number], ErrorsLib.EnterBlocked());
+        require(!enterBlocked, ErrorsLib.EnterBlocked());
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
         totalAssets += assets;
