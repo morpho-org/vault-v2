@@ -43,10 +43,10 @@ contract VaultV2 is IVaultV2 {
 
     address public owner;
     address public curator;
-    /// @notice Gates sending shares and withdrawing.
-    address public exitGate;
     /// @notice Gates receiving shares and depositing.
     address public enterGate;
+    /// @notice Gates sending shares and withdrawing.
+    address public exitGate;
     mapping(address account => bool) public isSentinel;
     mapping(address account => bool) public isAllocator;
 
@@ -181,14 +181,14 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
 
-    function setExitGate(address newExitGate) external timelocked {
-        exitGate = newExitGate;
-        emit EventsLib.SetExitGate(newExitGate);
-    }
-
     function setEnterGate(address newEnterGate) external timelocked {
         enterGate = newEnterGate;
         emit EventsLib.SetEnterGate(newEnterGate);
+    }
+
+    function setExitGate(address newExitGate) external timelocked {
+        exitGate = newExitGate;
+        emit EventsLib.SetExitGate(newExitGate);
     }
 
     function setVic(address newVic) external timelocked {
@@ -203,18 +203,10 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetIsAdapter(account, newIsAdapter);
     }
 
-    function increaseTimelock(bytes4 selector, uint256 newDuration) external {
-        if (
-            (selector == IVaultV2.setExitGate.selector || selector == IVaultV2.setEnterGate.selector)
-                && newDuration == type(uint256).max
-        ) {
-            require(msg.sender == owner, ErrorsLib.Unauthorized());
-        } else {
-            require(msg.sender == curator, ErrorsLib.Unauthorized());
-            require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
-            require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
-            require(newDuration >= timelock[selector], ErrorsLib.TimelockNotIncreasing());
-        }
+    function increaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
+        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
+        require(newDuration <= TIMELOCK_CAP || newDuration == type(uint256).max, ErrorsLib.TimelockDurationTooHigh());
+        require(newDuration >= timelock[selector], ErrorsLib.TimelockNotIncreasing());
 
         timelock[selector] = newDuration;
         emit EventsLib.IncreaseTimelock(selector, newDuration);
@@ -222,7 +214,7 @@ contract VaultV2 is IVaultV2 {
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
-        require(timelock[selector] != type(uint256).max, ErrorsLib.InfiniteGateTimelock());
+        require(timelock[selector] != type(uint256).max, ErrorsLib.InfiniteTimelock());
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
@@ -507,7 +499,12 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
-        require(canReceive(onBehalf) && canSendAssets(msg.sender), ErrorsLib.CannotEnter());
+        IEnterGate _enterGate = IEnterGate(enterGate);
+        require(
+            address(_enterGate) == address(0)
+                || (_enterGate.canReceiveShares(onBehalf) && _enterGate.canSendAssets(msg.sender)),
+            ErrorsLib.CannotEnter()
+        );
 
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
@@ -537,7 +534,12 @@ contract VaultV2 is IVaultV2 {
     /// @dev Internal function for withdraw and redeem.
     /// @dev Loops in idsWithRelativeCap to check relative caps.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
-        require(canSend(onBehalf) && canReceiveAssets(receiver), ErrorsLib.CannotExit());
+        IExitGate _exitGate = IExitGate(exitGate);
+        require(
+            address(_exitGate) == address(0)
+                || (_exitGate.canSendShares(onBehalf) && _exitGate.canReceiveAssets(receiver)),
+            ErrorsLib.CannotExit()
+        );
 
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
@@ -655,23 +657,15 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Transfer(from, address(0), shares);
     }
 
-    /* INTERNAL PERMISSION FUNCTIONS HELPERS */
-
-    function canReceiveAssets(address account) internal view returns (bool) {
-        return exitGate == address(0) || IExitGate(exitGate).canReceiveAssets(account);
-    }
-
-    function canSendAssets(address account) internal view returns (bool) {
-        return enterGate == address(0) || IEnterGate(enterGate).canSendAssets(account);
-    }
-
     /* PUBLIC PERMISSION FUNCTIONS HELPERS */
 
     function canSend(address account) public view returns (bool) {
-        return exitGate == address(0) || IExitGate(exitGate).canSendShares(account);
+        address _exitGate = exitGate;
+        return _exitGate == address(0) || IExitGate(_exitGate).canSendShares(account);
     }
 
     function canReceive(address account) public view returns (bool) {
-        return enterGate == address(0) || IEnterGate(enterGate).canReceiveShares(account);
+        address _enterGate = enterGate;
+        return _enterGate == address(0) || IEnterGate(_enterGate).canReceiveShares(account);
     }
 }

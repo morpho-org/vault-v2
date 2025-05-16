@@ -37,8 +37,7 @@ library ErrorsLib {
     error LiquidityAdapterInvariantBroken();
     error ApproveReverted();
     error ApproveReturnedFalse();
-    error InfiniteGateTimelock();
-    error TransferOnlyMarker();
+    error InfiniteTimelock();
     error CannotExit();
     error CannotEnter();
     error RelativeCapZero();
