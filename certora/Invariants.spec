@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 methods {
-    function multicall(bytes[]) external => NONDET DELETE;
-
     function performanceFee() external returns uint96 envfree;
     function performanceFeeRecipient() external returns address envfree;
     function managementFee() external returns uint96 envfree;

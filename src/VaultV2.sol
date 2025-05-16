@@ -125,20 +125,6 @@ contract VaultV2 is IVaultV2 {
         return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
     }
 
-    /* MULTICALL */
-
-    /// @dev Mostly useful to batch admin actions together.
-    function multicall(bytes[] calldata data) external {
-        for (uint256 i = 0; i < data.length; i++) {
-            (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
-            if (!success) {
-                assembly ("memory-safe") {
-                    revert(add(32, returnData), mload(returnData))
-                }
-            }
-        }
-    }
-
     /* CONSTRUCTOR */
 
     constructor(address _owner, address _asset) {
