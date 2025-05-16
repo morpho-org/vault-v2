@@ -25,7 +25,7 @@ methods {
 definition TIMELOCK_CAP() returns uint256 = 14 * 24 * 60 * 60;
 definition MAX_PERFOMANCE_FEE() returns uint256 = 10^18 / 2;
 definition MAX_MANAGEMENT_FEE() returns uint256 = 10^18 / 20 / (365 * 24 * 60 * 60);
-definition MAX_FORCE_DEALLOCATE_PENALTY() returns uint256 = 10^18 / 100;
+definition MAX_FORCE_DEALLOCATE_PENALTY() returns uint256 = 10^18 / 50;
 
 strong invariant performanceFeeRecipient()
     performanceFee() != 0 => performanceFeeRecipient() != 0;
