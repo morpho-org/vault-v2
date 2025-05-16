@@ -1,9 +1,9 @@
 [profile.default]
-src = "src"
-out = "out"
 libs = ["lib"]
 via_ir = true
+optimizer = true
 optimizer_runs = 999999 # Etherscan does not support verifying contracts with more optimization runs.
+bytecode_hash = "none"
 evm_version = "cancun"
 dynamic_test_linking = true
 
