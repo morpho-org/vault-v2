@@ -11,6 +11,8 @@ import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 
+import {console} from "forge-std/console.sol";
+
 /// @dev Zero checks are not performed.
 /// @dev No-ops are allowed.
 /// @dev Natspec are specified only when it brings clarity.
@@ -315,8 +317,11 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
         (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).allocate(data, assets);
 
+        console.log("loss", loss);
+
         if (loss > 0) {
             totalAssets = totalAssets.zeroFloorSub(loss);
+            console.log("blocked", block.number);
             enterBlocked[block.number] = true;
         }
 
