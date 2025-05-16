@@ -11,5 +11,4 @@ contract VaultV2Harness is VaultV2 {
             try this.allocate(liquidityAdapter, liquidityData, assets) {} catch {}
         }
     }
-
 }
