@@ -5,8 +5,10 @@ methods {
 }
 
 rule liquidityAdapterDoesntRevertWhenDepositing(env e, uint256 assets, uint256 shares, address onBehalf) {
+    // Safe require because `enter` is always called without native tokens.
     require e.msg.value == 0;
-    require liquidityData().length == 0;
+    // Safe no-op require, that prevents a weird behavior where the state could be havoced such that liquidityData would not represent bytes.
+    require liquidityData().length >= 0;
     enterExternal@withrevert(e, assets, shares, onBehalf);
     assert !lastReverted;
 }
