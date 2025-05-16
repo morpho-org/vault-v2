@@ -212,16 +212,13 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.IncreaseTimelock(selector, newDuration);
     }
 
-    function finalize(bytes4 selector) external timelocked {
+    function freezeSubmit(bytes4 selector) external timelocked {
         timelock[selector] = type(uint256).max;
-        emit EventsLib.Finalize(selector);
+        emit EventsLib.FreezeSubmit(selector);
     }
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
-        require(
-            selector != IVaultV2.decreaseTimelock.selector,
-            ErrorsLib.TimelockCapIsFixed()
-        );
+        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(timelock[selector] != type(uint256).max, ErrorsLib.InfiniteTimelock());
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
 

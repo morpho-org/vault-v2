@@ -20,7 +20,7 @@ library ErrorsLib {
     error DataAlreadyPending();
     error TimelockNotIncreasing();
     error TimelockNotDecreasing();
-    error CannotFinalize();
+    error CannotFreezeSubmit();
     error AbsoluteCapNotIncreasing();
     error AbsoluteCapNotDecreasing();
     error RelativeCapNotIncreasing();

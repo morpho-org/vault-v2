@@ -265,19 +265,19 @@ contract SettersTest is BaseTest {
         }
     }
 
-    function testFinalize(address rdm, bytes4 selector) public {
+    function testFreezeSubmit(address rdm, bytes4 selector) public {
         vm.assume(rdm != curator);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
-        vault.finalize(selector);
+        vault.freezeSubmit(selector);
 
-        // Can finalize
+        // Can freeze submit
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.finalize.selector, selector));
+        vault.submit(abi.encodeWithSelector(IVaultV2.freezeSubmit.selector, selector));
         vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
-        vault.finalize(selector);
+        vault.freezeSubmit(selector);
         assertEq(vault.timelock(selector), type(uint256).max);
 
         // Then it cannot be decreased
@@ -298,7 +298,7 @@ contract SettersTest is BaseTest {
     function testDecreaseTimelock(address rdm, bytes4 selector, uint256 oldTimelock, uint256 newTimelock) public {
         vm.assume(rdm != curator);
         vm.assume(selector != IVaultV2.decreaseTimelock.selector);
-        vm.assume(selector != IVaultV2.finalize.selector);
+        vm.assume(selector != IVaultV2.freezeSubmit.selector);
         oldTimelock = bound(oldTimelock, 1, 2 weeks);
         newTimelock = bound(newTimelock, 0, oldTimelock);
 
