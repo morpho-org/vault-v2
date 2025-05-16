@@ -10,5 +10,5 @@ uint256 constant TIMELOCK_CAP = 2 weeks;
 uint256 constant MAX_PERFORMANCE_FEE = 0.5e18; // 50%
 uint256 constant MAX_MANAGEMENT_FEE = 0.05e18 / uint256(365 days); // 5%
 uint256 constant MAX_FORCE_DEALLOCATE_PENALTY = 0.01e18; // 1%
-uint256 constant EXIT_BUFFER_TIME = 1 hours; // time to fully empty exit buffer
-uint256 constant EXIT_BUFFER_SIZE = 0.5e18; // 50%
+uint256 constant EXIT_BUFFER_TIME = 15 minutes; // time to fully empty exit buffer; with continuous decay
+uint256 constant EXIT_BUFFER_SIZE = 0.125e18; // 12.5%
