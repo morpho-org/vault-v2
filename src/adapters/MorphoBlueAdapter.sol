@@ -56,6 +56,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
 
+        IMorpho(morpho).accrueInterest(marketParams);
         uint256 loss =
             assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this)));
         if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
@@ -71,6 +72,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
 
+        IMorpho(morpho).accrueInterest(marketParams);
         uint256 loss =
             assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this)));
         if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
