@@ -6,9 +6,22 @@ import "../src/VaultV2.sol";
 contract VaultV2Harness is VaultV2 {
     constructor(address owner, address asset) VaultV2(owner, asset) {}
 
-    function enterExternal(uint256 assets, uint256, address) external {
+    function enterMocked(uint256 assets, uint256, address) external {
         if (liquidityAdapter != address(0)) {
             try this.allocate(liquidityAdapter, liquidityData, assets) {} catch {}
+        }
+    }
+
+    function accrueInterestViewMocked() external view {
+        uint256 elapsed = block.timestamp;
+
+        (bool success, bytes memory data) =
+            address(vic).staticcall(abi.encodeWithSelector(IVic.interestPerSecond.selector, totalAssets, elapsed));
+        uint256 output;
+        if (success) {
+            assembly ("memory-safe") {
+                output := mload(add(data, 32))
+            }
         }
     }
 }
