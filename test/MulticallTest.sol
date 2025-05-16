@@ -26,4 +26,9 @@ contract MulticallTest is BaseTest {
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vault.multicall(data);
     }
+
+    function testMulticallEmpty() public {
+        vm.prank(curator);
+        vault.multicall(new bytes[](0));
+    }
 }

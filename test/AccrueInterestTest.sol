@@ -134,6 +134,21 @@ contract AccrueInterestTest is BaseTest {
         assertEq(vault.totalAssets(), totalAssetsBefore);
     }
 
+    function testAccrueInterestVicReverts(uint256 elapsed) public {
+        elapsed = bound(elapsed, 0, 1000 weeks);
+
+        // Setup.
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setVic.selector, address(curator)));
+        vault.setVic(address(curator));
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        // Vic reverts.
+        uint256 totalAssetsBefore = vault.totalAssets();
+        vault.accrueInterest();
+        assertEq(vault.totalAssets(), totalAssetsBefore);
+    }
+
     function testPerformanceFeeWithoutManagementFee(
         uint256 performanceFee,
         uint256 interestPerSecond,
