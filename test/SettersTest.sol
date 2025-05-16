@@ -239,6 +239,7 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != curator);
         newTimelock = bound(newTimelock, 0, 2 weeks);
         vm.assume(selector != IVaultV2.decreaseTimelock.selector);
+        vm.assume(selector != IVaultV2.increaseTimelock.selector);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
@@ -274,6 +275,19 @@ contract SettersTest is BaseTest {
             vm.expectRevert(ErrorsLib.TimelockNotIncreasing.selector);
             vault.increaseTimelock(selector, newTimelock - 1);
         }
+
+        // Can increase to max to finalize
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseTimelock.selector, selector, type(uint256).max));
+        vault.increaseTimelock(selector, type(uint256).max);
+        assertEq(vault.timelock(selector), type(uint256).max);
+
+        // Then it cannot be decreased
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, selector, 1 weeks));
+        vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
+        vm.expectRevert(ErrorsLib.InfiniteTimelock.selector);
+        vault.decreaseTimelock(selector, 1 weeks);
     }
 
     function testDecreaseTimelock(address rdm, bytes4 selector, uint256 oldTimelock, uint256 newTimelock) public {
