@@ -1,13 +1,20 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {IMorpho, MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IMorphoBlueAdapter} from "./interfaces/IMorphoBlueAdapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
+import {MathLib} from "../libraries/MathLib.sol";
 
 contract MorphoBlueAdapter is IMorphoBlueAdapter {
+    using MathLib for uint256;
+    using MorphoBalancesLib for IMorpho;
+    using MarketParamsLib for MarketParams;
+
     /* IMMUTABLES */
 
     address public immutable parentVault;
@@ -16,6 +23,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /* STORAGE */
 
     address public skimRecipient;
+    mapping(Id => uint256) public assetsInMarket;
 
     /* FUNCTIONS */
 
@@ -43,20 +51,32 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-        return ids(marketParams);
+        Id marketId = marketParams.id();
+
+        uint256 loss =
+            assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this)));
+        if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+        assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+
+        return (ids(marketParams), loss);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation.
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-        return ids(marketParams);
+        Id marketId = marketParams.id();
+
+        uint256 loss =
+            assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this)));
+        if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+        assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+
+        return (ids(marketParams), loss);
     }
 
     /// @dev Returns adapter's ids.

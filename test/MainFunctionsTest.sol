@@ -67,6 +67,8 @@ contract MainFunctionsTest is BaseTest {
 
     function testRedeem(uint256 shares, address receiver) public {
         vm.assume(receiver != address(0));
+        vm.assume(receiver != address(this));
+        vm.assume(receiver != address(vault));
         shares = bound(shares, 0, initialSharesDeposit);
 
         uint256 assets = vault.previewRedeem(shares);

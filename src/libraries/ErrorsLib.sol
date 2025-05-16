@@ -35,7 +35,9 @@ library ErrorsLib {
     error PermitDeadlineExpired();
     error InvalidSigner();
     error LiquidityAdapterInvariantBroken();
+    error LossRealizedInBlock();
     error ApproveReverted();
     error ApproveReturnedFalse();
     error RelativeCapZero();
+    error EnterBlocked();
 }

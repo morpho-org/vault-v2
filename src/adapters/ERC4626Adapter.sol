@@ -2,13 +2,17 @@
 pragma solidity 0.8.28;
 
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
+import {IAdapter} from "../interfaces/IAdapter.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IERC4626Adapter} from "./interfaces/IERC4626Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
+import {MathLib} from "../libraries/MathLib.sol";
 
 /// Vaults should transfer exactly the input in deposit and withdraw.
 contract ERC4626Adapter is IERC4626Adapter {
+    using MathLib for uint256;
+
     /* IMMUTABLES */
 
     address public immutable parentVault;
@@ -17,6 +21,7 @@ contract ERC4626Adapter is IERC4626Adapter {
     /* STORAGE */
 
     address public skimRecipient;
+    uint256 public assetsInVault;
 
     /* FUNCTIONS */
 
@@ -45,24 +50,30 @@ contract ERC4626Adapter is IERC4626Adapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
+        uint256 loss =
+            assetsInVault.zeroFloorSub(IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this))));
         IERC4626(vault).deposit(assets, address(this));
+        assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
 
-        return ids();
+        return (ids(), loss);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation.
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
+        uint256 loss =
+            assetsInVault.zeroFloorSub(IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this))));
         IERC4626(vault).withdraw(assets, address(this), address(this));
+        assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
 
-        return ids();
+        return (ids(), loss);
     }
 
     /// @dev Returns adapter's ids.
