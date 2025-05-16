@@ -22,8 +22,6 @@ methods {
     function totalAssets() external returns uint256 envfree;
     function balanceOf(address) external returns uint256 envfree;
 
-    function setExitGate(address) external;
-    function setEnterGate(address) external;
     function decreaseTimelock(address) external;
 }
 
@@ -32,8 +30,6 @@ definition MAX_PERFOMANCE_FEE() returns uint256 = 10^18 / 2;
 definition MAX_MANAGEMENT_FEE() returns uint256 = 10^18 / 20 / (365 * 24 * 60 * 60);
 definition MAX_FORCE_DEALLOCATE_PENALTY() returns uint256 = 10^18 / 100;
 
-definition setExitGateSelector() returns bytes4 = to_bytes4(sig:setExitGate(address).selector);
-definition setEnterGateSelector() returns bytes4 = to_bytes4(sig:setEnterGate(address).selector);
 definition decreaseTimelockSelector() returns bytes4 = to_bytes4(sig:decreaseTimelock(bytes4,uint256).selector);
 
 
