@@ -526,7 +526,12 @@ contract SettersTest is BaseTest {
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
         vault.increaseRelativeCap(idData, newRelativeCap);
         assertEq(vault.relativeCap(id), newRelativeCap);
-        if (newRelativeCap < WAD) assertEq(vault.idsWithRelativeCap(0), id);
+        if (newRelativeCap < WAD) {
+            assertEq(vault.idsWithRelativeCap(0), id);
+            assertEq(vault.idsWithRelativeCapLength(), 1);
+        } else {
+            assertEq(vault.idsWithRelativeCapLength(), 0);
+        }
 
         // Can't decrease relative cap
         if (newRelativeCap < WAD) {

@@ -134,6 +134,38 @@ contract AccrueInterestTest is BaseTest {
         assertEq(vault.totalAssets(), totalAssetsBefore);
     }
 
+    function testAccrueInterestVicNoCode(uint256 elapsed) public {
+        elapsed = bound(elapsed, 0, 1000 weeks);
+
+        // Setup.
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setVic.selector, address(42)));
+        vault.setVic(address(42));
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        // Vic reverts.
+        uint256 totalAssetsBefore = vault.totalAssets();
+        vault.accrueInterest();
+        assertEq(vault.totalAssets(), totalAssetsBefore);
+    }
+
+    function testAccrueInterestVicReverting(uint256 elapsed) public {
+        elapsed = bound(elapsed, 0, 1000 weeks);
+
+        address reverting = address(new Reverting());
+
+        // Setup.
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setVic.selector, reverting));
+        vault.setVic(reverting);
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        // Vic reverts.
+        uint256 totalAssetsBefore = vault.totalAssets();
+        vault.accrueInterest();
+        assertEq(vault.totalAssets(), totalAssetsBefore);
+    }
+
     function testPerformanceFeeWithoutManagementFee(
         uint256 performanceFee,
         uint256 interestPerSecond,
@@ -200,3 +232,5 @@ contract AccrueInterestTest is BaseTest {
         assertEq(vault.balanceOf(managementFeeRecipient), expectedShares);
     }
 }
+
+contract Reverting {}

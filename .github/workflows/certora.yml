@@ -17,6 +17,7 @@ jobs:
       matrix:
         conf:
           - Invariants
+          - TryCatch
 
     steps:
       - uses: actions/checkout@v4
