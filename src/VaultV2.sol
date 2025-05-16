@@ -508,10 +508,8 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
-        IEnterGate _enterGate = IEnterGate(enterGate);
         require(
-            address(_enterGate) == address(0)
-                || (_enterGate.canReceiveShares(onBehalf) && _enterGate.canSendAssets(msg.sender)),
+            address(enterGate) == address(0) || (canReceive(onBehalf) && canSendAssets(msg.sender)),
             ErrorsLib.CannotEnter()
         );
 
@@ -543,12 +541,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Internal function for withdraw and redeem.
     /// @dev Loops in idsWithRelativeCap to check relative caps.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
-        IExitGate _exitGate = IExitGate(exitGate);
-        require(
-            address(_exitGate) == address(0)
-                || (_exitGate.canSendShares(onBehalf) && _exitGate.canReceiveAssets(receiver)),
-            ErrorsLib.CannotExit()
-        );
+        require(canSend(onBehalf) && canReceiveAssets(receiver), ErrorsLib.CannotExit());
 
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
@@ -666,15 +659,23 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Transfer(from, address(0), shares);
     }
 
+    /* INTERNAL PERMISSION FUNCTIONS HELPERS */
+
+    function canReceiveAssets(address account) internal view returns (bool) {
+        return exitGate == address(0) || IExitGate(exitGate).canReceiveAssets(account);
+    }
+
+    function canSendAssets(address account) internal view returns (bool) {
+        return enterGate == address(0) || IEnterGate(enterGate).canSendAssets(account);
+    }
+
     /* PUBLIC PERMISSION FUNCTIONS HELPERS */
 
     function canSend(address account) public view returns (bool) {
-        address _exitGate = exitGate;
-        return _exitGate == address(0) || IExitGate(_exitGate).canSendShares(account);
+        return exitGate == address(0) || IExitGate(exitGate).canSendShares(account);
     }
 
     function canReceive(address account) public view returns (bool) {
-        address _enterGate = enterGate;
-        return _enterGate == address(0) || IEnterGate(_enterGate).canReceiveShares(account);
+        return enterGate == address(0) || IEnterGate(enterGate).canReceiveShares(account);
     }
 }
