@@ -214,11 +214,6 @@ contract VaultV2 is IVaultV2 {
     }
 
     function finalize(bytes4 selector) external timelocked {
-        require(
-            selector != IVaultV2.decreaseTimelock.selector && selector != IVaultV2.finalize.selector,
-            ErrorsLib.CannotFinalize()
-        );
-
         timelock[selector] = type(uint256).max;
         emit EventsLib.Finalize(selector);
     }

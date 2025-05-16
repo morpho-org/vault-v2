@@ -267,8 +267,8 @@ contract SettersTest is BaseTest {
 
     function testFinalize(address rdm, bytes4 selector) public {
         vm.assume(rdm != curator);
-        vm.assume(selector != IVaultV2.decreaseTimelock.selector);
-        vm.assume(selector != IVaultV2.finalize.selector);
+        // vm.assume(selector != IVaultV2.decreaseTimelock.selector);
+        // vm.assume(selector != IVaultV2.finalize.selector);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
@@ -288,19 +288,6 @@ contract SettersTest is BaseTest {
         vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
         vm.expectRevert(ErrorsLib.InfiniteTimelock.selector);
         vault.decreaseTimelock(selector, 1 weeks);
-
-        // Cannot finalize decrease timelock and finalize.
-        vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.finalize.selector, IVaultV2.finalize.selector));
-        vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
-        vm.expectRevert(ErrorsLib.CannotFinalize.selector);
-        vault.finalize(IVaultV2.finalize.selector);
-
-        vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.finalize.selector, IVaultV2.decreaseTimelock.selector));
-        vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
-        vm.expectRevert(ErrorsLib.CannotFinalize.selector);
-        vault.finalize(IVaultV2.decreaseTimelock.selector);
     }
 
     function testDecreaseTimelock(address rdm, bytes4 selector, uint256 oldTimelock, uint256 newTimelock) public {
