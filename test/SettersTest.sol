@@ -579,7 +579,7 @@ contract SettersTest is BaseTest {
         newForceDeallocatePenalty = bound(newForceDeallocatePenalty, 0, MAX_FORCE_DEALLOCATE_PENALTY);
 
         // Setup.
-        address adapter = address(new BasicAdapter());
+        address adapter = makeAddr("adapter");
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, adapter, true));
         vault.setIsAdapter(adapter, true);
@@ -653,13 +653,5 @@ contract SettersTest is BaseTest {
         emit EventsLib.SetLiquidityData(allocator, newData);
         vault.setLiquidityData(newData);
         assertEq(vault.liquidityData(), newData);
-    }
-}
-
-contract BasicAdapter {
-    function allocate(bytes memory idData, uint256) external pure returns (bytes32[] memory) {
-        bytes32[] memory ids = new bytes32[](1);
-        ids[0] = keccak256(idData);
-        return ids;
     }
 }
