@@ -55,9 +55,9 @@ contract VaultV2 is IVaultV2 {
     /* INTEREST STORAGE */
 
     uint256 public totalAssets;
-    uint256 public lossToRealize;
     uint96 public lastUpdate;
     address public vic;
+    mapping(uint256 block => bool) public canSupply;
 
     /* CURATION STORAGE */
 
@@ -305,33 +305,23 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
     }
 
-    /// @dev Loss is not realized instantly to prevent manipulations. It can be realized the block after the accounting.
-    function accountLoss(address adapter, bytes memory data, uint256 assets) external {
-        require(msg.sender == curator, ErrorsLib.Unauthorized());
-        require(isAdapter[adapter], ErrorsLib.NotAdapter());
-
-        accrueInterest();
-
-        bytes32[] memory ids = IAdapter(adapter).realizeLoss(data, assets);
-        lossToRealize += assets;
-        for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(assets);
-        }
-
-        emit EventsLib.RealizeLoss(adapter, data, assets, ids);
-    }
-
     /* ALLOCATOR ACTIONS */
 
+    /// @dev This function will automatically realize potential losses.
     function allocate(address adapter, bytes memory data, uint256 assets) external {
         require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
-        bytes32[] memory ids = IAdapter(adapter).allocate(data, assets);
+        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).allocate(data, assets);
+
+        if (loss > 0) {
+            totalAssets = totalAssets.zeroFloorSub(loss);
+            canSupply[block.number] = false;
+        }
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] += assets;
+            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss) + assets;
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
             require(
@@ -339,23 +329,29 @@ contract VaultV2 is IVaultV2 {
                 ErrorsLib.RelativeCapExceeded()
             );
         }
-        emit EventsLib.Allocate(msg.sender, adapter, assets, ids);
+        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, loss);
     }
 
+    /// @dev This function will automatically realize potential losses.
     function deallocate(address adapter, bytes memory data, uint256 assets) external {
         require(
             isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        bytes32[] memory ids = IAdapter(adapter).deallocate(data, assets);
+        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).deallocate(data, assets);
+
+        if (loss > 0) {
+            totalAssets = totalAssets.zeroFloorSub(loss);
+            canSupply[block.number] = false;
+        }
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(assets);
+            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss + assets);
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
-        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids);
+        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, loss);
     }
 
     function setLiquidityAdapter(address newLiquidityAdapter) external {
@@ -402,20 +398,18 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares, uint256 newLossToRealize) =
-            accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         emit EventsLib.AccrueInterest(totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         totalAssets = newTotalAssets;
-        lossToRealize = newLossToRealize;
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
         lastUpdate = uint96(block.timestamp);
     }
 
-    /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares, lossToRealize.
-    function accrueInterestView() public view returns (uint256, uint256, uint256, uint256) {
+    /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
+    function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        if (elapsed == 0) return (totalAssets, 0, 0, lossToRealize);
+        if (elapsed == 0) return (totalAssets, 0, 0);
         uint256 interestPerSecond;
         try IVic(vic).interestPerSecond(totalAssets, elapsed) returns (uint256 output) {
             if (output <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD)) interestPerSecond = output;
@@ -425,7 +419,7 @@ contract VaultV2 is IVaultV2 {
         }
         uint256 interest = interestPerSecond * elapsed;
         // The loss realisation does not happen in the block of the loss accounting to prevent manipulations.
-        uint256 newTotalAssets = totalAssets.zeroFloorSub(lossToRealize) + interest;
+        uint256 newTotalAssets = totalAssets + interest;
 
         uint256 performanceFeeShares;
         uint256 managementFeeShares;
@@ -448,33 +442,33 @@ contract VaultV2 is IVaultV2 {
                 totalSupply + 1 + performanceFeeShares, newTotalAssets + 1 - managementFeeAssets
             );
         }
-        return (newTotalAssets, performanceFeeShares, managementFeeShares, 0);
+        return (newTotalAssets, performanceFeeShares, managementFeeShares);
     }
 
     /// @dev Returns previewed minted shares.
     function previewDeposit(uint256 assets) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares,) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return assets.mulDivDown(newTotalSupply + 1, newTotalAssets + 1);
     }
 
     /// @dev Returns previewed deposited assets.
     function previewMint(uint256 shares) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares,) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivUp(newTotalAssets + 1, newTotalSupply + 1);
     }
 
     /// @dev Returns previewed redeemed shares.
     function previewWithdraw(uint256 assets) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares,) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return assets.mulDivUp(newTotalSupply + 1, newTotalAssets + 1);
     }
 
     /// @dev Returns previewed withdrawn assets.
     function previewRedeem(uint256 shares) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares,) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + 1);
     }
@@ -552,6 +546,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Loops in idsWithRelativeCap to check relative caps.
     /// @dev Returns shares withdrawn as penalty.
+    /// @dev This function will automatically realize potential losses.
     function forceDeallocate(address[] memory adapters, bytes[] memory data, uint256[] memory assets, address onBehalf)
         external
         returns (uint256)

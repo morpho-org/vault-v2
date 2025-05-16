@@ -39,7 +39,6 @@ interface IVaultV2 is IERC20 {
     function vic() external view returns (address);
     function allocation(bytes32 id) external view returns (uint256);
     function lastUpdate() external view returns (uint96);
-    function lossToRealize() external view returns (uint256);
     function absoluteCap(bytes32 id) external view returns (uint256);
     function idsWithRelativeCap(uint256 index) external view returns (bytes32);
     function executableAt(bytes memory data) external view returns (uint256);
@@ -71,7 +70,6 @@ interface IVaultV2 is IERC20 {
     function setManagementFee(uint256 newManagementFee) external;
     function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external;
     function setManagementFeeRecipient(address newManagementFeeRecipient) external;
-    function accountLoss(address account, bytes memory idData, uint256 loss) external;
 
     // Allocator actions
     function allocate(address adapter, bytes memory data, uint256 assets) external;
@@ -84,12 +82,7 @@ interface IVaultV2 is IERC20 {
     function accrueInterestView()
         external
         view
-        returns (
-            uint256 newTotalAssets,
-            uint256 performanceFeeShares,
-            uint256 managementFeeShares,
-            uint256 lossToRealize
-        );
+        returns (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares);
 
     // Timelocks
     function submit(bytes memory data) external;

@@ -23,7 +23,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /* STORAGE */
 
     address public skimRecipient;
-    mapping(Id => uint256) public assetsInMarketIfNoLoss;
+    mapping(Id => uint256) public assetsInMarket;
 
     /* FUNCTIONS */
 
@@ -51,44 +51,32 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
 
+        uint256 loss =
+            assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this)));
         if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-        uint256 assetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
-        assetsInMarketIfNoLoss[marketId] = max(assetsInMarketIfNoLoss[marketId] + assets, assetsInMarket);
+        assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
 
-        return ids(marketParams);
+        return (ids(marketParams), loss);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation.
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
 
+        uint256 loss =
+            assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this)));
         if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-        uint256 assetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
-        assetsInMarketIfNoLoss[marketId] = max(assetsInMarketIfNoLoss[marketId] - assets, assetsInMarket);
+        assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
 
-        return ids(marketParams);
-    }
-
-    function realizeLoss(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
-        require(msg.sender == parentVault, NotAuthorized());
-        MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Id marketId = marketParams.id();
-
-        uint256 assetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
-        uint256 loss = assetsInMarketIfNoLoss[marketId].zeroFloorSub(assetsInMarket);
-        require(loss >= assets, CannotRealizeAsMuch());
-
-        assetsInMarketIfNoLoss[marketId] -= assets;
-
-        return ids(marketParams);
+        return (ids(marketParams), loss);
     }
 
     /// @dev Returns adapter's ids.
@@ -103,8 +91,4 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         );
         return ids_;
     }
-}
-
-function max(uint256 a, uint256 b) pure returns (uint256) {
-    return a > b ? a : b;
 }
