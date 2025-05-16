@@ -72,7 +72,8 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Unit is WAD.
     /// @dev The relative cap is relative to `totalAssets`.
-    /// @dev Relative caps are "soft" in the sense that they are only checked on allocate for the ids returned by the adapter.
+    /// @dev Relative caps are "soft" in the sense that they are only checked on allocate for the ids returned by the
+    /// adapter.
     mapping(bytes32 id => uint256) public relativeCap;
 
     mapping(address adapter => uint256) public forceDeallocatePenalty;
