@@ -550,7 +550,7 @@ contract SettersTest is BaseTest {
     ) public {
         bytes32 id = keccak256(idData);
         oldRelativeCap = bound(oldRelativeCap, 1, WAD);
-        newRelativeCap = bound(newRelativeCap, 1, oldRelativeCap);
+        newRelativeCap = bound(newRelativeCap, 0, oldRelativeCap);
 
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, oldRelativeCap));
