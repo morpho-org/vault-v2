@@ -32,9 +32,6 @@ definition MAX_FORCE_DEALLOCATE_PENALTY() returns uint256 = 10^18 / 100;
 
 definition decreaseTimelockSelector() returns bytes4 = to_bytes4(sig:decreaseTimelock(bytes4,uint256).selector);
 
-
-
-
 strong invariant performanceFeeRecipient()
     performanceFee() != 0 => performanceFeeRecipient() != 0;
 

@@ -1,17 +1,25 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
-import "../interfaces/IGate.sol";
+import "../../src/interfaces/IGate.sol";
 
 interface IBundler3 {
     function initiator() external view returns (address);
 }
 
-interface IAdapter {
+interface IBundlerAdapter {
     function BUNDLER3() external view returns (IBundler3);
 }
 
-contract Gate is IExitGate, IEnterGate {
+/// Example VaultV2 Gate with the following characteristics:
+/// - It is an exit gate, i.e. it checks vault shares senders & vault asset receivers).
+/// - It is an enter gate, i.e. it checks vault shares receivers & vault asset senders).
+/// - It has a single whitelist for all permissions.
+/// - It works with Bundler3.
+///   To enable transfers to/from a Bundler3 adapter (on whitelisted users only), set isBundlerAdapter[bundlerAdapter]
+/// to true.
+///   Only trusted Bundler3 adapters should be added.
+contract GateExample is IExitGate, IEnterGate {
     address public owner;
 
     mapping(address => bool) public isBundlerAdapter;
@@ -70,7 +78,7 @@ contract Gate is IExitGate, IEnterGate {
     /* INTERNAL FUNCTIONS */
 
     function whitelistedOrHandlingOnBehalf(address account) internal view returns (bool) {
-        return
-            whitelisted[account] || (isBundlerAdapter[account] && whitelisted[IAdapter(account).BUNDLER3().initiator()]);
+        return whitelisted[account]
+            || (isBundlerAdapter[account] && whitelisted[IBundlerAdapter(account).BUNDLER3().initiator()]);
     }
 }
