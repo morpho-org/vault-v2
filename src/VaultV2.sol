@@ -508,10 +508,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
-        require(
-            address(enterGate) == address(0) || (canReceive(onBehalf) && canSendAssets(msg.sender)),
-            ErrorsLib.CannotEnter()
-        );
+        require(canReceive(onBehalf) && canSendAssets(msg.sender), ErrorsLib.CannotEnter());
 
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
