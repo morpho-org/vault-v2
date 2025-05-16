@@ -236,18 +236,14 @@ contract SettersTest is BaseTest {
 
     function testIncreaseTimelock(address rdm, bytes4 selector, uint256 newTimelock) public {
         vm.assume(rdm != curator);
-        newTimelock = bound(newTimelock, 0, 2 weeks);
+        newTimelock = bound(newTimelock, 0, TIMELOCK_CAP);
         vm.assume(selector != IVaultV2.decreaseTimelock.selector);
+        vm.assume(selector != IVaultV2.increaseTimelock.selector);
 
         // Access control
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.increaseTimelock(selector, newTimelock);
-
-        // Cannot increase timelock of decreaseTimelock
-        vm.expectRevert(ErrorsLib.TimelockCapIsFixed.selector);
-        vm.prank(curator);
-        vault.increaseTimelock(IVaultV2.decreaseTimelock.selector, 3 weeks);
 
         // Can't go over timelock cap
         vm.expectRevert(ErrorsLib.TimelockDurationTooHigh.selector);
@@ -269,9 +265,40 @@ contract SettersTest is BaseTest {
         }
     }
 
+    function testFreezeSubmit(address rdm, bytes4 selector) public {
+        vm.assume(rdm != curator);
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.freezeSubmit(selector);
+
+        // Can freeze submit
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.freezeSubmit.selector, selector));
+        vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
+        vault.freezeSubmit(selector);
+        assertEq(vault.timelock(selector), type(uint256).max);
+
+        // Then it cannot be decreased
+        // If the selector is decreasetimelock itself, submit will revert by overflow
+        if (selector == IVaultV2.decreaseTimelock.selector) {
+            vm.expectRevert(stdError.arithmeticError);
+            vm.prank(curator);
+            vault.submit(abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, selector, 1 weeks));
+        } else {
+            vm.prank(curator);
+            vault.submit(abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, selector, 1 weeks));
+            vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
+            vm.expectRevert(ErrorsLib.InfiniteTimelock.selector);
+            vault.decreaseTimelock(selector, 1 weeks);
+        }
+    }
+
     function testDecreaseTimelock(address rdm, bytes4 selector, uint256 oldTimelock, uint256 newTimelock) public {
         vm.assume(rdm != curator);
         vm.assume(selector != IVaultV2.decreaseTimelock.selector);
+        vm.assume(selector != IVaultV2.freezeSubmit.selector);
         oldTimelock = bound(oldTimelock, 1, 2 weeks);
         newTimelock = bound(newTimelock, 0, oldTimelock);
 
@@ -643,6 +670,42 @@ contract SettersTest is BaseTest {
         vault.submit(abi.encodeWithSelector(IVaultV2.setForceDeallocatePenalty.selector, adapter, tooHighPenalty));
         vm.expectRevert(ErrorsLib.PenaltyTooHigh.selector);
         vault.setForceDeallocatePenalty(adapter, tooHighPenalty);
+    }
+
+    function testSetEnterGate(address rdm) public {
+        vm.assume(rdm != curator);
+        address newEnterGate = makeAddr("newEnterGate");
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.setEnterGate(newEnterGate);
+
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setEnterGate.selector, newEnterGate));
+        vm.expectEmit();
+        emit EventsLib.SetEnterGate(newEnterGate);
+        vault.setEnterGate(newEnterGate);
+        assertEq(vault.enterGate(), newEnterGate);
+    }
+
+    function testSetExitGate(address rdm) public {
+        vm.assume(rdm != curator);
+        address newExitGate = makeAddr("newExitGate");
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.setExitGate(newExitGate);
+
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setExitGate.selector, newExitGate));
+        vm.expectEmit();
+        emit EventsLib.SetExitGate(newExitGate);
+        vault.setExitGate(newExitGate);
+        assertEq(vault.exitGate(), newExitGate);
     }
 
     /* ALLOCATOR SETTERS */

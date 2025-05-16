@@ -20,6 +20,7 @@ library ErrorsLib {
     error DataAlreadyPending();
     error TimelockNotIncreasing();
     error TimelockNotDecreasing();
+    error CannotFreezeSubmit();
     error AbsoluteCapNotIncreasing();
     error AbsoluteCapNotDecreasing();
     error RelativeCapNotIncreasing();
@@ -37,8 +38,7 @@ library ErrorsLib {
     error LiquidityAdapterInvariantBroken();
     error ApproveReverted();
     error ApproveReturnedFalse();
-    error InfiniteGateTimelock();
-    error TransferOnlyMarker();
+    error InfiniteTimelock();
     error CannotExit();
     error CannotEnter();
     error RelativeCapZero();

@@ -43,10 +43,10 @@ contract VaultV2 is IVaultV2 {
 
     address public owner;
     address public curator;
-    /// @notice Gates sending shares and withdrawing.
-    address public exitGate;
     /// @notice Gates receiving shares and depositing.
     address public enterGate;
+    /// @notice Gates sending shares and withdrawing.
+    address public exitGate;
     mapping(address account => bool) public isSentinel;
     mapping(address account => bool) public isAllocator;
 
@@ -181,14 +181,14 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
 
-    function setExitGate(address newExitGate) external timelocked {
-        exitGate = newExitGate;
-        emit EventsLib.SetExitGate(newExitGate);
-    }
-
     function setEnterGate(address newEnterGate) external timelocked {
         enterGate = newEnterGate;
         emit EventsLib.SetEnterGate(newEnterGate);
+    }
+
+    function setExitGate(address newExitGate) external timelocked {
+        exitGate = newExitGate;
+        emit EventsLib.SetExitGate(newExitGate);
     }
 
     function setVic(address newVic) external timelocked {
@@ -204,25 +204,22 @@ contract VaultV2 is IVaultV2 {
     }
 
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
-        if (
-            (selector == IVaultV2.setExitGate.selector || selector == IVaultV2.setEnterGate.selector)
-                && newDuration == type(uint256).max
-        ) {
-            require(msg.sender == owner, ErrorsLib.Unauthorized());
-        } else {
-            require(msg.sender == curator, ErrorsLib.Unauthorized());
-            require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
-            require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
-            require(newDuration >= timelock[selector], ErrorsLib.TimelockNotIncreasing());
-        }
+        require(msg.sender == curator, ErrorsLib.Unauthorized());
+        require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
+        require(newDuration >= timelock[selector], ErrorsLib.TimelockNotIncreasing());
 
         timelock[selector] = newDuration;
         emit EventsLib.IncreaseTimelock(selector, newDuration);
     }
 
+    function freezeSubmit(bytes4 selector) external timelocked {
+        timelock[selector] = type(uint256).max;
+        emit EventsLib.FreezeSubmit(selector);
+    }
+
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
-        require(timelock[selector] != type(uint256).max, ErrorsLib.InfiniteGateTimelock());
+        require(timelock[selector] != type(uint256).max, ErrorsLib.InfiniteTimelock());
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
