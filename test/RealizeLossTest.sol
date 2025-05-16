@@ -74,6 +74,15 @@ contract RealizeLossTest is BaseTest {
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", 0);
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
+        assertTrue(vault.enterBlocked(vm.getBlockNumber()), "enter should be blocked");
+
+        // Cannot enter
+        vm.expectRevert(ErrorsLib.EnterBlocked.selector);
+        vault.deposit(0, address(this));
+
+        // Can enter at next block
+        vm.roll(vm.getBlockNumber() + 1);
+        vault.deposit(0, address(this));
     }
 
     function testRealizeLossDeallocate(uint256 deposit, uint256 expectedLoss) public {
@@ -87,6 +96,15 @@ contract RealizeLossTest is BaseTest {
         vm.prank(allocator);
         vault.deallocate(address(adapter), hex"", 0);
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
+        assertTrue(vault.enterBlocked(vm.getBlockNumber()), "enter should be blocked");
+
+        // Cannot enter
+        vm.expectRevert(ErrorsLib.EnterBlocked.selector);
+        vault.deposit(0, address(this));
+
+        // Can enter at next block
+        vm.roll(vm.getBlockNumber() + 1);
+        vault.deposit(0, address(this));
     }
 
     function testRealizeLossForceDeallocate(uint256 deposit, uint256 expectedLoss) public {
@@ -100,6 +118,15 @@ contract RealizeLossTest is BaseTest {
         vm.prank(allocator);
         vault.forceDeallocate(adapterArray, bytesArray, uint256Array, address(this));
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
+        assertTrue(vault.enterBlocked(vm.getBlockNumber()), "enter should be blocked");
+
+        // Cannot enter
+        vm.expectRevert(ErrorsLib.EnterBlocked.selector);
+        vault.deposit(0, address(this));
+
+        // Can enter at next block
+        vm.roll(vm.getBlockNumber() + 1);
+        vault.deposit(0, address(this));
     }
 
     function testRealizeLossAllocationUpdate(uint256 deposit, uint256 expectedLoss) public {

@@ -39,4 +39,5 @@ library ErrorsLib {
     error ApproveReverted();
     error ApproveReturnedFalse();
     error RelativeCapZero();
+    error EnterBlocked();
 }
