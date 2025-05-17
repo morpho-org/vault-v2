@@ -89,11 +89,13 @@ contract AccrueInterestTest is BaseTest {
         uint256 interest = interestPerSecond * elapsed;
         uint256 totalAssets = deposit + interest;
         uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
-        uint256 performanceFeeShares =
-            performanceFeeAssets.mulDivDown(vault.totalSupply() + 1, totalAssets + 1 - performanceFeeAssets);
+        uint256 performanceFeeShares = performanceFeeAssets.mulDivDown(
+            vault.totalSupply() + VIRTUAL_SHARES, totalAssets + VIRTUAL_ASSETS - performanceFeeAssets
+        );
         uint256 managementFeeAssets = (totalAssets * elapsed).mulDivDown(managementFee, WAD);
         uint256 managementFeeShares = managementFeeAssets.mulDivDown(
-            vault.totalSupply() + 1 + performanceFeeShares, totalAssets + 1 - managementFeeAssets
+            vault.totalSupply() + VIRTUAL_SHARES + performanceFeeShares,
+            totalAssets + VIRTUAL_ASSETS - managementFeeAssets
         );
         vm.expectEmit();
         emit EventsLib.AccrueInterest(deposit, totalAssets, performanceFeeShares, managementFeeShares);
@@ -191,8 +193,9 @@ contract AccrueInterestTest is BaseTest {
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = vault.totalAssets() + interest;
         uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
-        uint256 expectedShares =
-            performanceFeeAssets.mulDivDown(vault.totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets);
+        uint256 expectedShares = performanceFeeAssets.mulDivDown(
+            vault.totalSupply() + VIRTUAL_SHARES, newTotalAssets + VIRTUAL_ASSETS - performanceFeeAssets
+        );
 
         vault.accrueInterest();
 
@@ -224,8 +227,9 @@ contract AccrueInterestTest is BaseTest {
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = vault.totalAssets() + interest;
         uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
-        uint256 expectedShares =
-            managementFeeAssets.mulDivDown(vault.totalSupply() + 1, newTotalAssets + 1 - managementFeeAssets);
+        uint256 expectedShares = managementFeeAssets.mulDivDown(
+            vault.totalSupply() + VIRTUAL_SHARES, newTotalAssets + VIRTUAL_ASSETS - managementFeeAssets
+        );
 
         vault.accrueInterest();
 
