@@ -24,6 +24,10 @@ library EventsLib {
 
     event SetIsAllocator(address indexed account, bool newIsAllocator);
 
+    event SetExitGate(address indexed newExitGate);
+
+    event SetEnterGate(address indexed newEnterGate);
+
     event SetPerformanceFeeRecipient(address indexed);
 
     event SetManagementFeeRecipient(address indexed);
@@ -33,6 +37,8 @@ library EventsLib {
     event IncreaseTimelock(bytes4 indexed selector, uint256 newDuration);
 
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
+
+    event FreezeSubmit(bytes4 indexed selector);
 
     event SetPerformanceFee(uint256 newPerformanceFee);
 
