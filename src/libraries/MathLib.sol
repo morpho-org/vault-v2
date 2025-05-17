@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
+import {ErrorsLib} from "./ErrorsLib.sol";
+
 library MathLib {
     /// @dev Returns (x * y) / d rounded down.
     function mulDivDown(uint256 x, uint256 y, uint256 d) internal pure returns (uint256) {
@@ -24,5 +26,11 @@ library MathLib {
         assembly {
             z := mul(gt(x, y), sub(x, y))
         }
+    }
+
+    /// @dev Cast to uint192, reverting if input number is too large.
+    function toUint192(uint256 x) internal pure returns (uint192) {
+        require(x <= type(uint192).max, ErrorsLib.CastOverflow());
+        return uint192(x);
     }
 }

@@ -54,8 +54,8 @@ contract VaultV2 is IVaultV2 {
 
     /* INTEREST STORAGE */
 
-    uint256 public totalAssets;
-    uint96 public lastUpdate;
+    uint192 internal _totalAssets;
+    uint64 public lastUpdate;
     address public vic;
 
     /* CURATION STORAGE */
@@ -107,6 +107,10 @@ contract VaultV2 is IVaultV2 {
 
     /* GETTERS */
 
+    function totalAssets() external view returns (uint256) {
+        return _totalAssets;
+    }
+
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
         return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
     }
@@ -130,7 +134,7 @@ contract VaultV2 is IVaultV2 {
     constructor(address _owner, address _asset) {
         asset = _asset;
         owner = _owner;
-        lastUpdate = uint96(block.timestamp);
+        lastUpdate = uint64(block.timestamp);
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         emit EventsLib.Constructor(_owner, _asset);
     }
@@ -281,6 +285,8 @@ contract VaultV2 is IVaultV2 {
         require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
+        accrueInterest();
+
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
         bytes32[] memory ids = IAdapter(adapter).allocate(data, assets);
 
@@ -289,7 +295,8 @@ contract VaultV2 is IVaultV2 {
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
             require(
-                relativeCap[ids[i]] == WAD || allocation[ids[i]] <= totalAssets.mulDivDown(relativeCap[ids[i]], WAD),
+                relativeCap[ids[i]] == WAD
+                    || allocation[ids[i]] <= uint256(_totalAssets).mulDivDown(relativeCap[ids[i]], WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
@@ -357,29 +364,29 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterest() public {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
-        emit EventsLib.AccrueInterest(totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
-        totalAssets = newTotalAssets;
+        emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
+        _totalAssets = newTotalAssets.toUint192();
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
-        lastUpdate = uint96(block.timestamp);
+        lastUpdate = uint64(block.timestamp);
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        if (elapsed == 0) return (totalAssets, 0, 0);
+        if (elapsed == 0) return (_totalAssets, 0, 0);
 
         (bool success, bytes memory data) =
-            address(vic).staticcall(abi.encodeWithSelector(IVic.interestPerSecond.selector, totalAssets, elapsed));
+            address(vic).staticcall(abi.encodeWithSelector(IVic.interestPerSecond.selector, _totalAssets, elapsed));
         uint256 output;
         if (success) {
             assembly ("memory-safe") {
                 output := mload(add(data, 32))
             }
         }
-        uint256 interestPerSecond = output <= totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD) ? output : 0;
+        uint256 interestPerSecond = output <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? output : 0;
         uint256 interest = interestPerSecond * elapsed;
-        uint256 newTotalAssets = totalAssets + interest;
+        uint256 newTotalAssets = _totalAssets + interest;
 
         uint256 performanceFeeShares;
         uint256 managementFeeShares;
@@ -455,7 +462,7 @@ contract VaultV2 is IVaultV2 {
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
-        totalAssets += assets;
+        _totalAssets += assets.toUint192();
         if (liquidityAdapter != address(0)) {
             try this.allocate(liquidityAdapter, liquidityData, assets) {} catch {}
         }
@@ -491,7 +498,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         deleteShares(onBehalf, shares);
-        totalAssets -= assets;
+        _totalAssets -= assets.toUint192();
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);

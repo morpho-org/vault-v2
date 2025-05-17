@@ -114,7 +114,7 @@ contract AccrueInterestTest is BaseTest {
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         interestPerSecond = bound(interestPerSecond, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD), type(uint256).max);
-        elapsed = bound(elapsed, 0, 1000 weeks);
+        elapsed = bound(elapsed, 0, 20 * 365 days);
 
         // Setup.
         vault.deposit(deposit, address(this));
@@ -175,7 +175,7 @@ contract AccrueInterestTest is BaseTest {
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        elapsed = bound(elapsed, 0, 1000 weeks);
+        elapsed = bound(elapsed, 0, 20 * 365 days);
 
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setPerformanceFee.selector, performanceFee));
