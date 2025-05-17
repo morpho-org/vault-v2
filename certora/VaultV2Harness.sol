@@ -16,7 +16,7 @@ contract VaultV2Harness is VaultV2 {
         uint256 elapsed = block.timestamp;
 
         (bool success, bytes memory data) =
-            address(vic).staticcall(abi.encodeCall(IVic.interestPerSecond, (totalAssets, elapsed)));
+            address(vic).staticcall(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
         uint256 output;
         if (success) {
             assembly ("memory-safe") {
