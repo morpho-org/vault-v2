@@ -52,8 +52,8 @@ contract BaseTest is Test {
 
         vm.startPrank(curator);
         ManualVic(vic).increaseMaxInterestPerSecond(type(uint256).max);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAllocator.selector, allocator, true));
-        vault.submit(abi.encodeWithSelector(IVaultV2.setVic.selector, address(vic)));
+        vault.submit(abi.encodeCall(IVaultV2.setIsAllocator, (allocator, true)));
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(vic))));
         vm.stopPrank();
 
         vault.setIsAllocator(allocator, true);

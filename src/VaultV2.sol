@@ -377,7 +377,7 @@ contract VaultV2 is IVaultV2 {
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
         (bool success, bytes memory data) =
-            address(vic).staticcall(abi.encodeWithSelector(IVic.interestPerSecond.selector, _totalAssets, elapsed));
+            address(vic).staticcall(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
         uint256 output;
         if (success) {
             assembly ("memory-safe") {
