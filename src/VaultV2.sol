@@ -505,7 +505,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
         require(canReceive(onBehalf), ErrorsLib.CannotReceive());
-        require(canSendAssets(msg.sender), ErrorsLib.CannotSendAssets());
+        require(canSendUnderlyingAssets(msg.sender), ErrorsLib.CannotSendUnderlyingAssets());
 
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
@@ -536,7 +536,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Loops in idsWithRelativeCap to check relative caps.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         require(canSend(onBehalf), ErrorsLib.CannotSend());
-        require(canReceiveAssets(receiver), ErrorsLib.CannotReceiveAssets());
+        require(canReceiveUnderlyingAssets(receiver), ErrorsLib.CannotReceiveUnderlyingAssets());
 
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
@@ -654,17 +654,15 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Transfer(from, address(0), shares);
     }
 
-    /* INTERNAL PERMISSION FUNCTIONS HELPERS */
+    /* PERMISSION FUNCTIONS HELPERS */
 
-    function canReceiveAssets(address account) internal view returns (bool) {
+    function canReceiveUnderlyingAssets(address account) public view returns (bool) {
         return exitGate == address(0) || IExitGate(exitGate).canReceiveAssets(account);
     }
 
-    function canSendAssets(address account) internal view returns (bool) {
+    function canSendUnderlyingAssets(address account) public view returns (bool) {
         return enterGate == address(0) || IEnterGate(enterGate).canSendAssets(account);
     }
-
-    /* PUBLIC PERMISSION FUNCTIONS HELPERS */
 
     function canSend(address account) public view returns (bool) {
         return exitGate == address(0) || IExitGate(exitGate).canSendShares(account);

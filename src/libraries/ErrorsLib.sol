@@ -41,7 +41,7 @@ library ErrorsLib {
     error InfiniteTimelock();
     error CannotSend();
     error CannotReceive();
-    error CannotSendAssets();
-    error CannotReceiveAssets();
+    error CannotSendUnderlyingAssets();
+    error CannotReceiveUnderlyingAssets();
     error RelativeCapZero();
 }

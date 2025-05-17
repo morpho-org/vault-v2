@@ -99,7 +99,9 @@ interface IVaultV2 is IERC20, IPermissionedToken {
         external
         returns (uint256 withdrawnShares);
 
-    // Permissioned token
+    // Gate vault / permissioned token
     function canSend(address account) external returns (bool);
     function canReceive(address account) external returns (bool);
+    function canSendUnderlyingAssets(address account) external returns (bool);
+    function canReceiveUnderlyingAssets(address account) external returns (bool);
 }
