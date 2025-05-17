@@ -4,7 +4,7 @@ pragma solidity >=0.5.0;
 interface IMorphoBlueAdapterFactory {
     /* EVENTS */
 
-    event CreateMorphoBlueAdapter(address indexed vault, address indexed MorphoBlueAdapter);
+    event CreateMorphoBlueAdapter(address indexed vault, address indexed morphoBlueAdapter);
 
     /* FUNCTIONS */
 
