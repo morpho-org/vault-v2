@@ -2,8 +2,9 @@
 pragma solidity >=0.5.0;
 
 import {IERC20} from "./IERC20.sol";
+import {IPermissionedToken} from "./IPermissionedToken.sol";
 
-interface IVaultV2 is IERC20 {
+interface IVaultV2 is IERC20, IPermissionedToken {
     // Multicall
     function multicall(bytes[] memory data) external;
 
@@ -45,9 +46,13 @@ interface IVaultV2 is IERC20 {
     function timelock(bytes4 selector) external view returns (uint256);
     function liquidityAdapter() external view returns (address);
     function liquidityData() external view returns (bytes memory);
+    function enterGate() external view returns (address);
+    function exitGate() external view returns (address);
 
     // Owner actions
     function setOwner(address newOwner) external;
+    function setExitGate(address newExitGate) external;
+    function setEnterGate(address newEnterGate) external;
     function setCurator(address newCurator) external;
     function setIsSentinel(address account, bool isSentinel) external;
 
@@ -55,6 +60,7 @@ interface IVaultV2 is IERC20 {
     function setVic(address newVic) external;
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
+    function freezeSubmit(bytes4 selector) external;
     function setIsAllocator(address account, bool newIsAllocator) external;
     function setIsAdapter(address account, bool newIsAdapter) external;
     function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external;
@@ -88,4 +94,10 @@ interface IVaultV2 is IERC20 {
     function forceDeallocate(address[] memory adapters, bytes[] memory data, uint256[] memory assets, address onBehalf)
         external
         returns (uint256 withdrawnShares);
+
+    // Gate vault / permissioned token
+    function canSend(address account) external returns (bool);
+    function canReceive(address account) external returns (bool);
+    function canSendUnderlyingAssets(address account) external returns (bool);
+    function canReceiveUnderlyingAssets(address account) external returns (bool);
 }

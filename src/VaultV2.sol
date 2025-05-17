@@ -10,6 +10,7 @@ import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
+import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 
 /// @dev Zero checks are not performed.
 /// @dev No-ops are allowed.
@@ -42,6 +43,10 @@ contract VaultV2 is IVaultV2 {
 
     address public owner;
     address public curator;
+    /// @notice Gates receiving shares and depositing.
+    address public enterGate;
+    /// @notice Gates sending shares and withdrawing.
+    address public exitGate;
     mapping(address account => bool) public isSentinel;
     mapping(address account => bool) public isAllocator;
 
@@ -166,6 +171,16 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
 
+    function setEnterGate(address newEnterGate) external timelocked {
+        enterGate = newEnterGate;
+        emit EventsLib.SetEnterGate(newEnterGate);
+    }
+
+    function setExitGate(address newExitGate) external timelocked {
+        exitGate = newExitGate;
+        emit EventsLib.SetExitGate(newExitGate);
+    }
+
     function setVic(address newVic) external timelocked {
         accrueInterest();
         vic = newVic;
@@ -180,7 +195,6 @@ contract VaultV2 is IVaultV2 {
 
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
         require(newDuration >= timelock[selector], ErrorsLib.TimelockNotIncreasing());
 
@@ -188,8 +202,14 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.IncreaseTimelock(selector, newDuration);
     }
 
+    function freezeSubmit(bytes4 selector) external timelocked {
+        timelock[selector] = type(uint256).max;
+        emit EventsLib.FreezeSubmit(selector);
+    }
+
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
+        require(timelock[selector] != type(uint256).max, ErrorsLib.InfiniteTimelock());
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
@@ -393,13 +413,14 @@ contract VaultV2 is IVaultV2 {
         // Note: the fee assets is subtracted from the total assets in the fee shares calculation to compensate for the
         // fact that total assets is already increased by the total interest (including the fee assets).
         // Note: `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
-        if (interest > 0 && performanceFee != 0) {
+
+        if (interest > 0 && performanceFee != 0 && canReceive(performanceFeeRecipient)) {
             // Note: the accrued performance fee might be smaller than this because of the management fee.
             uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
             performanceFeeShares =
                 performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
         }
-        if (managementFee != 0) {
+        if (managementFee != 0 && canReceive(managementFeeRecipient)) {
             // Note: The vault must be pinged at least once every 20 years to avoid management fees exceeding total
             // assets and revert forever.
             // Note: The management fee is taken on newTotalAssets to make all approximations consistent (interacting
@@ -460,6 +481,9 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
+        require(canReceive(onBehalf), ErrorsLib.CannotReceive());
+        require(canSendUnderlyingAssets(msg.sender), ErrorsLib.CannotSendUnderlyingAssets());
+
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
         _totalAssets += assets.toUint192();
@@ -487,6 +511,9 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for withdraw and redeem.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
+        require(canSend(onBehalf), ErrorsLib.CannotSend());
+        require(canReceiveUnderlyingAssets(receiver), ErrorsLib.CannotReceiveUnderlyingAssets());
+
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
             this.deallocate(liquidityAdapter, liquidityData, assets - idleAssets);
@@ -527,6 +554,10 @@ contract VaultV2 is IVaultV2 {
     /// @dev Returns success (always true because reverts on failure).
     function transfer(address to, uint256 shares) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
+
+        require(canSend(msg.sender), ErrorsLib.CannotSend());
+        require(canReceive(to), ErrorsLib.CannotReceive());
+
         balanceOf[msg.sender] -= shares;
         balanceOf[to] += shares;
         emit EventsLib.Transfer(msg.sender, to, shares);
@@ -537,6 +568,9 @@ contract VaultV2 is IVaultV2 {
     function transferFrom(address from, address to, uint256 shares) external returns (bool) {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
+
+        require(canSend(from), ErrorsLib.CannotSend());
+        require(canReceive(to), ErrorsLib.CannotReceive());
 
         if (msg.sender != from) {
             uint256 _allowance = allowance[from][msg.sender];
@@ -587,5 +621,23 @@ contract VaultV2 is IVaultV2 {
         balanceOf[from] -= shares;
         totalSupply -= shares;
         emit EventsLib.Transfer(from, address(0), shares);
+    }
+
+    /* PERMISSION FUNCTIONS HELPERS */
+
+    function canReceiveUnderlyingAssets(address account) public view returns (bool) {
+        return exitGate == address(0) || IExitGate(exitGate).canReceiveAssets(account);
+    }
+
+    function canSendUnderlyingAssets(address account) public view returns (bool) {
+        return enterGate == address(0) || IEnterGate(enterGate).canSendAssets(account);
+    }
+
+    function canSend(address account) public view returns (bool) {
+        return exitGate == address(0) || IExitGate(exitGate).canSendShares(account);
+    }
+
+    function canReceive(address account) public view returns (bool) {
+        return enterGate == address(0) || IEnterGate(enterGate).canReceiveShares(account);
     }
 }
