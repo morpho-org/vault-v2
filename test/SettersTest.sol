@@ -542,6 +542,8 @@ contract SettersTest is BaseTest {
         uint256 oldRelativeCap,
         uint256 newRelativeCap
     ) public {
+        vm.assume(rdm != curator);
+        vm.assume(rdm != sentinel);
         bytes32 id = keccak256(idData);
         oldRelativeCap = bound(oldRelativeCap, 1, WAD);
         newRelativeCap = bound(newRelativeCap, 0, oldRelativeCap);
