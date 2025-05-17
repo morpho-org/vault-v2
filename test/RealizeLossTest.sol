@@ -140,6 +140,9 @@ contract RealizeLossTest is BaseTest {
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, deposit));
         vault.increaseAbsoluteCap(idData, deposit);
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, WAD));
+        vault.increaseRelativeCap(idData, WAD);
 
         vault.deposit(deposit, address(this));
         assertEq(vault.allocation(id), deposit, "allocation should be equal to the deposit");
