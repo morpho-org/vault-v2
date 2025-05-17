@@ -15,9 +15,10 @@ All the contracts are immutable.
 ### Curation
 
 Vaults can allocate assets not only to Morpho Markets V1 and V2, but also to external protocols, such as ERC-4626 vaults.
-The funds allocation of the vault is constrained by an id system. 
+The funds allocation of the vault is constrained by an id system.
 An id is an abstract identifier of a common risk factor of some markets (a collateral, an oracle, a protocol, etc.).
 The allocation on markets with a common id is limited by absolute caps and relative caps that can be set by the curator.
+Note that relative caps are "soft" because they are not checked on withdrawals (they only constrain new allocations).
 The curator enables adapters to invest on behalf of the vault.
 They are notably trusted to return the ids associated with a given market.
 
@@ -81,7 +82,7 @@ It can:
 
 Only one address can have this role.
 
-Some actions of the curator are timelockable (between 0 and 2 weeks).
+Some actions of the curator are timelockable (between 0 and 2 weeks, or infinite if the action has been frozen).
 Once the timelock passed, the action can be executed by anyone.
 
 It can:
@@ -89,7 +90,7 @@ It can:
 - [Timelockable] Increase absolute caps.
 - Decrease absolute caps.
 - [Timelockable] Increase relative caps.
-- [Timelockable] Decrease relative caps.
+- Decrease relative caps.
 - [Timelockable] Set the `vic`.
 - [Timelockable] Set adapters.
 - [Timelockable] Set allocators.
@@ -101,6 +102,7 @@ It can:
   The management fee is capped at 5% of assets under management annually.
 - [Timelockable] Set the `performanceFeeRecipient`.
 - [Timelockable] Set the `managementFeeRecipient`.
+- [Timelockable] Freeze submitting of an action. This should be set to a high value (e.g. 2 weeks) after the vault has been created and initial freezings are done.
 
 **Allocator**
 
@@ -121,6 +123,7 @@ It can:
 
 - Deallocate funds from enabled markets to the “idle market”.
 - Decrease absolute caps.
+- Decrease relative caps.
 - Revoke timelocked actions.
 
 ### Main differences with Vault V1
