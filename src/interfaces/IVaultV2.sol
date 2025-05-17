@@ -38,18 +38,14 @@ interface IVaultV2 is IERC20 {
     function forceDeallocatePenalty(address adapter) external view returns (uint256);
     function vic() external view returns (address);
     function allocation(bytes32 id) external view returns (uint256);
-    function lastUpdate() external view returns (uint96);
+    function lastUpdate() external view returns (uint64);
     function enterBlocked() external view returns (bool);
     function absoluteCap(bytes32 id) external view returns (uint256);
-    function idsWithRelativeCap(uint256 index) external view returns (bytes32);
+    function relativeCap(bytes32 id) external view returns (uint256);
     function executableAt(bytes memory data) external view returns (uint256);
     function timelock(bytes4 selector) external view returns (uint256);
     function liquidityAdapter() external view returns (address);
     function liquidityData() external view returns (bytes memory);
-
-    // Getters
-    function idsWithRelativeCapLength() external view returns (uint256);
-    function relativeCap(bytes32 id) external view returns (uint256);
 
     // Owner actions
     function setOwner(address newOwner) external;
