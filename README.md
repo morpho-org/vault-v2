@@ -135,7 +135,7 @@ It can:
 - The `Guardian` role of Vault V1 has been replaced by a `Sentinel` role.
   The scope of the sentinel is slightly different than that of the guardian role.
 - Timelocked actions are subject to configurable timelock durations, set individually for each action.
-- Bad debt realization is not automatic, but it can be realized by anybody.
+- Bad debt realization is not automatic, but any allocation or deallocation will realize bad debt amounts returned by the adapter.
 
 ## Getting started
 
