@@ -114,7 +114,7 @@ contract AccrueInterestTest is BaseTest {
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         interestPerSecond = bound(interestPerSecond, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD), type(uint256).max);
-        elapsed = bound(elapsed, 0, 1000 weeks);
+        elapsed = bound(elapsed, 0, 20 * 365 days);
 
         // Setup.
         vault.deposit(deposit, address(this));
@@ -139,7 +139,7 @@ contract AccrueInterestTest is BaseTest {
 
         // Setup.
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setVic.selector, address(42)));
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(42))));
         vault.setVic(address(42));
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
@@ -156,7 +156,7 @@ contract AccrueInterestTest is BaseTest {
 
         // Setup.
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setVic.selector, reverting));
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (reverting)));
         vault.setVic(reverting);
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
@@ -175,7 +175,7 @@ contract AccrueInterestTest is BaseTest {
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        elapsed = bound(elapsed, 0, 1000 weeks);
+        elapsed = bound(elapsed, 0, 20 * 365 days);
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));

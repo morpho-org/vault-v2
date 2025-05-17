@@ -23,7 +23,7 @@ contract ExchangeRateTest is BaseTest {
         assertEq(vault.totalAssets(), INITIAL_DEPOSIT, "wrong totalAssets before");
 
         underlyingToken.transfer(address(vault), INITIAL_DEPOSIT);
-        stdstore.target(address(vault)).sig(vault.totalAssets.selector).checked_write(2 * INITIAL_DEPOSIT);
+        writeTotalAssets(2 * INITIAL_DEPOSIT);
 
         assertEq(underlyingToken.balanceOf(address(vault)), 2 * INITIAL_DEPOSIT, "wrong balance after");
         assertEq(vault.totalAssets(), 2 * INITIAL_DEPOSIT, "wrong totalAssets after");

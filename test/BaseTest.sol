@@ -20,6 +20,9 @@ contract BaseTest is Test {
     address immutable allocator = makeAddr("allocator");
     address immutable sentinel = makeAddr("sentinel");
 
+    // The packed slot containing both _totalAssets and lastUpdate.
+    bytes32 TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT = bytes32(uint256(8));
+
     ERC20Mock underlyingToken;
     IVaultV2Factory vaultFactory;
     IVaultV2 vault;
@@ -55,6 +58,13 @@ contract BaseTest is Test {
 
         vault.setIsAllocator(allocator, true);
         vault.setVic(address(vic));
+    }
+
+    function writeTotalAssets(uint256 newTotalAssets) internal {
+        bytes32 value = vm.load(address(vault), TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT);
+        bytes32 strippedValue = (value >> 192) << 192;
+        require(newTotalAssets <= type(uint192).max, "wrong written value");
+        vm.store(address(vault), TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT, strippedValue | bytes32(newTotalAssets));
     }
 }
 
