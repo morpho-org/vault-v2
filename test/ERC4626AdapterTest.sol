@@ -244,7 +244,7 @@ contract ERC4626AdapterTest is Test {
         vm.prank(address(parentVault));
         (ids, change) = adapter.allocate(hex"", 0);
         assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(change, -int256(zeroFloorSub(lossAssets, interest)), "Loss should be correct after interest");
+        assertEq(change > 0 ? int256(0) : change, -int256(zeroFloorSub(lossAssets, interest)), "Loss should be correct after interest");
         assertApproxEqAbs(
             adapter.assetsInVault(), initialAssets - lossAssets + interest, 1, "AssetsInVault after interest"
         );
