@@ -60,7 +60,7 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     function setVic(address newVic) external;
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
-    function freezeSubmit(bytes4 selector) external;
+    function abdicateSubmit(bytes4 selector) external;
     function setIsAllocator(address account, bool newIsAllocator) external;
     function setIsAdapter(address account, bool newIsAdapter) external;
     function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external;

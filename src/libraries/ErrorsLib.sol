@@ -21,7 +21,6 @@ library ErrorsLib {
     error DataAlreadyPending();
     error TimelockNotIncreasing();
     error TimelockNotDecreasing();
-    error CannotFreezeSubmit();
     error AbsoluteCapNotIncreasing();
     error AbsoluteCapNotDecreasing();
     error RelativeCapNotIncreasing();
@@ -29,11 +28,9 @@ library ErrorsLib {
     error AbsoluteCapExceeded();
     error RelativeCapExceeded();
     error RelativeCapAboveOne();
-    error IdNotFound();
     error NotAllocator();
     error NotAdapter();
     error FeeInvariantBroken();
-    error InvalidRate();
     error PermitDeadlineExpired();
     error InvalidSigner();
     error LiquidityAdapterInvariantBroken();
@@ -44,5 +41,4 @@ library ErrorsLib {
     error CannotReceive();
     error CannotSendUnderlyingAssets();
     error CannotReceiveUnderlyingAssets();
-    error RelativeCapZero();
 }
