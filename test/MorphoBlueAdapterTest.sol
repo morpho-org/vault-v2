@@ -264,7 +264,11 @@ contract MorphoBlueAdapterTest is Test {
         vm.prank(address(parentVault));
         (ids, change) = adapter.allocate(abi.encode(marketParams), 0);
         assertEq(ids, expectedIds, "ids: interest");
-        assertEq(change > 0 ? int256(0) : change, -int256(expectedLoss > interest ? expectedLoss - interest : 0), "loss: interest");
+        assertEq(
+            change > 0 ? int256(0) : change,
+            -int256(expectedLoss > interest ? expectedLoss - interest : 0),
+            "loss: interest"
+        );
         assertApproxEqAbs(
             adapter.assetsInMarket(marketId), initial - expectedLoss + interest, 1, "assetsInMarket: interest"
         );
