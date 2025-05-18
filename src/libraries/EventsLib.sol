@@ -38,7 +38,7 @@ library EventsLib {
 
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
 
-    event abdicateSubmit(bytes4 indexed selector);
+    event AbdicateSubmit(bytes4 indexed selector);
 
     event SetPerformanceFee(uint256 newPerformanceFee);
 

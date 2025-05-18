@@ -273,9 +273,11 @@ contract SettersTest is BaseTest {
         vm.prank(rdm);
         vault.abdicateSubmit(selector);
 
-        // Can freeze submit
+        // Can abdicate submit
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.abdicateSubmit.selector, selector));
+        vm.expectEmit();
+        emit EventsLib.AbdicateSubmit(selector);
         vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
         vault.abdicateSubmit(selector);
         assertEq(vault.timelock(selector), type(uint256).max);

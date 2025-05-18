@@ -206,7 +206,7 @@ contract VaultV2 is IVaultV2 {
     /// Be particularly careful as this action is not reversible.
     function abdicateSubmit(bytes4 selector) external timelocked {
         timelock[selector] = type(uint256).max;
-        emit EventsLib.abdicateSubmit(selector);
+        emit EventsLib.AbdicateSubmit(selector);
     }
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
