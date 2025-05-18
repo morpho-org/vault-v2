@@ -202,6 +202,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.IncreaseTimelock(selector, newDuration);
     }
 
+    /// Irreversibly extend a timelock to an unreachable date.
+    /// Use carefully.
     function freezeSubmit(bytes4 selector) external timelocked {
         timelock[selector] = type(uint256).max;
         emit EventsLib.FreezeSubmit(selector);
