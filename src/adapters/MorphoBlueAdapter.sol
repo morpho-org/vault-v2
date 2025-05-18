@@ -75,6 +75,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
+        // Safe unchecked cast because totalSupplyAssets < 2^128.
         int256 change =
             int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(assetsInMarket[marketId]);
         if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
