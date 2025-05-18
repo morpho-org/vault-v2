@@ -53,7 +53,7 @@ contract AllocateTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
 
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, mockAdapter, true));
+        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (mockAdapter, true)));
         vault.setIsAdapter(mockAdapter, true);
 
         ids = new bytes32[](2);
@@ -69,7 +69,7 @@ contract AllocateTest is BaseTest {
         bytes32 id = keccak256(idData);
         if (absoluteCap > vault.absoluteCap(id)) {
             vm.prank(curator);
-            vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, absoluteCap));
+            vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, absoluteCap)));
             vault.increaseAbsoluteCap(idData, absoluteCap);
         } else {
             vm.prank(curator);

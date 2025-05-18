@@ -54,6 +54,8 @@ contract ERC4626Adapter is IERC4626Adapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
+        // To accrue interest only one time.
+        IERC4626(vault).deposit(0, address(this));
         int256 change =
             int256(IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)))) - int256(assetsInVault);
         IERC4626(vault).deposit(assets, address(this));
@@ -68,6 +70,8 @@ contract ERC4626Adapter is IERC4626Adapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
+        // To accrue interest only one time.
+        IERC4626(vault).deposit(0, address(this));
         int256 change =
             int256(IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)))) - int256(assetsInVault);
         IERC4626(vault).withdraw(assets, address(this), address(this));

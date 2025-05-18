@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 library ErrorsLib {
+    error CastOverflow();
     error NoCode();
     error TransferReverted();
     error TransferReturnedFalse();
@@ -20,6 +21,7 @@ library ErrorsLib {
     error DataAlreadyPending();
     error TimelockNotIncreasing();
     error TimelockNotDecreasing();
+    error CannotFreezeSubmit();
     error AbsoluteCapNotIncreasing();
     error AbsoluteCapNotDecreasing();
     error RelativeCapNotIncreasing();
@@ -38,6 +40,11 @@ library ErrorsLib {
     error LossRealizedInBlock();
     error ApproveReverted();
     error ApproveReturnedFalse();
+    error InfiniteTimelock();
+    error CannotSend();
+    error CannotReceive();
+    error CannotSendUnderlyingAssets();
+    error CannotReceiveUnderlyingAssets();
     error RelativeCapZero();
     error EnterBlocked();
 }

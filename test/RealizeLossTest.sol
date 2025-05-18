@@ -76,14 +76,10 @@ contract RealizeLossTest is BaseTest {
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
 
         if (expectedLoss > 0) {
-            assertTrue(vault.enterBlocked(vm.getBlockNumber()), "enter should be blocked");
+            assertTrue(vault.enterBlocked(), "enter should be blocked");
 
             // Cannot enter
             vm.expectRevert(ErrorsLib.EnterBlocked.selector);
-            vault.deposit(0, address(this));
-
-            // Can enter at next block
-            vm.roll(vm.getBlockNumber() + 1);
             vault.deposit(0, address(this));
         }
     }
@@ -101,14 +97,10 @@ contract RealizeLossTest is BaseTest {
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
 
         if (expectedLoss > 0) {
-            assertTrue(vault.enterBlocked(vm.getBlockNumber()), "enter should be blocked");
+            assertTrue(vault.enterBlocked(), "enter should be blocked");
 
             // Cannot enter
             vm.expectRevert(ErrorsLib.EnterBlocked.selector);
-            vault.deposit(0, address(this));
-
-            // Can enter at next block
-            vm.roll(vm.getBlockNumber() + 1);
             vault.deposit(0, address(this));
         }
     }
@@ -126,14 +118,10 @@ contract RealizeLossTest is BaseTest {
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
 
         if (expectedLoss > 0) {
-            assertTrue(vault.enterBlocked(vm.getBlockNumber()), "enter should be blocked");
+            assertTrue(vault.enterBlocked(), "enter should be blocked");
 
             // Cannot enter
             vm.expectRevert(ErrorsLib.EnterBlocked.selector);
-            vault.deposit(0, address(this));
-
-            // Can enter at next block
-            vm.roll(vm.getBlockNumber() + 1);
             vault.deposit(0, address(this));
         }
     }
@@ -152,6 +140,9 @@ contract RealizeLossTest is BaseTest {
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, deposit));
         vault.increaseAbsoluteCap(idData, deposit);
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, WAD));
+        vault.increaseRelativeCap(idData, WAD);
 
         vault.deposit(deposit, address(this));
         assertEq(vault.allocation(id), deposit, "allocation should be equal to the deposit");
