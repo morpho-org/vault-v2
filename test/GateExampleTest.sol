@@ -40,7 +40,7 @@ contract GateExampleTest is BaseTest {
         gate = new GateExample(gateOwner);
     }
 
-    function testConstructor() view public {
+    function testConstructor() public view {
         assertEq(gate.owner(), gateOwner);
     }
 
