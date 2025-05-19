@@ -28,7 +28,7 @@ library MathLib {
         }
     }
 
-    /// @dev Cast to uint192, reverting if input number is too large.
+    /// @dev Casts to uint192, reverting if input number is too large.
     function toUint192(uint256 x) internal pure returns (uint192) {
         require(x <= type(uint192).max, ErrorsLib.CastOverflow());
         return uint192(x);

@@ -102,7 +102,7 @@ It can:
   The management fee is capped at 5% of assets under management annually.
 - [Timelockable] Set the `performanceFeeRecipient`.
 - [Timelockable] Set the `managementFeeRecipient`.
-- [Timelockable] Freeze submitting of an action. This should be set to a high value (e.g. 2 weeks) after the vault has been created and initial freezings are done.
+- [Timelockable] Abdicate submitting of an action. This should be set to a high value (e.g. 2 weeks) after the vault has been created and some abdications have been done, if any.
 
 **Allocator**
 
