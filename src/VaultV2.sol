@@ -307,7 +307,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev This function will automatically realize potential losses.
     function allocate(address adapter, bytes memory data, uint256 assets) external {
-        require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator());
+        require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
@@ -336,7 +336,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev This function will automatically realize potential losses.
     function deallocate(address adapter, bytes memory data, uint256 assets) external {
         require(
-            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
+            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized()
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 

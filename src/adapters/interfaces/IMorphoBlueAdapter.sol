@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity >=0.5.0;
 
-import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {IAdapter} from "../../interfaces/IAdapter.sol";
 
 interface IMorphoBlueAdapter is IAdapter {

@@ -456,7 +456,7 @@ contract SettersTest is BaseTest {
         assertEq(vault.managementFeeRecipient(), newManagementFeeRecipient);
 
         // Fee invariant
-        uint256 newManagementFee = 0.01 ether / uint256(365.25 days);
+        uint256 newManagementFee = 0.01 ether / uint256(365 days);
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (newManagementFee)));
         vault.setManagementFee(newManagementFee);
