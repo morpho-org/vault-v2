@@ -99,8 +99,8 @@ contract VaultV2 is IVaultV2 {
     /// @dev The minimum time in which a function can be called is the following:
     /// min(
     ///     timelock[selector],
-    ///     min(executableAt[selector::q]),
-    ///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock)
+    ///     executableAt[selector::_],
+    ///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock
     /// ).
     mapping(bytes4 selector => uint256) public timelock;
 
