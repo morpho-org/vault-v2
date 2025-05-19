@@ -415,6 +415,7 @@ contract VaultV2 is IVaultV2 {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
+        // Low level call and decoding to avoid reverting if the VIC has no code or returns data that fails to decode.
         (bool success, bytes memory data) =
             address(vic).staticcall(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
         uint256 output;
