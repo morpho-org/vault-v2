@@ -199,7 +199,7 @@ contract MetaMorphoAdapterTest is Test {
         adapter.allocate(hex"", initialAssets);
 
         // Loss realization with allocate.
-        metaMorpho.loose(lossAssets);
+        metaMorpho.lose(lossAssets);
         uint256 snapshot = vm.snapshotState();
         vm.prank(address(parentVault));
         (bytes32[] memory ids, uint256 loss) = adapter.allocate(hex"", 0);
@@ -268,7 +268,7 @@ contract MetaMorphoAdapterTest is Test {
 contract ERC4626MockExtended is ERC4626Mock {
     constructor(address _asset) ERC4626Mock(_asset) {}
 
-    function loose(uint256 assets) public {
+    function lose(uint256 assets) public {
         IERC20(asset()).transfer(address(0xdead), assets);
     }
 }
