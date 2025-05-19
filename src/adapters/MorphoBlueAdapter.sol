@@ -17,7 +17,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
     /* IMMUTABLES */
 
-    address public immutable parentVault;
+    address public immutable vault;
     address public immutable morpho;
 
     /* STORAGE */
@@ -27,15 +27,15 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
     /* FUNCTIONS */
 
-    constructor(address _parentVault, address _morpho) {
+    constructor(address _vault, address _morpho) {
         morpho = _morpho;
-        parentVault = _parentVault;
-        SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _morpho, type(uint256).max);
-        SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
+        vault = _vault;
+        SafeERC20Lib.safeApprove(IVaultV2(_vault).asset(), _morpho, type(uint256).max);
+        SafeERC20Lib.safeApprove(IVaultV2(_vault).asset(), _vault, type(uint256).max);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
-        require(msg.sender == IVaultV2(parentVault).owner(), NotAuthorized());
+        require(msg.sender == IVaultV2(vault).owner(), NotAuthorized());
         skimRecipient = newSkimRecipient;
         emit SetSkimRecipient(newSkimRecipient);
     }
@@ -49,10 +49,10 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         emit Skim(token, balance);
     }
 
-    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
+    /// @dev Does not log anything because the ids (logged in the vault) are enough.
     /// @dev Returns the ids of the allocation and the potential loss.
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
-        require(msg.sender == parentVault, NotAuthorized());
+        require(msg.sender == vault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
 
@@ -66,10 +66,10 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         return (ids(marketParams), loss);
     }
 
-    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
+    /// @dev Does not log anything because the ids (logged in the vault) are enough.
     /// @dev Returns the ids of the deallocation and the potential loss.
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
-        require(msg.sender == parentVault, NotAuthorized());
+        require(msg.sender == vault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
 

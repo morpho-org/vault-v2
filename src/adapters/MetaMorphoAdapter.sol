@@ -15,25 +15,25 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
     /* IMMUTABLES */
 
-    address public immutable parentVault;
     address public immutable vault;
+    address public immutable metaMorpho;
 
     /* STORAGE */
 
     address public skimRecipient;
-    uint256 public assetsInVault;
+    uint256 public assetsInMetaMorpho;
 
     /* FUNCTIONS */
 
-    constructor(address _parentVault, address _vault) {
-        parentVault = _parentVault;
+    constructor(address _vault, address _metaMorpho) {
         vault = _vault;
-        SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
-        SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _vault, type(uint256).max);
+        metaMorpho = _metaMorpho;
+        SafeERC20Lib.safeApprove(IVaultV2(_vault).asset(), _vault, type(uint256).max);
+        SafeERC20Lib.safeApprove(IVaultV2(_vault).asset(), _metaMorpho, type(uint256).max);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
-        require(msg.sender == IVaultV2(parentVault).owner(), NotAuthorized());
+        require(msg.sender == IVaultV2(vault).owner(), NotAuthorized());
         skimRecipient = newSkimRecipient;
         emit SetSkimRecipient(newSkimRecipient);
     }
@@ -42,40 +42,40 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /// @dev This is useful to handle rewards that the adapter has earned.
     function skim(address token) external {
         require(msg.sender == skimRecipient, NotAuthorized());
-        require(token != vault, CannotSkimVault());
+        require(token != metaMorpho, CannotSkimMetaMorphoShares());
         uint256 balance = IERC20(token).balanceOf(address(this));
         SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
         emit Skim(token, balance);
     }
 
-    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
+    /// @dev Does not log anything because the ids (logged in the vault) are enough.
     /// @dev Returns the ids of the allocation and the potential loss.
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         require(data.length == 0, InvalidData());
-        require(msg.sender == parentVault, NotAuthorized());
+        require(msg.sender == vault, NotAuthorized());
 
         // To accrue interest only one time.
-        IERC4626(vault).deposit(0, address(this));
+        IERC4626(metaMorpho).deposit(0, address(this));
         uint256 loss =
-            assetsInVault.zeroFloorSub(IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this))));
-        IERC4626(vault).deposit(assets, address(this));
-        assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
+            assetsInMetaMorpho.zeroFloorSub(IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this))));
+        IERC4626(metaMorpho).deposit(assets, address(this));
+        assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
 
         return (ids(), loss);
     }
 
-    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
+    /// @dev Does not log anything because the ids (logged in the vault) are enough.
     /// @dev Returns the ids of the deallocation and the potential loss.
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         require(data.length == 0, InvalidData());
-        require(msg.sender == parentVault, NotAuthorized());
+        require(msg.sender == vault, NotAuthorized());
 
         // To accrue interest only one time.
-        IERC4626(vault).deposit(0, address(this));
+        IERC4626(metaMorpho).deposit(0, address(this));
         uint256 loss =
-            assetsInVault.zeroFloorSub(IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this))));
-        IERC4626(vault).withdraw(assets, address(this), address(this));
-        assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
+            assetsInMetaMorpho.zeroFloorSub(IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this))));
+        IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
+        assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
 
         return (ids(), loss);
     }

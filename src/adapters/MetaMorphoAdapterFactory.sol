@@ -7,17 +7,17 @@ import {IMetaMorphoAdapterFactory} from "./interfaces/IMetaMorphoAdapterFactory.
 contract MetaMorphoAdapterFactory is IMetaMorphoAdapterFactory {
     /* STORAGE */
 
-    mapping(address parentVault => mapping(address vault => address)) public metaMorphoAdapter;
+    mapping(address vault => mapping(address metaMorpho => address)) public metaMorphoAdapter;
     mapping(address account => bool) public isMetaMorphoAdapter;
 
     /* FUNCTIONS */
 
     /// @dev Returns the address of the deployed MetaMorphoAdapter.
-    function createMetaMorphoAdapter(address parentVault, address vault) external returns (address) {
-        address _metaMorphoAdapter = address(new MetaMorphoAdapter{salt: bytes32(0)}(parentVault, vault));
-        metaMorphoAdapter[parentVault][vault] = _metaMorphoAdapter;
+    function createMetaMorphoAdapter(address vault, address metaMorpho) external returns (address) {
+        address _metaMorphoAdapter = address(new MetaMorphoAdapter{salt: bytes32(0)}(vault, metaMorpho));
+        metaMorphoAdapter[vault][metaMorpho] = _metaMorphoAdapter;
         isMetaMorphoAdapter[_metaMorphoAdapter] = true;
-        emit CreateMetaMorphoAdapter(parentVault, vault, _metaMorphoAdapter);
+        emit CreateMetaMorphoAdapter(vault, metaMorpho, _metaMorphoAdapter);
         return _metaMorphoAdapter;
     }
 }

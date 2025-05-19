@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
-/// @notice Minimal stub contract used as the parent vault to test adapters.
+/// @notice Minimal stub contract used as the vault to test adapters.
 contract VaultV2Mock {
     address public asset;
     address public owner;
