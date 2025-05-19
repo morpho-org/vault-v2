@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
-import "forge-std/Test.sol";
+import "../lib/forge-std/src/Test.sol";
 
-import {IERC4626} from "src/interfaces/IERC4626.sol";
+import {IERC4626} from "../src/interfaces/IERC4626.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {ERC4626Mock} from "./mocks/ERC4626Mock.sol";
-import {IMetaMorphoAdapter} from "src/adapters/interfaces/IMetaMorphoAdapter.sol";
-import {MetaMorphoAdapter} from "src/adapters/MetaMorphoAdapter.sol";
-import {MetaMorphoAdapterFactory} from "src/adapters/MetaMorphoAdapterFactory.sol";
+import {IMetaMorphoAdapter} from "../src/adapters/interfaces/IMetaMorphoAdapter.sol";
+import {MetaMorphoAdapter} from "../src/adapters/MetaMorphoAdapter.sol";
+import {MetaMorphoAdapterFactory} from "../src/adapters/MetaMorphoAdapterFactory.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
-import {IERC20} from "src/interfaces/IERC20.sol";
-import {IVaultV2} from "src/interfaces/IVaultV2.sol";
-import {IMetaMorphoAdapterFactory} from "src/adapters/interfaces/IMetaMorphoAdapterFactory.sol";
+import {IERC20} from "../src/interfaces/IERC20.sol";
+import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
+import {IMetaMorphoAdapterFactory} from "../src/adapters/interfaces/IMetaMorphoAdapterFactory.sol";
 
 contract MetaMorphoAdapterTest is Test {
     ERC20Mock internal asset;
@@ -194,7 +194,7 @@ contract MetaMorphoAdapterTest is Test {
         vm.prank(address(parentVault));
         adapter.allocate(hex"", initialAssets);
 
-        // Loss realisation with allocate.
+        // Loss realization with allocate.
         vault.loose(lossAssets);
         uint256 snapshot = vm.snapshotState();
         vm.prank(address(parentVault));
@@ -203,7 +203,7 @@ contract MetaMorphoAdapterTest is Test {
         assertEq(loss, lossAssets, "Loss should be realized");
         assertEq(adapter.assetsInVault(), initialAssets - lossAssets, "AssetsInVault after allocate");
 
-        // Loss realisation with deallocate.
+        // Loss realization with deallocate.
         vm.revertToState(snapshot);
         vm.prank(address(parentVault));
         (ids, loss) = adapter.deallocate(hex"", 0);
@@ -219,7 +219,7 @@ contract MetaMorphoAdapterTest is Test {
         assertEq(adapter.assetsInVault(), initialAssets - lossAssets, "AssetsInVault after rerealization");
 
         // Deposit realizes the right loss.
-        vm.revertTo(snapshot);
+        vm.revertToState(snapshot);
         vm.prank(address(parentVault));
         (ids, loss) = adapter.allocate(hex"", deposit);
         assertEq(ids, expectedIds, "Incorrect ids returned");

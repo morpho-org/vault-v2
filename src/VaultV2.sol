@@ -15,11 +15,15 @@ import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 /// @dev Zero checks are not systematically performed.
 /// @dev No-ops are allowed.
 /// @dev Natspec are specified only when it brings clarity.
+/// @dev The vault has 1 virtual asset and a decimals offset of 0.
+/// See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 /// @dev Roles are not "two-step" so one must check if they really have this role.
 /// @dev The shares are represented with ERC-20, also compliant with ERC-2612 (permit extension).
 /// @dev To accrue interest, the vault queries the Vault Interest Controller (VIC) which returns the interest per second
 /// that must be distributed on the period (since `lastUpdate`). The VIC must be chosen and managed carefully to not
 /// distribute more than what the vault's investments are earning.
+/// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
+/// because flashloan based shorting is prevented.
 /// @dev Loose specification of adapters:
 /// - They must enforce that only the vault can call allocate/deallocate.
 /// - They must enter/exit markets only in allocate/deallocate.
@@ -62,13 +66,12 @@ contract VaultV2 is IVaultV2 {
     uint192 internal _totalAssets;
     uint64 public lastUpdate;
     address public vic;
-    /// @dev Prevents floashloan-based shorting of vault shares during loss realisations.
+    /// @dev Prevents floashloan-based shorting of vault shares during loss realizations.
     bool public transient enterBlocked;
 
     /* CURATION STORAGE */
 
     mapping(address account => bool) public isAdapter;
-
     /// @dev The allocation is not updated to take interests into account.
     /// @dev Some underlying markets might allow to take into account interest (fixed rate, fixed term), some might not.
     mapping(bytes32 id => uint256) public allocation;
@@ -307,7 +310,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev This function will automatically realize potential losses.
     function allocate(address adapter, bytes memory data, uint256 assets) external {
-        require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator());
+        require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
@@ -336,7 +339,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev This function will automatically realize potential losses.
     function deallocate(address adapter, bytes memory data, uint256 assets) external {
         require(
-            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
+            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized()
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
@@ -412,6 +415,7 @@ contract VaultV2 is IVaultV2 {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
+        // Low level call and decoding to avoid reverting if the VIC has no code or returns data that fails to decode.
         (bool success, bytes memory data) =
             address(vic).staticcall(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
         uint256 output;

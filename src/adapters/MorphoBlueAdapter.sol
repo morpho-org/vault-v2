@@ -50,7 +50,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the allocation.
+    /// @dev Returns the ids of the allocation and the potential loss.
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
@@ -67,7 +67,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the deallocation.
+    /// @dev Returns the ids of the deallocation and the potential loss.
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));

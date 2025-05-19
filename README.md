@@ -5,9 +5,9 @@ Depositors of Morpho Vault V2 earn from the underlying protocols without having 
 Management of deposited assets is the responsability of a set of different roles (owner, curator and allocators).
 The active management of invested positions involve enabling and allocating liquidity to protocols.
 
-[Morpho Vault V2](https://github.com/morpho-org/vaults-v2/blob/main/src/VaultV2.sol) vaults are [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) compliant, with [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) permit.
+[Morpho Vault V2](./src/VaultV2.sol) vaults are [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) compliant, with [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) permit.
 A given Morpho Vault V2 has one unique deposit asset.
-The [VaultV2Factory](https://github.com/morpho-org/vaults-v2/blob/main/src/VaultV2Factory.sol) deploys instances of Vaults V2.
+The [VaultV2Factory](./src/VaultV2Factory.sol) deploys instances of Vaults V2.
 All the contracts are immutable.
 
 ## Overview
@@ -64,7 +64,7 @@ The rate returned by the VIC must be below `200% APR`.
 ### Bad debt
 
 Similarly, the curator is responsible for monitoring the vault's bad debt.
-In contrast to Vault V1.0, bad debt realisation is not atomic to avoid share price manipulation with flash loans.
+In contrast to Vault V1.0, bad debt realization is not atomic to avoid share price manipulation with flash loans.
 
 ### Roles
 
@@ -102,7 +102,8 @@ It can:
   The management fee is capped at 5% of assets under management annually.
 - [Timelockable] Set the `performanceFeeRecipient`.
 - [Timelockable] Set the `managementFeeRecipient`.
-- [Timelockable] Abdicate submitting of an action. This should be set to a high value (e.g. 2 weeks) after the vault has been created and some abdications have been done, if any.
+- [Timelockable] Abdicate submitting of an action.
+  This should be set to a high value (e.g. 2 weeks) after the vault has been created and some abdications have been done, if any.
 
 **Allocator**
 
@@ -149,10 +150,6 @@ Install [Foundry](https://book.getfoundry.sh/getting-started/installation).
 ### Run tests
 
 Run `forge test`.
-
-## Audits
-
-All audits are stored in the [`audits`](./audits) folder.
 
 ## License
 

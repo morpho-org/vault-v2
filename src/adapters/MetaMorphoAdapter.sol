@@ -2,7 +2,6 @@
 pragma solidity 0.8.28;
 
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {IAdapter} from "../interfaces/IAdapter.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IMetaMorphoAdapter} from "./interfaces/IMetaMorphoAdapter.sol";
@@ -50,7 +49,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the allocation.
+    /// @dev Returns the ids of the allocation and the potential loss.
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
@@ -66,7 +65,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the deallocation.
+    /// @dev Returns the ids of the deallocation and the potential loss.
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
