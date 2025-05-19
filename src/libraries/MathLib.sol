@@ -28,6 +28,7 @@ library MathLib {
         }
     }
 
+    /// Returns max(0,x + y).
     function zeroFloorAddInt(uint256 x, int256 y) internal pure returns (uint256 z) {
         if (y < 0) z = zeroFloorSub(x, uint256(-y));
         else z = x + uint256(y);
