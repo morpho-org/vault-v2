@@ -107,12 +107,16 @@ contract MetaMorphoAdapterTest is Test {
         ERC4626Mock newVault = new ERC4626Mock(address(asset));
 
         bytes32 initCodeHash = keccak256(
-            abi.encodePacked(type(MetaMorphoAdapter).creationCode, abi.encode(address(newParentVault), address(newVault)))
+            abi.encodePacked(
+                type(MetaMorphoAdapter).creationCode, abi.encode(address(newParentVault), address(newVault))
+            )
         );
         address expectedNewAdapter =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
-        emit IMetaMorphoAdapterFactory.CreateMetaMorphoAdapter(address(newParentVault), address(newVault), expectedNewAdapter);
+        emit IMetaMorphoAdapterFactory.CreateMetaMorphoAdapter(
+            address(newParentVault), address(newVault), expectedNewAdapter
+        );
 
         address newAdapter = factory.createMetaMorphoAdapter(address(newParentVault), address(newVault));
 

@@ -4,7 +4,9 @@ pragma solidity >=0.5.0;
 interface IMetaMorphoAdapterFactory {
     /* EVENTS */
 
-    event CreateMetaMorphoAdapter(address indexed parentVault, address indexed vault, address indexed metaMorphoAdapter);
+    event CreateMetaMorphoAdapter(
+        address indexed parentVault, address indexed vault, address indexed metaMorphoAdapter
+    );
 
     /* FUNCTIONS */
 
