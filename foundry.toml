@@ -1,5 +1,4 @@
 [profile.default]
-libs = ["lib"]
 via_ir = true
 optimizer = true
 optimizer_runs = 999999 # Etherscan does not support verifying contracts with more optimization runs.

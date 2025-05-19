@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
-import "forge-std/Test.sol";
+import "../lib/forge-std/src/Test.sol";
 
-import {IERC4626} from "src/interfaces/IERC4626.sol";
+import {IERC4626} from "../src/interfaces/IERC4626.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {ERC4626Mock} from "./mocks/ERC4626Mock.sol";
-import {IERC4626Adapter} from "src/adapters/interfaces/IERC4626Adapter.sol";
-import {ERC4626Adapter} from "src/adapters/ERC4626Adapter.sol";
-import {ERC4626AdapterFactory} from "src/adapters/ERC4626AdapterFactory.sol";
+import {IERC4626Adapter} from "../src/adapters/interfaces/IERC4626Adapter.sol";
+import {ERC4626Adapter} from "../src/adapters/ERC4626Adapter.sol";
+import {ERC4626AdapterFactory} from "../src/adapters/ERC4626AdapterFactory.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
-import {IERC20} from "src/interfaces/IERC20.sol";
-import {IVaultV2} from "src/interfaces/IVaultV2.sol";
-import {IERC4626AdapterFactory} from "src/adapters/interfaces/IERC4626AdapterFactory.sol";
+import {IERC20} from "../src/interfaces/IERC20.sol";
+import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
+import {IERC4626AdapterFactory} from "../src/adapters/interfaces/IERC4626AdapterFactory.sol";
 
 contract ERC4626AdapterTest is Test {
     ERC20Mock internal asset;
