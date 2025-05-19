@@ -3,7 +3,7 @@ pragma solidity >= 0.5.0;
 
 import {IAdapter} from "../../interfaces/IAdapter.sol";
 
-interface IERC4626Adapter is IAdapter {
+interface IMetaMorphoAdapter is IAdapter {
     /* EVENTS */
 
     event SetSkimRecipient(address indexed newSkimRecipient);
