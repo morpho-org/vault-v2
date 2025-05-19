@@ -98,6 +98,13 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev The timelock of decreaseTimelock is hard-coded at TIMELOCK_CAP.
     /// @dev Only functions with the modifier `timelocked` are timelocked.
+    /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted timelocked data can potentially be changed shortly afterwards.
+    /// @dev The minimum time in which a function can be called is the following:
+    /// min(
+    ///     timelock[selector],
+    ///     executableAt[selector::_],
+    ///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock
+    /// ).
     mapping(bytes4 selector => uint256) public timelock;
 
     /// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist,
@@ -209,6 +216,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Irreversibly disable submit for a selector.
     /// @dev Be particularly careful as this action is not reversible.
+    /// @dev After abdicating the submission of a function, it can still be executed with previously timelocked data.
     function abdicateSubmit(bytes4 selector) external timelocked {
         timelock[selector] = type(uint256).max;
         emit EventsLib.AbdicateSubmit(selector);
