@@ -106,7 +106,7 @@ contract AllocateTest is BaseTest {
 
         // Access control.
         vm.prank(rdm);
-        vm.expectRevert(ErrorsLib.NotAllocator.selector);
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vault.allocate(mockAdapter, data, assets);
         vm.prank(address(vault));
         vault.allocate(mockAdapter, hex"", 0);
@@ -168,7 +168,7 @@ contract AllocateTest is BaseTest {
 
         // Access control.
         vm.prank(rdm);
-        vm.expectRevert(ErrorsLib.NotAllocator.selector);
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vault.deallocate(mockAdapter, hex"", 0);
         vm.prank(allocator);
         vault.deallocate(mockAdapter, hex"", 0);

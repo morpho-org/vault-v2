@@ -1,20 +1,19 @@
 # Vault v2
 
-Morpho Vault V2 enables anyone to create vaults that allocate assets to any protocols, including but not limited to Morpho Market V1, Morpho Market V2, and ERC-4626 strategies.
+Morpho Vault V2 enables anyone to create vaults that allocate assets to any protocols, including but not limited to Morpho Market V1, Morpho Market V2, and MetaMorpho Vaults.
 Depositors of Morpho Vault V2 earn from the underlying protocols without having to actively manage the risk of their position.
 Management of deposited assets is the responsability of a set of different roles (owner, curator and allocators).
 The active management of invested positions involve enabling and allocating liquidity to protocols.
 
-[Morpho Vault V2](https://github.com/morpho-org/vaults-v2/blob/main/src/VaultV2.sol) vaults are [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) compliant, with [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) permit.
-A given Morpho Vault V2 has one unique deposit asset.
-The [VaultV2Factory](https://github.com/morpho-org/vaults-v2/blob/main/src/VaultV2Factory.sol) deploys instances of Vaults V2.
+[Morpho Vault V2](./src/VaultV2.sol) shares are [ERC-20](https://eips.ethereum.org/EIPS/eip-20) compliant, with [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) permit.
+The [VaultV2Factory](./src/VaultV2Factory.sol) deploys instances of Vaults V2.
 All the contracts are immutable.
 
 ## Overview
 
 ### Curation
 
-Vaults can allocate assets not only to Morpho Markets V1 and V2, but also to external protocols, such as ERC-4626 vaults.
+Vaults can allocate assets to arbitrary protocols and markets.
 The funds allocation of the vault is constrained by an id system.
 An id is an abstract identifier of a common risk factor of some markets (a collateral, an oracle, a protocol, etc.).
 The allocation on markets with a common id is limited by absolute caps and relative caps that can be set by the curator.
@@ -25,7 +24,7 @@ They are notably trusted to return the ids associated with a given market.
 Adapters for the following protocols are currently available:
 
 - [Morpho Market V1](./src/adapters/MorphoBlueAdapter.sol)
-- [ERC-4626](./src/adapters/ERC4626Adapter.sol)
+- [MetaMorpho Vaults](./src/adapters/MetaMorphoAdapter.sol)
 
 A Morpho Market V2 adapter will be released together with Market V2.
 
@@ -64,7 +63,7 @@ The rate returned by the VIC must be below `200% APR`.
 ### Bad debt
 
 Similarly, the curator is responsible for monitoring the vault's bad debt.
-In contrast to Vault V1.0, bad debt realisation is not atomic to avoid share price manipulation with flash loans.
+In contrast to Vault V1.0, bad debt realization is not atomic to avoid share price manipulation with flash loans.
 
 ### Roles
 
@@ -102,7 +101,8 @@ It can:
   The management fee is capped at 5% of assets under management annually.
 - [Timelockable] Set the `performanceFeeRecipient`.
 - [Timelockable] Set the `managementFeeRecipient`.
-- [Timelockable] Freeze submitting of an action. This should be set to a high value (e.g. 2 weeks) after the vault has been created and initial freezings are done.
+- [Timelockable] Abdicate submitting of an action.
+  This should be set to a high value (e.g. 2 weeks) after the vault has been created and some abdications have been done, if any.
 
 **Allocator**
 
@@ -149,10 +149,6 @@ Install [Foundry](https://book.getfoundry.sh/getting-started/installation).
 ### Run tests
 
 Run `forge test`.
-
-## Audits
-
-All audits are stored in the [`audits`](./audits) folder.
 
 ## License
 

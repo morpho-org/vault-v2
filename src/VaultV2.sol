@@ -12,14 +12,19 @@ import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 
-/// @dev Zero checks are not performed.
+/// @dev Not ERC-4626 compliant due to missing functions and `totalAssets()` is not up to date.
+/// @dev Zero checks are not systematically performed.
 /// @dev No-ops are allowed.
 /// @dev Natspec are specified only when it brings clarity.
+/// @dev The vault has 1 virtual asset and a decimals offset of 0.
+/// See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 /// @dev Roles are not "two-step" so one must check if they really have this role.
 /// @dev The shares are represented with ERC-20, also compliant with ERC-2612 (permit extension).
 /// @dev To accrue interest, the vault queries the Vault Interest Controller (VIC) which returns the interest per second
 /// that must be distributed on the period (since `lastUpdate`). The VIC must be chosen and managed carefully to not
 /// distribute more than what the vault's investments are earning.
+/// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
+/// because flashloan based shorting is prevented.
 /// @dev Loose specification of adapters:
 /// - They must enforce that only the vault can call allocate/deallocate.
 /// - They must enter/exit markets only in allocate/deallocate.
@@ -62,13 +67,12 @@ contract VaultV2 is IVaultV2 {
     uint192 internal _totalAssets;
     uint64 public lastUpdate;
     address public vic;
-    /// @dev Prevents floashloan-based shorting of vault shares during loss realisations.
+    /// @dev Prevents floashloan-based shorting of vault shares during loss realizations.
     bool public transient enterBlocked;
 
     /* CURATION STORAGE */
 
     mapping(address account => bool) public isAdapter;
-
     /// @dev The allocation is not updated to take interests into account.
     /// @dev Some underlying markets might allow to take into account interest (fixed rate, fixed term), some might not.
     mapping(bytes32 id => uint256) public allocation;
@@ -95,6 +99,14 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev The timelock of decreaseTimelock is hard-coded at TIMELOCK_CAP.
     /// @dev Only functions with the modifier `timelocked` are timelocked.
+    /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
+    /// timelocked data can potentially be changed shortly afterwards.
+    /// @dev The minimum time in which a function can be called is the following:
+    /// min(
+    ///     timelock[selector],
+    ///     executableAt[selector::_],
+    ///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock
+    /// ).
     mapping(bytes4 selector => uint256) public timelock;
 
     /// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist,
@@ -204,9 +216,12 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.IncreaseTimelock(selector, newDuration);
     }
 
-    function freezeSubmit(bytes4 selector) external timelocked {
+    /// @dev Irreversibly disable submit for a selector.
+    /// @dev Be particularly careful as this action is not reversible.
+    /// @dev After abdicating the submission of a function, it can still be executed with previously timelocked data.
+    function abdicateSubmit(bytes4 selector) external timelocked {
         timelock[selector] = type(uint256).max;
-        emit EventsLib.FreezeSubmit(selector);
+        emit EventsLib.AbdicateSubmit(selector);
     }
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
@@ -305,7 +320,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev This function will automatically realize potential losses.
     function allocate(address adapter, bytes memory data, uint256 assets) external {
-        require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator());
+        require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
@@ -334,7 +349,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev This function will automatically realize potential losses.
     function deallocate(address adapter, bytes memory data, uint256 assets) external {
         require(
-            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.NotAllocator()
+            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized()
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
@@ -410,6 +425,7 @@ contract VaultV2 is IVaultV2 {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
+        // Low level call and decoding to avoid reverting if the VIC has no code or returns data that fails to decode.
         (bool success, bytes memory data) =
             address(vic).staticcall(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
         uint256 output;

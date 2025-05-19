@@ -17,7 +17,7 @@ jobs:
       matrix:
         conf:
           - Invariants
-          - TryCatch
+          - NotRevertingCalls
 
     steps:
       - uses: actions/checkout@v4

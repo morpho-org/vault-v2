@@ -3,7 +3,7 @@ pragma solidity >= 0.5.0;
 
 import {IAdapter} from "../../interfaces/IAdapter.sol";
 
-interface IERC4626Adapter is IAdapter {
+interface IMetaMorphoAdapter is IAdapter {
     /* EVENTS */
 
     event SetSkimRecipient(address indexed newSkimRecipient);
@@ -13,7 +13,7 @@ interface IERC4626Adapter is IAdapter {
 
     error NotAuthorized();
     error InvalidData();
-    error CannotSkimVault();
+    error CannotSkimMetaMorphoShares();
     error CannotRealizeAsMuch();
 
     /* FUNCTIONS */
@@ -21,6 +21,6 @@ interface IERC4626Adapter is IAdapter {
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
     function parentVault() external view returns (address);
-    function vault() external view returns (address);
+    function metaMorpho() external view returns (address);
     function skimRecipient() external view returns (address);
 }

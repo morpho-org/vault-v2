@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
-import {Test} from "forge-std/Test.sol";
+import {Test} from "../lib/forge-std/src/Test.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
+import {ErrorsLib} from "../src/libraries/ErrorsLib.sol";
 
 contract MathTest is Test {
     function setUp() public {}
@@ -22,11 +23,16 @@ contract MathTest is Test {
         assertEq(MathLib.mulDivUp(x, y, d), (x * y + d - 1) / d);
     }
 
-    function testMin(uint256 x, uint256 y) public pure {
-        assertEq(MathLib.min(x, y), x < y ? x : y);
+    function testToUint192(uint256 x) public {
+        if (x > type(uint192).max) {
+            vm.expectRevert(ErrorsLib.CastOverflow.selector);
+            this.toUint192(x);
+        } else {
+            assertEq(this.toUint192(x), uint192(x));
+        }
     }
 
-    function testZeroFloorSub(uint256 x, uint256 y) public pure {
-        assertEq(MathLib.zeroFloorSub(x, y), x < y ? 0 : x - y);
+    function toUint192(uint256 x) external pure returns (uint192) {
+        return MathLib.toUint192(x);
     }
 }
