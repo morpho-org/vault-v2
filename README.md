@@ -5,8 +5,7 @@ Depositors of Morpho Vault V2 earn from the underlying protocols without having 
 Management of deposited assets is the responsability of a set of different roles (owner, curator and allocators).
 The active management of invested positions involve enabling and allocating liquidity to protocols.
 
-[Morpho Vault V2](./src/VaultV2.sol) vaults are [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) compliant, with [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) permit.
-A given Morpho Vault V2 has one unique deposit asset.
+[Morpho Vault V2](./src/VaultV2.sol) shares are [ERC-20](https://eips.ethereum.org/EIPS/eip-20) compliant, with [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) permit.
 The [VaultV2Factory](./src/VaultV2Factory.sol) deploys instances of Vaults V2.
 All the contracts are immutable.
 
