@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
-import {StdStorage, stdStorage} from "forge-std/StdStorage.sol";
+import {StdStorage, stdStorage} from "../lib/forge-std/src/StdStorage.sol";
 
 contract ExchangeRateTest is BaseTest {
     using stdStorage for StdStorage;

@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
-import "forge-std/Test.sol";
-import {MorphoBlueAdapter} from "src/adapters/MorphoBlueAdapter.sol";
-import {MorphoBlueAdapterFactory} from "src/adapters/MorphoBlueAdapterFactory.sol";
+import "../lib/forge-std/src/Test.sol";
+import {MorphoBlueAdapter} from "../src/adapters/MorphoBlueAdapter.sol";
+import {MorphoBlueAdapterFactory} from "../src/adapters/MorphoBlueAdapterFactory.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
-import {IrmMock} from "lib/morpho-blue/src/mocks/IrmMock.sol";
-import {IMorpho, MarketParams, Id, Market} from "lib/morpho-blue/src/interfaces/IMorpho.sol";
-import {MorphoBalancesLib} from "lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
-import {MarketParamsLib} from "lib/morpho-blue/src/libraries/MarketParamsLib.sol";
-import {IERC20} from "src/interfaces/IERC20.sol";
-import {IVaultV2} from "src/interfaces/IVaultV2.sol";
-import {IMorphoBlueAdapter} from "src/adapters/interfaces/IMorphoBlueAdapter.sol";
-import {IMorphoBlueAdapterFactory} from "src/adapters/interfaces/IMorphoBlueAdapterFactory.sol";
+import {IrmMock} from "../lib/morpho-blue/src/mocks/IrmMock.sol";
+import {IMorpho, MarketParams, Id, Market} from "../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {MorphoBalancesLib} from "../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {MarketParamsLib} from "../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
+import {IERC20} from "../src/interfaces/IERC20.sol";
+import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
+import {IMorphoBlueAdapter} from "../src/adapters/interfaces/IMorphoBlueAdapter.sol";
+import {IMorphoBlueAdapterFactory} from "../src/adapters/interfaces/IMorphoBlueAdapterFactory.sol";
 
 contract MorphoBlueAdapterTest is Test {
     using MorphoBalancesLib for IMorpho;
