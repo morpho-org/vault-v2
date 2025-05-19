@@ -204,8 +204,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.IncreaseTimelock(selector, newDuration);
     }
 
-    /// Irreversibly disable submit for a selector.
-    /// Be particularly careful as this action is not reversible.
+    /// @dev Irreversibly disable submit for a selector.
+    /// @dev Be particularly careful as this action is not reversible.
     function abdicateSubmit(bytes4 selector) external timelocked {
         timelock[selector] = type(uint256).max;
         emit EventsLib.AbdicateSubmit(selector);
