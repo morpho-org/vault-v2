@@ -194,7 +194,7 @@ contract ERC4626AdapterTest is Test {
         vm.prank(address(parentVault));
         adapter.allocate(hex"", initialAssets);
 
-        // Loss realisation with allocate.
+        // Loss realization with allocate.
         vault.loose(lossAssets);
         uint256 snapshot = vm.snapshotState();
         vm.prank(address(parentVault));
@@ -203,7 +203,7 @@ contract ERC4626AdapterTest is Test {
         assertEq(loss, lossAssets, "Loss should be realized");
         assertEq(adapter.assetsInVault(), initialAssets - lossAssets, "AssetsInVault after allocate");
 
-        // Loss realisation with deallocate.
+        // Loss realization with deallocate.
         vm.revertToState(snapshot);
         vm.prank(address(parentVault));
         (ids, loss) = adapter.deallocate(hex"", 0);

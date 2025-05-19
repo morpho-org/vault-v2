@@ -64,7 +64,7 @@ The rate returned by the VIC must be below `200% APR`.
 ### Bad debt
 
 Similarly, the curator is responsible for monitoring the vault's bad debt.
-In contrast to Vault V1.0, bad debt realisation is not atomic to avoid share price manipulation with flash loans.
+In contrast to Vault V1.0, bad debt realization is not atomic to avoid share price manipulation with flash loans.
 
 ### Roles
 
