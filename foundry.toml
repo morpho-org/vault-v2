@@ -10,4 +10,7 @@ dynamic_test_linking = true
 [profile.default.fmt]
 wrap_comments = true
 
+[fuzz]
+runs = 2048
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
