@@ -14,6 +14,23 @@ import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {Test, console} from "../lib/forge-std/src/Test.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
 
+contract RecordingAdapter {
+    bytes public recordedData;
+    uint256 public recordedAssets;
+
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {
+        recordedData = data;
+        recordedAssets = assets;
+        ids = new bytes32[](0);
+    }
+
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {
+        recordedData = data;
+        recordedAssets = assets;
+        ids = new bytes32[](0);
+    }
+}
+
 contract BaseTest is Test {
     address immutable owner = makeAddr("owner");
     address immutable curator = makeAddr("curator");
