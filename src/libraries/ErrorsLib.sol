@@ -28,7 +28,6 @@ library ErrorsLib {
     error AbsoluteCapExceeded();
     error RelativeCapExceeded();
     error RelativeCapAboveOne();
-    error NotAllocator();
     error NotAdapter();
     error FeeInvariantBroken();
     error PermitDeadlineExpired();
