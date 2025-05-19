@@ -4,12 +4,13 @@ pragma solidity 0.8.28;
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IERC4626Adapter} from "./interfaces/IERC4626Adapter.sol";
+import {IMetaMorphoAdapter} from "./interfaces/IMetaMorphoAdapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 
-/// Vaults should transfer exactly the input in deposit and withdraw.
-contract ERC4626Adapter is IERC4626Adapter {
+/// @dev Designed, developped and audited for MetaMorpho Vaults (v1.0 and v1.1). Integration with other vaults must be
+/// carefully assessed from a security standpoint.
+contract MetaMorphoAdapter is IMetaMorphoAdapter {
     using MathLib for uint256;
 
     /* IMMUTABLES */
