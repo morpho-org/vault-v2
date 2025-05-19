@@ -12,7 +12,7 @@ import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 
-/// @dev Zero checks are not performed.
+/// @dev Zero checks are not systematically performed.
 /// @dev No-ops are allowed.
 /// @dev Natspec are specified only when it brings clarity.
 /// @dev Roles are not "two-step" so one must check if they really have this role.
@@ -204,9 +204,11 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.IncreaseTimelock(selector, newDuration);
     }
 
-    function freezeSubmit(bytes4 selector) external timelocked {
+    /// @dev Irreversibly disable submit for a selector.
+    /// @dev Be particularly careful as this action is not reversible.
+    function abdicateSubmit(bytes4 selector) external timelocked {
         timelock[selector] = type(uint256).max;
-        emit EventsLib.FreezeSubmit(selector);
+        emit EventsLib.AbdicateSubmit(selector);
     }
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
