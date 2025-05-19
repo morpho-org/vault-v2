@@ -18,7 +18,7 @@ contract MetaMorphoAdapterTest is Test {
     ERC20Mock internal asset;
     ERC20Mock internal rewardToken;
     VaultV2Mock internal parentVault;
-    ERC4626MockExtended internal vault;
+    ERC4626MockExtended internal metaMorpho;
     MetaMorphoAdapterFactory internal factory;
     MetaMorphoAdapter internal adapter;
     address internal owner;
@@ -33,14 +33,14 @@ contract MetaMorphoAdapterTest is Test {
 
         asset = new ERC20Mock();
         rewardToken = new ERC20Mock();
-        vault = new ERC4626MockExtended(address(asset));
+        metaMorpho = new ERC4626MockExtended(address(asset));
         parentVault = new VaultV2Mock(address(asset), owner, address(0), address(0), address(0));
 
         factory = new MetaMorphoAdapterFactory();
-        adapter = MetaMorphoAdapter(factory.createMetaMorphoAdapter(address(parentVault), address(vault)));
+        adapter = MetaMorphoAdapter(factory.createMetaMorphoAdapter(address(parentVault), address(metaMorpho)));
 
         deal(address(asset), address(this), type(uint256).max);
-        asset.approve(address(vault), type(uint256).max);
+        asset.approve(address(metaMorpho), type(uint256).max);
 
         expectedIds = new bytes32[](1);
         expectedIds[0] = keccak256(abi.encode("adapter", address(adapter)));
@@ -48,7 +48,7 @@ contract MetaMorphoAdapterTest is Test {
 
     function testParentVaultAndAssetSet() public view {
         assertEq(adapter.parentVault(), address(parentVault), "Incorrect parent vault set");
-        assertEq(adapter.metaMorpho(), address(vault), "Incorrect metaMorpho vault set");
+        assertEq(adapter.metaMorpho(), address(metaMorpho), "Incorrect metaMorpho vault set");
     }
 
     function testAllocateNotAuthorizedReverts(uint256 assets) public {
@@ -71,7 +71,7 @@ contract MetaMorphoAdapterTest is Test {
         (bytes32[] memory ids,) = adapter.allocate(hex"", assets);
 
         assertEq(adapter.assetsInMetaMorpho(), assets, "incorrect assetsInMetaMorpho");
-        uint256 adapterShares = vault.balanceOf(address(adapter));
+        uint256 adapterShares = metaMorpho.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(adapterShares, assets, "Incorrect share balance after deposit");
         assertEq(asset.balanceOf(address(adapter)), 0, "Underlying tokens not transferred to vault");
@@ -86,7 +86,7 @@ contract MetaMorphoAdapterTest is Test {
         vm.prank(address(parentVault));
         adapter.allocate(hex"", initialAssets);
 
-        uint256 beforeShares = vault.balanceOf(address(adapter));
+        uint256 beforeShares = metaMorpho.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(beforeShares, initialAssets, "Precondition failed: shares not set");
 
@@ -94,7 +94,7 @@ contract MetaMorphoAdapterTest is Test {
         (bytes32[] memory ids,) = adapter.deallocate(hex"", withdrawAssets);
 
         assertEq(adapter.assetsInMetaMorpho(), initialAssets - withdrawAssets, "incorrect assetsInMetaMorpho");
-        uint256 afterShares = vault.balanceOf(address(adapter));
+        uint256 afterShares = metaMorpho.balanceOf(address(adapter));
         assertEq(afterShares, initialAssets - withdrawAssets, "Share balance not decreased correctly");
 
         uint256 adapterBalance = asset.balanceOf(address(adapter));
@@ -172,10 +172,10 @@ contract MetaMorphoAdapterTest is Test {
         vm.expectRevert(IMetaMorphoAdapter.NotAuthorized.selector);
         adapter.skim(address(token));
 
-        // Cant skim vault
-        vm.expectRevert(IMetaMorphoAdapter.CannotSkimVault.selector);
+        // Cant skim metaMorpho
+        vm.expectRevert(IMetaMorphoAdapter.CannotSkimMetaMorphoShares.selector);
         vm.prank(recipient);
-        adapter.skim(address(vault));
+        adapter.skim(address(metaMorpho));
     }
 
     function testLossRealization(
@@ -199,7 +199,7 @@ contract MetaMorphoAdapterTest is Test {
         adapter.allocate(hex"", initialAssets);
 
         // Loss realization with allocate.
-        vault.loose(lossAssets);
+        metaMorpho.loose(lossAssets);
         uint256 snapshot = vm.snapshotState();
         vm.prank(address(parentVault));
         (bytes32[] memory ids, uint256 loss) = adapter.allocate(hex"", 0);
@@ -244,7 +244,7 @@ contract MetaMorphoAdapterTest is Test {
 
         // Interest cover the loss.
         vm.revertToState(snapshot);
-        asset.transfer(address(vault), interest);
+        asset.transfer(address(metaMorpho), interest);
         vm.prank(address(parentVault));
         (ids, loss) = adapter.allocate(hex"", 0);
         assertEq(ids, expectedIds, "Incorrect ids returned");

@@ -42,7 +42,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /// @dev This is useful to handle rewards that the adapter has earned.
     function skim(address token) external {
         require(msg.sender == skimRecipient, NotAuthorized());
-        require(token != metaMorpho, CannotSkimVault());
+        require(token != metaMorpho, CannotSkimMetaMorphoShares());
         uint256 balance = IERC20(token).balanceOf(address(this));
         SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
         emit Skim(token, balance);

@@ -13,7 +13,7 @@ interface IMetaMorphoAdapter is IAdapter {
 
     error NotAuthorized();
     error InvalidData();
-    error CannotSkimVault();
+    error CannotSkimMetaMorphoShares();
     error CannotRealizeAsMuch();
 
     /* FUNCTIONS */
