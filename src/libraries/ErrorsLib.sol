@@ -37,6 +37,7 @@ library ErrorsLib {
     error PermitDeadlineExpired();
     error InvalidSigner();
     error LiquidityAdapterInvariantBroken();
+    error LossRealizedInBlock();
     error ApproveReverted();
     error ApproveReturnedFalse();
     error InfiniteTimelock();
@@ -45,4 +46,5 @@ library ErrorsLib {
     error CannotSendUnderlyingAssets();
     error CannotReceiveUnderlyingAssets();
     error RelativeCapZero();
+    error EnterBlocked();
 }

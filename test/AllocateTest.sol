@@ -16,22 +16,22 @@ contract MockAdapter is IAdapter {
         IERC20(IVaultV2(_vault).asset()).approve(_vault, type(uint256).max);
     }
 
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids, uint256 loss) {
         recordedData = data;
         recordedAssets = assets;
         bytes32[] memory _ids = new bytes32[](2);
         _ids[0] = keccak256("id-0");
         _ids[1] = keccak256("id-1");
-        return _ids;
+        return (_ids, 0);
     }
 
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids, uint256 loss) {
         recordedData = data;
         recordedAssets = assets;
         bytes32[] memory _ids = new bytes32[](2);
         _ids[0] = keccak256("id-0");
         _ids[1] = keccak256("id-1");
-        return _ids;
+        return (_ids, 0);
     }
 }
 
@@ -134,7 +134,7 @@ contract AllocateTest is BaseTest {
         _setRelativeCap("id-1", WAD);
         vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.Allocate(allocator, mockAdapter, assets, ids);
+        emit EventsLib.Allocate(allocator, mockAdapter, assets, ids, 0);
         vault.allocate(mockAdapter, data, assets);
         assertEq(underlyingToken.balanceOf(address(vault)), 0, "Vault balance should be zero after allocation");
         assertEq(underlyingToken.balanceOf(mockAdapter), assets, "Adapter balance incorrect after allocation");
@@ -182,7 +182,7 @@ contract AllocateTest is BaseTest {
         // Normal path.
         vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.Deallocate(allocator, mockAdapter, assetsOut, ids);
+        emit EventsLib.Deallocate(allocator, mockAdapter, assetsOut, ids, 0);
         vault.deallocate(mockAdapter, data, assetsOut);
         assertEq(underlyingToken.balanceOf(address(vault)), assetsOut, "Vault balance incorrect after deallocation");
         assertEq(

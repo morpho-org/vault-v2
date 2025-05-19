@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
 
+import {IERC4626} from "src/interfaces/IERC4626.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {ERC4626Mock} from "./mocks/ERC4626Mock.sol";
 import {IERC4626Adapter} from "src/adapters/interfaces/IERC4626Adapter.sol";
@@ -17,11 +18,12 @@ contract ERC4626AdapterTest is Test {
     ERC20Mock internal asset;
     ERC20Mock internal rewardToken;
     VaultV2Mock internal parentVault;
-    ERC4626Mock internal vault;
+    ERC4626MockExtended internal vault;
     ERC4626AdapterFactory internal factory;
     ERC4626Adapter internal adapter;
     address internal owner;
     address internal recipient;
+    bytes32[] internal expectedIds;
 
     uint256 internal constant MAX_TEST_ASSETS = 1e36;
 
@@ -31,11 +33,17 @@ contract ERC4626AdapterTest is Test {
 
         asset = new ERC20Mock();
         rewardToken = new ERC20Mock();
-        vault = new ERC4626Mock(address(asset));
+        vault = new ERC4626MockExtended(address(asset));
         parentVault = new VaultV2Mock(address(asset), owner, address(0), address(0), address(0));
 
         factory = new ERC4626AdapterFactory();
         adapter = ERC4626Adapter(factory.createERC4626Adapter(address(parentVault), address(vault)));
+
+        deal(address(asset), address(this), type(uint256).max);
+        asset.approve(address(vault), type(uint256).max);
+
+        expectedIds = new bytes32[](1);
+        expectedIds[0] = keccak256(abi.encode("adapter", address(adapter)));
     }
 
     function testParentVaultAndAssetSet() public view {
@@ -55,24 +63,22 @@ contract ERC4626AdapterTest is Test {
         adapter.deallocate(hex"", assets);
     }
 
-    function testAllocateDepositsAssetsToERC4626Vault(uint256 assets) public {
+    function testAllocate(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
         deal(address(asset), address(adapter), assets);
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.allocate(hex"", assets);
+        (bytes32[] memory ids,) = adapter.allocate(hex"", assets);
 
+        assertEq(adapter.assetsInVault(), assets, "incorrect assetsInVault");
         uint256 adapterShares = vault.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(adapterShares, assets, "Incorrect share balance after deposit");
         assertEq(asset.balanceOf(address(adapter)), 0, "Underlying tokens not transferred to vault");
-
-        bytes32 expectedId = keccak256(abi.encode("adapter", address(adapter)));
-        assertEq(ids.length, 1, "Unexpected number of ids returned");
-        assertEq(ids[0], expectedId, "Incorrect id returned");
+        assertEq(ids, expectedIds, "Incorrect ids returned");
     }
 
-    function testDeallocateWithdrawsAssetsFromERC4626Vault(uint256 initialAssets, uint256 withdrawAssets) public {
+    function testDeallocate(uint256 initialAssets, uint256 withdrawAssets) public {
         initialAssets = bound(initialAssets, 0, MAX_TEST_ASSETS);
         withdrawAssets = bound(withdrawAssets, 0, initialAssets);
 
@@ -85,17 +91,15 @@ contract ERC4626AdapterTest is Test {
         assertEq(beforeShares, initialAssets, "Precondition failed: shares not set");
 
         vm.prank(address(parentVault));
-        bytes32[] memory ids = adapter.deallocate(hex"", withdrawAssets);
+        (bytes32[] memory ids,) = adapter.deallocate(hex"", withdrawAssets);
 
+        assertEq(adapter.assetsInVault(), initialAssets - withdrawAssets, "incorrect assetsInVault");
         uint256 afterShares = vault.balanceOf(address(adapter));
         assertEq(afterShares, initialAssets - withdrawAssets, "Share balance not decreased correctly");
 
         uint256 adapterBalance = asset.balanceOf(address(adapter));
         assertEq(adapterBalance, withdrawAssets, "Adapter did not receive withdrawn tokens");
-
-        bytes32 expectedId = keccak256(abi.encode("adapter", address(adapter)));
-        assertEq(ids.length, 1, "Unexpected number of ids returned");
-        assertEq(ids[0], expectedId, "Incorrect id returned");
+        assertEq(ids, expectedIds, "Incorrect ids returned");
     }
 
     function testFactoryCreateAdapter() public {
@@ -170,6 +174,82 @@ contract ERC4626AdapterTest is Test {
         adapter.skim(address(vault));
     }
 
+    function testLossRealization(
+        uint256 initialAssets,
+        uint256 lossAssets,
+        uint256 realizedLoss,
+        uint256 deposit,
+        uint256 withdraw,
+        uint256 interest
+    ) public {
+        initialAssets = bound(initialAssets, 1, MAX_TEST_ASSETS);
+        lossAssets = bound(lossAssets, 1, initialAssets);
+        realizedLoss = bound(realizedLoss, 0, lossAssets - 1);
+        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        withdraw = bound(withdraw, 0, initialAssets - lossAssets);
+        interest = bound(interest, 0, initialAssets);
+
+        // Setup.
+        deal(address(asset), address(adapter), initialAssets + deposit);
+        vm.prank(address(parentVault));
+        adapter.allocate(hex"", initialAssets);
+
+        // Loss realisation with allocate.
+        vault.loose(lossAssets);
+        uint256 snapshot = vm.snapshotState();
+        vm.prank(address(parentVault));
+        (bytes32[] memory ids, uint256 loss) = adapter.allocate(hex"", 0);
+        assertEq(ids, expectedIds, "Incorrect ids returned");
+        assertEq(loss, lossAssets, "Loss should be realized");
+        assertEq(adapter.assetsInVault(), initialAssets - lossAssets, "AssetsInVault after allocate");
+
+        // Loss realisation with deallocate.
+        vm.revertToState(snapshot);
+        vm.prank(address(parentVault));
+        (ids, loss) = adapter.deallocate(hex"", 0);
+        assertEq(ids, expectedIds, "Incorrect ids returned");
+        assertEq(loss, lossAssets, "Loss should be realized");
+        assertEq(adapter.assetsInVault(), initialAssets - lossAssets, "AssetsInVault after deallocate");
+
+        // Can't realize more.
+        vm.prank(address(parentVault));
+        (ids, loss) = adapter.deallocate(hex"", 0);
+        assertEq(ids, expectedIds, "Incorrect ids returned");
+        assertEq(loss, 0, "loss should be zero");
+        assertEq(adapter.assetsInVault(), initialAssets - lossAssets, "AssetsInVault after rerealization");
+
+        // Deposit realizes the right loss.
+        vm.revertTo(snapshot);
+        vm.prank(address(parentVault));
+        (ids, loss) = adapter.allocate(hex"", deposit);
+        assertEq(ids, expectedIds, "Incorrect ids returned");
+        assertEq(loss, lossAssets, "Loss should be correct after deposit");
+        assertApproxEqAbs(
+            adapter.assetsInVault(), initialAssets - lossAssets + deposit, 1, "AssetsInVault after deposit"
+        );
+
+        // Withdraw doesn't change the loss.
+        vm.revertToState(snapshot);
+        vm.prank(address(parentVault));
+        (ids, loss) = adapter.deallocate(hex"", withdraw);
+        assertEq(ids, expectedIds, "Incorrect ids returned");
+        assertEq(loss, lossAssets, "Loss should be correct after withdraw");
+        assertApproxEqAbs(
+            adapter.assetsInVault(), initialAssets - lossAssets - withdraw, 1, "AssetsInVault after withdraw"
+        );
+
+        // Interest cover the loss.
+        vm.revertToState(snapshot);
+        asset.transfer(address(vault), interest);
+        vm.prank(address(parentVault));
+        (ids, loss) = adapter.allocate(hex"", 0);
+        assertEq(ids, expectedIds, "Incorrect ids returned");
+        assertEq(loss, zeroFloorSub(lossAssets, interest), "Loss should be correct after interest");
+        assertApproxEqAbs(
+            adapter.assetsInVault(), initialAssets - lossAssets + interest, 1, "AssetsInVault after interest"
+        );
+    }
+
     function testInvalidData(bytes memory data) public {
         vm.assume(data.length > 0);
 
@@ -179,4 +259,17 @@ contract ERC4626AdapterTest is Test {
         vm.expectRevert(IERC4626Adapter.InvalidData.selector);
         adapter.deallocate(data, 0);
     }
+}
+
+contract ERC4626MockExtended is ERC4626Mock {
+    constructor(address _asset) ERC4626Mock(_asset) {}
+
+    function loose(uint256 assets) public {
+        IERC20(asset()).transfer(address(0xdead), assets);
+    }
+}
+
+function zeroFloorSub(uint256 a, uint256 b) pure returns (uint256) {
+    if (a < b) return 0;
+    return a - b;
 }
