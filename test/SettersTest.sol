@@ -179,7 +179,7 @@ contract SettersTest is BaseTest {
         assertFalse(vault.isAllocator(newAllocator));
     }
 
-    function testSetVic(address rdm) public {
+    function testSetVic(address rdm, uint48 elapsed) public {
         vm.assume(rdm != curator);
         address newVic = address(new ManualVic(address(vault)));
 
@@ -191,10 +191,12 @@ contract SettersTest is BaseTest {
         // Normal path
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setVic, (newVic)));
+        skip(elapsed);
         vm.expectEmit();
         emit EventsLib.SetVic(newVic);
         vault.setVic(newVic);
         assertEq(address(vault.vic()), newVic);
+        assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
     }
 
     function testSetIsAdapter(address rdm) public {
@@ -312,6 +314,9 @@ contract SettersTest is BaseTest {
         vm.prank(rdm);
         vault.decreaseTimelock(selector, newTimelock);
 
+        // decreaseTimelock timelock is TIMELOCK_CAP
+        vm.assertEq(vault.timelock(IVaultV2.decreaseTimelock.selector), TIMELOCK_CAP);
+
         // Can't increase timelock with decreaseTimelock
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, oldTimelock + 1)));
@@ -408,6 +413,50 @@ contract SettersTest is BaseTest {
         emit EventsLib.SetManagementFee(newManagementFee);
         vault.setManagementFee(newManagementFee);
         assertEq(vault.managementFee(), newManagementFee);
+    }
+
+    function testSetManagementFeeLastUpdateRefresh(uint256 newManagementFee, uint48 elapsed) public {
+        newManagementFee = bound(newManagementFee, 1, MAX_MANAGEMENT_FEE);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setManagementFeeRecipient, (makeAddr("newManagementFeeRecipient"))));
+        vault.setManagementFeeRecipient(makeAddr("newManagementFeeRecipient"));
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (newManagementFee)));
+        skip(elapsed);
+        vault.setManagementFee(newManagementFee);
+        assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
+    }
+
+    function testSetManagementFeeRecipientLastUpdateRefresh(address newRecipient, uint48 elapsed) public {
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setManagementFeeRecipient, (newRecipient)));
+        skip(elapsed);
+        vault.setManagementFeeRecipient(newRecipient);
+        assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
+    }
+
+    function testSetPerformanceFeeLastUpdateRefresh(uint256 newPerformanceFee, uint48 elapsed) public {
+        newPerformanceFee = bound(newPerformanceFee, 1, MAX_PERFORMANCE_FEE);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (makeAddr("newPerformanceFeeRecipient"))));
+        vault.setPerformanceFeeRecipient(makeAddr("newPerformanceFeeRecipient"));
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (newPerformanceFee)));
+        skip(elapsed);
+        vault.setPerformanceFee(newPerformanceFee);
+        assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
+    }
+
+    function testSetPerformanceFeeRecipientLastUpdateRefresh(address newRecipient, uint48 elapsed) public {
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (newRecipient)));
+        skip(elapsed);
+        vault.setPerformanceFeeRecipient(newRecipient);
+        assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
     }
 
     function testSetPerformanceFeeRecipient(address rdm, address newPerformanceFeeRecipient) public {

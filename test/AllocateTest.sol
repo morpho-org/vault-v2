@@ -144,6 +144,21 @@ contract AllocateTest is BaseTest {
         assertEq(MockAdapter(mockAdapter).recordedAssets(), assets, "Assets incorrect after allocation");
     }
 
+    function testAllocateRelativeCapCheckRoundsDown(bytes memory data) public {
+        uint256 assets = 100;
+
+        // Setup.
+        vault.deposit(assets, address(this));
+
+        _setAbsoluteCap("id-0", assets);
+        _setAbsoluteCap("id-1", assets);
+        _setRelativeCap("id-0", WAD - 1);
+        _setRelativeCap("id-1", WAD - 1);
+        vm.prank(allocator);
+        vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
+        vault.allocate(mockAdapter, data, 100);
+    }
+
     function testDeallocate(bytes memory data, uint256 assetsIn, uint256 assetsOut, address rdm, uint256 absoluteCap)
         public
     {
