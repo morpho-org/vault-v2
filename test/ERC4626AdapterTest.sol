@@ -219,7 +219,7 @@ contract ERC4626AdapterTest is Test {
         assertEq(adapter.assetsInVault(), initialAssets - lossAssets, "AssetsInVault after rerealization");
 
         // Deposit realizes the right loss.
-        vm.revertTo(snapshot);
+        vm.revertToState(snapshot);
         vm.prank(address(parentVault));
         (ids, loss) = adapter.allocate(hex"", deposit);
         assertEq(ids, expectedIds, "Incorrect ids returned");
