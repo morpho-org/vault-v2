@@ -20,6 +20,7 @@ import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 /// @dev To accrue interest, the vault queries the Vault Interest Controller (VIC) which returns the interest per second
 /// that must be distributed on the period (since `lastUpdate`). The VIC must be chosen and managed carefully to not
 /// distribute more than what the vault's investments are earning.
+/// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable though because flashloan based shorting is prevented.
 /// @dev Loose specification of adapters:
 /// - They must enforce that only the vault can call allocate/deallocate.
 /// - They must enter/exit markets only in allocate/deallocate.
