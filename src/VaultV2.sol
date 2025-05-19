@@ -15,6 +15,8 @@ import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 /// @dev Zero checks are not systematically performed.
 /// @dev No-ops are allowed.
 /// @dev Natspec are specified only when it brings clarity.
+/// @dev The vault has 1 virtual asset and a decimals offset of 0.
+/// See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 /// @dev Roles are not "two-step" so one must check if they really have this role.
 /// @dev The shares are represented with ERC-20, also compliant with ERC-2612 (permit extension).
 /// @dev To accrue interest, the vault queries the Vault Interest Controller (VIC) which returns the interest per second
