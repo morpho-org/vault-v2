@@ -21,16 +21,16 @@ library MathLib {
         }
     }
 
-    /// @dev Returns max(0, x - y).
-    function zeroFloorSub(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        assembly {
-            z := mul(gt(x, y), sub(x, y))
-        }
-    }
-
+    /// @dev Returns max(0, x + y).
     function zeroFloorAddInt(uint256 x, int256 y) internal pure returns (uint256 z) {
-        if (y < 0) z = zeroFloorSub(x, uint256(-y));
-        else z = x + uint256(y);
+        if (y < 0) {
+            assembly {
+                z := add(x, y)
+                z := mul(lt(z, x), z)
+            }
+        } else {
+            z = x + uint256(y);
+        }
     }
 
     /// @dev Cast to uint192, reverting if input number is too large.

@@ -29,4 +29,33 @@ contract MathTest is Test {
     function testZeroFloorSub(uint256 x, uint256 y) public pure {
         assertEq(MathLib.zeroFloorSub(x, y), x < y ? 0 : x - y);
     }
+
+    function testZeroFloorAddInt(uint256 x, int256 y) public {
+        if (y < 0) {
+            assertEq(MathLib.zeroFloorAddInt(x, y), x < abs(y) ? 0 : x - abs(y), "down");
+        } else {
+            uint256 z;
+            unchecked {
+                z = x + uint256(y);
+            }
+            if (z < x) {
+                vm.expectRevert();
+                this.zeroFloorAddInt(x, y);
+            } else {
+                assertEq(z, MathLib.zeroFloorAddInt(x, y), "up");
+            }
+        }
+    }
+
+    /// From solady
+    /// @dev Returns the absolute value of `x`.
+    function abs(int256 x) internal pure returns (uint256 z) {
+        unchecked {
+            z = (uint256(x) + uint256(x >> 255)) ^ uint256(x >> 255);
+        }
+    }
+
+    function zeroFloorAddInt(uint256 x, int256 y) external returns (uint256) {
+        return MathLib.zeroFloorAddInt(x, y);
+    }
 }
