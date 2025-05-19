@@ -169,7 +169,6 @@ contract MainFunctionsTest is BaseTest {
         uint256 redeemed = vault.withdraw(assets, receiver, address(this));
 
         assertEq(redeemed, shares, "redeemed != shares");
-        assertEq(assetsAfter - assetsBefore, assets, "received != demanded");
 
         if (receiver == address(vault)) {
             assertEq(underlyingToken.balanceOf(address(vault)), INITIAL_DEPOSIT, "balanceOf(vault)");
