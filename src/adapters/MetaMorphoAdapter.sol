@@ -21,7 +21,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /* STORAGE */
 
     address public skimRecipient;
-    uint256 public assetsInVault;
+    uint256 public assetsInMetaMorpho;
 
     /* FUNCTIONS */
 
@@ -56,11 +56,11 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 loss = assetsInVault.zeroFloorSub(
+        uint256 loss = assetsInMetaMorpho.zeroFloorSub(
             IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)))
         );
         IERC4626(metaMorpho).deposit(assets, address(this));
-        assetsInVault = IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
+        assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
 
         return (ids(), loss);
     }
@@ -73,11 +73,11 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 loss = assetsInVault.zeroFloorSub(
+        uint256 loss = assetsInMetaMorpho.zeroFloorSub(
             IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)))
         );
         IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
-        assetsInVault = IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
+        assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
 
         return (ids(), loss);
     }

@@ -70,7 +70,7 @@ contract MetaMorphoAdapterTest is Test {
         vm.prank(address(parentVault));
         (bytes32[] memory ids,) = adapter.allocate(hex"", assets);
 
-        assertEq(adapter.assetsInVault(), assets, "incorrect assetsInVault");
+        assertEq(adapter.assetsInMetaMorpho(), assets, "incorrect assetsInMetaMorpho");
         uint256 adapterShares = vault.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(adapterShares, assets, "Incorrect share balance after deposit");
@@ -93,7 +93,7 @@ contract MetaMorphoAdapterTest is Test {
         vm.prank(address(parentVault));
         (bytes32[] memory ids,) = adapter.deallocate(hex"", withdrawAssets);
 
-        assertEq(adapter.assetsInVault(), initialAssets - withdrawAssets, "incorrect assetsInVault");
+        assertEq(adapter.assetsInMetaMorpho(), initialAssets - withdrawAssets, "incorrect assetsInMetaMorpho");
         uint256 afterShares = vault.balanceOf(address(adapter));
         assertEq(afterShares, initialAssets - withdrawAssets, "Share balance not decreased correctly");
 
@@ -205,7 +205,7 @@ contract MetaMorphoAdapterTest is Test {
         (bytes32[] memory ids, uint256 loss) = adapter.allocate(hex"", 0);
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(loss, lossAssets, "Loss should be realized");
-        assertEq(adapter.assetsInVault(), initialAssets - lossAssets, "AssetsInVault after allocate");
+        assertEq(adapter.assetsInMetaMorpho(), initialAssets - lossAssets, "AssetsInMetaMorpho after allocate");
 
         // Loss realization with deallocate.
         vm.revertToState(snapshot);
@@ -213,14 +213,14 @@ contract MetaMorphoAdapterTest is Test {
         (ids, loss) = adapter.deallocate(hex"", 0);
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(loss, lossAssets, "Loss should be realized");
-        assertEq(adapter.assetsInVault(), initialAssets - lossAssets, "AssetsInVault after deallocate");
+        assertEq(adapter.assetsInMetaMorpho(), initialAssets - lossAssets, "AssetsInMetaMorpho after deallocate");
 
         // Can't realize more.
         vm.prank(address(parentVault));
         (ids, loss) = adapter.deallocate(hex"", 0);
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(loss, 0, "loss should be zero");
-        assertEq(adapter.assetsInVault(), initialAssets - lossAssets, "AssetsInVault after rerealization");
+        assertEq(adapter.assetsInMetaMorpho(), initialAssets - lossAssets, "AssetsInMetaMorpho after rerealization");
 
         // Deposit realizes the right loss.
         vm.revertToState(snapshot);
@@ -229,7 +229,7 @@ contract MetaMorphoAdapterTest is Test {
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(loss, lossAssets, "Loss should be correct after deposit");
         assertApproxEqAbs(
-            adapter.assetsInVault(), initialAssets - lossAssets + deposit, 1, "AssetsInVault after deposit"
+            adapter.assetsInMetaMorpho(), initialAssets - lossAssets + deposit, 1, "AssetsInMetaMorpho after deposit"
         );
 
         // Withdraw doesn't change the loss.
@@ -239,7 +239,7 @@ contract MetaMorphoAdapterTest is Test {
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(loss, lossAssets, "Loss should be correct after withdraw");
         assertApproxEqAbs(
-            adapter.assetsInVault(), initialAssets - lossAssets - withdraw, 1, "AssetsInVault after withdraw"
+            adapter.assetsInMetaMorpho(), initialAssets - lossAssets - withdraw, 1, "AssetsInMetaMorpho after withdraw"
         );
 
         // Interest cover the loss.
@@ -250,7 +250,7 @@ contract MetaMorphoAdapterTest is Test {
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(loss, zeroFloorSub(lossAssets, interest), "Loss should be correct after interest");
         assertApproxEqAbs(
-            adapter.assetsInVault(), initialAssets - lossAssets + interest, 1, "AssetsInVault after interest"
+            adapter.assetsInMetaMorpho(), initialAssets - lossAssets + interest, 1, "AssetsInMetaMorpho after interest"
         );
     }
 
