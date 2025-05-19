@@ -95,7 +95,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev The timelock of decreaseTimelock is hard-coded at TIMELOCK_CAP.
     /// @dev Only functions with the modifier `timelocked` are timelocked.
-    /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap.
+    /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted timelocked data can potentially be changed shortly afterwards.
     /// @dev The minimum time in which a function can be called is the following:
     /// min(
     ///     timelock[selector],
