@@ -16,7 +16,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /* IMMUTABLES */
 
     address public immutable parentVault;
-    address public immutable vault;
+    address public immutable metaMorpho;
 
     /* STORAGE */
 
@@ -25,11 +25,11 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
     /* FUNCTIONS */
 
-    constructor(address _parentVault, address _vault) {
+    constructor(address _parentVault, address _metaMorpho) {
         parentVault = _parentVault;
-        vault = _vault;
+        metaMorpho = _metaMorpho;
         SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
-        SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _vault, type(uint256).max);
+        SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _metaMorpho, type(uint256).max);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -42,7 +42,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /// @dev This is useful to handle rewards that the adapter has earned.
     function skim(address token) external {
         require(msg.sender == skimRecipient, NotAuthorized());
-        require(token != vault, CannotSkimVault());
+        require(token != metaMorpho, CannotSkimVault());
         uint256 balance = IERC20(token).balanceOf(address(this));
         SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
         emit Skim(token, balance);
@@ -55,11 +55,12 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(msg.sender == parentVault, NotAuthorized());
 
         // To accrue interest only one time.
-        IERC4626(vault).deposit(0, address(this));
-        uint256 loss =
-            assetsInVault.zeroFloorSub(IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this))));
-        IERC4626(vault).deposit(assets, address(this));
-        assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
+        IERC4626(metaMorpho).deposit(0, address(this));
+        uint256 loss = assetsInVault.zeroFloorSub(
+            IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)))
+        );
+        IERC4626(metaMorpho).deposit(assets, address(this));
+        assetsInVault = IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
 
         return (ids(), loss);
     }
@@ -71,11 +72,12 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(msg.sender == parentVault, NotAuthorized());
 
         // To accrue interest only one time.
-        IERC4626(vault).deposit(0, address(this));
-        uint256 loss =
-            assetsInVault.zeroFloorSub(IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this))));
-        IERC4626(vault).withdraw(assets, address(this), address(this));
-        assetsInVault = IERC4626(vault).previewRedeem(IERC4626(vault).balanceOf(address(this)));
+        IERC4626(metaMorpho).deposit(0, address(this));
+        uint256 loss = assetsInVault.zeroFloorSub(
+            IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)))
+        );
+        IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
+        assetsInVault = IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
 
         return (ids(), loss);
     }
