@@ -26,7 +26,7 @@ library MathLib {
         if (y < 0) {
             assembly {
                 let sum := add(x, y)
-                z := mul(slt(sum, 0), sum)
+                z := mul(lt(sum, x), sum)
             }
         } else {
             z = x + uint256(y);
