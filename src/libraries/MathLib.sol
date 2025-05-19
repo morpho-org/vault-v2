@@ -25,8 +25,8 @@ library MathLib {
     function zeroFloorAddInt(uint256 x, int256 y) internal pure returns (uint256 z) {
         if (y < 0) {
             assembly {
-                z := add(x, y)
-                z := mul(lt(z, x), z)
+                let sum := add(x, y)
+                z := mul(slt(sum, 0), sum)
             }
         } else {
             z = x + uint256(y);
