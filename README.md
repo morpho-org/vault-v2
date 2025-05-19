@@ -1,10 +1,11 @@
 # Vault v2
 
-Morpho Vault V2 enables anyone to create vaults that allocate assets to any protocols, including but not limited to Morpho Market V1, Morpho Market V2, and ERC-4626 strategies.
+Morpho Vault V2 enables anyone to create vaults that allocate assets to any protocols, including but not limited to Morpho Market V1, Morpho Market V2, and MetaMorpho Vaults.
 Depositors of Morpho Vault V2 earn from the underlying protocols without having to actively manage the risk of their position.
 Management of deposited assets is the responsability of a set of different roles (owner, curator and allocators).
 The active management of invested positions involve enabling and allocating liquidity to protocols.
 
+[Morpho Vault V2](./src/VaultV2.sol) shares are [ERC-20](https://eips.ethereum.org/EIPS/eip-20) compliant, with [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) permit.
 The [VaultV2Factory](./src/VaultV2Factory.sol) deploys instances of Vaults V2.
 All the contracts are immutable.
 
@@ -12,7 +13,7 @@ All the contracts are immutable.
 
 ### Curation
 
-Vaults can allocate assets not only to Morpho Markets V1 and V2, but also to external protocols, such as ERC-4626 vaults.
+Vaults can allocate assets to arbitrary protocols and markets.
 The funds allocation of the vault is constrained by an id system.
 An id is an abstract identifier of a common risk factor of some markets (a collateral, an oracle, a protocol, etc.).
 The allocation on markets with a common id is limited by absolute caps and relative caps that can be set by the curator.
@@ -23,7 +24,7 @@ They are notably trusted to return the ids associated with a given market.
 Adapters for the following protocols are currently available:
 
 - [Morpho Market V1](./src/adapters/MorphoBlueAdapter.sol)
-- [ERC-4626](./src/adapters/ERC4626Adapter.sol)
+- [MetaMorpho Vaults](./src/adapters/MetaMorphoAdapter.sol)
 
 A Morpho Market V2 adapter will be released together with Market V2.
 
