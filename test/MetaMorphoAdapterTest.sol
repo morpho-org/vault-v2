@@ -48,7 +48,7 @@ contract MetaMorphoAdapterTest is Test {
 
     function testParentVaultAndAssetSet() public view {
         assertEq(adapter.parentVault(), address(parentVault), "Incorrect parent vault set");
-        assertEq(adapter.vault(), address(vault), "Incorrect vault set");
+        assertEq(adapter.metaMorpho(), address(vault), "Incorrect metaMorpho vault set");
     }
 
     function testAllocateNotAuthorizedReverts(uint256 assets) public {
@@ -122,7 +122,7 @@ contract MetaMorphoAdapterTest is Test {
 
         assertTrue(newAdapter != address(0), "Adapter not created");
         assertEq(MetaMorphoAdapter(newAdapter).parentVault(), address(newParentVault), "Incorrect parent vault");
-        assertEq(MetaMorphoAdapter(newAdapter).vault(), address(newVault), "Incorrect vault");
+        assertEq(MetaMorphoAdapter(newAdapter).metaMorpho(), address(newVault), "Incorrect metaMorpho vault");
         assertEq(
             factory.metaMorphoAdapter(address(newParentVault), address(newVault)),
             newAdapter,
