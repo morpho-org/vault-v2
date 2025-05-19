@@ -56,6 +56,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
+        // Safe unchecked cast because MetaMorpho's total assets is a sum of uint128.
         int256 change = int256(IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this))))
             - int256(assetsInMetaMorpho);
         IERC4626(metaMorpho).deposit(assets, address(this));
@@ -72,6 +73,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
+        // Safe unchecked cast because MetaMorpho's total assets is a sum of uint128.
         int256 change = int256(IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this))))
             - int256(assetsInMetaMorpho);
         IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
