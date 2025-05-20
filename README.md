@@ -93,7 +93,7 @@ A user who wishes to enter the vault must be able to receive shares of the vault
 
 When set, shareholders must pass the gate checks to send shares (`gate.canSendShares`) and to receive underlying assets (`gate.canReceiveAssets`).
 
-A user who wishes to exit the vault must be able to send shares to the vault.
+A user who wishes to exit the vault must be able to send shares of the vault.
 
 An example gate is defined in [test/examples/GateExample.sol](./test/examples/GateExample.sol).
 
