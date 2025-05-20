@@ -136,7 +136,7 @@ contract AllocateTest is BaseTest {
         vm.prank(allocator);
         vault.allocate(mockAdapter, data, assets);
 
-        uint snapshot = vm.snapshotState();
+        uint256 snapshot = vm.snapshotState();
 
         // Relative cap check passes on non-WAD cap.
         vm.prank(allocator);
