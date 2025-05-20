@@ -53,7 +53,7 @@ The market $M$ would typically be a very liquid Market V1.
 
 The permissionless `forceDeallocate` function allows anyone to move assets from an adapter to the vault's idle assets.
 
-A penalty of up to 2% can be set per adapter. This prevents the manipulation of allocations, in particular of relative caps which are not checked upon deallocation.
+A penalty of up to 2% can be set per adapter. This disincentivizes the manipulation of allocations, in particular of relative caps which are not checked on withdraw.
 
 `forceDeallocate` provides a form of in-kind redemption: users can flashloan liquidity, supply it to an adapters' market, and withdraw the liquidity through `forceDeallocate` before repaying the flashloan. This reduces their position as vault shareholders and increases their position in the underlying market.
 
@@ -85,15 +85,17 @@ Two gates are defined:
 
 **Enter Gate** (`enterGate`): Controls permissions related to depositing assets and receiving shares. Implements [IEnterGate](./src/interfaces/IGate.sol).
 
-When set, depositors must pass the checks defined in the gate to send underlying assets (`gate.canSendAssets`) and to receive shares (`gate.canReceiveShares`).
-
-A user who wishes to enter the vault must be able to receive shares of the vault.
+When set:
+- Upon transfers, the shares receiver must pass the `enterGate.canReceiveShares` check.
+  This also applies to `onBehalf` in the `deposit` and `mint` functions.
+- Upon `deposit` and `mint`, `msg.sender` must pass the `enterGate.canSendAssets` check.
 
 **Exit Gate** (`exitGate`): Controls permissions related to redeeming shares and receiving underlying assets. Implements [IExitGate](./src/interfaces/IGate.sol).
 
-When set, shareholders must pass the gate checks to send shares (`gate.canSendShares`) and to receive underlying assets (`gate.canReceiveAssets`).
-
-A user who wishes to exit the vault must be able to send shares of the vault.
+When set:
+- upon transfers, the shares sender must pass the `exitGate.canSendShares` check.
+  This also applies to `onBehalf` in the `withdraw` and `redeem` functions.
+- Upon `withdraw` and `redeem`, `receiver` must pass the `exitGate.canReceiveAssets` check.
 
 An example gate is defined in [test/examples/GateExample.sol](./test/examples/GateExample.sol).
 
