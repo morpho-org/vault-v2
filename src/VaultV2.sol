@@ -43,6 +43,7 @@ contract VaultV2 is IVaultV2 {
     /* IMMUTABLE */
 
     address public immutable asset;
+    bytes32 public immutable DOMAIN_SEPARATOR;
 
     /* ROLES STORAGE */
 
@@ -130,10 +131,6 @@ contract VaultV2 is IVaultV2 {
         return _totalAssets;
     }
 
-    function DOMAIN_SEPARATOR() public view returns (bytes32) {
-        return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
-    }
-
     /* MULTICALL */
 
     /// @dev Mostly useful to batch admin actions together.
@@ -155,6 +152,7 @@ contract VaultV2 is IVaultV2 {
         owner = _owner;
         lastUpdate = uint64(block.timestamp);
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
+        DOMAIN_SEPARATOR = keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
         emit EventsLib.Constructor(_owner, _asset);
     }
 
