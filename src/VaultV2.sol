@@ -153,6 +153,7 @@ contract VaultV2 is IVaultV2 {
         lastUpdate = uint64(block.timestamp);
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         DOMAIN_SEPARATOR = keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
+        emit EventsLib.IncreaseTimelock(IVaultV2.decreaseTimelock.selector, TIMELOCK_CAP);
         emit EventsLib.Constructor(_owner, _asset);
     }
 
