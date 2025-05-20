@@ -11,7 +11,8 @@ import {
     ORACLE_PRICE_SCALE,
     MarketParams,
     MarketParamsLib,
-    Id
+    Id,
+    MorphoBalancesLib
 } from "../lib/metamorpho/test/forge/helpers/IntegrationTest.sol";
 
 import {IVaultV2Factory} from "../src/interfaces/IVaultV2Factory.sol";
@@ -27,8 +28,9 @@ import {MetaMorphoAdapterFactory} from "../src/adapters/MetaMorphoAdapterFactory
 // Reuse test setup of the metamorpho repository.
 contract MetaMorphoIntegrationTest is BaseTest {
     using MarketParamsLib for MarketParams;
+    using MorphoBalancesLib for IMorpho;
 
-    uint256 constant MAX_TEST_ASSETS = 1e32;
+    uint256 internal constant MAX_TEST_ASSETS = 1e32;
 
     // Morpho.
     address internal immutable morphoOwner = makeAddr("MorphoOwner");
@@ -43,6 +45,7 @@ contract MetaMorphoIntegrationTest is BaseTest {
     address internal immutable mmAllocator = makeAddr("mmAllocator");
     address internal immutable mmCurator = makeAddr("mmCurator");
     uint256 internal constant MM_NB_MARKETS = 5;
+    uint256 internal constant CAP = 1e18;
     uint256 internal constant MM_TIMELOCK = 1 weeks;
     MarketParams[] internal allMarketParams;
     MarketParams internal idleParams;
@@ -112,12 +115,6 @@ contract MetaMorphoIntegrationTest is BaseTest {
         metaMorpho.setIsAllocator(mmAllocator, true);
         vm.stopPrank();
 
-        _setCap(idleParams, type(uint184).max);
-        Id[] memory supplyQueue = new Id[](1);
-        supplyQueue[0] = idleParams.id();
-        vm.prank(mmAllocator);
-        metaMorpho.setSupplyQueue(supplyQueue);
-
         // Setup metaMorphoAdapter and vault.
         metaMorphoAdapterFactory = new MetaMorphoAdapterFactory();
         metaMorphoAdapter =
@@ -135,28 +132,83 @@ contract MetaMorphoIntegrationTest is BaseTest {
         vault.increaseRelativeCap(idData, 1e18);
 
         // Approval.
+        deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
     }
 
+    function setUpSimpleQueue() public {
+        setCap(idleParams, type(uint184).max);
+        Id[] memory supplyQueue = new Id[](1);
+        supplyQueue[0] = idleParams.id();
+        vm.prank(mmAllocator);
+        metaMorpho.setSupplyQueue(supplyQueue);
+    }
+
+    function setUpComplexQueue() public {
+        Id[] memory supplyQueue = new Id[](MM_NB_MARKETS);
+        for (uint256 i; i < MM_NB_MARKETS; i++) {
+            MarketParams memory marketParams = allMarketParams[i];
+            setCap(marketParams, CAP);
+            supplyQueue[i] = marketParams.id();
+        }
+        vm.prank(mmAllocator);
+        metaMorpho.setSupplyQueue(supplyQueue);
+    }
+
     function testMetaMorphoAsLiquidityAdapter(uint256 assets) public {
+        setUpSimpleQueue();
         assets = bound(assets, 0, MAX_TEST_ASSETS);
         vm.prank(allocator);
         vault.setLiquidityAdapter(address(metaMorphoAdapter));
 
-        deal(address(underlyingToken), address(this), type(uint256).max);
-        underlyingToken.approve(address(vault), type(uint256).max);
+        vault.deposit(assets, address(this));
+
+        assertEq(underlyingToken.balanceOf(address(morpho)), assets, "underlying balance of Morpho");
+        assertEq(morpho.expectedSupplyAssets(idleParams, address(metaMorpho)), assets, "expected assets of metaMorpho");
+        assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0, "underlying balance of metaMorpho");
+        assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0, "underlying balance of adapter");
+        assertEq(underlyingToken.balanceOf(address(vault)), 0, "underlying balance of vault");
+    }
+
+    function testMetaMorphoAsLiquidityAdapterNoQueue(uint256 assets) public {
+        assets = bound(assets, 0, MAX_TEST_ASSETS);
+        vm.prank(allocator);
+        vault.setLiquidityAdapter(address(metaMorphoAdapter));
 
         vault.deposit(assets, address(this));
 
-        assertEq(underlyingToken.balanceOf(address(morpho)), assets);
+        assertEq(underlyingToken.balanceOf(address(morpho)), 0, "underlying balance of Morpho");
+        assertEq(morpho.expectedSupplyAssets(idleParams, address(metaMorpho)), 0, "expected assets of metaMorpho");
+        assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0, "underlying balance of metaMorpho");
+        assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0, "underlying balance of adapter");
+        assertEq(underlyingToken.balanceOf(address(vault)), assets, "underlying balance of vault");
     }
 
-    function _setCap(MarketParams memory marketParams, uint256 newCap) internal {
+    function testMetaMorphoAsLiquidityAdapterComplexQueue(uint256 assets) public {
+        setUpComplexQueue();
+        assets = bound(assets, 0, MAX_TEST_ASSETS);
+        vm.prank(allocator);
+        vault.setLiquidityAdapter(address(metaMorphoAdapter));
+
+        vault.deposit(assets, address(this));
+
+        if (assets > MM_NB_MARKETS * CAP) {
+            assertEq(underlyingToken.balanceOf(address(morpho)), 0, "underlying balance of Morpho");
+            assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0, "underlying balance of metaMorpho");
+            assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0, "underlying balance of adapter");
+            assertEq(underlyingToken.balanceOf(address(vault)), assets, "underlying balance of vault");
+        } else {
+            assertEq(underlyingToken.balanceOf(address(morpho)), assets, "underlying balance of Morpho");
+            assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0, "underlying balance of metaMorpho");
+            assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0, "underlying balance of adapter");
+            assertEq(underlyingToken.balanceOf(address(vault)), 0, "underlying balance of vault");
+        }
+    }
+
+    function setCap(MarketParams memory marketParams, uint256 newCap) internal {
         vm.prank(mmCurator);
         metaMorpho.submitCap(marketParams, newCap);
-
         vm.warp(block.timestamp + metaMorpho.timelock());
-
         metaMorpho.acceptCap(marketParams);
     }
 }
