@@ -86,8 +86,7 @@ Two gates are defined:
 **Enter Gate** (`enterGate`): Controls permissions related to depositing assets and receiving shares. Implements [IEnterGate](./src/interfaces/IGate.sol).
 
 When set:
-- Upon transfers, the shares receiver must pass the `enterGate.canReceiveShares` check.
-  This also applies to `onBehalf` in the `deposit` and `mint` functions.
+- Upon `deposit`, `mint` and transfers, the shares receiver must pass the `enterGate.canReceiveShares` check.
 - Upon `deposit` and `mint`, `msg.sender` must pass the `enterGate.canSendAssets` check.
 
 **Exit Gate** (`exitGate`): Controls permissions related to redeeming shares and receiving underlying assets. Implements [IExitGate](./src/interfaces/IGate.sol).
