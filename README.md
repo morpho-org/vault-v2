@@ -102,7 +102,7 @@ It can:
 - [Timelockable] Set the `performanceFeeRecipient`.
 - [Timelockable] Set the `managementFeeRecipient`.
 - [Timelockable] Abdicate submitting of an action.
-  This should be set to a high value (e.g. 2 weeks) after the vault has been created and some abdications have been done, if any.
+  The timelock on abdicate should be set to a high value (e.g. 2 weeks) after the vault has been created and initial abdications have been done, if any.
 
 **Allocator**
 
