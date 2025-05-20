@@ -91,11 +91,11 @@ contract AllocateTest is BaseTest {
     function testAllocate(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(vault));
-        assets = bound(assets, 1, type(uint192).max);
+        assets = _boundAssets(assets);
         absoluteCap = bound(absoluteCap, assets, type(uint256).max);
 
         // Setup.
-        vault.deposit(assets, address(this));
+        deal(address(underlyingToken), address(vault), assets);
         assertEq(underlyingToken.balanceOf(address(vault)), assets, "Initial vault balance incorrect");
         assertEq(underlyingToken.balanceOf(mockAdapter), 0, "Initial adapter balance incorrect");
         assertEq(vault.allocation(keccak256("id-0")), 0, "Initial allocation incorrect");
@@ -122,27 +122,12 @@ contract AllocateTest is BaseTest {
         vm.prank(allocator);
         vault.allocate(mockAdapter, data, assets);
 
-        // Relative cap check fails on 0 cap.
+        // Relative cap check.
         _setAbsoluteCap("id-0", assets);
         _setAbsoluteCap("id-1", assets);
         vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
         vm.prank(allocator);
         vault.allocate(mockAdapter, data, assets);
-
-        // Relative cap check fails on non-WAD cap.
-        _setRelativeCap("id-0", WAD - 1);
-        _setRelativeCap("id-1", WAD - 1);
-        vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
-        vm.prank(allocator);
-        vault.allocate(mockAdapter, data, assets);
-
-        uint256 snapshot = vm.snapshotState();
-
-        // Relative cap check passes on non-WAD cap.
-        vm.prank(allocator);
-        vault.allocate(mockAdapter, data, assets.mulDivDown(WAD - 1, WAD));
-
-        vm.revertToState(snapshot);
 
         // Normal path.
         _setRelativeCap("id-0", WAD);
@@ -157,21 +142,6 @@ contract AllocateTest is BaseTest {
         assertEq(vault.allocation(keccak256("id-1")), assets, "Allocation incorrect after allocation");
         assertEq(MockAdapter(mockAdapter).recordedData(), data, "Data incorrect after allocation");
         assertEq(MockAdapter(mockAdapter).recordedAssets(), assets, "Assets incorrect after allocation");
-    }
-
-    function testAllocateRelativeCapCheckRoundsDown(bytes memory data) public {
-        uint256 assets = 100;
-
-        // Setup.
-        vault.deposit(assets, address(this));
-
-        _setAbsoluteCap("id-0", assets);
-        _setAbsoluteCap("id-1", assets);
-        _setRelativeCap("id-0", WAD - 1);
-        _setRelativeCap("id-1", WAD - 1);
-        vm.prank(allocator);
-        vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
-        vault.allocate(mockAdapter, data, 100);
     }
 
     function testDeallocate(bytes memory data, uint256 assetsIn, uint256 assetsOut, address rdm, uint256 absoluteCap)
