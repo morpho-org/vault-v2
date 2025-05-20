@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+
 methods {
     function multicall(bytes[]) external => NONDET DELETE;
 
