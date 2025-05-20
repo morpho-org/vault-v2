@@ -49,6 +49,14 @@ When defined, the liquidity market $M$ is also used as the market users are depo
 
 The market $M$ would typically be a very liquid Market V1.
 
+### In-kind redemptions
+
+The permissionless `forceDeallocate` function allows anyone to move assets from an adapter to the vault's idle assets.
+
+A penalty of up to 2% can be set per adapter. This prevents the manipulation of allocations, in particular of relative caps which are not checked upon deallocation.
+
+`forceDeallocate` provides a form of in-kind redemption: users can flashloan liquidity, supply it to an adapters' market, and withdraw the liquidity through `forceDeallocate` before repaying the flashloan. This reduces their position as vault shareholders and increases their position in the underlying market.
+
 ### Vault Interest Controller
 
 Vault V2 can allocate assets across many markets, especially when interacting with Morpho Markets V2.
@@ -64,6 +72,26 @@ The rate returned by the VIC must be below `200% APR`.
 
 Similarly, the curator is responsible for monitoring the vault's bad debt.
 In contrast to Vault V1.0, bad debt realization is not atomic to avoid share price manipulation with flash loans.
+
+### Gates
+
+Vaults V2 can use external gate contracts to control share transfer, vault asset deposit, and vault asset withdrawal.
+
+If a gate is not set, its corresponding operations are not restricted.
+
+Gate changes can be timelocked. Using `abdicateSubmit`, a curator can commit to keeping the vault completely ungated, or, for instance, to only gate deposits and shares reception, but not withdrawals.
+
+Two gates are defined:
+
+**Enter Gate** (`enterGate`): Controls permissions related to depositing assets and receiving shares. Implements [IEnterGate](./src/interfaces/IGate.sol).
+
+When set, depositors must pass the checks defined in the gate to send underlying assets (`gate.canSendAssets`) and to receive shares (`gate.canReceiveShares`).
+
+**Exit Gate** (`exitGate`): Controls permissions related to redeeming shares and receiving underlying assets. Implements [IExitGate](./src/interfaces/IGate.sol).
+
+When set, shareholders must pass the gate checks to send shares (`gate.canSendShares`) and to receive underlying assets (`gate.canReceiveAssets`).
+
+An example gate is defined in [test/examples/GateExample.sol](./test/examples/GateExample.sol).
 
 ### Roles
 
