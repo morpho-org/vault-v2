@@ -87,9 +87,13 @@ Two gates are defined:
 
 When set, depositors must pass the checks defined in the gate to send underlying assets (`gate.canSendAssets`) and to receive shares (`gate.canReceiveShares`).
 
+A user who wishes to enter the vault must be able to receive shares from the vault.
+
 **Exit Gate** (`exitGate`): Controls permissions related to redeeming shares and receiving underlying assets. Implements [IExitGate](./src/interfaces/IGate.sol).
 
 When set, shareholders must pass the gate checks to send shares (`gate.canSendShares`) and to receive underlying assets (`gate.canReceiveAssets`).
+
+A user who wishes to exit the vault must be able to send shares to the vault.
 
 An example gate is defined in [test/examples/GateExample.sol](./test/examples/GateExample.sol).
 
