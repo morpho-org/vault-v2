@@ -3,6 +3,23 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
+contract RecordingAdapter {
+    bytes public recordedData;
+    uint256 public recordedAssets;
+
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {
+        recordedData = data;
+        recordedAssets = assets;
+        ids = new bytes32[](0);
+    }
+
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {
+        recordedData = data;
+        recordedAssets = assets;
+        ids = new bytes32[](0);
+    }
+}
+
 contract LiquidityMarketTest is BaseTest {
     using MathLib for uint256;
 
