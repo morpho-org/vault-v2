@@ -11,22 +11,33 @@ All the contracts are immutable.
 
 ## Overview
 
-### Curation
+### Adapters
 
-Vaults can allocate assets to arbitrary protocols and markets.
-The funds allocation of the vault is constrained by an id system.
-An id is an abstract identifier of a common risk factor of some markets (a collateral, an oracle, a protocol, etc.).
-The allocation on markets with a common id is limited by absolute caps and relative caps that can be set by the curator.
-Note that relative caps are "soft" because they are not checked on withdrawals (they only constrain new allocations).
+Vaults can allocate assets to arbitrary protocols and markets via adapters.
 The curator enables adapters to invest on behalf of the vault.
-They are notably trusted to return the ids associated with a given market.
-
+Because adapters hold positions in protocols where assets are allocated, they are susceptible to accrue rewards for those protocols.
+To ensure that those rewards can be retrieved, each adapter has a skim function that can be called by the vault's owner.
 Adapters for the following protocols are currently available:
 
-- [Morpho Market V1](./src/adapters/MorphoBlueAdapter.sol)
-- [MetaMorpho Vaults](./src/adapters/MetaMorphoAdapter.sol)
+- [Morpho Blue](./src/adapters/MorphoBlueAdapter.sol);
+  This adapter allows to allocate to any market of Morpho Blue, constrained by the allocation caps (see [Id system](#id-system) below).
+  The adapter holds a position on each respective market of Morpho Blue, on behalf of the vault V2.
+- [MetaMorpho Vaults](./src/adapters/MetaMorphoAdapter.sol).
+  This adapter allows to allocate to a fixed MetaMorpho vault (v1.0 and v1.1).
+  The adapter holds shares of the corresponding MetaMorpho vault on behalf of the vault V2.
 
 A Morpho Market V2 adapter will be released together with Market V2.
+
+### Id system
+
+The funds allocation of the vault is constrained by an id system.
+An id is an abstract identifier of a common risk factor of some markets (a collateral, an oracle, a protocol, etc.).
+The allocation on markets with a common id is limited by absolute caps and relative caps.
+Note that relative caps are "soft" because they are not checked on withdrawals (they only constrain new allocations).
+The curator ensures the consistency of the id system by:
+
+- setting caps for the ids according to an estimation of risk;
+- setting adapters that return consistent ids.
 
 The ids of Morpho V1 lending markets could be for example the tuple `(CollateralToken, LLTV, Oracle)` and `CollateralToken` alone.
 A vault could be setup to enforce the following caps:
@@ -49,16 +60,21 @@ When defined, the liquidity market $M$ is also used as the market users are depo
 
 The market $M$ would typically be a very liquid Market V1.
 
-### Vault Interest Controller
+### Vault Interest Controller (VIC)
 
 Vault V2 can allocate assets across many markets, especially when interacting with Morpho Markets V2.
 Looping through all markets to compute the total assets is not realistic in the general case.
 This differs from Vault V1, where total assets were automatically computed from the vault's underlying allocations.
 As a result, in Vault V2, curators are responsible for monitoring the vault’s total assets and setting an appropriate interest rate.
 The interest rate is set through the VIC, a contract responsible for returning the `interestPerSecond` used to accrue fees.
+The rate returned by the VIC must be below `200% APR`.
 
 The vault interest controller can typically be simple smart contract storing the `interestPerSecond`, whose value is regularly set by the curator.
-The rate returned by the VIC must be below `200% APR`.
+For now only a VIC of this type is provided, the [ManualVic](./src/vic/ManualVic.sol), with the following added features:
+
+- the rate can be set by the allocators and sentinels of the vault;
+- the VIC has an additional internal notion of max rate, to ensure that the role of allocator can be given more safely.
+  The curator controls this internal notion of max rate, while the sentinels are able to decrease it to reduce the risk of having a rate too high.
 
 ### Bad debt
 
