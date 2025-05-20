@@ -92,8 +92,7 @@ When set:
 **Exit Gate** (`exitGate`): Controls permissions related to redeeming shares and receiving underlying assets. Implements [IExitGate](./src/interfaces/IGate.sol).
 
 When set:
-- upon transfers, the shares sender must pass the `exitGate.canSendShares` check.
-  This also applies to `onBehalf` in the `withdraw` and `redeem` functions.
+- Upon `withdraw`, `redeem` and transfers, the shares sender must pass the `exitGate.canSendShares` check.
 - Upon `withdraw` and `redeem`, `receiver` must pass the `exitGate.canReceiveAssets` check.
 
 An example gate is defined in [test/examples/GateExample.sol](./test/examples/GateExample.sol).
