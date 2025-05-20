@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
-import "./BaseTest.sol";
+import "../BaseTest.sol";
 
 import {
     OracleMock,
@@ -13,22 +13,21 @@ import {
     MarketParamsLib,
     Id,
     MorphoBalancesLib
-} from "../lib/metamorpho/test/forge/helpers/IntegrationTest.sol";
+} from "../../lib/metamorpho/test/forge/helpers/IntegrationTest.sol";
 
-import {IVaultV2Factory} from "../src/interfaces/IVaultV2Factory.sol";
-import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
-import {IManualVicFactory} from "../src/vic/interfaces/IManualVicFactory.sol";
+import {IVaultV2Factory} from "../../src/interfaces/IVaultV2Factory.sol";
+import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
+import {IManualVicFactory} from "../../src/vic/interfaces/IManualVicFactory.sol";
 
-import {VaultV2Factory} from "../src/VaultV2Factory.sol";
-import {ManualVic, ManualVicFactory} from "../src/vic/ManualVicFactory.sol";
-import "../src/VaultV2.sol";
-import {MetaMorphoAdapter} from "../src/adapters/MetaMorphoAdapter.sol";
-import {MetaMorphoAdapterFactory} from "../src/adapters/MetaMorphoAdapterFactory.sol";
+import {VaultV2Factory} from "../../src/VaultV2Factory.sol";
+import {ManualVic, ManualVicFactory} from "../../src/vic/ManualVicFactory.sol";
+import "../../src/VaultV2.sol";
+import {MetaMorphoAdapter} from "../../src/adapters/MetaMorphoAdapter.sol";
+import {MetaMorphoAdapterFactory} from "../../src/adapters/MetaMorphoAdapterFactory.sol";
 
 // Reuse test setup of the metamorpho repository.
-contract MetaMorphoIntegrationTest is BaseTest {
+contract MMIntegrationTest is BaseTest {
     using MarketParamsLib for MarketParams;
-    using MorphoBalancesLib for IMorpho;
 
     uint256 internal constant MAX_TEST_ASSETS = 1e32;
 
@@ -153,56 +152,6 @@ contract MetaMorphoIntegrationTest is BaseTest {
         }
         vm.prank(mmAllocator);
         metaMorpho.setSupplyQueue(supplyQueue);
-    }
-
-    function testMetaMorphoAsLiquidityAdapter(uint256 assets) public {
-        setUpSimpleQueue();
-        assets = bound(assets, 0, MAX_TEST_ASSETS);
-        vm.prank(allocator);
-        vault.setLiquidityAdapter(address(metaMorphoAdapter));
-
-        vault.deposit(assets, address(this));
-
-        assertEq(underlyingToken.balanceOf(address(morpho)), assets, "underlying balance of Morpho");
-        assertEq(morpho.expectedSupplyAssets(idleParams, address(metaMorpho)), assets, "expected assets of metaMorpho");
-        assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0, "underlying balance of metaMorpho");
-        assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0, "underlying balance of adapter");
-        assertEq(underlyingToken.balanceOf(address(vault)), 0, "underlying balance of vault");
-    }
-
-    function testMetaMorphoAsLiquidityAdapterNoQueue(uint256 assets) public {
-        assets = bound(assets, 0, MAX_TEST_ASSETS);
-        vm.prank(allocator);
-        vault.setLiquidityAdapter(address(metaMorphoAdapter));
-
-        vault.deposit(assets, address(this));
-
-        assertEq(underlyingToken.balanceOf(address(morpho)), 0, "underlying balance of Morpho");
-        assertEq(morpho.expectedSupplyAssets(idleParams, address(metaMorpho)), 0, "expected assets of metaMorpho");
-        assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0, "underlying balance of metaMorpho");
-        assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0, "underlying balance of adapter");
-        assertEq(underlyingToken.balanceOf(address(vault)), assets, "underlying balance of vault");
-    }
-
-    function testMetaMorphoAsLiquidityAdapterComplexQueue(uint256 assets) public {
-        setUpComplexQueue();
-        assets = bound(assets, 0, MAX_TEST_ASSETS);
-        vm.prank(allocator);
-        vault.setLiquidityAdapter(address(metaMorphoAdapter));
-
-        vault.deposit(assets, address(this));
-
-        if (assets > MM_NB_MARKETS * CAP) {
-            assertEq(underlyingToken.balanceOf(address(morpho)), 0, "underlying balance of Morpho");
-            assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0, "underlying balance of metaMorpho");
-            assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0, "underlying balance of adapter");
-            assertEq(underlyingToken.balanceOf(address(vault)), assets, "underlying balance of vault");
-        } else {
-            assertEq(underlyingToken.balanceOf(address(morpho)), assets, "underlying balance of Morpho");
-            assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0, "underlying balance of metaMorpho");
-            assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0, "underlying balance of adapter");
-            assertEq(underlyingToken.balanceOf(address(vault)), 0, "underlying balance of vault");
-        }
     }
 
     function setCap(MarketParams memory marketParams, uint256 newCap) internal {
