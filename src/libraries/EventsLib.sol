@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 library EventsLib {
-    event Constructor(address indexed owner, address indexed asset);
+    event Constructor(address indexed asset);
 
     event Transfer(address indexed from, address indexed to, uint256 shares);
 

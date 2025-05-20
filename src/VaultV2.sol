@@ -153,8 +153,9 @@ contract VaultV2 is IVaultV2 {
         lastUpdate = uint64(block.timestamp);
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         DOMAIN_SEPARATOR = keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
+        emit EventsLib.Constructor(_asset);
+        emit EventsLib.SetOwner(_owner);
         emit EventsLib.IncreaseTimelock(IVaultV2.decreaseTimelock.selector, TIMELOCK_CAP);
-        emit EventsLib.Constructor(_owner, _asset);
     }
 
     /* OWNER ACTIONS */
@@ -631,7 +632,7 @@ contract VaultV2 is IVaultV2 {
 
         uint256 nonce = nonces[_owner]++;
         bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, shares, nonce, deadline));
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, hashStruct));
         address recoveredAddress = ecrecover(digest, v, r, s);
         require(recoveredAddress != address(0) && recoveredAddress == _owner, ErrorsLib.InvalidSigner());
 
