@@ -4,7 +4,6 @@ pragma solidity 0.8.28;
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IExponentialDecayVic} from "./interfaces/IExponentialDecayVic.sol";
 import "../libraries/MathLib.sol";
-import "forge-std/console.sol";
 
 contract ExponentialDecayVic is IExponentialDecayVic {
     using MathLib for uint256;
@@ -70,9 +69,6 @@ contract ExponentialDecayVic is IExponentialDecayVic {
         // e^(−decayRate * elapsed) = 1 / (1 + e^(decayRate * elapsed) - 1)
         uint256 decay = WAD * WAD / (WAD + decayRate.wTaylorCompounded(elapsed));
 
-        // console.log("VIC: currentRate %e",currentRate);
-        // console.log("VIC: targetRate %e",targetRate);
-
         uint256 newRate;
         if (currentRate >= targetRate) {
             console.log("VIC: X %e", currentRate * decay / WAD);
@@ -81,11 +77,8 @@ contract ExponentialDecayVic is IExponentialDecayVic {
             newRate = targetRate - (targetRate - currentRate) * decay / WAD;
         }
 
-        console.log("VIC: newRate %e", newRate);
-
         uint256 maxRate = maxInterestPerSecond * WAD / totalAssets;
 
-        console.log("VIC: maxRate %e", maxRate);
         return MathLib.min(newRate, maxRate);
     }
 
@@ -97,7 +90,6 @@ contract ExponentialDecayVic is IExponentialDecayVic {
         require(msg.sender == vault, ErrorsLib.Unauthorized());
         currentRate = updateCurrentRate(totalAssets, elapsed);
 
-        console.log("VIC: cur %e", currentRate * totalAssets / WAD);
         return currentRate * totalAssets / WAD;
     }
 }
