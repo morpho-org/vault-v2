@@ -3,7 +3,7 @@ pragma solidity >=0.5.0;
 
 import {IVic} from "../../interfaces/IVic.sol";
 
-interface IExponentialDecayVic is IVic {
+interface ITargetInterestVic is IVic {
     /* EVENTS */
 
     event SetTargetInterestPerSecond(address indexed caller, uint256 newTargetInterestPerSecond);

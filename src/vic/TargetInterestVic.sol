@@ -2,10 +2,10 @@
 pragma solidity 0.8.28;
 
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {IExponentialDecayVic} from "./interfaces/IExponentialDecayVic.sol";
+import {ITargetInterestVic} from "./interfaces/ITargetInterestVic.sol";
 import "../libraries/MathLib.sol";
 
-contract ExponentialDecayVic is IExponentialDecayVic {
+contract TargetInterestVic is ITargetInterestVic {
     using MathLib for uint256;
 
     /* CONSTANTS */

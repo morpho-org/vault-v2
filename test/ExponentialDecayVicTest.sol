@@ -5,15 +5,15 @@ import "../lib/forge-std/src/Test.sol";
 // import "../src/vic/ManualVic.sol";
 // import "../src/vic/ManualVicFactory.sol";
 import "./mocks/VaultV2Mock.sol";
-import "../src/vic/ExponentialDecayVic.sol";
+import "../src/vic/TargetInterestVic.sol";
 // import "../src/vic/interfaces/IManualVic.sol";
 // import "../src/vic/interfaces/IManualVicFactory.sol";
 import {stdStorage, StdStorage} from "../lib/forge-std/src/Test.sol";
 
-contract ExponentialDecayVicTest is Test {
+contract TargetInterestVicTest is Test {
     using stdStorage for StdStorage;
 
-    ExponentialDecayVic public vic;
+    TargetInterestVic public vic;
     IVaultV2 public vault;
     address public curator;
     address public allocator;
@@ -24,7 +24,7 @@ contract ExponentialDecayVicTest is Test {
         allocator = makeAddr("allocator");
         sentinel = makeAddr("sentinel");
         vault = IVaultV2(address(new VaultV2Mock(address(0), address(0), curator, allocator, sentinel)));
-        vic = new ExponentialDecayVic(address(vault));
+        vic = new TargetInterestVic(address(vault));
     }
 
     function testPings(uint256 currentRate, uint256 totalAssets, uint256 halfLife, uint256 targetIPS) public {
