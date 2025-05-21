@@ -429,7 +429,7 @@ contract VaultV2 is IVaultV2 {
         (bool success, bytes memory data) =
             address(vic).staticcall(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
         uint256 output;
-        if (success) {
+        if (success && data.length >= 32) {
             assembly ("memory-safe") {
                 output := mload(add(data, 32))
             }
