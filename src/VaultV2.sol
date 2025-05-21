@@ -412,7 +412,9 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = _accrueInterest(false);
+        (uint256 elapsed, uint256 vicOutput) = vicInterestPerSecondView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) =
+            _accrueInterestView(elapsed, vicOutput);
         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         _totalAssets = newTotalAssets.toUint192();
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
@@ -422,29 +424,54 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
-        return _castToView(_accrueInterest)(true);
+        (uint256 elapsed, uint256 vicOutput) = vicInterestPerSecondView();
+        return _accrueInterestView(elapsed, vicOutput);
+    }
+
+    function vicInterestPerSecond() internal returns (uint256, uint256) {
+        uint256 elapsed = block.timestamp - lastUpdate;
+        uint256 output;
+        if (elapsed > 0) {
+            // Low level call and decoding to avoid reverting if the VIC has no code or returns data that fails to
+            // decode.
+            (bool success, bytes memory data) =
+                address(vic).call(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+            if (success) {
+                assembly ("memory-safe") {
+                    output := mload(add(data, 32))
+                }
+            }
+        }
+        return (elapsed, output);
+    }
+
+    function vicInterestPerSecondView() internal view returns (uint256, uint256) {
+        uint256 elapsed = block.timestamp - lastUpdate;
+        uint256 output;
+        if (elapsed > 0) {
+            // Low level call and decoding to avoid reverting if the VIC has no code or returns data that fails to
+            // decode.
+            (bool success, bytes memory data) =
+                address(vic).staticcall(abi.encodeCall(IVic.interestPerSecondView, (_totalAssets, elapsed)));
+            if (success) {
+                assembly ("memory-safe") {
+                    output := mload(add(data, 32))
+                }
+            }
+        }
+        return (elapsed, output);
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
-    function _accrueInterest(bool isView) internal returns (uint256, uint256, uint256) {
-        uint256 elapsed = block.timestamp - lastUpdate;
+    function _accrueInterestView(uint256 elapsed, uint256 vicOutput)
+        internal
+        view
+        returns (uint256, uint256, uint256)
+    {
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
-        // Low level call and decoding to avoid reverting if the VIC has no code or returns data that fails to decode.
-        bool success;
-        bytes memory data;
-        if (isView) {
-            (success, data) = address(vic).staticcall(abi.encodeCall(IVic.interestPerSecondView, (_totalAssets, elapsed)));
-        } else {
-            (success, data) = address(vic).call(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
-        }
-        uint256 output;
-        if (success) {
-            assembly ("memory-safe") {
-                output := mload(add(data, 32))
-            }
-        }
-        uint256 interestPerSecond = output <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? output : 0;
+        uint256 interestPerSecond =
+            vicOutput <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? vicOutput : 0;
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = _totalAssets + interest;
 
