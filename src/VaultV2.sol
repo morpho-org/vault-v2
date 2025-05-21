@@ -412,7 +412,7 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = _accrueInterest(false);
         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         _totalAssets = newTotalAssets.toUint192();
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
@@ -422,12 +422,22 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
+        return _castToView(_accrueInterest)(true);
+    }
+
+    /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
+    function _accrueInterest(bool isView) internal returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
         // Low level call and decoding to avoid reverting if the VIC has no code or returns data that fails to decode.
-        (bool success, bytes memory data) =
-            address(vic).staticcall(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+        bool success;
+        bytes memory data;
+        if (isView) {
+            (success, data) = address(vic).staticcall(abi.encodeCall(IVic.interestPerSecondView, (_totalAssets, elapsed)));
+        } else {
+            (success, data) = address(vic).call(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+        }
         uint256 output;
         if (success) {
             assembly ("memory-safe") {
@@ -671,5 +681,16 @@ contract VaultV2 is IVaultV2 {
 
     function canReceive(address account) public view returns (bool) {
         return enterGate == address(0) || IEnterGate(enterGate).canReceiveShares(account);
+    }
+
+    /* INTERNAL ACCRUE INTEREST CASTING */
+    function _castToView(function(bool) internal returns (uint,uint,uint) fnIn)
+        internal
+        pure
+        returns (function(bool) view returns (uint,uint,uint) fnOut)
+    {
+        assembly {
+            fnOut := fnIn
+        }
     }
 }
