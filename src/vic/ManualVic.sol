@@ -52,7 +52,7 @@ contract ManualVic is IManualVic {
     }
 
     /// @dev Returns the interest per second.
-    function interestPerSecond(uint256, uint256) external returns (uint256) {
+    function interestPerSecond(uint256, uint256) external view returns (uint256) {
         return _interestPerSecond;
     }
 }

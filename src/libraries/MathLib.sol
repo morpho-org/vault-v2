@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {ErrorsLib} from "./ErrorsLib.sol";
+import {WAD} from "./ConstantsLib.sol";
 
 library MathLib {
     /// @dev Returns (x * y) / d rounded down.
@@ -25,5 +26,22 @@ library MathLib {
     function toUint192(uint256 x) internal pure returns (uint192) {
         require(x <= type(uint192).max, ErrorsLib.CastOverflow());
         return uint192(x);
+    }
+
+    /// @dev Returns the sum of the first three non-zero terms of a Taylor expansion of e^(nx) - 1, to approximate a
+    /// continuous compound interest rate.
+    function wTaylorCompounded(uint256 x, uint256 n) internal pure returns (uint256) {
+        uint256 firstTerm = x * n;
+        uint256 secondTerm = mulDivDown(firstTerm, firstTerm, 2 * WAD);
+        uint256 thirdTerm = mulDivDown(secondTerm, firstTerm, 3 * WAD);
+
+        return firstTerm + secondTerm + thirdTerm;
+    }
+
+    /// @dev Returns the min of `x` and `y`.
+    function min(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        assembly {
+            z := xor(x, mul(xor(x, y), lt(y, x)))
+        }
     }
 }
