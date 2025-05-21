@@ -434,7 +434,8 @@ contract VaultV2 is IVaultV2 {
         bool success;
         bytes memory data;
         if (isView) {
-            (success, data) = address(vic).staticcall(abi.encodeCall(IVic.interestPerSecondView, (_totalAssets, elapsed)));
+            (success, data) =
+                address(vic).staticcall(abi.encodeCall(IVic.interestPerSecondView, (_totalAssets, elapsed)));
         } else {
             (success, data) = address(vic).call(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
         }
