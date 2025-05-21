@@ -71,7 +71,6 @@ contract ExponentialDecayVic is IExponentialDecayVic {
 
         uint256 newRate;
         if (currentRate >= targetRate) {
-            console.log("VIC: X %e", currentRate * decay / WAD);
             newRate = targetRate + (currentRate - targetRate) * decay / WAD;
         } else {
             newRate = targetRate - (targetRate - currentRate) * decay / WAD;

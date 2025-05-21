@@ -35,13 +35,6 @@ contract ExponentialDecayVicTest is Test {
 
         uint256 targetRate = targetIPS * WAD / totalAssets;
 
-        console.log("setup");
-        console.log("target ips   %e", targetIPS);
-        console.log("current rate %e", currentRate);
-        console.log("target rate  %e", targetRate);
-        console.log("totalAssets  %e", totalAssets);
-        console.log("halfLife     %s", halfLife);
-
         vm.prank(curator);
         vic.setDecayHalfLife(halfLife);
 
@@ -62,9 +55,6 @@ contract ExponentialDecayVicTest is Test {
         } else {
             expectedRate = currentRate - (currentRate - targetRate) / 2;
         }
-
-        console.log("------------");
-        console.log("new cur %e", vic.currentRate());
 
         assertApproxEqRel(vic.currentRate(), expectedRate, 0.01e18);
     }
