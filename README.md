@@ -49,18 +49,15 @@ When defined, the liquidity market $M$ is also used as the market users are depo
 
 The market $M$ would typically be a very liquid Market V1.
 
-### Timelocks
-
-
 ### In-kind redemptions with `forceDeallocate`
 
-Some [configuration changes](#curator-timelocks) can be timelocked. Users may want to exit before a specific change is put in place. For instance:
+Critical [configuration changes](#curator-timelocks) can be timelocked. Users may want to exit before a specific change is put in place. For instance:
 
-- increasing the relative or absolute cap of a Blue market the users finds too risky.
+- unzeroing or increasing some caps for markets the user finds too risky.
 - adding an adapter the user considers dangerous.
 - decreasing the timelock of an action, giving the user too little time to react in the future.
 
-To facilitate exits even in the absence of assets immediately available for withdrawal, the permissionless `forceDeallocate` function allows anyone to move assets from an adapter to the vault's idle assets.
+To guarantee exits even in the absence of assets immediately available for withdrawal, the permissionless `forceDeallocate` function allows anyone to move assets from an adapter to the vault's idle assets.
 
 A penalty of up to 2% can be set per adapter. This disincentivizes the manipulation of allocations, in particular of relative caps which are not checked on withdraw.
 
