@@ -49,13 +49,25 @@ When defined, the liquidity market $M$ is also used as the market users are depo
 
 The market $M$ would typically be a very liquid Market V1.
 
-### In-kind redemptions
+### Timelocks
 
-The permissionless `forceDeallocate` function allows anyone to move assets from an adapter to the vault's idle assets.
+
+### In-kind redemptions with `forceDeallocate`
+
+Some [configuration changes](#curator-timelocks) can be timelocked. Users may want to exit before a specific change is put in place. For instance:
+
+- increasing the relative or absolute cap of a Blue market the users finds too risky.
+- adding an adapter the user considers dangerous.
+- decreasing the timelock of an action, giving the user too little time to react in the future.
+
+To facilitate exits even in the absence of assets immediately available for withdrawal, the permissionless `forceDeallocate` function allows anyone to move assets from an adapter to the vault's idle assets.
 
 A penalty of up to 2% can be set per adapter. This disincentivizes the manipulation of allocations, in particular of relative caps which are not checked on withdraw.
 
-`forceDeallocate` provides a form of in-kind redemption: users can flashloan liquidity, supply it to an adapters' market, and withdraw the liquidity through `forceDeallocate` before repaying the flashloan. This reduces their position as vault shareholders and increases their position in the underlying market.
+`forceDeallocate` provides a form of in-kind redemption: users can flashloan liquidity, supply it to an adapters' market, and withdraw the liquidity through `forceDeallocate` before repaying the flashloan.
+This reduces their position in the vault and increases their position in the underlying market.
+
+[Gated vaults](Gates) can circumvent the in-kind redemption mechanism by configuring an `exitGate`.
 
 ### Vault Interest Controller
 
@@ -79,7 +91,8 @@ Vaults V2 can use external gate contracts to control share transfer, vault asset
 
 If a gate is not set, its corresponding operations are not restricted.
 
-Gate changes can be timelocked. Using `abdicateSubmit`, a curator can commit to keeping the vault completely ungated, or, for instance, to only gate deposits and shares reception, but not withdrawals.
+Gate changes can be timelocked.
+Using `abdicateSubmit`, a curator can commit to keeping the vault completely ungated, or, for instance, to only gate deposits and shares reception, but not withdrawals.
 
 Two gates are defined:
 
@@ -118,6 +131,7 @@ Once the timelock passed, the action can be executed by anyone.
 
 It can:
 
+<a id="curator-timelocks"></a>
 - [Timelockable] Increase absolute caps.
 - Decrease absolute caps.
 - [Timelockable] Increase relative caps.
