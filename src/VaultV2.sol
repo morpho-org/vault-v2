@@ -9,6 +9,7 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
+import {UtilsLib} from "./libraries/UtilsLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 
@@ -425,17 +426,9 @@ contract VaultV2 is IVaultV2 {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
-        // Low level call and decoding to avoid reverting if the VIC has no code, returns data that fails to decode, or
-        // returns data too long to be entirely copied to memory.
-        bytes memory callData = abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed));
-        uint256[1] memory outputData;
-        address _vic = vic;
-        bool success;
-        uint256 output;
-        assembly ("memory-safe") {
-            success := staticcall(gas(), _vic, add(callData, 32), mload(callData), outputData, 32)
-        }
-        if (success) output = outputData[0];
+        uint256 output =
+            UtilsLib.controlledStaticCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+
         uint256 interestPerSecond = output <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? output : 0;
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = _totalAssets + interest;
