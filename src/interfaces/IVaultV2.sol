@@ -96,6 +96,9 @@ interface IVaultV2 is IERC20, IPermissionedToken {
         external
         returns (uint256 withdrawnShares);
 
+    // Loss realization with incentive
+    function realizeLoss(address adapter, bytes memory data) external returns (uint256 loss);
+
     // Gate vault / permissioned token
     function canSend(address account) external returns (bool);
     function canReceive(address account) external returns (bool);

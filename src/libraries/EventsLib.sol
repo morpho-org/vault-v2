@@ -58,6 +58,8 @@ library EventsLib {
 
     event Deallocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 loss);
 
+    event RealizeLoss(address indexed sender, address indexed adapter, bytes32[] ids, uint256 loss);
+
     event SetLiquidityAdapter(address indexed sender, address indexed newLiquidityAdapter);
 
     event SetLiquidityData(address indexed sender, bytes indexed newLiquidityData);
