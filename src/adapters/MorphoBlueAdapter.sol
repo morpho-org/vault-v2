@@ -24,6 +24,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
     address public skimRecipient;
     mapping(Id => uint256) public assetsInMarket;
+    mapping(Id => uint256) public realizableLoss;
 
     /* FUNCTIONS */
 
@@ -58,12 +59,15 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
-        uint256 loss =
-            assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this)));
+
+        uint256 _assetsInMarket = assetsInMarket[marketId];
+        uint256 newAssetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+        realizableLoss[marketId] += _assetsInMarket.zeroFloorSub(newAssetsInMarket);
+        uint256 interest = newAssetsInMarket.zeroFloorSub(_assetsInMarket);
         if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
         assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
 
-        return (ids(marketParams), loss);
+        return (ids(marketParams), interest);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -75,10 +79,25 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
-        uint256 loss =
-            assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this)));
+        uint256 _assetsInMarket = assetsInMarket[marketId];
+        uint256 newAssetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+        realizableLoss[marketId] += _assetsInMarket.zeroFloorSub(newAssetsInMarket);
+        uint256 interest = newAssetsInMarket.zeroFloorSub(_assetsInMarket);
         if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
         assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+
+        return (ids(marketParams), interest);
+    }
+
+    function realizeLoss(bytes memory data) external returns (bytes32[] memory, uint256) {
+        require(msg.sender == parentVault, NotAuthorized());
+        MarketParams memory marketParams = abi.decode(data, (MarketParams));
+        Id marketId = marketParams.id();
+
+        uint256 newAssetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+        uint256 loss = realizableLoss[marketId] + assetsInMarket[marketId].zeroFloorSub(newAssetsInMarket);
+        realizableLoss[marketId] = 0;
+        assetsInMarket[marketId] = newAssetsInMarket;
 
         return (ids(marketParams), loss);
     }

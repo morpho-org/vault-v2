@@ -15,10 +15,12 @@ import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 import {IMorphoBlueAdapter} from "../src/adapters/interfaces/IMorphoBlueAdapter.sol";
 import {IMorphoBlueAdapterFactory} from "../src/adapters/interfaces/IMorphoBlueAdapterFactory.sol";
+import {MathLib} from "../src/libraries/MathLib.sol";
 
 contract MorphoBlueAdapterTest is Test {
     using MorphoBalancesLib for IMorpho;
     using MarketParamsLib for MarketParams;
+    using MathLib for uint256;
 
     MorphoBlueAdapterFactory internal factory;
     MorphoBlueAdapter internal adapter;
@@ -106,13 +108,13 @@ contract MorphoBlueAdapterTest is Test {
         deal(address(loanToken), address(adapter), assets);
 
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.allocate(abi.encode(marketParams), assets);
+        (bytes32[] memory ids, uint256 interest) = adapter.allocate(abi.encode(marketParams), assets);
 
         assertEq(adapter.assetsInMarket(marketId), assets, "Incorrect assetsInMarket");
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), assets, "Incorrect assets in Morpho");
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
         assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(loss, 0, "Loss should be zero");
+        assertEq(interest, 0, "Interest should be zero");
     }
 
     function testDeallocate(uint256 initialAssets, uint256 withdrawAssets) public {
@@ -127,9 +129,9 @@ contract MorphoBlueAdapterTest is Test {
         assertEq(beforeSupply, initialAssets, "Precondition failed: supply not set");
 
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.deallocate(abi.encode(marketParams), withdrawAssets);
+        (bytes32[] memory ids, uint256 interest) = adapter.deallocate(abi.encode(marketParams), withdrawAssets);
 
-        assertEq(loss, 0, "Loss should be zero");
+        assertEq(interest, 0, "Interest should be zero");
         assertEq(adapter.assetsInMarket(marketId), initialAssets - withdrawAssets, "Incorrect assetsInMarket");
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
@@ -203,13 +205,13 @@ contract MorphoBlueAdapterTest is Test {
         uint256 expectedLoss,
         uint256 deposit,
         uint256 withdraw,
-        uint256 interest
+        uint256 _interest
     ) public {
         initial = _boundAssets(initial);
         expectedLoss = bound(expectedLoss, 0, initial / 2);
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
         withdraw = bound(withdraw, 0, initial - expectedLoss);
-        interest = bound(interest, 0, initial - expectedLoss); // to avoid overflows
+        _interest = bound(_interest, 0, initial - expectedLoss); // to avoid overflows
 
         // Setup
         deal(address(loanToken), address(adapter), initial);
@@ -218,55 +220,77 @@ contract MorphoBlueAdapterTest is Test {
         assertEq(adapter.assetsInMarket(marketId), initial, "Initial assetsInMarket incorrect");
         _overrideMarketTotalSupplyAssets(-int256(expectedLoss));
 
-        // Realize with allocate
+        // Account with allocate
         uint256 snapshot = vm.snapshotState();
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.allocate(abi.encode(marketParams), 0);
+        (bytes32[] memory ids, uint256 interest) = adapter.allocate(abi.encode(marketParams), 0);
         assertEq(ids, expectedIds, "ids: allocate");
-        assertEq(loss, expectedLoss, "loss: allocate");
+        assertEq(interest, 0, "interest: allocate");
         assertEq(adapter.assetsInMarket(marketId), initial - expectedLoss, "assetsInMarket: allocate");
 
         // Realize with deallocate
         vm.revertToState(snapshot);
         vm.prank(address(parentVault));
-        (ids, loss) = adapter.deallocate(abi.encode(marketParams), 0);
+        (ids, interest) = adapter.deallocate(abi.encode(marketParams), 0);
         assertEq(ids, expectedIds, "ids: deallocate");
-        assertEq(loss, expectedLoss, "loss: deallocate");
+        assertEq(interest, 0, "interest: deallocate");
+        assertEq(adapter.realizableLoss(marketId), expectedLoss, "realizableLoss: deallocate");
         assertEq(adapter.assetsInMarket(marketId), initial - expectedLoss, "assetsInMarket: deallocate");
 
-        // Can't re-realize
+        // Can't account twice
         vm.prank(address(parentVault));
-        (ids, loss) = adapter.allocate(abi.encode(marketParams), 0);
-        assertEq(ids, expectedIds, "ids: re-realize");
-        assertEq(loss, 0, "loss: re-realize");
-        assertEq(adapter.assetsInMarket(marketId), initial - expectedLoss, "assetsInMarket: re-realize");
+        (ids, interest) = adapter.allocate(abi.encode(marketParams), 0);
+        assertEq(ids, expectedIds, "ids: re-account");
+        assertEq(interest, 0, "interest: re-account");
+        assertEq(adapter.realizableLoss(marketId), expectedLoss, "realizableLoss: re-account");
+        assertEq(adapter.assetsInMarket(marketId), initial - expectedLoss, "assetsInMarket: re-account");
 
         // Depositing realizes the loss
         vm.revertToState(snapshot);
         deal(address(loanToken), address(adapter), deposit);
         vm.prank(address(parentVault));
-        (ids, loss) = adapter.allocate(abi.encode(marketParams), deposit);
+        (ids, interest) = adapter.allocate(abi.encode(marketParams), deposit);
         assertEq(ids, expectedIds, "ids: deposit");
-        assertEq(loss, expectedLoss, "loss: deposit");
+        assertEq(interest, 0, "interest: deposit");
+        assertEq(adapter.realizableLoss(marketId), expectedLoss, "realizableLoss: deposit");
         assertEq(adapter.assetsInMarket(marketId), initial - expectedLoss + deposit, "assetsInMarket: deposit");
 
         // Withdrawing realizes the loss
         vm.revertToState(snapshot);
         vm.prank(address(parentVault));
-        (ids, loss) = adapter.deallocate(abi.encode(marketParams), withdraw);
+        (ids, interest) = adapter.deallocate(abi.encode(marketParams), withdraw);
         assertEq(ids, expectedIds, "ids: withdraw");
-        assertEq(loss, expectedLoss, "loss: withdraw");
+        assertEq(interest, 0, "interest: withdraw");
+        assertEq(adapter.realizableLoss(marketId), expectedLoss, "realizableLoss: withdraw");
         assertEq(adapter.assetsInMarket(marketId), initial - expectedLoss - withdraw, "assetsInMarket: withdraw");
+
+        // Realize loss
+        vm.prank(address(parentVault));
+        uint256 loss;
+        (ids, loss) = adapter.realizeLoss(abi.encode(marketParams));
+        assertEq(ids, expectedIds, "ids: realizeLoss");
+        assertEq(loss, expectedLoss, "loss: realizeLoss");
+        assertEq(adapter.realizableLoss(marketId), 0, "realizableLoss: realizeLoss");
+        assertEq(adapter.assetsInMarket(marketId), initial - expectedLoss - withdraw, "assetsInMarket: realizeLoss");
+
+        // Can't realize twice
+        vm.prank(address(parentVault));
+        (ids, loss) = adapter.realizeLoss(abi.encode(marketParams));
+        assertEq(ids, expectedIds, "ids: re-realize");
+        assertEq(loss, 0, "loss: re-realize");
 
         // Interest covers the loss.
         vm.revertToState(snapshot);
-        _overrideMarketTotalSupplyAssets(int256(interest));
+        _overrideMarketTotalSupplyAssets(int256(_interest));
         vm.prank(address(parentVault));
-        (ids, loss) = adapter.allocate(abi.encode(marketParams), 0);
+        (ids, interest) = adapter.allocate(abi.encode(marketParams), 0);
         assertEq(ids, expectedIds, "ids: interest");
-        assertEq(loss, expectedLoss > interest ? expectedLoss - interest : 0, "loss: interest");
+        assertApproxEqAbs(interest, _interest.zeroFloorSub(expectedLoss), 1, "interest: interest");
         assertApproxEqAbs(
-            adapter.assetsInMarket(marketId), initial - expectedLoss + interest, 1, "assetsInMarket: interest"
+            adapter.realizableLoss(marketId), expectedLoss.zeroFloorSub(_interest), 1, "realizableLoss: interest"
+        );
+        assertApproxEqAbs(
+            adapter.assetsInMarket(marketId), initial - expectedLoss + _interest, 1, "assetsInMarket: interest"
         );
     }
 

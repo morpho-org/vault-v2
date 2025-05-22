@@ -54,9 +54,9 @@ library EventsLib {
 
     event SetForceDeallocatePenalty(address indexed adapter, uint256 forceDeallocatePenalty);
 
-    event Allocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 loss);
+    event Allocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 interest);
 
-    event Deallocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 loss);
+    event Deallocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 interest);
 
     event SetLiquidityAdapter(address indexed sender, address indexed newLiquidityAdapter);
 

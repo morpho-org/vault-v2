@@ -33,6 +33,8 @@ contract MockAdapter is IAdapter {
         _ids[1] = keccak256("id-1");
         return (_ids, 0);
     }
+
+    function realizeLoss(bytes memory data) external returns (bytes32[] memory ids, uint256 loss) {}
 }
 
 contract AllocateTest is BaseTest {
