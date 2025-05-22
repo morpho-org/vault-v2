@@ -92,7 +92,7 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     function revoke(bytes memory data) external;
 
     // Force reallocate to idle
-    function forceDeallocate(address adapters, bytes memory data, uint256 assets, address onBehalf)
+    function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256 withdrawnShares);
 
