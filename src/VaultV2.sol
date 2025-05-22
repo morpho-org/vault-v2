@@ -581,6 +581,25 @@ contract VaultV2 is IVaultV2 {
         return shares;
     }
 
+    function realizeLoss(address adapter, bytes memory data) external returns (uint256) {
+        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).allocate(data, 0);
+
+        if (loss > 0) {
+            uint256 incentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
+            createShares(onBehalf, convertToShares(incentive));
+
+            _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
+            enterBlocked = true;
+
+            for (uint256 i; i < ids.length; i++) {
+                allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss);
+            }
+
+            emit EventsLib.RealizeLoss(msg.sender, adapter, ids, 0);
+        }
+        return loss;
+    }
+
     /* ERC20 */
 
     /// @dev Returns success (always true because reverts on failure).
