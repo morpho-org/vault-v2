@@ -20,10 +20,10 @@ To ensure that those rewards can be retrieved, each adapter has a skim function 
 Adapters for the following protocols are currently available:
 
 - [Morpho Blue](./src/adapters/MorphoBlueAdapter.sol);
-  This adapter allows to allocate to any market of Morpho Blue, constrained by the allocation caps (see [Id system](#id-system) below).
+  This adapter allocates to any market of Morpho Blue, constrained by the allocation caps (see [Id system](#id-system) below).
   The adapter holds a position on each respective market of Morpho Blue, on behalf of the vault V2.
 - [MetaMorpho Vaults](./src/adapters/MetaMorphoAdapter.sol).
-  This adapter allows to allocate to a fixed MetaMorpho vault (v1.0 and v1.1).
+  This adapter allocates to a fixed MetaMorpho vault (v1.0 and v1.1).
   The adapter holds shares of the corresponding MetaMorpho vault on behalf of the vault V2.
 
 A Morpho Market V2 adapter will be released together with Market V2.
@@ -31,8 +31,8 @@ A Morpho Market V2 adapter will be released together with Market V2.
 ### Id system
 
 The funds allocation of the vault is constrained by an id system.
-An id is an abstract identifier of a common risk factor of some markets (a collateral, an oracle, a protocol, etc.).
-The allocation on markets with a common id is limited by absolute caps and relative caps.
+An id is an abstract identifier for a common risk factor of some markets (a collateral, an oracle, a protocol, etc.).
+Allocation on markets with a common id is limited by absolute caps and relative caps.
 Note that relative caps are "soft" because they are not checked on withdrawals (they only constrain new allocations).
 The curator ensures the consistency of the id system by:
 
@@ -89,9 +89,9 @@ The rate returned by the VIC must be below `200% APR`.
 The vault interest controller can typically be simple smart contract storing the `interestPerSecond`, whose value is regularly set by the curator.
 For now only a VIC of this type is provided, the [ManualVic](./src/vic/ManualVic.sol), with the following added features:
 
-- the rate can be set by the allocators and sentinels of the vault;
-- the VIC has an additional internal notion of max rate, to ensure that the role of allocator can be given more safely.
-  The curator controls this internal notion of max rate, while the sentinels are able to decrease it to reduce the risk of having a rate too high.
+- the interest per second can be set by the allocators and sentinels of the vault;
+- the VIC has an additional internal notion of max interest per second, to ensure that the role of allocator can be given more safely.
+  The curator controls this internal notion of max interest per second, while the sentinels are only able to decrease it to reduce the risk of having a rate too high.
 
 ### Bad debt
 
