@@ -574,6 +574,8 @@ contract VaultV2 is IVaultV2 {
     function realizeLoss(address adapter, bytes memory data) external {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
+        accrueInterest();
+
         (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).realizeLoss(data);
 
         if (loss > 0) {
@@ -581,7 +583,9 @@ contract VaultV2 is IVaultV2 {
 
             if (canReceive(msg.sender)) {
                 uint256 incentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
-                createShares(msg.sender, previewDeposit(incentive));
+                uint256 incentiveShares =
+                    incentive.mulDivDown(totalSupply + 1, uint256(_totalAssets).zeroFloorSub(incentive) + 1);
+                createShares(msg.sender, incentiveShares);
             }
 
             enterBlocked = true;
@@ -591,7 +595,7 @@ contract VaultV2 is IVaultV2 {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss);
         }
 
-        // emit EventsLib.RealizeLoss(adapter, data, loss);
+        emit EventsLib.RealizeLoss(adapter, data, loss);
     }
 
     /* ERC20 */
