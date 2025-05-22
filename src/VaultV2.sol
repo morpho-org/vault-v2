@@ -581,8 +581,10 @@ contract VaultV2 is IVaultV2 {
         (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).allocate(data, 0);
 
         if (loss > 0) {
-            uint256 incentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
-            createShares(onBehalf, convertToShares(incentive));
+            if (canReceive(msg.sender)) {
+                uint256 incentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
+                createShares(msg.sender, previewDeposit(incentive));
+            }
 
             _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
             enterBlocked = true;
