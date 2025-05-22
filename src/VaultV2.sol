@@ -589,7 +589,8 @@ contract VaultV2 is IVaultV2 {
 
             if (canReceive(msg.sender)) {
                 uint256 incentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
-                createShares(msg.sender, previewDeposit(incentive));
+                uint256 incentiveShares = incentive.mulDivDown(totalSupply + 1, uint(_totalAssets).zeroFloorSub(incentive) + 1)
+                createShares(msg.sender, incentiveShares);
             }
 
             enterBlocked = true;
