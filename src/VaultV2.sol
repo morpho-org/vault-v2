@@ -39,6 +39,7 @@ import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 /// supply-withdraw or withdraw-supply should not change the allocation.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
+    using MathLib for int256;
 
     /* IMMUTABLE */
 
@@ -328,13 +329,9 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets);
 
-        if (change < 0) {
-            _totalAssets = uint256(_totalAssets).zeroFloorAddInt(change).toUint192();
-            enterBlocked = true;
-        }
-
+        // For consistency, allocates before applying profit or loss.
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorAddInt(change) + assets;
+            allocation[ids[i]] = allocation[ids[i]] + assets;
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
             uint256 _relativeCap = relativeCap[ids[i]];
@@ -343,6 +340,9 @@ contract VaultV2 is IVaultV2 {
                 ErrorsLib.RelativeCapExceeded()
             );
         }
+
+        applyChange(ids, change);
+
         emit EventsLib.Allocate(msg.sender, adapter, assets, ids, change);
     }
 
@@ -355,14 +355,12 @@ contract VaultV2 is IVaultV2 {
 
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets);
 
-        if (change < 0) {
-            _totalAssets = uint256(_totalAssets).zeroFloorAddInt(change).toUint192();
-            enterBlocked = true;
+        // For consistency, deallocates before applying profit or loss.
+        for (uint256 i; i < ids.length; i++) {
+            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(assets);
         }
 
-        for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorAddInt(change) - assets;
-        }
+        applyChange(ids, change);
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
         emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, change);
@@ -579,6 +577,39 @@ contract VaultV2 is IVaultV2 {
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
         emit EventsLib.ForceDeallocate(msg.sender, adapters, data, assets, onBehalf);
         return shares;
+    }
+
+    /// @dev Realize a profit or loss.
+    /// @dev Losses provide an incentive in the form of shares to the caller.
+    function realizeProfitOrLoss(address adapter, bytes memory data) external returns (int256) {
+        accrueInterest();
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, 0);
+
+        applyChange(ids, change);
+
+        if (change < 0 && canReceive(msg.sender)) {
+            uint256 incentive = change.abs().mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
+            uint256 incentiveShares =
+                incentive.mulDivDown(totalSupply + 1, uint256(_totalAssets).zeroFloorSub(incentive) + 1);
+            createShares(msg.sender, incentiveShares);
+        }
+
+        emit EventsLib.RealizeProfitOrLoss(msg.sender, adapter, ids, change);
+        return change;
+    }
+
+    /// @dev Apply a positive or negative allocation change.
+    /// @dev Losses are subtracted from _totalAssets.
+    /// @dev Losses prevent supply until the end of the transaction.
+    function applyChange(bytes32[] memory ids, int256 change) internal {
+        if (change < 0) {
+            _totalAssets = uint256(_totalAssets).zeroFloorAddInt(change).toUint192();
+            enterBlocked = true;
+        }
+
+        for (uint256 i; i < ids.length; i++) {
+            allocation[ids[i]] = allocation[ids[i]].zeroFloorAddInt(change);
+        }
     }
 
     /* ERC20 */

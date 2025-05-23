@@ -23,6 +23,44 @@ contract MathTest is Test {
         assertEq(MathLib.mulDivUp(x, y, d), (x * y + d - 1) / d);
     }
 
+    function testZeroFloorAddInt(uint256 x, int256 y) public {
+        if (y < 0) {
+            uint256 absY = MathLib.abs(y);
+            assertEq(MathLib.zeroFloorAddInt(x, y), x < absY ? 0 : x - absY, "down");
+        } else {
+            uint256 z;
+            unchecked {
+                z = x + uint256(y);
+            }
+            if (z < x) {
+                vm.expectRevert();
+                this.zeroFloorAddInt(x, y);
+            } else {
+                assertEq(z, MathLib.zeroFloorAddInt(x, y), "up");
+            }
+        }
+    }
+
+    function testZeroFloorSub(uint256 x, uint256 y) public pure {
+        assertEq(MathLib.zeroFloorSub(x, y), x < y ? 0 : x - y);
+    }
+
+    function zeroFloorAddInt(uint256 x, int256 y) external pure returns (uint256) {
+        return MathLib.zeroFloorAddInt(x, y);
+    }
+
+    function testAbs(int256 x) public {
+        uint256 expectedAbsX;
+        if (x >= 0) {
+            expectedAbsX = uint256(x);
+        } else {
+            unchecked {
+                expectedAbsX = 0 - uint256(x);
+            }
+        }
+        assertEq(MathLib.abs(x), expectedAbsX);
+    }
+
     function testToUint192(uint256 x) public {
         if (x > type(uint192).max) {
             vm.expectRevert(ErrorsLib.CastOverflow.selector);
