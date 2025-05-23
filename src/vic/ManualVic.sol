@@ -49,7 +49,6 @@ contract ManualVic is IManualVic {
 
     function decreaseInterestPerSecond(uint256 newInterestPerSecond) public {
         require(IVaultV2(vault).isAllocator(msg.sender) || IVaultV2(vault).isSentinel(msg.sender), Unauthorized());
-        require(newInterestPerSecond <= maxInterestPerSecond, InterestPerSecondTooHigh());
         require(newInterestPerSecond <= _interestPerSecond, NotDecreasing());
 
         IVaultV2(vault).accrueInterest();
