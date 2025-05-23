@@ -6,10 +6,14 @@ import "./MMIntegrationTest.sol";
 contract MMIntegrationBadDebtTest is MMIntegrationTest {
     using MorphoBalancesLib for IMorpho;
 
-    uint256 internal initialDeposit = 1.3e18;
+    uint256 internal constant initialDeposit = 1.3e18;
+    uint256 internal constant initialOnMarket0 = 1e18;
+    uint256 internal constant initialOnMarket1 = 0.3e18;
 
     function setUp() public virtual override {
         super.setUp();
+
+        assertEq(initialDeposit, initialOnMarket0 + initialOnMarket1);
 
         vault.deposit(initialDeposit, address(this));
 
@@ -19,16 +23,19 @@ contract MMIntegrationBadDebtTest is MMIntegrationTest {
         vault.allocate(address(metaMorphoAdapter), hex"", initialDeposit);
 
         assertEq(underlyingToken.balanceOf(address(vault)), 0);
+        assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0);
+        assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0);
+
         assertEq(underlyingToken.balanceOf(address(morpho)), initialDeposit);
-        assertEq(morpho.expectedSupplyAssets(allMarketParams[0], address(metaMorphoAdapter)), 1e18);
-        assertEq(morpho.expectedSupplyAssets(allMarketParams[1], address(metaMorphoAdapter)), 0.3e18);
+        assertEq(morpho.expectedSupplyAssets(allMarketParams[0], address(metaMorpho)), initialOnMarket0);
+        assertEq(morpho.expectedSupplyAssets(allMarketParams[1], address(metaMorpho)), initialOnMarket1);
     }
 
     function testBadDebt() public {
         assertEq(vault.totalAssets(), initialDeposit);
         assertEq(vault.previewRedeem(vault.balanceOf(address(this))), initialDeposit);
 
-        // Create bad debt.
+        // Create bad debt by removing market1.
         vm.startPrank(mmCurator);
         metaMorpho.submitCap(allMarketParams[1], 0);
         metaMorpho.submitMarketRemoval(allMarketParams[1]);
@@ -44,8 +51,7 @@ contract MMIntegrationBadDebtTest is MMIntegrationTest {
         vm.prank(allocator);
         vault.deallocate(address(metaMorphoAdapter), hex"", 0);
 
-        uint256 expectedAssets = 1e18;
-        assertEq(vault.totalAssets(), expectedAssets);
-        assertEq(vault.previewRedeem(vault.balanceOf(address(this))), expectedAssets);
+        assertEq(vault.totalAssets(), initialOnMarket0);
+        assertEq(vault.previewRedeem(vault.balanceOf(address(this))), initialOnMarket0);
     }
 }
