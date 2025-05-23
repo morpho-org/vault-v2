@@ -116,9 +116,9 @@ contract ManualVicTest is Test {
         vm.expectRevert(IManualVic.Unauthorized.selector);
         manualVic.decreaseInterestPerSecond(newInterestPerSecond);
 
-        // Greater than max interest per second.
+        // Not decreasing.
         vm.prank(allocator);
-        vm.expectRevert(IManualVic.InterestPerSecondTooHigh.selector);
+        vm.expectRevert(IManualVic.NotDecreasing.selector);
         manualVic.decreaseInterestPerSecond(bound(newInterestPerSecond, 1, type(uint256).max));
 
         // Normal path.
