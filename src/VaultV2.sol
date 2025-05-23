@@ -431,8 +431,7 @@ contract VaultV2 is IVaultV2 {
 
     function vicInterestPerSecond() internal returns (uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        uint256 output =
-            UtilsLib.controlledCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+        uint256 output = UtilsLib.controlledCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
 
         return (elapsed, output);
     }
