@@ -32,12 +32,6 @@ library MathLib {
         return uint192(x);
     }
 
-    /// @dev Casts to int256, reverting if input number is too large.
-    function toInt256(uint256 x) internal pure returns (int256) {
-        require(x <= uint256(type(int256).max), ErrorsLib.CastOverflow());
-        return int256(x);
-    }
-
     /// @dev Returns max(0, x - y).
     function zeroFloorSub(uint256 x, uint256 y) internal pure returns (uint256 z) {
         assembly {
