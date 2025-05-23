@@ -9,6 +9,7 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
+import {UtilsLib} from "./libraries/UtilsLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 
@@ -412,7 +413,7 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
-        (uint256 elapsed, uint256 vicOutput) = vicInterestPerSecondView();
+        (uint256 elapsed, uint256 vicOutput) = vicInterestPerSecond();
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) =
             _accrueInterestView(elapsed, vicOutput);
         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
@@ -430,35 +431,17 @@ contract VaultV2 is IVaultV2 {
 
     function vicInterestPerSecond() internal returns (uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        uint256 output;
-        if (elapsed > 0) {
-            // Low level call and decoding to avoid reverting if the VIC has no code or returns data that fails to
-            // decode.
-            (bool success, bytes memory data) =
-                address(vic).call(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
-            if (success) {
-                assembly ("memory-safe") {
-                    output := mload(add(data, 32))
-                }
-            }
-        }
+        uint256 output =
+            UtilsLib.controlledCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+
         return (elapsed, output);
     }
 
     function vicInterestPerSecondView() internal view returns (uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        uint256 output;
-        if (elapsed > 0) {
-            // Low level call and decoding to avoid reverting if the VIC has no code or returns data that fails to
-            // decode.
-            (bool success, bytes memory data) =
-                address(vic).staticcall(abi.encodeCall(IVic.interestPerSecondView, (_totalAssets, elapsed)));
-            if (success) {
-                assembly ("memory-safe") {
-                    output := mload(add(data, 32))
-                }
-            }
-        }
+        uint256 output =
+            UtilsLib.controlledStaticCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+
         return (elapsed, output);
     }
 
