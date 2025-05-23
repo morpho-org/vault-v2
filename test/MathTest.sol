@@ -41,12 +41,12 @@ contract MathTest is Test {
         }
     }
 
-    function testZeroFloorSub(uint256 x, uint256 y) public pure {
-        assertEq(MathLib.zeroFloorSub(x, y), x < y ? 0 : x - y);
-    }
-
     function zeroFloorAddInt(uint256 x, int256 y) external pure returns (uint256) {
         return MathLib.zeroFloorAddInt(x, y);
+    }
+
+    function testZeroFloorSub(uint256 x, uint256 y) public pure {
+        assertEq(MathLib.zeroFloorSub(x, y), x < y ? 0 : x - y);
     }
 
     function testAbs(int256 x) public {
