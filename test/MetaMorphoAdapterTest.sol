@@ -263,6 +263,13 @@ contract MetaMorphoAdapterTest is Test {
         vm.expectRevert(IMetaMorphoAdapter.InvalidData.selector);
         adapter.deallocate(data, 0);
     }
+
+    function testDifferentAssetReverts(address randomAsset) public {
+        vm.assume(randomAsset != parentVault.asset());
+        ERC4626MockExtended newMetaMorpho = new ERC4626MockExtended(randomAsset);
+        vm.expectRevert(IMetaMorphoAdapter.DifferentAsset.selector);
+        new MetaMorphoAdapter(address(parentVault), address(newMetaMorpho));
+    }
 }
 
 contract ERC4626MockExtended is ERC4626Mock {

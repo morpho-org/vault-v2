@@ -28,8 +28,10 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     constructor(address _parentVault, address _metaMorpho) {
         parentVault = _parentVault;
         metaMorpho = _metaMorpho;
-        SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
-        SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _metaMorpho, type(uint256).max);
+        address parentVaultAsset = IVaultV2(_parentVault).asset();
+        require(parentVaultAsset == IERC4626(_metaMorpho).asset(), DifferentAsset());
+        SafeERC20Lib.safeApprove(parentVaultAsset, _parentVault, type(uint256).max);
+        SafeERC20Lib.safeApprove(parentVaultAsset, _metaMorpho, type(uint256).max);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {

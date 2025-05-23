@@ -101,6 +101,24 @@ contract MorphoBlueAdapterTest is Test {
         adapter.deallocate(abi.encode(marketParams), assets);
     }
 
+    function testAllocateDifferentAssetReverts(address randomAsset, uint256 assets) public {
+        vm.assume(randomAsset != marketParams.loanToken);
+        assets = _boundAssets(assets);
+        marketParams.loanToken = randomAsset;
+        vm.expectRevert(IMorphoBlueAdapter.DifferentAsset.selector);
+        vm.prank(address(parentVault));
+        adapter.allocate(abi.encode(marketParams), assets);
+    }
+
+    function testDeallocateDifferentAssetReverts(address randomAsset, uint256 assets) public {
+        vm.assume(randomAsset != marketParams.loanToken);
+        assets = _boundAssets(assets);
+        marketParams.loanToken = randomAsset;
+        vm.expectRevert(IMorphoBlueAdapter.DifferentAsset.selector);
+        vm.prank(address(parentVault));
+        adapter.deallocate(abi.encode(marketParams), assets);
+    }
+
     function testAllocate(uint256 assets) public {
         assets = _boundAssets(assets);
         deal(address(loanToken), address(adapter), assets);
