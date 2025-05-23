@@ -38,7 +38,7 @@ contract MMIntegrationTest is BaseTest {
     OracleMock internal oracle;
     IrmMock internal irm;
 
-    // MetaMorpĥo.
+    // MetaMorpho.
     IMetaMorpho internal metaMorpho;
     address internal immutable mmOwner = makeAddr("mmOwner");
     address internal immutable mmAllocator = makeAddr("mmAllocator");
