@@ -25,7 +25,7 @@ contract MMIntegrationLiquidityAdapter is MMIntegrationTest {
 
         vault.deposit(assets, address(this));
 
-        checkAssetsInMetaMorpho(assets);
+        checkAssetsInMorpho(assets);
         assertEq(morpho.expectedSupplyAssets(idleParams, address(metaMorpho)), assets, "expected assets of metaMorpho");
     }
 
@@ -41,11 +41,11 @@ contract MMIntegrationLiquidityAdapter is MMIntegrationTest {
         if (assets > MM_NB_MARKETS * CAP) {
             checkAssetsInVault(assets);
         } else {
-            checkAssetsInMetaMorpho(assets);
+            checkAssetsInMorpho(assets);
         }
     }
 
-    function checkAssetsInMetaMorpho(uint256 assets) internal view {
+    function checkAssetsInMorpho(uint256 assets) internal view {
         assertEq(underlyingToken.balanceOf(address(morpho)), assets, "underlying balance of Morpho");
         assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0, "underlying balance of metaMorpho");
         assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0, "underlying balance of adapter");
