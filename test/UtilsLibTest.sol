@@ -33,26 +33,51 @@ contract ReturnsBomb {
     }
 }
 
-contract ControlledStaticCallTest is Test {
-    function testNoCode(bytes calldata data) public {
+contract UtilsLibTest is Test {
+    function testStaticCallNoCode(bytes calldata data) public {
         address account = makeAddr("no code");
         uint256 output = UtilsLib.controlledStaticCall(account, data);
         assertEq(output, 0);
     }
 
-    function testRevert(bytes calldata data) public {
+    function testStaticCallRevert(bytes calldata data) public {
         address account = address(new Reverts());
         uint256 output = UtilsLib.controlledStaticCall(account, data);
         assertEq(output, 0);
     }
 
-    function testReturnsNoData(bytes calldata data) public {
+    function testStaticCallReturnsNoData(bytes calldata data) public {
         address account = address(new ReturnsNothing());
         uint256 output = UtilsLib.controlledStaticCall(account, data);
         assertEq(output, 0);
     }
 
-    function testReturnsBomb(bytes calldata) public {
+    function testStaticCallReturnsBomb(bytes calldata) public {
+        address account = address(new ReturnsBomb());
+        // Will revert if returned data is entirely copied to memory
+        uint256 gas = 4953 * 2;
+        this._testReturnsBomb{gas: gas}(account);
+    }
+
+    function testCallNoCode(bytes calldata data) public {
+        address account = makeAddr("no code");
+        uint256 output = UtilsLib.controlledCall(account, data);
+        assertEq(output, 0);
+    }
+
+    function testCallRevert(bytes calldata data) public {
+        address account = address(new Reverts());
+        uint256 output = UtilsLib.controlledCall(account, data);
+        assertEq(output, 0);
+    }
+
+    function testCallReturnsNoData(bytes calldata data) public {
+        address account = address(new ReturnsNothing());
+        uint256 output = UtilsLib.controlledCall(account, data);
+        assertEq(output, 0);
+    }
+
+    function testCallReturnsBomb(bytes calldata) public {
         address account = address(new ReturnsBomb());
         // Will revert if returned data is entirely copied to memory
         uint256 gas = 4953 * 2;
