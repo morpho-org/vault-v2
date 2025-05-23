@@ -83,7 +83,7 @@ contract MMIntegrationAllocationTest is MMIntegrationTest {
         vault.allocate(address(metaMorphoAdapter), hex"", assets);
     }
 
-    function testAllocateMoreThanCap(uint256 assets) public {
+    function testAllocateMoreThanMetaMorphoCap(uint256 assets) public {
         assets = bound(assets, 1, MAX_TEST_ASSETS);
 
         // Put all caps to the limit.
