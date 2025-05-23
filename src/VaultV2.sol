@@ -578,15 +578,16 @@ contract VaultV2 is IVaultV2 {
 
         (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).realizeLoss(data);
 
+        uint256 incentiveShares;
         if (loss > 0) {
             _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
 
             if (canReceive(msg.sender)) {
-                uint256 incentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
-                uint256 incentiveShares =
-                    incentive.mulDivDown(totalSupply + 1, uint256(_totalAssets).zeroFloorSub(incentive) + 1);
+            uint256 incentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
+            incentiveShares =
+                incentive.mulDivDown(totalSupply + 1, uint256(_totalAssets).zeroFloorSub(incentive) + 1);
                 createShares(msg.sender, incentiveShares);
-            }
+            } 
 
             enterBlocked = true;
         }
@@ -595,7 +596,7 @@ contract VaultV2 is IVaultV2 {
             allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss);
         }
 
-        emit EventsLib.RealizeLoss(adapter, data, loss);
+        emit EventsLib.RealizeLoss(msg.sender, adapter, ids, loss, incentiveShares);
     }
 
     /* ERC20 */

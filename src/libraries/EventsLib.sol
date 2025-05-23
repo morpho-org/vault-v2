@@ -80,7 +80,7 @@ library EventsLib {
         address indexed sender, address[] adapters, bytes[] data, uint256[] assets, address indexed onBehalf
     );
 
-    event RealizeLoss(address indexed adapter, bytes data, uint256 loss);
+    event RealizeLoss(address indexed sender, address indexed adapter, bytes32[] ids, uint256 loss, uint256 incentiveShares);
 
     event CreateVaultV2(address indexed owner, address indexed asset, address indexed vaultV2);
 }
