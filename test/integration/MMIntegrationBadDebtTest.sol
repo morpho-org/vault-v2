@@ -17,7 +17,7 @@ contract MMIntegrationBadDebtTest is MMIntegrationTest {
 
         vault.deposit(initialDeposit, address(this));
 
-        setUpComplexQueue();
+        setSupplyQueueAllMarkets();
 
         vm.prank(allocator);
         vault.allocate(address(metaMorphoAdapter), hex"", initialDeposit);

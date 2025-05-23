@@ -20,7 +20,7 @@ contract MMIntegrationWithdrawTest is MMIntegrationTest {
 
         vault.deposit(initialTotal, address(this));
 
-        setUpComplexQueue();
+        setSupplyQueueAllMarkets();
 
         vm.prank(allocator);
         vault.allocate(address(metaMorphoAdapter), hex"", initialInMM);

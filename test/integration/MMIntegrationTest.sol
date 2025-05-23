@@ -25,7 +25,6 @@ import "../../src/VaultV2.sol";
 import {MetaMorphoAdapter} from "../../src/adapters/MetaMorphoAdapter.sol";
 import {MetaMorphoAdapterFactory} from "../../src/adapters/MetaMorphoAdapterFactory.sol";
 
-// Reuse test setup of the metamorpho repository.
 contract MMIntegrationTest is BaseTest {
     using MarketParamsLib for MarketParams;
 
@@ -135,26 +134,26 @@ contract MMIntegrationTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
     }
 
-    function setUpSimpleQueue() public {
-        setCap(idleParams, type(uint184).max);
+    function setSupplyQueueIdle() public {
+        setMetaMorphoCap(idleParams, type(uint184).max);
         Id[] memory supplyQueue = new Id[](1);
         supplyQueue[0] = idleParams.id();
         vm.prank(mmAllocator);
         metaMorpho.setSupplyQueue(supplyQueue);
     }
 
-    function setUpComplexQueue() public {
+    function setSupplyQueueAllMarkets() public {
         Id[] memory supplyQueue = new Id[](MM_NB_MARKETS);
         for (uint256 i; i < MM_NB_MARKETS; i++) {
             MarketParams memory marketParams = allMarketParams[i];
-            setCap(marketParams, CAP);
+            setMetaMorphoCap(marketParams, CAP);
             supplyQueue[i] = marketParams.id();
         }
         vm.prank(mmAllocator);
         metaMorpho.setSupplyQueue(supplyQueue);
     }
 
-    function setCap(MarketParams memory marketParams, uint256 newCap) internal {
+    function setMetaMorphoCap(MarketParams memory marketParams, uint256 newCap) internal {
         vm.prank(mmCurator);
         metaMorpho.submitCap(marketParams, newCap);
         vm.warp(block.timestamp + metaMorpho.timelock());

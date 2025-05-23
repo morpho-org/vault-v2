@@ -19,7 +19,7 @@ contract MMIntegrationLiquidityAdapter is MMIntegrationTest {
     function testDepositLiquidityAdapterSuccess(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
 
-        setUpSimpleQueue();
+        setSupplyQueueIdle();
         vm.prank(allocator);
         vault.setLiquidityAdapter(address(metaMorphoAdapter));
 
@@ -32,7 +32,7 @@ contract MMIntegrationLiquidityAdapter is MMIntegrationTest {
     function testDepositLiquidityAdapterCanFail(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
 
-        setUpComplexQueue();
+        setSupplyQueueAllMarkets();
         vm.prank(allocator);
         vault.setLiquidityAdapter(address(metaMorphoAdapter));
 

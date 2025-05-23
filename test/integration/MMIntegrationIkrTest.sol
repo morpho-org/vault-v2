@@ -19,7 +19,7 @@ contract MMIntegrationIkrTest is MMIntegrationTest {
     function setUp() public virtual override {
         super.setUp();
 
-        setUpComplexQueue();
+        setSupplyQueueAllMarkets();
 
         vm.startPrank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(metaMorphoAdapter), penalty)));
