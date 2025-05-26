@@ -571,29 +571,31 @@ contract VaultV2 is IVaultV2 {
         return shares;
     }
 
-    function realizeLoss(address adapter, bytes memory data) external {
+    function realizeLoss(address adapter, bytes memory data, bytes32 id) external {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
 
-        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).realizeLoss(data);
+        (bytes32[] memory ids, uint256 realAssets) = IAdapter(adapter).realAssets(data);
+        require(ids[ids.length - 1] == id); // last id must be the "primary key"
+        uint256 loss = allocation[id] - realAssets;
 
         uint256 incentiveShares;
         if (loss > 0) {
             _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
 
             if (canReceive(msg.sender)) {
-            uint256 incentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
-            incentiveShares =
-                incentive.mulDivDown(totalSupply + 1, uint256(_totalAssets).zeroFloorSub(incentive) + 1);
+                uint256 incentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
+                incentiveShares =
+                    incentive.mulDivDown(totalSupply + 1, uint256(_totalAssets).zeroFloorSub(incentive) + 1);
                 createShares(msg.sender, incentiveShares);
-            } 
+            }
 
             enterBlocked = true;
         }
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss);
+            allocation[ids[i]] = allocation[ids[i]] - loss;
         }
 
         emit EventsLib.RealizeLoss(msg.sender, adapter, ids, loss, incentiveShares);
