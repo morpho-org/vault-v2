@@ -56,12 +56,13 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
 
-        // To accrue interest only one time.
-        IMorpho(morpho).accrueInterest(marketParams);
-        int256 change =
-            int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(assetsInMarket[marketId]);
         if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-        assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+
+        uint256 newAssetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+
+        int256 change = int256(newAssetsInMarket) - int256(assetsInMarket[marketId]);
+
+        assetsInMarket[marketId] = newAssetsInMarket;
 
         return (ids(marketParams), change);
     }
@@ -73,13 +74,13 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
 
-        // To accrue interest only one time.
-        IMorpho(morpho).accrueInterest(marketParams);
-        // Safe unchecked cast because totalSupplyAssets < 2^128.
-        int256 change =
-            int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(assetsInMarket[marketId]);
         if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-        assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+
+        uint256 newAssetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+
+        int256 change = int256(newAssetsInMarket) - int256(assetsInMarket[marketId]);
+
+        assetsInMarket[marketId] = newAssetsInMarket;
 
         return (ids(marketParams), change);
     }

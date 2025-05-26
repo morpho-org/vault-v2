@@ -112,7 +112,7 @@ contract MorphoBlueAdapterTest is Test {
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), assets, "Incorrect assets in Morpho");
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
         assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(change, 0, "change should be zero");
+        assertEq(change, int256(assets), "change should be zero");
     }
 
     function testDeallocate(uint256 initialAssets, uint256 withdrawAssets) public {
@@ -129,7 +129,7 @@ contract MorphoBlueAdapterTest is Test {
         vm.prank(address(parentVault));
         (bytes32[] memory ids, int256 change) = adapter.deallocate(abi.encode(marketParams), withdrawAssets);
 
-        assertEq(change, 0, "change should be zero");
+        assertEq(change, -int256(withdrawAssets), "change should be zero");
         assertEq(adapter.assetsInMarket(marketId), initialAssets - withdrawAssets, "Incorrect assetsInMarket");
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
@@ -247,7 +247,7 @@ contract MorphoBlueAdapterTest is Test {
         vm.prank(address(parentVault));
         (ids, change) = adapter.allocate(abi.encode(marketParams), deposit);
         assertEq(ids, expectedIds, "ids: deposit");
-        assertEq(change, -int256(expectedLoss), "loss: deposit");
+        assertEq(change, int256(deposit) - int256(expectedLoss), "loss: deposit");
         assertEq(adapter.assetsInMarket(marketId), initial - expectedLoss + deposit, "assetsInMarket: deposit");
 
         // Withdrawing realizes the loss
@@ -255,7 +255,7 @@ contract MorphoBlueAdapterTest is Test {
         vm.prank(address(parentVault));
         (ids, change) = adapter.deallocate(abi.encode(marketParams), withdraw);
         assertEq(ids, expectedIds, "ids: withdraw");
-        assertEq(change, -int256(expectedLoss), "loss: withdraw");
+        assertEq(change, -int256(withdraw + expectedLoss), "loss: withdraw");
         assertEq(adapter.assetsInMarket(marketId), initial - expectedLoss - withdraw, "assetsInMarket: withdraw");
 
         // Interest covers the loss.

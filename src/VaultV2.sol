@@ -64,6 +64,10 @@ contract VaultV2 is IVaultV2 {
 
     /* INTEREST STORAGE */
 
+    /// @dev Last known idle assets.
+    uint192 internal idleAssets;
+    /// @dev Approximates real assets.
+    uint192 internal realAssets;
     uint192 internal _totalAssets;
     uint64 public lastUpdate;
     address public vic;
@@ -316,6 +320,14 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
     }
 
+    /* INTERNAL IDLE ASSETS TRACKING */
+
+    function updateIdleAssets() internal returns (int256 change) {
+        uint192 newIdleAssets = IERC20(asset).balanceOf(address(this)).toUint192();
+        change = int256(uint256(newIdleAssets)) - int256(uint256(idleAssets));
+        idleAssets = newIdleAssets;
+    }
+
     /* ALLOCATOR ACTIONS */
 
     /// @dev This function will automatically realize potential losses.
@@ -326,15 +338,19 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
-        (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets);
 
-        if (change < 0) {
-            _totalAssets = uint256(_totalAssets).zeroFloorAddInt(change).toUint192();
+        (bytes32[] memory ids, int256 adapterChange) = IAdapter(adapter).allocate(data, assets);
+
+        int256 idleChange = updateIdleAssets();
+        realAssets = uint256(realAssets).zeroFloorAddInt(idleChange + adapterChange).toUint192();
+
+        if (_totalAssets > realAssets) {
+            _totalAssets = realAssets;
             enterBlocked = true;
         }
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorAddInt(change) + assets;
+            allocation[ids[i]] = allocation[ids[i]].zeroFloorAddInt(adapterChange);
 
             require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
             uint256 _relativeCap = relativeCap[ids[i]];
@@ -343,7 +359,7 @@ contract VaultV2 is IVaultV2 {
                 ErrorsLib.RelativeCapExceeded()
             );
         }
-        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, change);
+        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, adapterChange);
     }
 
     /// @dev This function will automatically realize potential losses.
@@ -353,19 +369,25 @@ contract VaultV2 is IVaultV2 {
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets);
+        accrueInterest();
 
-        if (change < 0) {
-            _totalAssets = uint256(_totalAssets).zeroFloorAddInt(change).toUint192();
+        (bytes32[] memory ids, int256 adapterChange) = IAdapter(adapter).deallocate(data, assets);
+
+        SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
+
+        int256 idleChange = updateIdleAssets();
+        realAssets = uint256(realAssets).zeroFloorAddInt(idleChange + adapterChange).toUint192();
+
+        if (_totalAssets > realAssets) {
+            _totalAssets = realAssets;
             enterBlocked = true;
         }
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorAddInt(change) - assets;
+            allocation[ids[i]] = allocation[ids[i]].zeroFloorAddInt(adapterChange);
         }
 
-        SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
-        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, change);
+        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, adapterChange);
     }
 
     function setLiquidityAdapter(address newLiquidityAdapter) external {
@@ -518,6 +540,10 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
         _totalAssets += assets.toUint192();
+
+        int256 idleChange = updateIdleAssets();
+        realAssets = uint256(realAssets).zeroFloorAddInt(idleChange).toUint192();
+
         if (liquidityAdapter != address(0)) {
             try this.allocate(liquidityAdapter, liquidityData, assets) {} catch {}
         }
@@ -545,9 +571,9 @@ contract VaultV2 is IVaultV2 {
         require(canSend(onBehalf), ErrorsLib.CannotSend());
         require(canReceiveUnderlyingAssets(receiver), ErrorsLib.CannotReceiveUnderlyingAssets());
 
-        uint256 idleAssets = IERC20(asset).balanceOf(address(this));
-        if (assets > idleAssets && liquidityAdapter != address(0)) {
-            this.deallocate(liquidityAdapter, liquidityData, assets - idleAssets);
+        uint256 _idleAssets = IERC20(asset).balanceOf(address(this));
+        if (assets > _idleAssets && liquidityAdapter != address(0)) {
+            this.deallocate(liquidityAdapter, liquidityData, assets - _idleAssets);
         }
 
         if (msg.sender != onBehalf) {
@@ -559,6 +585,10 @@ contract VaultV2 is IVaultV2 {
         _totalAssets -= assets.toUint192();
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
+
+        int256 idleChange = updateIdleAssets();
+        realAssets = uint256(realAssets).zeroFloorAddInt(idleChange).toUint192();
+
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }
 

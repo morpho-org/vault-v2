@@ -7,15 +7,17 @@ contract RecordingAdapter {
     bytes public recordedData;
     uint256 public recordedAssets;
 
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids, int256 change) {
         recordedData = data;
         recordedAssets = assets;
+        change = int256(assets);
         ids = new bytes32[](0);
     }
 
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids, int256 change) {
         recordedData = data;
         recordedAssets = assets;
+        change = -int256(assets);
         ids = new bytes32[](0);
     }
 }
@@ -80,8 +82,8 @@ contract LiquidityMarketTest is BaseTest {
         uint256 assets = vault.previewRedeem(vault.balanceOf(address(this)));
         vault.withdraw(assets, address(this), address(this));
 
-        assertEq(adapter.recordedData(), data);
-        assertEq(adapter.recordedAssets(), assets);
+        assertEq(adapter.recordedData(), data, "data");
+        assertEq(adapter.recordedAssets(), assets, "assets");
     }
 
     function testLiquidityMarketRedeem(bytes memory data, uint256 deposit) public {
@@ -93,7 +95,7 @@ contract LiquidityMarketTest is BaseTest {
         vault.deposit(deposit, address(this));
         uint256 assets = vault.redeem(vault.balanceOf(address(this)), address(this), address(this));
 
-        assertEq(adapter.recordedData(), data);
-        assertEq(adapter.recordedAssets(), assets);
+        assertEq(adapter.recordedData(), data, "data");
+        assertEq(adapter.recordedAssets(), assets, "assets");
     }
 }

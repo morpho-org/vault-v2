@@ -16,25 +16,22 @@ contract MockAdapter is IAdapter {
         IERC20(IVaultV2(_vault).asset()).approve(_vault, type(uint256).max);
     }
 
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids, int256 changeBefore) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         recordedData = data;
         recordedAssets = assets;
         bytes32[] memory _ids = new bytes32[](2);
         _ids[0] = keccak256("id-0");
         _ids[1] = keccak256("id-1");
-        return (_ids, 0);
+        return (_ids, int256(assets));
     }
 
-    function deallocate(bytes memory data, uint256 assets)
-        external
-        returns (bytes32[] memory ids, int256 changeBefore)
-    {
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         recordedData = data;
         recordedAssets = assets;
         bytes32[] memory _ids = new bytes32[](2);
         _ids[0] = keccak256("id-0");
         _ids[1] = keccak256("id-1");
-        return (_ids, 0);
+        return (_ids, -int256(assets));
     }
 }
 
@@ -62,7 +59,7 @@ contract AllocateTest is BaseTest {
     }
 
     function _boundAssets(uint256 assets) internal pure returns (uint256) {
-        return bound(assets, 1, type(uint256).max);
+        return bound(assets, 1, type(uint192).max);
     }
 
     function _setAbsoluteCap(bytes memory idData, uint256 absoluteCap) internal {
@@ -137,7 +134,7 @@ contract AllocateTest is BaseTest {
         _setRelativeCap("id-1", WAD);
         vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.Allocate(allocator, mockAdapter, assets, ids, 0);
+        emit EventsLib.Allocate(allocator, mockAdapter, assets, ids, int256(assets));
         vault.allocate(mockAdapter, data, assets);
         assertEq(underlyingToken.balanceOf(address(vault)), 0, "Vault balance should be zero after allocation");
         assertEq(underlyingToken.balanceOf(mockAdapter), assets, "Adapter balance incorrect after allocation");
@@ -185,7 +182,7 @@ contract AllocateTest is BaseTest {
         // Normal path.
         vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.Deallocate(allocator, mockAdapter, assetsOut, ids, 0);
+        emit EventsLib.Deallocate(allocator, mockAdapter, assetsOut, ids, -int256(assetsOut));
         vault.deallocate(mockAdapter, data, assetsOut);
         assertEq(underlyingToken.balanceOf(address(vault)), assetsOut, "Vault balance incorrect after deallocation");
         assertEq(

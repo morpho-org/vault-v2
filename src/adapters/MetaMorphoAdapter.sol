@@ -54,13 +54,14 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        // To accrue interest only one time.
-        IERC4626(metaMorpho).deposit(0, address(this));
-        // Safe unchecked cast because MetaMorpho's total assets is a sum of uint128.
-        int256 change = int256(IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this))))
-            - int256(assetsInMetaMorpho);
         IERC4626(metaMorpho).deposit(assets, address(this));
-        assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
+
+        uint256 newAssetsInMetaMorpho =
+            IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
+
+        int256 change = int256(newAssetsInMetaMorpho) - int256(assetsInMetaMorpho);
+
+        assetsInMetaMorpho = newAssetsInMetaMorpho;
 
         return (ids(), change);
     }
@@ -71,13 +72,14 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        // To accrue interest only one time.
-        IERC4626(metaMorpho).deposit(0, address(this));
-        // Safe unchecked cast because MetaMorpho's total assets is a sum of uint128.
-        int256 change = int256(IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this))))
-            - int256(assetsInMetaMorpho);
         IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
-        assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
+
+        uint256 newAssetsInMetaMorpho =
+            IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
+
+        int256 change = int256(newAssetsInMetaMorpho) - int256(assetsInMetaMorpho);
+
+        assetsInMetaMorpho = newAssetsInMetaMorpho;
 
         return (ids(), change);
     }

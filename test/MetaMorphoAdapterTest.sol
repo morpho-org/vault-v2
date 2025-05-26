@@ -227,7 +227,7 @@ contract MetaMorphoAdapterTest is Test {
         vm.prank(address(parentVault));
         (ids, change) = adapter.allocate(hex"", deposit);
         assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(change, -int256(lossAssets), "Loss should be correct after deposit");
+        assertEq(change, int256(deposit) - int256(lossAssets), "Loss should be correct after deposit");
         assertApproxEqAbs(
             adapter.assetsInMetaMorpho(), initialAssets - lossAssets + deposit, 1, "AssetsInMetaMorpho after deposit"
         );
@@ -237,7 +237,7 @@ contract MetaMorphoAdapterTest is Test {
         vm.prank(address(parentVault));
         (ids, change) = adapter.deallocate(hex"", withdraw);
         assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(change, -int256(lossAssets), "Loss should be correct after withdraw");
+        assertEq(change, -int256(withdraw + lossAssets), "Loss should be correct after withdraw");
         assertApproxEqAbs(
             adapter.assetsInMetaMorpho(), initialAssets - lossAssets - withdraw, 1, "AssetsInMetaMorpho after withdraw"
         );
