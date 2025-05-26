@@ -6,6 +6,15 @@ import {stdError} from "../lib/forge-std/src/StdError.sol";
 import {UtilsLib} from "../src/libraries/UtilsLib.sol";
 import {VaultV2} from "../src/VaultV2.sol";
 
+contract ReturnsInput {
+    fallback() external {
+        bytes memory data = msg.data;
+        assembly {
+            return(add(data, 32), mload(data))
+        }
+    }
+}
+
 contract Reverts {
     fallback() external {
         bytes memory data = msg.data;
@@ -43,6 +52,11 @@ contract BurnsAllGas {
 }
 
 contract ControlledStaticCallTest is Test {
+    function testSuccess(bytes calldata data) public {
+        address account = address(new ReturnsInput());
+        uint output = UtilsLib.controlledStaticCall(account, data);
+        assertEq(output, uint(bytes32(data)));
+    }
     function testNoCode(bytes calldata data) public {
         address account = makeAddr("no code");
         uint256 output = UtilsLib.controlledStaticCall(account, data);
