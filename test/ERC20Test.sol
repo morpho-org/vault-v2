@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 import "../src/libraries/EventsLib.sol";
-import {ErrorsLib} from "../src/libraries/ErrorsLib.sol";
 import {DOMAIN_TYPEHASH, PERMIT_TYPEHASH} from "../src/libraries/ConstantsLib.sol";
 import {stdStorage, StdStorage} from "../lib/forge-std/src/Test.sol";
 
