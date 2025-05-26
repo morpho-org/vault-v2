@@ -54,9 +54,10 @@ contract BurnsAllGas {
 contract ControlledStaticCallTest is Test {
     function testSuccess(bytes calldata data) public {
         address account = address(new ReturnsInput());
-        uint output = UtilsLib.controlledStaticCall(account, data);
-        assertEq(output, uint(bytes32(data)));
+        uint256 output = UtilsLib.controlledStaticCall(account, data);
+        assertEq(output, uint256(bytes32(data)));
     }
+
     function testNoCode(bytes calldata data) public {
         address account = makeAddr("no code");
         uint256 output = UtilsLib.controlledStaticCall(account, data);
