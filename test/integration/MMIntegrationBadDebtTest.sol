@@ -2,13 +2,18 @@
 pragma solidity ^0.8.0;
 
 import "./MMIntegrationTest.sol";
+import {EventsLib as MorphoEventsLib} from "../../lib/metamorpho/lib/morpho-blue/src/libraries/EventsLib.sol";
 
 contract MMIntegrationBadDebtTest is MMIntegrationTest {
     using MorphoBalancesLib for IMorpho;
+    using MarketParamsLib for MarketParams;
 
     uint256 internal constant initialDeposit = 1.3e18;
     uint256 internal constant initialOnMarket0 = 1e18;
     uint256 internal constant initialOnMarket1 = 0.3e18;
+
+    address internal immutable borrower = makeAddr("borrower");
+    address internal immutable liquidator = makeAddr("liquidator");
 
     function setUp() public virtual override {
         super.setUp();
@@ -31,7 +36,7 @@ contract MMIntegrationBadDebtTest is MMIntegrationTest {
         assertEq(morpho.expectedSupplyAssets(allMarketParams[1], address(metaMorpho)), initialOnMarket1);
     }
 
-    function testBadDebt() public {
+    function testBadDebtThroughSubmitMarketRemoval() public {
         assertEq(vault.totalAssets(), initialDeposit);
         assertEq(vault.previewRedeem(vault.balanceOf(address(this))), initialDeposit);
 
@@ -47,6 +52,39 @@ contract MMIntegrationBadDebtTest is MMIntegrationTest {
         indexes[3] = 4;
         metaMorpho.updateWithdrawQueue(indexes);
         vm.stopPrank();
+
+        vm.prank(allocator);
+        vault.deallocate(address(metaMorphoAdapter), hex"", 0);
+
+        assertEq(vault.totalAssets(), initialOnMarket0);
+        assertEq(vault.previewRedeem(vault.balanceOf(address(this))), initialOnMarket0);
+    }
+
+    function testBadDebtThroughLiquidate() public {
+        assertEq(vault.totalAssets(), initialDeposit);
+        assertEq(vault.previewRedeem(vault.balanceOf(address(this))), initialDeposit);
+
+        // Create bad debt by liquidating everything on market 1.
+        deal(address(collateralToken), borrower, type(uint256).max);
+        vm.startPrank(borrower);
+        collateralToken.approve(address(morpho), type(uint256).max);
+        uint256 collateralOfBorrower = 3 * initialOnMarket1;
+        morpho.supplyCollateral(allMarketParams[1], collateralOfBorrower, borrower, hex"");
+        morpho.borrow(allMarketParams[1], initialOnMarket1, 0, borrower, borrower);
+        vm.stopPrank();
+        assertEq(underlyingToken.balanceOf(address(morpho)), initialOnMarket0);
+
+        oracle.setPrice(0);
+
+        Id id = allMarketParams[1].id();
+        uint256 borrowerShares = morpho.position(id, borrower).borrowShares;
+        vm.prank(liquidator);
+        // Make sure that a bad debt of initialOnMarket1 is created.
+        vm.expectEmit();
+        emit MorphoEventsLib.Liquidate(
+            id, liquidator, borrower, 0, 0, collateralOfBorrower, initialOnMarket1, borrowerShares
+        );
+        morpho.liquidate(allMarketParams[1], borrower, collateralOfBorrower, 0, hex"");
 
         vm.prank(allocator);
         vault.deallocate(address(metaMorphoAdapter), hex"", 0);
