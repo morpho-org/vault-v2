@@ -429,7 +429,8 @@ contract VaultV2 is IVaultV2 {
         uint256 tentativeInterestPerSecond =
             UtilsLib.controlledStaticCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
 
-        uint256 interestPerSecond = tentativeInterestPerSecond <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
+        uint256 interestPerSecond = tentativeInterestPerSecond
+            <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = _totalAssets + interest;
 
