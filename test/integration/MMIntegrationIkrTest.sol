@@ -110,7 +110,7 @@ contract MMIntegrationIkrTest is MMIntegrationTest {
         assets = bound(assets, MIN_IKR_TEST_ASSETS, MAX_IKR_TEST_ASSETS);
         setUpAssets(assets);
 
-        // Pause deposits.
+        // Pause deposits on MM.
         Id[] memory emptySupplyQueue = new Id[](0);
         vm.prank(mmAllocator);
         metaMorpho.setSupplyQueue(emptySupplyQueue);
