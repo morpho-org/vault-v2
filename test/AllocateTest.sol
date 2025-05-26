@@ -56,7 +56,7 @@ contract AllocateTest is BaseTest {
     }
 
     function _boundAssets(uint256 assets) internal pure returns (uint256) {
-        return bound(assets, 1, type(uint256).max);
+        return bound(assets, 1, type(uint128).max);
     }
 
     function _setAbsoluteCap(bytes memory idData, uint256 absoluteCap) internal {
@@ -89,7 +89,7 @@ contract AllocateTest is BaseTest {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(vault));
         assets = _boundAssets(assets);
-        absoluteCap = bound(absoluteCap, assets, type(uint256).max);
+        absoluteCap = bound(absoluteCap, assets, type(uint128).max);
 
         // Setup.
         deal(address(underlyingToken), address(vault), assets);
@@ -149,7 +149,7 @@ contract AllocateTest is BaseTest {
         vm.assume(rdm != address(vault));
         assetsIn = _boundAssets(assetsIn);
         assetsOut = bound(assetsOut, 1, assetsIn);
-        absoluteCap = bound(absoluteCap, assetsIn, type(uint256).max);
+        absoluteCap = bound(absoluteCap, assetsIn, type(uint128).max);
 
         // Setup.
         deal(address(underlyingToken), address(vault), assetsIn);
