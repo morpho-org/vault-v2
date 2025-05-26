@@ -302,7 +302,7 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
         require(newRelativeCap >= caps[id].relative, ErrorsLib.RelativeCapNotIncreasing());
 
-        caps[id].relative = uint64(newRelativeCap);
+        caps[id].relative = uint128(newRelativeCap);
 
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
@@ -312,7 +312,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(newRelativeCap <= caps[id].relative, ErrorsLib.RelativeCapNotDecreasing());
 
-        caps[id].relative = uint64(newRelativeCap);
+        caps[id].relative = uint128(newRelativeCap);
 
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }

@@ -6,7 +6,7 @@ import {IPermissionedToken} from "./IPermissionedToken.sol";
 
 struct Caps {
     uint128 absolute;
-    uint64 relative;
+    uint128 relative;
 }
 
 interface IVaultV2 is IERC20, IPermissionedToken {
