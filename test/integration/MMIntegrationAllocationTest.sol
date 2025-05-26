@@ -36,6 +36,9 @@ contract MMIntegrationAllocationTest is MMIntegrationTest {
 
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle + assets);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialInMM - assets);
+        assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0);
+        assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0);
+        assertEq(metaMorpho.previewRedeem(metaMorpho.balanceOf(address(metaMorphoAdapter))), initialInMM - assets);
     }
 
     function testDeallocateMoreThanAllocated(uint256 assets) public {
@@ -73,13 +76,16 @@ contract MMIntegrationAllocationTest is MMIntegrationTest {
 
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle - assets);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialInMM + assets);
+        assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0);
+        assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0);
+        assertEq(metaMorpho.previewRedeem(metaMorpho.balanceOf(address(metaMorphoAdapter))), initialInMM + assets);
     }
 
     function testAllocateMoreThanIdle(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, MAX_TEST_ASSETS);
 
         vm.prank(allocator);
-        vm.expectRevert();
+        vm.expectRevert(ErrorsLib.TransferReverted.selector);
         vault.allocate(address(metaMorphoAdapter), hex"", assets);
     }
 

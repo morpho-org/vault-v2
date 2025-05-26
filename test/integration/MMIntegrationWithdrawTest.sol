@@ -37,6 +37,9 @@ contract MMIntegrationWithdrawTest is MMIntegrationTest {
         assertEq(underlyingToken.balanceOf(receiver), assets);
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle - assets);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialInMM);
+        assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0);
+        assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0);
+        assertEq(metaMorpho.previewRedeem(metaMorpho.balanceOf(address(metaMorphoAdapter))), initialInMM);
     }
 
     function testWithdrawMoreThanIdleNoLiquidityAdapter(uint256 assets) public {
@@ -55,6 +58,9 @@ contract MMIntegrationWithdrawTest is MMIntegrationTest {
         assertEq(underlyingToken.balanceOf(receiver), assets);
         assertEq(underlyingToken.balanceOf(address(vault)), 0);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialTotal - assets);
+        assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0);
+        assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0);
+        assertEq(metaMorpho.previewRedeem(metaMorpho.balanceOf(address(metaMorphoAdapter))), initialTotal - assets);
     }
 
     function testWithdrawTooMuchEvenWithLiquidityAdapter(uint256 assets) public {
