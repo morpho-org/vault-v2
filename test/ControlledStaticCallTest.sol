@@ -60,27 +60,45 @@ contract ControlledStaticCallTest is Test {
 
     function testNoCode(bytes calldata data) public {
         address account = makeAddr("no code");
+
         uint256 output = UtilsLib.controlledStaticCall(account, data);
         assertEq(output, 0);
     }
 
     function testRevert(bytes calldata data) public {
         address account = address(new Reverts());
+        (bool success, bytes memory returnData) = account.staticcall(data);
+        assertFalse(success);
+        assertEq(returnData.length, data.length);
+
         uint256 output = UtilsLib.controlledStaticCall(account, data);
         assertEq(output, 0);
     }
 
     function testReturnsNoData(bytes calldata data) public {
         address account = address(new ReturnsNothing());
+        (bool success, bytes memory returnData) = account.staticcall(data);
+        assertTrue(success);
+        assertEq(returnData.length, 0);
+
         uint256 output = UtilsLib.controlledStaticCall(account, data);
         assertEq(output, 0);
     }
 
     function testReturnsBomb(bytes calldata) public {
         address account = address(new ReturnsBomb());
+
         // Would revert if returned data was entirely copied to memory.
         uint256 gas = 4953 * 2;
         this._testReturnsBomb{gas: gas}(account);
+    }
+
+    function testReturnBombLowLevelStaticCall(bytes calldata) public {
+        address account = address(new ReturnsBomb());
+
+        uint256 gas = 4953 * 2;
+        vm.expectRevert();
+        this._testReturnsBombLowLevelStaticCall{gas: gas}(account);
     }
 
     uint256 constant SAFE_GAS_AMOUNT = 500_000;
@@ -99,12 +117,17 @@ contract ControlledStaticCallTest is Test {
         vault.setVic{gas: SAFE_GAS_AMOUNT}(address(0));
 
         // check that gas was almost entirely burned
-        assertGt(vm.lastCallGas().gasTotalUsed, 0.9e18 * SAFE_GAS_AMOUNT / 1e18);
+        assertGt(vm.lastCallGas().gasTotalUsed, SAFE_GAS_AMOUNT * 63 / 64);
     }
 
     /* INTERNAL */
 
     function _testReturnsBomb(address account) external view {
         UtilsLib.controlledStaticCall(account, hex"");
+    }
+
+    function _testReturnsBombLowLevelStaticCall(address account) external view {
+        (bool success,) = account.staticcall(hex"");
+        success; // No-op to silence warning.
     }
 }
