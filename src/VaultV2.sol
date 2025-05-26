@@ -66,8 +66,8 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Last known idle assets.
     uint192 internal idleAssets;
-    /// @dev Approximates real assets.
-    uint192 internal realAssets;
+    /// @dev Approximates real assets for the purpose of detecting bad debt.
+    uint192 internal realAssetsApprox;
     uint192 internal _totalAssets;
     uint64 public lastUpdate;
     address public vic;
@@ -342,10 +342,10 @@ contract VaultV2 is IVaultV2 {
         (bytes32[] memory ids, int256 adapterChange) = IAdapter(adapter).allocate(data, assets);
 
         int256 idleChange = updateIdleAssets();
-        realAssets = uint256(realAssets).zeroFloorAddInt(idleChange + adapterChange).toUint192();
+        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange + adapterChange).toUint192();
 
-        if (_totalAssets > realAssets) {
-            _totalAssets = realAssets;
+        if (_totalAssets > realAssetsApprox) {
+            _totalAssets = realAssetsApprox;
             enterBlocked = true;
         }
 
@@ -376,10 +376,10 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
 
         int256 idleChange = updateIdleAssets();
-        realAssets = uint256(realAssets).zeroFloorAddInt(idleChange + adapterChange).toUint192();
+        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange + adapterChange).toUint192();
 
-        if (_totalAssets > realAssets) {
-            _totalAssets = realAssets;
+        if (_totalAssets > realAssetsApprox) {
+            _totalAssets = realAssetsApprox;
             enterBlocked = true;
         }
 
@@ -541,8 +541,10 @@ contract VaultV2 is IVaultV2 {
         createShares(onBehalf, shares);
         _totalAssets += assets.toUint192();
 
+        // invariant is sum (returned change) = ...
+
         int256 idleChange = updateIdleAssets();
-        realAssets = uint256(realAssets).zeroFloorAddInt(idleChange).toUint192();
+        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange).toUint192();
 
         if (liquidityAdapter != address(0)) {
             try this.allocate(liquidityAdapter, liquidityData, assets) {} catch {}
@@ -587,7 +589,7 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
 
         int256 idleChange = updateIdleAssets();
-        realAssets = uint256(realAssets).zeroFloorAddInt(idleChange).toUint192();
+        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange).toUint192();
 
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }
