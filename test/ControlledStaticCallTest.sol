@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {Test, console} from "../lib/forge-std/src/Test.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
 import {UtilsLib} from "../src/libraries/UtilsLib.sol";
+import {VaultV2} from "../src/VaultV2.sol";
 
 contract Reverts {
     fallback() external {
@@ -33,6 +34,14 @@ contract ReturnsBomb {
     }
 }
 
+contract BurnsAllGas {
+    fallback() external {
+        assembly {
+            invalid()
+        }
+    }
+}
+
 contract ControlledStaticCallTest is Test {
     function testNoCode(bytes calldata data) public {
         address account = makeAddr("no code");
@@ -54,9 +63,28 @@ contract ControlledStaticCallTest is Test {
 
     function testReturnsBomb(bytes calldata) public {
         address account = address(new ReturnsBomb());
-        // Will revert if returned data is entirely copied to memory
+        // Would revert if returned data was entirely copied to memory.
         uint256 gas = 4953 * 2;
         this._testReturnsBomb{gas: gas}(account);
+    }
+
+    uint256 constant SAFE_GAS_AMOUNT = 500_000;
+
+    function testCanUpdateVicIfVicBurnsAllGas() public {
+        BurnsAllGas burnsAllGas = new BurnsAllGas();
+        VaultV2 vault = new VaultV2(address(this), address(0));
+        vault.setCurator(address(this));
+
+        vault.submit(abi.encodeCall(vault.setVic, (address(burnsAllGas))));
+        vault.setVic(address(burnsAllGas));
+
+        skip(1);
+        // check that vic can still be changed
+        vault.submit(abi.encodeCall(vault.setVic, (address(0))));
+        vault.setVic{gas: SAFE_GAS_AMOUNT}(address(0));
+
+        // check that gas was almost entirely burned
+        assertGt(vm.lastCallGas().gasTotalUsed, 0.9e18 * SAFE_GAS_AMOUNT / 1e18);
     }
 
     /* INTERNAL */
