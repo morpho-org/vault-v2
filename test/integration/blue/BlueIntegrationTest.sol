@@ -1,37 +1,27 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
-import "./BaseTest.sol";
-import {MorphoBlueAdapter} from "../src/adapters/MorphoBlueAdapter.sol";
-import {MorphoBlueAdapterFactory} from "../src/adapters/MorphoBlueAdapterFactory.sol";
-import {ERC20Mock} from "./mocks/ERC20Mock.sol";
-import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
-import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
-import {IrmMock} from "../lib/morpho-blue/src/mocks/IrmMock.sol";
-import {IMorpho, MarketParams, Id, Market} from "../lib/morpho-blue/src/interfaces/IMorpho.sol";
-import {MorphoBalancesLib} from "../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
-import {MarketParamsLib} from "../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
-import {IERC20} from "../src/interfaces/IERC20.sol";
-import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
-import {IMorphoBlueAdapter} from "../src/adapters/interfaces/IMorphoBlueAdapter.sol";
-import {IMorphoBlueAdapterFactory} from "../src/adapters/interfaces/IMorphoBlueAdapterFactory.sol";
+import "../../BaseTest.sol";
+
+import {MorphoBlueAdapter} from "../../../src/adapters/MorphoBlueAdapter.sol";
+import {MorphoBlueAdapterFactory} from "../../../src/adapters/MorphoBlueAdapterFactory.sol";
+
+import {OracleMock} from "../../../lib/morpho-blue/src/mocks/OracleMock.sol";
+import {IrmMock} from "../../../lib/morpho-blue/src/mocks/IrmMock.sol";
+import {IMorpho, MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 contract BlueIntegrationTest is BaseTest {
-    using MorphoBalancesLib for IMorpho;
-    using MarketParamsLib for MarketParams;
-
-    MorphoBlueAdapterFactory internal factory;
-    MorphoBlueAdapter internal adapter;
+    IMorpho internal morpho;
     MarketParams internal marketParams1;
     MarketParams internal marketParams2;
-    Id internal marketId1;
-    Id internal marketId2;
     ERC20Mock internal collateralToken;
     ERC20Mock internal rewardToken;
     OracleMock internal oracle;
     IrmMock internal irm;
-    IMorpho internal morpho;
-    address internal recipient;
+
+    MorphoBlueAdapterFactory internal factory;
+    MorphoBlueAdapter internal adapter;
+
     bytes32[] internal expectedIds1;
     bytes32[] internal expectedIds2;
     bytes[] internal expectedIdData1;
