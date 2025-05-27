@@ -12,18 +12,15 @@ import {IMorpho, MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMo
 
 contract BlueIntegrationTest is BaseTest {
     IMorpho internal morpho;
-    MarketParams internal marketParams1;
-    MarketParams internal marketParams2;
     ERC20Mock internal collateralToken;
-    ERC20Mock internal rewardToken;
     OracleMock internal oracle;
     IrmMock internal irm;
+    MarketParams internal marketParams1;
+    MarketParams internal marketParams2;
 
     MorphoBlueAdapterFactory internal factory;
     MorphoBlueAdapter internal adapter;
 
-    bytes32[] internal expectedIds1;
-    bytes32[] internal expectedIds2;
     bytes[] internal expectedIdData1;
     bytes[] internal expectedIdData2;
 
@@ -39,7 +36,6 @@ contract BlueIntegrationTest is BaseTest {
         morpho = IMorpho(deployCode("Morpho.sol", abi.encode(morphoOwner)));
 
         collateralToken = new ERC20Mock();
-        rewardToken = new ERC20Mock();
         oracle = new OracleMock();
         irm = new IrmMock();
 
@@ -87,24 +83,6 @@ contract BlueIntegrationTest is BaseTest {
             "collateralToken/oracle/lltv", marketParams2.collateralToken, marketParams2.oracle, marketParams2.lltv
         );
 
-        expectedIds1 = new bytes32[](3);
-        expectedIds1[0] = keccak256(abi.encode("adapter", address(adapter)));
-        expectedIds1[1] = keccak256(abi.encode("collateralToken", marketParams1.collateralToken));
-        expectedIds1[2] = keccak256(
-            abi.encode(
-                "collateralToken/oracle/lltv", marketParams1.collateralToken, marketParams1.oracle, marketParams1.lltv
-            )
-        );
-
-        expectedIds2 = new bytes32[](3);
-        expectedIds2[0] = keccak256(abi.encode("adapter", address(adapter)));
-        expectedIds2[1] = keccak256(abi.encode("collateralToken", marketParams2.collateralToken));
-        expectedIds2[2] = keccak256(
-            abi.encode(
-                "collateralToken/oracle/lltv", marketParams2.collateralToken, marketParams2.oracle, marketParams2.lltv
-            )
-        );
-
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
         vault.setIsAdapter(address(adapter), true);
@@ -116,8 +94,6 @@ contract BlueIntegrationTest is BaseTest {
         vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (expectedIdData1[0], WAD)));
         vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (expectedIdData1[1], WAD)));
         vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (expectedIdData1[2], WAD)));
-        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (expectedIdData2[2], type(uint256).max)));
-        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (expectedIdData2[2], WAD)));
         vm.stopPrank();
 
         vault.increaseAbsoluteCap(expectedIdData1[0], type(uint256).max);
@@ -126,8 +102,6 @@ contract BlueIntegrationTest is BaseTest {
         vault.increaseRelativeCap(expectedIdData1[0], WAD);
         vault.increaseRelativeCap(expectedIdData1[1], WAD);
         vault.increaseRelativeCap(expectedIdData1[2], WAD);
-        vault.increaseAbsoluteCap(expectedIdData2[2], type(uint256).max);
-        vault.increaseRelativeCap(expectedIdData2[2], WAD);
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
