@@ -8,7 +8,7 @@ library UtilsLib {
     /// @dev Returns 0 if no data was returned.
     /// @dev Returns 0 if the static call reverted.
     /// @dev Unlike a low-level solidity call, does not copy all the return data to memory.
-    function controlledStaticCall(address to, bytes memory data) internal view returns (uint256) {
+    function controlledStaticCallUint(address to, bytes memory data) internal view returns (uint256) {
         uint256[1] memory output;
         bool success;
         assembly ("memory-safe") {
@@ -16,5 +16,15 @@ library UtilsLib {
         }
         if (success) return output[0];
         else return 0;
+    }
+
+    function controlledStaticCallBool(address to, bytes memory data) internal view returns (bool) {
+        bool[1] memory output;
+        bool success;
+        assembly ("memory-safe") {
+            success := staticcall(gas(), to, add(data, 32), mload(data), output, 1)
+        }
+        if (success) return output[0];
+        else return false;
     }
 }

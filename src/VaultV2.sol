@@ -427,7 +427,7 @@ contract VaultV2 is IVaultV2 {
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
         uint256 tentativeInterestPerSecond =
-            UtilsLib.controlledStaticCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+            UtilsLib.controlledStaticCallUint(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
 
         uint256 interestPerSecond = tentativeInterestPerSecond
             <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
@@ -654,18 +654,22 @@ contract VaultV2 is IVaultV2 {
     /* PERMISSION FUNCTIONS HELPERS */
 
     function canReceiveUnderlyingAssets(address account) public view returns (bool) {
-        return exitGate == address(0) || IExitGate(exitGate).canReceiveAssets(account);
+        return exitGate == address(0)
+            || UtilsLib.controlledStaticCallBool(exitGate, abi.encodeCall(IExitGate.canReceiveAssets, (account)));
     }
 
     function canSendUnderlyingAssets(address account) public view returns (bool) {
-        return enterGate == address(0) || IEnterGate(enterGate).canSendAssets(account);
+        return enterGate == address(0)
+            || UtilsLib.controlledStaticCallBool(enterGate, abi.encodeCall(IEnterGate.canSendAssets, (account)));
     }
 
     function canSend(address account) public view returns (bool) {
-        return exitGate == address(0) || IExitGate(exitGate).canSendShares(account);
+        return exitGate == address(0)
+            || UtilsLib.controlledStaticCallBool(exitGate, abi.encodeCall(IExitGate.canSendShares, (account)));
     }
 
     function canReceive(address account) public view returns (bool) {
-        return enterGate == address(0) || IEnterGate(enterGate).canReceiveShares(account);
+        return enterGate == address(0)
+            || UtilsLib.controlledStaticCallBool(enterGate, abi.encodeCall(IEnterGate.canReceiveShares, (account)));
     }
 }
