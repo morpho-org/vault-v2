@@ -19,7 +19,8 @@ library UtilsLib {
     }
 
     /// @dev Returns true iff the first word returned by a successful static call was exactly 1.
+    /// @dev Note that the behaviour is non standard: if the call returned a value >1, it returns false.
     function controlledStaticCallBool(address to, bytes memory data) internal view returns (bool) {
-        return controlledStaticCall(to, data) == 0x1;
+        return controlledStaticCall(to, data) == bytes32(uint256(1));
     }
 }
