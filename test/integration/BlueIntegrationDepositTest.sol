@@ -15,6 +15,7 @@ contract BlueIntegrationDepositTest is BlueIntegrationTest {
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
         assertEq(underlyingToken.balanceOf(address(morpho)), 0);
         assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), 0);
+        assertEq(morpho.expectedSupplyAssets(marketParams2, address(adapter)), 0);
     }
 
     function testDepositLiquidityAdapterSuccess(uint256 assets) public {
@@ -31,5 +32,6 @@ contract BlueIntegrationDepositTest is BlueIntegrationTest {
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
         assertEq(underlyingToken.balanceOf(address(morpho)), assets);
         assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), assets);
+        assertEq(morpho.expectedSupplyAssets(marketParams2, address(adapter)), 0);
     }
 }
