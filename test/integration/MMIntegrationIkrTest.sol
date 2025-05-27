@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "./MMIntegrationTest.sol";
-import {MathLib} from "../../../src/libraries/MathLib.sol";
+import {MathLib} from "../../src/libraries/MathLib.sol";
 
 contract MMIntegrationIkrTest is MMIntegrationTest {
     using MathLib for uint256;

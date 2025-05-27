@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
-import "../../BaseTest.sol";
+import "../BaseTest.sol";
 
 import {
     OracleMock,
@@ -13,17 +13,17 @@ import {
     MarketParamsLib,
     Id,
     MorphoBalancesLib
-} from "../../../lib/metamorpho/test/forge/helpers/IntegrationTest.sol";
+} from "../../lib/metamorpho/test/forge/helpers/IntegrationTest.sol";
 
-import {IVaultV2Factory} from "../../../src/interfaces/IVaultV2Factory.sol";
-import {IVaultV2} from "../../../src/interfaces/IVaultV2.sol";
-import {IManualVicFactory} from "../../../src/vic/interfaces/IManualVicFactory.sol";
+import {IVaultV2Factory} from "../../src/interfaces/IVaultV2Factory.sol";
+import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
+import {IManualVicFactory} from "../../src/vic/interfaces/IManualVicFactory.sol";
 
-import {VaultV2Factory} from "../../../src/VaultV2Factory.sol";
-import {ManualVic, ManualVicFactory} from "../../../src/vic/ManualVicFactory.sol";
-import "../../../src/VaultV2.sol";
-import {MetaMorphoAdapter} from "../../../src/adapters/MetaMorphoAdapter.sol";
-import {MetaMorphoAdapterFactory} from "../../../src/adapters/MetaMorphoAdapterFactory.sol";
+import {VaultV2Factory} from "../../src/VaultV2Factory.sol";
+import {ManualVic, ManualVicFactory} from "../../src/vic/ManualVicFactory.sol";
+import "../../src/VaultV2.sol";
+import {MetaMorphoAdapter} from "../../src/adapters/MetaMorphoAdapter.sol";
+import {MetaMorphoAdapterFactory} from "../../src/adapters/MetaMorphoAdapterFactory.sol";
 
 contract MMIntegrationTest is BaseTest {
     using MarketParamsLib for MarketParams;

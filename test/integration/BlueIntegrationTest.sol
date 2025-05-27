@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
-import "../../BaseTest.sol";
+import "../BaseTest.sol";
 
-import {MorphoBlueAdapter} from "../../../src/adapters/MorphoBlueAdapter.sol";
-import {MorphoBlueAdapterFactory} from "../../../src/adapters/MorphoBlueAdapterFactory.sol";
+import {MorphoBlueAdapter} from "../../src/adapters/MorphoBlueAdapter.sol";
+import {MorphoBlueAdapterFactory} from "../../src/adapters/MorphoBlueAdapterFactory.sol";
 
-import {ORACLE_PRICE_SCALE} from "../../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
-import {OracleMock} from "../../../lib/morpho-blue/src/mocks/OracleMock.sol";
-import {IrmMock} from "../../../lib/morpho-blue/src/mocks/IrmMock.sol";
-import {IMorpho, MarketParams, Id} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
-import {MarketParamsLib} from "../../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
-import {MorphoBalancesLib} from "../../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
+import {OracleMock} from "../../lib/morpho-blue/src/mocks/OracleMock.sol";
+import {IrmMock} from "../../lib/morpho-blue/src/mocks/IrmMock.sol";
+import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
+import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 
 contract BlueIntegrationTest is BaseTest {
     IMorpho internal morpho;

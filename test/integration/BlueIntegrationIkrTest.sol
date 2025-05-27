@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "./BlueIntegrationTest.sol";
-import {MathLib} from "../../../src/libraries/MathLib.sol";
+import {MathLib} from "../../src/libraries/MathLib.sol";
 
 contract BlueIntegrationIkrTest is BlueIntegrationTest {
     using MathLib for uint256;
