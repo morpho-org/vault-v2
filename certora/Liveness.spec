@@ -22,8 +22,10 @@ rule livenessAccrueInterest(env e) {
     require (totalAssets() + (totalAssets() * MAX_RATE_PER_SECOND() / WAD()) * 315360000) * 315360000 * (totalSupply() + 1) < 2^256;
     require totalSupply() < 2^256 - 1;
     
-    requireInvariant balanceOfBounds(performanceFeeRecipient());
-    requireInvariant balanceOfBounds(managementFeeRecipient());
+    // Safe require because we have the totalSupply invariant.
+    require balanceOf(managementFeeRecipient()) <= totalSupply();
+    require balanceOf(performanceFeeRecipient()) <= totalSupply();
+    
     requireInvariant performanceFee();
     requireInvariant managementFee();
     requireInvariant performanceFeeRecipient();

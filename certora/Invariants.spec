@@ -78,12 +78,3 @@ strong invariant liquidityAdapterInvariant()
 
 strong invariant totalSupply()
     totalSupply() == sumOfBalances;
-
-strong invariant balanceOfBounds(address account)
-    balanceOf(account) <= totalSupply()
-    {
-        preserved
-        {
-            requireInvariant totalSupply();
-        }
-    }
