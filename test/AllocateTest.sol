@@ -53,6 +53,9 @@ contract AllocateTest is BaseTest {
         ids = new bytes32[](2);
         ids[0] = keccak256("id-0");
         ids[1] = keccak256("id-1");
+
+        enableId("id-0");
+        enableId("id-1");
     }
 
     function _boundAssets(uint256 assets) internal pure returns (uint256) {

@@ -66,6 +66,12 @@ contract BaseTest is Test {
         assertLe(newTotalAssets, type(uint192).max, "wrong written value");
         vm.store(address(vault), TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT, strippedValue | bytes32(newTotalAssets));
     }
+
+    function enableId(bytes memory idData) internal {
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.enableId, (idData)));
+        vault.enableId(idData);
+    }
 }
 
 function min(uint256 a, uint256 b) pure returns (uint256) {

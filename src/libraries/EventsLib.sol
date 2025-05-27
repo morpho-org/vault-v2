@@ -81,4 +81,8 @@ library EventsLib {
     );
 
     event CreateVaultV2(address indexed owner, address indexed asset, address indexed vaultV2);
+
+    event EnableId(bytes32 indexed id);
+
+    event DisableId(bytes32 indexed id);
 }

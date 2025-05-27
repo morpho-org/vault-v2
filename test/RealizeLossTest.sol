@@ -48,10 +48,11 @@ contract RealizeLossTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
 
         expectedIds = new bytes32[](1);
-        idData = abi.encode("id");
+        idData = "id";
         id = keccak256(idData);
         expectedIds[0] = id;
         adapter.setIds(expectedIds);
+        enableId(idData);
 
         adapterArray = new address[](1);
         adapterArray[0] = address(adapter);
