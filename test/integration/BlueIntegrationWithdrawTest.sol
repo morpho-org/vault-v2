@@ -9,24 +9,28 @@ contract BlueIntegrationWithdrawTest is BlueIntegrationTest {
     address internal immutable receiver = makeAddr("receiver");
     address internal immutable borrower = makeAddr("borrower");
 
-    uint256 internal initialInIdle = 0.3e18;
-    uint256 internal initialInBlue = 0.7e18;
+    uint256 internal initialInIdle = 0.2e18;
+    uint256 internal initialInMarket1 = 0.3e18;
+    uint256 internal initialInMarket2 = 0.5e18;
     uint256 internal initialTotal = 1e18;
 
     function setUp() public virtual override {
         super.setUp();
 
-        assertEq(initialTotal, initialInIdle + initialInBlue);
+        assertEq(initialTotal, initialInIdle + initialInMarket1 + initialInMarket2);
 
         vault.deposit(initialTotal, address(this));
 
-        vm.prank(allocator);
-        vault.allocate(address(adapter), abi.encode(marketParams1), initialInBlue);
+        vm.startPrank(allocator);
+        vault.allocate(address(adapter), abi.encode(marketParams1), initialInMarket1);
+        vault.allocate(address(adapter), abi.encode(marketParams2), initialInMarket2);
+        vm.stopPrank();
 
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle);
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
-        assertEq(underlyingToken.balanceOf(address(morpho)), initialInBlue);
-        assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), initialInBlue);
+        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket1 + initialInMarket2);
+        assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), initialInMarket1);
+        assertEq(morpho.expectedSupplyAssets(marketParams2, address(adapter)), initialInMarket2);
     }
 
     function testWithdrawLessThanIdle(uint256 assets) public {
@@ -36,8 +40,10 @@ contract BlueIntegrationWithdrawTest is BlueIntegrationTest {
 
         assertEq(underlyingToken.balanceOf(receiver), assets);
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle - assets);
-        assertEq(underlyingToken.balanceOf(address(morpho)), initialInBlue);
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
+        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket1 + initialInMarket2);
+        assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), initialInMarket1);
+        assertEq(morpho.expectedSupplyAssets(marketParams2, address(adapter)), initialInMarket2);
     }
 
     function testWithdrawMoreThanIdleNoLiquidityAdapter(uint256 assets) public {
@@ -48,21 +54,26 @@ contract BlueIntegrationWithdrawTest is BlueIntegrationTest {
     }
 
     function testWithdrawThanksToLiquidityAdapter(uint256 assets) public {
-        assets = bound(assets, initialInIdle + 1, initialTotal);
+        assets = bound(assets, initialInIdle + 1, initialInIdle + initialInMarket1);
         vm.startPrank(allocator);
         vault.setLiquidityAdapter(address(adapter));
         vault.setLiquidityData(abi.encode(marketParams1));
         vm.stopPrank();
 
         vault.withdraw(assets, receiver, address(this));
+
         assertEq(underlyingToken.balanceOf(receiver), assets);
         assertEq(underlyingToken.balanceOf(address(vault)), 0);
-        assertEq(underlyingToken.balanceOf(address(morpho)), initialTotal - assets);
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
+        assertEq(underlyingToken.balanceOf(address(morpho)), initialTotal - assets);
+        assertEq(
+            morpho.expectedSupplyAssets(marketParams1, address(adapter)), initialInMarket1 + initialInIdle - assets
+        );
+        assertEq(morpho.expectedSupplyAssets(marketParams2, address(adapter)), initialInMarket2);
     }
 
     function testWithdrawTooMuchEvenWithLiquidityAdapter(uint256 assets) public {
-        assets = bound(assets, initialTotal + 1, MAX_TEST_ASSETS);
+        assets = bound(assets, initialInIdle + initialInMarket1 + 1, MAX_TEST_ASSETS);
         vm.startPrank(allocator);
         vault.setLiquidityAdapter(address(adapter));
         vault.setLiquidityData(abi.encode(marketParams1));
@@ -83,10 +94,10 @@ contract BlueIntegrationWithdrawTest is BlueIntegrationTest {
         deal(address(collateralToken), borrower, type(uint256).max);
         vm.startPrank(borrower);
         collateralToken.approve(address(morpho), type(uint256).max);
-        morpho.supplyCollateral(marketParams1, 2 * initialInBlue, borrower, hex"");
-        morpho.borrow(marketParams1, initialInBlue, 0, borrower, borrower);
+        morpho.supplyCollateral(marketParams1, 2 * initialInMarket1, borrower, hex"");
+        morpho.borrow(marketParams1, initialInMarket1, 0, borrower, borrower);
         vm.stopPrank();
-        assertEq(underlyingToken.balanceOf(address(morpho)), 0);
+        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket2);
 
         vm.expectRevert();
         vault.withdraw(assets, receiver, address(this));
