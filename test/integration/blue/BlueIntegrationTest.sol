@@ -9,6 +9,7 @@ import {MorphoBlueAdapterFactory} from "../../../src/adapters/MorphoBlueAdapterF
 import {OracleMock} from "../../../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {IrmMock} from "../../../lib/morpho-blue/src/mocks/IrmMock.sol";
 import {IMorpho, MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {MorphoBalancesLib} from "../../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 
 contract BlueIntegrationTest is BaseTest {
     IMorpho internal morpho;
@@ -105,12 +106,5 @@ contract BlueIntegrationTest is BaseTest {
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
-    }
-
-    function testSetup() public {
-        vault.deposit(100 ether, address(this));
-
-        vm.prank(allocator);
-        vault.allocate(address(adapter), abi.encode(marketParams1), 50 ether);
     }
 }
