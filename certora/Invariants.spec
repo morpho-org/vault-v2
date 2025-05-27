@@ -35,8 +35,19 @@ definition TIMELOCK_CAP() returns uint256 = 14 * 24 * 60 * 60;
 definition MAX_PERFOMANCE_FEE() returns uint256 = 10^18 / 2;
 definition MAX_MANAGEMENT_FEE() returns uint256 = 10^18 / 20 / (365 * 24 * 60 * 60);
 definition MAX_FORCE_DEALLOCATE_PENALTY() returns uint256 = 10^18 / 50;
-
 definition decreaseTimelockSelector() returns bytes4 = to_bytes4(sig:decreaseTimelock(bytes4,uint256).selector);
+
+ghost mathint sumOfBalances {
+    init_state axiom sumOfBalances == 0;
+}
+
+hook Sload uint256 balance balanceOf[KEY address addr] {
+    require sumOfBalances >= to_mathint(balance);
+}
+
+hook Sstore balanceOf[KEY address addr] uint256 newValue (uint256 oldValue) {
+    sumOfBalances = sumOfBalances - oldValue + newValue;
+}
 
 strong invariant performanceFeeRecipient()
     performanceFee() != 0 => performanceFeeRecipient() != 0;
@@ -67,3 +78,6 @@ strong invariant liquidityAdapterInvariant()
 
 strong invariant balanceOfBounds(address account)
     balanceOf(account) <= totalSupply();
+
+strong invariant totalSupply()
+    totalSupply() == sumOfBalances;
