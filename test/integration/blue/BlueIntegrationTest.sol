@@ -6,6 +6,7 @@ import "../../BaseTest.sol";
 import {MorphoBlueAdapter} from "../../../src/adapters/MorphoBlueAdapter.sol";
 import {MorphoBlueAdapterFactory} from "../../../src/adapters/MorphoBlueAdapterFactory.sol";
 
+import {ORACLE_PRICE_SCALE} from "../../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 import {OracleMock} from "../../../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {IrmMock} from "../../../lib/morpho-blue/src/mocks/IrmMock.sol";
 import {IMorpho, MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
@@ -28,7 +29,7 @@ contract BlueIntegrationTest is BaseTest {
     uint256 internal constant MIN_TEST_ASSETS = 10;
     uint256 internal constant MAX_TEST_ASSETS = 1e24;
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
 
         /* MORPHO SETUP */
@@ -39,6 +40,8 @@ contract BlueIntegrationTest is BaseTest {
         collateralToken = new ERC20Mock();
         oracle = new OracleMock();
         irm = new IrmMock();
+
+        oracle.setPrice(ORACLE_PRICE_SCALE);
 
         marketParams1 = MarketParams({
             loanToken: address(underlyingToken),
@@ -95,6 +98,8 @@ contract BlueIntegrationTest is BaseTest {
         vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (expectedIdData1[0], WAD)));
         vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (expectedIdData1[1], WAD)));
         vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (expectedIdData1[2], WAD)));
+        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (expectedIdData2[2], type(uint256).max)));
+        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (expectedIdData2[2], WAD)));
         vm.stopPrank();
 
         vault.increaseAbsoluteCap(expectedIdData1[0], type(uint256).max);
@@ -103,6 +108,8 @@ contract BlueIntegrationTest is BaseTest {
         vault.increaseRelativeCap(expectedIdData1[0], WAD);
         vault.increaseRelativeCap(expectedIdData1[1], WAD);
         vault.increaseRelativeCap(expectedIdData1[2], WAD);
+        vault.increaseAbsoluteCap(expectedIdData2[2], type(uint256).max);
+        vault.increaseRelativeCap(expectedIdData2[2], WAD);
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);

@@ -11,9 +11,10 @@ contract BlueIntegrationDepositTest is BlueIntegrationTest {
 
         vault.deposit(assets, address(this));
 
-        assertEq(underlyingToken.balanceOf(address(morpho)), 0, "underlying balance of Morpho");
-        assertEq(underlyingToken.balanceOf(address(adapter)), 0, "underlying balance of adapter");
-        assertEq(underlyingToken.balanceOf(address(vault)), assets, "underlying balance of vault");
+        assertEq(underlyingToken.balanceOf(address(vault)), assets);
+        assertEq(underlyingToken.balanceOf(address(adapter)), 0);
+        assertEq(underlyingToken.balanceOf(address(morpho)), 0);
+        assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), 0);
     }
 
     function testDepositLiquidityAdapterSuccess(uint256 assets) public {
@@ -26,9 +27,9 @@ contract BlueIntegrationDepositTest is BlueIntegrationTest {
 
         vault.deposit(assets, address(this));
 
-        assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), assets, "expected assets of adapter");
-        assertEq(underlyingToken.balanceOf(address(morpho)), assets, "underlying balance of Morpho");
-        assertEq(underlyingToken.balanceOf(address(adapter)), 0, "underlying balance of adapter");
-        assertEq(underlyingToken.balanceOf(address(vault)), 0, "underlying balance of vault");
+        assertEq(underlyingToken.balanceOf(address(vault)), 0);
+        assertEq(underlyingToken.balanceOf(address(adapter)), 0);
+        assertEq(underlyingToken.balanceOf(address(morpho)), assets);
+        assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), assets);
     }
 }
