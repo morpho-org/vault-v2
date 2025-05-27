@@ -4,7 +4,10 @@ pragma solidity ^0.8.0;
 import "./BaseTest.sol";
 
 contract Adapter is IAdapter {
+    address public immutable factory;
+
     constructor(address _underlyingToken, address _vault) {
+        factory = msg.sender;
         IERC20(_underlyingToken).approve(_vault, type(uint256).max);
     }
 
@@ -21,6 +24,7 @@ contract ForceDeallocateTest is BaseTest {
     function setUp() public override {
         super.setUp();
 
+        vm.prank(adapterFactory);
         adapter = address(new Adapter(address(underlyingToken), address(vault)));
 
         deal(address(underlyingToken), address(this), type(uint256).max);

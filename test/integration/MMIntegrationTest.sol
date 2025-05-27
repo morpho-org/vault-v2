@@ -37,6 +37,9 @@ contract MMIntegrationTest is BaseTest {
     OracleMock internal oracle;
     IrmMock internal irm;
 
+    // MetaMorpho factory.
+    address metaMorphoFactory;
+
     // MetaMorpho.
     IMetaMorpho internal metaMorpho;
     address internal immutable mmOwner = makeAddr("mmOwner");
@@ -60,6 +63,8 @@ contract MMIntegrationTest is BaseTest {
         collateralToken = new ERC20Mock();
         oracle = new OracleMock();
         irm = new IrmMock();
+
+        metaMorphoFactory = address(new MockMetaMorphoFactory(address(morpho)));
 
         oracle.setPrice(ORACLE_PRICE_SCALE);
 
@@ -114,9 +119,13 @@ contract MMIntegrationTest is BaseTest {
         vm.stopPrank();
 
         // Setup metaMorphoAdapter and vault.
-        metaMorphoAdapterFactory = new MetaMorphoAdapterFactory();
+        metaMorphoAdapterFactory = new MetaMorphoAdapterFactory(metaMorphoFactory);
         metaMorphoAdapter =
             MetaMorphoAdapter(metaMorphoAdapterFactory.createMetaMorphoAdapter(address(vault), address(metaMorpho)));
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setIsAdapterFactory, (address(metaMorphoAdapterFactory), true)));
+        vault.setIsAdapterFactory(address(metaMorphoAdapterFactory), true);
 
         bytes memory idData = abi.encode("adapter", address(metaMorphoAdapter));
         vm.startPrank(curator);

@@ -41,4 +41,6 @@ library ErrorsLib {
     error CannotSendUnderlyingAssets();
     error CannotReceiveUnderlyingAssets();
     error EnterBlocked();
+    error NotAdapterFactory();
+    error NotAdapterFromFactory();
 }

@@ -6,8 +6,13 @@ import "./BaseTest.sol";
 uint256 constant MAX_TEST_AMOUNT = 1e36;
 
 contract MockAdapter is IAdapter {
+    address public immutable factory;
     bytes32[] public ids;
     uint256 public loss;
+
+    constructor() {
+        factory = msg.sender;
+    }
 
     function setIds(bytes32[] memory _ids) external {
         ids = _ids;
@@ -38,6 +43,7 @@ contract RealizeLossTest is BaseTest {
     function setUp() public override {
         super.setUp();
 
+        vm.prank(adapterFactory);
         adapter = new MockAdapter();
 
         vm.prank(curator);

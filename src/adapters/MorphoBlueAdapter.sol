@@ -17,8 +17,23 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
     /* IMMUTABLES */
 
+    address public immutable factory;
     address public immutable parentVault;
     address public immutable morpho;
+
+    address public immutable loanToken;
+    address public immutable collateralToken;
+    address public immutable oracle;
+    address public immutable irm;
+    uint256 public immutable lltv;
+
+    /// @dev An Id is a Morpho V1 market id.
+    /// @dev This concept is separate from Vault V2 ids.
+    Id public immutable marketId;
+
+    bytes32 public immutable id0;
+    bytes32 public immutable id1;
+    bytes32 public immutable id2;
 
     /* STORAGE */
 
@@ -27,9 +42,26 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
     /* FUNCTIONS */
 
-    constructor(address _parentVault, address _morpho) {
+    constructor(address _parentVault, address _morpho, MarketParams memory _marketParams) {
+        factory = msg.sender;
         morpho = _morpho;
         parentVault = _parentVault;
+
+        loanToken = _marketParams.loanToken;
+        collateralToken = _marketParams.collateralToken;
+        oracle = _marketParams.oracle;
+        irm = _marketParams.irm;
+        lltv = _marketParams.lltv;
+        marketId = _marketParams.id();
+
+        id0 = keccak256(abi.encode("adapter", address(this)));
+        id1 = keccak256(abi.encode("collateralToken", _marketParams.collateralToken));
+        id2 = keccak256(
+            abi.encode(
+                "collateralToken/oracle/lltv", _marketParams.collateralToken, _marketParams.oracle, _marketParams.lltv
+            )
+        );
+
         SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
     }
@@ -52,47 +84,51 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the potential loss.
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+        require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
-        MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Id marketId = marketParams.id();
+
+        MarketParams memory _marketParams = marketParams();
 
         // To accrue interest only one time.
-        IMorpho(morpho).accrueInterest(marketParams);
+        IMorpho(morpho).accrueInterest(_marketParams);
         uint256 loss =
-            assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this)));
-        if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-        assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+            assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(_marketParams, address(this)));
+        if (assets > 0) IMorpho(morpho).supply(_marketParams, assets, 0, address(this), hex"");
+        assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(_marketParams, address(this));
 
-        return (ids(marketParams), loss);
+        return (ids(), loss);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the potential loss.
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+        require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
-        MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Id marketId = marketParams.id();
+
+        MarketParams memory _marketParams = marketParams();
 
         // To accrue interest only one time.
-        IMorpho(morpho).accrueInterest(marketParams);
+        IMorpho(morpho).accrueInterest(_marketParams);
         uint256 loss =
-            assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this)));
-        if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-        assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+            assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(_marketParams, address(this)));
+        if (assets > 0) IMorpho(morpho).withdraw(_marketParams, assets, 0, address(this), address(this));
+        assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(_marketParams, address(this));
 
-        return (ids(marketParams), loss);
+        return (ids(), loss);
     }
 
     /// @dev Returns adapter's ids.
-    function ids(MarketParams memory marketParams) internal view returns (bytes32[] memory) {
+    function ids() internal view returns (bytes32[] memory) {
         bytes32[] memory ids_ = new bytes32[](3);
-        ids_[0] = keccak256(abi.encode("adapter", address(this)));
-        ids_[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
-        ids_[2] = keccak256(
-            abi.encode(
-                "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
-            )
-        );
+        ids_[0] = id0;
+        ids_[1] = id1;
+        ids_[2] = id2;
         return ids_;
+    }
+
+    /// @dev Return adapter's market params.
+    function marketParams() public view returns (MarketParams memory) {
+        return
+            MarketParams({loanToken: loanToken, collateralToken: collateralToken, oracle: oracle, irm: irm, lltv: lltv});
     }
 }

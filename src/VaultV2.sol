@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import {IVaultV2, IERC20} from "./interfaces/IVaultV2.sol";
 import {IAdapter} from "./interfaces/IAdapter.sol";
+import {IAdapterFactory} from "./interfaces/IAdapterFactory.sol";
 import {IVic} from "./interfaces/IVic.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
@@ -73,6 +74,7 @@ contract VaultV2 is IVaultV2 {
     /* CURATION STORAGE */
 
     mapping(address account => bool) public isAdapter;
+    mapping(address account => bool) public isAdapterFactory;
     /// @dev The allocation is not updated to take interests into account.
     /// @dev Some underlying markets might allow to take into account interest (fixed rate, fixed term), some might not.
     mapping(bytes32 id => uint256) public allocation;
@@ -203,8 +205,20 @@ contract VaultV2 is IVaultV2 {
 
     function setIsAdapter(address account, bool newIsAdapter) external timelocked {
         require(account != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
+
+        if (newIsAdapter) {
+            address factory = IAdapter(account).factory();
+            require(isAdapterFactory[factory], ErrorsLib.NotAdapterFactory());
+            require(IAdapterFactory(factory).isAdapter(account), ErrorsLib.NotAdapterFromFactory());
+        }
+
         isAdapter[account] = newIsAdapter;
         emit EventsLib.SetIsAdapter(account, newIsAdapter);
+    }
+
+    function setIsAdapterFactory(address account, bool newIsAdapterFactory) external timelocked {
+        isAdapterFactory[account] = newIsAdapterFactory;
+        emit EventsLib.SetIsAdapterFactory(account, newIsAdapterFactory);
     }
 
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {

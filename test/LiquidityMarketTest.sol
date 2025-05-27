@@ -4,8 +4,14 @@ pragma solidity ^0.8.0;
 import "./BaseTest.sol";
 
 contract RecordingAdapter {
+    address public immutable factory;
+
     bytes public recordedData;
     uint256 public recordedAssets;
+
+    constructor() {
+        factory = msg.sender;
+    }
 
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {
         recordedData = data;
@@ -30,6 +36,7 @@ contract LiquidityMarketTest is BaseTest {
     function setUp() public override {
         super.setUp();
 
+        vm.prank(adapterFactory);
         adapter = new RecordingAdapter();
 
         deal(address(underlyingToken), address(this), type(uint256).max);

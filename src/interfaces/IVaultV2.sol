@@ -64,6 +64,7 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     function abdicateSubmit(bytes4 selector) external;
     function setIsAllocator(address account, bool newIsAllocator) external;
     function setIsAdapter(address account, bool newIsAdapter) external;
+    function setIsAdapterFactory(address account, bool newIsAdapterFactory) external;
     function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external;
     function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external;
     function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external;

@@ -34,6 +34,8 @@ library EventsLib {
 
     event SetIsAdapter(address indexed account, bool newIsAdapter);
 
+    event SetIsAdapterFactory(address indexed account, bool newIsAdapterFactory);
+
     event IncreaseTimelock(bytes4 indexed selector, uint256 newDuration);
 
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);

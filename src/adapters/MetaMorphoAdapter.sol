@@ -15,6 +15,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
     /* IMMUTABLES */
 
+    address public immutable factory;
     address public immutable parentVault;
     address public immutable metaMorpho;
 
@@ -26,6 +27,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /* FUNCTIONS */
 
     constructor(address _parentVault, address _metaMorpho) {
+        factory = msg.sender;
         parentVault = _parentVault;
         metaMorpho = _metaMorpho;
         SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);

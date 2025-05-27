@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "../lib/forge-std/src/Test.sol";
+import {MockMetaMorphoFactory} from "./BaseTest.sol";
 
 import {IERC4626} from "../src/interfaces/IERC4626.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
@@ -19,7 +20,8 @@ contract MetaMorphoAdapterTest is Test {
     ERC20Mock internal rewardToken;
     VaultV2Mock internal parentVault;
     ERC4626MockExtended internal metaMorpho;
-    MetaMorphoAdapterFactory internal factory;
+    address metaMorphoFactory;
+    MetaMorphoAdapterFactory factory;
     MetaMorphoAdapter internal adapter;
     address internal owner;
     address internal recipient;
@@ -36,7 +38,8 @@ contract MetaMorphoAdapterTest is Test {
         metaMorpho = new ERC4626MockExtended(address(asset));
         parentVault = new VaultV2Mock(address(asset), owner, address(0), address(0), address(0));
 
-        factory = new MetaMorphoAdapterFactory();
+        metaMorphoFactory = address(new MockMetaMorphoFactory(address(0)));
+        factory = new MetaMorphoAdapterFactory(metaMorphoFactory);
         adapter = MetaMorphoAdapter(factory.createMetaMorphoAdapter(address(parentVault), address(metaMorpho)));
 
         deal(address(asset), address(this), type(uint256).max);
@@ -128,7 +131,7 @@ contract MetaMorphoAdapterTest is Test {
             newAdapter,
             "Adapter not tracked correctly"
         );
-        assertTrue(factory.isMetaMorphoAdapter(newAdapter), "Adapter not tracked correctly");
+        assertTrue(factory.isAdapter(newAdapter), "Adapter not tracked correctly");
     }
 
     function testSetSkimRecipient(address newRecipient, address caller) public {

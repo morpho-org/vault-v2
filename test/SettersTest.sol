@@ -200,6 +200,7 @@ contract SettersTest is BaseTest {
     function testSetIsAdapter(address rdm) public {
         vm.assume(rdm != curator);
         address newAdapter = makeAddr("newAdapter");
+        vm.mockCall(newAdapter, IAdapter.factory.selector, abi.encode(adapterFactory));
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
@@ -604,6 +605,8 @@ contract SettersTest is BaseTest {
 
         // Setup.
         address adapter = makeAddr("adapter");
+        vm.mockCall(adapter, IAdapter.factory.selector, abi.encode(adapterFactory));
+
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (adapter, true)));
         vault.setIsAdapter(adapter, true);
@@ -669,7 +672,11 @@ contract SettersTest is BaseTest {
     function testSetLiquidityAdapter(address rdm, address liquidityAdapter) public {
         vm.assume(rdm != allocator);
         vm.assume(liquidityAdapter != address(0));
+        assumeNotForgeAddress(liquidityAdapter);
         vm.assume(rdm != allocator);
+
+        vm.mockCall(liquidityAdapter, IAdapter.factory.selector, abi.encode(adapterFactory));
+
         vm.prank(allocator);
         vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
         vault.setLiquidityAdapter(liquidityAdapter);

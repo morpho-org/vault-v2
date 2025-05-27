@@ -4,11 +4,13 @@ pragma solidity ^0.8.0;
 import "./BaseTest.sol";
 
 contract MockAdapter is IAdapter {
+    address public immutable factory;
     address public immutable vault;
     bytes public recordedData;
     uint256 public recordedAssets;
 
     constructor(address _vault) {
+        factory = msg.sender;
         vault = _vault;
         IERC20(IVaultV2(_vault).asset()).approve(_vault, type(uint256).max);
     }
@@ -35,12 +37,14 @@ contract MockAdapter is IAdapter {
 contract AllocateTest is BaseTest {
     using MathLib for uint256;
 
+    address mockAdapterFactory;
     address mockAdapter;
     bytes32[] public ids;
 
     function setUp() public override {
         super.setUp();
 
+        vm.prank(adapterFactory);
         mockAdapter = address(new MockAdapter(address(vault)));
 
         deal(address(underlyingToken), address(this), type(uint256).max);
