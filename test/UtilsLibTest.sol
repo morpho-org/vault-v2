@@ -51,21 +51,41 @@ contract BurnsAllGas {
     }
 }
 
-contract ControlledStaticCallTest is Test {
-    function testSuccess(bytes calldata data) public {
+contract UtilsLibTest is Test {
+    function testSuccessUint(bytes calldata data) public {
         address account = address(new ReturnsInput());
         uint256 output = UtilsLib.controlledStaticCallUint(account, data);
         assertEq(output, uint256(bytes32(data)));
     }
 
-    function testNoCode(bytes calldata data) public {
-        address account = makeAddr("no code");
+    function testSuccessBool(bool input) public {
+        address account = address(new ReturnsInput());
+        bool output = UtilsLib.controlledStaticCallBool(account, abi.encode(input));
+        assertEq(output, input);
+    }
 
+    function testNotBool(bytes calldata data) public {
+        vm.assume(data.length > 0);
+        vm.assume(uint256(bytes32(data[0])) >= 2);
+
+        address account = address(new ReturnsInput());
+        bool output = UtilsLib.controlledStaticCallBool(account, data);
+        assertEq(output, false);
+    }
+
+    function testNoCodeUint(bytes calldata data) public {
+        address account = makeAddr("no code");
         uint256 output = UtilsLib.controlledStaticCallUint(account, data);
         assertEq(output, 0);
     }
 
-    function testRevert(bytes calldata data) public {
+    function testNoCodeBool(bytes calldata data) public {
+        address account = makeAddr("no code");
+        bool output = UtilsLib.controlledStaticCallBool(account, data);
+        assertEq(output, false);
+    }
+
+    function testRevertUint(bytes calldata data) public {
         address account = address(new Reverts());
         (bool success, bytes memory returnData) = account.staticcall(data);
         assertFalse(success);
@@ -75,7 +95,12 @@ contract ControlledStaticCallTest is Test {
         assertEq(output, 0);
     }
 
-    function testReturnsNoData(bytes calldata data) public {
+    function testRevertBool(bytes calldata data) public {
+        bool output = UtilsLib.controlledStaticCallBool(address(new Reverts()), data);
+        assertEq(output, false);
+    }
+
+    function testReturnsNoDataUint(bytes calldata data) public {
         address account = address(new ReturnsNothing());
         (bool success, bytes memory returnData) = account.staticcall(data);
         assertTrue(success);
@@ -85,12 +110,26 @@ contract ControlledStaticCallTest is Test {
         assertEq(output, 0);
     }
 
-    function testReturnsBomb(bytes calldata) public {
+    function testReturnsNoDataBool(bytes calldata data) public {
+        address account = address(new ReturnsNothing());
+        bool output = UtilsLib.controlledStaticCallBool(account, data);
+        assertEq(output, false);
+    }
+
+    function testReturnsBombUint(bytes calldata) public {
         address account = address(new ReturnsBomb());
 
         // Would revert if returned data was entirely copied to memory.
         uint256 gas = 4953 * 2;
-        this._testReturnsBomb{gas: gas}(account);
+        this._testReturnsBombUint{gas: gas}(account);
+    }
+
+    function testReturnsBombBool(bytes calldata) public {
+        address account = address(new ReturnsBomb());
+
+        // Would revert if returned data was entirely copied to memory.
+        uint256 gas = 4953 * 2;
+        this._testReturnsBombBool{gas: gas}(account);
     }
 
     function testReturnBombLowLevelStaticCall(bytes calldata) public {
@@ -120,10 +159,17 @@ contract ControlledStaticCallTest is Test {
         assertGt(vm.lastCallGas().gasTotalUsed, SAFE_GAS_AMOUNT * 63 / 64);
     }
 
+    // TODO: test that accrueInterest can be called if gate burns all gas
+    // TODO: fix double gas burning gate problem
+
     /* INTERNAL */
 
-    function _testReturnsBomb(address account) external view {
+    function _testReturnsBombUint(address account) external view {
         UtilsLib.controlledStaticCallUint(account, hex"");
+    }
+
+    function _testReturnsBombBool(address account) external view {
+        UtilsLib.controlledStaticCallBool(account, hex"");
     }
 
     function _testReturnsBombLowLevelStaticCall(address account) external view {

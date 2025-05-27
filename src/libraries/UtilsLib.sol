@@ -7,7 +7,7 @@ library UtilsLib {
     /// @dev Returns the first word returned by a successful static call.
     /// @dev Returns 0 if no data was returned or if the static call reverted.
     /// @dev Unlike a low-level solidity call, does not copy all the return data to memory.
-    function controlledStaticCall(address to, bytes memory data) internal view returns (bytes32 res) {
+    function controlledStaticCall(address to, bytes memory data) private view returns (bytes32 res) {
         assembly ("memory-safe") {
             let success := staticcall(gas(), to, add(data, 32), mload(data), 0, 32)
             res := mul(success, mload(0))
