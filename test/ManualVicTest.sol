@@ -106,6 +106,13 @@ contract ManualVicTest is Test {
         emit IManualVic.IncreaseInterestPerSecond(allocator, newInterestPerSecond);
         manualVic.increaseInterestPerSecond(newInterestPerSecond);
         assertEq(manualVic.interestPerSecond(0, 0), newInterestPerSecond);
+
+        // Not increasing
+        if (newInterestPerSecond > 0) {
+            vm.prank(allocator);
+            vm.expectRevert(IManualVic.NotIncreasing.selector);
+            manualVic.increaseInterestPerSecond(newInterestPerSecond - 1);
+        }
     }
 
     function testDecreaseInterestPerSecond(address rdm, uint256 newInterestPerSecond) public {
