@@ -92,27 +92,23 @@ contract BlueIntegrationTest is BaseTest {
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
         vault.setIsAdapter(address(adapter), true);
 
-        vm.startPrank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (expectedIdData1[0], type(uint256).max)));
-        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (expectedIdData1[1], type(uint256).max)));
-        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (expectedIdData1[2], type(uint256).max)));
-        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (expectedIdData1[0], WAD)));
-        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (expectedIdData1[1], WAD)));
-        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (expectedIdData1[2], WAD)));
-        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (expectedIdData2[2], type(uint256).max)));
-        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (expectedIdData2[2], WAD)));
-        vm.stopPrank();
-
-        vault.increaseAbsoluteCap(expectedIdData1[0], type(uint256).max);
-        vault.increaseAbsoluteCap(expectedIdData1[1], type(uint256).max);
-        vault.increaseAbsoluteCap(expectedIdData1[2], type(uint256).max);
-        vault.increaseRelativeCap(expectedIdData1[0], WAD);
-        vault.increaseRelativeCap(expectedIdData1[1], WAD);
-        vault.increaseRelativeCap(expectedIdData1[2], WAD);
-        vault.increaseAbsoluteCap(expectedIdData2[2], type(uint256).max);
-        vault.increaseRelativeCap(expectedIdData2[2], WAD);
+        increaseAbsoluteAndRelativeCapToMax(expectedIdData1[0]);
+        increaseAbsoluteAndRelativeCapToMax(expectedIdData1[1]);
+        increaseAbsoluteAndRelativeCapToMax(expectedIdData1[2]);
+        // expectedIdData2[0] and expectedIdData2[1] are the same as expectedIdData1[0] and expectedIdData1[1]
+        increaseAbsoluteAndRelativeCapToMax(expectedIdData2[2]);
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
+    }
+
+    function increaseAbsoluteAndRelativeCapToMax(bytes memory idData) internal {
+        vm.startPrank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint256).max)));
+        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, WAD)));
+        vm.stopPrank();
+
+        vault.increaseAbsoluteCap(idData, type(uint256).max);
+        vault.increaseRelativeCap(idData, WAD);
     }
 }
