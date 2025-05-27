@@ -3,25 +3,32 @@
 methods {
     function multicall(bytes[]) external => NONDET DELETE;
 
+    function owner() external returns address envfree;
+    function curator() external returns address envfree;
+    function isSentinel(address) external returns bool envfree;
+    function lastUpdate() external returns uint64 envfree;
+    function totalAssets() external returns uint256 envfree;
+    function totalSupply() external returns uint256 envfree;
     function performanceFee() external returns uint96 envfree;
     function performanceFeeRecipient() external returns address envfree;
     function managementFee() external returns uint96 envfree;
     function managementFeeRecipient() external returns address envfree;
-
     function forceDeallocatePenalty(address) external returns uint256 envfree;
-
     function absoluteCap(bytes32 id) external returns uint256 envfree;
     function relativeCap(bytes32 id) external returns uint256 envfree;
     function allocation(bytes32 id) external returns uint256 envfree;
     function timelock(bytes4 selector) external returns uint256 envfree;
     function liquidityAdapter() external returns address envfree;
     function liquidityData() external returns bytes memory envfree;
-
     function isAdapter(address adapter) external returns bool envfree;
-
     function balanceOf(address) external returns uint256 envfree;
 
     function decreaseTimelock(address) external;
+    function accrueInterest() external;
+    function decreaseAbsoluteCap(bytes, uint256) external;
+    function setOwner(address) external;
+    function setCurator(address) external;
+    function setIsSentinel(address, bool) external;
 }
 
 definition TIMELOCK_CAP() returns uint256 = 14 * 24 * 60 * 60;
@@ -57,3 +64,6 @@ strong invariant decreaseTimelockTimelock()
 
 strong invariant liquidityAdapterInvariant()
     liquidityAdapter() == 0 || isAdapter(liquidityAdapter());
+
+strong invariant balanceOfBounds(address account)
+    balanceOf(account) <= totalSupply();
