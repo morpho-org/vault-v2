@@ -22,7 +22,7 @@ library UtilsLib {
         bool[1] memory output;
         bool success;
         assembly ("memory-safe") {
-            success := staticcall(gas(), to, add(data, 32), mload(data), output, 1)
+            success := staticcall(gas(), to, add(data, 32), mload(data), output, 32)
         }
         if (success) return output[0];
         else return false;

@@ -54,14 +54,14 @@ contract BurnsAllGas {
 contract ControlledStaticCallTest is Test {
     function testSuccess(bytes calldata data) public {
         address account = address(new ReturnsInput());
-        uint256 output = UtilsLib.controlledStaticCall(account, data);
+        uint256 output = UtilsLib.controlledStaticCallUint(account, data);
         assertEq(output, uint256(bytes32(data)));
     }
 
     function testNoCode(bytes calldata data) public {
         address account = makeAddr("no code");
 
-        uint256 output = UtilsLib.controlledStaticCall(account, data);
+        uint256 output = UtilsLib.controlledStaticCallUint(account, data);
         assertEq(output, 0);
     }
 
@@ -71,7 +71,7 @@ contract ControlledStaticCallTest is Test {
         assertFalse(success);
         assertEq(returnData.length, data.length);
 
-        uint256 output = UtilsLib.controlledStaticCall(account, data);
+        uint256 output = UtilsLib.controlledStaticCallUint(account, data);
         assertEq(output, 0);
     }
 
@@ -81,7 +81,7 @@ contract ControlledStaticCallTest is Test {
         assertTrue(success);
         assertEq(returnData.length, 0);
 
-        uint256 output = UtilsLib.controlledStaticCall(account, data);
+        uint256 output = UtilsLib.controlledStaticCallUint(account, data);
         assertEq(output, 0);
     }
 
@@ -123,7 +123,7 @@ contract ControlledStaticCallTest is Test {
     /* INTERNAL */
 
     function _testReturnsBomb(address account) external view {
-        UtilsLib.controlledStaticCall(account, hex"");
+        UtilsLib.controlledStaticCallUint(account, hex"");
     }
 
     function _testReturnsBombLowLevelStaticCall(address account) external view {
