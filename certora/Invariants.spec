@@ -76,8 +76,14 @@ strong invariant decreaseTimelockTimelock()
 strong invariant liquidityAdapterInvariant()
     liquidityAdapter() == 0 || isAdapter(liquidityAdapter());
 
-strong invariant balanceOfBounds(address account)
-    balanceOf(account) <= totalSupply();
-
 strong invariant totalSupply()
     totalSupply() == sumOfBalances;
+
+strong invariant balanceOfBounds(address account)
+    balanceOf(account) <= totalSupply()
+    {
+        preserved
+        {
+            requireInvariant totalSupply();
+        }
+    }
