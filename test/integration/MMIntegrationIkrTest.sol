@@ -92,7 +92,7 @@ contract MMIntegrationIkrTest is MMIntegrationTest {
         deal(address(underlyingToken), address(this), deallocatedAssets);
         underlyingToken.approve(address(metaMorpho), type(uint256).max);
         metaMorpho.deposit(deallocatedAssets, address(this));
-        vault.forceDeallocate(_list(address(metaMorphoAdapter)), _list(hex""), _list(deallocatedAssets), address(this));
+        vault.forceDeallocate(address(metaMorphoAdapter), hex"", deallocatedAssets, address(this));
         vault.withdraw(deallocatedAssets, address(this), address(this));
 
         // No assets left after reimbursing the flashloan.
@@ -121,7 +121,7 @@ contract MMIntegrationIkrTest is MMIntegrationTest {
         deal(address(underlyingToken), address(this), deallocatedAssets);
         underlyingToken.approve(address(morpho), type(uint256).max);
         morpho.supply(allMarketParams[0], deallocatedAssets, 0, address(this), hex"");
-        vault.forceDeallocate(_list(address(metaMorphoAdapter)), _list(hex""), _list(deallocatedAssets), address(this));
+        vault.forceDeallocate(address(metaMorphoAdapter), hex"", deallocatedAssets, address(this));
         vault.withdraw(deallocatedAssets, address(this), address(this));
 
         // No assets left after reimbursing the flashloan.
