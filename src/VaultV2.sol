@@ -11,7 +11,7 @@ import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {UtilsLib} from "./libraries/UtilsLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
-import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
+import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
 
 /// @dev Not ERC-4626 compliant due to missing functions and `totalAssets()` is not up to date.
 /// @dev Zero checks are not systematically performed.
@@ -49,10 +49,13 @@ contract VaultV2 is IVaultV2 {
 
     address public owner;
     address public curator;
-    /// @notice Gates receiving shares and depositing.
-    address public enterGate;
-    /// @notice Gates sending shares and withdrawing.
-    address public exitGate;
+    /// @notice Gates sending and receiving shares.
+    address public sharesGate;
+    /// @notice Gates receiving assets from the vault.
+    address public receiveAssetsGate;
+    /// @notice Gates depositing assets to the vault.
+    address public sendAssetsGate;
+
     mapping(address account => bool) public isSentinel;
     mapping(address account => bool) public isAllocator;
 
@@ -186,14 +189,19 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
 
-    function setEnterGate(address newEnterGate) external timelocked {
-        enterGate = newEnterGate;
-        emit EventsLib.SetEnterGate(newEnterGate);
+    function setSharesGate(address newSharesGate) external timelocked {
+        sharesGate = newSharesGate;
+        emit EventsLib.SetSharesGate(newSharesGate);
     }
 
-    function setExitGate(address newExitGate) external timelocked {
-        exitGate = newExitGate;
-        emit EventsLib.SetExitGate(newExitGate);
+    function setReceiveAssetsGate(address newReceiveAssetsGate) external timelocked {
+        receiveAssetsGate = newReceiveAssetsGate;
+        emit EventsLib.SetReceiveAssetsGate(newReceiveAssetsGate);
+    }
+
+    function setSendAssetsGate(address newSendAssetsGate) external timelocked {
+        sendAssetsGate = newSendAssetsGate;
+        emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
     }
 
     function setVic(address newVic) external timelocked {
@@ -650,18 +658,18 @@ contract VaultV2 is IVaultV2 {
     /* PERMISSION FUNCTIONS HELPERS */
 
     function canReceiveUnderlyingAssets(address account) public view returns (bool) {
-        return exitGate == address(0) || IExitGate(exitGate).canReceiveAssets(account);
+        return receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(account);
     }
 
     function canSendUnderlyingAssets(address account) public view returns (bool) {
-        return enterGate == address(0) || IEnterGate(enterGate).canSendAssets(account);
+        return sendAssetsGate == address(0) || ISendAssetsGate(sendAssetsGate).canSendAssets(account);
     }
 
     function canSend(address account) public view returns (bool) {
-        return exitGate == address(0) || IExitGate(exitGate).canSendShares(account);
+        return sharesGate == address(0) || ISharesGate(sharesGate).canSendShares(account);
     }
 
     function canReceive(address account) public view returns (bool) {
-        return enterGate == address(0) || IEnterGate(enterGate).canReceiveShares(account);
+        return sharesGate == address(0) || ISharesGate(sharesGate).canReceiveShares(account);
     }
 }

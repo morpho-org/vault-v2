@@ -24,9 +24,11 @@ library EventsLib {
 
     event SetIsAllocator(address indexed account, bool newIsAllocator);
 
-    event SetExitGate(address indexed newExitGate);
+    event SetSharesGate(address indexed newSharesGate);
 
-    event SetEnterGate(address indexed newEnterGate);
+    event SetReceiveAssetsGate(address indexed newReceiveAssetsGate);
+
+    event SetSendAssetsGate(address indexed newSendAssetsGate);
 
     event SetPerformanceFeeRecipient(address indexed);
 
