@@ -150,7 +150,8 @@ It can:
 - [Timelockable] Increase relative caps.
 - Decrease relative caps.
 - [Timelockable] Set the `vic`.
-- [Timelockable] Set adapter factories.
+- [Timelockable] Enable ids.
+- [Timelockable] Disable ids.
 - [Timelockable] Set adapters.
 - [Timelockable] Set allocators.
 - Increase timelocks.
