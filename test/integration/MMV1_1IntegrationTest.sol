@@ -104,7 +104,7 @@ contract MMV1_1IntegrationTest is BaseTest {
         // Setup metaMorpho.
         metaMorpho = IMetaMorphoV1_1(
             deployCode(
-                "MetaMorpho.sol",
+                "MetaMorphoV1_1.sol",
                 abi.encode(mmOwner, address(morpho), MM_TIMELOCK, address(underlyingToken), "metamorpho", "MM")
             )
         );
