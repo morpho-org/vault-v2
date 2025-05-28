@@ -38,11 +38,15 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /* STORAGE */
 
     address public skimRecipient;
-    mapping(Id => uint256) public assetsInMarket;
+    uint256 public assetsInMarket;
 
     /* FUNCTIONS */
 
     constructor(address _parentVault, address _morpho, MarketParams memory _marketParams) {
+        address parentVaultAsset = IVaultV2(_parentVault).asset();
+
+        require(parentVaultAsset == _marketParams.loanToken, AssetMismatch());
+
         factory = msg.sender;
         morpho = _morpho;
         parentVault = _parentVault;
@@ -62,8 +66,8 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
             )
         );
 
-        SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _morpho, type(uint256).max);
-        SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
+        SafeERC20Lib.safeApprove(parentVaultAsset, _morpho, type(uint256).max);
+        SafeERC20Lib.safeApprove(parentVaultAsset, _parentVault, type(uint256).max);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -91,10 +95,9 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(_marketParams);
-        uint256 loss =
-            assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(_marketParams, address(this)));
+        uint256 loss = assetsInMarket.zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(_marketParams, address(this)));
         if (assets > 0) IMorpho(morpho).supply(_marketParams, assets, 0, address(this), hex"");
-        assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(_marketParams, address(this));
+        assetsInMarket = IMorpho(morpho).expectedSupplyAssets(_marketParams, address(this));
 
         return (ids(), loss);
     }
@@ -109,21 +112,20 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(_marketParams);
-        uint256 loss =
-            assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(_marketParams, address(this)));
+        uint256 loss = assetsInMarket.zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(_marketParams, address(this)));
         if (assets > 0) IMorpho(morpho).withdraw(_marketParams, assets, 0, address(this), address(this));
-        assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(_marketParams, address(this));
+        assetsInMarket = IMorpho(morpho).expectedSupplyAssets(_marketParams, address(this));
 
         return (ids(), loss);
     }
 
     /// @dev Returns adapter's ids.
     function ids() internal view returns (bytes32[] memory) {
-        bytes32[] memory ids_ = new bytes32[](3);
-        ids_[0] = id0;
-        ids_[1] = id1;
-        ids_[2] = id2;
-        return ids_;
+        bytes32[] memory _ids = new bytes32[](3);
+        _ids[0] = id0;
+        _ids[1] = id1;
+        _ids[2] = id2;
+        return _ids;
     }
 
     /// @dev Return adapter's market params.

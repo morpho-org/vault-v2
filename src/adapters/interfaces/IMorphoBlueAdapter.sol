@@ -11,6 +11,7 @@ interface IMorphoBlueAdapter is IAdapter {
 
     /* ERRORS */
 
+    error AssetMismatch();
     error NotAuthorized();
     error InvalidData();
 

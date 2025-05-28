@@ -108,7 +108,7 @@ contract MorphoBlueAdapterTest is Test {
         vm.prank(address(parentVault));
         (bytes32[] memory ids, uint256 loss) = adapter.allocate(hex"", assets);
 
-        assertEq(adapter.assetsInMarket(marketId), assets, "Incorrect assetsInMarket");
+        assertEq(adapter.assetsInMarket(), assets, "Incorrect assetsInMarket");
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), assets, "Incorrect assets in Morpho");
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
         assertEq(ids, expectedIds, "Incorrect ids returned");
@@ -130,7 +130,7 @@ contract MorphoBlueAdapterTest is Test {
         (bytes32[] memory ids, uint256 loss) = adapter.deallocate(hex"", withdrawAssets);
 
         assertEq(loss, 0, "Loss should be zero");
-        assertEq(adapter.assetsInMarket(marketId), initialAssets - withdrawAssets, "Incorrect assetsInMarket");
+        assertEq(adapter.assetsInMarket(), initialAssets - withdrawAssets, "Incorrect assetsInMarket");
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
         assertEq(loanToken.balanceOf(address(adapter)), withdrawAssets, "Adapter did not receive withdrawn tokens");
@@ -218,7 +218,7 @@ contract MorphoBlueAdapterTest is Test {
         deal(address(loanToken), address(adapter), initial);
         vm.prank(address(parentVault));
         adapter.allocate(hex"", initial);
-        assertEq(adapter.assetsInMarket(marketId), initial, "Initial assetsInMarket incorrect");
+        assertEq(adapter.assetsInMarket(), initial, "Initial assetsInMarket incorrect");
         _overrideMarketTotalSupplyAssets(-int256(expectedLoss));
 
         // Realize with allocate
@@ -227,7 +227,7 @@ contract MorphoBlueAdapterTest is Test {
         (bytes32[] memory ids, uint256 loss) = adapter.allocate(hex"", 0);
         assertEq(ids, expectedIds, "ids: allocate");
         assertEq(loss, expectedLoss, "loss: allocate");
-        assertEq(adapter.assetsInMarket(marketId), initial - expectedLoss, "assetsInMarket: allocate");
+        assertEq(adapter.assetsInMarket(), initial - expectedLoss, "assetsInMarket: allocate");
 
         // Realize with deallocate
         vm.revertToState(snapshot);
@@ -235,14 +235,14 @@ contract MorphoBlueAdapterTest is Test {
         (ids, loss) = adapter.deallocate(hex"", 0);
         assertEq(ids, expectedIds, "ids: deallocate");
         assertEq(loss, expectedLoss, "loss: deallocate");
-        assertEq(adapter.assetsInMarket(marketId), initial - expectedLoss, "assetsInMarket: deallocate");
+        assertEq(adapter.assetsInMarket(), initial - expectedLoss, "assetsInMarket: deallocate");
 
         // Can't re-realize
         vm.prank(address(parentVault));
         (ids, loss) = adapter.allocate(hex"", 0);
         assertEq(ids, expectedIds, "ids: re-realize");
         assertEq(loss, 0, "loss: re-realize");
-        assertEq(adapter.assetsInMarket(marketId), initial - expectedLoss, "assetsInMarket: re-realize");
+        assertEq(adapter.assetsInMarket(), initial - expectedLoss, "assetsInMarket: re-realize");
 
         // Depositing realizes the loss
         vm.revertToState(snapshot);
@@ -251,7 +251,7 @@ contract MorphoBlueAdapterTest is Test {
         (ids, loss) = adapter.allocate(hex"", deposit);
         assertEq(ids, expectedIds, "ids: deposit");
         assertEq(loss, expectedLoss, "loss: deposit");
-        assertEq(adapter.assetsInMarket(marketId), initial - expectedLoss + deposit, "assetsInMarket: deposit");
+        assertEq(adapter.assetsInMarket(), initial - expectedLoss + deposit, "assetsInMarket: deposit");
 
         // Withdrawing realizes the loss
         vm.revertToState(snapshot);
@@ -259,7 +259,7 @@ contract MorphoBlueAdapterTest is Test {
         (ids, loss) = adapter.deallocate(hex"", withdraw);
         assertEq(ids, expectedIds, "ids: withdraw");
         assertEq(loss, expectedLoss, "loss: withdraw");
-        assertEq(adapter.assetsInMarket(marketId), initial - expectedLoss - withdraw, "assetsInMarket: withdraw");
+        assertEq(adapter.assetsInMarket(), initial - expectedLoss - withdraw, "assetsInMarket: withdraw");
 
         // Interest covers the loss.
         vm.revertToState(snapshot);
@@ -268,9 +268,7 @@ contract MorphoBlueAdapterTest is Test {
         (ids, loss) = adapter.allocate(hex"", 0);
         assertEq(ids, expectedIds, "ids: interest");
         assertEq(loss, expectedLoss > interest ? expectedLoss - interest : 0, "loss: interest");
-        assertApproxEqAbs(
-            adapter.assetsInMarket(marketId), initial - expectedLoss + interest, 1, "assetsInMarket: interest"
-        );
+        assertApproxEqAbs(adapter.assetsInMarket(), initial - expectedLoss + interest, 1, "assetsInMarket: interest");
     }
 
     function _overrideMarketTotalSupplyAssets(int256 change) internal {
