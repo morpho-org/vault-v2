@@ -65,9 +65,9 @@ contract VaultV2 is IVaultV2 {
     /* INTEREST STORAGE */
 
     /// @dev Last known idle assets.
-    uint192 internal idleAssets;
+    uint public idleAssets;
     /// @dev Approximates real assets for the purpose of detecting bad debt.
-    uint192 internal realAssetsApprox;
+    uint public realAssetsApprox;
     uint192 internal _totalAssets;
     uint64 public lastUpdate;
     address public vic;
@@ -345,7 +345,7 @@ contract VaultV2 is IVaultV2 {
         realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange + adapterChange).toUint192();
 
         if (_totalAssets > realAssetsApprox) {
-            _totalAssets = realAssetsApprox;
+            _totalAssets = uint192(realAssetsApprox);
             enterBlocked = true;
         }
 
@@ -379,7 +379,7 @@ contract VaultV2 is IVaultV2 {
         realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange + adapterChange).toUint192();
 
         if (_totalAssets > realAssetsApprox) {
-            _totalAssets = realAssetsApprox;
+            _totalAssets = uint192(realAssetsApprox);
             enterBlocked = true;
         }
 
