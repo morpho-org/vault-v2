@@ -183,6 +183,30 @@ contract MainFunctionsTest is BaseTest {
         assertEq(vault.totalSupply(), initialSharesDeposit - shares, "total supply");
     }
 
+    function testWithdrawRoundsSharesUp() public {
+        uint256 assets = 100;
+        address depositor = makeAddr("depositor");
+
+        deal(address(underlyingToken), depositor, assets);
+        vm.startPrank(depositor);
+        underlyingToken.approve(address(vault), type(uint256).max);
+        vault.deposit(assets, depositor);
+        vm.stopPrank();
+
+        vm.prank(allocator);
+        vic.setInterestPerSecond(uint256(3e18) / (365 days));
+        skip(10);
+
+        vault.accrueInterest();
+        uint256 sharesDown = assets.mulDivDown(vault.totalSupply() + 1, vault.totalAssets() + 1);
+
+        vm.prank(depositor);
+        uint256 shares = vault.withdraw(assets, depositor, depositor);
+
+        assertEq(shares, 100);
+        assertNotEq(shares, sharesDown, "vacuous test");
+    }
+
     function testWithdrawFromLiquidityAdapter(uint256 assets) public {
         assets = bound(assets, 0, INITIAL_DEPOSIT);
 
@@ -206,29 +230,5 @@ contract MainFunctionsTest is BaseTest {
         uint256 assetsAfter = underlyingToken.balanceOf(address(this));
 
         assertEq(assetsAfter - assetsBefore, assets);
-    }
-
-    function testWithdrawRoundsSharesUp() public {
-        uint256 assets = 100;
-        address depositor = makeAddr("depositor");
-
-        deal(address(underlyingToken), depositor, assets);
-        vm.startPrank(depositor);
-        underlyingToken.approve(address(vault), type(uint256).max);
-        vault.deposit(assets, depositor);
-        vm.stopPrank();
-
-        vm.prank(allocator);
-        vic.setInterestPerSecond(uint256(3e18) / (365 days));
-        skip(10);
-
-        vault.accrueInterest();
-        uint256 sharesDown = assets.mulDivDown(vault.totalSupply() + 1, vault.totalAssets() + 1);
-
-        vm.prank(depositor);
-        uint256 shares = vault.withdraw(assets, depositor, depositor);
-
-        assertEq(shares, 100);
-        assertNotEq(shares, sharesDown, "vacuous test");
     }
 }
