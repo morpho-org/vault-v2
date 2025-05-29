@@ -134,6 +134,18 @@ contract AccrueInterestTest is BaseTest {
         assertEq(vault.totalAssets(), totalAssetsBefore);
     }
 
+    function testAccrueInterestMaxRateValue() public {
+        uint256 deposit = 1e18;
+
+        vault.deposit(deposit, address(this));
+        vm.prank(allocator);
+        vic.increaseInterestPerSecond(deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
+        skip(365 days);
+
+        vault.accrueInterest();
+        assertApproxEqRel(vault.totalAssets(), deposit * 3, 0.00001e18);
+    }
+
     function testAccrueInterestVicNoCode(uint256 elapsed) public {
         elapsed = bound(elapsed, 0, 1000 weeks);
 
