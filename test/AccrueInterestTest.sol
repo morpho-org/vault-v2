@@ -85,6 +85,8 @@ contract AccrueInterestTest is BaseTest {
         vic.setInterestPerSecond(interestPerSecond);
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
+        writeRealAssetsApprox(vault.realAssetsApprox() * 1e3);
+
         // Normal path.
         uint256 interest = interestPerSecond * elapsed;
         uint256 totalAssets = deposit + interest;
@@ -188,6 +190,8 @@ contract AccrueInterestTest is BaseTest {
 
         vm.warp(block.timestamp + elapsed);
 
+        writeRealAssetsApprox(vault.realAssetsApprox() * 1e3);
+
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = vault.totalAssets() + interest;
         uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
@@ -220,6 +224,8 @@ contract AccrueInterestTest is BaseTest {
         vic.setInterestPerSecond(interestPerSecond);
 
         vm.warp(block.timestamp + elapsed);
+
+        writeRealAssetsApprox(vault.realAssetsApprox() * 1e3);
 
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = vault.totalAssets() + interest;

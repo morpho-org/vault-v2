@@ -13,8 +13,11 @@ import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 
 import {Test, console} from "../lib/forge-std/src/Test.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
+import {stdStorage, StdStorage} from "../lib/forge-std/src/Test.sol";
 
 contract BaseTest is Test {
+    using stdStorage for StdStorage;
+
     address immutable owner = makeAddr("owner");
     address immutable curator = makeAddr("curator");
     address immutable allocator = makeAddr("allocator");
@@ -65,6 +68,10 @@ contract BaseTest is Test {
         bytes32 strippedValue = (value >> 192) << 192;
         assertLe(newTotalAssets, type(uint192).max, "wrong written value");
         vm.store(address(vault), TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT, strippedValue | bytes32(newTotalAssets));
+    }
+
+    function writeRealAssetsApprox(uint newRealAssetsApprox) internal {
+        stdstore.target(address(vault)).sig("realAssetsApprox()").checked_write(newRealAssetsApprox);
     }
 }
 

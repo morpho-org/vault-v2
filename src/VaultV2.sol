@@ -457,8 +457,8 @@ contract VaultV2 is IVaultV2 {
             }
         }
         uint256 interestPerSecond = output <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? output : 0;
-        uint256 interest = interestPerSecond * elapsed;
-        uint256 newTotalAssets = _totalAssets + interest;
+        uint256 newTotalAssets = MathLib.min(_totalAssets + (interestPerSecond * elapsed), realAssetsApprox);
+        uint256 interest = newTotalAssets - _totalAssets;
 
         uint256 performanceFeeShares;
         uint256 managementFeeShares;
