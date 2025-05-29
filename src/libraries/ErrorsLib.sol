@@ -41,4 +41,5 @@ library ErrorsLib {
     error CannotSendUnderlyingAssets();
     error CannotReceiveUnderlyingAssets();
     error EnterBlocked();
+    error DeallocateEmptyId();
 }

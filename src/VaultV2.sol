@@ -384,6 +384,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         for (uint256 i; i < ids.length; i++) {
+            require(allocation[ids[i]] != 0, ErrorsLib.DeallocateEmptyId());
             allocation[ids[i]] = allocation[ids[i]].zeroFloorAddInt(adapterChange);
         }
 
