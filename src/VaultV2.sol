@@ -541,8 +541,6 @@ contract VaultV2 is IVaultV2 {
         createShares(onBehalf, shares);
         _totalAssets += assets.toUint192();
 
-        // invariant is sum (returned change) = ...
-
         int256 idleChange = updateIdleAssets();
         realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange).toUint192();
 
