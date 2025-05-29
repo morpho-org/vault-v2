@@ -65,9 +65,9 @@ contract VaultV2 is IVaultV2 {
     /* INTEREST STORAGE */
 
     /// @dev Last known idle assets.
-    uint public idleAssets;
+    uint256 public idleAssets;
     /// @dev Approximates real assets for the purpose of detecting bad debt.
-    uint public realAssetsApprox;
+    uint256 public realAssetsApprox;
     uint192 internal _totalAssets;
     uint64 public lastUpdate;
     address public vic;
@@ -323,7 +323,7 @@ contract VaultV2 is IVaultV2 {
     /* INTERNAL IDLE ASSETS TRACKING */
 
     function updateIdleAssets() internal returns (int256 change) {
-        uint newIdleAssets = IERC20(asset).balanceOf(address(this));
+        uint256 newIdleAssets = IERC20(asset).balanceOf(address(this));
         change = int256(newIdleAssets) - int256(idleAssets);
         idleAssets = newIdleAssets;
     }
