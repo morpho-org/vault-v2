@@ -14,12 +14,12 @@ library MathLib {
         return (x * y + (d - 1)) / d;
     }
 
-    /// Returns max(0,x + y).
+    /// @dev Returns max(0, x + y).
     function zeroFloorAddInt(uint256 x, int256 y) internal pure returns (uint256 z) {
         if (y < 0) {
             assembly {
                 let sum := add(x, y)
-                z := mul(sgt(sum, 0), sum)
+                z := mul(lt(sum, x), sum)
             }
         } else {
             z = x + uint256(y);
