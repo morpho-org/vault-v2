@@ -323,8 +323,8 @@ contract VaultV2 is IVaultV2 {
     /* INTERNAL IDLE ASSETS TRACKING */
 
     function updateIdleAssets() internal returns (int256 change) {
-        uint192 newIdleAssets = IERC20(asset).balanceOf(address(this)).toUint192();
-        change = int256(uint256(newIdleAssets)) - int256(uint256(idleAssets));
+        uint newIdleAssets = IERC20(asset).balanceOf(address(this));
+        change = int256(newIdleAssets) - int256(idleAssets);
         idleAssets = newIdleAssets;
     }
 
@@ -342,7 +342,7 @@ contract VaultV2 is IVaultV2 {
         (bytes32[] memory ids, int256 adapterChange) = IAdapter(adapter).allocate(data, assets);
 
         int256 idleChange = updateIdleAssets();
-        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange + adapterChange).toUint192();
+        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange + adapterChange);
 
         if (_totalAssets > realAssetsApprox) {
             _totalAssets = uint192(realAssetsApprox);
@@ -376,7 +376,7 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
 
         int256 idleChange = updateIdleAssets();
-        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange + adapterChange).toUint192();
+        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange + adapterChange);
 
         if (_totalAssets > realAssetsApprox) {
             _totalAssets = uint192(realAssetsApprox);
@@ -542,7 +542,7 @@ contract VaultV2 is IVaultV2 {
         _totalAssets += assets.toUint192();
 
         int256 idleChange = updateIdleAssets();
-        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange).toUint192();
+        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange);
 
         if (liquidityAdapter != address(0)) {
             try this.allocate(liquidityAdapter, liquidityData, assets) {} catch {}
@@ -587,7 +587,7 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
 
         int256 idleChange = updateIdleAssets();
-        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange).toUint192();
+        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange);
 
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }
