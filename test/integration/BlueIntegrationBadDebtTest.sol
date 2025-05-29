@@ -65,5 +65,7 @@ contract BlueIntegrationBadDebtTest is BlueIntegrationTest {
 
         assertEq(vault.totalAssets(), initialInMarket1);
         assertEq(vault.previewRedeem(vault.balanceOf(address(this))), initialInMarket1);
+        assertEq(vault.allocation(keccak256(expectedIdData1[2])), initialInMarket1);
+        assertEq(vault.allocation(keccak256(expectedIdData2[2])), 0);
     }
 }

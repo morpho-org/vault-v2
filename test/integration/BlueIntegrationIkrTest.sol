@@ -84,6 +84,15 @@ contract BlueIntegrationIkrTest is BlueIntegrationTest {
 
         uint256 deallocatedAssets = optimalDeallocateAssets(assets);
         vm.assume(deallocatedAssets > 0);
+
+        // Normal withdraw fails
+        vm.startPrank(allocator);
+        vault.setLiquidityAdapter(address(adapter));
+        vault.setLiquidityData(abi.encode(marketParams1));
+        vm.stopPrank();
+        vm.expectRevert();
+        vault.withdraw(deallocatedAssets, address(this), address(this));
+
         // Simulate a flashloan.
         deal(address(underlyingToken), address(this), deallocatedAssets);
         underlyingToken.approve(address(morpho), type(uint256).max);
@@ -91,10 +100,15 @@ contract BlueIntegrationIkrTest is BlueIntegrationTest {
         vault.forceDeallocate(
             _list(address(adapter)), _list(abi.encode(marketParams1)), _list(deallocatedAssets), address(this)
         );
+        assertEq(vault.allocation(keccak256(expectedIdData1[2])), assets - deallocatedAssets);
+
         vault.withdraw(deallocatedAssets, address(this), address(this));
+        assertEq(vault.allocation(keccak256(expectedIdData1[2])), assets - deallocatedAssets);
 
         // No assets left after reimbursing the flashloan.
         assertEq(underlyingToken.balanceOf(address(this)), deallocatedAssets);
+        // No assets left in the vaulta
+        assertApproxEqAbs(underlyingToken.balanceOf(address(vault)), 0, 1);
         // No assets left as shares in the vault.
         uint256 assetsLeftInVault = vault.previewRedeem(vault.balanceOf(address(this)));
         assertApproxEqAbs(assetsLeftInVault, 0, 1);
