@@ -18,6 +18,11 @@ optimizer_runs = 999999
 evm_version = "paris"
 
 [[profile.default.compilation_restrictions]]
+paths = "src/imports/MetaMorphoV1_1Import.sol"
+optimizer_runs = 200
+evm_version = "cancun"
+
+[[profile.default.compilation_restrictions]]
 paths = "src/imports/MetaMorphoImport.sol"
 optimizer_runs = 200
 evm_version = "cancun"
