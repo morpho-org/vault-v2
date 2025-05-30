@@ -331,7 +331,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function disableId(bytes calldata idData) external timelocked {
-        if (bytes32(idData[0:32]) == "Adapter ID") {
+        if (idData.length >= 32 && bytes32(idData[0:32]) == "Adapter ID") {
             address adapter = address(uint160(uint256(bytes32(idData[32:64]))));
             require(adapter != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
         }
