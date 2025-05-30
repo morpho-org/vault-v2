@@ -12,4 +12,27 @@ wrap_comments = true
 [fuzz]
 runs = 2048
 
+[[profile.default.compilation_restrictions]]
+paths = "src/imports/MorphoImport.sol"
+optimizer_runs = 999999
+evm_version = "paris"
+
+[[profile.default.compilation_restrictions]]
+paths = "src/imports/MetaMorphoImport.sol"
+optimizer_runs = 200
+evm_version = "cancun"
+
+# For every restriction above there must be some compatible foundry profile.
+# The first matching profile will be used. For clarity, all profiles below should be incompatible with each other.
+
+[[profile.default.additional_compiler_profiles]]
+name = "999999-paris"
+optimizer_runs = 999999
+evm_version = "paris"
+
+[[profile.default.additional_compiler_profiles]]
+name = "200-cancun"
+optimizer_runs = 200
+evm_version = "cancun"
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
