@@ -37,8 +37,9 @@ contract LiquidityMarketTest is BaseTest {
 
         vault.deposit(assets, address(this));
 
-        assertEq(adapter.recordedData(), data);
-        assertEq(adapter.recordedAssets(), assets);
+        assertEq(adapter.recordedAllocateData(), data);
+        assertEq(adapter.recordedAllocateAssets(), assets);
+        assertEq(underlyingToken.balanceOf(address(adapter)), assets);
     }
 
     function testLiquidityMarketMint(bytes memory data, uint256 shares) public {
@@ -49,34 +50,39 @@ contract LiquidityMarketTest is BaseTest {
 
         uint256 assets = vault.mint(shares, address(this));
 
-        assertEq(adapter.recordedData(), data);
-        assertEq(adapter.recordedAssets(), assets);
+        assertEq(adapter.recordedAllocateData(), data);
+        assertEq(adapter.recordedAllocateAssets(), assets);
+        assertEq(underlyingToken.balanceOf(address(adapter)), assets);
     }
 
     function testLiquidityMarketWithdraw(bytes memory data, uint256 deposit) public {
-        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        address receiver = makeAddr("receiver");
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
 
         vm.prank(allocator);
         vault.setLiquidityData(data);
 
         vault.deposit(deposit, address(this));
         uint256 assets = vault.previewRedeem(vault.balanceOf(address(this)));
-        vault.withdraw(assets, address(this), address(this));
+        vault.withdraw(assets, receiver, address(this));
 
-        assertEq(adapter.recordedData(), data);
-        assertEq(adapter.recordedAssets(), assets);
+        assertEq(adapter.recordedDeallocateData(), data);
+        assertEq(adapter.recordedDeallocateAssets(), assets);
+        assertEq(underlyingToken.balanceOf(receiver), assets);
     }
 
     function testLiquidityMarketRedeem(bytes memory data, uint256 deposit) public {
-        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        address receiver = makeAddr("receiver");
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
 
         vm.prank(allocator);
         vault.setLiquidityData(data);
 
         vault.deposit(deposit, address(this));
-        uint256 assets = vault.redeem(vault.balanceOf(address(this)), address(this), address(this));
+        uint256 assets = vault.redeem(vault.balanceOf(address(this)), receiver, address(this));
 
-        assertEq(adapter.recordedData(), data);
-        assertEq(adapter.recordedAssets(), assets);
+        assertEq(adapter.recordedDeallocateData(), data);
+        assertEq(adapter.recordedDeallocateAssets(), assets);
+        assertEq(underlyingToken.balanceOf(receiver), assets);
     }
 }

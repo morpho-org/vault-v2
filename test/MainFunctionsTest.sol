@@ -142,29 +142,4 @@ contract MainFunctionsTest is BaseTest {
         assertEq(vault.balanceOf(address(this)), initialSharesDeposit - shares, "balanceOf(address(this))");
         assertEq(vault.totalSupply(), initialSharesDeposit - shares, "total supply");
     }
-
-    function testWithdrawFromLiquidityAdapter(uint256 assets) public {
-        assets = bound(assets, 0, INITIAL_DEPOSIT);
-
-        RecordingAdapter adapter = new RecordingAdapter();
-        vm.prank(address(adapter));
-        underlyingToken.approve(address(vault), type(uint256).max);
-
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
-        vault.setIsAdapter(address(adapter), true);
-
-        vm.prank(allocator);
-        vault.setLiquidityAdapter(address(adapter));
-
-        uint256 toAllocate = underlyingToken.balanceOf(address(vault));
-        vm.prank(allocator);
-        vault.allocate(address(adapter), hex"", toAllocate);
-
-        uint256 assetsBefore = underlyingToken.balanceOf(address(this));
-        vault.withdraw(assets, address(this), address(this));
-        uint256 assetsAfter = underlyingToken.balanceOf(address(this));
-
-        assertEq(assetsAfter - assetsBefore, assets);
-    }
 }
