@@ -4,10 +4,6 @@ pragma solidity ^0.8.0;
 import "./BaseTest.sol";
 import {AdapterMock} from "./mocks/AdapterMock.sol";
 
-import {EventsLib} from "../src/libraries/EventsLib.sol";
-import {ErrorsLib} from "../src/libraries/ErrorsLib.sol";
-import {MathLib} from "../src/libraries/MathLib.sol";
-
 contract AllocateTest is BaseTest {
     using MathLib for uint256;
 

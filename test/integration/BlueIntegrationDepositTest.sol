@@ -1,0 +1,39 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+pragma solidity ^0.8.0;
+
+import "./BlueIntegrationTest.sol";
+
+contract BlueIntegrationDepositTest is BlueIntegrationTest {
+    using MorphoBalancesLib for IMorpho;
+
+    function testDepositNoLiquidityAdapter(uint256 assets) public {
+        assets = bound(assets, 0, MAX_TEST_ASSETS);
+
+        vault.deposit(assets, address(this));
+
+        assertEq(underlyingToken.balanceOf(address(vault)), assets);
+        assertEq(underlyingToken.balanceOf(address(adapter)), 0);
+        assertEq(underlyingToken.balanceOf(address(morpho)), 0);
+        assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), 0);
+        assertEq(morpho.expectedSupplyAssets(marketParams2, address(adapter)), 0);
+        assertEq(vault.allocation(keccak256(expectedIdData1[0])), 0);
+    }
+
+    function testDepositLiquidityAdapterSuccess(uint256 assets) public {
+        assets = bound(assets, 0, MAX_TEST_ASSETS);
+
+        vm.startPrank(allocator);
+        vault.setLiquidityAdapter(address(adapter));
+        vault.setLiquidityData(abi.encode(marketParams1));
+        vm.stopPrank();
+
+        vault.deposit(assets, address(this));
+
+        assertEq(underlyingToken.balanceOf(address(vault)), 0);
+        assertEq(underlyingToken.balanceOf(address(adapter)), 0);
+        assertEq(underlyingToken.balanceOf(address(morpho)), assets);
+        assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), assets);
+        assertEq(morpho.expectedSupplyAssets(marketParams2, address(adapter)), 0);
+        assertEq(vault.allocation(keccak256(expectedIdData1[0])), assets);
+    }
+}
