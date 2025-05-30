@@ -49,6 +49,7 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     function enterBlocked() external view returns (bool);
     function absoluteCap(bytes32 id) external view returns (uint256);
     function relativeCap(bytes32 id) external view returns (uint256);
+    function enabled(bytes32 id) external view returns (bool);
     function executableAt(bytes memory data) external view returns (uint256);
     function timelock(bytes4 selector) external view returns (uint256);
     function liquidityAdapter() external view returns (address);

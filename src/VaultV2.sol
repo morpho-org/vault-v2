@@ -141,6 +141,10 @@ contract VaultV2 is IVaultV2 {
         return idConfig[id].relativeCap;
     }
 
+    function enabled(bytes32 id) external view returns (bool) {
+        return idConfig[id].enabled;
+    }
+
     /* MULTICALL */
 
     /// @dev Mostly useful to batch admin actions together.
