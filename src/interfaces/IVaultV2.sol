@@ -49,8 +49,8 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     function liquidityData() external view returns (bytes memory);
     function enterGate() external view returns (address);
     function exitGate() external view returns (address);
-    function idleAssets() external view returns (uint);
-    function realAssetsApprox() external view returns (uint);
+    function idleAssets() external view returns (uint256);
+    function realAssetsApprox() external view returns (uint256);
 
     // Owner actions
     function setOwner(address newOwner) external;
@@ -94,7 +94,7 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     function revoke(bytes memory data) external;
 
     // Force reallocate to idle
-    function forceDeallocate(address[] memory adapters, bytes[] memory data, uint256[] memory assets, address onBehalf)
+    function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256 withdrawnShares);
 

@@ -9,6 +9,7 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
+import {UtilsLib} from "./libraries/UtilsLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 
@@ -65,9 +66,9 @@ contract VaultV2 is IVaultV2 {
     /* INTEREST STORAGE */
 
     /// @dev Last known idle assets.
-    uint public idleAssets;
+    uint256 public idleAssets;
     /// @dev Approximates real assets for the purpose of detecting bad debt.
-    uint public realAssetsApprox;
+    uint256 public realAssetsApprox;
     uint192 internal _totalAssets;
     uint64 public lastUpdate;
     address public vic;
@@ -323,8 +324,8 @@ contract VaultV2 is IVaultV2 {
     /* INTERNAL IDLE ASSETS TRACKING */
 
     function updateIdleAssets() internal returns (int256 change) {
-        uint192 newIdleAssets = IERC20(asset).balanceOf(address(this)).toUint192();
-        change = int256(uint256(newIdleAssets)) - int256(uint256(idleAssets));
+        uint256 newIdleAssets = IERC20(asset).balanceOf(address(this));
+        change = int256(newIdleAssets) - int256(idleAssets);
         idleAssets = newIdleAssets;
     }
 
@@ -342,7 +343,7 @@ contract VaultV2 is IVaultV2 {
         (bytes32[] memory ids, int256 adapterChange) = IAdapter(adapter).allocate(data, assets);
 
         int256 idleChange = updateIdleAssets();
-        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange + adapterChange).toUint192();
+        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange + adapterChange);
 
         if (_totalAssets > realAssetsApprox) {
             _totalAssets = uint192(realAssetsApprox);
@@ -376,7 +377,7 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
 
         int256 idleChange = updateIdleAssets();
-        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange + adapterChange).toUint192();
+        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange + adapterChange);
 
         if (_totalAssets > realAssetsApprox) {
             _totalAssets = uint192(realAssetsApprox);
@@ -384,6 +385,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         for (uint256 i; i < ids.length; i++) {
+            require(allocation[ids[i]] != 0, ErrorsLib.DeallocateEmptyId());
             allocation[ids[i]] = allocation[ids[i]].zeroFloorAddInt(adapterChange);
         }
 
@@ -447,16 +449,11 @@ contract VaultV2 is IVaultV2 {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
-        // Low level call and decoding to avoid reverting if the VIC has no code or returns data that fails to decode.
-        (bool success, bytes memory data) =
-            address(vic).staticcall(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
-        uint256 output;
-        if (success) {
-            assembly ("memory-safe") {
-                output := mload(add(data, 32))
-            }
-        }
-        uint256 interestPerSecond = output <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? output : 0;
+        uint256 tentativeInterestPerSecond =
+            UtilsLib.controlledStaticCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+
+        uint256 interestPerSecond = tentativeInterestPerSecond
+            <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
         uint256 newTotalAssets = MathLib.min(_totalAssets + (interestPerSecond * elapsed), realAssetsApprox);
         uint256 interest = newTotalAssets - _totalAssets;
 
@@ -542,7 +539,7 @@ contract VaultV2 is IVaultV2 {
         _totalAssets += assets.toUint192();
 
         int256 idleChange = updateIdleAssets();
-        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange).toUint192();
+        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange);
 
         if (liquidityAdapter != address(0)) {
             try this.allocate(liquidityAdapter, liquidityData, assets) {} catch {}
@@ -587,27 +584,23 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
 
         int256 idleChange = updateIdleAssets();
-        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange).toUint192();
+        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange);
 
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }
 
     /// @dev Returns shares withdrawn as penalty.
     /// @dev This function will automatically realize potential losses.
-    function forceDeallocate(address[] memory adapters, bytes[] memory data, uint256[] memory assets, address onBehalf)
+    function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256)
     {
-        require(adapters.length == data.length && adapters.length == assets.length, ErrorsLib.InvalidInputLength());
-        uint256 penaltyAssets;
-        for (uint256 i; i < adapters.length; i++) {
-            this.deallocate(adapters[i], data[i], assets[i]);
-            penaltyAssets += assets[i].mulDivDown(forceDeallocatePenalty[adapters[i]], WAD);
-        }
+        this.deallocate(adapter, data, assets);
 
         // The penalty is taken as a withdrawal that is donated to the vault.
+        uint256 penaltyAssets = assets.mulDivDown(forceDeallocatePenalty[adapter], WAD);
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
-        emit EventsLib.ForceDeallocate(msg.sender, adapters, data, assets, onBehalf);
+        emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf);
         return shares;
     }
 

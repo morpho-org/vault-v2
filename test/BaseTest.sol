@@ -70,7 +70,7 @@ contract BaseTest is Test {
         vm.store(address(vault), TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT, strippedValue | bytes32(newTotalAssets));
     }
 
-    function writeRealAssetsApprox(uint newRealAssetsApprox) internal {
+    function writeRealAssetsApprox(uint256 newRealAssetsApprox) internal {
         stdstore.target(address(vault)).sig("realAssetsApprox()").checked_write(newRealAssetsApprox);
     }
 }

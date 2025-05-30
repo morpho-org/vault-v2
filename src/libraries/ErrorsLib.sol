@@ -16,7 +16,6 @@ library ErrorsLib {
     error TimelockCapIsFixed();
     error TimelockDurationTooHigh();
     error CapExceeded();
-    error InvalidInputLength();
     error DataNotTimelocked();
     error DataAlreadyPending();
     error TimelockNotIncreasing();
@@ -41,4 +40,5 @@ library ErrorsLib {
     error CannotSendUnderlyingAssets();
     error CannotReceiveUnderlyingAssets();
     error EnterBlocked();
+    error DeallocateEmptyId();
 }
