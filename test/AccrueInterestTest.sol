@@ -40,7 +40,7 @@ contract AccrueInterestTest is BaseTest {
 
         // Setup.
         vm.prank(allocator);
-        vic.setInterestPerSecond(interestPerSecond);
+        vic.increaseInterestPerSecond(interestPerSecond);
         vm.startPrank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));
         vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (managementFee)));
@@ -82,7 +82,7 @@ contract AccrueInterestTest is BaseTest {
         vault.setPerformanceFee(performanceFee);
         vault.setManagementFee(managementFee);
         vm.prank(allocator);
-        vic.setInterestPerSecond(interestPerSecond);
+        vic.increaseInterestPerSecond(interestPerSecond);
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
         // Normal path.
@@ -128,7 +128,7 @@ contract AccrueInterestTest is BaseTest {
 
         // Rate too high.
         vm.prank(allocator);
-        vic.setInterestPerSecond(interestPerSecond);
+        vic.increaseInterestPerSecond(interestPerSecond);
         uint256 totalAssetsBefore = vault.totalAssets();
         vault.accrueInterest();
         assertEq(vault.totalAssets(), totalAssetsBefore);
@@ -184,7 +184,7 @@ contract AccrueInterestTest is BaseTest {
         vault.deposit(deposit, address(this));
 
         vm.prank(allocator);
-        vic.setInterestPerSecond(interestPerSecond);
+        vic.increaseInterestPerSecond(interestPerSecond);
 
         vm.warp(block.timestamp + elapsed);
 
@@ -217,7 +217,7 @@ contract AccrueInterestTest is BaseTest {
         vault.deposit(deposit, address(this));
 
         vm.prank(allocator);
-        vic.setInterestPerSecond(interestPerSecond);
+        vic.increaseInterestPerSecond(interestPerSecond);
 
         vm.warp(block.timestamp + elapsed);
 

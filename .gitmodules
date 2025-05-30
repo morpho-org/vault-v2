@@ -7,3 +7,6 @@
 [submodule "lib/morpho-blue"]
 	path = lib/morpho-blue
 	url = git@github.com:morpho-org/morpho-blue.git
+[submodule "lib/metamorpho"]
+	path = lib/metamorpho
+	url = git@github.com:morpho-org/metamorpho.git
