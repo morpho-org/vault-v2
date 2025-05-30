@@ -107,7 +107,7 @@ contract BlueIntegrationIkrTest is BlueIntegrationTest {
 
         // No assets left after reimbursing the flashloan.
         assertEq(underlyingToken.balanceOf(address(this)), deallocatedAssets);
-        // No assets left in the vaulta
+        // No assets left in the vault
         assertApproxEqAbs(underlyingToken.balanceOf(address(vault)), 0, 1);
         // No assets left as shares in the vault.
         uint256 assetsLeftInVault = vault.previewRedeem(vault.balanceOf(address(this)));
