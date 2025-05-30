@@ -11,6 +11,7 @@ contract MainFunctionsTest is BaseTest {
     uint256 internal constant INITIAL_DEPOSIT = 1e18;
 
     uint256 internal initialSharesDeposit;
+    uint256 internal totalAssetsAfterInterest;
 
     function setUp() public override {
         super.setUp();
@@ -25,88 +26,64 @@ contract MainFunctionsTest is BaseTest {
 
         assertEq(vault.balanceOf(address(this)), initialSharesDeposit, "balanceOf(this)");
         assertEq(vault.totalSupply(), initialSharesDeposit, "totalSupply vault");
+
+        // Accrue some interest to make sure there is a rounding error.
+        vm.prank(allocator);
+        vic.setInterestPerSecond(uint256(2e18) / (365 days));
+        skip(10);
+        vault.accrueInterest();
+        assertNotEq((vault.totalAssets() + 1) % (vault.totalSupply() + 1), 0);
+
+        totalAssetsAfterInterest = vault.totalAssets();
+        deal(address(underlyingToken), address(vault), totalAssetsAfterInterest);
+
+        assertEq(underlyingToken.balanceOf(address(vault)), totalAssetsAfterInterest, "balanceOf(vault)");
     }
 
     function testMint(uint256 shares, address receiver) public {
         vm.assume(receiver != address(0));
         shares = bound(shares, 0, MAX_TEST_SHARES);
 
-        uint256 assets = vault.previewMint(shares);
-        deal(address(underlyingToken), address(this), assets, true);
+        uint256 expectedAssets = shares.mulDivUp(vault.totalAssets() + 1, vault.totalSupply() + 1);
+        uint256 previewedAssets = vault.previewMint(shares);
+        assertEq(previewedAssets, expectedAssets, "assets != expectedAssets");
+
+        deal(address(underlyingToken), address(this), expectedAssets, true);
         vm.expectEmit();
-        emit EventsLib.Deposit(address(this), receiver, assets, shares);
-        uint256 deposited = vault.mint(shares, receiver);
+        emit EventsLib.Deposit(address(this), receiver, expectedAssets, shares);
+        uint256 assets = vault.mint(shares, receiver);
 
-        assertEq(assets, deposited, "assets != deposited");
+        assertEq(assets, expectedAssets, "assets != expectedAssets");
 
-        assertEq(underlyingToken.balanceOf(address(vault)), INITIAL_DEPOSIT + assets, "balanceOf(vault)");
+        assertEq(underlyingToken.balanceOf(address(vault)), totalAssetsAfterInterest + assets, "balanceOf(vault)");
         assertEq(underlyingToken.totalSupply(), INITIAL_DEPOSIT + assets, "total supply");
 
         uint256 expectedShares = receiver == address(this) ? initialSharesDeposit + shares : shares;
         assertEq(vault.balanceOf(receiver), expectedShares, "balanceOf(receiver)");
         assertEq(vault.totalSupply(), initialSharesDeposit + shares, "total supply");
-    }
-
-    function testMintRoundsAssetsUp() public {
-        uint256 shares = 100;
-        address depositor = makeAddr("depositor");
-
-        vm.prank(allocator);
-        vic.setInterestPerSecond(uint256(2e18) / (365 days));
-        skip(10);
-
-        vault.accrueInterest();
-        uint256 assetsDown = shares.mulDivDown(vault.totalAssets() + 1, vault.totalSupply() + 1);
-
-        deal(address(underlyingToken), depositor, shares * 2);
-        vm.startPrank(depositor);
-        underlyingToken.approve(address(vault), type(uint256).max);
-        uint256 assets = vault.mint(shares, depositor);
-        vm.stopPrank();
-
-        assertEq(assets, 101);
-        assertNotEq(assets, assetsDown, "vacuous test");
     }
 
     function testDeposit(uint256 assets, address receiver) public {
         vm.assume(receiver != address(0));
         assets = bound(assets, 0, MAX_TEST_ASSETS);
 
-        uint256 shares = vault.previewDeposit(assets);
+        uint256 expectedShares = assets.mulDivDown(vault.totalSupply() + 1, vault.totalAssets() + 1);
+        uint256 previewedShares = vault.previewDeposit(assets);
+        assertEq(previewedShares, expectedShares, "previewedShares != expectedShares");
+
         deal(address(underlyingToken), address(this), assets, true);
         vm.expectEmit();
-        emit EventsLib.Deposit(address(this), receiver, assets, shares);
-        uint256 minted = vault.deposit(assets, receiver);
+        emit EventsLib.Deposit(address(this), receiver, assets, expectedShares);
+        uint256 shares = vault.deposit(assets, receiver);
 
-        assertEq(shares, minted, "shares != minted");
+        assertEq(shares, expectedShares, "shares != expectedShares");
 
-        assertEq(underlyingToken.balanceOf(address(vault)), INITIAL_DEPOSIT + assets, "balanceOf(vault)");
+        assertEq(underlyingToken.balanceOf(address(vault)), totalAssetsAfterInterest + assets, "balanceOf(vault)");
         assertEq(underlyingToken.totalSupply(), INITIAL_DEPOSIT + assets, "total supply");
 
-        uint256 expectedShares = receiver == address(this) ? initialSharesDeposit + shares : shares;
-        assertEq(vault.balanceOf(receiver), expectedShares, "balanceOf(receiver)");
+        uint256 expectedTotalShares = receiver == address(this) ? initialSharesDeposit + shares : shares;
+        assertEq(vault.balanceOf(receiver), expectedTotalShares, "balanceOf(receiver)");
         assertEq(vault.totalSupply(), initialSharesDeposit + shares, "total supply");
-    }
-
-    function testDepositRoundsSharesDown() public {
-        uint256 assets = 100;
-        address depositor = makeAddr("depositor");
-
-        vm.prank(allocator);
-        vic.setInterestPerSecond(uint256(2e18) / (365 days));
-        skip(10);
-
-        vault.accrueInterest();
-        uint256 sharesUp = assets.mulDivUp(vault.totalSupply() + 1, vault.totalAssets() + 1);
-
-        deal(address(underlyingToken), depositor, assets);
-        vm.startPrank(depositor);
-        underlyingToken.approve(address(vault), type(uint256).max);
-        uint256 shares = vault.deposit(assets, depositor);
-        vm.stopPrank();
-
-        assertEq(shares, 99);
-        assertNotEq(shares, sharesUp, "vacuous test");
     }
 
     function testRedeem(uint256 shares, address receiver) public {
@@ -115,96 +92,55 @@ contract MainFunctionsTest is BaseTest {
         vm.assume(receiver != address(vault));
         shares = bound(shares, 0, initialSharesDeposit);
 
-        uint256 assets = vault.previewRedeem(shares);
-        vm.expectEmit();
-        emit EventsLib.Withdraw(address(this), receiver, address(this), assets, shares);
-        uint256 withdrawn = vault.redeem(shares, receiver, address(this));
+        uint256 expectedAssets = shares.mulDivDown(vault.totalAssets() + 1, vault.totalSupply() + 1);
+        uint256 previewedAssets = vault.previewRedeem(shares);
+        assertEq(previewedAssets, expectedAssets, "previewedAssets != expectedAssets");
 
-        assertEq(assets, withdrawn, "assets != withdrawn");
+        console.log(vault.balanceOf(address(this)));
+        vm.expectEmit();
+        emit EventsLib.Withdraw(address(this), receiver, address(this), expectedAssets, shares);
+        uint256 assets = vault.redeem(shares, receiver, address(this));
+
+        assertEq(assets, expectedAssets, "assets != expectedAssets");
 
         if (receiver == address(vault)) {
-            assertEq(underlyingToken.balanceOf(address(vault)), INITIAL_DEPOSIT, "balanceOf(vault)");
+            assertEq(underlyingToken.balanceOf(address(vault)), totalAssetsAfterInterest, "balanceOf(vault)");
             assertEq(underlyingToken.totalSupply(), INITIAL_DEPOSIT, "total supply");
         } else {
-            assertEq(underlyingToken.balanceOf(address(vault)), INITIAL_DEPOSIT - assets, "balanceOf(vault)");
+            assertEq(underlyingToken.balanceOf(address(vault)), totalAssetsAfterInterest - assets, "balanceOf(vault)");
             assertEq(underlyingToken.balanceOf(receiver), assets, "balanceOf(receiver)");
             assertEq(underlyingToken.totalSupply(), INITIAL_DEPOSIT, "total supply");
         }
 
         assertEq(vault.balanceOf(address(this)), initialSharesDeposit - shares, "balanceOf(address(this))");
         assertEq(vault.totalSupply(), initialSharesDeposit - shares, "total supply");
-    }
-
-    function testRedeemRoundsAssetsDown() public {
-        uint256 shares = 100;
-        address depositor = makeAddr("depositor");
-
-        deal(address(underlyingToken), depositor, shares * 2);
-        vm.startPrank(depositor);
-        underlyingToken.approve(address(vault), type(uint256).max);
-        vault.mint(shares, depositor);
-        vm.stopPrank();
-
-        vm.prank(allocator);
-        vic.setInterestPerSecond(uint256(3e18) / (365 days));
-        skip(10);
-
-        vault.accrueInterest();
-        uint256 assetsUp = shares.mulDivUp(vault.totalAssets() + 1, vault.totalSupply() + 1);
-
-        vm.prank(depositor);
-        uint256 assets = vault.redeem(shares, depositor, depositor);
-
-        assertEq(assets, 100);
-        assertNotEq(assets, assetsUp, "vacuous test");
     }
 
     function testWithdraw(uint256 assets, address receiver) public {
         vm.assume(receiver != address(0));
         assets = bound(assets, 0, INITIAL_DEPOSIT);
 
-        uint256 shares = vault.previewWithdraw(assets);
-        vm.expectEmit();
-        emit EventsLib.Withdraw(address(this), receiver, address(this), assets, shares);
-        uint256 redeemed = vault.withdraw(assets, receiver, address(this));
+        uint256 expectedShares = assets.mulDivUp(vault.totalSupply() + 1, vault.totalAssets() + 1);
+        uint256 previewedShares = vault.previewWithdraw(assets);
+        assertEq(previewedShares, expectedShares, "previewedShares != expectedShares");
 
-        assertEq(redeemed, shares, "redeemed != shares");
+        vm.expectEmit();
+        emit EventsLib.Withdraw(address(this), receiver, address(this), assets, expectedShares);
+        uint256 shares = vault.withdraw(assets, receiver, address(this));
+
+        assertEq(shares, expectedShares, "shares != expectedShares");
 
         if (receiver == address(vault)) {
-            assertEq(underlyingToken.balanceOf(address(vault)), INITIAL_DEPOSIT, "balanceOf(vault)");
+            assertEq(underlyingToken.balanceOf(address(vault)), totalAssetsAfterInterest, "balanceOf(vault)");
             assertEq(underlyingToken.totalSupply(), INITIAL_DEPOSIT, "total supply");
         } else {
-            assertEq(underlyingToken.balanceOf(address(vault)), INITIAL_DEPOSIT - assets, "balanceOf(vault)");
+            assertEq(underlyingToken.balanceOf(address(vault)), totalAssetsAfterInterest - assets, "balanceOf(vault)");
             assertEq(underlyingToken.balanceOf(receiver), assets, "balanceOf(receiver)");
             assertEq(underlyingToken.totalSupply(), INITIAL_DEPOSIT, "total supply");
         }
 
         assertEq(vault.balanceOf(address(this)), initialSharesDeposit - shares, "balanceOf(address(this))");
         assertEq(vault.totalSupply(), initialSharesDeposit - shares, "total supply");
-    }
-
-    function testWithdrawRoundsSharesUp() public {
-        uint256 assets = 100;
-        address depositor = makeAddr("depositor");
-
-        deal(address(underlyingToken), depositor, assets);
-        vm.startPrank(depositor);
-        underlyingToken.approve(address(vault), type(uint256).max);
-        vault.deposit(assets, depositor);
-        vm.stopPrank();
-
-        vm.prank(allocator);
-        vic.setInterestPerSecond(uint256(3e18) / (365 days));
-        skip(10);
-
-        vault.accrueInterest();
-        uint256 sharesDown = assets.mulDivDown(vault.totalSupply() + 1, vault.totalAssets() + 1);
-
-        vm.prank(depositor);
-        uint256 shares = vault.withdraw(assets, depositor, depositor);
-
-        assertEq(shares, 100);
-        assertNotEq(shares, sharesDown, "vacuous test");
     }
 
     function testWithdrawFromLiquidityAdapter(uint256 assets) public {
