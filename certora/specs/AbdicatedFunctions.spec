@@ -27,7 +27,7 @@ rule inifiniteTimelockCantBeChanged(env e, method f, calldataarg data, bytes4 se
 }
 
 // Check that changes corresponding to functions that have been abdicated can't be submitted.
-rule abdicatedFunctionsCantBeSubmitted(env e, bytes4 selector, bytes data) {
+rule abdicatedFunctionsCantBeSubmitted(env e, bytes data) {
     // Safe require in a non trivial chain.
     require e.block.timestamp > 0;
 
