@@ -20,8 +20,6 @@ methods {
     function isAdapter(address adapter) external returns bool envfree;
 
     function balanceOf(address) external returns uint256 envfree;
-
-    function decreaseTimelock(address) external;
 }
 
 definition TIMELOCK_CAP() returns uint256 = 14 * 24 * 60 * 60;
