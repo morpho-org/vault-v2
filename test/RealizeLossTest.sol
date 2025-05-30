@@ -35,9 +35,6 @@ contract RealizeLossTest is BaseTest {
     bytes internal idData;
     bytes32 internal id;
     bytes32[] internal expectedIds;
-    bytes[] internal bytesArray;
-    uint256[] internal uint256Array;
-    address[] internal adapterArray;
 
     function setUp() public override {
         super.setUp();
@@ -56,15 +53,6 @@ contract RealizeLossTest is BaseTest {
         id = keccak256(idData);
         expectedIds[0] = id;
         adapter.setIds(expectedIds);
-
-        adapterArray = new address[](1);
-        adapterArray[0] = address(adapter);
-
-        bytesArray = new bytes[](1);
-        bytesArray[0] = hex"";
-
-        uint256Array = new uint256[](1);
-        uint256Array[0] = 0;
     }
 
     function testRealizeLossDirectly(uint256 deposit, uint256 expectedLoss) public {
@@ -136,10 +124,7 @@ contract RealizeLossTest is BaseTest {
 
         // Account the loss.
         vm.prank(allocator);
-        vault.forceDeallocate(adapterArray, bytesArray, uint256Array, address(this));
-
-        // Realize the loss.
-        vault.realizeLoss(address(adapter), hex"");
+        vault.forceDeallocate(address(adapter), hex"", 0, address(this));
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
 
         if (expectedLoss > 0) {
