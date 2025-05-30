@@ -112,12 +112,14 @@ Two gates are defined:
 **Enter Gate** (`enterGate`): Controls permissions related to depositing assets and receiving shares. Implements [IEnterGate](./src/interfaces/IGate.sol).
 
 When set:
+
 - Upon `deposit`, `mint` and transfers, the shares receiver must pass the `enterGate.canReceiveShares` check.
 - Upon `deposit` and `mint`, `msg.sender` must pass the `enterGate.canSendAssets` check.
 
 **Exit Gate** (`exitGate`): Controls permissions related to redeeming shares and receiving underlying assets. Implements [IExitGate](./src/interfaces/IGate.sol).
 
 When set:
+
 - Upon `withdraw`, `redeem` and transfers, the shares sender must pass the `exitGate.canSendShares` check.
 - Upon `withdraw` and `redeem`, `receiver` must pass the `exitGate.canReceiveAssets` check.
 
@@ -145,6 +147,7 @@ Once the timelock passed, the action can be executed by anyone.
 It can:
 
 <a id="curator-timelocks"></a>
+
 - [Timelockable] Increase absolute caps.
 - Decrease absolute caps.
 - [Timelockable] Increase relative caps.
