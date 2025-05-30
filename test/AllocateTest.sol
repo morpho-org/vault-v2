@@ -2,9 +2,6 @@
 pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
-import {EventsLib} from "../src/libraries/EventsLib.sol";
-import {ErrorsLib} from "../src/libraries/ErrorsLib.sol";
-import {MathLib} from "../src/libraries/MathLib.sol";
 
 contract MockAdapter is IAdapter {
     address public immutable vault;
