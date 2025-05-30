@@ -135,7 +135,7 @@ contract AccrueInterestTest is BaseTest {
     }
 
     function testAccrueInterestVicNoCode(uint256 elapsed) public {
-        elapsed = bound(elapsed, 1, 1000 weeks);
+        elapsed = bound(elapsed, 0, 1000 weeks);
 
         // Setup.
         vm.prank(curator);
@@ -143,13 +143,14 @@ contract AccrueInterestTest is BaseTest {
         vault.setVic(address(42));
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
-        // Revert because of no code.
-        vm.expectRevert();
+        // Vic reverts.
+        uint256 totalAssetsBefore = vault.totalAssets();
         vault.accrueInterest();
+        assertEq(vault.totalAssets(), totalAssetsBefore);
     }
 
     function testAccrueInterestVicReverting(uint256 elapsed) public {
-        elapsed = bound(elapsed, 1, 1000 weeks);
+        elapsed = bound(elapsed, 0, 1000 weeks);
 
         address reverting = address(new Reverting());
 
@@ -160,8 +161,9 @@ contract AccrueInterestTest is BaseTest {
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
         // Vic reverts.
-        vm.expectRevert();
+        uint256 totalAssetsBefore = vault.totalAssets();
         vault.accrueInterest();
+        assertEq(vault.totalAssets(), totalAssetsBefore);
     }
 
     function testPerformanceFeeWithoutManagementFee(
