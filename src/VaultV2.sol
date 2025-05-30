@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {IVaultV2, IERC20, Caps} from "./interfaces/IVaultV2.sol";
+import {IVaultV2, IERC20, IdConfig} from "./interfaces/IVaultV2.sol";
 import {IAdapter} from "./interfaces/IAdapter.sol";
 import {IVic} from "./interfaces/IVic.sol";
 
@@ -74,18 +74,17 @@ contract VaultV2 is IVaultV2 {
     /* CURATION STORAGE */
 
     mapping(address account => bool) public isAdapter;
+
+    /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
     /// @dev The allocation is not updated to take interests into account.
     /// @dev Some underlying markets might allow to take into account interest (fixed rate, fixed term), some might not.
-    mapping(bytes32 id => uint256) public allocation;
-
-    /// @dev Ids can be absolutely capped and/or relatively capped.
     /// @dev The absolute cap is checked on allocate (where allocations can increase) for the ids returned by the
     /// adapter.
     /// @dev The relative cap is relative to `totalAssets`.
     /// @dev Relative caps are "soft" in the sense that they are only checked on allocate for the ids returned by the
     /// adapter.
     /// @dev The relative cap unit is WAD.
-    mapping(bytes32 id => Caps) internal caps;
+    mapping(bytes32 id => IdConfig) internal idConfig;
 
     mapping(address adapter => uint256) public forceDeallocatePenalty;
 
@@ -135,11 +134,15 @@ contract VaultV2 is IVaultV2 {
     }
 
     function absoluteCap(bytes32 id) external view returns (uint256) {
-        return caps[id].absolute;
+        return idConfig[id].absoluteCap;
     }
 
     function relativeCap(bytes32 id) external view returns (uint256) {
-        return caps[id].relative;
+        return idConfig[id].relativeCap;
+    }
+
+    function allocation(bytes32 id) external view returns (uint256) {
+        return idConfig[id].allocation;
     }
 
     /* MULTICALL */
@@ -283,40 +286,44 @@ contract VaultV2 is IVaultV2 {
 
     function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external timelocked {
         bytes32 id = keccak256(idData);
-        require(newAbsoluteCap >= caps[id].absolute, ErrorsLib.AbsoluteCapNotIncreasing());
+        IdConfig storage config = idConfig[id];
+        require(newAbsoluteCap >= config.absoluteCap, ErrorsLib.AbsoluteCapNotIncreasing());
 
-        caps[id].absolute = newAbsoluteCap.toUint128();
+        config.absoluteCap = newAbsoluteCap.toUint128();
         emit EventsLib.IncreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
     function decreaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external {
         bytes32 id = keccak256(idData);
+        IdConfig storage config = idConfig[id];
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        require(newAbsoluteCap <= caps[id].absolute, ErrorsLib.AbsoluteCapNotDecreasing());
+        require(newAbsoluteCap <= config.absoluteCap, ErrorsLib.AbsoluteCapNotDecreasing());
 
-        // safe by invariant: caps[id].absolute fits on 128 bits
-        caps[id].absolute = uint128(newAbsoluteCap);
+        // safe by invariant: config.absoluteCap fits on 128 bits
+        config.absoluteCap = uint128(newAbsoluteCap);
         emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
     function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
         bytes32 id = keccak256(idData);
+        IdConfig storage config = idConfig[id];
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
-        require(newRelativeCap >= caps[id].relative, ErrorsLib.RelativeCapNotIncreasing());
+        require(newRelativeCap >= config.relativeCap, ErrorsLib.RelativeCapNotIncreasing());
 
         // safe since WAD fits on 128 bits
-        caps[id].relative = uint128(newRelativeCap);
+        config.relativeCap = uint128(newRelativeCap);
 
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
 
     function decreaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external {
         bytes32 id = keccak256(idData);
+        IdConfig storage config = idConfig[id];
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        require(newRelativeCap <= caps[id].relative, ErrorsLib.RelativeCapNotDecreasing());
+        require(newRelativeCap <= config.relativeCap, ErrorsLib.RelativeCapNotDecreasing());
 
         // safe since WAD fits on 128 bits
-        caps[id].relative = uint128(newRelativeCap);
+        config.relativeCap = uint128(newRelativeCap);
 
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }
@@ -345,12 +352,13 @@ contract VaultV2 is IVaultV2 {
         }
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss) + assets;
+            IdConfig storage config = idConfig[ids[i]];
+            config.allocation = config.allocation.zeroFloorSub(loss) + assets;
 
-            require(allocation[ids[i]] <= caps[ids[i]].absolute, ErrorsLib.AbsoluteCapExceeded());
+            require(config.allocation <= config.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
             require(
-                caps[ids[i]].relative == WAD
-                    || allocation[ids[i]] <= uint256(_totalAssets).mulDivDown(caps[ids[i]].relative, WAD),
+                config.relativeCap == WAD
+                    || config.allocation <= uint256(_totalAssets).mulDivDown(config.relativeCap, WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
@@ -372,7 +380,8 @@ contract VaultV2 is IVaultV2 {
         }
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss + assets);
+            IdConfig storage config = idConfig[ids[i]];
+            config.allocation = config.allocation.zeroFloorSub(loss + assets);
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
