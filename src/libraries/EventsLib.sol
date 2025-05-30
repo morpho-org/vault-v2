@@ -75,7 +75,7 @@ library EventsLib {
     );
 
     event ForceDeallocate(
-        address indexed sender, address[] adapters, bytes[] data, uint256[] assets, address indexed onBehalf
+        address indexed sender, address adapter, bytes data, uint256 assets, address indexed onBehalf
     );
 
     event CreateVaultV2(address indexed owner, address indexed asset, address indexed vaultV2);
