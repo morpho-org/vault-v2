@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
-import "./MMIntegrationTest.sol";
+import "./MMV1_1IntegrationTest.sol";
 import {MathLib} from "../../src/libraries/MathLib.sol";
 
-contract MMIntegrationIkrTest is MMIntegrationTest {
+contract MMV1_1IntegrationIkrTest is MMV1_1IntegrationTest {
     using MathLib for uint256;
     using MorphoBalancesLib for IMorpho;
 
@@ -21,9 +21,10 @@ contract MMIntegrationIkrTest is MMIntegrationTest {
 
         setSupplyQueueAllMarkets();
 
-        vm.prank(curator);
+        vm.startPrank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(metaMorphoAdapter), penalty)));
         vault.setForceDeallocatePenalty(address(metaMorphoAdapter), penalty);
+        vm.stopPrank();
     }
 
     function setUpAssets(uint256 assets) internal {
@@ -54,6 +55,24 @@ contract MMIntegrationIkrTest is MMIntegrationTest {
         return assets.mulDivDown(WAD, WAD + penalty);
     }
 
+    function _list(address input) internal pure returns (address[] memory) {
+        address[] memory list = new address[](1);
+        list[0] = input;
+        return list;
+    }
+
+    function _list(bytes memory input) internal pure returns (bytes[] memory) {
+        bytes[] memory list = new bytes[](1);
+        list[0] = input;
+        return list;
+    }
+
+    function _list(uint256 input) internal pure returns (uint256[] memory) {
+        uint256[] memory list = new uint256[](1);
+        list[0] = input;
+        return list;
+    }
+
     function testCantWithdraw(uint256 assets) public {
         assets = bound(assets, MIN_IKR_TEST_ASSETS, MAX_IKR_TEST_ASSETS);
         setUpAssets(assets);
@@ -73,7 +92,7 @@ contract MMIntegrationIkrTest is MMIntegrationTest {
         deal(address(underlyingToken), address(this), deallocatedAssets);
         underlyingToken.approve(address(metaMorpho), type(uint256).max);
         metaMorpho.deposit(deallocatedAssets, address(this));
-        vault.forceDeallocate(address(metaMorphoAdapter), hex"", deallocatedAssets, address(this));
+        vault.forceDeallocate(_list(address(metaMorphoAdapter)), _list(hex""), _list(deallocatedAssets), address(this));
         vault.withdraw(deallocatedAssets, address(this), address(this));
 
         // No assets left after reimbursing the flashloan.
@@ -102,7 +121,7 @@ contract MMIntegrationIkrTest is MMIntegrationTest {
         deal(address(underlyingToken), address(this), deallocatedAssets);
         underlyingToken.approve(address(morpho), type(uint256).max);
         morpho.supply(allMarketParams[0], deallocatedAssets, 0, address(this), hex"");
-        vault.forceDeallocate(address(metaMorphoAdapter), hex"", deallocatedAssets, address(this));
+        vault.forceDeallocate(_list(address(metaMorphoAdapter)), _list(hex""), _list(deallocatedAssets), address(this));
         vault.withdraw(deallocatedAssets, address(this), address(this));
 
         // No assets left after reimbursing the flashloan.
