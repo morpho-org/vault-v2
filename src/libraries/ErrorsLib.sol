@@ -28,7 +28,6 @@ library ErrorsLib {
     error AbsoluteCapExceeded();
     error RelativeCapExceeded();
     error RelativeCapAboveOne();
-    error NotAdapter();
     error FeeInvariantBroken();
     error PermitDeadlineExpired();
     error InvalidSigner();
@@ -42,4 +41,5 @@ library ErrorsLib {
     error CannotReceiveUnderlyingAssets();
     error EnterBlocked();
     error IdNotEnabled();
+    error AdapterId();
 }

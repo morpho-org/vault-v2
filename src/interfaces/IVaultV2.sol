@@ -37,7 +37,6 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     function curator() external view returns (address);
     function isSentinel(address account) external view returns (bool);
     function isAllocator(address account) external view returns (bool);
-    function isAdapter(address account) external view returns (bool);
     function performanceFee() external view returns (uint96);
     function managementFee() external view returns (uint96);
     function performanceFeeRecipient() external view returns (address);
@@ -70,7 +69,7 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicateSubmit(bytes4 selector) external;
     function setIsAllocator(address account, bool newIsAllocator) external;
-    function setIsAdapter(address account, bool newIsAdapter) external;
+    function enableAdapter(address account) external;
     function enableId(bytes calldata idData) external;
     function disableId(bytes calldata idData) external;
     function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external;

@@ -83,9 +83,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     }
 
     /// @dev Returns adapter's ids.
-    function ids() internal view returns (bytes32[] memory) {
-        bytes32[] memory ids_ = new bytes32[](1);
-        ids_[0] = keccak256(abi.encode("adapter", address(this)));
-        return ids_;
+    function ids() internal pure returns (bytes32[] memory) {
+        return (new bytes32[](0));
     }
 }

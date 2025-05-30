@@ -32,8 +32,6 @@ library EventsLib {
 
     event SetManagementFeeRecipient(address indexed);
 
-    event SetIsAdapter(address indexed account, bool newIsAdapter);
-
     event IncreaseTimelock(bytes4 indexed selector, uint256 newDuration);
 
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);

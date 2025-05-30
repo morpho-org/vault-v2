@@ -50,10 +50,7 @@ contract ForceDeallocateTest is BaseTest {
         deallocated = bound(deallocated, 0, supplied);
         forceDeallocatePenalty = bound(forceDeallocatePenalty, 0, MAX_FORCE_DEALLOCATE_PENALTY);
 
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (adapter, true)));
-
-        vault.setIsAdapter(adapter, true);
+        enableAdapterMaxCaps(adapter);
 
         uint256 shares = vault.deposit(supplied, address(this));
         assertEq(underlyingToken.balanceOf(address(vault)), supplied);

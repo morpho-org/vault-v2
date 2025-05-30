@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+using AdapterIdHelper as AdapterIdHelper;
+
 methods {
     function multicall(bytes[]) external => NONDET DELETE;
 
@@ -12,16 +14,17 @@ methods {
 
     function absoluteCap(bytes32 id) external returns uint256 envfree;
     function relativeCap(bytes32 id) external returns uint256 envfree;
+    function enabled(bytes32 id) external returns bool envfree;
     function allocation(bytes32 id) external returns uint256 envfree;
     function timelock(bytes4 selector) external returns uint256 envfree;
     function liquidityAdapter() external returns address envfree;
     function liquidityData() external returns bytes memory envfree;
 
-    function isAdapter(address adapter) external returns bool envfree;
-
     function balanceOf(address) external returns uint256 envfree;
 
     function decreaseTimelock(address) external;
+
+    function AdapterIdHelper.adapterId(address) external returns(bytes32) envfree;
 }
 
 definition TIMELOCK_CAP() returns uint256 = 14 * 24 * 60 * 60;
@@ -56,4 +59,4 @@ strong invariant decreaseTimelockTimelock()
     timelock(decreaseTimelockSelector()) == TIMELOCK_CAP() || timelock(decreaseTimelockSelector()) == max_uint256;
 
 strong invariant liquidityAdapterInvariant()
-    liquidityAdapter() == 0 || isAdapter(liquidityAdapter());
+    liquidityAdapter() == 0 || enabled(AdapterIdHelper.adapterId(liquidityAdapter()));

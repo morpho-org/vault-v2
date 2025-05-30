@@ -72,6 +72,27 @@ contract BaseTest is Test {
         vault.submit(abi.encodeCall(IVaultV2.enableId, (idData)));
         vault.enableId(idData);
     }
+
+    function adapterIdData(address adapter) internal pure returns (bytes memory) {
+        return bytes.concat(bytes32("Adapter ID"), bytes32(uint256(uint160(adapter))));
+    }
+
+    function enableAdapter(address adapter) internal {
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.enableAdapter, (adapter)));
+        vault.enableAdapter(adapter);
+    }
+
+    function enableAdapterMaxCaps(address adapter) internal {
+        enableAdapter(adapter);
+        bytes memory _adapterIdData = adapterIdData(adapter);
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (_adapterIdData, type(uint128).max)));
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (_adapterIdData, WAD)));
+        vault.increaseAbsoluteCap(_adapterIdData, type(uint128).max);
+        vault.increaseRelativeCap(_adapterIdData, WAD);
+    }
 }
 
 function min(uint256 a, uint256 b) pure returns (uint256) {

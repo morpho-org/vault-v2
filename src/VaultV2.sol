@@ -72,7 +72,6 @@ contract VaultV2 is IVaultV2 {
 
     /* CURATION STORAGE */
 
-    mapping(address account => bool) public isAdapter;
     /// @dev The allocation is not updated to take interests into account.
     /// @dev Some underlying markets might allow to take into account interest (fixed rate, fixed term), some might not.
     mapping(bytes32 id => uint256) public allocation;
@@ -90,7 +89,7 @@ contract VaultV2 is IVaultV2 {
 
     /* LIQUIDITY ADAPTER STORAGE */
 
-    /// @dev This invariant holds: liquidityAdapter != address(0) => isAdapter[liquidityAdapter].
+    /// @dev This invariant holds: liquidityAdapter != address(0) => enabled(adapterId(liquidityAdapter)).
     address public liquidityAdapter;
     bytes public liquidityData;
 
@@ -212,12 +211,6 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetVic(newVic);
     }
 
-    function setIsAdapter(address account, bool newIsAdapter) external timelocked {
-        require(account != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
-        isAdapter[account] = newIsAdapter;
-        emit EventsLib.SetIsAdapter(account, newIsAdapter);
-    }
-
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
@@ -324,13 +317,24 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }
 
+    function enableAdapter(address adapter) external timelocked {
+        bytes32 id = adapterId(adapter);
+        idConfig[id].enabled = true;
+        emit EventsLib.EnableId(id);
+    }
+
     function enableId(bytes calldata idData) external timelocked {
+        require(idData.length < 32 || bytes32(idData[0:32]) != "Adapter ID", ErrorsLib.AdapterId());
         bytes32 id = keccak256(idData);
         idConfig[id].enabled = true;
         emit EventsLib.EnableId(id);
     }
 
     function disableId(bytes calldata idData) external timelocked {
+        if (bytes32(idData[0:32]) == "Adapter ID") {
+            address adapter = address(uint160(uint256(bytes32(idData[32:64]))));
+            require(adapter != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
+        }
         bytes32 id = keccak256(idData);
         idConfig[id].enabled = false;
         emit EventsLib.DisableId(id);
@@ -347,7 +351,6 @@ contract VaultV2 is IVaultV2 {
     /// @dev This function will automatically realize potential losses.
     function allocate(address adapter, bytes memory data, uint256 assets) external {
         require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized());
-        require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
 
@@ -359,18 +362,24 @@ contract VaultV2 is IVaultV2 {
             enterBlocked = true;
         }
 
-        for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss) + assets;
+        allocateId(adapterId(adapter), assets, loss);
 
-            require(idConfig[ids[i]].enabled, ErrorsLib.IdNotEnabled());
-            require(allocation[ids[i]] <= idConfig[ids[i]].absoluteCap, ErrorsLib.AbsoluteCapExceeded());
-            require(
-                idConfig[ids[i]].relativeCap == WAD
-                    || allocation[ids[i]] <= uint256(_totalAssets).mulDivDown(idConfig[ids[i]].relativeCap, WAD),
-                ErrorsLib.RelativeCapExceeded()
-            );
+        for (uint256 i; i < ids.length; i++) {
+            allocateId(ids[i], assets, loss);
         }
         emit EventsLib.Allocate(msg.sender, adapter, assets, ids, loss);
+    }
+
+    function allocateId(bytes32 id, uint256 assets, uint256 loss) internal {
+        allocation[id] = allocation[id].zeroFloorSub(loss) + assets;
+
+        require(idConfig[id].enabled, ErrorsLib.IdNotEnabled());
+        require(allocation[id] <= idConfig[id].absoluteCap, ErrorsLib.AbsoluteCapExceeded());
+        require(
+            idConfig[id].relativeCap == WAD
+                || allocation[id] <= uint256(_totalAssets).mulDivDown(idConfig[id].relativeCap, WAD),
+            ErrorsLib.RelativeCapExceeded()
+        );
     }
 
     /// @dev This function will automatically realize potential losses.
@@ -378,7 +387,6 @@ contract VaultV2 is IVaultV2 {
         require(
             isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized()
         );
-        require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).deallocate(data, assets);
 
@@ -387,19 +395,25 @@ contract VaultV2 is IVaultV2 {
             enterBlocked = true;
         }
 
+        deallocateId(adapterId(adapter), assets, loss);
+
         for (uint256 i; i < ids.length; i++) {
-            require(idConfig[ids[i]].enabled, ErrorsLib.IdNotEnabled());
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss + assets);
+            deallocateId(ids[i], assets, loss);
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
         emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, loss);
     }
 
+    function deallocateId(bytes32 id, uint256 assets, uint256 loss) internal {
+        require(idConfig[id].enabled, ErrorsLib.IdNotEnabled());
+        allocation[id] = allocation[id].zeroFloorSub(loss + assets);
+    }
+
     function setLiquidityAdapter(address newLiquidityAdapter) external {
         require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         require(
-            newLiquidityAdapter == address(0) || isAdapter[newLiquidityAdapter],
+            newLiquidityAdapter == address(0) || idConfig[adapterId(newLiquidityAdapter)].enabled,
             ErrorsLib.LiquidityAdapterInvariantBroken()
         );
         liquidityAdapter = newLiquidityAdapter;
@@ -699,5 +713,11 @@ contract VaultV2 is IVaultV2 {
 
     function canReceive(address account) public view returns (bool) {
         return enterGate == address(0) || IEnterGate(enterGate).canReceiveShares(account);
+    }
+
+    /* INTERNAL ADAPTER ID HELPER */
+
+    function adapterId(address adapter) internal pure returns (bytes32) {
+        return keccak256(bytes.concat(bytes32("Adapter ID"), bytes32(uint256(uint160(adapter)))));
     }
 }

@@ -46,9 +46,7 @@ contract AllocateTest is BaseTest {
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
 
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (mockAdapter, true)));
-        vault.setIsAdapter(mockAdapter, true);
+        enableAdapterMaxCaps(mockAdapter);
 
         ids = new bytes32[](2);
         ids[0] = keccak256("id-0");
@@ -111,9 +109,10 @@ contract AllocateTest is BaseTest {
         vault.allocate(mockAdapter, hex"", 0);
 
         // Can't allocate if not adapter.
+        MockAdapter notAdapter = new MockAdapter(address(vault));
         vm.prank(allocator);
-        vm.expectRevert(ErrorsLib.NotAdapter.selector);
-        vault.allocate(address(this), data, assets);
+        vm.expectRevert(ErrorsLib.IdNotEnabled.selector);
+        vault.allocate(address(notAdapter), data, assets);
 
         // Absolute cap check.
         _setAbsoluteCap("id-0", assets - 1);
@@ -175,9 +174,10 @@ contract AllocateTest is BaseTest {
         vault.deallocate(mockAdapter, hex"", 0);
 
         // Can't deallocate if not adapter.
+        MockAdapter notAdapter = new MockAdapter(address(vault));
         vm.prank(allocator);
-        vm.expectRevert(ErrorsLib.NotAdapter.selector);
-        vault.deallocate(address(this), data, assetsOut);
+        vm.expectRevert(ErrorsLib.IdNotEnabled.selector);
+        vault.deallocate(address(notAdapter), data, assetsOut);
 
         // Normal path.
         vm.prank(allocator);
