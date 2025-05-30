@@ -413,9 +413,9 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
-        (uint256 elapsed, uint256 vicOutput) = vicInterestPerSecond();
+        (uint256 elapsed, uint256 tentativeInterestPerSecond) = vicInterestPerSecond();
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) =
-            _accrueInterestView(elapsed, vicOutput);
+            _accrueInterestView(elapsed, tentativeInterestPerSecond);
         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         _totalAssets = newTotalAssets.toUint192();
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
@@ -425,35 +425,36 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
-        (uint256 elapsed, uint256 vicOutput) = vicInterestPerSecondView();
-        return _accrueInterestView(elapsed, vicOutput);
+        (uint256 elapsed, uint256 tentativeInterestPerSecond) = vicInterestPerSecondView();
+        return _accrueInterestView(elapsed, tentativeInterestPerSecond);
     }
 
     function vicInterestPerSecond() internal returns (uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        uint256 output = UtilsLib.controlledCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+        uint256 tentativeInterestPerSecond =
+            UtilsLib.controlledCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
 
-        return (elapsed, output);
+        return (elapsed, tentativeInterestPerSecond);
     }
 
     function vicInterestPerSecondView() internal view returns (uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        uint256 output =
+        uint256 tentativeInterestPerSecond =
             UtilsLib.controlledStaticCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
 
-        return (elapsed, output);
+        return (elapsed, tentativeInterestPerSecond);
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
-    function _accrueInterestView(uint256 elapsed, uint256 vicOutput)
+    function _accrueInterestView(uint256 elapsed, uint256 tentativeInterestPerSecond)
         internal
         view
         returns (uint256, uint256, uint256)
     {
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
-        uint256 interestPerSecond =
-            vicOutput <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? vicOutput : 0;
+        uint256 interestPerSecond = tentativeInterestPerSecond
+            <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = _totalAssets + interest;
 
@@ -583,20 +584,16 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns shares withdrawn as penalty.
     /// @dev This function will automatically realize potential losses.
-    function forceDeallocate(address[] memory adapters, bytes[] memory data, uint256[] memory assets, address onBehalf)
+    function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256)
     {
-        require(adapters.length == data.length && adapters.length == assets.length, ErrorsLib.InvalidInputLength());
-        uint256 penaltyAssets;
-        for (uint256 i; i < adapters.length; i++) {
-            this.deallocate(adapters[i], data[i], assets[i]);
-            penaltyAssets += assets[i].mulDivDown(forceDeallocatePenalty[adapters[i]], WAD);
-        }
+        this.deallocate(adapter, data, assets);
 
         // The penalty is taken as a withdrawal that is donated to the vault.
+        uint256 penaltyAssets = assets.mulDivDown(forceDeallocatePenalty[adapter], WAD);
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
-        emit EventsLib.ForceDeallocate(msg.sender, adapters, data, assets, onBehalf);
+        emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf);
         return shares;
     }
 

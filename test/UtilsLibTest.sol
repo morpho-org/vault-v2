@@ -4,6 +4,16 @@ pragma solidity 0.8.28;
 import {Test, console} from "../lib/forge-std/src/Test.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
 import {UtilsLib} from "../src/libraries/UtilsLib.sol";
+import {VaultV2} from "../src/VaultV2.sol";
+
+contract ReturnsInput {
+    fallback() external {
+        bytes memory data = msg.data;
+        assembly {
+            return(add(data, 32), mload(data))
+        }
+    }
+}
 
 contract Reverts {
     fallback() external {
@@ -33,21 +43,44 @@ contract ReturnsBomb {
     }
 }
 
-contract UtilsLibTest is Test {
-    function testStaticCallNoCode(bytes calldata data) public {
+contract BurnsAllGas {
+    fallback() external {
+        assembly {
+            invalid()
+        }
+    }
+}
+
+contract ControlledStaticCallTest is Test {
+    function testSuccess(bytes calldata data) public {
+        address account = address(new ReturnsInput());
+        uint256 output = UtilsLib.controlledStaticCall(account, data);
+        assertEq(output, uint256(bytes32(data)));
+    }
+
+    function testNoCode(bytes calldata data) public {
         address account = makeAddr("no code");
+
         uint256 output = UtilsLib.controlledStaticCall(account, data);
         assertEq(output, 0);
     }
 
     function testStaticCallRevert(bytes calldata data) public {
         address account = address(new Reverts());
+        (bool success, bytes memory returnData) = account.staticcall(data);
+        assertFalse(success);
+        assertEq(returnData.length, data.length);
+
         uint256 output = UtilsLib.controlledStaticCall(account, data);
         assertEq(output, 0);
     }
 
     function testStaticCallReturnsNoData(bytes calldata data) public {
         address account = address(new ReturnsNothing());
+        (bool success, bytes memory returnData) = account.staticcall(data);
+        assertTrue(success);
+        assertEq(returnData.length, 0);
+
         uint256 output = UtilsLib.controlledStaticCall(account, data);
         assertEq(output, 0);
     }
@@ -79,14 +112,47 @@ contract UtilsLibTest is Test {
 
     function testCallReturnsBomb(bytes calldata) public {
         address account = address(new ReturnsBomb());
-        // Will revert if returned data is entirely copied to memory
+
+        // Would revert if returned data was entirely copied to memory.
         uint256 gas = 4953 * 2;
         this._testReturnsBomb{gas: gas}(account);
+    }
+
+    function testReturnBombLowLevelStaticCall(bytes calldata) public {
+        address account = address(new ReturnsBomb());
+
+        uint256 gas = 4953 * 2;
+        vm.expectRevert();
+        this._testReturnsBombLowLevelStaticCall{gas: gas}(account);
+    }
+
+    uint256 constant SAFE_GAS_AMOUNT = 500_000;
+
+    function testCanUpdateVicIfVicBurnsAllGas() public {
+        BurnsAllGas burnsAllGas = new BurnsAllGas();
+        VaultV2 vault = new VaultV2(address(this), address(0));
+        vault.setCurator(address(this));
+
+        vault.submit(abi.encodeCall(vault.setVic, (address(burnsAllGas))));
+        vault.setVic(address(burnsAllGas));
+
+        skip(1);
+        // check that vic can still be changed
+        vault.submit(abi.encodeCall(vault.setVic, (address(0))));
+        vault.setVic{gas: SAFE_GAS_AMOUNT}(address(0));
+
+        // check that gas was almost entirely burned
+        assertGt(vm.lastCallGas().gasTotalUsed, SAFE_GAS_AMOUNT * 63 / 64);
     }
 
     /* INTERNAL */
 
     function _testReturnsBomb(address account) external view {
         UtilsLib.controlledStaticCall(account, hex"");
+    }
+
+    function _testReturnsBombLowLevelStaticCall(address account) external view {
+        (bool success,) = account.staticcall(hex"");
+        success; // No-op to silence warning.
     }
 }
