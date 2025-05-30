@@ -52,24 +52,6 @@ contract BlueIntegrationIkrTest is BlueIntegrationTest {
         return assets.mulDivDown(WAD, WAD + penalty);
     }
 
-    function _list(address input) internal pure returns (address[] memory) {
-        address[] memory list = new address[](1);
-        list[0] = input;
-        return list;
-    }
-
-    function _list(bytes memory input) internal pure returns (bytes[] memory) {
-        bytes[] memory list = new bytes[](1);
-        list[0] = input;
-        return list;
-    }
-
-    function _list(uint256 input) internal pure returns (uint256[] memory) {
-        uint256[] memory list = new uint256[](1);
-        list[0] = input;
-        return list;
-    }
-
     function testCantWithdraw(uint256 assets) public {
         assets = bound(assets, MIN_IKR_TEST_ASSETS, MAX_IKR_TEST_ASSETS);
         setUpAssets(assets);
@@ -97,9 +79,7 @@ contract BlueIntegrationIkrTest is BlueIntegrationTest {
         deal(address(underlyingToken), address(this), deallocatedAssets);
         underlyingToken.approve(address(morpho), type(uint256).max);
         morpho.supply(marketParams1, deallocatedAssets, 0, address(this), hex"");
-        vault.forceDeallocate(
-            _list(address(adapter)), _list(abi.encode(marketParams1)), _list(deallocatedAssets), address(this)
-        );
+        vault.forceDeallocate(address(adapter), abi.encode(marketParams1), deallocatedAssets, address(this));
         assertEq(vault.allocation(keccak256(expectedIdData1[2])), assets - deallocatedAssets);
 
         vault.withdraw(deallocatedAssets, address(this), address(this));
