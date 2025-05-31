@@ -12,7 +12,7 @@ interface IMorphoBlueAdapter is IAdapter {
     /* ERRORS */
 
     error NotAuthorized();
-    error DifferentAsset();
+    error WrongAsset();
 
     /* FUNCTIONS */
 
