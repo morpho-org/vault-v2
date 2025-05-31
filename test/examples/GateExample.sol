@@ -13,8 +13,8 @@ interface IBundlerAdapter {
 
 /// Example VaultV2 Gate with the following characteristics:
 /// - It is a shares gate, i.e. it checks vault shares senders & receivers.
-/// - It a send assets gate, i.e. it checks users who receive assets from the gate.
-/// - It a receive assets gate, i.e. it checks users who deposit assets to the gate.
+/// - It a send assets gate, i.e. it checks users who receive assets from the vault.
+/// - It a receive assets gate, i.e. it checks users who deposit assets to the vault.
 /// - It has a single whitelist for all permissions.
 /// - It works with Bundler3.
 ///   To enable transfers to/from a Bundler3 adapter (on whitelisted users only), set isBundlerAdapter[bundlerAdapter]

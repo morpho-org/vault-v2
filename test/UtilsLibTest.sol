@@ -91,7 +91,7 @@ contract BurnsGas {
     }
 }
 
-contract ControlledStaticCallTest is Test {
+contract UtilsLibTest is Test {
     function testSuccess(bytes calldata data) public {
         address account = address(new ReturnsInput());
         uint256 output = UtilsLib.controlledStaticCall(account, data);
@@ -207,14 +207,14 @@ contract ControlledStaticCallTest is Test {
 /* FREE UTILITY FUNCTIONS */
 
 // approximate the inverse of the memory expansion cost function
-// cost function is g(w) = 3w + ⌊w²/512⌋ = g.
-// approximated to w(g) = [ sqrt(1536² + 4 * 512 * g) - 1536 ] / 2
+// cost function is g(w) = 3w + ⌊w²/512⌋.
+// approximated to w(g) = [ sqrt(1536² + 4 * 512 * g) - 1536 ] / 2.
 function gasToMemoryExpansion(uint256 gas) pure returns (uint256) {
     return (sqrt(1536 * 1536 + 4 * 512 * gas) - 1536) / 2;
 }
 
-/// From
-/// https://github.com/Vectorized/solady/blob/b609a9c79ce541c2beca7a7d247665e7c93942a3/src/utils/FixedPointMathLib.sol
+// From
+// https://github.com/Vectorized/solady/blob/b609a9c79ce541c2beca7a7d247665e7c93942a3/src/utils/FixedPointMathLib.sol
 // Stripped comments
 /// @dev Returns the square root of `x`, rounded down.
 function sqrt(uint256 x) pure returns (uint256 z) {
