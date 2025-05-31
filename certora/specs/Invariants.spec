@@ -22,6 +22,8 @@ methods {
     function liquidityData() external returns bytes memory envfree;
     function isAdapter(address adapter) external returns bool envfree;
     function balanceOf(address) external returns uint256 envfree;
+    function enterGate() external returns address envfree;
+    function canReceive(address) external returns bool envfree;
 
     function decreaseTimelock(address) external;
     function accrueInterest() external;
