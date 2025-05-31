@@ -15,66 +15,32 @@ function summaryCanReceiveShares(address account) returns bool {
 
 definition MAX_RATE_PER_SECOND() returns uint256 = (10^18 + 200 * 10^16) / (365 * 24 * 60 * 60);
 definition WAD() returns uint256 = 10^18;
+definition TEN_YEARS() returns uint256 = 315360000;
 
 // Allows notably to check that nothing can go wrong with the VIC.
-rule livenessAccrueInterestNoEntryGate(env e) {
+rule livenessAccrueInterest(env e) {
     require e.msg.value == 0;
     
     // Safe require because timestamps are guaranteed to be increasing.
     require e.block.timestamp >= lastUpdate();
     // We assume that less than 10 years have passed since the last update.
-    require e.block.timestamp - lastUpdate() <= 315360000;
+    require e.block.timestamp - lastUpdate() <= TEN_YEARS();
     // Safe require as it corresponds to some time very far into the future.
     require e.block.timestamp < 2^64;
-
-    require totalAssets() * MAX_RATE_PER_SECOND() < 2^256;
-    require totalAssets() + (totalAssets() * MAX_RATE_PER_SECOND() / WAD()) * 315360000 < 2^192;
-    require totalAssets() * (totalSupply() + 1) <= 2^256;
-    require (totalAssets() + (totalAssets() * MAX_RATE_PER_SECOND() / WAD()) * 315360000) * 315360000 * (totalSupply() + 1) < 2^256;
-    require totalSupply() < 2^256 - 1;
-    
-    // Safe require because we have the totalSupply invariant.
+    // Safe requires because it is a very large numbers.
+    require totalAssets() < 2^112; // 10 years of max interest is ~~~x2^16.
+    require totalSupply() < 2^128;
+    // Safe requires because we have the totalSupply invariant.
     require balanceOf(managementFeeRecipient()) <= totalSupply();
     require balanceOf(performanceFeeRecipient()) <= totalSupply();
-
-    require enterGate() == 0;
-    
+    // Safe requires because the invariants are proven.
     requireInvariant performanceFee();
     requireInvariant managementFee();
     requireInvariant performanceFeeRecipient();
     requireInvariant managementFeeRecipient();
-    
-    accrueInterest@withrevert(e);
-    assert !lastReverted;
-}
 
-rule livenessAccrueInterestRecipientsAreAllowed(env e) {
-    require e.msg.value == 0;
-    
-    // Safe require because timestamps are guaranteed to be increasing.
-    require e.block.timestamp >= lastUpdate();
-    // We assume that less than 10 years have passed since the last update.
-    require e.block.timestamp - lastUpdate() <= 315360000;
-    // Safe require as it corresponds to some time very far into the future.
-    require e.block.timestamp < 2^64;
-
-    require totalAssets() * MAX_RATE_PER_SECOND() < 2^256;
-    require totalAssets() + (totalAssets() * MAX_RATE_PER_SECOND() / WAD()) * 315360000 < 2^192;
-    require totalAssets() * (totalSupply() + 1) <= 2^256;
-    require (totalAssets() + (totalAssets() * MAX_RATE_PER_SECOND() / WAD()) * 315360000) * 315360000 * (totalSupply() + 1) < 2^256;
-    require totalSupply() < 2^256 - 1;
-    
-    // Safe require because we have the totalSupply invariant.
-    require balanceOf(managementFeeRecipient()) <= totalSupply();
-    require balanceOf(performanceFeeRecipient()) <= totalSupply();
-
-    require canReceive(managementFeeRecipient());
-    require canReceive(performanceFeeRecipient());
-    
-    requireInvariant performanceFee();
-    requireInvariant managementFee();
-    requireInvariant performanceFeeRecipient();
-    requireInvariant managementFeeRecipient();
+    // Necessary condition for the rule to be true.
+    require enterGate() == 0 || (canReceive(performanceFeeRecipient()) && canReceive(managementFeeRecipient()));
     
     accrueInterest@withrevert(e);
     assert !lastReverted;
