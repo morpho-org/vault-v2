@@ -2,6 +2,17 @@
 
 import "Invariants.spec";
 
+methods {
+    function _.canReceiveShares(address account) external => summaryCanReceiveShares(account) expect bool;
+}
+
+// persistent ghost so that the call is not havoced.
+persistent ghost mapping(address => bool) canReceiveShares;
+
+function summaryCanReceiveShares(address account) returns bool {
+    return canReceiveShares[account];
+}
+
 definition MAX_RATE_PER_SECOND() returns uint256 = (10^18 + 200 * 10^16) / (365 * 24 * 60 * 60);
 definition WAD() returns uint256 = 10^18;
 
