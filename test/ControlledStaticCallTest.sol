@@ -91,7 +91,7 @@ contract BurnsGas {
     }
 }
 
-contract UtilsLibTest is Test {
+contract ControlledStaticCallTest is Test {
     function testSuccess(bytes calldata data) public {
         address account = address(new ReturnsInput());
         uint256 output = UtilsLib.controlledStaticCall(account, data);
