@@ -105,7 +105,7 @@ contract MorphoBlueAdapterTest is Test {
         vm.assume(randomAsset != marketParams.loanToken);
         assets = _boundAssets(assets);
         marketParams.loanToken = randomAsset;
-        vm.expectRevert(IMorphoBlueAdapter.DifferentAsset.selector);
+        vm.expectRevert(IMorphoBlueAdapter.WrongAsset.selector);
         vm.prank(address(parentVault));
         adapter.allocate(abi.encode(marketParams), assets);
     }
@@ -114,7 +114,7 @@ contract MorphoBlueAdapterTest is Test {
         vm.assume(randomAsset != marketParams.loanToken);
         assets = _boundAssets(assets);
         marketParams.loanToken = randomAsset;
-        vm.expectRevert(IMorphoBlueAdapter.DifferentAsset.selector);
+        vm.expectRevert(IMorphoBlueAdapter.WrongAsset.selector);
         vm.prank(address(parentVault));
         adapter.deallocate(abi.encode(marketParams), assets);
     }
