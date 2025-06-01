@@ -49,11 +49,14 @@ contract VaultV2 is IVaultV2 {
 
     address public owner;
     address public curator;
-    /// @notice Gates sending and receiving shares.
+    /// @dev Gates sending and receiving shares.
+    /// @dev Can lock users out of withdrawing.
     address public sharesGate;
-    /// @notice Gates receiving assets from the vault.
+    /// @dev Gates receiving assets from the vault.
+    /// @dev Enable only this gate for a noncustodial, supply-gated vault.
     address public receiveAssetsGate;
-    /// @notice Gates depositing assets to the vault.
+    /// @dev Gates depositing assets to the vault.
+    /// @dev Can lock users out of withdrawing.
     address public sendAssetsGate;
 
     mapping(address account => bool) public isSentinel;
