@@ -289,7 +289,6 @@ contract AccrueInterestTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
 
         vm.startPrank(curator);
-        // vault.setCurator(address(this));
 
         uint256 amount = 1e18;
         uint256 interestPerSecond = amount * MAX_RATE_PER_SECOND / WAD;
