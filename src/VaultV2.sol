@@ -207,8 +207,9 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
     }
 
+    /// @dev Batch accrue before disabling the vic to avoid forgetting some accruals.
     function setVic(address newVic) external timelocked {
-        accrueInterest();
+        if (newVic != address(0)) accrueInterest();
         vic = newVic;
         emit EventsLib.SetVic(newVic);
     }

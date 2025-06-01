@@ -281,7 +281,7 @@ contract AccrueInterestTest is BaseTest {
     }
 
     uint256 constant GAS_BURNED_BY_GATE = 30_000;
-    uint256 constant SAFE_GAS_AMOUNT = 8_000_000;
+    uint256 constant SAFE_GAS_AMOUNT = 10_000;
 
     function testGasRequiredToAccrueIfVicBurnsAllGas() public {
         // Vault setup
@@ -289,7 +289,6 @@ contract AccrueInterestTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
 
         vm.startPrank(curator);
-        // vault.setCurator(address(this));
 
         uint256 amount = 1e18;
         uint256 interestPerSecond = amount * MAX_RATE_PER_SECOND / WAD;
@@ -301,16 +300,9 @@ contract AccrueInterestTest is BaseTest {
         vault.submit(abi.encodeCall(vault.setSharesGate, (gate)));
         vault.setSharesGate(gate);
 
-        performanceFeeRecipient = makeAddr("performance fee recipient");
-        vault.submit(abi.encodeCall(vault.setPerformanceFeeRecipient, (performanceFeeRecipient)));
-        vault.setPerformanceFeeRecipient(performanceFeeRecipient);
-
         managementFeeRecipient = makeAddr("management fee recipient");
         vault.submit(abi.encodeCall(vault.setManagementFeeRecipient, (managementFeeRecipient)));
         vault.setManagementFeeRecipient(managementFeeRecipient);
-
-        vault.submit(abi.encodeCall(vault.setPerformanceFee, (MAX_PERFORMANCE_FEE)));
-        vault.setPerformanceFee(MAX_PERFORMANCE_FEE);
 
         vault.submit(abi.encodeCall(vault.setManagementFee, (MAX_MANAGEMENT_FEE)));
         vault.setManagementFee(MAX_MANAGEMENT_FEE);
@@ -326,13 +318,13 @@ contract AccrueInterestTest is BaseTest {
 
         skip(2 weeks);
 
-        // check that vic can still be changed
+        // check that the vic can be changed
         vm.prank(curator);
         vault.submit(abi.encodeCall(vault.setVic, (address(0))));
         vault.setVic{gas: SAFE_GAS_AMOUNT}(address(0));
 
-        // check that gas was almost entirely burned
-        assertGt(vm.lastCallGas().gasTotalUsed, SAFE_GAS_AMOUNT * 63 / 64);
+        // check that interest accrual does not revert
+        vault.accrueInterest();
     }
 }
 
