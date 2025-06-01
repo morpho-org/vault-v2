@@ -59,7 +59,7 @@ contract BaseTest is Test {
 
         vaultFactory = IVaultV2Factory(address(new VaultV2Factory()));
 
-        vault = IVaultV2(vaultFactory.createVaultV2(owner, address(underlyingToken), bytes32(0)));
+        vault = IVaultV2(vaultFactory.createVaultV2(owner, address(underlyingToken), "", "", bytes32(0)));
         vm.label(address(vault), "vault");
         vicFactory = IManualVicFactory(address(new ManualVicFactory()));
         vic = ManualVic(vicFactory.createManualVic(address(vault)));

@@ -45,6 +45,9 @@ contract VaultV2 is IVaultV2 {
 
     address public immutable asset;
 
+    string public name;
+    string public symbol;
+
     /* ROLES STORAGE */
 
     address public owner;
@@ -151,12 +154,26 @@ contract VaultV2 is IVaultV2 {
 
     /* CONSTRUCTOR */
 
-    constructor(address _owner, address _asset) {
+    constructor(address _owner, address _asset, string memory _name, string memory _symbol) {
         asset = _asset;
         owner = _owner;
+        name = _name;
+        symbol = _symbol;
         lastUpdate = uint64(block.timestamp);
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         emit EventsLib.Constructor(_owner, _asset);
+    }
+
+    function setName(string memory _name) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        name = _name;
+        emit EventsLib.SetName(_name);
+    }
+
+    function setSymbol(string memory _symbol) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        symbol = _symbol;
+        emit EventsLib.SetSymbol(_symbol);
     }
 
     /* OWNER ACTIONS */

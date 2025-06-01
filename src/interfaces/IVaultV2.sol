@@ -49,9 +49,13 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     function liquidityData() external view returns (bytes memory);
     function enterGate() external view returns (address);
     function exitGate() external view returns (address);
+    function name() external view returns (string memory);
+    function symbol() external view returns (string memory);
 
     // Owner actions
     function setOwner(address newOwner) external;
+    function setName(string memory name) external;
+    function setSymbol(string memory symbol) external;
     function setExitGate(address newExitGate) external;
     function setEnterGate(address newEnterGate) external;
     function setCurator(address newCurator) external;

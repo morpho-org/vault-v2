@@ -80,5 +80,10 @@ library EventsLib {
         address indexed sender, address adapter, bytes data, uint256 assets, address indexed onBehalf
     );
 
-    event CreateVaultV2(address indexed owner, address indexed asset, address indexed vaultV2);
+    event CreateVaultV2(
+        address indexed owner, address indexed asset, address indexed vaultV2, string name, string symbol
+    );
+
+    event SetName(string name);
+    event SetSymbol(string symbol);
 }

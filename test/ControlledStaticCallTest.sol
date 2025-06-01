@@ -105,7 +105,7 @@ contract ControlledStaticCallTest is Test {
 
     function testCanUpdateVicIfVicBurnsAllGas() public {
         BurnsAllGas burnsAllGas = new BurnsAllGas();
-        VaultV2 vault = new VaultV2(address(this), address(0));
+        VaultV2 vault = new VaultV2(address(this), address(0), "", "");
         vault.setCurator(address(this));
 
         vault.submit(abi.encodeCall(vault.setVic, (address(burnsAllGas))));
