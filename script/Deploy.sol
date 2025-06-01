@@ -4,6 +4,8 @@ import {MetaMorphoAdapter} from "../src/adapters/MetaMorphoAdapter.sol";
 import {VaultV2} from "../src/VaultV2.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 import {MetaMorphoAdapterFactory} from "../src/adapters/MetaMorphoAdapterFactory.sol";
+import {ManualVicFactory} from "../src/vic/ManualVicFactory.sol";
+import {ManualVic} from "../src/vic/ManualVic.sol";
 
 contract Deploy is Script {
     address ME = address(0x19aC47293DDeA675E73FeebeAC52eB6f14ba756f);
@@ -13,18 +15,32 @@ contract Deploy is Script {
     // Deployed addresses
     VaultV2Factory FACTORY = VaultV2Factory(0x007eC984a7CC7DB7345D65A1f91869396eaCBB1d);
     MetaMorphoAdapterFactory MM_ADAPTER_FACTORY = MetaMorphoAdapterFactory(0x5D7D38df44C2f3667C87537321B03b11a1578a00);
+    ManualVic vic = ManualVic(0x6aBC9EDA1669F06C222742eA33785050a3a24826);
 
     VaultV2 VAULT = VaultV2(0xD0AcE37EB059437254a9bf45C16B346a7565Aa08);
     function run() external {
         vm.startBroadcast();
 
+        setManualVic(VAULT, vic);
 
 
-
-        setAdapter(VAULT, MM_ADAPTER_FACTORY);
 
         vm.stopBroadcast();
     }
+
+    function setManualVic(VaultV2 vault, ManualVic manualVic) private {
+        bytes memory setVicData = abi.encodeCall(IVaultV2.setVic, (address(manualVic)));
+        vault.submit(setVicData);
+        vault.setVic(address(manualVic));
+    }
+
+    function createManualVic(VaultV2 vault) private {
+
+
+        ManualVicFactory manualVicFactory = new ManualVicFactory();
+        ManualVic manualVic = ManualVic(manualVicFactory.createManualVic(address(vault)));
+    }
+
 
     function deployVault() private {
         VaultV2Factory vaultFactory = new VaultV2Factory();
