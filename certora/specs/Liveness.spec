@@ -18,6 +18,7 @@ definition WAD() returns uint256 = 10^18;
 definition TEN_YEARS() returns uint256 = 315360000;
 
 // Allows notably to check that nothing can go wrong with the VIC.
+// In practice, liveness also depends on gas considerations, and this is tested separately (with forge tests).
 rule livenessAccrueInterest(env e) {
     require e.msg.value == 0;
     
