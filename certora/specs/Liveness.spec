@@ -6,8 +6,7 @@ methods {
     function _.canReceiveShares(address account) external => CONSTANT;
 }
 
-definition YEAR() returns uint256 = 365 * 24 * 60 * 60;
-definition MAX_RATE_PER_SECOND() returns uint256 = (10^18 + 200 * 10^16) / YEAR();
+definition MAX_RATE_PER_SECOND() returns uint256 = (10^18 + 200 * 10^16) / (365 * 24 * 60 * 60);
 definition WAD() returns uint256 = 10^18;
 definition TEN_YEARS() returns uint256 = 315360000;
 
