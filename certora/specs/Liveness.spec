@@ -24,7 +24,7 @@ rule livenessAccrueInterest(env e) {
     // Safe requires because they are very large numbers.
     require totalAssets() < 2^112; // 10 years of max interest multiplies assets by approximately 2^16.
     require totalSupply() < 2^128;
-    // Safe requires because of the totalSupply invariant.
+    // Safe requires because of the totalSupplyIsSumOfBalances invariant.
     require balanceOf(managementFeeRecipient()) <= totalSupply();
     require balanceOf(performanceFeeRecipient()) <= totalSupply();
     requireInvariant performanceFee();
