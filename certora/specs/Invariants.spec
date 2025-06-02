@@ -24,13 +24,6 @@ methods {
     function balanceOf(address) external returns uint256 envfree;
     function enterGate() external returns address envfree;
     function canReceive(address) external returns bool envfree;
-
-    function decreaseTimelock(address) external;
-    function accrueInterest() external;
-    function decreaseAbsoluteCap(bytes, uint256) external;
-    function setOwner(address) external;
-    function setCurator(address) external;
-    function setIsSentinel(address, bool) external;
 }
 
 definition TIMELOCK_CAP() returns uint256 = 14 * 24 * 60 * 60;
