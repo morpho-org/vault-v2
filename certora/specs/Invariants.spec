@@ -71,5 +71,5 @@ strong invariant decreaseTimelockTimelock()
 strong invariant liquidityAdapterInvariant()
     liquidityAdapter() == 0 || isAdapter(liquidityAdapter());
 
-strong invariant totalSupply()
+strong invariant totalSupplyIsSumOfBalances()
     totalSupply() == sumOfBalances;

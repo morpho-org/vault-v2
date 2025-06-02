@@ -6,12 +6,13 @@ methods {
     function _.canReceiveShares(address account) external => CONSTANT;
 }
 
-definition MAX_RATE_PER_SECOND() returns uint256 = (10^18 + 200 * 10^16) / (365 * 24 * 60 * 60);
+definition YEAR() returns uint256 = 365 * 24 * 60 * 60;
+definition MAX_RATE_PER_SECOND() returns uint256 = (10^18 + 200 * 10^16) / YEAR();
 definition WAD() returns uint256 = 10^18;
 definition TEN_YEARS() returns uint256 = 315360000;
 
-// Allows notably to check that nothing can go wrong with the VIC.
-// In practice, liveness also depends on gas considerations, and this is tested separately (with forge tests).
+// Check that the VIC can't revert.
+// Note: the property also requires gas assumptions; these are checked with testing (probably mention the file/test suite of interest).
 rule livenessAccrueInterest(env e) {
     require e.msg.value == 0;
     
@@ -21,13 +22,12 @@ rule livenessAccrueInterest(env e) {
     require e.block.timestamp - lastUpdate() <= TEN_YEARS();
     // Safe require as it corresponds to some time very far into the future.
     require e.block.timestamp < 2^64;
-    // Safe requires because it is a very large numbers.
-    require totalAssets() < 2^112; // 10 years of max interest is ~~~x2^16.
+    // Safe requires because they are very large numbers.
+    require totalAssets() < 2^112; // 10 years of max interest multiplies assets by approximately 2^16.
     require totalSupply() < 2^128;
-    // Safe requires because we have the totalSupply invariant.
+    // Safe requires because of the totalSupply invariant.
     require balanceOf(managementFeeRecipient()) <= totalSupply();
     require balanceOf(performanceFeeRecipient()) <= totalSupply();
-    // Safe requires because the invariants are proven.
     requireInvariant performanceFee();
     requireInvariant managementFee();
     requireInvariant performanceFeeRecipient();
