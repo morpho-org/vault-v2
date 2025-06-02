@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.0;
 
-import "./MMIntegrationTest.sol";
+import "./BlueIntegrationTest.sol";
 import {MathLib} from "../../src/libraries/MathLib.sol";
 
-contract MMIntegrationIkrTest is MMIntegrationTest {
+contract BlueIntegrationIkrTest is BlueIntegrationTest {
     using MathLib for uint256;
     using MorphoBalancesLib for IMorpho;
 
@@ -19,18 +19,16 @@ contract MMIntegrationIkrTest is MMIntegrationTest {
     function setUp() public virtual override {
         super.setUp();
 
-        setSupplyQueueAllMarkets();
-
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(metaMorphoAdapter), penalty)));
-        vault.setForceDeallocatePenalty(address(metaMorphoAdapter), penalty);
+        vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(adapter), penalty)));
+        vault.setForceDeallocatePenalty(address(adapter), penalty);
     }
 
     function setUpAssets(uint256 assets) internal {
         vault.deposit(assets, address(this));
 
         vm.prank(allocator);
-        vault.allocate(address(metaMorphoAdapter), hex"", assets);
+        vault.allocate(address(adapter), abi.encode(marketParams1), assets);
 
         assertEq(underlyingToken.balanceOf(address(morpho)), assets);
 
@@ -38,8 +36,8 @@ contract MMIntegrationIkrTest is MMIntegrationTest {
         deal(address(collateralToken), borrower, type(uint256).max);
         vm.startPrank(borrower);
         collateralToken.approve(address(morpho), type(uint256).max);
-        morpho.supplyCollateral(allMarketParams[0], 2 * assets, borrower, hex"");
-        morpho.borrow(allMarketParams[0], assets, 0, borrower, borrower);
+        morpho.supplyCollateral(marketParams1, 2 * assets, borrower, hex"");
+        morpho.borrow(marketParams1, assets, 0, borrower, borrower);
         vm.stopPrank();
         assertEq(underlyingToken.balanceOf(address(morpho)), 0);
 
@@ -62,56 +60,40 @@ contract MMIntegrationIkrTest is MMIntegrationTest {
         vault.withdraw(assets, receiver, address(this));
     }
 
-    // Note that this method to redeem in-kind is not always available: it is possible that MM deposits are paused.
-    // In that case, use the redemption of Morpho Blue shares.
-    function testRedeemSharesOfMM(uint256 assets) public {
+    function testInKindRedemption(uint256 assets) public {
         assets = bound(assets, MIN_IKR_TEST_ASSETS, MAX_IKR_TEST_ASSETS);
         setUpAssets(assets);
-
-        uint256 deallocatedAssets = optimalDeallocateAssets(assets);
-        // Simulate a flashloan.
-        deal(address(underlyingToken), address(this), deallocatedAssets);
-        underlyingToken.approve(address(metaMorpho), type(uint256).max);
-        metaMorpho.deposit(deallocatedAssets, address(this));
-        vault.forceDeallocate(address(metaMorphoAdapter), hex"", deallocatedAssets, address(this));
-        vault.withdraw(deallocatedAssets, address(this), address(this));
-
-        // No assets left after reimbursing the flashloan.
-        assertEq(underlyingToken.balanceOf(address(this)), deallocatedAssets);
-        // No assets left as shares in the vault.
-        uint256 assetsLeftInVault = vault.previewRedeem(vault.balanceOf(address(this)));
-        assertApproxEqAbs(assetsLeftInVault, 0, 1);
-        // Equivalent position in MM.
-        uint256 shares = metaMorpho.balanceOf(address(this));
-        uint256 expectedAssets = metaMorpho.previewRedeem(shares);
-        assertEq(expectedAssets, deallocatedAssets);
-    }
-
-    function testRedeemSharesOfBlue(uint256 assets) public {
-        assets = bound(assets, MIN_IKR_TEST_ASSETS, MAX_IKR_TEST_ASSETS);
-        setUpAssets(assets);
-
-        // Pause deposits on MM.
-        Id[] memory emptySupplyQueue = new Id[](0);
-        vm.prank(mmAllocator);
-        metaMorpho.setSupplyQueue(emptySupplyQueue);
 
         uint256 deallocatedAssets = optimalDeallocateAssets(assets);
         vm.assume(deallocatedAssets > 0);
+
+        // Normal withdraw fails
+        vm.startPrank(allocator);
+        vault.setLiquidityAdapter(address(adapter));
+        vault.setLiquidityData(abi.encode(marketParams1));
+        vm.stopPrank();
+        vm.expectRevert();
+        vault.withdraw(deallocatedAssets, address(this), address(this));
+
         // Simulate a flashloan.
         deal(address(underlyingToken), address(this), deallocatedAssets);
         underlyingToken.approve(address(morpho), type(uint256).max);
-        morpho.supply(allMarketParams[0], deallocatedAssets, 0, address(this), hex"");
-        vault.forceDeallocate(address(metaMorphoAdapter), hex"", deallocatedAssets, address(this));
+        morpho.supply(marketParams1, deallocatedAssets, 0, address(this), hex"");
+        vault.forceDeallocate(address(adapter), abi.encode(marketParams1), deallocatedAssets, address(this));
+        assertEq(vault.allocation(keccak256(expectedIdData1[2])), assets - deallocatedAssets);
+
         vault.withdraw(deallocatedAssets, address(this), address(this));
+        assertEq(vault.allocation(keccak256(expectedIdData1[2])), assets - deallocatedAssets);
 
         // No assets left after reimbursing the flashloan.
         assertEq(underlyingToken.balanceOf(address(this)), deallocatedAssets);
+        // No assets left in the vault
+        assertApproxEqAbs(underlyingToken.balanceOf(address(vault)), 0, 1);
         // No assets left as shares in the vault.
         uint256 assetsLeftInVault = vault.previewRedeem(vault.balanceOf(address(this)));
         assertApproxEqAbs(assetsLeftInVault, 0, 1);
         // Equivalent position in Blue.
-        uint256 expectedAssets = morpho.expectedSupplyAssets(allMarketParams[0], address(this));
+        uint256 expectedAssets = morpho.expectedSupplyAssets(marketParams1, address(this));
         assertEq(expectedAssets, deallocatedAssets);
     }
 }
