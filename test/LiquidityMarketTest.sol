@@ -6,14 +6,14 @@ import "./BaseTest.sol";
 contract LiquidityMarketTest is BaseTest {
     using MathLib for uint256;
 
-    RecordingAdapter public adapter;
+    AdapterMock public adapter;
     uint256 internal constant MAX_TEST_ASSETS = 1e18 ether;
     uint256 internal constant MAX_TEST_SHARES = 1e18 ether;
 
     function setUp() public override {
         super.setUp();
 
-        adapter = new RecordingAdapter();
+        adapter = new AdapterMock(address(vault));
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
@@ -25,8 +25,10 @@ contract LiquidityMarketTest is BaseTest {
         vm.prank(allocator);
         vault.setLiquidityAdapter(address(adapter));
 
-        vm.prank(address(adapter));
-        underlyingToken.approve(address(vault), type(uint256).max);
+        _setAbsoluteCap("id-0", type(uint256).max);
+        _setAbsoluteCap("id-1", type(uint256).max);
+        _setRelativeCap("id-0", WAD);
+        _setRelativeCap("id-1", WAD);
     }
 
     function testLiquidityMarketDeposit(bytes memory data, uint256 assets) public {
