@@ -86,10 +86,14 @@ contract MMV1_1IntegrationBadDebtTest is MMV1_1IntegrationTest {
         );
         morpho.liquidate(allMarketParams[1], borrower, collateralOfBorrower, 0, hex"");
 
+        vm.prank(address(0x123));
         vault.realizeLoss(address(metaMorphoAdapter), hex"");
 
         // MM v1.1 doesn't realize bad debt.
-        assertEq(vault.totalAssets(), initialDeposit);
-        assertEq(vault.previewRedeem(vault.balanceOf(address(this))), initialDeposit);
+        assertEq(vault.totalAssets(), initialDeposit, "totalAssets() != initialDeposit");
+        assertEq(
+            vault.previewRedeem(vault.balanceOf(address(this))), initialDeposit, "previewRedeem(this) != initialDeposit"
+        );
+        assertEq(vault.previewRedeem(vault.balanceOf(address(0x123))), 0, "previewRedeem(0x123) != 0");
     }
 }

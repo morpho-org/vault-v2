@@ -85,9 +85,21 @@ contract MMIntegrationBadDebtTest is MMIntegrationTest {
         );
         morpho.liquidate(allMarketParams[1], borrower, collateralOfBorrower, 0, hex"");
 
+        vm.prank(address(0x123));
         vault.realizeLoss(address(metaMorphoAdapter), hex"");
 
-        assertEq(vault.totalAssets(), initialOnMarket0);
-        assertEq(vault.previewRedeem(vault.balanceOf(address(this))), initialOnMarket0);
+        assertEq(vault.totalAssets(), initialOnMarket0, "totalAssets() != initialOnMarket0");
+        assertApproxEqAbs(
+            vault.previewRedeem(vault.balanceOf(address(this))),
+            initialOnMarket0 - initialOnMarket1 / 100,
+            1,
+            "previewRedeem(this) != initialOnMarket0 - initialOnMarket1 / 100"
+        );
+        assertApproxEqAbs(
+            vault.previewRedeem(vault.balanceOf(address(0x123))),
+            initialOnMarket1 / 100,
+            1,
+            "previewRedeem(0x123) != initialOnMarket1 / 100"
+        );
     }
 }
