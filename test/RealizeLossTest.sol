@@ -125,6 +125,9 @@ contract RealizeLossTest is BaseTest {
         // Account the loss.
         vm.prank(allocator);
         vault.forceDeallocate(address(adapter), hex"", 0, address(this));
+
+        // Realize the loss.
+        vault.realizeLoss(address(adapter), hex"");
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
 
         if (expectedLoss > 0) {

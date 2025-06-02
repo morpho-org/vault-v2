@@ -60,8 +60,7 @@ contract BlueIntegrationBadDebtTest is BlueIntegrationTest {
         );
         morpho.liquidate(marketParams2, borrower, collateralOfBorrower, 0, hex"");
 
-        vm.prank(allocator);
-        vault.deallocate(address(adapter), abi.encode(marketParams2), 0);
+        vault.realizeLoss(address(adapter), abi.encode(marketParams2));
 
         assertEq(vault.totalAssets(), initialInMarket1);
         assertEq(vault.previewRedeem(vault.balanceOf(address(this))), initialInMarket1);
