@@ -55,10 +55,6 @@ contract AllocateTest is BaseTest {
         ids[1] = keccak256("id-1");
     }
 
-    function _boundAssets(uint256 assets) internal pure returns (uint256) {
-        return bound(assets, 1, type(uint256).max);
-    }
-
     function _setAbsoluteCap(bytes memory idData, uint256 absoluteCap) internal {
         bytes32 id = keccak256(idData);
         if (absoluteCap > vault.absoluteCap(id)) {
@@ -88,8 +84,8 @@ contract AllocateTest is BaseTest {
     function testAllocate(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(vault));
-        assets = bound(assets, 1, type(uint192).max);
-        absoluteCap = bound(absoluteCap, assets, type(uint256).max);
+        assets = bound(assets, 1, type(uint128).max);
+        absoluteCap = bound(absoluteCap, assets, type(uint128).max);
 
         // Setup.
         vault.deposit(assets, address(this));
@@ -177,9 +173,9 @@ contract AllocateTest is BaseTest {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(sentinel));
         vm.assume(rdm != address(vault));
-        assetsIn = _boundAssets(assetsIn);
+        assetsIn = bound(assetsIn, 1, type(uint128).max);
         assetsOut = bound(assetsOut, 1, assetsIn);
-        absoluteCap = bound(absoluteCap, assetsIn, type(uint256).max);
+        absoluteCap = bound(absoluteCap, assetsIn, type(uint128).max);
 
         // Setup.
         deal(address(underlyingToken), address(vault), assetsIn);
