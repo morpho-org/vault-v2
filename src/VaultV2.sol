@@ -354,6 +354,8 @@ contract VaultV2 is IVaultV2 {
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
+        accrueInterest();
+
         (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).deallocate(data, assets);
 
         if (loss > 0) {
