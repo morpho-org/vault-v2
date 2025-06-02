@@ -6,9 +6,10 @@ methods {
     function _.canReceiveShares(address account) external => CONSTANT;
 }
 
-definition MAX_RATE_PER_SECOND() returns uint256 = (10^18 + 200 * 10^16) / (365 * 24 * 60 * 60);
+definition YEAR() returns mathint = 365 * 24 * 60 * 60;
+definition MAX_RATE_PER_SECOND() returns uint256 = assert_uint256((10^18 + 200 * 10^16) / YEAR());
 definition WAD() returns uint256 = 10^18;
-definition TEN_YEARS() returns uint256 = 315360000;
+definition TEN_YEARS() returns uint256 = assert_uint256(YEAR() * 10);
 
 // Check that the VIC can't revert.
 // Note: the property also requires gas assumptions; these are checked with testing (probably mention the file/test suite of interest).
