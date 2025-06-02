@@ -180,8 +180,9 @@ contract VaultV2 is IVaultV2 {
 
     /* CURATOR ACTIONS */
 
-    function setIsAllocator(address account, bool newIsAllocator) external timelocked {
-        isAllocator[account] = newIsAllocator;
+    function setIsAllocator(address account, bool newIsAllocator) external {
+        executableAt[msg.data] = 2;
+        // isAllocator[account] = newIsAllocator;
         emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
 

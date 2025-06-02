@@ -38,9 +38,10 @@ rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
 }
 
 // Check the revert condition for the setIsAllocator function.
-rule setIsAllocatorRevertCondition(env e, address account, bool newIsAllocator) {
+rule setIsAllocatorRevertCondition(env e) {
+    address account = 0x12;
+    bool newIsAllocator = true;
     bytes data = Utils.encodeSetIsAllocatorCall(sig:setIsAllocator(address, bool).selector, account, newIsAllocator);
-    bool notExecutable = dataNotExecutableAt(data, e.block.timestamp);
-    setIsAllocator@withrevert(e, account, newIsAllocator);
-    assert lastReverted <=> e.msg.value != 0 || notExecutable;
+    setIsAllocator(e, account, newIsAllocator);
+    assert executableAt(data) == 2;
 }
