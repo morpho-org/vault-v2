@@ -19,6 +19,7 @@ jobs:
           - AbdicatedFunctions
           - Invariants
           - NotRevertingCalls
+          - Liveness
 
     steps:
       - uses: actions/checkout@v4
