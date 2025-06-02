@@ -596,7 +596,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss);
+            caps[ids[i]].allocation = caps[ids[i]].allocation.zeroFloorSub(loss);
         }
 
         emit EventsLib.RealizeLoss(msg.sender, adapter, ids, loss, incentiveShares);
