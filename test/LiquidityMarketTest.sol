@@ -25,8 +25,8 @@ contract LiquidityMarketTest is BaseTest {
         vm.prank(allocator);
         vault.setLiquidityAdapter(address(adapter));
 
-        _setAbsoluteCap("id-0", type(uint256).max);
-        _setAbsoluteCap("id-1", type(uint256).max);
+        _setAbsoluteCap("id-0", type(uint128).max);
+        _setAbsoluteCap("id-1", type(uint128).max);
         _setRelativeCap("id-0", WAD);
         _setRelativeCap("id-1", WAD);
     }
