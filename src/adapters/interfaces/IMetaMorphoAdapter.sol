@@ -14,7 +14,6 @@ interface IMetaMorphoAdapter is IAdapter {
     error NotAuthorized();
     error InvalidData();
     error CannotSkimMetaMorphoShares();
-    error CannotRealizeAsMuch();
     error WrongAsset();
 
     /* FUNCTIONS */
