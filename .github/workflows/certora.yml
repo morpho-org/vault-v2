@@ -19,6 +19,7 @@ jobs:
           - AbdicatedFunctions
           - Invariants
           - NotRevertingCalls
+          - Liveness
           - Reverts
 
     steps:
