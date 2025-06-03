@@ -576,13 +576,14 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns shares withdrawn as penalty.
     /// @dev This function will automatically realize potential losses.
+    /// @dev This function makes users pay a penalty to avoid allocation manipulations.
+    /// @dev The penalty is taken as a withdrawal for which assets are returned to the vault. In consequence,
+    /// totalAssets is decreased normally along with totalSupply, but "realAssets" do not decrease.
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256)
     {
         this.deallocate(adapter, data, assets);
-
-        // The penalty is taken as a withdrawal that is donated to the vault.
         uint256 penaltyAssets = assets.mulDivDown(forceDeallocatePenalty[adapter], WAD);
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
         emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf);
