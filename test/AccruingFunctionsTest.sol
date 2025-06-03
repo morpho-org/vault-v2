@@ -5,6 +5,11 @@ import "./BaseTest.sol";
 
 contract EmptyAdapter is IAdapter {
     bytes32[] ids = [keccak256("id")];
+    address public immutable parentVault;
+
+    constructor(address _parentVault) {
+        parentVault = _parentVault;
+    }
 
     function allocate(bytes memory, uint256) external view returns (bytes32[] memory, uint256) {
         return (ids, 0);
@@ -21,7 +26,7 @@ contract AccrueInterestTest is BaseTest {
     function setUp() public override {
         super.setUp();
 
-        adapter = new EmptyAdapter();
+        adapter = new EmptyAdapter(address(vault));
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));

@@ -214,6 +214,7 @@ contract VaultV2 is IVaultV2 {
 
     function setIsAdapter(address account, bool newIsAdapter) external timelocked {
         require(account != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
+        require(newIsAdapter == false || IAdapter(account).parentVault() == address(this), ErrorsLib.WrongParentVault());
         isAdapter[account] = newIsAdapter;
         emit EventsLib.SetIsAdapter(account, newIsAdapter);
     }

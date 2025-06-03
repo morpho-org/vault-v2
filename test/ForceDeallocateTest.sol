@@ -4,8 +4,11 @@ pragma solidity ^0.8.0;
 import "./BaseTest.sol";
 
 contract Adapter is IAdapter {
-    constructor(address _underlyingToken, address _vault) {
-        IERC20(_underlyingToken).approve(_vault, type(uint256).max);
+    address public immutable parentVault;
+
+    constructor(address _parentVault) {
+        parentVault = _parentVault;
+        IERC20(IVaultV2(_parentVault).asset()).approve(_parentVault, type(uint256).max);
     }
 
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids, uint256 loss) {}
@@ -21,7 +24,7 @@ contract ForceDeallocateTest is BaseTest {
     function setUp() public override {
         super.setUp();
 
-        adapter = address(new Adapter(address(underlyingToken), address(vault)));
+        adapter = address(new Adapter(address(vault)));
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);

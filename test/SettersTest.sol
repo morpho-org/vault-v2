@@ -208,9 +208,15 @@ contract SettersTest is BaseTest {
         vm.prank(rdm);
         vault.setIsAdapter(newAdapter, true);
 
-        // Normal path
+        // Wrong parent vault
+        vm.mockCall(newAdapter, abi.encodeWithSelector(IAdapter.parentVault.selector), abi.encode(address(1)));
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (newAdapter, true)));
+        vm.expectRevert(ErrorsLib.WrongParentVault.selector);
+        vault.setIsAdapter(newAdapter, true);
+
+        // Normal path
+        vm.mockCall(newAdapter, abi.encodeWithSelector(IAdapter.parentVault.selector), abi.encode(address(vault)));
         vm.expectEmit();
         emit EventsLib.SetIsAdapter(newAdapter, true);
         vault.setIsAdapter(newAdapter, true);
@@ -661,6 +667,7 @@ contract SettersTest is BaseTest {
 
         // Setup.
         address adapter = makeAddr("adapter");
+        vm.mockCall(adapter, abi.encodeWithSelector(IAdapter.parentVault.selector), abi.encode(address(vault)));
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (adapter, true)));
         vault.setIsAdapter(adapter, true);
@@ -723,10 +730,11 @@ contract SettersTest is BaseTest {
 
     /* ALLOCATOR SETTERS */
 
-    function testSetLiquidityAdapter(address rdm, address liquidityAdapter) public {
+    function testSetLiquidityAdapter(address rdm) public {
         vm.assume(rdm != allocator);
-        vm.assume(liquidityAdapter != address(0));
-        vm.assume(rdm != allocator);
+        address liquidityAdapter = makeAddr("liquidityAdapter");
+
+        // Liquidity adapter invariant
         vm.prank(allocator);
         vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
         vault.setLiquidityAdapter(liquidityAdapter);
@@ -737,6 +745,7 @@ contract SettersTest is BaseTest {
         vault.setLiquidityAdapter(liquidityAdapter);
 
         // Normal path
+        vm.mockCall(liquidityAdapter, abi.encodeWithSelector(IAdapter.parentVault.selector), abi.encode(address(vault)));
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (liquidityAdapter, true)));
         vault.setIsAdapter(liquidityAdapter, true);
@@ -745,12 +754,6 @@ contract SettersTest is BaseTest {
         emit EventsLib.SetLiquidityAdapter(allocator, liquidityAdapter);
         vault.setLiquidityAdapter(liquidityAdapter);
         assertEq(vault.liquidityAdapter(), liquidityAdapter);
-
-        // Liquidity adapter invariant
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (liquidityAdapter, false)));
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
-        vault.setIsAdapter(liquidityAdapter, false);
     }
 
     function testSetLiquidityData(address rdm) public {

@@ -6,7 +6,7 @@ import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
 import {IERC20} from "../../src/interfaces/IERC20.sol";
 
 contract AdapterMock is IAdapter {
-    address public immutable vault;
+    address public immutable parentVault;
 
     bytes public recordedAllocateData;
     uint256 public recordedAllocateAssets;
@@ -14,9 +14,9 @@ contract AdapterMock is IAdapter {
     bytes public recordedDeallocateData;
     uint256 public recordedDeallocateAssets;
 
-    constructor(address _vault) {
-        vault = _vault;
-        IERC20(IVaultV2(_vault).asset()).approve(_vault, type(uint256).max);
+    constructor(address _parentVault) {
+        parentVault = _parentVault;
+        IERC20(IVaultV2(_parentVault).asset()).approve(_parentVault, type(uint256).max);
     }
 
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {

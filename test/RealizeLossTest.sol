@@ -6,6 +6,12 @@ import "./BaseTest.sol";
 uint256 constant MAX_TEST_AMOUNT = 1e36;
 
 contract MockAdapter is IAdapter {
+    address public immutable parentVault;
+
+    constructor(address _parentVault) {
+        parentVault = _parentVault;
+    }
+
     bytes32[] public ids;
     uint256 public loss;
 
@@ -35,7 +41,7 @@ contract RealizeLossTest is BaseTest {
     function setUp() public override {
         super.setUp();
 
-        adapter = new MockAdapter();
+        adapter = new MockAdapter(address(vault));
 
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, address(adapter), true));
