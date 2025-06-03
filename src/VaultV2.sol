@@ -576,6 +576,8 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns shares withdrawn as penalty.
     /// @dev This function will automatically realize potential losses.
+    /// @dev If a user has an A assets in the vault, the optimal amount to force deallocate to leave no shares nor
+    /// liquidity is A / (1 + penalty).
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256)
