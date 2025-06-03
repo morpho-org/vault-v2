@@ -31,6 +31,10 @@ contract AdapterMock is IAdapter {
         return (ids(), 0);
     }
 
+    function realizeLoss(bytes memory data) external returns (bytes32[] memory, uint256) {
+        return (ids(), 0);
+    }
+
     function ids() internal pure returns (bytes32[] memory) {
         bytes32[] memory _ids = new bytes32[](2);
         _ids[0] = keccak256("id-0");
