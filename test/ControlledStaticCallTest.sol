@@ -53,9 +53,24 @@ contract BurnsAllGas {
 
 contract ControlledStaticCallTest is Test {
     function testSuccess(bytes calldata data) public {
+        vm.assume(data.length == 32);
         address account = address(new ReturnsInput());
         uint256 output = UtilsLib.controlledStaticCall(account, data);
         assertEq(output, uint256(bytes32(data)));
+    }
+
+    function testDataTooLong(bytes calldata data) public {
+        vm.assume(data.length > 32);
+        address account = address(new ReturnsInput());
+        uint256 output = UtilsLib.controlledStaticCall(account, data);
+        assertEq(output, 0);
+    }
+
+    function testDataTooShort(bytes calldata data) public {
+        vm.assume(data.length < 32);
+        address account = address(new ReturnsInput());
+        uint256 output = UtilsLib.controlledStaticCall(account, data);
+        assertEq(output, 0);
     }
 
     function testNoCode(bytes calldata data) public {

@@ -438,6 +438,12 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
+    /// @dev Does not revert if the VIC call fails.
+    /// @dev Requirements for the VIC call to be valid:
+    /// - The VIC call must succeed.
+    /// - The VIC call must return data of size 32 (in particular, this is not true if the VIC has no code).
+    /// - The VIC call must return a value that corresponds to a rate smaller than the maximum rate per second.
+    /// If one of these is not met, the interest per second will be 0.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
