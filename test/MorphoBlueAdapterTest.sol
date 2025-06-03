@@ -325,17 +325,6 @@ contract MorphoBlueAdapterTest is Test {
     }
 
     function testIds() public {
-        bytes32[] memory ids = adapter.ids(marketParams);
-        assertEq(ids.length, 3);
-        assertEq(ids[0], keccak256(abi.encode("adapter", address(adapter))));
-        assertEq(ids[1], keccak256(abi.encode("collateralToken", marketParams.collateralToken)));
-        assertEq(
-            ids[2],
-            keccak256(
-                abi.encode(
-                    "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
-                )
-            )
-        );
+        assertEq(ids, expectedIds);
     }
 }
