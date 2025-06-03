@@ -6,7 +6,7 @@ import {IPermissionedToken} from "./IPermissionedToken.sol";
 
 interface IVaultV2 is IERC20, IPermissionedToken {
     // Multicall
-    function multicall(bytes[] memory data) external;
+    function multicall(bytes[] memory data) external returns (bytes[] memory);
 
     // ERC-2612 (Permit)
     function permit(address owner, address spender, uint256 shares, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
@@ -97,6 +97,6 @@ interface IVaultV2 is IERC20, IPermissionedToken {
         returns (uint256 withdrawnShares);
 
     // Gate vault / permissioned token
-    function canSendUnderlyingAssets(address account) external returns (bool);
-    function canReceiveUnderlyingAssets(address account) external returns (bool);
+    function canSendUnderlyingAssets(address account) external view returns (bool);
+    function canReceiveUnderlyingAssets(address account) external view returns (bool);
 }

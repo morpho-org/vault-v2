@@ -16,6 +16,13 @@ contract MulticallTest is BaseTest {
         assertEq(vault.owner(), newOwner, "wrong owner");
     }
 
+    function testMulticallReturn() public {
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encodeCall(IERC20.transfer, (address(1), 0));
+        bytes[] memory results = vault.multicall(data);
+        assertEq(results[0], abi.encode(true), "wrong data");
+    }
+
     function testMulticallFailing(address rdm) public {
         vm.assume(rdm != curator);
 

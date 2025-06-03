@@ -254,6 +254,12 @@ contract MetaMorphoAdapterTest is Test {
         );
     }
 
+    function testIds() public {
+        bytes32[] memory ids = adapter.ids();
+        assertEq(ids.length, 1);
+        assertEq(ids[0], keccak256(abi.encode("adapter", address(adapter))));
+    }
+
     function testInvalidData(bytes memory data) public {
         vm.assume(data.length > 0);
 

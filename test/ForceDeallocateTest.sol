@@ -72,7 +72,7 @@ contract ForceDeallocateTest is BaseTest {
         bytes[] memory data = _list(hex"");
         uint256[] memory assets = _list(deallocated);
         vm.expectEmit();
-        emit EventsLib.ForceDeallocate(address(this), adapters, data, assets, address(this));
+        emit EventsLib.ForceDeallocate(address(this), adapters, data, assets, address(this), penaltyAssets);
         uint256 withdrawnShares = vault.forceDeallocate(adapters, data, assets, address(this));
         assertEq(shares - expectedShares, withdrawnShares);
         assertEq(underlyingToken.balanceOf(adapter), supplied - deallocated);
