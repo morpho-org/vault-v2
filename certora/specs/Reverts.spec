@@ -6,13 +6,13 @@ methods {
     function multicall(bytes[]) external => NONDET DELETE;
 
     function owner() external returns (address) envfree;
-    function executableAt(bytes) external returns (uint256) envfree;
+    function executableAt(bytes32) external returns (uint256) envfree;
 
-    function Utils.encodeSetIsAllocatorCall(uint32, address, bool) external returns (bytes) envfree;
+    function Utils.encodeSetIsAllocatorCall(uint32, address, bool) external returns (bytes32) envfree;
 }
 
 function dataNotExecutableAt(bytes data, uint256 timestamp) returns bool {
-    uint256 executableAt = executableAt(data);
+    uint256 executableAt = executableAt(keccak256(data));
     return executableAt == 0 || executableAt > timestamp;
 }
 
@@ -38,10 +38,15 @@ rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
 }
 
 // Check the revert condition for the setIsAllocator function.
-rule setIsAllocatorRevertCondition(env e) {
+rule setIsAllocatorDeepDive(env e) {
     address account = 0x12;
     bool newIsAllocator = true;
-    bytes data = Utils.encodeSetIsAllocatorCall(sig:setIsAllocator(address, bool).selector, account, newIsAllocator);
+    bytes32 hashedData = Utils.encodeSetIsAllocatorCall(sig:setIsAllocator(address, bool).selector, account, newIsAllocator);
     setIsAllocator(e, account, newIsAllocator);
-    assert executableAt(data) == 2;
+    assert executableAt(hashedData) == 2;
+}
+
+rule setIsAllocatorDoesntRevert(env e, address account, bool newIsAllocator) {
+    setIsAllocator@withrevert(e, account, newIsAllocator);
+    assert lastReverted <=> e.msg.value != 0;
 }

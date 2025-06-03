@@ -1,0 +1,32 @@
+diff -ruN VaultV2.sol VaultV2.sol
+--- VaultV2.sol
++++ VaultV2.sol
+@@ -389,12 +388,13 @@
+     /* TIMELOCKS */
+
+     function submit(bytes calldata data) external {
++        bytes32 hashedData = keccak256(data);
+         require(msg.sender == curator, ErrorsLib.Unauthorized());
+-        require(executableAt[data] == 0, ErrorsLib.DataAlreadyPending());
++        require(executableAt[hashedData] == 0, ErrorsLib.DataAlreadyPending());
+
+         bytes4 selector = bytes4(data);
+-        executableAt[data] = block.timestamp + timelock[selector];
+-        emit EventsLib.Submit(selector, data, executableAt[data]);
++        executableAt[hashedData] = block.timestamp + timelock[selector];
++        emit EventsLib.Submit(selector, data, executableAt[hashedData]);
+     }
+
+     modifier timelocked() {
+@@ -405,9 +405,10 @@
+     }
+
+     function revoke(bytes calldata data) external {
++        bytes32 hashedData = keccak256(data);
+         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
+-        require(executableAt[data] != 0, ErrorsLib.DataNotTimelocked());
+-        executableAt[data] = 0;
++        require(executableAt[hashedData] != 0, ErrorsLib.DataNotTimelocked());
++        executableAt[hashedData] = 0;
+         emit EventsLib.Revoke(msg.sender, bytes4(data), data);
+     }
