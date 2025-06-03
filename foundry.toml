@@ -9,6 +9,9 @@ dynamic_test_linking = true
 [profile.default.fmt]
 wrap_comments = true
 
+[profile.test]
+via_ir = false
+
 [fuzz]
 runs = 2048
 
