@@ -9,9 +9,7 @@ contract FactoryTest is BaseTest {
         address expectedVaultAddress =
             VaultV2AddressLib.computeVaultV2Address(address(vaultFactory), _owner, asset, salt);
         vm.expectEmit();
-        emit EventsLib.Constructor(asset);
-        vm.expectEmit();
-        emit EventsLib.SetOwner(_owner);
+        emit EventsLib.Constructor(_owner, asset);
         vm.expectEmit();
         emit EventsLib.CreateVaultV2(_owner, asset, expectedVaultAddress);
         IVaultV2 newVault = IVaultV2(vaultFactory.createVaultV2(_owner, asset, salt));
