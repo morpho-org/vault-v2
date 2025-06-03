@@ -255,7 +255,7 @@ contract MetaMorphoAdapterTest is Test {
     }
 
     function testIds() public {
-        assertEq(ids, expectedIds);
+        assertEq(adapter.ids(), expectedIds);
     }
 
     function testInvalidData(bytes memory data) public {
