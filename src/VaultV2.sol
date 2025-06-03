@@ -234,8 +234,8 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Irreversibly disable submit for a selector.
     /// @dev Be particularly careful as this action is not reversible.
-    /// @dev Existing timelocked operation submitted before abdicating the selector can still be executed. The
-    /// abdication of a selector prevent only future calls to submit.
+    /// @dev Existing timelocked operations submitted before abdicating the selector can still be executed.
+    /// The abdication of a selector only prevents future operations to be submitted.
     function abdicateSubmit(bytes4 selector) external timelocked {
         timelock[selector] = type(uint256).max;
         emit EventsLib.AbdicateSubmit(selector);
