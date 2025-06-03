@@ -58,8 +58,7 @@ contract BlueIntegrationWithdrawTest is BlueIntegrationTest {
     function testWithdrawThanksToLiquidityAdapter(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialInIdle + initialInMarket1);
         vm.startPrank(allocator);
-        vault.setLiquidityAdapter(address(adapter));
-        vault.setLiquidityData(abi.encode(marketParams1));
+        vault.setLiquidityMarket(address(adapter), abi.encode(marketParams1));
         vm.stopPrank();
 
         vault.withdraw(assets, receiver, address(this));
@@ -79,8 +78,7 @@ contract BlueIntegrationWithdrawTest is BlueIntegrationTest {
     function testWithdrawTooMuchEvenWithLiquidityAdapter(uint256 assets) public {
         assets = bound(assets, initialInIdle + initialInMarket1 + 1, MAX_TEST_ASSETS);
         vm.startPrank(allocator);
-        vault.setLiquidityAdapter(address(adapter));
-        vault.setLiquidityData(abi.encode(marketParams1));
+        vault.setLiquidityMarket(address(adapter), abi.encode(marketParams1));
         vm.stopPrank();
 
         vm.expectRevert();
@@ -90,8 +88,7 @@ contract BlueIntegrationWithdrawTest is BlueIntegrationTest {
     function testWithdrawLiquidityAdapterNoLiquidity(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialTotal);
         vm.startPrank(allocator);
-        vault.setLiquidityAdapter(address(adapter));
-        vault.setLiquidityData(abi.encode(marketParams1));
+        vault.setLiquidityMarket(address(adapter), abi.encode(marketParams1));
         vm.stopPrank();
 
         // Remove liquidity by borrowing.
