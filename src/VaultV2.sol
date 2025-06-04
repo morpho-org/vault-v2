@@ -442,7 +442,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        
+
         uint256 interest;
         if (elapsed > 0) {
             uint256 tentativeInterestPerSecond =
