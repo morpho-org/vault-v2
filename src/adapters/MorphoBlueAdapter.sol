@@ -20,6 +20,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     address public immutable parentVault;
     address public immutable asset;
     address public immutable morpho;
+    address public immutable irm;
 
     /* STORAGE */
 
@@ -28,9 +29,10 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
     /* FUNCTIONS */
 
-    constructor(address _parentVault, address _morpho) {
-        morpho = _morpho;
+    constructor(address _parentVault, address _morpho, address _irm) {
         parentVault = _parentVault;
+        morpho = _morpho;
+        irm = _irm;
         asset = IVaultV2(_parentVault).asset();
         SafeERC20Lib.safeApprove(asset, _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
@@ -58,6 +60,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, WrongAsset());
+        require(marketParams.irm == irm, WrongIrm());
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
@@ -76,6 +79,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, WrongAsset());
+        require(marketParams.irm == irm, WrongIrm());
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);

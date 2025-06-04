@@ -13,11 +13,13 @@ interface IMorphoBlueAdapter is IAdapter {
 
     error NotAuthorized();
     error WrongAsset();
+    error WrongIrm();
 
     /* FUNCTIONS */
 
     function parentVault() external view returns (address);
     function morpho() external view returns (address);
+    function irm() external view returns (address);
     function skimRecipient() external view returns (address);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;

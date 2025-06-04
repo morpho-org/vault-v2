@@ -5,10 +5,6 @@ import {MorphoBlueAdapter} from "./MorphoBlueAdapter.sol";
 import {IMorphoBlueAdapterFactory} from "./interfaces/IMorphoBlueAdapterFactory.sol";
 
 contract MorphoBlueAdapterFactory is IMorphoBlueAdapterFactory {
-    /* IMMUTABLES */
-
-    address public immutable morpho;
-
     /* STORAGE */
 
     /// @dev vault => adapter
@@ -17,12 +13,8 @@ contract MorphoBlueAdapterFactory is IMorphoBlueAdapterFactory {
 
     /* FUNCTIONS */
 
-    constructor(address _morpho) {
-        morpho = _morpho;
-    }
-
-    function createMorphoBlueAdapter(address vault) external returns (address) {
-        address _morphoBlueAdapter = address(new MorphoBlueAdapter{salt: bytes32(0)}(vault, morpho));
+    function createMorphoBlueAdapter(address vault, address morpho, address irm) external returns (address) {
+        address _morphoBlueAdapter = address(new MorphoBlueAdapter{salt: bytes32(0)}(vault, morpho, irm));
         morphoBlueAdapter[vault] = _morphoBlueAdapter;
         isMorphoBlueAdapter[_morphoBlueAdapter] = true;
         emit CreateMorphoBlueAdapter(vault, _morphoBlueAdapter);

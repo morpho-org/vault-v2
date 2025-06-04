@@ -67,8 +67,9 @@ contract MorphoBlueAdapterTest is Test {
         morpho.createMarket(marketParams);
         marketId = marketParams.id();
         parentVault = new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0));
-        factory = new MorphoBlueAdapterFactory(address(morpho));
-        adapter = MorphoBlueAdapter(factory.createMorphoBlueAdapter(address(parentVault)));
+        factory = new MorphoBlueAdapterFactory();
+        adapter =
+            MorphoBlueAdapter(factory.createMorphoBlueAdapter(address(parentVault), address(morpho), address(irm)));
 
         expectedIds = new bytes32[](3);
         expectedIds[0] = keccak256(abi.encode("adapter", address(adapter)));
@@ -160,14 +161,15 @@ contract MorphoBlueAdapterTest is Test {
         address newParentVaultAddr =
             address(new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0)));
 
-        bytes32 initCodeHash =
-            keccak256(abi.encodePacked(type(MorphoBlueAdapter).creationCode, abi.encode(newParentVaultAddr, morpho)));
+        bytes32 initCodeHash = keccak256(
+            abi.encodePacked(type(MorphoBlueAdapter).creationCode, abi.encode(newParentVaultAddr, morpho, irm))
+        );
         address expectedNewAdapter =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
         emit IMorphoBlueAdapterFactory.CreateMorphoBlueAdapter(newParentVaultAddr, expectedNewAdapter);
 
-        address newAdapter = factory.createMorphoBlueAdapter(newParentVaultAddr);
+        address newAdapter = factory.createMorphoBlueAdapter(newParentVaultAddr, address(morpho), address(irm));
 
         assertTrue(newAdapter != address(0), "Adapter not created");
         assertEq(MorphoBlueAdapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
@@ -286,6 +288,18 @@ contract MorphoBlueAdapterTest is Test {
         assertApproxEqAbs(
             adapter.assetsInMarket(marketId), initial - expectedLoss + interest, 1, "assetsInMarket: interest"
         );
+    }
+
+    function testWrongIrm(address randomIrm) public {
+        vm.assume(randomIrm != address(irm));
+        marketParams.irm = randomIrm;
+        vm.expectRevert(IMorphoBlueAdapter.WrongIrm.selector);
+        vm.prank(address(parentVault));
+        adapter.allocate(abi.encode(marketParams), 0);
+
+        vm.prank(address(parentVault));
+        vm.expectRevert(IMorphoBlueAdapter.WrongIrm.selector);
+        adapter.deallocate(abi.encode(marketParams), 0);
     }
 
     function _overrideMarketTotalSupplyAssets(int256 change) internal {
