@@ -55,22 +55,22 @@ contract AllocateTest is BaseTest {
         vault.allocate(address(this), data, assets);
 
         // Absolute cap check.
-        _setAbsoluteCap("id-0", assets - 1);
-        _setAbsoluteCap("id-1", assets - 1);
+        increaseAbsoluteCap("id-0", assets - 1);
+        increaseAbsoluteCap("id-1", assets - 1);
         vm.expectRevert(ErrorsLib.AbsoluteCapExceeded.selector);
         vm.prank(allocator);
         vault.allocate(mockAdapter, data, assets);
 
         // Relative cap check fails on 0 cap.
-        _setAbsoluteCap("id-0", assets);
-        _setAbsoluteCap("id-1", assets);
+        increaseAbsoluteCap("id-0", assets);
+        increaseAbsoluteCap("id-1", assets);
         vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
         vm.prank(allocator);
         vault.allocate(mockAdapter, data, assets);
 
         // Relative cap check fails on non-WAD cap.
-        _setRelativeCap("id-0", WAD - 1);
-        _setRelativeCap("id-1", WAD - 1);
+        increaseRelativeCap("id-0", WAD - 1);
+        increaseRelativeCap("id-1", WAD - 1);
         vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
         vm.prank(allocator);
         vault.allocate(mockAdapter, data, assets);
@@ -84,8 +84,8 @@ contract AllocateTest is BaseTest {
         vm.revertToState(snapshot);
 
         // Normal path.
-        _setRelativeCap("id-0", WAD);
-        _setRelativeCap("id-1", WAD);
+        increaseRelativeCap("id-0", WAD);
+        increaseRelativeCap("id-1", WAD);
         vm.prank(allocator);
         vm.expectEmit();
         emit EventsLib.Allocate(allocator, mockAdapter, assets, ids, 0);
@@ -104,10 +104,10 @@ contract AllocateTest is BaseTest {
         // Setup.
         vault.deposit(assets, address(this));
 
-        _setAbsoluteCap("id-0", assets);
-        _setAbsoluteCap("id-1", assets);
-        _setRelativeCap("id-0", WAD - 1);
-        _setRelativeCap("id-1", WAD - 1);
+        increaseAbsoluteCap("id-0", assets);
+        increaseAbsoluteCap("id-1", assets);
+        increaseRelativeCap("id-0", WAD - 1);
+        increaseRelativeCap("id-1", WAD - 1);
         vm.prank(allocator);
         vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
         vault.allocate(mockAdapter, data, 100);
@@ -125,10 +125,10 @@ contract AllocateTest is BaseTest {
 
         // Setup.
         deal(address(underlyingToken), address(vault), assetsIn);
-        _setAbsoluteCap("id-0", assetsIn);
-        _setAbsoluteCap("id-1", assetsIn);
-        _setRelativeCap("id-0", WAD);
-        _setRelativeCap("id-1", WAD);
+        increaseAbsoluteCap("id-0", assetsIn);
+        increaseAbsoluteCap("id-1", assetsIn);
+        increaseRelativeCap("id-0", WAD);
+        increaseRelativeCap("id-1", WAD);
         vm.prank(allocator);
         vault.allocate(mockAdapter, data, assetsIn);
 
