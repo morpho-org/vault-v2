@@ -6,10 +6,10 @@ import {IVic} from "../../interfaces/IVic.sol";
 interface IManualVic is IVic {
     /* EVENTS */
 
-    event IncreaseInterestPerSecond(address indexed caller, uint256 newInterestPerSecond);
-    event DecreaseInterestPerSecond(address indexed caller, uint256 newInterestPerSecond);
+    event SetInterestPerSecond(address indexed caller, uint256 newInterestPerSecond, uint256 newDeadline);
+    event ZeroInterestPerSecond(address indexed caller);
     event IncreaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond);
-    event DecreaseMaxInterestPerSecond(address caller, uint256 newMaxInterestPerSecond);
+    event DecreaseMaxInterestPerSecond(address indexed caller, uint256 newMaxInterestPerSecond);
 
     /* ERRORS */
 
@@ -17,13 +17,15 @@ interface IManualVic is IVic {
     error InterestPerSecondTooHigh();
     error NotIncreasing();
     error NotDecreasing();
+    error DeadlineAlreadyPassed();
 
     /* FUNCTIONS */
 
-    function increaseInterestPerSecond(uint256 newInterestPerSecond) external;
-    function decreaseInterestPerSecond(uint256 newInterestPerSecond) external;
+    function vault() external view returns (address);
+    function deadline() external view returns (uint256);
+    function maxInterestPerSecond() external view returns (uint256);
+    function setInterestPerSecond(uint256 newInterestPerSecond, uint256 newDeadline) external;
+    function zeroInterestPerSecond() external;
     function increaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond) external;
     function decreaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond) external;
-    function vault() external view returns (address);
-    function maxInterestPerSecond() external view returns (uint256);
 }

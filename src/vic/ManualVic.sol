@@ -3,16 +3,26 @@ pragma solidity 0.8.28;
 
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IManualVic} from "./interfaces/IManualVic.sol";
+import {MathLib} from "../libraries/MathLib.sol";
 
 contract ManualVic is IManualVic {
+    using MathLib for uint256;
+
     /* IMMUTABLES */
 
     address public immutable vault;
 
     /* STORAGE */
 
-    uint256 internal _interestPerSecond;
     uint256 public maxInterestPerSecond;
+    uint128 internal _interestPerSecond;
+    uint128 internal _deadline;
+
+    /* GETTERS */
+
+    function deadline() external view returns (uint256) {
+        return uint256(_deadline);
+    }
 
     /* FUNCTIONS */
 
@@ -36,29 +46,27 @@ contract ManualVic is IManualVic {
         emit DecreaseMaxInterestPerSecond(msg.sender, maxInterestPerSecond);
     }
 
-    function increaseInterestPerSecond(uint256 newInterestPerSecond) public {
+    function setInterestPerSecond(uint256 newInterestPerSecond, uint256 newDeadline) public {
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         require(newInterestPerSecond <= maxInterestPerSecond, InterestPerSecondTooHigh());
-        require(newInterestPerSecond >= _interestPerSecond, NotIncreasing());
+        require(newDeadline >= block.timestamp, DeadlineAlreadyPassed());
 
         IVaultV2(vault).accrueInterest();
 
-        _interestPerSecond = newInterestPerSecond;
-        emit IncreaseInterestPerSecond(msg.sender, newInterestPerSecond);
+        _interestPerSecond = newInterestPerSecond.toUint128();
+        _deadline = uint128(newDeadline);
+        emit SetInterestPerSecond(msg.sender, newInterestPerSecond, newDeadline);
     }
 
-    function decreaseInterestPerSecond(uint256 newInterestPerSecond) public {
-        require(IVaultV2(vault).isAllocator(msg.sender) || IVaultV2(vault).isSentinel(msg.sender), Unauthorized());
-        require(newInterestPerSecond <= _interestPerSecond, NotDecreasing());
-
-        IVaultV2(vault).accrueInterest();
-
-        _interestPerSecond = newInterestPerSecond;
-        emit DecreaseInterestPerSecond(msg.sender, newInterestPerSecond);
+    function zeroInterestPerSecond() public {
+        require(IVaultV2(vault).isSentinel(msg.sender), Unauthorized());
+        _interestPerSecond = 0;
+        _deadline = 0;
+        emit ZeroInterestPerSecond(msg.sender);
     }
 
     /// @dev Returns the interest per second.
     function interestPerSecond(uint256, uint256) external view returns (uint256) {
-        return _interestPerSecond;
+        return block.timestamp <= _deadline ? _interestPerSecond : 0;
     }
 }
