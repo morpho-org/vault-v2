@@ -576,7 +576,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns shares withdrawn as penalty.
     /// @dev This function will automatically realize potential losses.
-    /// @dev This function makes users pay a penalty to avoid allocation manipulations.
+    /// @dev When calling this function, a penalty is taken from `onBehalf`, in order to discourage allocation manipulations.
     /// @dev The penalty is taken as a withdrawal for which assets are returned to the vault. In consequence,
     /// totalAssets is decreased normally along with totalSupply, but "realAssets" do not decrease.
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
