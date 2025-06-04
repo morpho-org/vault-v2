@@ -182,9 +182,11 @@ contract VaultV2 is IVaultV2 {
     /* CURATOR ACTIONS */
 
     function setIsAllocator(address account, bool newIsAllocator) external {
-        bytes memory data = abi.encodePacked(bytes4(msg.data), abi.encode(account, newIsAllocator));
-        executableAt[keccak256(data)] = 2;
-        require(keccak256(data) == keccak256(msg.data));
+        bytes32 key = keccak256(abi.encodePacked(IVaultV2.setIsAllocator.selector, abi.encode(account, newIsAllocator)));
+        require(executableAt[key] != 0, ErrorsLib.DataNotTimelocked());
+        require(block.timestamp >= executableAt[key], ErrorsLib.TimelockNotExpired());
+        executableAt[key] = 0;
+        isAllocator[account] = newIsAllocator;
         emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
 

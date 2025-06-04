@@ -43,7 +43,7 @@ rule setIsAllocatorDeepDive(env e) {
     bool newIsAllocator = true;
     bytes32 hashedData = Utils.encodeSetIsAllocatorCall(sig:setIsAllocator(address, bool).selector, account, newIsAllocator);
     setIsAllocator(e, account, newIsAllocator);
-    assert executableAt(hashedData) == 2;
+    assert executableAt(hashedData) == 0;
 }
 
 rule setIsAllocatorDoesntRevert(env e, address account, bool newIsAllocator) {

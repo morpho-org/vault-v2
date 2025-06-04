@@ -13,6 +13,6 @@ contract Utils {
         pure
         returns (bytes32)
     {
-        return keccak256(abi.encodePacked(IVaultV2.setIsAllocator.selector, abi.encode(account, newIsAllocator)));
+        return keccak256(abi.encodePacked(selector, abi.encode(account, newIsAllocator)));
     }
 }
