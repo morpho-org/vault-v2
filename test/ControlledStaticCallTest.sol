@@ -5,6 +5,7 @@ import {Test, console} from "../lib/forge-std/src/Test.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
 import {UtilsLib} from "../src/libraries/UtilsLib.sol";
 import {VaultV2} from "../src/VaultV2.sol";
+import {min} from "./BaseTest.sol";
 
 contract ReturnsInput {
     fallback() external {
@@ -52,24 +53,25 @@ contract BurnsAllGas {
 }
 
 contract ControlledStaticCallTest is Test {
-    function testSuccess(bytes calldata data) public {
-        vm.assume(data.length == 32);
+    function testSuccess(bytes32 dataBytes32) public {
+        bytes memory data = bytes.concat(dataBytes32);
         address account = address(new ReturnsInput());
         uint256 output = UtilsLib.controlledStaticCall(account, data);
         assertEq(output, uint256(bytes32(data)));
     }
 
-    function testDataTooLong(bytes calldata data) public {
-        vm.assume(data.length > 32);
+    function testDataTooLong(bytes32 dataStart, bytes calldata dataEnd) public {
+        vm.assume(dataEnd.length > 0);
+        bytes memory data = bytes.concat(dataStart, dataEnd);
         address account = address(new ReturnsInput());
         uint256 output = UtilsLib.controlledStaticCall(account, data);
         assertEq(output, 0);
     }
 
-    function testDataTooShort(bytes calldata data) public {
-        vm.assume(data.length < 32);
+    function testDataTooShort(bytes calldata data, uint256 dataLength) public {
+        dataLength = bound(dataLength, 0, min(31, data.length));
         address account = address(new ReturnsInput());
-        uint256 output = UtilsLib.controlledStaticCall(account, data);
+        uint256 output = UtilsLib.controlledStaticCall(account, data[0:dataLength]);
         assertEq(output, 0);
     }
 
