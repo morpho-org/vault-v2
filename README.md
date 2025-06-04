@@ -1,6 +1,6 @@
 # Vault v2
 
-Morpho Vault V2 enables anyone to create vaults that allocate assets to any protocols, including but not limited to Morpho Market V1, Morpho Market V2, and MetaMorpho Vaults.
+Morpho Vault V2 enables anyone to create [non-custodial](#non-custodial) vaults that allocate assets to any protocols, including but not limited to Morpho Market V1, Morpho Market V2, and MetaMorpho Vaults.
 Depositors of Morpho Vault V2 earn from the underlying protocols without having to actively manage the risk of their position.
 Management of deposited assets is the responsability of a set of different roles (owner, curator and allocators).
 The active management of invested positions involve enabling and allocating liquidity to protocols.
@@ -184,6 +184,26 @@ It can:
 - Decrease absolute caps.
 - Decrease relative caps.
 - Revoke timelocked actions.
+
+<a id="non-custodial"></a>
+### Non-custodial guarantees
+Non-custodial guarantees come from **in-kind redemption** and **timelocks**.
+These features guarantee users can exit before any pending change takes effect.
+
+**In-kind redemption** enables vault shareholders to exchange their vault shares for shares of an underlying vault position.
+A depositor can achieve this by taking a flash loan and supplying it to the underlying market.
+This adds liquidity that the depositor can transfer to the idle market using the `forceDeallocate` function.
+After withdrawing the funds and repaying the flash loan, the depositor will hold market shares instead of vault shares. 
+
+Since depositors choose which underlying assets they want to exit with, the vault's relative allocation will change during in-kind redemption.
+To make in-kind redemptions possible under any conditions, they are not subject to relative caps checks.
+Hence, to offset any costs to adjust allocation afterwards, and to limit abuse from depositors, a penalty of up to 2% can be set per adapter in `forceDeallocate`.
+
+**Timelocks** ensure that all actions taken by curators or owners that could directly or indirectly affect vault depositors are subject to a configurable delay.
+This gives users time to react to potentially malicious or risky actions before they take effect.
+
+In-kind redemptions represent both a liquidity guarantee and a robust protection against a misaligned curator.
+Combined with timelocks, this mechanism allows cautious depositors to react before any potentially harmful actions occur, ensuring the vault remains fully non-custodial.
 
 ### Main differences with Vault V1
 
