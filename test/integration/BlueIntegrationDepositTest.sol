@@ -22,9 +22,8 @@ contract BlueIntegrationDepositTest is BlueIntegrationTest {
     function testDepositLiquidityAdapterSuccess(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
 
-        vm.startPrank(allocator);
+        vm.prank(allocator);
         vault.setLiquidityMarket(address(adapter), abi.encode(marketParams1));
-        vm.stopPrank();
 
         vault.deposit(assets, address(this));
 
