@@ -140,8 +140,6 @@ contract AllocateTest is BaseTest {
         vault.deallocate(mockAdapter, hex"", 0);
         vm.prank(sentinel);
         vault.deallocate(mockAdapter, hex"", 0);
-        vm.prank(address(vault));
-        vault.deallocate(mockAdapter, hex"", 0);
 
         // Can't deallocate if not adapter.
         vm.prank(allocator);
