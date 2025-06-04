@@ -9,7 +9,7 @@ dynamic_test_linking = true
 [profile.default.fmt]
 wrap_comments = true
 
-[profile.test]
+[profile.no_via_ir]
 via_ir = false
 
 [fuzz]
