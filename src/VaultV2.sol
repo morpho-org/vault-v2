@@ -294,7 +294,7 @@ contract VaultV2 is IVaultV2 {
 
     function decreaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external {
         bytes32 id = keccak256(idData);
-        require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
+        require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(newAbsoluteCap <= caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotDecreasing());
 
         // safe by invariant: config.absoluteCap fits on 128 bits

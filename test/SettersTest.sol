@@ -553,7 +553,7 @@ contract SettersTest is BaseTest {
     function testDecreaseAbsoluteCap(address rdm, bytes memory idData, uint256 oldAbsoluteCap, uint256 newAbsoluteCap)
         public
     {
-        vm.assume(rdm != curator && rdm != sentinel);
+        vm.assume(rdm != curator);
         vm.assume(newAbsoluteCap >= 0);
         vm.assume(idData.length > 0);
         newAbsoluteCap = bound(newAbsoluteCap, 0, type(uint128).max - 1);

@@ -184,7 +184,6 @@ Multiple addresses can have this role.
 It can:
 
 - Deallocate funds from enabled markets to the “idle market”.
-- Decrease absolute caps.
 - Decrease relative caps.
 - Revoke timelocked actions.
 
