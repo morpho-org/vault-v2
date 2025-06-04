@@ -11,8 +11,8 @@ contract Utils {
     function encodeSetIsAllocatorCall(uint32 selector, address account, bool newIsAllocator)
         public
         pure
-        returns (bytes32)
+        returns (bytes memory)
     {
-        return keccak256(abi.encodePacked(selector, abi.encode(account, newIsAllocator)));
+        return abi.encodePacked(selector, abi.encode(account, newIsAllocator));
     }
 }

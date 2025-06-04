@@ -112,7 +112,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist,
     /// conditions are not met, etc.).
-    mapping(bytes32 => uint256) public executableAt;
+    mapping(bytes => uint256) public executableAt;
 
     /* FEES STORAGE */
 
@@ -182,10 +182,10 @@ contract VaultV2 is IVaultV2 {
     /* CURATOR ACTIONS */
 
     function setIsAllocator(address account, bool newIsAllocator) external {
-        bytes32 key = keccak256(abi.encodePacked(IVaultV2.setIsAllocator.selector, abi.encode(account, newIsAllocator)));
-        require(executableAt[key] != 0, ErrorsLib.DataNotTimelocked());
-        require(block.timestamp >= executableAt[key], ErrorsLib.TimelockNotExpired());
-        executableAt[key] = 0;
+        bytes memory data = abi.encodePacked(IVaultV2.setIsAllocator.selector, abi.encode(account, newIsAllocator));
+        require(executableAt[data] != 0, ErrorsLib.DataNotTimelocked());
+        require(block.timestamp >= executableAt[data], ErrorsLib.TimelockNotExpired());
+        executableAt[data] = 0;
         isAllocator[account] = newIsAllocator;
         emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
@@ -394,28 +394,25 @@ contract VaultV2 is IVaultV2 {
     /* TIMELOCKS */
 
     function submit(bytes calldata data) external {
-        bytes32 hashedData = keccak256(data);
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        require(executableAt[hashedData] == 0, ErrorsLib.DataAlreadyPending());
+        require(executableAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
         bytes4 selector = bytes4(data);
-        executableAt[hashedData] = block.timestamp + timelock[selector];
-        emit EventsLib.Submit(selector, data, executableAt[hashedData]);
+        executableAt[data] = block.timestamp + timelock[selector];
+        emit EventsLib.Submit(selector, data, executableAt[data]);
     }
 
     modifier timelocked() {
-        bytes32 hashedData = keccak256(msg.data);
-        require(executableAt[hashedData] != 0, ErrorsLib.DataNotTimelocked());
-        require(block.timestamp >= executableAt[hashedData], ErrorsLib.TimelockNotExpired());
-        executableAt[hashedData] = 0;
+        require(executableAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
+        require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
+        executableAt[msg.data] = 0;
         _;
     }
 
     function revoke(bytes calldata data) external {
-        bytes32 hashedData = keccak256(data);
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        require(executableAt[hashedData] != 0, ErrorsLib.DataNotTimelocked());
-        executableAt[hashedData] = 0;
+        require(executableAt[data] != 0, ErrorsLib.DataNotTimelocked());
+        executableAt[data] = 0;
         emit EventsLib.Revoke(msg.sender, bytes4(data), data);
     }
 
