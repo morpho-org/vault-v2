@@ -16,6 +16,7 @@ interface IMetaMorphoAdapter is IAdapter {
     error CannotSkimMetaMorphoShares();
     error CannotRealizeAsMuch();
     error WrongAsset();
+    error MaxSlippageExceeded();
 
     /* FUNCTIONS */
 
