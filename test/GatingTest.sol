@@ -130,16 +130,6 @@ contract GatingTest is BaseTest {
         assertEq(actualCan, !hasGate || can);
     }
 
-    function testCanReceiveUnderlyingAssetsPassthrough(bool hasGate, bool can) public {
-        if (hasGate) {
-            setGate();
-            vm.mockCall(gate, abi.encodeCall(IReceiveAssetsGate.canReceiveAssets, (sharesSender)), abi.encode(can));
-        }
-
-        bool actualCan = vault.canReceiveUnderlyingAssets(sharesSender);
-        assertEq(actualCan, !hasGate || can);
-    }
-
     function testCanReceivePassthrough(bool hasGate, bool can) public {
         if (hasGate) {
             setGate();
@@ -147,16 +137,6 @@ contract GatingTest is BaseTest {
         }
 
         bool actualCan = vault.canReceive(sharesSender);
-        assertEq(actualCan, !hasGate || can);
-    }
-
-    function testCanSendUnderlyingAssetsPassthrough(bool hasGate, bool can) public {
-        if (hasGate) {
-            setGate();
-            vm.mockCall(gate, abi.encodeCall(ISendAssetsGate.canSendAssets, (sharesSender)), abi.encode(can));
-        }
-
-        bool actualCan = vault.canSendUnderlyingAssets(sharesSender);
         assertEq(actualCan, !hasGate || can);
     }
 }
