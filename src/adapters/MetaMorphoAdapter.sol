@@ -10,7 +10,8 @@ import {MathLib} from "../libraries/MathLib.sol";
 
 /// @dev Designed, developped and audited for MetaMorpho Vaults (v1.0 and v1.1). Integration with other vaults must be
 /// carefully assessed from a security standpoint.
-/// @dev MetaMorpho V1.1 vaults do not realize bad debt, so vaults V2 supplying in them will not realize the corresponding bad debt.
+/// @dev MetaMorpho V1.1 vaults do not realize bad debt, so vaults V2 supplying in them will not realize the
+/// corresponding bad debt.
 contract MetaMorphoAdapter is IMetaMorphoAdapter {
     using MathLib for uint256;
 
