@@ -443,7 +443,7 @@ contract VaultV2 is IVaultV2 {
     /// - The VIC call must succeed.
     /// - The VIC call must return data of size 32 (in particular, this is not true if the VIC has no code).
     /// - The VIC call must return a value that corresponds to a rate smaller than the maximum rate per second.
-    /// If one of these is not met, the interest per second will be 0.
+    /// If one of these requirements is not met, the interest per second is taken to be 0.
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
