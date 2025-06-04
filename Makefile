@@ -1,4 +1,4 @@
-install:
-	FOUNDRY_PROFILE=test forge $(ARGS)
+forge:
+	@FOUNDRY_PROFILE=test forge $(ARGS)
 
-.PHONY: install
+.PHONY: forge
