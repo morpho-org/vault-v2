@@ -30,7 +30,7 @@ import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 /// - They must enforce that only the vault can call allocate/deallocate.
 /// - They must enter/exit markets only in allocate/deallocate.
 /// - They must return the right ids on allocate/deallocate.
-/// - After a call to deallocate, the vault must be approved to transfer at least `assets` from the adapter.
+/// - After a call to deallocate, the vault must have an approval to transfer at least `assets` from the adapter.
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
 /// @dev Liquidity market:
 /// - `liquidityAdapter` is allocated to on deposit/mint, and deallocated from on withdraw/redeem if idle assets don't
