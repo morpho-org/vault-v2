@@ -66,6 +66,7 @@ contract VaultV2 is IVaultV2 {
     /* INTEREST STORAGE */
 
     uint192 internal _totalAssets;
+    uint192 public transient firstTotalAssets;
     uint64 public lastUpdate;
     address public vic;
     /// @dev Prevents floashloan-based shorting of vault shares during loss realizations.
@@ -353,7 +354,8 @@ contract VaultV2 is IVaultV2 {
 
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
             require(
-                _caps.relativeCap == WAD || _caps.allocation <= uint256(_totalAssets).mulDivDown(_caps.relativeCap, WAD),
+                _caps.relativeCap == WAD
+                    || _caps.allocation <= uint256(firstTotalAssets).mulDivDown(_caps.relativeCap, WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
@@ -430,6 +432,7 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterest() public {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        if (firstTotalAssets == 0) firstTotalAssets = newTotalAssets.toUint192();
         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         _totalAssets = newTotalAssets.toUint192();
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
