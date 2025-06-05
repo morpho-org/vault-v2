@@ -579,7 +579,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev When calling this function, a penalty is taken from `onBehalf`, in order to discourage allocation
     /// manipulations.
     /// @dev The penalty is taken as a withdrawal for which assets are returned to the vault. In consequence,
-    /// totalAssets is decreased normally along with totalSupply (the share price doesn't not change except because of
+    /// totalAssets is decreased normally along with totalSupply (the share price doesn't change except because of
     /// rounding errors), but the amount of assets actually controlled by the vault is not decreased.
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
