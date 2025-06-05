@@ -75,7 +75,7 @@ contract VaultV2 is IVaultV2 {
 
     mapping(address account => bool) public isAdapter;
 
-    /// @dev Ids have an asset allocation, can be enabled and disabled, and can be absolutely capped and/or relatively
+    /// @dev Ids have an asset allocation, can be absolutely capped and/or relatively, and can be disabled.
     /// capped.
     /// @dev The allocation is not updated to take interests into account.
     /// @dev Some underlying markets might allow to take into account interest (fixed rate, fixed term), some might not.
