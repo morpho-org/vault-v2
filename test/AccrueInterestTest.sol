@@ -137,10 +137,12 @@ contract AccrueInterestTest is BaseTest {
     function testAccrueInterestVicNoCode(uint256 elapsed) public {
         elapsed = bound(elapsed, 0, 1000 weeks);
 
+        address newVic = makeAddr("no code");
+
         // Setup.
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(42))));
-        vault.setVic(address(42));
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (newVic)));
+        vault.setVic(newVic);
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
         // Vic reverts.
@@ -152,18 +154,84 @@ contract AccrueInterestTest is BaseTest {
     function testAccrueInterestVicReverting(uint256 elapsed) public {
         elapsed = bound(elapsed, 0, 1000 weeks);
 
-        address reverting = address(new Reverting());
+        address newVic = address(new Reverting());
 
         // Setup.
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (reverting)));
-        vault.setVic(reverting);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (newVic)));
+        vault.setVic(newVic);
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
         // Vic reverts.
         uint256 totalAssetsBefore = vault.totalAssets();
         vault.accrueInterest();
         assertEq(vault.totalAssets(), totalAssetsBefore);
+    }
+
+    function testAccrueInterestVicReturnInput(uint256 elapsed) public {
+        elapsed = bound(elapsed, 0, 1000 weeks);
+
+        address newVic = address(new ReturnsInput());
+
+        // Setup.
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (newVic)));
+        vault.setVic(newVic);
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        // Vic reverts.
+        uint256 totalAssetsBefore = vault.totalAssets();
+        vault.accrueInterest();
+        assertEq(vault.totalAssets(), totalAssetsBefore);
+    }
+
+    uint256 constant SAFE_GAS_AMOUNT = 200_000;
+
+    function testAccrueInterestVicBurnsAllGas(uint256 elapsed) public {
+        elapsed = bound(elapsed, 0, 1000 weeks);
+
+        address newVic = address(new BurnsAllGas());
+
+        // Setup.
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (newVic)));
+        vault.setVic(newVic);
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        // Vic reverts.
+        uint256 totalAssetsBefore = vault.totalAssets();
+        vault.accrueInterest{gas: SAFE_GAS_AMOUNT}();
+        assertEq(vault.totalAssets(), totalAssetsBefore);
+    }
+
+    function testCallVicReturnsBomb(uint256 elapsed) public {
+        elapsed = bound(elapsed, 0, 1000 weeks);
+
+        address newVic = address(new ReturnsBomb());
+
+        // Setup.
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (newVic)));
+        vault.setVic(newVic);
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        uint256 gas = 4953 * 2;
+        // Would revert if returned data was entirely copied to memory.
+        vm.prank(address(vault));
+        ICallVic(address(vault)).callVic{gas: gas}(elapsed);
+    }
+
+    function testReturnsBombLowLevelStaticCall(bytes calldata) public {
+        address account = address(new ReturnsBomb());
+
+        uint256 gas = 4953 * 2;
+        vm.expectRevert();
+        this._testReturnsBombLowLevelStaticCall{gas: gas}(account);
+    }
+
+    function _testReturnsBombLowLevelStaticCall(address account) external view {
+        (bool success,) = account.staticcall(hex"");
+        success; // No-op to silence warning.
     }
 
     function testPerformanceFeeWithoutManagementFee(
@@ -234,3 +302,35 @@ contract AccrueInterestTest is BaseTest {
 }
 
 contract Reverting {}
+
+contract ReturnsInput {
+    fallback() external {
+        bytes memory data = msg.data;
+        assembly {
+            return(add(data, 32), mload(data))
+        }
+    }
+}
+
+contract BurnsAllGas {
+    fallback() external {
+        assembly {
+            invalid()
+        }
+    }
+}
+
+contract ReturnsBomb {
+    fallback() external {
+        // expansion cost: 3 * words + floor(words**2/512) = 4953
+        uint256 words = 1e3;
+        assembly {
+            mstore(mul(sub(words, 1), 32), 1)
+            return(0, mul(words, 32))
+        }
+    }
+}
+
+interface ICallVic {
+    function callVic(uint256) external view returns (uint256);
+}

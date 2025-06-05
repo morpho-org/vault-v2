@@ -480,7 +480,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function callVic(uint256 elapsed) external view returns (uint256) {
-        require(msg.sender == address(this));
+        require(msg.sender == address(this), ErrorsLib.Unauthorized());
         return IVic(vic).interestPerSecond(_totalAssets, elapsed);
     }
 
