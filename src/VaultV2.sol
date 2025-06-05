@@ -540,12 +540,12 @@ contract VaultV2 is IVaultV2 {
         return canReceive(onBehalf) ? type(uint256).max : 0;
     }
 
-    function maxWithdraw(address onBehalf) public view returns (uint256) {
-        return canSend(onBehalf) ? previewRedeem(balanceOf[onBehalf]) : 0;
+    function maxWithdraw(address) public pure returns (uint256) {
+        return 0;
     }
 
-    function maxRedeem(address onBehalf) public view returns (uint256) {
-        return canSend(onBehalf) ? balanceOf[onBehalf] : 0;
+    function maxRedeem(address) public pure returns (uint256) {
+        return 0;
     }
 
     /* USER MAIN FUNCTIONS */
