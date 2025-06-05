@@ -290,11 +290,15 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetManagementFeeRecipient(newManagementFeeRecipient);
     }
 
+    /// @dev Auto-enables the id when called.
     function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external timelocked {
         bytes32 id = keccak256(idData);
         require(newAbsoluteCap >= caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotIncreasing());
 
         caps[id].absoluteCap = newAbsoluteCap.toUint128();
+
+        caps[id].enabled = true;
+
         emit EventsLib.IncreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
@@ -308,6 +312,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
+    /// @dev Auto-enables the id when called.
     function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
         bytes32 id = keccak256(idData);
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
@@ -315,6 +320,8 @@ contract VaultV2 is IVaultV2 {
 
         // safe since WAD fits on 64 bits
         caps[id].relativeCap = uint64(newRelativeCap);
+
+        caps[id].enabled = true;
 
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
@@ -330,12 +337,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }
 
-    function enableId(bytes calldata idData) external timelocked {
-        bytes32 id = keccak256(idData);
-        caps[id].enabled = true;
-        emit EventsLib.EnableId(id);
-    }
-
+    /// @dev Prevent the id from being used in allocate/deallocate.
+    /// @dev Useful to prevent deallocation from a bad market.
     function disableId(bytes calldata idData) external timelocked {
         bytes32 id = keccak256(idData);
         caps[id].enabled = false;
@@ -369,12 +372,12 @@ contract VaultV2 is IVaultV2 {
             Caps storage _caps = caps[ids[i]];
             _caps.allocation = _caps.allocation.zeroFloorSub(loss) + assets;
 
-            require(_caps.enabled, ErrorsLib.IdNotEnabled());
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
             require(
                 _caps.relativeCap == WAD || _caps.allocation <= uint256(_totalAssets).mulDivDown(_caps.relativeCap, WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
+            require(_caps.enabled, ErrorsLib.IdNotEnabled());
         }
         emit EventsLib.Allocate(msg.sender, adapter, assets, ids, loss);
     }

@@ -23,8 +23,6 @@ contract AccrueInterestTest is BaseTest {
 
         adapter = new EmptyAdapter();
 
-        enableId("id");
-
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
         vault.setIsAdapter(address(adapter), true);
@@ -37,6 +35,10 @@ contract AccrueInterestTest is BaseTest {
     function testAllocateAccruesInterest() public {
         skip(1);
         vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
+
+        // enable id for allocation
+        increaseAbsoluteCap("id", 0);
+
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", 0);
     }
@@ -44,6 +46,10 @@ contract AccrueInterestTest is BaseTest {
     function testDeallocateAccruesInterest() public {
         skip(1);
         vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
+
+        // enable id for deallocation
+        increaseAbsoluteCap("id", 0);
+
         vm.prank(allocator);
         vault.deallocate(address(adapter), hex"", 0);
     }

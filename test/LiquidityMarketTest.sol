@@ -29,9 +29,6 @@ contract LiquidityMarketTest is BaseTest {
         increaseAbsoluteCap("id-1", type(uint128).max);
         increaseRelativeCap("id-0", WAD);
         increaseRelativeCap("id-1", WAD);
-
-        enableId("id-0");
-        enableId("id-1");
     }
 
     function testLiquidityMarketDeposit(bytes memory data, uint256 assets) public {

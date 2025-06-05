@@ -49,7 +49,9 @@ contract RealizeLossTest is BaseTest {
         id = keccak256(idData);
         expectedIds[0] = id;
         adapter.setIds(expectedIds);
-        enableId(idData);
+
+        // enable id for deallocation
+        increaseAbsoluteCap("id", 0);
     }
 
     function testRealizeLossAllocate(uint256 deposit, uint256 expectedLoss) public {

@@ -129,8 +129,6 @@ contract MMIntegrationTest is BaseTest {
         vault.increaseAbsoluteCap(idData, type(uint128).max);
         vault.increaseRelativeCap(idData, 1e18);
 
-        enableId(idData);
-
         // Approval.
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);

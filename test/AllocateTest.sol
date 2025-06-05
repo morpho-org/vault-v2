@@ -25,9 +25,6 @@ contract AllocateTest is BaseTest {
         ids = new bytes32[](2);
         ids[0] = keccak256("id-0");
         ids[1] = keccak256("id-1");
-
-        enableId("id-0");
-        enableId("id-1");
     }
 
     function testAllocate(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
@@ -47,6 +44,18 @@ contract AllocateTest is BaseTest {
         vm.prank(rdm);
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vault.allocate(mockAdapter, data, assets);
+
+        vm.prank(address(vault));
+        vm.expectRevert(ErrorsLib.IdNotEnabled.selector);
+        vault.allocate(mockAdapter, hex"", 0);
+        vm.prank(allocator);
+        vm.expectRevert(ErrorsLib.IdNotEnabled.selector);
+        vault.allocate(mockAdapter, hex"", 0);
+
+        // Enable ids.
+        increaseAbsoluteCap("id-0", 0);
+        increaseAbsoluteCap("id-1", 0);
+
         vm.prank(address(vault));
         vault.allocate(mockAdapter, hex"", 0);
         vm.prank(allocator);

@@ -48,6 +48,8 @@ A vault could be setup to enforce the following caps:
 
 This would ensure that the vault never have more than 15M exposure to markets with stETH as collateral, and never more than 10M exposure to an individual market.
 
+Ids can be disabled. A disabled id can no longer be used in an allocation or a deallocation. Calling a cap increasing function (re-)enables the given id.
+
 ### Liquidity
 
 The allocator is responsible for ensuring that users can withdraw their assets at anytime.
@@ -153,7 +155,6 @@ It can:
 - [Timelockable] Increase relative caps.
 - Decrease relative caps.
 - [Timelockable] Set the `vic`.
-- [Timelockable] Enable ids.
 - [Timelockable] Disable ids.
 - [Timelockable] Set adapters.
 - [Timelockable] Set allocators.

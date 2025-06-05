@@ -68,12 +68,6 @@ contract BaseTest is Test {
         vm.store(address(vault), TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT, strippedValue | bytes32(newTotalAssets));
     }
 
-    function enableId(bytes memory idData) internal {
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.enableId, (idData)));
-        vault.enableId(idData);
-    }
-
     function increaseAbsoluteCap(bytes memory idData, uint256 absoluteCap) internal {
         bytes32 id = keccak256(idData);
         vm.prank(curator);

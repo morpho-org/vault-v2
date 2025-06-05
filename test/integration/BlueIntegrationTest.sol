@@ -98,14 +98,6 @@ contract BlueIntegrationTest is BaseTest {
         // expectedIdData2[0] and expectedIdData2[1] are the same as expectedIdData1[0] and expectedIdData1[1]
         increaseAbsoluteAndRelativeCapToMax(expectedIdData2[2]);
 
-        enableId(expectedIdData1[0]);
-        enableId(expectedIdData1[1]);
-        enableId(expectedIdData1[2]);
-
-        enableId(expectedIdData2[0]);
-        enableId(expectedIdData2[1]);
-        enableId(expectedIdData2[2]);
-
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
     }
