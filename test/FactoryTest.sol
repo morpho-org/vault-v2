@@ -6,7 +6,7 @@ import {VaultV2AddressLib} from "../src/libraries/periphery/VaultV2AddressLib.so
 
 contract FactoryTest is BaseTest {
     function testCreateVaultV2(address _owner, address asset, bytes32 salt) public {
-        vm.mockCall(address(asset), abi.encodeWithSelector(IERC20.decimals.selector), abi.encode(uint8(18)));
+        vm.mockCall(address(asset), IERC20.decimals.selector, abi.encode(uint8(18)));
         bytes32 initCodeHash = keccak256(abi.encodePacked(vm.getCode("VaultV2"), abi.encode(_owner, asset)));
         address expectedVaultAddress = address(
             uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), address(vaultFactory), salt, initCodeHash))))
@@ -23,7 +23,7 @@ contract FactoryTest is BaseTest {
     }
 
     function testVaultV2AddressLib(address _owner, address asset, bytes32 salt) public {
-        vm.mockCall(address(asset), abi.encodeWithSelector(IERC20.decimals.selector), abi.encode(uint8(18)));
+        vm.mockCall(address(asset), IERC20.decimals.selector, abi.encode(uint8(18)));
         if (keccak256(vm.getCode("VaultV2")) != keccak256(type(VaultV2).creationCode)) vm.skip(true);
         assertEq(
             VaultV2AddressLib.computeVaultV2Address(address(vaultFactory), _owner, asset, salt),
