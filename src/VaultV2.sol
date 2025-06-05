@@ -95,7 +95,8 @@ contract VaultV2 is IVaultV2 {
 
     /* TIMELOCKS STORAGE */
 
-    /// @dev The timelock of decreaseTimelock is hard-coded at TIMELOCK_CAP.
+    /// @dev The timelock of decreaseTimelock is initially set to TIMELOCK_CAP, and can only be changed to
+    /// type(uint256).max through abdicateSubmit..
     /// @dev Only functions with the modifier `timelocked` are timelocked.
     /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
     /// timelocked data can potentially be changed shortly afterwards.
@@ -587,7 +588,7 @@ contract VaultV2 is IVaultV2 {
         this.deallocate(adapter, data, assets);
 
         // The penalty is taken as a withdrawal that is donated to the vault.
-        uint256 penaltyAssets = assets.mulDivDown(forceDeallocatePenalty[adapter], WAD);
+        uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
         emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf);
         return shares;
