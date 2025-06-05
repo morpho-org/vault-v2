@@ -580,7 +580,7 @@ contract VaultV2 is IVaultV2 {
     /// manipulations.
     /// @dev The penalty is taken as a withdrawal for which assets are returned to the vault. In consequence,
     /// totalAssets is decreased normally along with totalSupply (the share price doesn't not change except because of
-    /// rounding errors), but the vault's assets under management are not decreased.
+    /// rounding errors), but the amount of assets actually controlled by the vault is not decreased.
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256)
