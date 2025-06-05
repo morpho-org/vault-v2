@@ -520,7 +520,10 @@ contract VaultV2 is IVaultV2 {
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
         require(!enterBlocked, ErrorsLib.EnterBlocked());
         require(canReceive(onBehalf), ErrorsLib.CannotReceive());
-        require(canSendUnderlyingAssets(msg.sender), ErrorsLib.CannotSendUnderlyingAssets());
+        require(
+            sendAssetsGate == address(0) || ISendAssetsGate(sendAssetsGate).canSendAssets(msg.sender),
+            ErrorsLib.CannotSendUnderlyingAssets()
+        );
 
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
@@ -550,7 +553,10 @@ contract VaultV2 is IVaultV2 {
     /// @dev Internal function for withdraw and redeem.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         require(canSend(onBehalf), ErrorsLib.CannotSend());
-        require(canReceiveUnderlyingAssets(receiver), ErrorsLib.CannotReceiveUnderlyingAssets());
+        require(
+            receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(receiver),
+            ErrorsLib.CannotReceiveUnderlyingAssets()
+        );
 
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
@@ -658,15 +664,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Transfer(from, address(0), shares);
     }
 
-    /* PERMISSION FUNCTIONS HELPERS */
-
-    function canReceiveUnderlyingAssets(address account) public view returns (bool) {
-        return receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(account);
-    }
-
-    function canSendUnderlyingAssets(address account) public view returns (bool) {
-        return sendAssetsGate == address(0) || ISendAssetsGate(sendAssetsGate).canSendAssets(account);
-    }
+    /* PERMISSIONED TOKEN */
 
     function canSend(address account) public view returns (bool) {
         return sharesGate == address(0) || ISharesGate(sharesGate).canSendShares(account);
