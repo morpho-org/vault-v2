@@ -477,12 +477,13 @@ contract VaultV2 is IVaultV2 {
     }
 
     function callVic(uint256 elapsed) external view returns (uint256) {
-        require(msg.sender == address(this), ErrorsLib.Unauthorized());
+        require(msg.sender == address(this));
         (bool success, bytes memory data) =
             vic.staticcall(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
-        uint256 interestPerSecond =
-            success && vic.code.length > 0 && data.length == 32 ? abi.decode(data, (uint256)) : 0;
-        return interestPerSecond <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? interestPerSecond : 0;
+        require(success && vic.code.length > 0);
+        uint256 interestPerSecond = abi.decode(data, (uint256));
+        require(interestPerSecond <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD));
+        return interestPerSecond;
     }
 
     /// @dev Returns previewed minted shares.
