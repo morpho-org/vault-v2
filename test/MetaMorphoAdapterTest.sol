@@ -79,18 +79,18 @@ contract MetaMorphoAdapterTest is Test {
     }
 
     function testAllocateMaxSlippageExceeded() public {
-        deal(address(asset), address(adapter), 100);
+        deal(address(asset), address(adapter), 1000);
 
-        // increase share price to 11
-        deal(address(asset), address(metaMorpho), 10);
-        assertEq(metaMorpho.mint(1, address(this)), 11);
+        // increase share price to 101
+        deal(address(asset), address(metaMorpho), 100);
+        assertEq(metaMorpho.mint(1, address(this)), 101);
 
         vm.prank(address(parentVault));
         vm.expectRevert(IMetaMorphoAdapter.MaxSlippageExceeded.selector);
-        adapter.allocate(hex"", 21);
+        adapter.allocate(hex"", 201);
 
         vm.prank(address(parentVault));
-        adapter.allocate(hex"", 12);
+        adapter.allocate(hex"", 150);
     }
 
     function testDeallocate(uint256 initialAssets, uint256 withdrawAssets) public {
