@@ -38,8 +38,8 @@ import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 /// - The liquidity market is mostly useful on exit, so that exit liquidity is available in addition to the idle assets.
 /// But the same adapter/data is used for both entry and exit to have the property that in the general case looping
 /// supply-withdraw or withdraw-supply should not change the allocation.
-/// @dev The minimum interest per second is one asset. Thus, assets with high value (typically low decimals) and small
-/// vaults might not be able to accrue interest consistently and must be considered carefully.
+/// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals), small
+/// vaults and small rates of return might not be able to accrue interest consistently and must be considered carefully.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
 
