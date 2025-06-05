@@ -9,7 +9,6 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
-import {UtilsLib} from "./libraries/UtilsLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 
@@ -438,19 +437,17 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
-    /// @dev Does not revert if the VIC call fails.
-    /// @dev Requirements for the VIC call to be valid:
-    /// - The VIC call must succeed.
-    /// - The VIC call must return data of size 32 (in particular, this is not true if the VIC has no code).
-    /// - The VIC call must return a value that corresponds to a rate smaller than the maximum rate per second.
-    /// If one of these requirements is not met, the interest per second is taken to be 0.
+    /// @dev The IPS is taken to be 0 if VIC reverts, has no code, or if the corresponding rate is above the max rate.
+    /// @dev Reverts if the VIC call is successful but returns a data of size different from 32.
+    /// @dev Could also revert if the VIC consumes all of the available gas or returns a memory bomb.
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
-        uint256 tentativeInterestPerSecond =
-            UtilsLib.controlledStaticCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+        (bool success, bytes memory data) =
+            vic.staticcall(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+        uint256 tentativeInterestPerSecond = success && vic.code.length > 0 ? abi.decode(data, (uint256)) : 0;
 
         uint256 interestPerSecond = tentativeInterestPerSecond
             <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;

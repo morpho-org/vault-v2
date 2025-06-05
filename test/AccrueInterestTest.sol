@@ -3,6 +3,25 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
+contract BurnsAllGas {
+    fallback() external {
+        assembly {
+            invalid()
+        }
+    }
+}
+
+// Gate that consume a sensible amount of gas and return true.
+contract Gate {
+    fallback() external {
+        assembly {
+            mstore(100000, 1) // consumes ~28k gas
+            mstore(0, 1)
+            return(0, 32)
+        }
+    }
+}
+
 contract AccrueInterestTest is BaseTest {
     using MathLib for uint256;
 
@@ -164,6 +183,59 @@ contract AccrueInterestTest is BaseTest {
         uint256 totalAssetsBefore = vault.totalAssets();
         vault.accrueInterest();
         assertEq(vault.totalAssets(), totalAssetsBefore);
+    }
+
+    function testAccrueInterestVicBurnsAllGasNoGates(uint256 elapsed) public {
+        elapsed = bound(elapsed, 0, 1000 weeks);
+
+        address burner = address(new BurnsAllGas());
+
+        // Setup.
+        vm.startPrank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (burner)));
+        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (performanceFeeRecipient)));
+        vault.submit(abi.encodeCall(IVaultV2.setManagementFeeRecipient, (managementFeeRecipient)));
+        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (MAX_PERFORMANCE_FEE)));
+        vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (MAX_MANAGEMENT_FEE)));
+        vm.stopPrank();
+        vault.setVic(burner);
+        vault.setPerformanceFeeRecipient(performanceFeeRecipient);
+        vault.setManagementFeeRecipient(managementFeeRecipient);
+        vault.setPerformanceFee(MAX_PERFORMANCE_FEE);
+        vault.setManagementFee(MAX_MANAGEMENT_FEE);
+
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        // 1/64 * safeGas is enough to accrue interest.
+        uint256 safeGas = 1_000_000;
+        vault.accrueInterest{gas: safeGas}();
+    }
+
+    function testAccrueInterestVicBurnsAllGasWithGates(uint256 elapsed) public {
+        elapsed = bound(elapsed, 0, 1000 weeks);
+
+        address burner = address(new BurnsAllGas());
+        address gate = address(new Gate());
+
+        // Setup (sort of bad case scenario).
+        vm.startPrank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (burner)));
+        vault.submit(abi.encodeCall(IVaultV2.setEnterGate, (gate)));
+        vault.submit(abi.encodeCall(IVaultV2.setExitGate, (gate)));
+        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (MAX_PERFORMANCE_FEE)));
+        vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (MAX_MANAGEMENT_FEE)));
+        vm.stopPrank();
+        vault.setVic(burner);
+        vault.setEnterGate(gate);
+        vault.setExitGate(gate);
+        vault.setPerformanceFee(MAX_PERFORMANCE_FEE);
+        vault.setManagementFee(MAX_MANAGEMENT_FEE);
+
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        // 1/64 * safeGas is enough to accrue interest.
+        uint256 safeGas = 10_000_000;
+        vault.accrueInterest{gas: safeGas}();
     }
 
     function testPerformanceFeeWithoutManagementFee(
