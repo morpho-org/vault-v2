@@ -63,6 +63,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         );
         uint256 shares = IERC4626(metaMorpho).deposit(assets, address(this));
         // Slippage protection such that maximum 100 assets are lost due to rounding errors.
+        // The numerical value 100 has been chosen to balance the max price of a MetaMorpho share against the assets that can be lost to slippage.
         require(shares >= assets / 100, MaxSlippageExceeded());
         assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
 
