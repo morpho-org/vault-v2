@@ -10,29 +10,10 @@ import {ManualVic, ManualVicFactory} from "../src/vic/ManualVicFactory.sol";
 import "../src/VaultV2.sol";
 
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
+import {AdapterMock} from "./mocks/AdapterMock.sol";
 
 import {Test, console} from "../lib/forge-std/src/Test.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
-
-contract RecordingAdapter {
-    bytes public recordedAllocateData;
-    uint256 public recordedAllocateAssets;
-
-    bytes public recordedDeallocateData;
-    uint256 public recordedDeallocateAssets;
-
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {
-        recordedAllocateData = data;
-        recordedAllocateAssets = assets;
-        ids = new bytes32[](0);
-    }
-
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids) {
-        recordedDeallocateData = data;
-        recordedDeallocateAssets = assets;
-        ids = new bytes32[](0);
-    }
-}
 
 contract BaseTest is Test {
     address immutable owner = makeAddr("owner");
@@ -85,6 +66,22 @@ contract BaseTest is Test {
         bytes32 strippedValue = (value >> 192) << 192;
         assertLe(newTotalAssets, type(uint192).max, "wrong written value");
         vm.store(address(vault), TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT, strippedValue | bytes32(newTotalAssets));
+    }
+
+    function increaseAbsoluteCap(bytes memory idData, uint256 absoluteCap) internal {
+        bytes32 id = keccak256(idData);
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, absoluteCap)));
+        vault.increaseAbsoluteCap(idData, absoluteCap);
+        assertEq(vault.absoluteCap(id), absoluteCap);
+    }
+
+    function increaseRelativeCap(bytes memory idData, uint256 relativeCap) internal {
+        bytes32 id = keccak256(idData);
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, relativeCap));
+        vault.increaseRelativeCap(idData, relativeCap);
+        assertEq(vault.relativeCap(id), relativeCap);
     }
 }
 

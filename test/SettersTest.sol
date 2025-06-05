@@ -517,7 +517,7 @@ contract SettersTest is BaseTest {
 
     function testIncreaseAbsoluteCap(address rdm, bytes memory idData, uint256 newAbsoluteCap) public {
         vm.assume(rdm != curator);
-        vm.assume(newAbsoluteCap >= 0);
+        newAbsoluteCap = bound(newAbsoluteCap, 0, type(uint128).max);
         bytes32 id = keccak256(idData);
 
         // Nobody can set directly
@@ -542,14 +542,22 @@ contract SettersTest is BaseTest {
         }
     }
 
+    function testIncreaseAbsoluteCapOverflow(bytes memory idData, uint256 newAbsoluteCap) public {
+        newAbsoluteCap = bound(newAbsoluteCap, uint256(type(uint128).max) + 1, type(uint256).max);
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, newAbsoluteCap)));
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        vault.increaseAbsoluteCap(idData, newAbsoluteCap);
+    }
+
     function testDecreaseAbsoluteCap(address rdm, bytes memory idData, uint256 oldAbsoluteCap, uint256 newAbsoluteCap)
         public
     {
         vm.assume(rdm != curator && rdm != sentinel);
         vm.assume(newAbsoluteCap >= 0);
         vm.assume(idData.length > 0);
-        newAbsoluteCap = bound(newAbsoluteCap, 0, type(uint256).max - 1);
-        oldAbsoluteCap = bound(oldAbsoluteCap, newAbsoluteCap, type(uint256).max - 1);
+        newAbsoluteCap = bound(newAbsoluteCap, 0, type(uint128).max - 1);
+        oldAbsoluteCap = bound(oldAbsoluteCap, newAbsoluteCap, type(uint128).max - 1);
         bytes32 id = keccak256(idData);
 
         vm.prank(curator);
