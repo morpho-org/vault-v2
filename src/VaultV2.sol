@@ -62,6 +62,9 @@ contract VaultV2 is IVaultV2 {
     mapping(address account => uint256) public balanceOf;
     mapping(address owner => mapping(address spender => uint256)) public allowance;
     mapping(address account => uint256) public nonces;
+    string public name;
+    string public symbol;
+    uint8 public decimals;
 
     /* INTEREST STORAGE */
 
@@ -126,7 +129,8 @@ contract VaultV2 is IVaultV2 {
     /* GETTERS */
 
     function totalAssets() external view returns (uint256) {
-        return _totalAssets;
+        (uint256 newTotalAssets,,) = accrueInterestView();
+        return newTotalAssets;
     }
 
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
@@ -165,6 +169,7 @@ contract VaultV2 is IVaultV2 {
         asset = _asset;
         owner = _owner;
         lastUpdate = uint64(block.timestamp);
+        decimals = IERC20(_asset).decimals();
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         emit EventsLib.Constructor(_owner, _asset);
     }
@@ -187,6 +192,18 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
         isSentinel[account] = newIsSentinel;
         emit EventsLib.SetIsSentinel(account, newIsSentinel);
+    }
+
+    function setName(string memory newName) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        name = newName;
+        emit EventsLib.SetName(newName);
+    }
+
+    function setSymbol(string memory newSymbol) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        symbol = newSymbol;
+        emit EventsLib.SetSymbol(newSymbol);
     }
 
     /* CURATOR ACTIONS */
@@ -501,6 +518,34 @@ contract VaultV2 is IVaultV2 {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + 1);
+    }
+
+    /// @dev Returns corresponding shares (rounded down).
+    function convertToShares(uint256 assets) public view returns (uint256) {
+        return previewDeposit(assets);
+    }
+
+    /// @dev Returns corresponding assets (rounded down).
+    function convertToAssets(uint256 shares) public view returns (uint256) {
+        return previewRedeem(shares);
+    }
+
+    /* MAX */
+
+    function maxDeposit(address onBehalf) public view returns (uint256) {
+        return canReceive(onBehalf) ? type(uint256).max : 0;
+    }
+
+    function maxMint(address onBehalf) public view returns (uint256) {
+        return canReceive(onBehalf) ? type(uint256).max : 0;
+    }
+
+    function maxWithdraw(address onBehalf) public view returns (uint256) {
+        return canSend(onBehalf) ? previewRedeem(balanceOf[onBehalf]) : 0;
+    }
+
+    function maxRedeem(address onBehalf) public view returns (uint256) {
+        return canSend(onBehalf) ? balanceOf[onBehalf] : 0;
     }
 
     /* USER MAIN FUNCTIONS */
