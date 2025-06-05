@@ -72,6 +72,8 @@ contract SettersTest is BaseTest {
     }
 
     function testSetName(address rdm, string memory newName) public {
+        vm.assume(rdm != owner);
+
         // Default value
         assertEq(vault.name(), "");
 
@@ -89,6 +91,8 @@ contract SettersTest is BaseTest {
     }
 
     function testSetSymbol(address rdm, string memory newSymbol) public {
+        vm.assume(rdm != owner);
+
         // Default value
         assertEq(vault.symbol(), "");
 
