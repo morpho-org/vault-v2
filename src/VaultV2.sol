@@ -207,9 +207,13 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
     }
 
+    /// @dev Accrues interest after setting the Vic.
+    /// @dev This guarantees that a non-abdicated Vic can always be changed.
+    /// @dev If possible, batch accrueInterest before changing the Vic
+    /// @dev to prevent a new Vic from influencing past interest.
     function setVic(address newVic) external timelocked {
-        accrueInterest();
         vic = newVic;
+        accrueInterest();
         emit EventsLib.SetVic(newVic);
     }
 
@@ -437,6 +441,9 @@ contract VaultV2 is IVaultV2 {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
+        bool canReceivePerformanceFee = canReceive(performanceFeeRecipient);
+        bool canReceiveManagementFee = canReceive(managementFeeRecipient);
+
         uint256 tentativeInterestPerSecond =
             UtilsLib.controlledStaticCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
 
@@ -451,13 +458,13 @@ contract VaultV2 is IVaultV2 {
         // fact that total assets is already increased by the total interest (including the fee assets).
         // Note: `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
 
-        if (interest > 0 && performanceFee != 0 && canReceive(performanceFeeRecipient)) {
+        if (interest > 0 && performanceFee != 0 && canReceivePerformanceFee) {
             // Note: the accrued performance fee might be smaller than this because of the management fee.
             uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
             performanceFeeShares =
                 performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
         }
-        if (managementFee != 0 && canReceive(managementFeeRecipient)) {
+        if (managementFee != 0 && canReceiveManagementFee) {
             // Note: The vault must be pinged at least once every 20 years to avoid management fees exceeding total
             // assets and revert forever.
             // Note: The management fee is taken on newTotalAssets to make all approximations consistent (interacting

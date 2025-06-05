@@ -280,8 +280,8 @@ contract AccrueInterestTest is BaseTest {
         assertEq(vault.balanceOf(managementFeeRecipient), expectedShares);
     }
 
-    uint256 constant GAS_BURNED_BY_GATE = 30_000;
-    uint256 constant SAFE_GAS_AMOUNT = 8_000_000;
+    uint256 constant GAS_BURNED_BY_GATE = 1_000_000;
+    uint256 constant SAFE_GAS_AMOUNT = 6_000_000;
 
     function testGasRequiredToAccrueIfVicBurnsAllGas() public {
         // Vault setup
@@ -325,10 +325,7 @@ contract AccrueInterestTest is BaseTest {
 
         skip(2 weeks);
 
-        // check that vic can still be changed
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(vault.setVic, (address(0))));
-        vault.setVic{gas: SAFE_GAS_AMOUNT}(address(0));
+        vault.accrueInterest{gas: SAFE_GAS_AMOUNT}();
 
         // check that gas was almost entirely burned
         assertGt(vm.lastCallGas().gasTotalUsed, SAFE_GAS_AMOUNT * 63 / 64);
