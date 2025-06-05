@@ -9,7 +9,6 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
-import {UtilsLib} from "./libraries/UtilsLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 
@@ -443,12 +442,13 @@ contract VaultV2 is IVaultV2 {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
-        uint256 tentativeInterestPerSecond =
-            UtilsLib.controlledStaticCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+        bool canReceivePerformanceFee = canReceive(performanceFeeRecipient);
+        bool canReceiveManagementFee = canReceive(managementFeeRecipient);
 
-        uint256 interestPerSecond = tentativeInterestPerSecond
-            <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
-        uint256 interest = interestPerSecond * elapsed;
+        uint256 interest;
+        try this.callVic(elapsed) returns (uint256 interestPerSecond) {
+            interest = interestPerSecond * elapsed;
+        } catch {}
         uint256 newTotalAssets = _totalAssets + interest;
 
         uint256 performanceFeeShares;
@@ -457,13 +457,13 @@ contract VaultV2 is IVaultV2 {
         // fact that total assets is already increased by the total interest (including the fee assets).
         // Note: `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
 
-        if (interest > 0 && performanceFee != 0 && canReceive(performanceFeeRecipient)) {
+        if (canReceivePerformanceFee && interest > 0 && performanceFee != 0) {
             // Note: the accrued performance fee might be smaller than this because of the management fee.
             uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
             performanceFeeShares =
                 performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
         }
-        if (managementFee != 0 && canReceive(managementFeeRecipient)) {
+        if (canReceiveManagementFee && managementFee != 0) {
             // Note: The vault must be pinged at least once every 20 years to avoid management fees exceeding total
             // assets and revert forever.
             // Note: The management fee is taken on newTotalAssets to make all approximations consistent (interacting
@@ -474,6 +474,15 @@ contract VaultV2 is IVaultV2 {
             );
         }
         return (newTotalAssets, performanceFeeShares, managementFeeShares);
+    }
+
+    function callVic(uint256 elapsed) external view returns (uint256) {
+        require(msg.sender == address(this), ErrorsLib.Unauthorized());
+        (bool success, bytes memory data) =
+            vic.staticcall(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+        uint256 interestPerSecond =
+            success && vic.code.length > 0 && data.length == 32 ? abi.decode(data, (uint256)) : 0;
+        return interestPerSecond <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? interestPerSecond : 0;
     }
 
     /// @dev Returns previewed minted shares.
