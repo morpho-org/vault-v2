@@ -92,6 +92,7 @@ interface IVaultV2 is IERC20, IPermissionedToken {
         external
         view
         returns (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares);
+    function callVic(uint256 elapsed) external view returns (uint256);
 
     // Timelocks
     function submit(bytes memory data) external;

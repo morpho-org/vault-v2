@@ -217,8 +217,7 @@ contract AccrueInterestTest is BaseTest {
 
         uint256 gas = 4953 * 2;
         // Would revert if returned data was entirely copied to memory.
-        vm.prank(address(vault));
-        ICallVic(address(vault)).callVic{gas: gas}(elapsed);
+        vault.callVic{gas: gas}(elapsed);
     }
 
     function testReturnsBombLowLevelStaticCall(bytes calldata) public {
@@ -329,8 +328,4 @@ contract ReturnsBomb {
             return(0, mul(words, 32))
         }
     }
-}
-
-interface ICallVic {
-    function callVic(uint256) external view returns (uint256);
 }
