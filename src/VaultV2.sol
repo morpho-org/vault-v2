@@ -636,6 +636,7 @@ contract VaultV2 is IVaultV2 {
         return true;
     }
 
+    /// @dev Signature malleability is not explicitly prevented but it is not a problem thanks to the nonce.
     function permit(address _owner, address spender, uint256 shares, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         external
     {
