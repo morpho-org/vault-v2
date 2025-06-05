@@ -58,13 +58,13 @@ contract VaultV2 is IVaultV2 {
 
     /* TOKEN STORAGE */
 
+    uint8 public decimals;
+    string public name;
+    string public symbol;
     uint256 public totalSupply;
     mapping(address account => uint256) public balanceOf;
     mapping(address owner => mapping(address spender => uint256)) public allowance;
     mapping(address account => uint256) public nonces;
-    string public name;
-    string public symbol;
-    uint8 public decimals;
 
     /* INTEREST STORAGE */
 
