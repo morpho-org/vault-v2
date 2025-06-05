@@ -202,8 +202,6 @@ A penalty of up to 2% can be set, per adapter, to execute the `forceDeallocate` 
 **Timelocks** ensure that all actions taken by curators or owners that could directly or indirectly affect vault depositors are subject to a configurable delay.
 This gives users time to react to potentially malicious or risky actions before they take effect.
 
-In-kind redemptions represent both a liquidity guarantee and a robust protection against a misaligned curator.
-Combined with timelocks, this mechanism allows cautious depositors to react before any potentially harmful actions occur, ensuring the vault remains fully non-custodial.
 
 ### Main differences with Vault V1
 
