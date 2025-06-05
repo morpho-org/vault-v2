@@ -16,7 +16,7 @@ contract Bundler3Mock {
     }
 }
 
-contract AdapterMock {
+contract BundlerAdapterMock {
     IBundler3 private _bundler3;
 
     constructor(IBundler3 bundler3_) {
@@ -100,7 +100,7 @@ contract GateExampleTest is BaseTest {
 
         // Create a new bundler and adapter for the test
         address bundlerAddr = address(new Bundler3Mock(initiatorAddr));
-        address adapterAddr = address(new AdapterMock(IBundler3(bundlerAddr)));
+        address adapterAddr = address(new BundlerAdapterMock(IBundler3(bundlerAddr)));
 
         // Test when adapter is not registered
         vm.prank(gateOwner);

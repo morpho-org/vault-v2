@@ -4,7 +4,8 @@ pragma solidity >=0.5.0;
 import {IERC20} from "./IERC20.sol";
 import {IPermissionedToken} from "./IPermissionedToken.sol";
 
-struct IdConfig {
+struct Caps {
+    uint256 allocation;
     uint128 absoluteCap;
     uint64 relativeCap;
     bool enabled;

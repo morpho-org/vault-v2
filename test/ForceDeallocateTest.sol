@@ -48,7 +48,7 @@ contract ForceDeallocateTest is BaseTest {
         vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (adapter, forceDeallocatePenalty)));
         vault.setForceDeallocatePenalty(adapter, forceDeallocatePenalty);
 
-        uint256 penaltyAssets = deallocated.mulDivDown(forceDeallocatePenalty, WAD);
+        uint256 penaltyAssets = deallocated.mulDivUp(forceDeallocatePenalty, WAD);
         uint256 expectedShares = shares - vault.previewWithdraw(penaltyAssets);
         vm.expectEmit();
         emit EventsLib.ForceDeallocate(address(this), adapter, hex"", deallocated, address(this));

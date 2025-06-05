@@ -7,13 +7,13 @@ import {
     OracleMock,
     IrmMock,
     IMorpho,
-    IMetaMorpho,
+    IMetaMorphoV1_1,
     ORACLE_PRICE_SCALE,
     MarketParams,
     MarketParamsLib,
     Id,
     MorphoBalancesLib
-} from "../../lib/metamorpho/test/forge/helpers/IntegrationTest.sol";
+} from "../../lib/metamorpho-v1.1/test/forge/helpers/IntegrationTest.sol";
 
 import {IVaultV2Factory} from "../../src/interfaces/IVaultV2Factory.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
@@ -25,7 +25,7 @@ import "../../src/VaultV2.sol";
 import {MetaMorphoAdapter} from "../../src/adapters/MetaMorphoAdapter.sol";
 import {MetaMorphoAdapterFactory} from "../../src/adapters/MetaMorphoAdapterFactory.sol";
 
-contract MMIntegrationTest is BaseTest {
+contract MMV1_1IntegrationTest is BaseTest {
     using MarketParamsLib for MarketParams;
 
     uint256 internal constant MAX_TEST_ASSETS = 1e32;
@@ -38,7 +38,7 @@ contract MMIntegrationTest is BaseTest {
     IrmMock internal irm;
 
     // MetaMorpho.
-    IMetaMorpho internal metaMorpho;
+    IMetaMorphoV1_1 internal metaMorpho;
     address internal immutable mmOwner = makeAddr("mmOwner");
     address internal immutable mmAllocator = makeAddr("mmAllocator");
     address internal immutable mmCurator = makeAddr("mmCurator");
@@ -102,9 +102,9 @@ contract MMIntegrationTest is BaseTest {
         allMarketParams.push(idleParams);
 
         // Setup metaMorpho.
-        metaMorpho = IMetaMorpho(
+        metaMorpho = IMetaMorphoV1_1(
             deployCode(
-                "MetaMorpho.sol",
+                "MetaMorphoV1_1.sol",
                 abi.encode(mmOwner, address(morpho), MM_TIMELOCK, address(underlyingToken), "metamorpho", "MM")
             )
         );

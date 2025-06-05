@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {IVaultV2, IERC20, IdConfig} from "./interfaces/IVaultV2.sol";
+import {IVaultV2, IERC20, Caps} from "./interfaces/IVaultV2.sol";
 import {IAdapter} from "./interfaces/IAdapter.sol";
 import {IVic} from "./interfaces/IVic.sol";
 
@@ -74,18 +74,18 @@ contract VaultV2 is IVaultV2 {
     /* CURATION STORAGE */
 
     mapping(address account => bool) public isAdapter;
+
+    /// @dev Ids have an asset allocation, can be enabled and disabled, and can be absolutely capped and/or relatively
+    /// capped.
     /// @dev The allocation is not updated to take interests into account.
     /// @dev Some underlying markets might allow to take into account interest (fixed rate, fixed term), some might not.
-    mapping(bytes32 id => uint256) public allocation;
-
-    /// @dev Ids can be enabled or not, absolutely capped, and relatively capped.
     /// @dev The absolute cap is checked on allocate (where allocations can increase) for the ids returned by the
     /// adapter.
     /// @dev The relative cap is relative to `totalAssets`.
     /// @dev Relative caps are "soft" in the sense that they are only checked on allocate for the ids returned by the
     /// adapter.
     /// @dev The relative cap unit is WAD.
-    mapping(bytes32 id => IdConfig) internal idConfig;
+    mapping(bytes32 id => Caps) internal caps;
 
     mapping(address adapter => uint256) public forceDeallocatePenalty;
 
@@ -97,7 +97,8 @@ contract VaultV2 is IVaultV2 {
 
     /* TIMELOCKS STORAGE */
 
-    /// @dev The timelock of decreaseTimelock is hard-coded at TIMELOCK_CAP.
+    /// @dev The timelock of decreaseTimelock is initially set to TIMELOCK_CAP, and can only be changed to
+    /// type(uint256).max through abdicateSubmit..
     /// @dev Only functions with the modifier `timelocked` are timelocked.
     /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
     /// timelocked data can potentially be changed shortly afterwards.
@@ -134,16 +135,20 @@ contract VaultV2 is IVaultV2 {
         return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
     }
 
+    function allocation(bytes32 id) external view returns (uint256) {
+        return caps[id].allocation;
+    }
+
     function absoluteCap(bytes32 id) external view returns (uint256) {
-        return idConfig[id].absoluteCap;
+        return caps[id].absoluteCap;
     }
 
     function relativeCap(bytes32 id) external view returns (uint256) {
-        return idConfig[id].relativeCap;
+        return caps[id].relativeCap;
     }
 
     function enabled(bytes32 id) external view returns (bool) {
-        return idConfig[id].enabled;
+        return caps[id].enabled;
     }
 
     /* MULTICALL */
@@ -287,29 +292,29 @@ contract VaultV2 is IVaultV2 {
 
     function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external timelocked {
         bytes32 id = keccak256(idData);
-        require(newAbsoluteCap >= idConfig[id].absoluteCap, ErrorsLib.AbsoluteCapNotIncreasing());
+        require(newAbsoluteCap >= caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotIncreasing());
 
-        idConfig[id].absoluteCap = newAbsoluteCap.toUint128();
+        caps[id].absoluteCap = newAbsoluteCap.toUint128();
         emit EventsLib.IncreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
     function decreaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external {
         bytes32 id = keccak256(idData);
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        require(newAbsoluteCap <= idConfig[id].absoluteCap, ErrorsLib.AbsoluteCapNotDecreasing());
+        require(newAbsoluteCap <= caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotDecreasing());
 
-        // safe by invariant: idConfig[id].absoluteCap fits on 128 bits
-        idConfig[id].absoluteCap = uint128(newAbsoluteCap);
+        // safe by invariant: config.absoluteCap fits on 128 bits
+        caps[id].absoluteCap = uint128(newAbsoluteCap);
         emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
     function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
         bytes32 id = keccak256(idData);
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
-        require(newRelativeCap >= idConfig[id].relativeCap, ErrorsLib.RelativeCapNotIncreasing());
+        require(newRelativeCap >= caps[id].relativeCap, ErrorsLib.RelativeCapNotIncreasing());
 
         // safe since WAD fits on 64 bits
-        idConfig[id].relativeCap = uint64(newRelativeCap);
+        caps[id].relativeCap = uint64(newRelativeCap);
 
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
@@ -317,23 +322,23 @@ contract VaultV2 is IVaultV2 {
     function decreaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external {
         bytes32 id = keccak256(idData);
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        require(newRelativeCap <= idConfig[id].relativeCap, ErrorsLib.RelativeCapNotDecreasing());
+        require(newRelativeCap <= caps[id].relativeCap, ErrorsLib.RelativeCapNotDecreasing());
 
         // safe since WAD fits on 64 bits
-        idConfig[id].relativeCap = uint64(newRelativeCap);
+        caps[id].relativeCap = uint64(newRelativeCap);
 
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }
 
     function enableId(bytes calldata idData) external timelocked {
         bytes32 id = keccak256(idData);
-        idConfig[id].enabled = true;
+        caps[id].enabled = true;
         emit EventsLib.EnableId(id);
     }
 
     function disableId(bytes calldata idData) external timelocked {
         bytes32 id = keccak256(idData);
-        idConfig[id].enabled = false;
+        caps[id].enabled = false;
         emit EventsLib.DisableId(id);
     }
 
@@ -361,13 +366,13 @@ contract VaultV2 is IVaultV2 {
         }
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss) + assets;
+            Caps storage _caps = caps[ids[i]];
+            _caps.allocation = _caps.allocation.zeroFloorSub(loss) + assets;
 
-            require(idConfig[ids[i]].enabled, ErrorsLib.IdNotEnabled());
-            require(allocation[ids[i]] <= idConfig[ids[i]].absoluteCap, ErrorsLib.AbsoluteCapExceeded());
+            require(_caps.enabled, ErrorsLib.IdNotEnabled());
+            require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
             require(
-                idConfig[ids[i]].relativeCap == WAD
-                    || allocation[ids[i]] <= uint256(_totalAssets).mulDivDown(idConfig[ids[i]].relativeCap, WAD),
+                _caps.relativeCap == WAD || _caps.allocation <= uint256(_totalAssets).mulDivDown(_caps.relativeCap, WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
@@ -381,6 +386,8 @@ contract VaultV2 is IVaultV2 {
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
+        accrueInterest();
+
         (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).deallocate(data, assets);
 
         if (loss > 0) {
@@ -389,8 +396,9 @@ contract VaultV2 is IVaultV2 {
         }
 
         for (uint256 i; i < ids.length; i++) {
-            require(idConfig[ids[i]].enabled, ErrorsLib.IdNotEnabled());
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorSub(loss + assets);
+            Caps storage _caps = caps[ids[i]];
+            require(_caps.enabled, ErrorsLib.IdNotEnabled());
+            _caps.allocation = _caps.allocation.zeroFloorSub(loss + assets);
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
@@ -595,7 +603,7 @@ contract VaultV2 is IVaultV2 {
         this.deallocate(adapter, data, assets);
 
         // The penalty is taken as a withdrawal that is donated to the vault.
-        uint256 penaltyAssets = assets.mulDivDown(forceDeallocatePenalty[adapter], WAD);
+        uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
         emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf);
         return shares;

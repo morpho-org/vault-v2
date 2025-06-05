@@ -10,6 +10,7 @@ import {ManualVic, ManualVicFactory} from "../src/vic/ManualVicFactory.sol";
 import "../src/VaultV2.sol";
 
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
+import {AdapterMock} from "./mocks/AdapterMock.sol";
 
 import {Test, console} from "../lib/forge-std/src/Test.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
@@ -71,6 +72,22 @@ contract BaseTest is Test {
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.enableId, (idData)));
         vault.enableId(idData);
+    }
+
+    function increaseAbsoluteCap(bytes memory idData, uint256 absoluteCap) internal {
+        bytes32 id = keccak256(idData);
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, absoluteCap)));
+        vault.increaseAbsoluteCap(idData, absoluteCap);
+        assertEq(vault.absoluteCap(id), absoluteCap);
+    }
+
+    function increaseRelativeCap(bytes memory idData, uint256 relativeCap) internal {
+        bytes32 id = keccak256(idData);
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, relativeCap));
+        vault.increaseRelativeCap(idData, relativeCap);
+        assertEq(vault.relativeCap(id), relativeCap);
     }
 }
 
