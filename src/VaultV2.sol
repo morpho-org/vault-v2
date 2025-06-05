@@ -439,9 +439,8 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
-    /// @dev The IPS is taken to be 0 if VIC reverts, has no code, or if the corresponding rate is above the max rate.
-    /// @dev Reverts if the VIC call is successful but returns a data of size different from 32.
-    /// @dev Could also revert if the VIC consumes all of the available gas or returns a memory bomb.
+    /// @dev The IPS is taken to be 0 if VIC reverts, has no code, returns a data that is not of size 32, or if the
+    /// corresponding rate is above the max rate.
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
@@ -451,7 +450,7 @@ contract VaultV2 is IVaultV2 {
         uint256 tentativeInterestPerSecond;
         assembly ("memory-safe") {
             let success := staticcall(gas(), sload(vic.slot), add(data, 0x20), mload(data), 0, 0x20)
-            tentativeInterestPerSecond := mul(eq(returndatasize(), 0x20), mload(0))
+            tentativeInterestPerSecond := mul(success, mul(eq(returndatasize(), 0x20), mload(0)))
         }
 
         uint256 interestPerSecond = tentativeInterestPerSecond
