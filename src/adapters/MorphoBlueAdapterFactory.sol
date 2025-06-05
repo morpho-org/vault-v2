@@ -7,15 +7,15 @@ import {IMorphoBlueAdapterFactory} from "./interfaces/IMorphoBlueAdapterFactory.
 contract MorphoBlueAdapterFactory is IMorphoBlueAdapterFactory {
     /* STORAGE */
 
-    /// @dev vault => adapter
-    mapping(address => address) public morphoBlueAdapter;
+    /// @dev vault => morpho => irm => adapter
+    mapping(address => mapping(address => mapping(address => address))) public morphoBlueAdapter;
     mapping(address => bool) public isMorphoBlueAdapter;
 
     /* FUNCTIONS */
 
     function createMorphoBlueAdapter(address vault, address morpho, address irm) external returns (address) {
         address _morphoBlueAdapter = address(new MorphoBlueAdapter{salt: bytes32(0)}(vault, morpho, irm));
-        morphoBlueAdapter[vault] = _morphoBlueAdapter;
+        morphoBlueAdapter[vault][morpho][irm] = _morphoBlueAdapter;
         isMorphoBlueAdapter[_morphoBlueAdapter] = true;
         emit CreateMorphoBlueAdapter(vault, _morphoBlueAdapter);
         return _morphoBlueAdapter;

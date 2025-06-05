@@ -174,7 +174,11 @@ contract MorphoBlueAdapterTest is Test {
         assertTrue(newAdapter != address(0), "Adapter not created");
         assertEq(MorphoBlueAdapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
         assertEq(MorphoBlueAdapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
-        assertEq(factory.morphoBlueAdapter(newParentVaultAddr), newAdapter, "Adapter not tracked correctly");
+        assertEq(
+            factory.morphoBlueAdapter(newParentVaultAddr, address(morpho), address(irm)),
+            newAdapter,
+            "Adapter not tracked correctly"
+        );
         assertTrue(factory.isMorphoBlueAdapter(newAdapter), "Adapter not tracked correctly");
     }
 
