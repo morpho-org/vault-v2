@@ -206,8 +206,9 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetExitGate(newExitGate);
     }
 
+    /// @dev Interest is not accrued to allow to always be able to set the VIC.
+    /// @dev For consistency, batch with a call to accrueInterest.
     function setVic(address newVic) external timelocked {
-        accrueInterest();
         vic = newVic;
         emit EventsLib.SetVic(newVic);
     }

@@ -70,14 +70,6 @@ contract AccrueInterestTest is BaseTest {
         vault.redeem(0, address(this), address(this));
     }
 
-    function testSetVicAccruesInterest() public {
-        skip(1);
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(vic))));
-        vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
-        vault.setVic(address(vic));
-    }
-
     function testSetPerformanceFeeAccruesInterest() public {
         skip(1);
         vm.prank(curator);
