@@ -134,7 +134,7 @@ contract MMIntegrationTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
     }
 
-    function setSupplyQueueIdle() public {
+    function setSupplyQueueIdle() internal {
         setMetaMorphoCap(idleParams, type(uint184).max);
         Id[] memory supplyQueue = new Id[](1);
         supplyQueue[0] = idleParams.id();
@@ -142,7 +142,7 @@ contract MMIntegrationTest is BaseTest {
         metaMorpho.setSupplyQueue(supplyQueue);
     }
 
-    function setSupplyQueueAllMarkets() public {
+    function setSupplyQueueAllMarkets() internal {
         Id[] memory supplyQueue = new Id[](MM_NB_MARKETS);
         for (uint256 i; i < MM_NB_MARKETS; i++) {
             MarketParams memory marketParams = allMarketParams[i];

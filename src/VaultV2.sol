@@ -586,7 +586,7 @@ contract VaultV2 is IVaultV2 {
         returns (uint256)
     {
         this.deallocate(adapter, data, assets);
-        uint256 penaltyAssets = assets.mulDivDown(forceDeallocatePenalty[adapter], WAD);
+        uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
         emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf);
         return shares;
