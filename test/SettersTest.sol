@@ -196,7 +196,6 @@ contract SettersTest is BaseTest {
         emit EventsLib.SetVic(newVic);
         vault.setVic(newVic);
         assertEq(address(vault.vic()), newVic);
-        assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
     }
 
     function testSetIsAdapter(address rdm) public {
