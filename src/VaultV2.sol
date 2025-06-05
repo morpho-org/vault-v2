@@ -447,9 +447,12 @@ contract VaultV2 is IVaultV2 {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
-        (bool success, bytes memory data) =
-            vic.staticcall(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
-        uint256 tentativeInterestPerSecond = success && vic.code.length > 0 ? abi.decode(data, (uint256)) : 0;
+        bytes memory data = abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed));
+        uint256 tentativeInterestPerSecond;
+        assembly ("memory-safe") {
+            let success := staticcall(gas(), sload(vic.slot), add(data, 0x20), mload(data), 0, 0x20)
+            tentativeInterestPerSecond := mul(eq(returndatasize(), 0x20), mload(0))
+        }
 
         uint256 interestPerSecond = tentativeInterestPerSecond
             <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
