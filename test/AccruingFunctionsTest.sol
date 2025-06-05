@@ -40,6 +40,15 @@ contract AccrueInterestTest is BaseTest {
     }
 
     function testDeallocateAccruesInterest() public {
+        // setup
+        increaseAbsoluteCap("id", 1);
+        increaseRelativeCap("id", WAD);
+        deal(address(underlyingToken), address(this), 1);
+        underlyingToken.approve(address(vault), type(uint256).max);
+        vault.deposit(1, address(this));
+        vm.prank(allocator);
+        vault.allocate(address(adapter), hex"", 1);
+
         skip(1);
         vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
         vm.prank(allocator);

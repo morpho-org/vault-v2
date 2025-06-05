@@ -73,10 +73,22 @@ contract RealizeLossTest is BaseTest {
     }
 
     function testRealizeLossDeallocate(uint256 deposit, uint256 expectedLoss) public {
-        deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
+        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 0, deposit);
 
         vault.deposit(deposit, address(this));
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, deposit)));
+        vault.increaseAbsoluteCap(idData, deposit);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, WAD));
+        vault.increaseRelativeCap(idData, WAD);
+
+        vm.prank(allocator);
+        vault.allocate(address(adapter), "", deposit);
+
         adapter.setLoss(expectedLoss);
 
         // Realize the loss.
@@ -94,10 +106,22 @@ contract RealizeLossTest is BaseTest {
     }
 
     function testRealizeLossForceDeallocate(uint256 deposit, uint256 expectedLoss) public {
-        deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
+        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 0, deposit);
 
         vault.deposit(deposit, address(this));
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, deposit)));
+        vault.increaseAbsoluteCap(idData, deposit);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, WAD));
+        vault.increaseRelativeCap(idData, WAD);
+
+        vm.prank(allocator);
+        vault.allocate(address(adapter), "", deposit);
+
         adapter.setLoss(expectedLoss);
 
         // Realize the loss.
