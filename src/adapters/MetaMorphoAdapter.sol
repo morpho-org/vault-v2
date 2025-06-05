@@ -29,7 +29,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         parentVault = _parentVault;
         metaMorpho = _metaMorpho;
         address asset = IVaultV2(_parentVault).asset();
-        require(asset == IERC4626(_metaMorpho).asset(), WrongAsset());
+        require(asset == IERC4626(_metaMorpho).asset(), InconsistentAsset());
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _metaMorpho, type(uint256).max);
     }

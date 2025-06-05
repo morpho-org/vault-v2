@@ -12,8 +12,8 @@ interface IMorphoBlueAdapter is IAdapter {
     /* ERRORS */
 
     error NotAuthorized();
-    error WrongAsset();
-    error WrongIrm();
+    error InconsistentLoanAsset();
+    error InconsistentIrm();
 
     /* FUNCTIONS */
 

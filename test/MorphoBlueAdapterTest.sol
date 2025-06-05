@@ -106,7 +106,7 @@ contract MorphoBlueAdapterTest is Test {
         vm.assume(randomAsset != marketParams.loanToken);
         assets = _boundAssets(assets);
         marketParams.loanToken = randomAsset;
-        vm.expectRevert(IMorphoBlueAdapter.WrongAsset.selector);
+        vm.expectRevert(IMorphoBlueAdapter.InconsistentLoanAsset.selector);
         vm.prank(address(parentVault));
         adapter.allocate(abi.encode(marketParams), assets);
     }
@@ -115,7 +115,7 @@ contract MorphoBlueAdapterTest is Test {
         vm.assume(randomAsset != marketParams.loanToken);
         assets = _boundAssets(assets);
         marketParams.loanToken = randomAsset;
-        vm.expectRevert(IMorphoBlueAdapter.WrongAsset.selector);
+        vm.expectRevert(IMorphoBlueAdapter.InconsistentLoanAsset.selector);
         vm.prank(address(parentVault));
         adapter.deallocate(abi.encode(marketParams), assets);
     }
@@ -297,12 +297,12 @@ contract MorphoBlueAdapterTest is Test {
     function testWrongIrm(address randomIrm) public {
         vm.assume(randomIrm != address(irm));
         marketParams.irm = randomIrm;
-        vm.expectRevert(IMorphoBlueAdapter.WrongIrm.selector);
+        vm.expectRevert(IMorphoBlueAdapter.InconsistentIrm.selector);
         vm.prank(address(parentVault));
         adapter.allocate(abi.encode(marketParams), 0);
 
         vm.prank(address(parentVault));
-        vm.expectRevert(IMorphoBlueAdapter.WrongIrm.selector);
+        vm.expectRevert(IMorphoBlueAdapter.InconsistentIrm.selector);
         adapter.deallocate(abi.encode(marketParams), 0);
     }
 
