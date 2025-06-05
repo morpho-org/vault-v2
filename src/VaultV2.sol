@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {IVaultV2, IERC20} from "./interfaces/IVaultV2.sol";
+import {IVaultV2, IERC20, Caps} from "./interfaces/IVaultV2.sol";
 import {IAdapter} from "./interfaces/IAdapter.sol";
 import {IVic} from "./interfaces/IVic.sol";
 
@@ -9,6 +9,7 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
+import {UtilsLib} from "./libraries/UtilsLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 
@@ -73,19 +74,17 @@ contract VaultV2 is IVaultV2 {
     /* CURATION STORAGE */
 
     mapping(address account => bool) public isAdapter;
+
+    /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
     /// @dev The allocation is not updated to take interests into account.
     /// @dev Some underlying markets might allow to take into account interest (fixed rate, fixed term), some might not.
-    mapping(bytes32 id => uint256) public allocation;
-
     /// @dev The absolute cap is checked on allocate (where allocations can increase) for the ids returned by the
     /// adapter.
-    mapping(bytes32 id => uint256) public absoluteCap;
-
-    /// @dev Unit is WAD.
     /// @dev The relative cap is relative to `totalAssets`.
     /// @dev Relative caps are "soft" in the sense that they are only checked on allocate for the ids returned by the
     /// adapter.
-    mapping(bytes32 id => uint256) public relativeCap;
+    /// @dev The relative cap unit is WAD.
+    mapping(bytes32 id => Caps) internal caps;
 
     mapping(address adapter => uint256) public forceDeallocatePenalty;
 
@@ -97,7 +96,8 @@ contract VaultV2 is IVaultV2 {
 
     /* TIMELOCKS STORAGE */
 
-    /// @dev The timelock of decreaseTimelock is hard-coded at TIMELOCK_CAP.
+    /// @dev The timelock of decreaseTimelock is initially set to TIMELOCK_CAP, and can only be changed to
+    /// type(uint256).max through abdicateSubmit..
     /// @dev Only functions with the modifier `timelocked` are timelocked.
     /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
     /// timelocked data can potentially be changed shortly afterwards.
@@ -132,6 +132,18 @@ contract VaultV2 is IVaultV2 {
 
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
         return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
+    }
+
+    function absoluteCap(bytes32 id) external view returns (uint256) {
+        return caps[id].absoluteCap;
+    }
+
+    function relativeCap(bytes32 id) external view returns (uint256) {
+        return caps[id].relativeCap;
+    }
+
+    function allocation(bytes32 id) external view returns (uint256) {
+        return caps[id].allocation;
     }
 
     /* MULTICALL */
@@ -275,27 +287,29 @@ contract VaultV2 is IVaultV2 {
 
     function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external timelocked {
         bytes32 id = keccak256(idData);
-        require(newAbsoluteCap >= absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
+        require(newAbsoluteCap >= caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotIncreasing());
 
-        absoluteCap[id] = newAbsoluteCap;
+        caps[id].absoluteCap = newAbsoluteCap.toUint128();
         emit EventsLib.IncreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
     function decreaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external {
         bytes32 id = keccak256(idData);
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        require(newAbsoluteCap <= absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
+        require(newAbsoluteCap <= caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotDecreasing());
 
-        absoluteCap[id] = newAbsoluteCap;
+        // safe by invariant: config.absoluteCap fits on 128 bits
+        caps[id].absoluteCap = uint128(newAbsoluteCap);
         emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
     function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
         bytes32 id = keccak256(idData);
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
-        require(newRelativeCap >= relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
+        require(newRelativeCap >= caps[id].relativeCap, ErrorsLib.RelativeCapNotIncreasing());
 
-        relativeCap[id] = newRelativeCap;
+        // safe since WAD fits on 128 bits
+        caps[id].relativeCap = uint128(newRelativeCap);
 
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
@@ -303,9 +317,10 @@ contract VaultV2 is IVaultV2 {
     function decreaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external {
         bytes32 id = keccak256(idData);
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        require(newRelativeCap <= relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
+        require(newRelativeCap <= caps[id].relativeCap, ErrorsLib.RelativeCapNotDecreasing());
 
-        relativeCap[id] = newRelativeCap;
+        // safe since WAD fits on 128 bits
+        caps[id].relativeCap = uint128(newRelativeCap);
 
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }
@@ -334,12 +349,12 @@ contract VaultV2 is IVaultV2 {
         }
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorAddInt(change) + assets;
+            Caps storage _caps = caps[ids[i]];
+            _caps.allocation = _caps.allocation.zeroFloorAddInt(change) + assets;
 
-            require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
-            uint256 _relativeCap = relativeCap[ids[i]];
+            require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
             require(
-                _relativeCap == WAD || allocation[ids[i]] <= uint256(_totalAssets).mulDivDown(_relativeCap, WAD),
+                _caps.relativeCap == WAD || _caps.allocation <= uint256(_totalAssets).mulDivDown(_caps.relativeCap, WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
@@ -353,6 +368,8 @@ contract VaultV2 is IVaultV2 {
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
+        accrueInterest();
+
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets);
 
         if (change < 0) {
@@ -361,7 +378,8 @@ contract VaultV2 is IVaultV2 {
         }
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorAddInt(change) - assets;
+            Caps storage _caps = caps[ids[i]];
+            _caps.allocation = _caps.allocation.zeroFloorAddInt(change) - assets;
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
@@ -425,16 +443,11 @@ contract VaultV2 is IVaultV2 {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
-        // Low level call and decoding to avoid reverting if the VIC has no code or returns data that fails to decode.
-        (bool success, bytes memory data) =
-            address(vic).staticcall(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
-        uint256 output;
-        if (success) {
-            assembly ("memory-safe") {
-                output := mload(add(data, 32))
-            }
-        }
-        uint256 interestPerSecond = output <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? output : 0;
+        uint256 tentativeInterestPerSecond =
+            UtilsLib.controlledStaticCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+
+        uint256 interestPerSecond = tentativeInterestPerSecond
+            <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = _totalAssets + interest;
 
@@ -564,20 +577,16 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns shares withdrawn as penalty.
     /// @dev This function will automatically realize potential losses.
-    function forceDeallocate(address[] memory adapters, bytes[] memory data, uint256[] memory assets, address onBehalf)
+    function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256)
     {
-        require(adapters.length == data.length && adapters.length == assets.length, ErrorsLib.InvalidInputLength());
-        uint256 penaltyAssets;
-        for (uint256 i; i < adapters.length; i++) {
-            this.deallocate(adapters[i], data[i], assets[i]);
-            penaltyAssets += assets[i].mulDivDown(forceDeallocatePenalty[adapters[i]], WAD);
-        }
+        this.deallocate(adapter, data, assets);
 
         // The penalty is taken as a withdrawal that is donated to the vault.
+        uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
-        emit EventsLib.ForceDeallocate(msg.sender, adapters, data, assets, onBehalf);
+        emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf);
         return shares;
     }
 

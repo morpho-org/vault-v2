@@ -18,6 +18,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /* IMMUTABLES */
 
     address public immutable parentVault;
+    address public immutable asset;
     address public immutable morpho;
 
     /* STORAGE */
@@ -30,8 +31,9 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     constructor(address _parentVault, address _morpho) {
         morpho = _morpho;
         parentVault = _parentVault;
-        SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _morpho, type(uint256).max);
-        SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
+        asset = IVaultV2(_parentVault).asset();
+        SafeERC20Lib.safeApprove(asset, _morpho, type(uint256).max);
+        SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -52,9 +54,10 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the PnL in this allocation.
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
-        require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
+        require(msg.sender == parentVault, NotAuthorized());
+        require(marketParams.loanToken == asset, WrongAsset());
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
@@ -69,9 +72,10 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the PnL in this allocation.
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
-        require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
+        require(msg.sender == parentVault, NotAuthorized());
+        require(marketParams.loanToken == asset, WrongAsset());
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);

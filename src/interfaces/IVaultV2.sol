@@ -4,6 +4,12 @@ pragma solidity >=0.5.0;
 import {IERC20} from "./IERC20.sol";
 import {IPermissionedToken} from "./IPermissionedToken.sol";
 
+struct Caps {
+    uint256 allocation;
+    uint128 absoluteCap;
+    uint128 relativeCap;
+}
+
 interface IVaultV2 is IERC20, IPermissionedToken {
     // Multicall
     function multicall(bytes[] memory data) external;
@@ -92,7 +98,7 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     function revoke(bytes memory data) external;
 
     // Force reallocate to idle
-    function forceDeallocate(address[] memory adapters, bytes[] memory data, uint256[] memory assets, address onBehalf)
+    function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256 withdrawnShares);
 

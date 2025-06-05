@@ -36,14 +36,25 @@ contract ManualVic is IManualVic {
         emit DecreaseMaxInterestPerSecond(msg.sender, maxInterestPerSecond);
     }
 
-    function setInterestPerSecond(uint256 newInterestPerSecond) public {
-        require(IVaultV2(vault).isAllocator(msg.sender) || IVaultV2(vault).isSentinel(msg.sender), Unauthorized());
+    function increaseInterestPerSecond(uint256 newInterestPerSecond) public {
+        require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         require(newInterestPerSecond <= maxInterestPerSecond, InterestPerSecondTooHigh());
+        require(newInterestPerSecond >= _interestPerSecond, NotIncreasing());
 
         IVaultV2(vault).accrueInterest();
 
         _interestPerSecond = newInterestPerSecond;
-        emit SetInterestPerSecond(msg.sender, newInterestPerSecond);
+        emit IncreaseInterestPerSecond(msg.sender, newInterestPerSecond);
+    }
+
+    function decreaseInterestPerSecond(uint256 newInterestPerSecond) public {
+        require(IVaultV2(vault).isAllocator(msg.sender) || IVaultV2(vault).isSentinel(msg.sender), Unauthorized());
+        require(newInterestPerSecond <= _interestPerSecond, NotDecreasing());
+
+        IVaultV2(vault).accrueInterest();
+
+        _interestPerSecond = newInterestPerSecond;
+        emit DecreaseInterestPerSecond(msg.sender, newInterestPerSecond);
     }
 
     /// @dev Returns the interest per second.
