@@ -96,7 +96,8 @@ contract VaultV2 is IVaultV2 {
 
     /* TIMELOCKS STORAGE */
 
-    /// @dev The timelock of decreaseTimelock is hard-coded at TIMELOCK_CAP.
+    /// @dev The timelock of decreaseTimelock is initially set to TIMELOCK_CAP, and can only be changed to
+    /// type(uint256).max through abdicateSubmit..
     /// @dev Only functions with the modifier `timelocked` are timelocked.
     /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
     /// timelocked data can potentially be changed shortly afterwards.
