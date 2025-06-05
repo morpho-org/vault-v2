@@ -445,10 +445,13 @@ contract VaultV2 is IVaultV2 {
         bool canReceivePerformanceFee = canReceive(performanceFeeRecipient);
         bool canReceiveManagementFee = canReceive(managementFeeRecipient);
 
-        uint256 interest;
-        try this.callVic(elapsed) returns (uint256 interestPerSecond) {
-            interest = interestPerSecond * elapsed;
+        uint256 interestPerSecond;
+        try this.callVic(elapsed) returns (uint256 tentativeInterestPerSecond) {
+            interestPerSecond = tentativeInterestPerSecond <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD)
+                ? tentativeInterestPerSecond
+                : 0;
         } catch {}
+        uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = _totalAssets + interest;
 
         uint256 performanceFeeShares;
@@ -478,12 +481,7 @@ contract VaultV2 is IVaultV2 {
 
     function callVic(uint256 elapsed) external view returns (uint256) {
         require(msg.sender == address(this));
-        (bool success, bytes memory data) =
-            vic.staticcall(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
-        require(success && vic.code.length > 0);
-        uint256 interestPerSecond = abi.decode(data, (uint256));
-        require(interestPerSecond <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        return interestPerSecond;
+        return IVic(vic).interestPerSecond(_totalAssets, elapsed);
     }
 
     /// @dev Returns previewed minted shares.
