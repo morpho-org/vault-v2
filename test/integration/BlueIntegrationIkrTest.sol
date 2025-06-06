@@ -68,10 +68,9 @@ contract BlueIntegrationIkrTest is BlueIntegrationTest {
         vm.assume(deallocatedAssets > 0);
 
         // Normal withdraw fails
-        vm.startPrank(allocator);
-        vault.setLiquidityAdapter(address(adapter));
-        vault.setLiquidityData(abi.encode(marketParams1));
-        vm.stopPrank();
+        vm.prank(allocator);
+        vault.setLiquidityMarket(address(adapter), abi.encode(marketParams1));
+
         vm.expectRevert();
         vault.withdraw(deallocatedAssets, address(this), address(this));
 
