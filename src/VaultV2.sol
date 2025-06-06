@@ -521,30 +521,30 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns corresponding shares (rounded down).
-    function convertToShares(uint256 assets) public view returns (uint256) {
+    function convertToShares(uint256 assets) external view returns (uint256) {
         return previewDeposit(assets);
     }
 
     /// @dev Returns corresponding assets (rounded down).
-    function convertToAssets(uint256 shares) public view returns (uint256) {
+    function convertToAssets(uint256 shares) external view returns (uint256) {
         return previewRedeem(shares);
     }
 
     /* MAX */
 
-    function maxDeposit(address onBehalf) public view returns (uint256) {
+    function maxDeposit(address onBehalf) external view returns (uint256) {
         return canReceive(onBehalf) ? type(uint256).max : 0;
     }
 
-    function maxMint(address onBehalf) public view returns (uint256) {
+    function maxMint(address onBehalf) external view returns (uint256) {
         return canReceive(onBehalf) ? type(uint256).max : 0;
     }
 
-    function maxWithdraw(address) public pure returns (uint256) {
+    function maxWithdraw(address) external pure returns (uint256) {
         return 0;
     }
 
-    function maxRedeem(address) public pure returns (uint256) {
+    function maxRedeem(address) external pure returns (uint256) {
         return 0;
     }
 
