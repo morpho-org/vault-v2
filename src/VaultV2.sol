@@ -536,7 +536,7 @@ contract VaultV2 is IVaultV2 {
         return canReceive(onBehalf) ? type(uint256).max : 0;
     }
 
-    /// @dev It is not possible to deposit 2^256-1 in practice because of overflows, but there are no other limits.
+    /// @dev Even though deposit 2^256-1 would overflow, this value is used to signal the absence of an intrinsic limit (per ERC-4626).
     /// @dev Returns the maximum amount of shares that can be minted.
     function maxMint(address onBehalf) external view returns (uint256) {
         return canReceive(onBehalf) ? type(uint256).max : 0;
