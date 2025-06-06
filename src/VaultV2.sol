@@ -53,7 +53,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Can lock users out of withdrawing.
     address public sharesGate;
     /// @dev Gates receiving assets from the vault.
-    /// @dev Can lock users out of withdrawing.
+    /// @dev Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
     address public receiveAssetsGate;
     /// @dev Gates depositing assets to the vault.
     /// @dev Enable only this gate for a noncustodial, supply-gated vault.
