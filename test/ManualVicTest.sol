@@ -33,30 +33,42 @@ contract ManualVicTest is Test {
     function testSetMaxInterestPerSecond(address rdm, uint256 newMaxInterestPerSecond) public {
         vm.assume(rdm != curator);
         vm.assume(newMaxInterestPerSecond > 0);
+        vm.assume(newMaxInterestPerSecond <= type(uint96).max);
 
         // Access control.
         vm.prank(rdm);
         vm.expectRevert(IManualVic.Unauthorized.selector);
         manualVic.setMaxInterestPerSecond(newMaxInterestPerSecond);
 
-        // Normal path.
+        // Normal path, increasing.
         vm.prank(curator);
         vm.expectEmit();
         emit IManualVic.SetMaxInterestPerSecond(newMaxInterestPerSecond);
         manualVic.setMaxInterestPerSecond(newMaxInterestPerSecond);
         assertEq(manualVic.maxInterestPerSecond(), newMaxInterestPerSecond);
 
-        // Not increasing.
+        // Interest per second too high.
+        vm.prank(allocator);
+        manualVic.setInterestPerSecond(newMaxInterestPerSecond, type(uint64).max);
         vm.prank(curator);
-        vm.expectRevert(IManualVic.NotIncreasing.selector);
+        vm.expectRevert(IManualVic.InterestPerSecondTooHigh.selector);
         manualVic.setMaxInterestPerSecond(newMaxInterestPerSecond - 1);
+
+        // Normal path, decreasing.
+        vm.prank(allocator);
+        manualVic.setInterestPerSecond(0, type(uint64).max);
+        vm.prank(curator);
+        vm.expectEmit();
+        emit IManualVic.SetMaxInterestPerSecond(newMaxInterestPerSecond - 1);
+        manualVic.setMaxInterestPerSecond(newMaxInterestPerSecond - 1);
+        assertEq(manualVic.maxInterestPerSecond(), newMaxInterestPerSecond - 1);
     }
 
-    function testZeroMaxInterestPerSecond(address rdm, uint256 newMaxInterestPerSecond) public {
+    function testZeroMaxInterestPerSecond(address rdm, uint256 maxInterestPerSecond) public {
         vm.assume(rdm != sentinel);
-        vm.assume(newMaxInterestPerSecond < type(uint128).max);
+        vm.assume(maxInterestPerSecond <= type(uint96).max);
         vm.prank(curator);
-        manualVic.setMaxInterestPerSecond(type(uint128).max);
+        manualVic.setMaxInterestPerSecond(type(uint96).max);
 
         // Access control.
         vm.prank(rdm);
@@ -65,15 +77,15 @@ contract ManualVicTest is Test {
 
         // Interest per second too high.
         vm.prank(allocator);
-        manualVic.setInterestPerSecond(newMaxInterestPerSecond + 1, type(uint128).max);
-        vm.prank(curator);
+        manualVic.setInterestPerSecond(1, type(uint64).max);
+        vm.prank(sentinel);
         vm.expectRevert(IManualVic.InterestPerSecondTooHigh.selector);
         manualVic.zeroMaxInterestPerSecond();
 
         // Normal path.
         vm.prank(allocator);
-        manualVic.setInterestPerSecond(0, type(uint128).max);
-        vm.prank(curator);
+        manualVic.setInterestPerSecond(0, type(uint64).max);
+        vm.prank(sentinel);
         vm.expectEmit();
         emit IManualVic.ZeroMaxInterestPerSecond(sentinel);
         manualVic.zeroMaxInterestPerSecond();
@@ -82,8 +94,8 @@ contract ManualVicTest is Test {
 
     function testSetInterestPerSecond(address rdm, uint256 newInterestPerSecond, uint256 newDeadline) public {
         vm.assume(rdm != allocator);
-        newInterestPerSecond = bound(newInterestPerSecond, 1, type(uint128).max);
-        newDeadline = bound(newDeadline, block.timestamp, type(uint128).max);
+        newInterestPerSecond = bound(newInterestPerSecond, 1, type(uint96).max);
+        newDeadline = bound(newDeadline, block.timestamp, type(uint64).max);
 
         // Access control.
         vm.prank(rdm);
@@ -95,14 +107,20 @@ contract ManualVicTest is Test {
         vm.expectRevert(IManualVic.InterestPerSecondTooHigh.selector);
         manualVic.setInterestPerSecond(1, newDeadline);
 
-        // Normal path.
+        // Normal path, increasing.
         vm.prank(curator);
-        manualVic.setMaxInterestPerSecond(type(uint256).max);
+        manualVic.setMaxInterestPerSecond(type(uint96).max);
         vm.prank(allocator);
         vm.expectEmit();
         emit IManualVic.SetInterestPerSecond(allocator, newInterestPerSecond, newDeadline);
         manualVic.setInterestPerSecond(newInterestPerSecond, newDeadline);
         assertEq(manualVic.interestPerSecond(0, 0), newInterestPerSecond);
+        assertEq(manualVic.deadline(), newDeadline);
+
+        // Normal path, decreasing.
+        vm.prank(allocator);
+        manualVic.setInterestPerSecond(newInterestPerSecond - 1, newDeadline);
+        assertEq(manualVic.interestPerSecond(0, 0), newInterestPerSecond - 1);
         assertEq(manualVic.deadline(), newDeadline);
     }
 
@@ -116,9 +134,9 @@ contract ManualVicTest is Test {
 
         // Normal path.
         vm.prank(curator);
-        manualVic.setMaxInterestPerSecond(type(uint256).max);
+        manualVic.setMaxInterestPerSecond(type(uint96).max);
         vm.prank(allocator);
-        manualVic.setInterestPerSecond(1, type(uint128).max);
+        manualVic.setInterestPerSecond(1, type(uint64).max);
         vm.prank(sentinel);
         vm.expectEmit();
         emit IManualVic.ZeroInterestPerSecond(sentinel);
@@ -132,7 +150,7 @@ contract ManualVicTest is Test {
 
         // Setup.
         vm.prank(curator);
-        manualVic.setMaxInterestPerSecond(type(uint128).max);
+        manualVic.setMaxInterestPerSecond(type(uint96).max);
         vm.prank(allocator);
         manualVic.setInterestPerSecond(1, newDeadline);
 
