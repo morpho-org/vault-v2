@@ -50,7 +50,8 @@ contract VaultV2 is IVaultV2 {
     address public owner;
     address public curator;
     /// @dev Gates sending and receiving shares.
-    /// @dev Can lock users out of withdrawing.
+    /// @dev canSendShares can lock users out of exiting the vault.
+    /// @dev canReceiveShares can prevent users to get back their shares that they deposited on other protocols. If it reverts or consumes a lot of gas, it can also make accrueInterest revert, thus freezing the vault.
     address public sharesGate;
     /// @dev Gates receiving assets from the vault.
     /// @dev Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
