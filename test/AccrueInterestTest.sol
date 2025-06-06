@@ -3,25 +3,6 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
-contract BurnsAllGas {
-    fallback() external {
-        assembly {
-            invalid()
-        }
-    }
-}
-
-// Gate that consume a sensible amount of gas and return true.
-contract Gate {
-    fallback() external {
-        assembly {
-            mstore(100000, 1) // consumes ~28k gas
-            mstore(0, 1)
-            return(0, 32)
-        }
-    }
-}
-
 contract AccrueInterestTest is BaseTest {
     using MathLib for uint256;
 
@@ -171,7 +152,7 @@ contract AccrueInterestTest is BaseTest {
     function testAccrueInterestVicReverting(uint256 elapsed) public {
         elapsed = bound(elapsed, 0, 1000 weeks);
 
-        address reverting = address(new Reverting());
+        address reverting = address(new Reverts(hex""));
 
         // Setup.
         vm.prank(curator);
@@ -180,6 +161,63 @@ contract AccrueInterestTest is BaseTest {
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
         // Vic reverts.
+        uint256 totalAssetsBefore = vault.totalAssets();
+        vault.accrueInterest();
+        assertEq(vault.totalAssets(), totalAssetsBefore);
+    }
+
+    function testAccrueInterestVicRevertingWithRightDataSize(uint256 elapsed) public {
+        elapsed = bound(elapsed, 0, 1000 weeks);
+
+        address reverting = address(new Reverts(abi.encode(1)));
+
+        // Setup.
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (reverting)));
+        vault.setVic(reverting);
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        // Vic reverts.
+        uint256 totalAssetsBefore = vault.totalAssets();
+        vault.accrueInterest();
+        assertEq(vault.totalAssets(), totalAssetsBefore);
+    }
+
+    function testAccrueInterestVicResTooSmall(uint256 elapsed, bytes memory data) public {
+        vm.assume(data.length < 32);
+        elapsed = bound(elapsed, 0, 1000 weeks);
+
+        address returnsData = address(new Returns(data));
+
+        // Setup.
+        vm.startPrank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (returnsData)));
+        vm.stopPrank();
+        vault.setVic(returnsData);
+
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        // Rate is zero.
+        uint256 totalAssetsBefore = vault.totalAssets();
+        vault.accrueInterest();
+        assertEq(vault.totalAssets(), totalAssetsBefore);
+    }
+
+    function testAccrueInterestVicResTooLarge(uint256 elapsed, bytes memory data) public {
+        vm.assume(data.length > 32);
+        elapsed = bound(elapsed, 0, 1000 weeks);
+
+        address returnsData = address(new Returns(data));
+
+        // Setup.
+        vm.startPrank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (returnsData)));
+        vm.stopPrank();
+        vault.setVic(returnsData);
+
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        // Rate is zero.
         uint256 totalAssetsBefore = vault.totalAssets();
         vault.accrueInterest();
         assertEq(vault.totalAssets(), totalAssetsBefore);
@@ -305,4 +343,51 @@ contract AccrueInterestTest is BaseTest {
     }
 }
 
-contract Reverting {}
+contract Reverts {
+    bytes public data;
+
+    constructor(bytes memory _data) {
+        data = _data;
+    }
+
+    fallback() external {
+        bytes memory res = data;
+        assembly {
+            revert(add(res, 0x20), mload(res))
+        }
+    }
+}
+
+contract BurnsAllGas {
+    fallback() external {
+        assembly {
+            invalid()
+        }
+    }
+}
+
+// Gate that consume a sensible amount of gas and return true.
+contract Gate {
+    fallback() external {
+        assembly {
+            mstore(100000, 1) // consumes ~28k gas
+            mstore(0, 1)
+            return(0, 32)
+        }
+    }
+}
+
+contract Returns {
+    bytes public data;
+
+    constructor(bytes memory _data) {
+        data = _data;
+    }
+
+    fallback() external {
+        bytes memory res = data;
+        assembly {
+            return(add(res, 0x20), mload(res))
+        }
+    }
+}
