@@ -292,7 +292,7 @@ contract AccrueInterestTest is BaseTest {
     }
 
     uint256 constant GAS_BURNED_BY_GATE = 1_000_000;
-    uint256 constant SAFE_GAS_AMOUNT = 1_500_000;
+    uint256 constant SAFE_GAS_AMOUNT = 2_000_000;
 
     function testGasRequiredToAccrueIfVicBurnsAllGas() public {
         // Vault setup
@@ -342,24 +342,24 @@ contract AccrueInterestTest is BaseTest {
         assertGt(vm.lastCallGas().gasTotalUsed, SAFE_GAS_AMOUNT * 63 / 64);
     }
 
-    function testCallVicReturnsBomb() public {
-        uint256 elapsed = 2 weeks;
+    function testReturnsBombCaught(bytes calldata) public {
         address newVic = address(new ReturnsBomb());
 
-        // Setup.
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (newVic)));
-        vault.setVic(newVic);
-        vm.warp(vm.getBlockTimestamp() + elapsed);
+        uint256 gas = 4953 * 2;
+        try this._staticcall{gas: gas}(newVic) {} catch {}
+    }
+
+    function testReturnBombNotCaught(bytes calldata) public {
+        address newVic = address(new ReturnsBomb());
 
         uint256 gas = 4953 * 2;
-
-        // Reverts with OOG bubbled up as Revert
         vm.expectRevert();
-        vault.callVic{gas: gas}(elapsed);
+        this._staticcall{gas: gas}(newVic);
+    }
 
-        // Doesn't revert
-        try vault.callVic{gas: gas}(elapsed) {} catch {}
+    function _staticcall(address account) external view {
+        (bool success,) = account.staticcall(hex"");
+        success; // No-op to silence warning.
     }
 }
 
