@@ -9,7 +9,6 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
-import {UtilsLib} from "./libraries/UtilsLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
 
@@ -442,11 +441,13 @@ contract VaultV2 is IVaultV2 {
         bool canReceivePerformanceFee = canReceive(performanceFeeRecipient);
         bool canReceiveManagementFee = canReceive(managementFeeRecipient);
 
-        uint256 tentativeInterestPerSecond =
-            UtilsLib.controlledStaticCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+        uint256 interestPerSecond;
+        try this.callVic(elapsed) returns (uint256 tentativeInterestPerSecond) {
+            interestPerSecond = tentativeInterestPerSecond <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD)
+                ? tentativeInterestPerSecond
+                : 0;
+        } catch {}
 
-        uint256 interestPerSecond = tentativeInterestPerSecond
-            <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = _totalAssets + interest;
 
@@ -473,6 +474,10 @@ contract VaultV2 is IVaultV2 {
             );
         }
         return (newTotalAssets, performanceFeeShares, managementFeeShares);
+    }
+
+    function callVic(uint256 elapsed) external view returns (uint256) {
+        return IVic(vic).interestPerSecond(_totalAssets, elapsed);
     }
 
     /// @dev Returns previewed minted shares.

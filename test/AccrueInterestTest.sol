@@ -51,6 +51,17 @@ contract BurnsGas {
     }
 }
 
+contract ReturnsBomb {
+    fallback() external {
+        // expansion cost: 3 * words + floor(words**2/512) = 4953
+        uint256 words = 1e3;
+        assembly {
+            mstore(mul(sub(words, 1), 32), 1)
+            return(0, mul(words, 32))
+        }
+    }
+}
+
 contract AccrueInterestTest is BaseTest {
     using MathLib for uint256;
 
@@ -281,7 +292,7 @@ contract AccrueInterestTest is BaseTest {
     }
 
     uint256 constant GAS_BURNED_BY_GATE = 1_000_000;
-    uint256 constant SAFE_GAS_AMOUNT = 6_000_000;
+    uint256 constant SAFE_GAS_AMOUNT = 1_500_000;
 
     function testGasRequiredToAccrueIfVicBurnsAllGas() public {
         // Vault setup
@@ -325,10 +336,30 @@ contract AccrueInterestTest is BaseTest {
 
         skip(2 weeks);
 
-        vault.accrueInterest{gas: SAFE_GAS_AMOUNT}();
+        vault.accrueInterest{gas: SAFE_GAS_AMOUNT + 2 * GAS_BURNED_BY_GATE}();
 
         // check that gas was almost entirely burned
         assertGt(vm.lastCallGas().gasTotalUsed, SAFE_GAS_AMOUNT * 63 / 64);
+    }
+
+    function testCallVicReturnsBomb() public {
+        uint256 elapsed = 2 weeks;
+        address newVic = address(new ReturnsBomb());
+
+        // Setup.
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (newVic)));
+        vault.setVic(newVic);
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        uint256 gas = 4953 * 2;
+
+        // Reverts with OOG bubbled up as Revert
+        vm.expectRevert();
+        vault.callVic{gas: gas}(elapsed);
+
+        // Doesn't revert
+        try vault.callVic{gas: gas}(elapsed) {} catch {}
     }
 }
 
