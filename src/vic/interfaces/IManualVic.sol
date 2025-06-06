@@ -17,13 +17,17 @@ interface IManualVic is IVic {
     error InterestPerSecondTooHigh();
     error NotIncreasing();
     error NotDecreasing();
+    error DeadlineReached();
+    error CastOverflow();
 
     /* FUNCTIONS */
 
-    function increaseInterestPerSecond(uint256 newInterestPerSecond) external;
-    function decreaseInterestPerSecond(uint256 newInterestPerSecond) external;
+    function vault() external view returns (address);
+    function maxInterestPerSecond() external view returns (uint96);
+    function _interestPerSecond() external view returns (uint96);
+    function deadline() external view returns (uint64);
     function increaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond) external;
     function decreaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond) external;
-    function vault() external view returns (address);
-    function maxInterestPerSecond() external view returns (uint256);
+    function increaseInterestPerSecond(uint256 newInterestPerSecond, uint256 deadline) external;
+    function decreaseInterestPerSecond(uint256 newInterestPerSecond, uint256 deadline) external;
 }

@@ -11,8 +11,9 @@ contract ManualVic is IManualVic {
 
     /* STORAGE */
 
-    uint256 internal _interestPerSecond;
-    uint256 public maxInterestPerSecond;
+    uint96 public maxInterestPerSecond;
+    uint96 public _interestPerSecond;
+    uint64 public deadline;
 
     /* FUNCTIONS */
 
@@ -23,7 +24,8 @@ contract ManualVic is IManualVic {
     function increaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond) public {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
         require(newMaxInterestPerSecond >= maxInterestPerSecond, NotIncreasing());
-        maxInterestPerSecond = newMaxInterestPerSecond;
+        require(newMaxInterestPerSecond <= type(uint96).max, CastOverflow());
+        maxInterestPerSecond = uint96(newMaxInterestPerSecond);
         emit IncreaseMaxInterestPerSecond(maxInterestPerSecond);
     }
 
@@ -31,34 +33,39 @@ contract ManualVic is IManualVic {
         require(msg.sender == IVaultV2(vault).curator() || IVaultV2(vault).isSentinel(msg.sender), Unauthorized());
         require(newMaxInterestPerSecond <= maxInterestPerSecond, NotDecreasing());
         require(_interestPerSecond <= newMaxInterestPerSecond, InterestPerSecondTooHigh());
-
-        maxInterestPerSecond = newMaxInterestPerSecond;
+        maxInterestPerSecond = uint96(newMaxInterestPerSecond);
         emit DecreaseMaxInterestPerSecond(msg.sender, maxInterestPerSecond);
     }
 
-    function increaseInterestPerSecond(uint256 newInterestPerSecond) public {
+    function increaseInterestPerSecond(uint256 newInterestPerSecond, uint256 newDeadline) public {
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         require(newInterestPerSecond <= maxInterestPerSecond, InterestPerSecondTooHigh());
         require(newInterestPerSecond >= _interestPerSecond, NotIncreasing());
+        require(newDeadline >= block.timestamp, DeadlineReached());
+        require(newDeadline <= type(uint64).max, CastOverflow());
 
         IVaultV2(vault).accrueInterest();
 
-        _interestPerSecond = newInterestPerSecond;
+        _interestPerSecond = uint96(newInterestPerSecond);
+        deadline = uint64(newDeadline);
         emit IncreaseInterestPerSecond(msg.sender, newInterestPerSecond);
     }
 
-    function decreaseInterestPerSecond(uint256 newInterestPerSecond) public {
+    function decreaseInterestPerSecond(uint256 newInterestPerSecond, uint256 newDeadline) public {
         require(IVaultV2(vault).isAllocator(msg.sender) || IVaultV2(vault).isSentinel(msg.sender), Unauthorized());
         require(newInterestPerSecond <= _interestPerSecond, NotDecreasing());
+        require(newDeadline >= block.timestamp, DeadlineReached());
+        require(newDeadline <= type(uint64).max, CastOverflow());
 
         IVaultV2(vault).accrueInterest();
 
-        _interestPerSecond = newInterestPerSecond;
+        _interestPerSecond = uint96(newInterestPerSecond);
+        deadline = uint64(newDeadline);
         emit DecreaseInterestPerSecond(msg.sender, newInterestPerSecond);
     }
 
     /// @dev Returns the interest per second.
     function interestPerSecond(uint256, uint256) external view returns (uint256) {
-        return _interestPerSecond;
+        return block.timestamp <= deadline ? _interestPerSecond : 0;
     }
 }
