@@ -46,6 +46,7 @@ contract VaultV2 is IVaultV2 {
     /* IMMUTABLE */
 
     address public immutable asset;
+    uint8 public immutable decimals;
 
     /* ROLES STORAGE */
 
@@ -60,7 +61,6 @@ contract VaultV2 is IVaultV2 {
 
     /* TOKEN STORAGE */
 
-    uint8 public decimals;
     string public name;
     string public symbol;
     uint256 public totalSupply;
