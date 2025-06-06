@@ -209,13 +209,9 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
     }
 
-    /// @dev Accrues interest after setting the Vic.
-    /// @dev This guarantees that a non-abdicated Vic can always be changed.
-    /// @dev If possible, batch accrueInterest before changing the Vic
-    /// @dev to prevent a new Vic from influencing past interest.
     function setVic(address newVic) external timelocked {
-        vic = newVic;
         accrueInterest();
+        vic = newVic;
         emit EventsLib.SetVic(newVic);
     }
 
