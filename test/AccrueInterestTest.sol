@@ -231,6 +231,38 @@ contract AccrueInterestTest is BaseTest {
 
         assertEq(vault.balanceOf(managementFeeRecipient), expectedShares);
     }
+
+    function testSkipAccrueInterest() public {
+        address consumesSomeGas = address(new ConsumesSomeGas());
+        vault.deposit(1 ether, address(this));
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (consumesSomeGas)));
+        vault.setVic(consumesSomeGas);
+
+        // If you pass infinite gas, interest accrues.
+        skip(1);
+        vault.accrueInterest();
+        assertEq(vault.totalAssets(), 1 ether + 1);
+
+        // If you pass just enough gas, interest does not accrue.
+        // Everything is warm but it is on purpose, an attacker could warm them.
+        skip(1);
+        vault.accrueInterest{gas: 390_000}();
+        assertEq(vault.totalAssets(), 1 ether + 1);
+    }
 }
 
 contract Reverting {}
+
+// consumes 390k gas and return 1
+contract ConsumesSomeGas {
+    fallback() external {
+        assembly {
+            let i := 0
+            for {} lt(i, 9000) {} { i := add(i, 1) }
+            mstore(0, 1)
+            return(0, 32)
+        }
+    }
+}
