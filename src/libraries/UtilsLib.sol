@@ -12,7 +12,7 @@ library UtilsLib {
     function controlledStaticCall(address to, bytes memory data) internal view returns (uint256) {
         uint256[1] memory output;
         bool success;
-        uint returnDataSize;
+        uint256 returnDataSize;
         assembly ("memory-safe") {
             success := staticcall(gas(), to, add(data, 32), mload(data), output, 32)
             returnDataSize := returndatasize()
