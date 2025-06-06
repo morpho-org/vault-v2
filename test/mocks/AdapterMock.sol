@@ -21,7 +21,7 @@ contract AdapterMock is IAdapter {
         IERC20(IVaultV2(_vault).asset()).approve(_vault, type(uint256).max);
     }
 
-    // Consume a bit of gas to showcase the liquidity market manipulation.
+    // Consume a bit of gas to showcase the liquidity market manipulation, see testAvoidLiquidityMarketDeposit.
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         consuming[0] = 1;
         consuming[1] = 1;
