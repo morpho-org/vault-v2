@@ -38,6 +38,8 @@ import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 /// - The liquidity market is mostly useful on exit, so that exit liquidity is available in addition to the idle assets.
 /// But the same adapter/data is used for both entry and exit to have the property that in the general case looping
 /// supply-withdraw or withdraw-supply should not change the allocation.
+/// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
+/// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
 
@@ -372,20 +374,15 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, interest);
     }
 
-    function setLiquidityAdapter(address newLiquidityAdapter) external {
+    function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external {
         require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         require(
             newLiquidityAdapter == address(0) || isAdapter[newLiquidityAdapter],
             ErrorsLib.LiquidityAdapterInvariantBroken()
         );
         liquidityAdapter = newLiquidityAdapter;
-        emit EventsLib.SetLiquidityAdapter(msg.sender, newLiquidityAdapter);
-    }
-
-    function setLiquidityData(bytes memory newLiquidityData) external {
-        require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         liquidityData = newLiquidityData;
-        emit EventsLib.SetLiquidityData(msg.sender, newLiquidityData);
+        emit EventsLib.SetLiquidityMarket(msg.sender, newLiquidityAdapter, newLiquidityData);
     }
 
     /* TIMELOCKS */
@@ -562,13 +559,16 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns shares withdrawn as penalty.
+    /// @dev When calling this function, a penalty is taken from `onBehalf`, in order to discourage allocation
+    /// manipulations.
+    /// @dev The penalty is taken as a withdrawal for which assets are returned to the vault. In consequence,
+    /// totalAssets is decreased normally along with totalSupply (the share price doesn't change except because of
+    /// rounding errors), but the amount of assets actually controlled by the vault is not decreased.
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256)
     {
         this.deallocate(adapter, data, assets);
-
-        // The penalty is taken as a withdrawal that is donated to the vault.
         uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
         emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf);
@@ -647,6 +647,7 @@ contract VaultV2 is IVaultV2 {
         return true;
     }
 
+    /// @dev Signature malleability is not explicitly prevented but it is not a problem thanks to the nonce.
     function permit(address _owner, address spender, uint256 shares, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         external
     {

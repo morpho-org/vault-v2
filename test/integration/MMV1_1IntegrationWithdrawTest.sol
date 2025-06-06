@@ -52,7 +52,7 @@ contract MMV1_1IntegrationWithdrawTest is MMV1_1IntegrationTest {
     function testWithdrawThanksToLiquidityAdapter(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialTotal);
         vm.prank(allocator);
-        vault.setLiquidityAdapter(address(metaMorphoAdapter));
+        vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
 
         vault.withdraw(assets, receiver, address(this));
         assertEq(underlyingToken.balanceOf(receiver), assets);
@@ -66,7 +66,7 @@ contract MMV1_1IntegrationWithdrawTest is MMV1_1IntegrationTest {
     function testWithdrawTooMuchEvenWithLiquidityAdapter(uint256 assets) public {
         assets = bound(assets, initialTotal + 1, MAX_TEST_ASSETS);
         vm.prank(allocator);
-        vault.setLiquidityAdapter(address(metaMorphoAdapter));
+        vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
 
         vm.expectRevert();
         vault.withdraw(assets, receiver, address(this));
@@ -75,7 +75,7 @@ contract MMV1_1IntegrationWithdrawTest is MMV1_1IntegrationTest {
     function testWithdrawLiquidityAdapterNoLiquidity(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialTotal);
         vm.prank(allocator);
-        vault.setLiquidityAdapter(address(metaMorphoAdapter));
+        vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
 
         // Remove liquidity by borrowing.
         deal(address(collateralToken), borrower, type(uint256).max);

@@ -58,9 +58,9 @@ library EventsLib {
 
     event Deallocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 interest);
 
-    event SetLiquidityAdapter(address indexed sender, address indexed newLiquidityAdapter);
-
-    event SetLiquidityData(address indexed sender, bytes indexed newLiquidityData);
+    event SetLiquidityMarket(
+        address indexed sender, address indexed newLiquidityAdapter, bytes indexed newLiquidityData
+    );
 
     event Deposit(address indexed sender, address indexed onBehalf, uint256 assets, uint256 shares);
 
