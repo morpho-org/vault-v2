@@ -190,7 +190,7 @@ It can:
 Non-custodial guarantees come from **in-kind redemption** and **timelocks**.
 These features guarantee users can exit before any pending change takes effect.
 
-**In-kind redemption** enables vault shareholders to exchange their vault shares for shares of an underlying vault position.
+**In-kind redemption** allows vault share-holders to swap their vault shares for shares of an underlying market of the vault.
 A depositor can achieve this by taking a flash loan and supplying it to the underlying market.
 This adds liquidity that the depositor can transfer to the idle market using the `forceDeallocate` function.
 After withdrawing the funds and repaying the flash loan, the depositor will hold market shares instead of vault shares. 
