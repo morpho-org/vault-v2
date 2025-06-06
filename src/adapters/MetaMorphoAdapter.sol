@@ -65,7 +65,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         uint256 loss = assetsInMetaMorpho.zeroFloorSub(
             IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)))
         );
-        uint256 shares = (assets > 0) IERC4626(metaMorpho).deposit(assets, address(this)) : 0;
+        uint256 shares = assets > 0 ? IERC4626(metaMorpho).deposit(assets, address(this)) : 0;
         // Rounding error protection such that maximum 100 assets are lost due to rounding errors. The numerical value
         // 100 has been chosen to balance the max price of a MetaMorpho share against the assets that can be lost to
         // rounding errors.
