@@ -122,9 +122,7 @@ contract RealizeLossTest is BaseTest {
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, address(adapter), true));
         vault.setIsAdapter(address(adapter), true);
         vm.prank(allocator);
-        vault.setLiquidityAdapter(address(adapter));
-        vm.prank(allocator);
-        vault.setLiquidityData(hex"");
+        vault.setLiquidityMarket(address(adapter), hex"");
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, deposit));
         vault.increaseAbsoluteCap(idData, deposit);

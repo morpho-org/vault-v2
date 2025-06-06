@@ -22,20 +22,17 @@ contract LiquidityMarketTest is BaseTest {
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
         vault.setIsAdapter(address(adapter), true);
 
-        vm.prank(allocator);
-        vault.setLiquidityAdapter(address(adapter));
-
-        _setAbsoluteCap("id-0", type(uint128).max);
-        _setAbsoluteCap("id-1", type(uint128).max);
-        _setRelativeCap("id-0", WAD);
-        _setRelativeCap("id-1", WAD);
+        increaseAbsoluteCap("id-0", type(uint128).max);
+        increaseAbsoluteCap("id-1", type(uint128).max);
+        increaseRelativeCap("id-0", WAD);
+        increaseRelativeCap("id-1", WAD);
     }
 
     function testLiquidityMarketDeposit(bytes memory data, uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
 
         vm.prank(allocator);
-        vault.setLiquidityData(data);
+        vault.setLiquidityMarket(address(adapter), data);
 
         vault.deposit(assets, address(this));
 
@@ -48,7 +45,7 @@ contract LiquidityMarketTest is BaseTest {
         shares = bound(shares, 0, MAX_TEST_SHARES);
 
         vm.prank(allocator);
-        vault.setLiquidityData(data);
+        vault.setLiquidityMarket(address(adapter), data);
 
         uint256 assets = vault.mint(shares, address(this));
 
@@ -62,7 +59,7 @@ contract LiquidityMarketTest is BaseTest {
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
 
         vm.prank(allocator);
-        vault.setLiquidityData(data);
+        vault.setLiquidityMarket(address(adapter), data);
 
         vault.deposit(deposit, address(this));
         uint256 assets = vault.previewRedeem(vault.balanceOf(address(this)));
@@ -78,7 +75,7 @@ contract LiquidityMarketTest is BaseTest {
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
 
         vm.prank(allocator);
-        vault.setLiquidityData(data);
+        vault.setLiquidityMarket(address(adapter), data);
 
         vault.deposit(deposit, address(this));
         uint256 assets = vault.redeem(vault.balanceOf(address(this)), receiver, address(this));

@@ -10,6 +10,8 @@ import {MathLib} from "../libraries/MathLib.sol";
 
 /// @dev Designed, developped and audited for MetaMorpho Vaults (v1.0 and v1.1). Integration with other vaults must be
 /// carefully assessed from a security standpoint.
+/// @dev MetaMorpho V1.1 vaults do not realize bad debt, so vaults V2 supplying in them will not realize the
+/// corresponding bad debt.
 contract MetaMorphoAdapter is IMetaMorphoAdapter {
     using MathLib for uint256;
 
@@ -17,6 +19,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
     address public immutable parentVault;
     address public immutable metaMorpho;
+    bytes32 public immutable adapterId;
 
     /* STORAGE */
 
@@ -28,6 +31,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     constructor(address _parentVault, address _metaMorpho) {
         parentVault = _parentVault;
         metaMorpho = _metaMorpho;
+        adapterId = keccak256(abi.encode("adapter", address(this)));
         address asset = IVaultV2(_parentVault).asset();
         require(asset == IERC4626(_metaMorpho).asset(), WrongAsset());
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
@@ -61,7 +65,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         uint256 loss = assetsInMetaMorpho.zeroFloorSub(
             IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)))
         );
-        uint256 shares = IERC4626(metaMorpho).deposit(assets, address(this));
+        uint256 shares = (assets > 0) IERC4626(metaMorpho).deposit(assets, address(this)) : 0;
         // Rounding error protection such that maximum 100 assets are lost due to rounding errors. The numerical value
         // 100 has been chosen to balance the max price of a MetaMorpho share against the assets that can be lost to
         // rounding errors.
@@ -82,16 +86,16 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         uint256 loss = assetsInMetaMorpho.zeroFloorSub(
             IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)))
         );
-        IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
+        if (assets > 0) IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
         assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
 
         return (ids(), loss);
     }
 
     /// @dev Returns adapter's ids.
-    function ids() internal view returns (bytes32[] memory) {
+    function ids() public view returns (bytes32[] memory) {
         bytes32[] memory ids_ = new bytes32[](1);
-        ids_[0] = keccak256(abi.encode("adapter", address(this)));
+        ids_[0] = adapterId;
         return ids_;
     }
 }

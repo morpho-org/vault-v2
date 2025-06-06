@@ -83,8 +83,7 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     // Allocator actions
     function allocate(address adapter, bytes memory data, uint256 assets) external;
     function deallocate(address adapter, bytes memory data, uint256 assets) external;
-    function setLiquidityAdapter(address newLiquidityAdapter) external;
-    function setLiquidityData(bytes memory newLiquidityData) external;
+    function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external;
 
     // Exchange rate
     function accrueInterest() external;
@@ -103,8 +102,6 @@ interface IVaultV2 is IERC20, IPermissionedToken {
         returns (uint256 withdrawnShares);
 
     // Gate vault / permissioned token
-    function canSend(address account) external returns (bool);
-    function canReceive(address account) external returns (bool);
-    function canSendUnderlyingAssets(address account) external returns (bool);
-    function canReceiveUnderlyingAssets(address account) external returns (bool);
+    function canSendUnderlyingAssets(address account) external view returns (bool);
+    function canReceiveUnderlyingAssets(address account) external view returns (bool);
 }
