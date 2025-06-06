@@ -267,7 +267,7 @@ contract MetaMorphoAdapterTest is Test {
     function testDifferentAssetReverts(address randomAsset) public {
         vm.assume(randomAsset != parentVault.asset());
         ERC4626MockExtended newMetaMorpho = new ERC4626MockExtended(randomAsset);
-        vm.expectRevert(IMetaMorphoAdapter.InconsistentLoanAsset.selector);
+        vm.expectRevert(IMetaMorphoAdapter.InconsistentAsset.selector);
         new MetaMorphoAdapter(address(parentVault), address(newMetaMorpho));
     }
 }
