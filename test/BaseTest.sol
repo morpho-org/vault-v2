@@ -52,7 +52,7 @@ contract BaseTest is Test {
         vm.stopPrank();
 
         vm.startPrank(curator);
-        ManualVic(vic).increaseMaxInterestPerSecond(type(uint256).max);
+        ManualVic(vic).setMaxInterestPerSecond(type(uint256).max);
         vault.submit(abi.encodeCall(IVaultV2.setIsAllocator, (allocator, true)));
         vault.submit(abi.encodeCall(IVaultV2.setVic, (address(vic))));
         vm.stopPrank();

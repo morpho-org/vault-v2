@@ -30,20 +30,18 @@ contract ManualVic is IManualVic {
         vault = _vault;
     }
 
-    function increaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond) public {
+    function setMaxInterestPerSecond(uint256 newMaxInterestPerSecond) public {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
         require(newMaxInterestPerSecond >= maxInterestPerSecond, NotIncreasing());
         maxInterestPerSecond = newMaxInterestPerSecond;
-        emit IncreaseMaxInterestPerSecond(maxInterestPerSecond);
+        emit SetMaxInterestPerSecond(maxInterestPerSecond);
     }
 
-    function decreaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond) public {
-        require(msg.sender == IVaultV2(vault).curator() || IVaultV2(vault).isSentinel(msg.sender), Unauthorized());
-        require(newMaxInterestPerSecond <= maxInterestPerSecond, NotDecreasing());
-        require(_interestPerSecond <= newMaxInterestPerSecond, InterestPerSecondTooHigh());
-
-        maxInterestPerSecond = newMaxInterestPerSecond;
-        emit DecreaseMaxInterestPerSecond(msg.sender, maxInterestPerSecond);
+    function zeroMaxInterestPerSecond() public {
+        require(IVaultV2(vault).isSentinel(msg.sender), Unauthorized());
+        require(_interestPerSecond == 0, InterestPerSecondTooHigh());
+        maxInterestPerSecond = 0;
+        emit ZeroMaxInterestPerSecond(msg.sender);
     }
 
     function setInterestPerSecond(uint256 newInterestPerSecond, uint256 newDeadline) public {

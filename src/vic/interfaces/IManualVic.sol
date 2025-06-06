@@ -8,8 +8,8 @@ interface IManualVic is IVic {
 
     event SetInterestPerSecond(address indexed caller, uint256 newInterestPerSecond, uint256 newDeadline);
     event ZeroInterestPerSecond(address indexed caller);
-    event IncreaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond);
-    event DecreaseMaxInterestPerSecond(address indexed caller, uint256 newMaxInterestPerSecond);
+    event SetMaxInterestPerSecond(uint256 newMaxInterestPerSecond);
+    event ZeroMaxInterestPerSecond(address indexed caller);
 
     /* ERRORS */
 
@@ -26,6 +26,6 @@ interface IManualVic is IVic {
     function maxInterestPerSecond() external view returns (uint256);
     function setInterestPerSecond(uint256 newInterestPerSecond, uint256 newDeadline) external;
     function zeroInterestPerSecond() external;
-    function increaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond) external;
-    function decreaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond) external;
+    function setMaxInterestPerSecond(uint256 newMaxInterestPerSecond) external;
+    function zeroMaxInterestPerSecond() external;
 }
