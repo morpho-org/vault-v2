@@ -443,11 +443,10 @@ contract VaultV2 is IVaultV2 {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
-        bool canReceivePerformanceFee = canReceive(performanceFeeRecipient);
-        bool canReceiveManagementFee = canReceive(managementFeeRecipient);
-
         uint256 tentativeInterestPerSecond =
             UtilsLib.controlledStaticCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+
+        if (tentativeInterestPerSecond == 0) return (_totalAssets, 0, 0);
 
         uint256 interestPerSecond = tentativeInterestPerSecond
             <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
@@ -460,13 +459,13 @@ contract VaultV2 is IVaultV2 {
         // fact that total assets is already increased by the total interest (including the fee assets).
         // Note: `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
 
-        if (interest > 0 && performanceFee != 0 && canReceivePerformanceFee) {
+        if (interest > 0 && performanceFee != 0 && canReceive(performanceFeeRecipient)) {
             // Note: the accrued performance fee might be smaller than this because of the management fee.
             uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
             performanceFeeShares =
                 performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
         }
-        if (managementFee != 0 && canReceiveManagementFee) {
+        if (managementFee != 0 && canReceive(managementFeeRecipient)) {
             // Note: The vault must be pinged at least once every 20 years to avoid management fees exceeding total
             // assets and revert forever.
             // Note: The management fee is taken on newTotalAssets to make all approximations consistent (interacting

@@ -281,7 +281,7 @@ contract AccrueInterestTest is BaseTest {
     }
 
     uint256 constant GAS_BURNED_BY_GATE = 1_000_000;
-    uint256 constant SAFE_GAS_AMOUNT = 6_000_000;
+    uint256 constant SAFE_GAS_AMOUNT = 400_000;
 
     function testGasRequiredToAccrueIfVicBurnsAllGas() public {
         // Vault setup
