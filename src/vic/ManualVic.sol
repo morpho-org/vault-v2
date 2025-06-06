@@ -21,7 +21,7 @@ contract ManualVic is IManualVic {
         vault = _vault;
     }
 
-    function setMaxInterestPerSecond(uint256 newMaxInterestPerSecond) public {
+    function setMaxInterestPerSecond(uint256 newMaxInterestPerSecond) external {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
         require(newMaxInterestPerSecond >= _interestPerSecond, InterestPerSecondTooHigh());
         require(newMaxInterestPerSecond <= type(uint96).max, CastOverflow());
@@ -29,14 +29,14 @@ contract ManualVic is IManualVic {
         emit SetMaxInterestPerSecond(maxInterestPerSecond);
     }
 
-    function zeroMaxInterestPerSecond() public {
+    function zeroMaxInterestPerSecond() external {
         require(IVaultV2(vault).isSentinel(msg.sender), Unauthorized());
         require(_interestPerSecond == 0, InterestPerSecondTooHigh());
         maxInterestPerSecond = 0;
         emit ZeroMaxInterestPerSecond(msg.sender);
     }
 
-    function setInterestPerSecond(uint256 newInterestPerSecond, uint256 newDeadline) public {
+    function setInterestPerSecond(uint256 newInterestPerSecond, uint256 newDeadline) external {
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         require(newInterestPerSecond <= maxInterestPerSecond, InterestPerSecondTooHigh());
         require(newDeadline >= block.timestamp, DeadlineAlreadyPassed());
@@ -50,7 +50,7 @@ contract ManualVic is IManualVic {
         emit SetInterestPerSecond(msg.sender, newInterestPerSecond, newDeadline);
     }
 
-    function zeroInterestPerSecond() public {
+    function zeroInterestPerSecond() external {
         require(IVaultV2(vault).isSentinel(msg.sender), Unauthorized());
         _interestPerSecond = 0;
         deadline = 0;
