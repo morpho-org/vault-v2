@@ -349,7 +349,7 @@ contract AccrueInterestTest is BaseTest {
         try this._staticcall{gas: gas}(newVic) {} catch {}
     }
 
-    function testReturnBombNotCaught(bytes calldata) public {
+    function testReturnsBombNotCaught(bytes calldata) public {
         address newVic = address(new ReturnsBomb());
 
         uint256 gas = 4953 * 2;
