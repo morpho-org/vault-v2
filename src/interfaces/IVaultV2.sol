@@ -85,8 +85,7 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     // Allocator actions
     function allocate(address adapter, bytes memory data, uint256 assets) external;
     function deallocate(address adapter, bytes memory data, uint256 assets) external;
-    function setLiquidityAdapter(address newLiquidityAdapter) external;
-    function setLiquidityData(bytes memory newLiquidityData) external;
+    function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external;
 
     // Exchange rate
     function accrueInterest() external;
