@@ -77,7 +77,12 @@ library EventsLib {
     );
 
     event ForceDeallocate(
-        address indexed sender, address adapter, bytes data, uint256 assets, address indexed onBehalf
+        address indexed sender,
+        address adapter,
+        bytes data,
+        uint256 assets,
+        address indexed onBehalf,
+        uint256 penaltyAssets
     );
 
     event RealizeLoss(

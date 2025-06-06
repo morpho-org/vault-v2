@@ -150,7 +150,9 @@ contract VaultV2 is IVaultV2 {
 
     /* MULTICALL */
 
-    /// @dev Mostly useful to batch admin actions together.
+    /// @dev Useful for EOAs to batch admin calls.
+    /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do
+    /// the multicall themselves.
     function multicall(bytes[] calldata data) external {
         for (uint256 i = 0; i < data.length; i++) {
             (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
@@ -232,7 +234,8 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Irreversibly disable submit for a selector.
     /// @dev Be particularly careful as this action is not reversible.
-    /// @dev After abdicating the submission of a function, it can still be executed with previously timelocked data.
+    /// @dev Existing timelocked operations submitted before abdicating the selector can still be executed. The
+    /// abdication of a selector only prevents future operations to be submitted.
     function abdicateSubmit(bytes4 selector) external timelocked {
         timelock[selector] = type(uint256).max;
         emit EventsLib.AbdicateSubmit(selector);
@@ -415,6 +418,7 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
+        if (lastUpdate == block.timestamp) return;
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         _totalAssets = newTotalAssets.toUint192();
@@ -566,6 +570,9 @@ contract VaultV2 is IVaultV2 {
     /// @dev The penalty is taken as a withdrawal for which assets are returned to the vault. In consequence,
     /// totalAssets is decreased normally along with totalSupply (the share price doesn't change except because of
     /// rounding errors), but the amount of assets actually controlled by the vault is not decreased.
+    /// @dev If a user has A assets in the vault, and that the vault is already fully illiquid, the optimal amount to
+    /// force deallocate in order to exit the vault is min(liquidity_of_market, A / (1 + penalty)).
+    /// This ensures that either the market is empty or that it leaves no shares nor liquidity after exiting.
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256)
@@ -573,7 +580,7 @@ contract VaultV2 is IVaultV2 {
         this.deallocate(adapter, data, assets);
         uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
-        emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf);
+        emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf, penaltyAssets);
         return shares;
     }
 

@@ -265,6 +265,10 @@ contract MetaMorphoAdapterTest is Test {
         );
     }
 
+    function testIds() public {
+        assertEq(adapter.ids(), expectedIds);
+    }
+
     function testInvalidData(bytes memory data) public {
         vm.assume(data.length > 0);
 
