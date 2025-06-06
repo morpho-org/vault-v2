@@ -547,7 +547,7 @@ contract VaultV2 is IVaultV2 {
         return 0;
     }
 
-    /// @dev Obvious overestimation, but it is not possible to have better because of the liquidity market design.
+    /// @dev Gross underestimation because it does not (and cannot) take into account the liquidity market.
     function maxRedeem(address) external pure returns (uint256) {
         return 0;
     }
