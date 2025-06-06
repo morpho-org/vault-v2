@@ -533,13 +533,15 @@ contract VaultV2 is IVaultV2 {
 
     /* MAX */
 
-    /// @dev Even though deposit 2^256-1 would overflow, this value is used to signal the absence of an intrinsic limit (per ERC-4626).
+    /// @dev Even though deposit 2^256-1 would overflow, this value is used to signal the absence of an intrinsic limit
+    /// (per ERC-4626).
     /// @dev Returns the maximum amount of assets that can be deposited.
     function maxDeposit(address onBehalf) external view returns (uint256) {
         return canReceive(onBehalf) ? type(uint256).max : 0;
     }
 
-    /// @dev Even though deposit 2^256-1 would overflow, this value is used to signal the absence of an intrinsic limit (per ERC-4626).
+    /// @dev Even though deposit 2^256-1 would overflow, this value is used to signal the absence of an intrinsic limit
+    /// (per ERC-4626).
     /// @dev Returns the maximum amount of shares that can be minted.
     function maxMint(address onBehalf) external view returns (uint256) {
         return canReceive(onBehalf) ? type(uint256).max : 0;
