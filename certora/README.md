@@ -1,7 +1,7 @@
 This folder contains the verification of the Vault V2 using CVL, Certora's Verification Language.
 
 The core concepts can be found in the [README](../README.md) at the root of the repository.
-These concepts have been verified using CVL.
+These properties have been verified using CVL.
 We first give a [high-level description](#high-level-description) of the verification and then describe the [folder and file structure](#folder-and-file-structure) of the specification files.
 
 # High-level description

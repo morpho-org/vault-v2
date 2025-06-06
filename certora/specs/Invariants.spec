@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+using Utils as Utils;
+
 methods {
     function multicall(bytes[]) external => NONDET DELETE;
 
@@ -24,12 +26,15 @@ methods {
     function balanceOf(address) external returns uint256 envfree;
     function enterGate() external returns address envfree;
     function canReceive(address) external returns bool envfree;
+
+    function Utils.wad() external returns uint256 envfree;
+    function Utils.maxRatePerSecond() external returns uint256 envfree;
+    function Utils.timelockCap() external returns uint256 envfree;
+    function Utils.maxPerformanceFee() external returns uint256 envfree;
+    function Utils.maxManagementFee() external returns uint256 envfree;
+    function Utils.maxForceDeallocatePenalty() external returns uint256 envfree;
 }
 
-definition TIMELOCK_CAP() returns uint256 = 14 * 24 * 60 * 60;
-definition MAX_PERFOMANCE_FEE() returns uint256 = 10^18 / 2;
-definition MAX_MANAGEMENT_FEE() returns uint256 = 10^18 / 20 / (365 * 24 * 60 * 60);
-definition MAX_FORCE_DEALLOCATE_PENALTY() returns uint256 = 10^18 / 50;
 definition decreaseTimelockSelector() returns bytes4 = to_bytes4(sig:decreaseTimelock(bytes4,uint256).selector);
 
 ghost mathint sumOfBalances {
@@ -51,22 +56,22 @@ strong invariant managementFeeRecipient()
     managementFee() != 0 => managementFeeRecipient() != 0;
 
 strong invariant performanceFee()
-    performanceFee() <= MAX_PERFOMANCE_FEE();
+    performanceFee() <= Utils.maxPerformanceFee();
 
 strong invariant managementFee()
-    managementFee() <= MAX_MANAGEMENT_FEE();
+    managementFee() <= Utils.maxManagementFee();
 
 strong invariant forceDeallocatePenalty(address adapter)
-    forceDeallocatePenalty(adapter) <= MAX_FORCE_DEALLOCATE_PENALTY();
+    forceDeallocatePenalty(adapter) <= Utils.maxForceDeallocatePenalty();
 
 strong invariant balanceOfZero()
     balanceOf(0) == 0;
 
 strong invariant timelockBounds(bytes4 selector)
-    timelock(selector) <= TIMELOCK_CAP() || timelock(selector) == max_uint256;
+    timelock(selector) <= Utils.timelockCap() || timelock(selector) == max_uint256;
 
 strong invariant decreaseTimelockTimelock()
-    timelock(decreaseTimelockSelector()) == TIMELOCK_CAP() || timelock(decreaseTimelockSelector()) == max_uint256;
+    timelock(decreaseTimelockSelector()) == Utils.timelockCap() || timelock(decreaseTimelockSelector()) == max_uint256;
 
 strong invariant liquidityAdapterInvariant()
     liquidityAdapter() == 0 || isAdapter(liquidityAdapter());

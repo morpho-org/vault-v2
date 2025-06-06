@@ -6,16 +6,13 @@ methods {
     function _.canReceiveShares(address account) external => CONSTANT;
 }
 
-definition YEAR() returns mathint = 365 * 24 * 60 * 60;
-definition MAX_RATE_PER_SECOND() returns uint256 = assert_uint256((10^18 + 200 * 10^16) / YEAR());
-definition WAD() returns uint256 = 10^18;
-definition TEN_YEARS() returns uint256 = assert_uint256(YEAR() * 10);
+definition TEN_YEARS() returns uint256 = assert_uint256(365 * 24 * 60 * 60 * 10);
 
 // Check that the VIC can't revert.
 // Note: the property also requires gas assumptions; these are checked with testing (probably mention the file/test suite of interest).
 rule livenessAccrueInterest(env e) {
     require e.msg.value == 0;
-    
+
     // Safe require because timestamps are guaranteed to be increasing.
     require e.block.timestamp >= lastUpdate();
     // We assume that less than 10 years have passed since the last update.
@@ -35,7 +32,7 @@ rule livenessAccrueInterest(env e) {
 
     // Necessary condition for the rule to be true.
     require enterGate() == 0 || (canReceive(performanceFeeRecipient()) && canReceive(managementFeeRecipient()));
-    
+
     accrueInterest@withrevert(e);
     assert !lastReverted;
 }
@@ -74,4 +71,3 @@ rule livenessSetIsSentinel(env e, address account, bool isSentinel) {
     setIsSentinel@withrevert(e, account, isSentinel);
     assert !lastReverted;
 }
-
