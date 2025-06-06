@@ -147,9 +147,10 @@ contract VaultV2 is IVaultV2 {
 
     /* MULTICALL */
 
-    /// @dev Mostly useful to batch admin actions together.
-    function multicall(bytes[] calldata data) external returns (bytes[] memory) {
-        bytes[] memory results = new bytes[](data.length);
+    /// @dev Useful for EOAs to batch calls.
+    /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do
+    /// the multicall themselves.
+    function multicall(bytes[] calldata data) external {
         for (uint256 i = 0; i < data.length; i++) {
             (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
             if (!success) {
@@ -157,9 +158,7 @@ contract VaultV2 is IVaultV2 {
                     revert(add(32, returnData), mload(returnData))
                 }
             }
-            results[i] = returnData;
         }
-        return results;
     }
 
     /* CONSTRUCTOR */
@@ -232,8 +231,8 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Irreversibly disable submit for a selector.
     /// @dev Be particularly careful as this action is not reversible.
-    /// @dev Existing timelocked operations submitted before abdicating the selector can still be executed.
-    /// The abdication of a selector only prevents future operations to be submitted.
+    /// @dev Existing timelocked operations submitted before abdicating the selector can still be executed. The
+    /// abdication of a selector only prevents future operations to be submitted.
     function abdicateSubmit(bytes4 selector) external timelocked {
         timelock[selector] = type(uint256).max;
         emit EventsLib.AbdicateSubmit(selector);
