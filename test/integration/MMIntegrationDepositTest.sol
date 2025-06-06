@@ -21,7 +21,7 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
 
         setSupplyQueueIdle();
         vm.prank(allocator);
-        vault.setLiquidityAdapter(address(metaMorphoAdapter));
+        vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
 
         vault.deposit(assets, address(this));
 
@@ -34,7 +34,7 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
 
         setSupplyQueueAllMarkets();
         vm.prank(allocator);
-        vault.setLiquidityAdapter(address(metaMorphoAdapter));
+        vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
 
         vault.deposit(assets, address(this));
 

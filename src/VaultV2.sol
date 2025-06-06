@@ -388,20 +388,15 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, loss);
     }
 
-    function setLiquidityAdapter(address newLiquidityAdapter) external {
+    function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external {
         require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         require(
             newLiquidityAdapter == address(0) || isAdapter[newLiquidityAdapter],
             ErrorsLib.LiquidityAdapterInvariantBroken()
         );
         liquidityAdapter = newLiquidityAdapter;
-        emit EventsLib.SetLiquidityAdapter(msg.sender, newLiquidityAdapter);
-    }
-
-    function setLiquidityData(bytes memory newLiquidityData) external {
-        require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         liquidityData = newLiquidityData;
-        emit EventsLib.SetLiquidityData(msg.sender, newLiquidityData);
+        emit EventsLib.SetLiquidityMarket(msg.sender, newLiquidityAdapter, newLiquidityData);
     }
 
     /* TIMELOCKS */
