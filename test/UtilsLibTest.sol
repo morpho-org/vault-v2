@@ -68,7 +68,7 @@ contract ControlledStaticCallTest is Test {
         assertEq(output, 0);
     }
 
-    function testDataTooShort(bytes32 dataBytes32) public {
+    function testSuccess(bytes32 dataBytes32) public {
         bytes memory data = bytes.concat(dataBytes32);
         address account = address(new ReturnsInput());
         uint256 output = UtilsLib.controlledStaticCall(account, data);
