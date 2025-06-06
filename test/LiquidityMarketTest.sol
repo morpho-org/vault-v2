@@ -22,10 +22,10 @@ contract LiquidityMarketTest is BaseTest {
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
         vault.setIsAdapter(address(adapter), true);
 
-        _setAbsoluteCap("id-0", type(uint128).max);
-        _setAbsoluteCap("id-1", type(uint128).max);
-        _setRelativeCap("id-0", WAD);
-        _setRelativeCap("id-1", WAD);
+        increaseAbsoluteCap("id-0", type(uint128).max);
+        increaseAbsoluteCap("id-1", type(uint128).max);
+        increaseRelativeCap("id-0", WAD);
+        increaseRelativeCap("id-1", WAD);
     }
 
     function testLiquidityMarketDeposit(bytes memory data, uint256 assets) public {
