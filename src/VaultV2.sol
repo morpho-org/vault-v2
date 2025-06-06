@@ -520,6 +520,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Internal function for deposit and mint.
+    /// @dev In certain conditions, the liquidity market deposit might be bypassable by using the right amount of gas.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
         require(!enterBlocked, ErrorsLib.EnterBlocked());
         require(canReceive(onBehalf), ErrorsLib.CannotReceive());

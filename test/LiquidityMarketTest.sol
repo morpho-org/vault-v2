@@ -84,4 +84,12 @@ contract LiquidityMarketTest is BaseTest {
         assertEq(adapter.recordedDeallocateAssets(), assets);
         assertEq(underlyingToken.balanceOf(receiver), assets);
     }
+
+    function testAvoidLiquidityMarketDeposit() public {
+        vm.prank(allocator);
+        vault.setLiquidityMarket(address(adapter), hex"");
+
+        vault.deposit{gas: 200_000}(1, address(this));
+        assertEq(adapter.recordedAllocateAssets(), 0);
+    }
 }
