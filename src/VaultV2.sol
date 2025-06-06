@@ -462,12 +462,11 @@ contract VaultV2 is IVaultV2 {
             ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD)
             : 0;
 
+        // Note: interest should be accrued at least every 10 years to avoid fees exceeding total assets.
+        uint256 totalAssetsWithoutFees = newTotalAssets - performanceFeeAssets - managementFeeAssets;
         // Note: the fee assets is subtracted from the total assets in the fee shares calculation to compensate for the
         // fact that total assets is already increased by the total interest (including the fee assets).
-        uint256 totalAssetsWithoutFees = newTotalAssets - performanceFeeAssets - managementFeeAssets;
         uint256 performanceFeeShares = performanceFeeAssets.mulDivDown(totalSupply + 1, totalAssetsWithoutFees + 1);
-        // Note: The vault must be pinged at least once every 10 years to avoid management fees exceeding total
-        // assets and revert forever.
         uint256 managementFeeShares = managementFeeAssets.mulDivDown(totalSupply + 1, totalAssetsWithoutFees + 1);
 
         return (newTotalAssets, performanceFeeShares, managementFeeShares);
