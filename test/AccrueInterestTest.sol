@@ -248,19 +248,19 @@ contract AccrueInterestTest is BaseTest {
         // If you pass just enough gas, interest does not accrue.
         // Everything is warm but it is on purpose, an attacker could warm them.
         skip(1);
-        vault.accrueInterest{gas: 390_000}();
+        vault.accrueInterest{gas: 350_000}();
         assertEq(vault.totalAssets(), 1 ether + 1);
     }
 }
 
 contract Reverting {}
 
-// consumes 390k gas and return 1
+// consumes ~350k gas and return 1
 contract ConsumesSomeGas {
     fallback() external {
         assembly {
             let i := 0
-            for {} lt(i, 9000) {} { i := add(i, 1) }
+            for {} lt(i, 8500) {} { i := add(i, 1) }
             mstore(0, 1)
             return(0, 32)
         }
