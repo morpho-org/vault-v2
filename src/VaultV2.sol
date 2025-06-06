@@ -530,18 +530,22 @@ contract VaultV2 is IVaultV2 {
 
     /* MAX */
 
+    /// @dev It is not possible to deposit 2^256-1 in practice because of overflows, but there are no other limits.
     function maxDeposit(address onBehalf) external view returns (uint256) {
         return canReceive(onBehalf) ? type(uint256).max : 0;
     }
 
+    /// @dev It is not possible to deposit 2^256-1 in practice because of overflows, but there are no other limits.
     function maxMint(address onBehalf) external view returns (uint256) {
         return canReceive(onBehalf) ? type(uint256).max : 0;
     }
 
+    /// @dev Obvious underestimation, but it is not possible to have better because of the liquidity market design.
     function maxWithdraw(address) external pure returns (uint256) {
         return 0;
     }
 
+    /// @dev Obvious overestimation, but it is not possible to have better because of the liquidity market design.
     function maxRedeem(address) external pure returns (uint256) {
         return 0;
     }
