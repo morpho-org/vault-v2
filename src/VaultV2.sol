@@ -440,41 +440,44 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
-    function accrueInterestView() public view returns (uint256, uint256, uint256) {
+    function accrueInterestView()
+        public
+        view
+        returns (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares)
+    {
+        newTotalAssets = _totalAssets;
         uint256 elapsed = block.timestamp - lastUpdate;
 
-        uint256 interest;
         if (elapsed > 0) {
             uint256 tentativeInterestPerSecond =
                 UtilsLib.controlledStaticCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
             uint256 interestPerSecond = tentativeInterestPerSecond
                 <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
-            interest = interestPerSecond * elapsed;
-        }
-        uint256 newTotalAssets = _totalAssets + interest;
+            uint256 interest = interestPerSecond * elapsed;
+            newTotalAssets += interest;
 
-        // Note: the fee assets is subtracted from the total assets in the fee shares calculation to compensate for the
-        // fact that total assets is already increased by the total interest (including the fee assets).
-        // Note: `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
-        uint256 performanceFeeShares;
-        if (interest > 0 && performanceFee != 0 && canReceive(performanceFeeRecipient)) {
-            // Note: the accrued performance fee might be smaller than this because of the management fee.
-            uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
-            performanceFeeShares =
-                performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
+            // Note: the fee assets is subtracted from the total assets in the fee shares calculation to compensate for
+            // the
+            // fact that total assets is already increased by the total interest (including the fee assets).
+            // Note: `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
+            if (interest > 0 && performanceFee != 0 && canReceive(performanceFeeRecipient)) {
+                // Note: the accrued performance fee might be smaller than this because of the management fee.
+                uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
+                performanceFeeShares =
+                    performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
+            }
+            if (managementFee != 0 && canReceive(managementFeeRecipient)) {
+                // Note: The vault must be pinged at least once every 20 years to avoid management fees exceeding total
+                // assets and revert forever.
+                // Note: The management fee is taken on newTotalAssets to make all approximations consistent
+                // (interacting
+                // less increases management fees).
+                uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
+                managementFeeShares = managementFeeAssets.mulDivDown(
+                    totalSupply + 1 + performanceFeeShares, newTotalAssets + 1 - managementFeeAssets
+                );
+            }
         }
-        uint256 managementFeeShares;
-        if (elapsed > 0 && managementFee != 0 && canReceive(managementFeeRecipient)) {
-            // Note: The vault must be pinged at least once every 20 years to avoid management fees exceeding total
-            // assets and revert forever.
-            // Note: The management fee is taken on newTotalAssets to make all approximations consistent (interacting
-            // less increases management fees).
-            uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
-            managementFeeShares = managementFeeAssets.mulDivDown(
-                totalSupply + 1 + performanceFeeShares, newTotalAssets + 1 - managementFeeAssets
-            );
-        }
-        return (newTotalAssets, performanceFeeShares, managementFeeShares);
     }
 
     /// @dev Returns previewed minted shares.
