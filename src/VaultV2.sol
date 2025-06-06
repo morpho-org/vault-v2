@@ -45,10 +45,9 @@ import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 /// - It should not re-enter the vault on `transfer` nor `transferFrom`.
 /// - The balance of the sender (resp. receiver) should decrease (resp. increase) by exactly the given amount on
 /// `transfer` and `transferFrom`. In particular, tokens with fees on transfer are not supported.
-/// @dev List of assumptions on the token that guarantees the vault's liveness properties:
+/// @dev List of assumptions that guarantees the vault's liveness properties:
 /// - The token should not revert on `transfer` and `transferFrom` if balances and approvals are right.
 /// - The token should not revert on `transfer` to self.
-/// @dev Other requirements for the vault's liveness properties:
 /// - totalAssets and totalSupply must stay below ~10^35.
 /// - The vault is pinged more than once every 20 years.
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
