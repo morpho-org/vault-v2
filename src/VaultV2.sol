@@ -147,7 +147,7 @@ contract VaultV2 is IVaultV2 {
 
     /* MULTICALL */
 
-    /// @dev Useful for EOAs to batch calls.
+    /// @dev Useful for EOAs to batch admin calls.
     /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do
     /// the multicall themselves.
     function multicall(bytes[] calldata data) external {
