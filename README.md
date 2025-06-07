@@ -34,6 +34,10 @@ The funds allocation of the vault is constrained by an id system.
 An id is an abstract identifier for a common risk factor of some markets (a collateral, an oracle, a protocol, etc.).
 Allocation on markets with a common id is limited by absolute caps and relative caps.
 Note that relative caps are "soft" because they are not checked on withdrawals (they only constrain new allocations).
+
+The first id returned by an adapter is a key. It represents a specific risk category. Allocation and deallocation on markets with a specific adapter and a specific key can be either enabled or disabled.
+The purpose of keys is to scope the risk exposure of a vault when interacting with an adapter.
+
 The curator ensures the consistency of the id system by:
 
 - setting caps for the ids according to an estimation of risk;

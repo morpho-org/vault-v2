@@ -19,8 +19,8 @@ contract LiquidityMarketTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
-        vault.setIsAdapter(address(adapter), true);
+        vault.submit(abi.encodeCall(IVaultV2.setCanUseAdapterWithKey, (address(adapter), keccak256("id-0"), true)));
+        vault.setCanUseAdapterWithKey(address(adapter), keccak256("id-0"), true);
 
         increaseAbsoluteCap("id-0", type(uint128).max);
         increaseAbsoluteCap("id-1", type(uint128).max);

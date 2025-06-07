@@ -32,7 +32,7 @@ library EventsLib {
 
     event SetManagementFeeRecipient(address indexed);
 
-    event SetIsAdapter(address indexed account, bool newIsAdapter);
+    event SetCanUseAdapterWithKey(address indexed account, bytes32 indexed key, bool newIsAdapter);
 
     event IncreaseTimelock(bytes4 indexed selector, uint256 newDuration);
 

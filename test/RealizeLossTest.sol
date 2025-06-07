@@ -37,18 +37,18 @@ contract RealizeLossTest is BaseTest {
 
         adapter = new MockAdapter();
 
-        vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, address(adapter), true));
-        vault.setIsAdapter(address(adapter), true);
-
-        deal(address(underlyingToken), address(this), type(uint256).max);
-        underlyingToken.approve(address(vault), type(uint256).max);
-
         expectedIds = new bytes32[](1);
-        idData = abi.encode("id");
+        idData = "id";
         id = keccak256(idData);
         expectedIds[0] = id;
         adapter.setIds(expectedIds);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setCanUseAdapterWithKey.selector, address(adapter), id, true));
+        vault.setCanUseAdapterWithKey(address(adapter), id, true);
+
+        deal(address(underlyingToken), address(this), type(uint256).max);
+        underlyingToken.approve(address(vault), type(uint256).max);
     }
 
     function testRealizeLossAllocate(uint256 deposit, uint256 expectedLoss) public {
@@ -119,8 +119,8 @@ contract RealizeLossTest is BaseTest {
         expectedLoss = bound(expectedLoss, 0, deposit);
 
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, address(adapter), true));
-        vault.setIsAdapter(address(adapter), true);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setCanUseAdapterWithKey.selector, address(adapter), id, true));
+        vault.setCanUseAdapterWithKey(address(adapter), id, true);
         vm.prank(allocator);
         vault.setLiquidityMarket(address(adapter), hex"");
         vm.prank(curator);

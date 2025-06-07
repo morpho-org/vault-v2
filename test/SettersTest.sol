@@ -199,41 +199,30 @@ contract SettersTest is BaseTest {
         assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
     }
 
-    function testSetIsAdapter(address rdm) public {
+    function testCanUseAdapterWithKey(address rdm) public {
         vm.assume(rdm != curator);
         address newAdapter = makeAddr("newAdapter");
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
-        vault.setIsAdapter(newAdapter, true);
+        vault.setCanUseAdapterWithKey(newAdapter, keccak256("id-0"), true);
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (newAdapter, true)));
+        vault.submit(abi.encodeCall(IVaultV2.setCanUseAdapterWithKey, (newAdapter, keccak256("id-0"), true)));
         vm.expectEmit();
-        emit EventsLib.SetIsAdapter(newAdapter, true);
-        vault.setIsAdapter(newAdapter, true);
-        assertTrue(vault.isAdapter(newAdapter));
+        emit EventsLib.SetCanUseAdapterWithKey(newAdapter, keccak256("id-0"), true);
+        vault.setCanUseAdapterWithKey(newAdapter, keccak256("id-0"), true);
+        assertTrue(vault.canUseAdapterWithKey(newAdapter, keccak256("id-0")));
 
         // Removal
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (newAdapter, false)));
+        vault.submit(abi.encodeCall(IVaultV2.setCanUseAdapterWithKey, (newAdapter, keccak256("id-0"), false)));
         vm.expectEmit();
-        emit EventsLib.SetIsAdapter(newAdapter, false);
-        vault.setIsAdapter(newAdapter, false);
-        assertFalse(vault.isAdapter(newAdapter));
-
-        // Liquidity adapter invariant
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (newAdapter, true)));
-        vault.setIsAdapter(newAdapter, true);
-        vm.prank(allocator);
-        vault.setLiquidityMarket(newAdapter, "");
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (newAdapter, false)));
-        vm.expectRevert(ErrorsLib.LiquidityAdapterInvariantBroken.selector);
-        vault.setIsAdapter(newAdapter, false);
+        emit EventsLib.SetCanUseAdapterWithKey(newAdapter, keccak256("id-0"), false);
+        vault.setCanUseAdapterWithKey(newAdapter, keccak256("id-0"), false);
+        assertFalse(vault.canUseAdapterWithKey(newAdapter, keccak256("id-0")));
     }
 
     function testIncreaseTimelock(address rdm, bytes4 selector, uint256 newTimelock) public {
@@ -662,8 +651,8 @@ contract SettersTest is BaseTest {
         // Setup.
         address adapter = makeAddr("adapter");
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (adapter, true)));
-        vault.setIsAdapter(adapter, true);
+        vault.submit(abi.encodeCall(IVaultV2.setCanUseAdapterWithKey, (adapter, keccak256("id-0"), true)));
+        vault.setCanUseAdapterWithKey(adapter, keccak256("id-0"), true);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
@@ -727,9 +716,6 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != allocator);
         vm.assume(liquidityAdapter != address(0));
         vm.assume(rdm != allocator);
-        vm.prank(allocator);
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
-        vault.setLiquidityMarket(liquidityAdapter, liquidityData);
 
         // Access control
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
@@ -738,19 +724,13 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (liquidityAdapter, true)));
-        vault.setIsAdapter(liquidityAdapter, true);
+        vault.submit(abi.encodeCall(IVaultV2.setCanUseAdapterWithKey, (liquidityAdapter, keccak256("id-0"), true)));
+        vault.setCanUseAdapterWithKey(liquidityAdapter, keccak256("id-0"), true);
         vm.prank(allocator);
         vm.expectEmit();
         emit EventsLib.SetLiquidityMarket(allocator, liquidityAdapter, liquidityData);
         vault.setLiquidityMarket(liquidityAdapter, liquidityData);
         assertEq(vault.liquidityAdapter(), liquidityAdapter);
         assertEq(vault.liquidityData(), liquidityData);
-
-        // Liquidity adapter invariant
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (liquidityAdapter, false)));
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
-        vault.setIsAdapter(liquidityAdapter, false);
     }
 }

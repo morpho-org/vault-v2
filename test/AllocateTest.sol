@@ -4,6 +4,24 @@ pragma solidity ^0.8.0;
 import "./BaseTest.sol";
 import {AdapterMock} from "./mocks/AdapterMock.sol";
 
+contract SimpleAdapterMock is IAdapter {
+    constructor() {}
+
+    function allocate(bytes memory, uint256) external pure returns (bytes32[] memory, uint256) {
+        return (ids(), 0);
+    }
+
+    function deallocate(bytes memory, uint256) external pure returns (bytes32[] memory, uint256) {
+        return (ids(), 0);
+    }
+
+    function ids() internal pure returns (bytes32[] memory) {
+        bytes32[] memory _ids = new bytes32[](1);
+        _ids[0] = keccak256("id-2");
+        return _ids;
+    }
+}
+
 contract AllocateTest is BaseTest {
     using MathLib for uint256;
 
@@ -19,8 +37,8 @@ contract AllocateTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (mockAdapter, true)));
-        vault.setIsAdapter(mockAdapter, true);
+        vault.submit(abi.encodeCall(IVaultV2.setCanUseAdapterWithKey, (mockAdapter, keccak256("id-0"), true)));
+        vault.setCanUseAdapterWithKey(mockAdapter, keccak256("id-0"), true);
 
         ids = new bytes32[](2);
         ids[0] = keccak256("id-0");
@@ -49,10 +67,18 @@ contract AllocateTest is BaseTest {
         vm.prank(allocator);
         vault.allocate(mockAdapter, hex"", 0);
 
-        // Can't allocate if not adapter.
+        // Can't allocate if cannot use adapter with key.
+        // Setting up right adapter with wrong key
+        SimpleAdapterMock simpleAdapterMock = new SimpleAdapterMock();
+        vm.prank(curator);
+        vault.submit(
+            abi.encodeCall(IVaultV2.setCanUseAdapterWithKey, (address(simpleAdapterMock), keccak256("id-1"), true))
+        );
+        vault.setCanUseAdapterWithKey(address(simpleAdapterMock), keccak256("id-1"), true);
+
         vm.prank(allocator);
-        vm.expectRevert(ErrorsLib.NotAdapter.selector);
-        vault.allocate(address(this), data, assets);
+        vm.expectRevert(ErrorsLib.CannotUseAdapterWithKey.selector);
+        vault.allocate(address(simpleAdapterMock), data, assets);
 
         // Absolute cap check.
         increaseAbsoluteCap("id-0", assets - 1);
@@ -144,9 +170,17 @@ contract AllocateTest is BaseTest {
         vault.deallocate(mockAdapter, hex"", 0);
 
         // Can't deallocate if not adapter.
+        // Setting up right adapter with wrong key
+        SimpleAdapterMock simpleAdapterMock = new SimpleAdapterMock();
+        vm.prank(curator);
+        vault.submit(
+            abi.encodeCall(IVaultV2.setCanUseAdapterWithKey, (address(simpleAdapterMock), keccak256("id-1"), true))
+        );
+        vault.setCanUseAdapterWithKey(address(simpleAdapterMock), keccak256("id-1"), true);
+
         vm.prank(allocator);
-        vm.expectRevert(ErrorsLib.NotAdapter.selector);
-        vault.deallocate(address(this), data, assetsOut);
+        vm.expectRevert(ErrorsLib.CannotUseAdapterWithKey.selector);
+        vault.deallocate(address(simpleAdapterMock), data, assetsOut);
 
         // Normal path.
         vm.prank(allocator);

@@ -75,7 +75,7 @@ contract VaultV2 is IVaultV2 {
 
     /* CURATION STORAGE */
 
-    mapping(address account => bool) public isAdapter;
+    mapping(address adapter => mapping(bytes32 key => bool)) public canUseAdapterWithKey;
 
     /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
     /// @dev The allocation is not updated to take interests into account.
@@ -92,7 +92,6 @@ contract VaultV2 is IVaultV2 {
 
     /* LIQUIDITY ADAPTER STORAGE */
 
-    /// @dev This invariant holds: liquidityAdapter != address(0) => isAdapter[liquidityAdapter].
     address public liquidityAdapter;
     bytes public liquidityData;
 
@@ -217,10 +216,9 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetVic(newVic);
     }
 
-    function setIsAdapter(address account, bool newIsAdapter) external timelocked {
-        require(account != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
-        isAdapter[account] = newIsAdapter;
-        emit EventsLib.SetIsAdapter(account, newIsAdapter);
+    function setCanUseAdapterWithKey(address adapter, bytes32 key, bool newCanUse) external timelocked {
+        canUseAdapterWithKey[adapter][key] = newCanUse;
+        emit EventsLib.SetCanUseAdapterWithKey(adapter, key, newCanUse);
     }
 
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
@@ -341,12 +339,13 @@ contract VaultV2 is IVaultV2 {
     /// @dev This function will automatically realize potential losses.
     function allocate(address adapter, bytes memory data, uint256 assets) external {
         require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized());
-        require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
         (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).allocate(data, assets);
+
+        require(canUseAdapterWithKey[adapter][ids[0]], ErrorsLib.CannotUseAdapterWithKey());
 
         if (loss > 0) {
             _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
@@ -371,11 +370,12 @@ contract VaultV2 is IVaultV2 {
         require(
             isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized()
         );
-        require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
 
         (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).deallocate(data, assets);
+
+        require(canUseAdapterWithKey[adapter][ids[0]], ErrorsLib.CannotUseAdapterWithKey());
 
         if (loss > 0) {
             _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
@@ -393,10 +393,7 @@ contract VaultV2 is IVaultV2 {
 
     function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external {
         require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
-        require(
-            newLiquidityAdapter == address(0) || isAdapter[newLiquidityAdapter],
-            ErrorsLib.LiquidityAdapterInvariantBroken()
-        );
+
         liquidityAdapter = newLiquidityAdapter;
         liquidityData = newLiquidityData;
         emit EventsLib.SetLiquidityMarket(msg.sender, newLiquidityAdapter, newLiquidityData);

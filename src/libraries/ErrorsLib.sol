@@ -27,11 +27,10 @@ library ErrorsLib {
     error AbsoluteCapExceeded();
     error RelativeCapExceeded();
     error RelativeCapAboveOne();
-    error NotAdapter();
+    error CannotUseAdapterWithKey();
     error FeeInvariantBroken();
     error PermitDeadlineExpired();
     error InvalidSigner();
-    error LiquidityAdapterInvariantBroken();
     error ApproveReverted();
     error ApproveReturnedFalse();
     error InfiniteTimelock();

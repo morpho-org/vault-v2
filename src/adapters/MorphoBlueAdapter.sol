@@ -92,13 +92,13 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /// @dev Returns adapter's ids.
     function ids(MarketParams memory marketParams) public view returns (bytes32[] memory) {
         bytes32[] memory ids_ = new bytes32[](3);
-        ids_[0] = adapterId;
-        ids_[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
-        ids_[2] = keccak256(
+        ids_[0] = keccak256(
             abi.encode(
                 "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
             )
         );
+        ids_[1] = adapterId;
+        ids_[2] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
         return ids_;
     }
 }

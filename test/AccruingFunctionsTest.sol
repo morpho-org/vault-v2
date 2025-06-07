@@ -24,8 +24,8 @@ contract AccrueInterestTest is BaseTest {
         adapter = new EmptyAdapter();
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
-        vault.setIsAdapter(address(adapter), true);
+        vault.submit(abi.encodeCall(IVaultV2.setCanUseAdapterWithKey, (address(adapter), keccak256("id"), true)));
+        vault.setCanUseAdapterWithKey(address(adapter), keccak256("id"), true);
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setVic, (address(vic))));

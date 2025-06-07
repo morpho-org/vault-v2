@@ -8,8 +8,15 @@ contract Adapter is IAdapter {
         IERC20(_underlyingToken).approve(_vault, type(uint256).max);
     }
 
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids, uint256 loss) {}
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids, uint256 loss) {}
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids, uint256 loss) {
+        ids = new bytes32[](1);
+        ids[0] = keccak256("id");
+    }
+
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids, uint256 loss) {
+        ids = new bytes32[](1);
+        ids[0] = keccak256("id");
+    }
 }
 
 contract ForceDeallocateTest is BaseTest {
@@ -25,6 +32,9 @@ contract ForceDeallocateTest is BaseTest {
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
+
+        increaseAbsoluteCap("id", type(uint128).max);
+        increaseRelativeCap("id", WAD);
     }
 
     function testForceDeallocate(uint256 supplied, uint256 deallocated, uint256 forceDeallocatePenalty) public {
@@ -33,9 +43,9 @@ contract ForceDeallocateTest is BaseTest {
         forceDeallocatePenalty = bound(forceDeallocatePenalty, 0, MAX_FORCE_DEALLOCATE_PENALTY);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (adapter, true)));
+        vault.submit(abi.encodeCall(IVaultV2.setCanUseAdapterWithKey, (adapter, keccak256("id"), true)));
 
-        vault.setIsAdapter(adapter, true);
+        vault.setCanUseAdapterWithKey(adapter, keccak256("id"), true);
 
         uint256 shares = vault.deposit(supplied, address(this));
         assertEq(underlyingToken.balanceOf(address(vault)), supplied);

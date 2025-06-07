@@ -71,13 +71,13 @@ contract MorphoBlueAdapterTest is Test {
         adapter = MorphoBlueAdapter(factory.createMorphoBlueAdapter(address(parentVault)));
 
         expectedIds = new bytes32[](3);
-        expectedIds[0] = keccak256(abi.encode("adapter", address(adapter)));
-        expectedIds[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
-        expectedIds[2] = keccak256(
+        expectedIds[0] = keccak256(
             abi.encode(
                 "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
             )
         );
+        expectedIds[1] = keccak256(abi.encode("adapter", address(adapter)));
+        expectedIds[2] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
     }
 
     function _boundAssets(uint256 assets) internal pure returns (uint256) {

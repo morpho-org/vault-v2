@@ -75,28 +75,36 @@ contract BlueIntegrationTest is BaseTest {
         adapter = MorphoBlueAdapter(factory.createMorphoBlueAdapter(address(vault)));
 
         expectedIdData1 = new bytes[](3);
-        expectedIdData1[0] = abi.encode("adapter", address(adapter));
-        expectedIdData1[1] = abi.encode("collateralToken", marketParams1.collateralToken);
-        expectedIdData1[2] = abi.encode(
+        expectedIdData1[0] = abi.encode(
             "collateralToken/oracle/lltv", marketParams1.collateralToken, marketParams1.oracle, marketParams1.lltv
         );
+        expectedIdData1[1] = abi.encode("adapter", address(adapter));
+        expectedIdData1[2] = abi.encode("collateralToken", marketParams1.collateralToken);
 
         expectedIdData2 = new bytes[](3);
-        expectedIdData2[0] = abi.encode("adapter", address(adapter));
-        expectedIdData2[1] = abi.encode("collateralToken", marketParams2.collateralToken);
-        expectedIdData2[2] = abi.encode(
+        expectedIdData2[0] = abi.encode(
             "collateralToken/oracle/lltv", marketParams2.collateralToken, marketParams2.oracle, marketParams2.lltv
         );
+        expectedIdData2[1] = abi.encode("adapter", address(adapter));
+        expectedIdData2[2] = abi.encode("collateralToken", marketParams2.collateralToken);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
-        vault.setIsAdapter(address(adapter), true);
+        vault.submit(
+            abi.encodeCall(IVaultV2.setCanUseAdapterWithKey, (address(adapter), keccak256(expectedIdData1[0]), true))
+        );
+        vault.setCanUseAdapterWithKey(address(adapter), keccak256(expectedIdData1[0]), true);
+
+        vm.prank(curator);
+        vault.submit(
+            abi.encodeCall(IVaultV2.setCanUseAdapterWithKey, (address(adapter), keccak256(expectedIdData2[0]), true))
+        );
+        vault.setCanUseAdapterWithKey(address(adapter), keccak256(expectedIdData2[0]), true);
 
         increaseAbsoluteAndRelativeCapToMax(expectedIdData1[0]);
         increaseAbsoluteAndRelativeCapToMax(expectedIdData1[1]);
         increaseAbsoluteAndRelativeCapToMax(expectedIdData1[2]);
-        // expectedIdData2[0] and expectedIdData2[1] are the same as expectedIdData1[0] and expectedIdData1[1]
-        increaseAbsoluteAndRelativeCapToMax(expectedIdData2[2]);
+        // expectedIdData2[1] and expectedIdData2[2] are the same as expectedIdData1[1] and expectedIdData1[2]
+        increaseAbsoluteAndRelativeCapToMax(expectedIdData2[0]);
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
