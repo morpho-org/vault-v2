@@ -5,6 +5,7 @@ import {Test, console} from "../lib/forge-std/src/Test.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
 import {UtilsLib} from "../src/libraries/UtilsLib.sol";
 import {VaultV2} from "../src/VaultV2.sol";
+import {min} from "./BaseTest.sol";
 
 contract ReturnsInput {
     fallback() external {
@@ -52,7 +53,15 @@ contract BurnsAllGas {
 }
 
 contract ControlledStaticCallTest is Test {
-    function testSuccess(bytes calldata data) public {
+    function testDataWrongSize(bytes calldata data) public {
+        vm.assume(data.length != 32);
+        address account = address(new ReturnsInput());
+        uint256 output = UtilsLib.controlledStaticCall(account, data);
+        assertEq(output, 0);
+    }
+
+    function testSuccess(bytes32 dataBytes32) public {
+        bytes memory data = bytes.concat(dataBytes32);
         address account = address(new ReturnsInput());
         uint256 output = UtilsLib.controlledStaticCall(account, data);
         assertEq(output, uint256(bytes32(data)));
