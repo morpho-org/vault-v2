@@ -341,4 +341,8 @@ contract MorphoBlueAdapterTest is Test {
             "Market total borrow assets not set correctly"
         );
     }
+
+    function testIds() public {
+        assertEq(adapter.ids(marketParams), expectedIds);
+    }
 }

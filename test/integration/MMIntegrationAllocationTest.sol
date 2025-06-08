@@ -52,7 +52,7 @@ contract MMIntegrationAllocationTest is MMIntegrationTest {
     function testDeallocateNoLiquidity(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialTotal);
         vm.prank(allocator);
-        vault.setLiquidityAdapter(address(metaMorphoAdapter));
+        vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
 
         // Remove liquidity by borrowing.
         deal(address(collateralToken), borrower, type(uint256).max);
