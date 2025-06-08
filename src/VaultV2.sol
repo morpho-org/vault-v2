@@ -457,6 +457,9 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
+    /// @dev The IPS is taken to be 0 if VIC reverts, has no code, returns a data that is not of size 32, or if the
+    /// corresponding rate is above the max rate.
+    /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
