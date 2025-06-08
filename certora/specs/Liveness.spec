@@ -20,7 +20,7 @@ rule livenessAccrueInterest(env e) {
     // Safe require as it corresponds to some time very far into the future.
     require e.block.timestamp < 2^64;
     // Safe requires because they are very large numbers.
-    require totalAssets() < 2^112; // 10 years of max interest multiplies assets by approximately 2^16.
+    require totalAssets(e) < 2^112; // 10 years of max interest multiplies assets by approximately 2^16.
     require totalSupply() < 2^128;
     // Safe requires because of the totalSupplyIsSumOfBalances invariant.
     require balanceOf(managementFeeRecipient()) <= totalSupply();
