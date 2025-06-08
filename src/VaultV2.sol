@@ -9,6 +9,7 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
+import {StringLib} from "./libraries/StringLib.sol";
 import {UtilsLib} from "./libraries/UtilsLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
@@ -61,8 +62,8 @@ contract VaultV2 is IVaultV2 {
 
     /* TOKEN STORAGE */
 
-    string public name;
-    string public symbol;
+    bytes32 internal _name;
+    bytes32 internal _symbol;
     uint256 public totalSupply;
     mapping(address account => uint256) public balanceOf;
     mapping(address owner => mapping(address spender => uint256)) public allowance;
@@ -130,6 +131,14 @@ contract VaultV2 is IVaultV2 {
     address public managementFeeRecipient;
 
     /* GETTERS */
+
+    function name() external view returns (string memory) {
+        return StringLib.readStringFromSlot(6);
+    }
+
+    function symbol() external view returns (string memory) {
+        return StringLib.readStringFromSlot(7);
+    }
 
     function totalAssets() external view returns (uint256) {
         (uint256 newTotalAssets,,) = accrueInterestView();
@@ -201,13 +210,13 @@ contract VaultV2 is IVaultV2 {
 
     function setName(string memory newName) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        name = newName;
+        StringLib.writeStringToSlot(newName, 6);
         emit EventsLib.SetName(newName);
     }
 
     function setSymbol(string memory newSymbol) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
-        symbol = newSymbol;
+        StringLib.writeStringToSlot(newSymbol, 7);
         emit EventsLib.SetSymbol(newSymbol);
     }
 
