@@ -100,7 +100,6 @@ contract ManualVicTest is Test {
         vm.expectRevert(IManualVic.InterestPerSecondTooHigh.selector);
         manualVic.increaseInterestPerSecond(bound(newInterestPerSecond, 1, type(uint96).max), type(uint64).max);
 
-        console.log("block.timestamp", block.timestamp);
 
         // Normal path.
         vm.prank(curator);
