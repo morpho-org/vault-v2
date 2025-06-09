@@ -12,7 +12,7 @@ contract ManualVic is IManualVic {
     /* STORAGE */
 
     uint96 public maxInterestPerSecond;
-    uint96 public _interestPerSecond;
+    uint96 public storedInterestPerSecond;
     uint64 public deadline;
 
     /* FUNCTIONS */
@@ -23,7 +23,7 @@ contract ManualVic is IManualVic {
 
     function setMaxInterestPerSecond(uint256 newMaxInterestPerSecond) external {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
-        require(newMaxInterestPerSecond >= _interestPerSecond, InterestPerSecondTooHigh());
+        require(newMaxInterestPerSecond >= storedInterestPerSecond, InterestPerSecondTooHigh());
         require(newMaxInterestPerSecond <= type(uint96).max, CastOverflow());
         maxInterestPerSecond = uint96(newMaxInterestPerSecond);
         emit SetMaxInterestPerSecond(maxInterestPerSecond);
@@ -31,7 +31,7 @@ contract ManualVic is IManualVic {
 
     function zeroMaxInterestPerSecond() external {
         require(IVaultV2(vault).isSentinel(msg.sender), Unauthorized());
-        require(_interestPerSecond == 0, InterestPerSecondTooHigh());
+        require(storedInterestPerSecond == 0, InterestPerSecondTooHigh());
         maxInterestPerSecond = 0;
         emit ZeroMaxInterestPerSecond(msg.sender);
     }
@@ -45,20 +45,19 @@ contract ManualVic is IManualVic {
 
         IVaultV2(vault).accrueInterest();
 
-        _interestPerSecond = uint96(newInterestPerSecond);
+        storedInterestPerSecond = uint96(newInterestPerSecond);
         deadline = uint64(newDeadline);
         emit SetInterestPerSecond(msg.sender, newInterestPerSecond, newDeadline);
     }
 
     function zeroInterestPerSecond() external {
         require(IVaultV2(vault).isSentinel(msg.sender), Unauthorized());
-        _interestPerSecond = 0;
-        deadline = 0;
+        storedInterestPerSecond = 0;
         emit ZeroInterestPerSecond(msg.sender);
     }
 
     /// @dev Returns the interest per second.
     function interestPerSecond(uint256, uint256) external view returns (uint256) {
-        return block.timestamp <= deadline ? _interestPerSecond : 0;
+        return block.timestamp <= deadline ? storedInterestPerSecond : 0;
     }
 }

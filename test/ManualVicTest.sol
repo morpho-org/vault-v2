@@ -83,8 +83,8 @@ contract ManualVicTest is Test {
         manualVic.zeroMaxInterestPerSecond();
 
         // Normal path.
-        vm.prank(allocator);
-        manualVic.setInterestPerSecond(0, type(uint64).max);
+        vm.prank(sentinel);
+        manualVic.zeroInterestPerSecond(); // Show that the sentinel can do both.
         vm.prank(sentinel);
         vm.expectEmit();
         emit IManualVic.ZeroMaxInterestPerSecond(sentinel);
@@ -115,12 +115,14 @@ contract ManualVicTest is Test {
         emit IManualVic.SetInterestPerSecond(allocator, newInterestPerSecond, newDeadline);
         manualVic.setInterestPerSecond(newInterestPerSecond, newDeadline);
         assertEq(manualVic.interestPerSecond(0, 0), newInterestPerSecond);
+        assertEq(manualVic.storedInterestPerSecond(), newInterestPerSecond);
         assertEq(manualVic.deadline(), newDeadline);
 
         // Normal path, decreasing.
         vm.prank(allocator);
         manualVic.setInterestPerSecond(newInterestPerSecond - 1, newDeadline);
         assertEq(manualVic.interestPerSecond(0, 0), newInterestPerSecond - 1);
+        assertEq(manualVic.storedInterestPerSecond(), newInterestPerSecond - 1);
         assertEq(manualVic.deadline(), newDeadline);
     }
 
@@ -142,7 +144,8 @@ contract ManualVicTest is Test {
         emit IManualVic.ZeroInterestPerSecond(sentinel);
         manualVic.zeroInterestPerSecond();
         assertEq(manualVic.interestPerSecond(0, 0), 0);
-        assertEq(manualVic.deadline(), 0);
+        assertEq(manualVic.storedInterestPerSecond(), 0);
+        assertEq(manualVic.deadline(), type(uint64).max);
     }
 
     function testDeadline(uint256 newDeadline) public {
