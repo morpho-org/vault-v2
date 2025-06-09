@@ -50,6 +50,7 @@ import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 /// - The token should not revert on `transfer` to self.
 /// - totalAssets and totalSupply must stay below ~10^35.
 /// - The vault is pinged more than once every 20 years.
+/// - Adapters must not revert on `deallocate` if the underlying markets are liquid.
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
 /// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
 contract VaultV2 is IVaultV2 {
