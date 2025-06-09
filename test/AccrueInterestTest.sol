@@ -161,15 +161,33 @@ contract AccrueInterestTest is BaseTest {
         assertEq(vault.totalAssets(), totalAssetsBefore);
     }
 
-    function testAccrueInterestVicReverting(uint256 elapsed) public {
+    function testAccrueInterestRevertWhenVicRevertsWithoutData(uint256 elapsed) public {
+        elapsed = bound(elapsed, 1, 1000 weeks);
+
+        // Since interests are accrued after setting the Vic, it reverts only after the first call.
+        address revertingWithoutData = address(new RevertingWithoutData());
+
+        // Setup.
+        vault.accrueInterest(); // skip next accrual
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (revertingWithoutData)));
+        vault.setVic(revertingWithoutData);
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        // Vic reverts.
+        vm.expectRevert(ErrorsLib.StaticCallRevertedWithoutData.selector);
+        vault.accrueInterest();
+    }
+
+    function testAccrueInterestSuccessWhenVicRevertingWithData(uint256 elapsed) public {
         elapsed = bound(elapsed, 0, 1000 weeks);
 
-        address reverting = address(new Reverting());
+        address revertingWithData = address(new RevertingWithData());
 
         // Setup.
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (reverting)));
-        vault.setVic(reverting);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (revertingWithData)));
+        vault.setVic(revertingWithData);
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
         // Vic reverts.
@@ -247,4 +265,10 @@ contract AccrueInterestTest is BaseTest {
     }
 }
 
-contract Reverting {}
+contract RevertingWithoutData {}
+
+contract RevertingWithData {
+    fallback() external {
+        revert("Reverting with data");
+    }
+}

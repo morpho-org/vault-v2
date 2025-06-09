@@ -74,7 +74,8 @@ contract ControlledStaticCallTest is BaseTest {
         assertEq(output, 0);
     }
 
-    function testRevert(bytes calldata data) public {
+    function testRevertWithData(bytes calldata data) public {
+        vm.assume(data.length > 0);
         address account = address(new Reverts());
         (bool success, bytes memory returnData) = account.staticcall(data);
         assertFalse(success);
@@ -82,6 +83,25 @@ contract ControlledStaticCallTest is BaseTest {
 
         uint256 output = UtilsLib.controlledStaticCall(account, data);
         assertEq(output, 0);
+    }
+
+    /// forge-config: default.allow_internal_expect_revert = true
+    function testRevertWithoutData() public {
+        address account = address(new Reverts());
+        (bool success, bytes memory returnData) = account.staticcall("");
+        assertFalse(success);
+        assertEq(returnData.length, 0);
+
+        vm.expectRevert(ErrorsLib.StaticCallRevertedWithoutData.selector);
+        UtilsLib.controlledStaticCall(account, "");
+    }
+
+    /// forge-config: default.allow_internal_expect_revert = true
+    function testRevertIfBurnsAllGas() public {
+        address account = address(new BurnsAllGas());
+
+        vm.expectRevert(ErrorsLib.StaticCallRevertedWithoutData.selector);
+        UtilsLib.controlledStaticCall(account, "");
     }
 
     function testReturnsNoData(bytes calldata data) public {
@@ -110,8 +130,6 @@ contract ControlledStaticCallTest is BaseTest {
         this._testReturnsBombLowLevelStaticCall{gas: gas}(account);
     }
 
-    uint256 constant SAFE_GAS_AMOUNT = 700_000;
-
     function testCanUpdateVicIfVicBurnsAllGas() public {
         BurnsAllGas burnsAllGas = new BurnsAllGas();
 
@@ -123,10 +141,7 @@ contract ControlledStaticCallTest is BaseTest {
         // check that vic can still be changed
         vm.prank(curator);
         vault.submit(abi.encodeCall(vault.setVic, (address(0))));
-        vault.setVic{gas: SAFE_GAS_AMOUNT}(address(0));
-
-        // check that gas was almost entirely burned
-        assertGt(vm.lastCallGas().gasTotalUsed, SAFE_GAS_AMOUNT * 63 / 64);
+        vault.setVic(address(0));
     }
 
     /* INTERNAL */
