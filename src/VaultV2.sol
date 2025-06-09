@@ -38,12 +38,15 @@ import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 /// - The liquidity market is mostly useful on exit, so that exit liquidity is available in addition to the idle assets.
 /// But the same adapter/data is used for both entry and exit to have the property that in the general case looping
 /// supply-withdraw or withdraw-supply should not change the allocation.
+/// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
+/// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
 
     /* IMMUTABLE */
 
     address public immutable asset;
+    uint8 public immutable decimals;
 
     /* ROLES STORAGE */
 
@@ -58,6 +61,8 @@ contract VaultV2 is IVaultV2 {
 
     /* TOKEN STORAGE */
 
+    string public name;
+    string public symbol;
     uint256 public totalSupply;
     mapping(address account => uint256) public balanceOf;
     mapping(address owner => mapping(address spender => uint256)) public allowance;
@@ -96,7 +101,8 @@ contract VaultV2 is IVaultV2 {
 
     /* TIMELOCKS STORAGE */
 
-    /// @dev The timelock of decreaseTimelock is hard-coded at TIMELOCK_CAP.
+    /// @dev The timelock of decreaseTimelock is initially set to TIMELOCK_CAP, and can only be changed to
+    /// type(uint256).max through abdicateSubmit..
     /// @dev Only functions with the modifier `timelocked` are timelocked.
     /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
     /// timelocked data can potentially be changed shortly afterwards.
@@ -126,7 +132,8 @@ contract VaultV2 is IVaultV2 {
     /* GETTERS */
 
     function totalAssets() external view returns (uint256) {
-        return _totalAssets;
+        (uint256 newTotalAssets,,) = accrueInterestView();
+        return newTotalAssets;
     }
 
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
@@ -147,7 +154,9 @@ contract VaultV2 is IVaultV2 {
 
     /* MULTICALL */
 
-    /// @dev Mostly useful to batch admin actions together.
+    /// @dev Useful for EOAs to batch admin calls.
+    /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do
+    /// the multicall themselves.
     function multicall(bytes[] calldata data) external {
         for (uint256 i = 0; i < data.length; i++) {
             (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
@@ -165,6 +174,7 @@ contract VaultV2 is IVaultV2 {
         asset = _asset;
         owner = _owner;
         lastUpdate = uint64(block.timestamp);
+        decimals = IERC20(_asset).decimals();
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         emit EventsLib.Constructor(_owner, _asset);
     }
@@ -187,6 +197,18 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
         isSentinel[account] = newIsSentinel;
         emit EventsLib.SetIsSentinel(account, newIsSentinel);
+    }
+
+    function setName(string memory newName) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        name = newName;
+        emit EventsLib.SetName(newName);
+    }
+
+    function setSymbol(string memory newSymbol) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        symbol = newSymbol;
+        emit EventsLib.SetSymbol(newSymbol);
     }
 
     /* CURATOR ACTIONS */
@@ -229,7 +251,8 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Irreversibly disable submit for a selector.
     /// @dev Be particularly careful as this action is not reversible.
-    /// @dev After abdicating the submission of a function, it can still be executed with previously timelocked data.
+    /// @dev Existing timelocked operations submitted before abdicating the selector can still be executed. The
+    /// abdication of a selector only prevents future operations to be submitted.
     function abdicateSubmit(bytes4 selector) external timelocked {
         timelock[selector] = type(uint256).max;
         emit EventsLib.AbdicateSubmit(selector);
@@ -385,20 +408,15 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, loss);
     }
 
-    function setLiquidityAdapter(address newLiquidityAdapter) external {
+    function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external {
         require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         require(
             newLiquidityAdapter == address(0) || isAdapter[newLiquidityAdapter],
             ErrorsLib.LiquidityAdapterInvariantBroken()
         );
         liquidityAdapter = newLiquidityAdapter;
-        emit EventsLib.SetLiquidityAdapter(msg.sender, newLiquidityAdapter);
-    }
-
-    function setLiquidityData(bytes memory newLiquidityData) external {
-        require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         liquidityData = newLiquidityData;
-        emit EventsLib.SetLiquidityData(msg.sender, newLiquidityData);
+        emit EventsLib.SetLiquidityMarket(msg.sender, newLiquidityAdapter, newLiquidityData);
     }
 
     /* TIMELOCKS */
@@ -429,6 +447,7 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
+        if (lastUpdate == block.timestamp) return;
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         _totalAssets = newTotalAssets.toUint192();
@@ -438,6 +457,9 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
+    /// @dev The IPS is taken to be 0 if VIC reverts, has no code, returns a data that is not of size 32, or if the
+    /// corresponding rate is above the max rate.
+    /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
@@ -501,6 +523,38 @@ contract VaultV2 is IVaultV2 {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + 1);
+    }
+
+    /// @dev Returns corresponding shares (rounded down).
+    function convertToShares(uint256 assets) external view returns (uint256) {
+        return previewDeposit(assets);
+    }
+
+    /// @dev Returns corresponding assets (rounded down).
+    function convertToAssets(uint256 shares) external view returns (uint256) {
+        return previewRedeem(shares);
+    }
+
+    /* MAX */
+
+    /// @dev Returns the maximum amount of assets that can be deposited.
+    function maxDeposit(address onBehalf) external view returns (uint256) {
+        return canReceive(onBehalf) ? type(uint256).max : 0;
+    }
+
+    /// @dev Returns the maximum amount of shares that can be minted.
+    function maxMint(address onBehalf) external view returns (uint256) {
+        return canReceive(onBehalf) ? type(uint256).max : 0;
+    }
+
+    /// @dev Gross underestimation because it does not (and cannot) take into account the liquidity market.
+    function maxWithdraw(address) external pure returns (uint256) {
+        return 0;
+    }
+
+    /// @dev Gross underestimation because it does not (and cannot) take into account the liquidity market.
+    function maxRedeem(address) external pure returns (uint256) {
+        return 0;
     }
 
     /* USER MAIN FUNCTIONS */
@@ -576,16 +630,22 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns shares withdrawn as penalty.
     /// @dev This function will automatically realize potential losses.
+    /// @dev When calling this function, a penalty is taken from `onBehalf`, in order to discourage allocation
+    /// manipulations.
+    /// @dev The penalty is taken as a withdrawal for which assets are returned to the vault. In consequence,
+    /// totalAssets is decreased normally along with totalSupply (the share price doesn't change except because of
+    /// rounding errors), but the amount of assets actually controlled by the vault is not decreased.
+    /// @dev If a user has A assets in the vault, and that the vault is already fully illiquid, the optimal amount to
+    /// force deallocate in order to exit the vault is min(liquidity_of_market, A / (1 + penalty)).
+    /// This ensures that either the market is empty or that it leaves no shares nor liquidity after exiting.
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256)
     {
         this.deallocate(adapter, data, assets);
-
-        // The penalty is taken as a withdrawal that is donated to the vault.
-        uint256 penaltyAssets = assets.mulDivDown(forceDeallocatePenalty[adapter], WAD);
+        uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
-        emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf);
+        emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf, penaltyAssets);
         return shares;
     }
 
@@ -633,6 +693,7 @@ contract VaultV2 is IVaultV2 {
         return true;
     }
 
+    /// @dev Signature malleability is not explicitly prevented but it is not a problem thanks to the nonce.
     function permit(address _owner, address spender, uint256 shares, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         external
     {
