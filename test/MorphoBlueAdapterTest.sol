@@ -297,7 +297,7 @@ contract MorphoBlueAdapterTest is Test {
     function testWrongIrm(address randomIrm) public {
         vm.assume(randomIrm != address(irm));
         marketParams.irm = randomIrm;
-        vm.expectRevert(IMorphoBlueAdapter.InconsistentIrm.selector);
+        vm.expectRevert(IMorphoBlueAdapter.IrmMismatch.selector);
         vm.prank(address(parentVault));
         adapter.allocate(abi.encode(marketParams), 0);
 
