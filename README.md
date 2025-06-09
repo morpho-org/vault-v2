@@ -60,20 +60,26 @@ When defined, the liquidity market $M$ is also used as the market users are depo
 
 The market $M$ would typically be a very liquid Market V1.
 
+<a id="non-custodial"></a>
+### Non-custodial guarantees
+Non-custodial guarantees come from [in-kind redemptions](#in-kind-redemptions) and [timelocks](#curator-timelocks).
+These mechanisms allow users to withdraw their assets before any critical configuration change takes effect.
+
+Users may wish to exit the vault if:
+- allocation caps are increased for markets they consider risky.
+- an adapter the user considers dangerous is added.
+- timelock durations are shortened, reducing reaction time for future changes.
+
+<a id="in-king-redemptions"></a>
 ### In-kind redemptions with `forceDeallocate`
-
-Critical [configuration changes](#curator-timelocks) can be timelocked. Users may want to exit before a specific change is put in place. For instance:
-
-- unzeroing or increasing some caps for markets the user finds too risky.
-- adding an adapter the user considers dangerous.
-- decreasing the timelock of an action, giving the user too little time to react in the future.
 
 To guarantee exits even in the absence of assets immediately available for withdrawal, the permissionless `forceDeallocate` function allows anyone to move assets from an adapter to the vault's idle assets.
 
-A penalty of up to 2% can be set per adapter. This disincentivizes the manipulation of allocations, in particular of relative caps which are not checked on withdraw.
-
 `forceDeallocate` provides a form of in-kind redemption: users can flashloan liquidity, supply it to an adapters' market, and withdraw the liquidity through `forceDeallocate` before repaying the flashloan.
 This reduces their position in the vault and increases their position in the underlying market.
+
+A penalty of up to 2% can be set per adapter.
+This disincentivizes the manipulation of allocations, in particular of relative caps which are not checked on withdraw.
 
 [Gated vaults](Gates) can circumvent the in-kind redemption mechanism by configuring an `exitGate`.
 
@@ -184,24 +190,6 @@ It can:
 - Decrease absolute caps.
 - Decrease relative caps.
 - Revoke timelocked actions.
-
-<a id="non-custodial"></a>
-### Non-custodial guarantees
-Non-custodial guarantees come from **in-kind redemption** and **timelocks**.
-These features guarantee users can exit before any pending change takes effect.
-
-**In-kind redemption** allows vault share-holders to swap their vault shares for shares of an underlying market of the vault.
-A depositor can achieve this by taking a flash loan and supplying it to the underlying market.
-This adds liquidity that the depositor can transfer to the idle market using the `forceDeallocate` function.
-After withdrawing the funds and repaying the flash loan, the depositor will hold market shares instead of vault shares. 
-
-Since depositors can choose the market they want to exit to, the vault's relative allocation will be rebalanced during in-kind redemptions.
-In-kind redemptions are not subject to relative caps checks.
-A penalty of up to 2% can be set, per adapter, to execute the `forceDeallocate` function.
-
-**Timelocks** ensure that all actions taken by curators or owners that could directly or indirectly affect vault depositors are subject to a configurable delay.
-This gives users time to react to potentially malicious or risky actions before they take effect.
-
 
 ### Main differences with Vault V1
 
