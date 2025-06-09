@@ -71,6 +71,44 @@ contract SettersTest is BaseTest {
         assertEq(vault.isSentinel(rdm), newIsSentinel);
     }
 
+    function testSetName(address rdm, string memory newName) public {
+        vm.assume(rdm != owner);
+
+        // Default value
+        assertEq(vault.name(), "");
+
+        // Access control
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.setName(newName);
+
+        // Normal path
+        vm.prank(owner);
+        vm.expectEmit();
+        emit EventsLib.SetName(newName);
+        vault.setName(newName);
+        assertEq(vault.name(), newName);
+    }
+
+    function testSetSymbol(address rdm, string memory newSymbol) public {
+        vm.assume(rdm != owner);
+
+        // Default value
+        assertEq(vault.symbol(), "");
+
+        // Access control
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.setSymbol(newSymbol);
+
+        // Normal path
+        vm.prank(owner);
+        vm.expectEmit();
+        emit EventsLib.SetSymbol(newSymbol);
+        vault.setSymbol(newSymbol);
+        assertEq(vault.symbol(), newSymbol);
+    }
+
     /* CURATOR SETTERS */
 
     function testSubmit(bytes memory data, address rdm) public {

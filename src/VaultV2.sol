@@ -46,6 +46,7 @@ contract VaultV2 is IVaultV2 {
     /* IMMUTABLE */
 
     address public immutable asset;
+    uint8 public immutable decimals;
 
     /* ROLES STORAGE */
 
@@ -60,6 +61,8 @@ contract VaultV2 is IVaultV2 {
 
     /* TOKEN STORAGE */
 
+    string public name;
+    string public symbol;
     uint256 public totalSupply;
     mapping(address account => uint256) public balanceOf;
     mapping(address owner => mapping(address spender => uint256)) public allowance;
@@ -129,7 +132,8 @@ contract VaultV2 is IVaultV2 {
     /* GETTERS */
 
     function totalAssets() external view returns (uint256) {
-        return _totalAssets;
+        (uint256 newTotalAssets,,) = accrueInterestView();
+        return newTotalAssets;
     }
 
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
@@ -170,6 +174,7 @@ contract VaultV2 is IVaultV2 {
         asset = _asset;
         owner = _owner;
         lastUpdate = uint64(block.timestamp);
+        decimals = IERC20(_asset).decimals();
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         emit EventsLib.Constructor(_owner, _asset);
     }
@@ -192,6 +197,18 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
         isSentinel[account] = newIsSentinel;
         emit EventsLib.SetIsSentinel(account, newIsSentinel);
+    }
+
+    function setName(string memory newName) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        name = newName;
+        emit EventsLib.SetName(newName);
+    }
+
+    function setSymbol(string memory newSymbol) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        symbol = newSymbol;
+        emit EventsLib.SetSymbol(newSymbol);
     }
 
     /* CURATOR ACTIONS */
@@ -440,6 +457,9 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
+    /// @dev The IPS is taken to be 0 if VIC reverts, has no code, returns a data that is not of size 32, or if the
+    /// corresponding rate is above the max rate.
+    /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
@@ -503,6 +523,38 @@ contract VaultV2 is IVaultV2 {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + 1);
+    }
+
+    /// @dev Returns corresponding shares (rounded down).
+    function convertToShares(uint256 assets) external view returns (uint256) {
+        return previewDeposit(assets);
+    }
+
+    /// @dev Returns corresponding assets (rounded down).
+    function convertToAssets(uint256 shares) external view returns (uint256) {
+        return previewRedeem(shares);
+    }
+
+    /* MAX */
+
+    /// @dev Returns the maximum amount of assets that can be deposited.
+    function maxDeposit(address onBehalf) external view returns (uint256) {
+        return canReceive(onBehalf) ? type(uint256).max : 0;
+    }
+
+    /// @dev Returns the maximum amount of shares that can be minted.
+    function maxMint(address onBehalf) external view returns (uint256) {
+        return canReceive(onBehalf) ? type(uint256).max : 0;
+    }
+
+    /// @dev Gross underestimation because it does not (and cannot) take into account the liquidity market.
+    function maxWithdraw(address) external pure returns (uint256) {
+        return 0;
+    }
+
+    /// @dev Gross underestimation because it does not (and cannot) take into account the liquidity market.
+    function maxRedeem(address) external pure returns (uint256) {
+        return 0;
     }
 
     /* USER MAIN FUNCTIONS */

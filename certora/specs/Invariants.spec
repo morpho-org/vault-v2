@@ -9,7 +9,6 @@ methods {
     function curator() external returns address envfree;
     function isSentinel(address) external returns bool envfree;
     function lastUpdate() external returns uint64 envfree;
-    function totalAssets() external returns uint256 envfree;
     function totalSupply() external returns uint256 envfree;
     function performanceFee() external returns uint96 envfree;
     function performanceFeeRecipient() external returns address envfree;
