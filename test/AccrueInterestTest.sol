@@ -189,6 +189,7 @@ contract AccrueInterestTest is BaseTest {
         vault.setManagementFee(managementFee);
 
         vault.deposit(deposit, address(this));
+        uint256 totalAssetsBefore = vault.totalAssets();
 
         vm.prank(allocator);
         vic.increaseInterestPerSecond(interestPerSecond);
@@ -196,7 +197,7 @@ contract AccrueInterestTest is BaseTest {
         vm.warp(block.timestamp + elapsed);
 
         uint256 interest = interestPerSecond * elapsed;
-        uint256 newTotalAssets = vault.totalAssets() + interest;
+        uint256 newTotalAssets = totalAssetsBefore + interest;
         uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
         uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
 
