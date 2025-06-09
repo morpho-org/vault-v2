@@ -254,7 +254,7 @@ contract MetaMorphoAdapterTest is Test {
         );
     }
 
-    function testIds() public {
+    function testIds() public pure {
         assertEq(adapter.ids(), expectedIds);
     }
 
