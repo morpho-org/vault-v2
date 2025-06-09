@@ -324,7 +324,7 @@ contract MorphoBlueAdapterTest is Test {
         );
     }
 
-    function testIds() public pure {
+    function testIds() public view {
         assertEq(adapter.ids(marketParams), expectedIds);
     }
 }
