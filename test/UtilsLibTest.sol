@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {Test, console} from "../lib/forge-std/src/Test.sol";
+import "./BaseTest.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
 import {UtilsLib} from "../src/libraries/UtilsLib.sol";
 import {VaultV2} from "../src/VaultV2.sol";
@@ -52,7 +52,7 @@ contract BurnsAllGas {
     }
 }
 
-contract ControlledStaticCallTest is Test {
+contract ControlledStaticCallTest is BaseTest {
     function testDataWrongSize(bytes calldata data) public {
         vm.assume(data.length != 32);
         address account = address(new ReturnsInput());
@@ -114,14 +114,14 @@ contract ControlledStaticCallTest is Test {
 
     function testCanUpdateVicIfVicBurnsAllGas() public {
         BurnsAllGas burnsAllGas = new BurnsAllGas();
-        VaultV2 vault = new VaultV2(address(this), address(0));
-        vault.setCurator(address(this));
 
+        vm.prank(curator);
         vault.submit(abi.encodeCall(vault.setVic, (address(burnsAllGas))));
         vault.setVic(address(burnsAllGas));
 
         skip(1);
         // check that vic can still be changed
+        vm.prank(curator);
         vault.submit(abi.encodeCall(vault.setVic, (address(0))));
         vault.setVic{gas: SAFE_GAS_AMOUNT}(address(0));
 

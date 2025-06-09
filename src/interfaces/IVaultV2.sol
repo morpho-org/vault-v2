@@ -62,6 +62,8 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     function setEnterGate(address newEnterGate) external;
     function setCurator(address newCurator) external;
     function setIsSentinel(address account, bool isSentinel) external;
+    function setName(string memory newName) external;
+    function setSymbol(string memory newSymbol) external;
 
     // Curator actions
     function setVic(address newVic) external;
