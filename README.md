@@ -195,7 +195,7 @@ A depositor can achieve this by taking a flash loan and supplying it to the unde
 This adds liquidity that the depositor can transfer to the idle market using the `forceDeallocate` function.
 After withdrawing the funds and repaying the flash loan, the depositor will hold market shares instead of vault shares. 
 
-Since depositors choose which underlying assets they want to exit with, the vault's relative allocation will change during in-kind redemption.
+Since depositors can choose the market they want to exit to, the vault's relative allocation will be rebalanced during in-kind redemptions.
 In-kind redemptions are not subject to relative caps checks.
 A penalty of up to 2% can be set, per adapter, to execute the `forceDeallocate` function.
 
