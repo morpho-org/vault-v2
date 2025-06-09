@@ -61,8 +61,8 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
-        require(marketParams.loanToken == asset, InconsistentLoanAsset());
-        require(marketParams.irm == irm, InconsistentIrm());
+        require(marketParams.loanToken == asset, LoanAssetMismatch());
+        require(marketParams.irm == irm, IrmMismatch());
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
@@ -80,8 +80,8 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
-        require(marketParams.loanToken == asset, InconsistentLoanAsset());
-        require(marketParams.irm == irm, InconsistentIrm());
+        require(marketParams.loanToken == asset, LoanAssetMismatch());
+        require(marketParams.irm == irm, IrmMismatch());
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
