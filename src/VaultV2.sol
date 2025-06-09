@@ -389,6 +389,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, loss);
     }
 
+    /// @dev Whether newLiquidityAdapter is an adapter is checked in allocate/deallocate.
     function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external {
         require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         liquidityAdapter = newLiquidityAdapter;
