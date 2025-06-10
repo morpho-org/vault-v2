@@ -38,6 +38,19 @@ import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 /// - The liquidity market is mostly useful on exit, so that exit liquidity is available in addition to the idle assets.
 /// But the same adapter/data is used for both entry and exit to have the property that in the general case looping
 /// supply-withdraw or withdraw-supply should not change the allocation.
+/// @dev List of assumptions on the token that guarantees that the vault behaves as expected:
+/// - It should be ERC-20 compliant, except that it can omit return values on `transfer` and `transferFrom`.
+/// - The balance of the vault should only decrease on `transfer` and `transferFrom`. In particular, tokens with burn
+/// functions are not supported.
+/// - It should not re-enter the vault on `transfer` nor `transferFrom`.
+/// - The balance of the sender (resp. receiver) should decrease (resp. increase) by exactly the given amount on
+/// `transfer` and `transferFrom`. In particular, tokens with fees on transfer are not supported.
+/// @dev List of assumptions that guarantees the vault's liveness properties:
+/// - The token should not revert on `transfer` and `transferFrom` if balances and approvals are right.
+/// - The token should not revert on `transfer` to self.
+/// - totalAssets and totalSupply must stay below ~10^35.
+/// - The vault is pinged more than once every 20 years.
+/// - Adapters must not revert on `deallocate` if the underlying markets are liquid.
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
 /// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
 contract VaultV2 is IVaultV2 {
