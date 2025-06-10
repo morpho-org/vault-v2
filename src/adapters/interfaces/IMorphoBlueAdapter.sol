@@ -12,12 +12,14 @@ interface IMorphoBlueAdapter is IAdapter {
     /* ERRORS */
 
     error NotAuthorized();
-    error WrongAsset();
+    error LoanAssetMismatch();
+    error IrmMismatch();
 
     /* FUNCTIONS */
 
     function parentVault() external view returns (address);
     function morpho() external view returns (address);
+    function irm() external view returns (address);
     function skimRecipient() external view returns (address);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;

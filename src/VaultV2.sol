@@ -38,6 +38,19 @@ import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 /// - The liquidity market is mostly useful on exit, so that exit liquidity is available in addition to the idle assets.
 /// But the same adapter/data is used for both entry and exit to have the property that in the general case looping
 /// supply-withdraw or withdraw-supply should not change the allocation.
+/// @dev List of assumptions on the token that guarantees that the vault behaves as expected:
+/// - It should be ERC-20 compliant, except that it can omit return values on `transfer` and `transferFrom`.
+/// - The balance of the vault should only decrease on `transfer` and `transferFrom`. In particular, tokens with burn
+/// functions are not supported.
+/// - It should not re-enter the vault on `transfer` nor `transferFrom`.
+/// - The balance of the sender (resp. receiver) should decrease (resp. increase) by exactly the given amount on
+/// `transfer` and `transferFrom`. In particular, tokens with fees on transfer are not supported.
+/// @dev List of assumptions that guarantees the vault's liveness properties:
+/// - The token should not revert on `transfer` and `transferFrom` if balances and approvals are right.
+/// - The token should not revert on `transfer` to self.
+/// - totalAssets and totalSupply must stay below ~10^35.
+/// - The vault is pinged more than once every 20 years.
+/// - Adapters must not revert on `deallocate` if the underlying markets are liquid.
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
 /// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
 contract VaultV2 is IVaultV2 {
@@ -95,7 +108,6 @@ contract VaultV2 is IVaultV2 {
 
     /* LIQUIDITY ADAPTER STORAGE */
 
-    /// @dev This invariant holds: liquidityAdapter != address(0) => isAdapter[liquidityAdapter].
     address public liquidityAdapter;
     bytes public liquidityData;
 
@@ -235,7 +247,6 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setIsAdapter(address account, bool newIsAdapter) external timelocked {
-        require(account != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
         isAdapter[account] = newIsAdapter;
         emit EventsLib.SetIsAdapter(account, newIsAdapter);
     }
@@ -408,12 +419,9 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, loss);
     }
 
+    /// @dev Whether newLiquidityAdapter is an adapter is checked in allocate/deallocate.
     function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external {
         require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
-        require(
-            newLiquidityAdapter == address(0) || isAdapter[newLiquidityAdapter],
-            ErrorsLib.LiquidityAdapterInvariantBroken()
-        );
         liquidityAdapter = newLiquidityAdapter;
         liquidityData = newLiquidityData;
         emit EventsLib.SetLiquidityMarket(msg.sender, newLiquidityAdapter, newLiquidityData);
@@ -472,28 +480,21 @@ contract VaultV2 is IVaultV2 {
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = _totalAssets + interest;
 
-        uint256 performanceFeeShares;
-        uint256 managementFeeShares;
-        // Note: the fee assets is subtracted from the total assets in the fee shares calculation to compensate for the
-        // fact that total assets is already increased by the total interest (including the fee assets).
-        // Note: `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
+        // The performance fee assets may be rounded down to 0 if `interest * fee < WAD`.
+        uint256 performanceFeeAssets = interest > 0 && performanceFee != 0 && canReceive(performanceFeeRecipient)
+            ? interest.mulDivDown(performanceFee, WAD)
+            : 0;
+        // The management fee is taken on `newTotalAssets` to make all approximations consistent (interacting less
+        // increases fees).
+        uint256 managementFeeAssets = managementFee != 0 && canReceive(managementFeeRecipient)
+            ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD)
+            : 0;
 
-        if (interest > 0 && performanceFee != 0 && canReceive(performanceFeeRecipient)) {
-            // Note: the accrued performance fee might be smaller than this because of the management fee.
-            uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
-            performanceFeeShares =
-                performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
-        }
-        if (managementFee != 0 && canReceive(managementFeeRecipient)) {
-            // Note: The vault must be pinged at least once every 20 years to avoid management fees exceeding total
-            // assets and revert forever.
-            // Note: The management fee is taken on newTotalAssets to make all approximations consistent (interacting
-            // less increases management fees).
-            uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
-            managementFeeShares = managementFeeAssets.mulDivDown(
-                totalSupply + 1 + performanceFeeShares, newTotalAssets + 1 - managementFeeAssets
-            );
-        }
+        // Interest should be accrued at least every 10 years to avoid fees exceeding total assets.
+        uint256 newTotalAssetsWithoutFees = newTotalAssets - performanceFeeAssets - managementFeeAssets;
+        uint256 performanceFeeShares = performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssetsWithoutFees + 1);
+        uint256 managementFeeShares = managementFeeAssets.mulDivDown(totalSupply + 1, newTotalAssetsWithoutFees + 1);
+
         return (newTotalAssets, performanceFeeShares, managementFeeShares);
     }
 

@@ -261,17 +261,6 @@ contract SettersTest is BaseTest {
         emit EventsLib.SetIsAdapter(newAdapter, false);
         vault.setIsAdapter(newAdapter, false);
         assertFalse(vault.isAdapter(newAdapter));
-
-        // Liquidity adapter invariant
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (newAdapter, true)));
-        vault.setIsAdapter(newAdapter, true);
-        vm.prank(allocator);
-        vault.setLiquidityMarket(newAdapter, "");
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (newAdapter, false)));
-        vm.expectRevert(ErrorsLib.LiquidityAdapterInvariantBroken.selector);
-        vault.setIsAdapter(newAdapter, false);
     }
 
     function testIncreaseTimelock(address rdm, bytes4 selector, uint256 newTimelock) public {
@@ -765,9 +754,6 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != allocator);
         vm.assume(liquidityAdapter != address(0));
         vm.assume(rdm != allocator);
-        vm.prank(allocator);
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
-        vault.setLiquidityMarket(liquidityAdapter, liquidityData);
 
         // Access control
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
@@ -784,11 +770,5 @@ contract SettersTest is BaseTest {
         vault.setLiquidityMarket(liquidityAdapter, liquidityData);
         assertEq(vault.liquidityAdapter(), liquidityAdapter);
         assertEq(vault.liquidityData(), liquidityData);
-
-        // Liquidity adapter invariant
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (liquidityAdapter, false)));
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
-        vault.setIsAdapter(liquidityAdapter, false);
     }
 }
