@@ -254,6 +254,10 @@ contract MetaMorphoAdapterTest is Test {
         );
     }
 
+    function testIds() public view {
+        assertEq(adapter.ids(), expectedIds);
+    }
+
     function testInvalidData(bytes memory data) public {
         vm.assume(data.length > 0);
 
@@ -262,6 +266,13 @@ contract MetaMorphoAdapterTest is Test {
 
         vm.expectRevert(IMetaMorphoAdapter.InvalidData.selector);
         adapter.deallocate(data, 0);
+    }
+
+    function testDifferentAssetReverts(address randomAsset) public {
+        vm.assume(randomAsset != parentVault.asset());
+        ERC4626MockExtended newMetaMorpho = new ERC4626MockExtended(randomAsset);
+        vm.expectRevert(IMetaMorphoAdapter.AssetMismatch.selector);
+        new MetaMorphoAdapter(address(parentVault), address(newMetaMorpho));
     }
 }
 

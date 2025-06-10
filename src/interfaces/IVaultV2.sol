@@ -4,6 +4,12 @@ pragma solidity >=0.5.0;
 import {IERC20} from "./IERC20.sol";
 import {IPermissionedToken} from "./IPermissionedToken.sol";
 
+struct Caps {
+    uint256 allocation;
+    uint128 absoluteCap;
+    uint128 relativeCap;
+}
+
 interface IVaultV2 is IERC20, IPermissionedToken {
     // Multicall
     function multicall(bytes[] memory data) external;
@@ -58,6 +64,8 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     function setSendAssetsGate(address newSendAssetsGate) external;
     function setCurator(address newCurator) external;
     function setIsSentinel(address account, bool isSentinel) external;
+    function setName(string memory newName) external;
+    function setSymbol(string memory newSymbol) external;
 
     // Curator actions
     function setVic(address newVic) external;
@@ -79,8 +87,7 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     // Allocator actions
     function allocate(address adapter, bytes memory data, uint256 assets) external;
     function deallocate(address adapter, bytes memory data, uint256 assets) external;
-    function setLiquidityAdapter(address newLiquidityAdapter) external;
-    function setLiquidityData(bytes memory newLiquidityData) external;
+    function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external;
 
     // Exchange rate
     function accrueInterest() external;
