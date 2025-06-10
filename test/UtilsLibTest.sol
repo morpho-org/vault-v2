@@ -44,14 +44,6 @@ contract ReturnsBomb {
     }
 }
 
-contract BurnsAllGas {
-    fallback() external {
-        assembly {
-            invalid()
-        }
-    }
-}
-
 contract ControlledStaticCallTest is BaseTest {
     function testDataWrongSize(bytes calldata data) public {
         vm.assume(data.length != 32);

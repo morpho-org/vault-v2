@@ -497,12 +497,12 @@ contract VaultV2 is IVaultV2 {
         uint256 newTotalAssets = _totalAssets + interest;
 
         // The performance fee assets may be rounded down to 0 if `interest * fee < WAD`.
-        uint256 performanceFeeAssets = interest > 0 && performanceFee != 0 && canReceive(performanceFeeRecipient)
+        uint256 performanceFeeAssets = interest > 0 && performanceFee != 0 && canReceivePerformanceFee
             ? interest.mulDivDown(performanceFee, WAD)
             : 0;
         // The management fee is taken on `newTotalAssets` to make all approximations consistent (interacting less
         // increases fees).
-        uint256 managementFeeAssets = managementFee != 0 && canReceive(managementFeeRecipient)
+        uint256 managementFeeAssets = managementFee != 0 && canReceiveManagementFee
             ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD)
             : 0;
 

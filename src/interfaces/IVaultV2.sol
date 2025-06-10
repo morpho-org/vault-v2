@@ -106,6 +106,6 @@ interface IVaultV2 is IERC20, IPermissionedToken {
         returns (uint256 withdrawnShares);
 
     // Permissioned token
-    function canSend(address account) external returns (bool);
-    function canReceive(address account) external returns (bool);
+    function canSend(address account) external view returns (bool);
+    function canReceive(address account) external view returns (bool);
 }
