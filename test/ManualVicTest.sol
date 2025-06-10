@@ -92,7 +92,9 @@ contract ManualVicTest is Test {
         assertEq(manualVic.maxInterestPerSecond(), 0);
     }
 
-    function testsetInterestPerSecondAndDeadline(address rdm, uint256 newInterestPerSecond, uint256 newDeadline) public {
+    function testsetInterestPerSecondAndDeadline(address rdm, uint256 newInterestPerSecond, uint256 newDeadline)
+        public
+    {
         vm.assume(rdm != allocator);
         newInterestPerSecond = bound(newInterestPerSecond, 1, type(uint96).max);
         newDeadline = bound(newDeadline, block.timestamp, type(uint64).max);
