@@ -6,12 +6,6 @@ import "../../src/VaultV2.sol";
 contract VaultV2Harness is VaultV2 {
     constructor(address owner, address asset) VaultV2(owner, asset) {}
 
-    function enterMocked(uint256 assets, uint256, address) external {
-        if (liquidityAdapter != address(0)) {
-            try this.allocate(liquidityAdapter, liquidityData, assets) {} catch {}
-        }
-    }
-
     function accrueInterestViewMocked() external view {
         uint256 elapsed = block.timestamp;
 

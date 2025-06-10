@@ -586,7 +586,7 @@ contract VaultV2 is IVaultV2 {
         createShares(onBehalf, shares);
         _totalAssets += assets.toUint192();
         if (liquidityAdapter != address(0)) {
-            try this.allocate(liquidityAdapter, liquidityData, assets) {} catch {}
+            this.allocate(liquidityAdapter, liquidityData, assets);
         }
         emit EventsLib.Deposit(msg.sender, onBehalf, assets, shares);
     }
