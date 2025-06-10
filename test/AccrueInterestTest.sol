@@ -143,7 +143,7 @@ contract AccrueInterestTest is BaseTest {
 
         vault.deposit(deposit, address(this));
         vm.prank(allocator);
-        vic.increaseInterestPerSecond(deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
+        vic.setInterestPerSecondAndDeadline(deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD), type(uint64).max);
         skip(365 days);
 
         vault.accrueInterest();

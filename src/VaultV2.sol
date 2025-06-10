@@ -485,22 +485,20 @@ contract VaultV2 is IVaultV2 {
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = _totalAssets + interest;
 
-        // Note: the performance fee assets may be rounded down to 0 if `interest * fee < WAD`.
+        // The performance fee assets may be rounded down to 0 if `interest * fee < WAD`.
         uint256 performanceFeeAssets = interest > 0 && performanceFee != 0 && canReceive(performanceFeeRecipient)
             ? interest.mulDivDown(performanceFee, WAD)
             : 0;
-        // Note: the management fee is taken on `newTotalAssets` to make all approximations consistent (interacting less
+        // The management fee is taken on `newTotalAssets` to make all approximations consistent (interacting less
         // increases fees).
         uint256 managementFeeAssets = managementFee != 0 && canReceive(managementFeeRecipient)
             ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD)
             : 0;
 
-        // Note: interest should be accrued at least every 10 years to avoid fees exceeding total assets.
-        uint256 totalAssetsWithoutFees = newTotalAssets - performanceFeeAssets - managementFeeAssets;
-        // Note: the fee assets is subtracted from the total assets in the fee shares calculation to compensate for the
-        // fact that total assets is already increased by the total interest (including the fee assets).
-        uint256 performanceFeeShares = performanceFeeAssets.mulDivDown(totalSupply + 1, totalAssetsWithoutFees + 1);
-        uint256 managementFeeShares = managementFeeAssets.mulDivDown(totalSupply + 1, totalAssetsWithoutFees + 1);
+        // Interest should be accrued at least every 10 years to avoid fees exceeding total assets.
+        uint256 newTotalAssetsWithoutFees = newTotalAssets - performanceFeeAssets - managementFeeAssets;
+        uint256 performanceFeeShares = performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssetsWithoutFees + 1);
+        uint256 managementFeeShares = managementFeeAssets.mulDivDown(totalSupply + 1, newTotalAssetsWithoutFees + 1);
 
         return (newTotalAssets, performanceFeeShares, managementFeeShares);
     }
