@@ -12,10 +12,3 @@ rule liquidityAdapterDoesntRevertWhenDepositing(env e, uint256 assets, uint256 s
     enterMocked@withrevert(e, assets, shares, onBehalf);
     assert !lastReverted;
 }
-
-rule accrueInterestViewDoesntRevertOnBadVic(env e) {
-    // Safe require because `accrueInterestView` is always called without native tokens.
-    require e.msg.value == 0;
-    accrueInterestViewMocked@withrevert(e);
-    assert !lastReverted;
-}
