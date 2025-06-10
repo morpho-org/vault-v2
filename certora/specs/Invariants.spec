@@ -22,7 +22,7 @@ methods {
     function timelock(bytes4 selector) external returns uint256 envfree;
     function liquidityAdapter() external returns address envfree;
     function liquidityData() external returns bytes memory envfree;
-    function isAdapter(address adapter) external returns bool envfree;
+    function canUseAdapterWithKey(address adapter, bytes32 key) external returns bool envfree;
     function balanceOf(address) external returns uint256 envfree;
     function enterGate() external returns address envfree;
     function canReceive(address) external returns bool envfree;
@@ -72,9 +72,6 @@ strong invariant timelockBounds(bytes4 selector)
 
 strong invariant decreaseTimelockTimelock()
     timelock(decreaseTimelockSelector()) == Utils.timelockCap() || timelock(decreaseTimelockSelector()) == max_uint256;
-
-strong invariant liquidityAdapterInvariant()
-    liquidityAdapter() == 0 || isAdapter(liquidityAdapter());
 
 strong invariant totalSupplyIsSumOfBalances()
     totalSupply() == sumOfBalances;
