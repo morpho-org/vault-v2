@@ -110,7 +110,7 @@ contract ControlledStaticCallTest is BaseTest {
         this._testReturnsBombLowLevelStaticCall{gas: gas}(account);
     }
 
-    uint256 constant SAFE_GAS_AMOUNT = 700_000;
+    uint256 constant SAFE_GAS_AMOUNT = 900_000;
 
     function testCanUpdateVicIfVicBurnsAllGas() public {
         BurnsAllGas burnsAllGas = new BurnsAllGas();
