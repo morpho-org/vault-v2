@@ -7,14 +7,17 @@ library UtilsLib {
     /// @dev Returns the first word returned by a successful static call.
     /// @dev Returns 0 if no data was returned.
     /// @dev Returns 0 if the static call reverted.
+    /// @dev Returns 0 if the returned data is not exactly 32 bytes long.
     /// @dev Unlike a low-level solidity call, does not copy all the return data to memory.
     function controlledStaticCall(address to, bytes memory data) internal view returns (uint256) {
         uint256[1] memory output;
         bool success;
+        uint256 returnDataSize;
         assembly ("memory-safe") {
             success := staticcall(gas(), to, add(data, 32), mload(data), output, 32)
+            returnDataSize := returndatasize()
         }
-        if (success) return output[0];
+        if (success && returnDataSize == 32) return output[0];
         else return 0;
     }
 }

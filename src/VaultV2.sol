@@ -30,7 +30,7 @@ import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 /// - They must enforce that only the vault can call allocate/deallocate.
 /// - They must enter/exit markets only in allocate/deallocate.
 /// - They must return the right ids on allocate/deallocate.
-/// - They must have approved `assets` for the vault at the end of deallocate.
+/// - After a call to deallocate, the vault must have an approval to transfer at least `assets` from the adapter.
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
 /// @dev Liquidity market:
 /// - `liquidityAdapter` is allocated to on deposit/mint, and deallocated from on withdraw/redeem if idle assets don't
@@ -38,6 +38,19 @@ import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 /// - The liquidity market is mostly useful on exit, so that exit liquidity is available in addition to the idle assets.
 /// But the same adapter/data is used for both entry and exit to have the property that in the general case looping
 /// supply-withdraw or withdraw-supply should not change the allocation.
+/// @dev List of assumptions on the token that guarantees that the vault behaves as expected:
+/// - It should be ERC-20 compliant, except that it can omit return values on `transfer` and `transferFrom`.
+/// - The balance of the vault should only decrease on `transfer` and `transferFrom`. In particular, tokens with burn
+/// functions are not supported.
+/// - It should not re-enter the vault on `transfer` nor `transferFrom`.
+/// - The balance of the sender (resp. receiver) should decrease (resp. increase) by exactly the given amount on
+/// `transfer` and `transferFrom`. In particular, tokens with fees on transfer are not supported.
+/// @dev List of assumptions that guarantees the vault's liveness properties:
+/// - The token should not revert on `transfer` and `transferFrom` if balances and approvals are right.
+/// - The token should not revert on `transfer` to self.
+/// - totalAssets and totalSupply must stay below ~10^35.
+/// - The vault is pinged more than once every 20 years.
+/// - Adapters must not revert on `deallocate` if the underlying markets are liquid.
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
 /// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
 contract VaultV2 is IVaultV2 {
@@ -46,6 +59,7 @@ contract VaultV2 is IVaultV2 {
     /* IMMUTABLE */
 
     address public immutable asset;
+    uint8 public immutable decimals;
 
     /* ROLES STORAGE */
 
@@ -60,6 +74,8 @@ contract VaultV2 is IVaultV2 {
 
     /* TOKEN STORAGE */
 
+    string public name;
+    string public symbol;
     uint256 public totalSupply;
     mapping(address account => uint256) public balanceOf;
     mapping(address owner => mapping(address spender => uint256)) public allowance;
@@ -129,7 +145,8 @@ contract VaultV2 is IVaultV2 {
     /* GETTERS */
 
     function totalAssets() external view returns (uint256) {
-        return _totalAssets;
+        (uint256 newTotalAssets,,) = accrueInterestView();
+        return newTotalAssets;
     }
 
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
@@ -170,6 +187,7 @@ contract VaultV2 is IVaultV2 {
         asset = _asset;
         owner = _owner;
         lastUpdate = uint64(block.timestamp);
+        decimals = IERC20(_asset).decimals();
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         emit EventsLib.Constructor(_owner, _asset);
     }
@@ -192,6 +210,18 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
         isSentinel[account] = newIsSentinel;
         emit EventsLib.SetIsSentinel(account, newIsSentinel);
+    }
+
+    function setName(string memory newName) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        name = newName;
+        emit EventsLib.SetName(newName);
+    }
+
+    function setSymbol(string memory newSymbol) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        symbol = newSymbol;
+        emit EventsLib.SetSymbol(newSymbol);
     }
 
     /* CURATOR ACTIONS */
@@ -430,6 +460,7 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
+        if (lastUpdate == block.timestamp) return;
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         _totalAssets = newTotalAssets.toUint192();
@@ -439,6 +470,9 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
+    /// @dev The IPS is taken to be 0 if VIC reverts, has no code, returns a data that is not of size 32, or if the
+    /// corresponding rate is above the max rate.
+    /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
@@ -502,6 +536,38 @@ contract VaultV2 is IVaultV2 {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + 1);
+    }
+
+    /// @dev Returns corresponding shares (rounded down).
+    function convertToShares(uint256 assets) external view returns (uint256) {
+        return previewDeposit(assets);
+    }
+
+    /// @dev Returns corresponding assets (rounded down).
+    function convertToAssets(uint256 shares) external view returns (uint256) {
+        return previewRedeem(shares);
+    }
+
+    /* MAX */
+
+    /// @dev Returns the maximum amount of assets that can be deposited.
+    function maxDeposit(address onBehalf) external view returns (uint256) {
+        return canReceive(onBehalf) ? type(uint256).max : 0;
+    }
+
+    /// @dev Returns the maximum amount of shares that can be minted.
+    function maxMint(address onBehalf) external view returns (uint256) {
+        return canReceive(onBehalf) ? type(uint256).max : 0;
+    }
+
+    /// @dev Gross underestimation because it does not (and cannot) take into account the liquidity market.
+    function maxWithdraw(address) external pure returns (uint256) {
+        return 0;
+    }
+
+    /// @dev Gross underestimation because it does not (and cannot) take into account the liquidity market.
+    function maxRedeem(address) external pure returns (uint256) {
+        return 0;
     }
 
     /* USER MAIN FUNCTIONS */

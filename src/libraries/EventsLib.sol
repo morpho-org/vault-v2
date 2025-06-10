@@ -86,4 +86,8 @@ library EventsLib {
     );
 
     event CreateVaultV2(address indexed owner, address indexed asset, address indexed vaultV2);
+
+    event SetName(string indexed newName);
+
+    event SetSymbol(string indexed newSymbol);
 }
