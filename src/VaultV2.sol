@@ -497,14 +497,12 @@ contract VaultV2 is IVaultV2 {
         uint256 newTotalAssets = _totalAssets + interest;
 
         // The performance fee assets may be rounded down to 0 if `interest * fee < WAD`.
-        uint256 performanceFeeAssets = interest > 0 && mayReceivePerformanceFee
-            ? interest.mulDivDown(performanceFee, WAD)
-            : 0;
+        uint256 performanceFeeAssets =
+            interest > 0 && mayReceivePerformanceFee ? interest.mulDivDown(performanceFee, WAD) : 0;
         // The management fee is taken on `newTotalAssets` to make all approximations consistent (interacting less
         // increases fees).
-        uint256 managementFeeAssets = mayReceiveManagementFee
-            ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD)
-            : 0;
+        uint256 managementFeeAssets =
+            mayReceiveManagementFee ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD) : 0;
 
         // Interest should be accrued at least every 10 years to avoid fees exceeding total assets.
         uint256 newTotalAssetsWithoutFees = newTotalAssets - performanceFeeAssets - managementFeeAssets;
