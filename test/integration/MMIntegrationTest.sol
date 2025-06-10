@@ -121,12 +121,12 @@ contract MMIntegrationTest is BaseTest {
         bytes memory idData = abi.encode("adapter", address(metaMorphoAdapter));
         vm.startPrank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(metaMorphoAdapter), true)));
-        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint256).max)));
+        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
         vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
         vm.stopPrank();
 
         vault.setIsAdapter(address(metaMorphoAdapter), true);
-        vault.increaseAbsoluteCap(idData, type(uint256).max);
+        vault.increaseAbsoluteCap(idData, type(uint128).max);
         vault.increaseRelativeCap(idData, 1e18);
 
         // Approval.
@@ -134,7 +134,7 @@ contract MMIntegrationTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
     }
 
-    function setSupplyQueueIdle() public {
+    function setSupplyQueueIdle() internal {
         setMetaMorphoCap(idleParams, type(uint184).max);
         Id[] memory supplyQueue = new Id[](1);
         supplyQueue[0] = idleParams.id();
@@ -142,7 +142,7 @@ contract MMIntegrationTest is BaseTest {
         metaMorpho.setSupplyQueue(supplyQueue);
     }
 
-    function setSupplyQueueAllMarkets() public {
+    function setSupplyQueueAllMarkets() internal {
         Id[] memory supplyQueue = new Id[](MM_NB_MARKETS);
         for (uint256 i; i < MM_NB_MARKETS; i++) {
             MarketParams memory marketParams = allMarketParams[i];

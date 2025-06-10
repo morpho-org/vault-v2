@@ -71,6 +71,44 @@ contract SettersTest is BaseTest {
         assertEq(vault.isSentinel(rdm), newIsSentinel);
     }
 
+    function testSetName(address rdm, string memory newName) public {
+        vm.assume(rdm != owner);
+
+        // Default value
+        assertEq(vault.name(), "");
+
+        // Access control
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.setName(newName);
+
+        // Normal path
+        vm.prank(owner);
+        vm.expectEmit();
+        emit EventsLib.SetName(newName);
+        vault.setName(newName);
+        assertEq(vault.name(), newName);
+    }
+
+    function testSetSymbol(address rdm, string memory newSymbol) public {
+        vm.assume(rdm != owner);
+
+        // Default value
+        assertEq(vault.symbol(), "");
+
+        // Access control
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.setSymbol(newSymbol);
+
+        // Normal path
+        vm.prank(owner);
+        vm.expectEmit();
+        emit EventsLib.SetSymbol(newSymbol);
+        vault.setSymbol(newSymbol);
+        assertEq(vault.symbol(), newSymbol);
+    }
+
     /* CURATOR SETTERS */
 
     function testSubmit(bytes memory data, address rdm) public {
@@ -179,7 +217,7 @@ contract SettersTest is BaseTest {
         assertFalse(vault.isAllocator(newAllocator));
     }
 
-    function testSetVic(address rdm) public {
+    function testSetVic(address rdm, uint48 elapsed) public {
         vm.assume(rdm != curator);
         address newVic = address(new ManualVic(address(vault)));
 
@@ -191,10 +229,12 @@ contract SettersTest is BaseTest {
         // Normal path
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setVic, (newVic)));
+        skip(elapsed);
         vm.expectEmit();
         emit EventsLib.SetVic(newVic);
         vault.setVic(newVic);
         assertEq(address(vault.vic()), newVic);
+        assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
     }
 
     function testSetIsAdapter(address rdm) public {
@@ -221,17 +261,6 @@ contract SettersTest is BaseTest {
         emit EventsLib.SetIsAdapter(newAdapter, false);
         vault.setIsAdapter(newAdapter, false);
         assertFalse(vault.isAdapter(newAdapter));
-
-        // Liquidity adapter invariant
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (newAdapter, true)));
-        vault.setIsAdapter(newAdapter, true);
-        vm.prank(allocator);
-        vault.setLiquidityAdapter(newAdapter);
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (newAdapter, false)));
-        vm.expectRevert(ErrorsLib.LiquidityAdapterInvariantBroken.selector);
-        vault.setIsAdapter(newAdapter, false);
     }
 
     function testIncreaseTimelock(address rdm, bytes4 selector, uint256 newTimelock) public {
@@ -311,6 +340,9 @@ contract SettersTest is BaseTest {
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
         vault.decreaseTimelock(selector, newTimelock);
+
+        // decreaseTimelock timelock is TIMELOCK_CAP
+        vm.assertEq(vault.timelock(IVaultV2.decreaseTimelock.selector), TIMELOCK_CAP);
 
         // Can't increase timelock with decreaseTimelock
         vm.prank(curator);
@@ -410,6 +442,50 @@ contract SettersTest is BaseTest {
         assertEq(vault.managementFee(), newManagementFee);
     }
 
+    function testSetManagementFeeLastUpdateRefresh(uint256 newManagementFee, uint48 elapsed) public {
+        newManagementFee = bound(newManagementFee, 1, MAX_MANAGEMENT_FEE);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setManagementFeeRecipient, (makeAddr("newManagementFeeRecipient"))));
+        vault.setManagementFeeRecipient(makeAddr("newManagementFeeRecipient"));
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (newManagementFee)));
+        skip(elapsed);
+        vault.setManagementFee(newManagementFee);
+        assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
+    }
+
+    function testSetManagementFeeRecipientLastUpdateRefresh(address newRecipient, uint48 elapsed) public {
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setManagementFeeRecipient, (newRecipient)));
+        skip(elapsed);
+        vault.setManagementFeeRecipient(newRecipient);
+        assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
+    }
+
+    function testSetPerformanceFeeLastUpdateRefresh(uint256 newPerformanceFee, uint48 elapsed) public {
+        newPerformanceFee = bound(newPerformanceFee, 1, MAX_PERFORMANCE_FEE);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (makeAddr("newPerformanceFeeRecipient"))));
+        vault.setPerformanceFeeRecipient(makeAddr("newPerformanceFeeRecipient"));
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (newPerformanceFee)));
+        skip(elapsed);
+        vault.setPerformanceFee(newPerformanceFee);
+        assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
+    }
+
+    function testSetPerformanceFeeRecipientLastUpdateRefresh(address newRecipient, uint48 elapsed) public {
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (newRecipient)));
+        skip(elapsed);
+        vault.setPerformanceFeeRecipient(newRecipient);
+        assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
+    }
+
     function testSetPerformanceFeeRecipient(address rdm, address newPerformanceFeeRecipient) public {
         vm.assume(rdm != curator);
         vm.assume(newPerformanceFeeRecipient != address(0));
@@ -468,7 +544,7 @@ contract SettersTest is BaseTest {
 
     function testIncreaseAbsoluteCap(address rdm, bytes memory idData, uint256 newAbsoluteCap) public {
         vm.assume(rdm != curator);
-        vm.assume(newAbsoluteCap >= 0);
+        newAbsoluteCap = bound(newAbsoluteCap, 0, type(uint128).max);
         bytes32 id = keccak256(idData);
 
         // Nobody can set directly
@@ -493,14 +569,22 @@ contract SettersTest is BaseTest {
         }
     }
 
+    function testIncreaseAbsoluteCapOverflow(bytes memory idData, uint256 newAbsoluteCap) public {
+        newAbsoluteCap = bound(newAbsoluteCap, uint256(type(uint128).max) + 1, type(uint256).max);
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, newAbsoluteCap)));
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        vault.increaseAbsoluteCap(idData, newAbsoluteCap);
+    }
+
     function testDecreaseAbsoluteCap(address rdm, bytes memory idData, uint256 oldAbsoluteCap, uint256 newAbsoluteCap)
         public
     {
         vm.assume(rdm != curator && rdm != sentinel);
         vm.assume(newAbsoluteCap >= 0);
         vm.assume(idData.length > 0);
-        newAbsoluteCap = bound(newAbsoluteCap, 0, type(uint256).max - 1);
-        oldAbsoluteCap = bound(oldAbsoluteCap, newAbsoluteCap, type(uint256).max - 1);
+        newAbsoluteCap = bound(newAbsoluteCap, 0, type(uint128).max - 1);
+        oldAbsoluteCap = bound(oldAbsoluteCap, newAbsoluteCap, type(uint128).max - 1);
         bytes32 id = keccak256(idData);
 
         vm.prank(curator);
@@ -666,18 +750,15 @@ contract SettersTest is BaseTest {
 
     /* ALLOCATOR SETTERS */
 
-    function testSetLiquidityAdapter(address rdm, address liquidityAdapter) public {
+    function testSetLiquidityMarket(address rdm, address liquidityAdapter, bytes memory liquidityData) public {
         vm.assume(rdm != allocator);
         vm.assume(liquidityAdapter != address(0));
         vm.assume(rdm != allocator);
-        vm.prank(allocator);
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
-        vault.setLiquidityAdapter(liquidityAdapter);
 
         // Access control
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.setLiquidityAdapter(liquidityAdapter);
+        vault.setLiquidityMarket(liquidityAdapter, liquidityData);
 
         // Normal path
         vm.prank(curator);
@@ -685,31 +766,9 @@ contract SettersTest is BaseTest {
         vault.setIsAdapter(liquidityAdapter, true);
         vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.SetLiquidityAdapter(allocator, liquidityAdapter);
-        vault.setLiquidityAdapter(liquidityAdapter);
+        emit EventsLib.SetLiquidityMarket(allocator, liquidityAdapter, liquidityData);
+        vault.setLiquidityMarket(liquidityAdapter, liquidityData);
         assertEq(vault.liquidityAdapter(), liquidityAdapter);
-
-        // Liquidity adapter invariant
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (liquidityAdapter, false)));
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
-        vault.setIsAdapter(liquidityAdapter, false);
-    }
-
-    function testSetLiquidityData(address rdm) public {
-        vm.assume(rdm != allocator);
-        bytes memory newData = abi.encode("newData");
-
-        // Access control
-        vm.expectRevert(ErrorsLib.Unauthorized.selector);
-        vm.prank(rdm);
-        vault.setLiquidityData(newData);
-
-        // Normal path
-        vm.prank(allocator);
-        vm.expectEmit();
-        emit EventsLib.SetLiquidityData(allocator, newData);
-        vault.setLiquidityData(newData);
-        assertEq(vault.liquidityData(), newData);
+        assertEq(vault.liquidityData(), liquidityData);
     }
 }

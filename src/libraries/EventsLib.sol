@@ -60,9 +60,9 @@ library EventsLib {
 
     event RealizeLoss(address indexed sender, address indexed adapter, bytes32[] ids, uint256 loss);
 
-    event SetLiquidityAdapter(address indexed sender, address indexed newLiquidityAdapter);
-
-    event SetLiquidityData(address indexed sender, bytes indexed newLiquidityData);
+    event SetLiquidityMarket(
+        address indexed sender, address indexed newLiquidityAdapter, bytes indexed newLiquidityData
+    );
 
     event Deposit(address indexed sender, address indexed onBehalf, uint256 assets, uint256 shares);
 
@@ -79,8 +79,17 @@ library EventsLib {
     );
 
     event ForceDeallocate(
-        address indexed sender, address adapter, bytes data, uint256 assets, address indexed onBehalf
+        address indexed sender,
+        address adapter,
+        bytes data,
+        uint256 assets,
+        address indexed onBehalf,
+        uint256 penaltyAssets
     );
 
     event CreateVaultV2(address indexed owner, address indexed asset, address indexed vaultV2);
+
+    event SetName(string indexed newName);
+
+    event SetSymbol(string indexed newSymbol);
 }
