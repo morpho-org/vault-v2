@@ -7,8 +7,7 @@ import {IMorphoBlueAdapterFactory} from "./interfaces/IMorphoBlueAdapterFactory.
 contract MorphoBlueAdapterFactory is IMorphoBlueAdapterFactory {
     /* STORAGE */
 
-    /// @dev vault => morpho => irm => adapter
-    mapping(address => mapping(address => mapping(address => address))) public morphoBlueAdapter;
+    mapping(address vault => mapping(address morpho => mapping(address irm => address))) public morphoBlueAdapter;
     mapping(address => bool) public isMorphoBlueAdapter;
 
     /* FUNCTIONS */
