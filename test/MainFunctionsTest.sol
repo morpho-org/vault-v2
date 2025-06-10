@@ -29,7 +29,7 @@ contract MainFunctionsTest is BaseTest {
 
         // Accrue some interest to make sure there is a rounding error.
         vm.prank(allocator);
-        vic.setInterestPerSecond(uint256(2e18) / (365 days), type(uint64).max);
+        vic.setInterestPerSecondAndDeadline(uint256(2e18) / (365 days), type(uint64).max);
         skip(10);
         vault.accrueInterest();
         assertNotEq((vault.totalAssets() + 1) % (vault.totalSupply() + 1), 0);

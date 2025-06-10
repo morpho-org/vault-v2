@@ -36,7 +36,7 @@ contract ManualVic is IManualVic {
         emit ZeroMaxInterestPerSecond(msg.sender);
     }
 
-    function setInterestPerSecond(uint256 newInterestPerSecond, uint256 newDeadline) external {
+    function setInterestPerSecondAndDeadline(uint256 newInterestPerSecond, uint256 newDeadline) external {
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         require(newInterestPerSecond <= maxInterestPerSecond, InterestPerSecondTooHigh());
         require(newDeadline >= block.timestamp, DeadlineAlreadyPassed());
@@ -47,7 +47,7 @@ contract ManualVic is IManualVic {
 
         storedInterestPerSecond = uint96(newInterestPerSecond);
         deadline = uint64(newDeadline);
-        emit SetInterestPerSecond(msg.sender, newInterestPerSecond, newDeadline);
+        emit SetInterestPerSecondAndDeadline(msg.sender, newInterestPerSecond, newDeadline);
     }
 
     function zeroInterestPerSecond() external {

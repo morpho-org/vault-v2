@@ -6,7 +6,7 @@ import {IVic} from "../../interfaces/IVic.sol";
 interface IManualVic is IVic {
     /* EVENTS */
 
-    event SetInterestPerSecond(address indexed caller, uint256 newInterestPerSecond, uint256 newDeadline);
+    event SetInterestPerSecondAndDeadline(address indexed caller, uint256 newInterestPerSecond, uint256 newDeadline);
     event ZeroInterestPerSecond(address indexed caller);
     event SetMaxInterestPerSecond(uint256 newMaxInterestPerSecond);
     event ZeroMaxInterestPerSecond(address indexed caller);
@@ -25,7 +25,7 @@ interface IManualVic is IVic {
     function storedInterestPerSecond() external view returns (uint96);
     function maxInterestPerSecond() external view returns (uint96);
     function deadline() external view returns (uint64);
-    function setInterestPerSecond(uint256 newInterestPerSecond, uint256 newDeadline) external;
+    function setInterestPerSecondAndDeadline(uint256 newInterestPerSecond, uint256 newDeadline) external;
     function zeroInterestPerSecond() external;
     function setMaxInterestPerSecond(uint256 newMaxInterestPerSecond) external;
     function zeroMaxInterestPerSecond() external;
