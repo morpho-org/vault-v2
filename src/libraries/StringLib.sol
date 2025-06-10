@@ -11,7 +11,7 @@ library StringLib {
 
             // Clean the bytes at the right, but maybe not useful as this should be enforced by solidity.
             mask := sub(shl(mul(8, sub(32, len)), 1), 1)
-            let strData := and(value, mask)
+            let strData := and(value, not(mask))
             let encoded := or(strData, mul(len, 2))
             sstore(slot, encoded)
         }
