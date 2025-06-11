@@ -116,6 +116,8 @@ When set:
 - Upon `deposit`, `mint` and transfers, the shares receiver must pass the `canReceiveShares` check. Performance and management fee recipients must also pass this check, otherwise their respective fee will be 0.
 - Upon `withdraw`, `redeem` and transfers, the shares sender must pass the `canSendShares` check.
 
+If the shares gate reverts upon `canReceiveShares` and there is a nonzero fee to be sent, `accrueInterest` will revert.
+
 **Receive Assets Gate** (`receiveAssetsGate`): Controls permissions related to receiving assets. Implements [IReceiveAssetsGate](./src/interfaces/IGate.sol).
 
 - Upon `withdraw` and `redeem`, `receiver` must pass the `canReceiveAssets` check.
