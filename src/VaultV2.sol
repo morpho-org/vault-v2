@@ -347,7 +347,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(newAbsoluteCap <= caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotDecreasing());
 
-        // safe by invariant: config.absoluteCap fits on 128 bits
+        // Safe by invariant: config.absoluteCap fits in 128 bits.
         caps[id].absoluteCap = uint128(newAbsoluteCap);
         emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
@@ -357,7 +357,7 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
         require(newRelativeCap >= caps[id].relativeCap, ErrorsLib.RelativeCapNotIncreasing());
 
-        // safe since WAD fits on 128 bits
+        // Safe since WAD fits in 128 bits.
         caps[id].relativeCap = uint128(newRelativeCap);
 
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
@@ -368,7 +368,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(newRelativeCap <= caps[id].relativeCap, ErrorsLib.RelativeCapNotDecreasing());
 
-        // safe since WAD fits on 128 bits
+        // Safe since WAD fits in 128 bits.
         caps[id].relativeCap = uint128(newRelativeCap);
 
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
@@ -554,22 +554,22 @@ contract VaultV2 is IVaultV2 {
 
     /* MAX */
 
-    /// @dev Returns the maximum amount of assets that can be deposited.
-    function maxDeposit(address onBehalf) external view returns (uint256) {
-        return canReceive(onBehalf) ? type(uint256).max : 0;
+    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
+    function maxDeposit(address) external pure returns (uint256) {
+        return 0;
     }
 
-    /// @dev Returns the maximum amount of shares that can be minted.
-    function maxMint(address onBehalf) external view returns (uint256) {
-        return canReceive(onBehalf) ? type(uint256).max : 0;
+    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
+    function maxMint(address) external pure returns (uint256) {
+        return 0;
     }
 
-    /// @dev Gross underestimation because it does not (and cannot) take into account the liquidity market.
+    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
     function maxWithdraw(address) external pure returns (uint256) {
         return 0;
     }
 
-    /// @dev Gross underestimation because it does not (and cannot) take into account the liquidity market.
+    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
     function maxRedeem(address) external pure returns (uint256) {
         return 0;
     }

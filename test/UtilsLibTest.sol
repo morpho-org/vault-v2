@@ -34,7 +34,7 @@ contract ReturnsNothing {
 
 contract ReturnsBomb {
     fallback() external {
-        // expansion cost: 3 * words + floor(words**2/512) = 4953
+        // Expansion cost: 3 * words + floor(words**2/512) = 4953
         uint256 words = 1e3;
         assembly {
             mstore(mul(sub(words, 1), 32), 1)
@@ -101,7 +101,7 @@ contract ControlledStaticCallTest is BaseTest {
         this._testReturnsBombLowLevelStaticCall{gas: gas}(account);
     }
 
-    /* INTERNAL */
+    /* HELPERS */
 
     function _testReturnsBomb(address account) external view {
         UtilsLib.controlledStaticCall(account, hex"");
