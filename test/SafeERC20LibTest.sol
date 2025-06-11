@@ -118,7 +118,8 @@ contract SafeERC20LibTest is Test {
         assertEq(tokenNormal.recordedValue(), value);
     }
 
-    // helpers (needed for expect revert)
+    /* HELPERS */
+
     function safeTransfer(address token, address to, uint256 value) external {
         SafeERC20Lib.safeTransfer(token, to, value);
     }

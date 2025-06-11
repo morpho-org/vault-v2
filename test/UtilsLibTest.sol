@@ -35,7 +35,7 @@ contract ReturnsNothing {
 
 contract ReturnsBomb {
     fallback() external {
-        // expansion cost: 3 * words + floor(words**2/512) = 4953
+        // Expansion cost: 3 * words + floor(words**2/512) = 4953
         uint256 words = 1e3;
         assembly {
             mstore(mul(sub(words, 1), 32), 1)
@@ -120,16 +120,16 @@ contract ControlledStaticCallTest is BaseTest {
         vault.setVic(address(burnsAllGas));
 
         skip(1);
-        // check that vic can still be changed
+        // Check that vic can still be changed
         vm.prank(curator);
         vault.submit(abi.encodeCall(vault.setVic, (address(0))));
         vault.setVic{gas: SAFE_GAS_AMOUNT}(address(0));
 
-        // check that gas was almost entirely burned
+        // Check that gas was almost entirely burned
         assertGt(vm.lastCallGas().gasTotalUsed, SAFE_GAS_AMOUNT * 63 / 64);
     }
 
-    /* INTERNAL */
+    /* HELPERS */
 
     function _testReturnsBomb(address account) external view {
         UtilsLib.controlledStaticCall(account, hex"");
