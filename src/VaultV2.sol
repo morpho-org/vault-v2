@@ -20,8 +20,8 @@ import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 /// See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 /// @dev Roles are not "two-step" so one must check if they really have this role.
 /// @dev The shares are represented with ERC-20, also compliant with ERC-2612 (permit extension).
-/// @dev To accrue interest, the vault queries the Vault Interest Controller (VIC) which returns the interest per second
-/// that must be distributed on the period (since `lastUpdate`). The VIC must be chosen and managed carefully to not
+/// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
+/// that must be distributed on the period (since `lastUpdate`). The Vic must be chosen and managed carefully to not
 /// distribute more than what the vault's investments are earning.
 /// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
 /// because flashloan based shorting is prevented.
@@ -239,6 +239,10 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetExitGate(newExitGate);
     }
 
+    /// @dev This function never reverts, assuming that the corresponding data is timelocked.
+    /// @dev Users lose the guarantee that they can always withdraw with a reverting Vic, so putting a long timelock on
+    /// this function is key to ensure non-custodiality.
+    /// @dev It is not guaranteed that this function accrues interest, so users might lose interest since last update.
     function setVic(address newVic) external timelocked {
         if (vic.code.length != 0) try this.accrueInterest() {} catch {}
         lastUpdate = uint64(block.timestamp);
@@ -465,8 +469,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
-    /// @dev The IPS is taken to be 0 if VIC reverts, has no code, returns a data that is not of size 32, or if the
-    /// corresponding rate is above the max rate.
+    /// @dev Reverts if the call to the Vic reverts.
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
