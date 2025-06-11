@@ -6,8 +6,11 @@ import "../../src/VaultV2.sol";
 contract VaultV2Harness is VaultV2 {
     constructor(address owner, address asset) VaultV2(owner, asset) {}
 
-    function accrueInterestViewMocked() external view {
-      uint256 elapsed = block.timestamp;
-      UtilsLib.controlledStaticCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+    // Remove timelocked modifier as this is not checked for revert reasons.in setVicCannotRevertIfDataIsTimelocked.
+    function setVicMocked(address newVic) external {
+        if (vic.code.length != 0) try this.accrueInterest() {} catch {}
+        lastUpdate = uint64(block.timestamp);
+        vic = newVic;
+        emit EventsLib.SetVic(newVic);
     }
 }
