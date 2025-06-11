@@ -552,26 +552,14 @@ contract VaultV2 is IVaultV2 {
         return previewRedeem(shares);
     }
 
-    /* MAX */
+    /* MAX FUNCTIONS */
 
+    /// @dev Implements maxDeposit, maxMint, maxWithdraw and maxRedeem, as they all always return zero.
     /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
-    function maxDeposit(address) external pure returns (uint256) {
-        return 0;
-    }
-
-    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
-    function maxMint(address) external pure returns (uint256) {
-        return 0;
-    }
-
-    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
-    function maxWithdraw(address) external pure returns (uint256) {
-        return 0;
-    }
-
-    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
-    function maxRedeem(address) external pure returns (uint256) {
-        return 0;
+    fallback() external {
+        assembly {
+            return(0, 32)
+        }
     }
 
     /* USER MAIN FUNCTIONS */

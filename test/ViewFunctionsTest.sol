@@ -15,19 +15,19 @@ contract ViewFunctionsTest is BaseTest {
     }
 
     function testMaxDeposit() public view {
-        assertEq(VaultV2(address(vault)).maxDeposit(receiver), 0);
+        assertEq(IERC4626(address(vault)).maxDeposit(receiver), 0);
     }
 
     function testMaxMint() public view {
-        assertEq(VaultV2(address(vault)).maxMint(receiver), 0);
+        assertEq(IERC4626(address(vault)).maxMint(receiver), 0);
     }
 
     function testMaxWithdraw() public view {
-        assertEq(VaultV2(address(vault)).maxWithdraw(address(this)), 0);
+        assertEq(IERC4626(address(vault)).maxWithdraw(address(this)), 0);
     }
 
     function testMaxRedeem() public view {
-        assertEq(VaultV2(address(vault)).maxRedeem(address(this)), 0);
+        assertEq(IERC4626(address(vault)).maxRedeem(address(this)), 0);
     }
 
     function testConvertToAssets(uint256 initialDeposit, uint256 interest, uint256 shares) public {

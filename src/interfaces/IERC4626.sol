@@ -3,7 +3,7 @@ pragma solidity >=0.5.0;
 
 import {IERC20} from "./IERC20.sol";
 
-interface IERC4626 is IERC20 {
+interface IERC4626NoMax is IERC20 {
     function asset() external view returns (address);
     function deposit(uint256 assets, address onBehalf) external returns (uint256 shares);
     function mint(uint256 shares, address onBehalf) external returns (uint256 assets);
@@ -13,6 +13,9 @@ interface IERC4626 is IERC20 {
     function previewMint(uint256 shares) external view returns (uint256 assets);
     function previewWithdraw(uint256 assets) external view returns (uint256 shares);
     function previewRedeem(uint256 shares) external view returns (uint256 assets);
+}
+
+interface IERC4626 is IERC4626NoMax {
     function maxDeposit(address onBehalf) external view returns (uint256 assets);
     function maxMint(address onBehalf) external view returns (uint256 shares);
     function maxWithdraw(address onBehalf) external view returns (uint256 assets);
