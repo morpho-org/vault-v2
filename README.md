@@ -113,7 +113,7 @@ Three gates are defined:
 
 When set:
 
-- Upon `deposit`, `mint` and transfers, the shares receiver must pass the `canReceiveShares` check.
+- Upon `deposit`, `mint` and transfers, the shares receiver must pass the `canReceiveShares` check. Performance and management fee recipients must also pass this check, otherwise their respective fee will be 0.
 - Upon `withdraw`, `redeem` and transfers, the shares sender must pass the `canSendShares` check.
 
 **Receive Assets Gate** (`receiveAssetsGate`): Controls permissions related to receiving assets. Implements [IReceiveAssetsGate](./src/interfaces/IGate.sol).

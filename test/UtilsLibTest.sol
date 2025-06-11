@@ -5,7 +5,6 @@ import "./BaseTest.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
 import {UtilsLib} from "../src/libraries/UtilsLib.sol";
 import {VaultV2} from "../src/VaultV2.sol";
-import {min} from "./BaseTest.sol";
 
 contract ReturnsInput {
     fallback() external {
