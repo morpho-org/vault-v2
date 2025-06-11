@@ -10,7 +10,7 @@ import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
-import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
+import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
 
 /// @dev Not ERC-4626 compliant due to missing functions and `totalAssets()` is not up to date.
 /// @dev Zero checks are not systematically performed.
@@ -64,10 +64,21 @@ contract VaultV2 is IVaultV2 {
 
     address public owner;
     address public curator;
-    /// @notice Gates receiving shares and depositing.
-    address public enterGate;
-    /// @notice Gates sending shares and withdrawing.
-    address public exitGate;
+    /// @dev Gates sending and receiving shares.
+    /// @dev canSendShares can lock users out of exiting the vault.
+    /// @dev canReceiveShares can prevent users from getting back their shares that they deposited on other protocols. If
+    /// it reverts or consumes a lot of gas, it can also make accrueInterest revert, thus freezing the vault.
+    /// @dev Set to 0 to disable the gate.
+    address public sharesGate;
+    /// @dev Gates receiving assets from the vault.
+    /// @dev Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
+    /// @dev Set to 0 to disable the gate.
+    address public receiveAssetsGate;
+    /// @dev Gates depositing assets to the vault.
+    /// @dev This gate is not critical (cannot block users' funds), while still being able to gate supplies.
+    /// @dev Set to 0 to disable the gate.
+    address public sendAssetsGate;
+
     mapping(address account => bool) public isSentinel;
     mapping(address account => bool) public isAllocator;
 
@@ -229,14 +240,19 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
 
-    function setEnterGate(address newEnterGate) external timelocked {
-        enterGate = newEnterGate;
-        emit EventsLib.SetEnterGate(newEnterGate);
+    function setSharesGate(address newSharesGate) external timelocked {
+        sharesGate = newSharesGate;
+        emit EventsLib.SetSharesGate(newSharesGate);
     }
 
-    function setExitGate(address newExitGate) external timelocked {
-        exitGate = newExitGate;
-        emit EventsLib.SetExitGate(newExitGate);
+    function setReceiveAssetsGate(address newReceiveAssetsGate) external timelocked {
+        receiveAssetsGate = newReceiveAssetsGate;
+        emit EventsLib.SetReceiveAssetsGate(newReceiveAssetsGate);
+    }
+
+    function setSendAssetsGate(address newSendAssetsGate) external timelocked {
+        sendAssetsGate = newSendAssetsGate;
+        emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
     }
 
     /// @dev This function never reverts, assuming that the corresponding data is timelocked.
@@ -485,12 +501,12 @@ contract VaultV2 is IVaultV2 {
         uint256 newTotalAssets = _totalAssets + interest;
 
         // The performance fee assets may be rounded down to 0 if `interest * fee < WAD`.
-        uint256 performanceFeeAssets = interest > 0 && performanceFee != 0 && canReceive(performanceFeeRecipient)
+        uint256 performanceFeeAssets = interest > 0 && performanceFee > 0 && canReceive(performanceFeeRecipient)
             ? interest.mulDivDown(performanceFee, WAD)
             : 0;
         // The management fee is taken on `newTotalAssets` to make all approximations consistent (interacting less
         // increases fees).
-        uint256 managementFeeAssets = managementFee != 0 && canReceive(managementFeeRecipient)
+        uint256 managementFeeAssets = managementFee > 0 && canReceive(managementFeeRecipient)
             ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD)
             : 0;
 
@@ -584,7 +600,10 @@ contract VaultV2 is IVaultV2 {
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
         require(!enterBlocked, ErrorsLib.EnterBlocked());
         require(canReceive(onBehalf), ErrorsLib.CannotReceive());
-        require(canSendUnderlyingAssets(msg.sender), ErrorsLib.CannotSendUnderlyingAssets());
+        require(
+            sendAssetsGate == address(0) || ISendAssetsGate(sendAssetsGate).canSendAssets(msg.sender),
+            ErrorsLib.CannotSendUnderlyingAssets()
+        );
 
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
@@ -614,7 +633,10 @@ contract VaultV2 is IVaultV2 {
     /// @dev Internal function for withdraw and redeem.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         require(canSend(onBehalf), ErrorsLib.CannotSend());
-        require(canReceiveUnderlyingAssets(receiver), ErrorsLib.CannotReceiveUnderlyingAssets());
+        require(
+            receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(receiver),
+            ErrorsLib.CannotReceiveUnderlyingAssets()
+        );
 
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
@@ -729,21 +751,13 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Transfer(from, address(0), shares);
     }
 
-    /* PERMISSION FUNCTIONS HELPERS */
-
-    function canReceiveUnderlyingAssets(address account) public view returns (bool) {
-        return exitGate == address(0) || IExitGate(exitGate).canReceiveAssets(account);
-    }
-
-    function canSendUnderlyingAssets(address account) public view returns (bool) {
-        return enterGate == address(0) || IEnterGate(enterGate).canSendAssets(account);
-    }
+    /* PERMISSIONED TOKEN */
 
     function canSend(address account) public view returns (bool) {
-        return exitGate == address(0) || IExitGate(exitGate).canSendShares(account);
+        return sharesGate == address(0) || ISharesGate(sharesGate).canSendShares(account);
     }
 
     function canReceive(address account) public view returns (bool) {
-        return enterGate == address(0) || IEnterGate(enterGate).canReceiveShares(account);
+        return sharesGate == address(0) || ISharesGate(sharesGate).canReceiveShares(account);
     }
 }

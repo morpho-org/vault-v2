@@ -3,6 +3,8 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
+contract Reverting {}
+
 contract AccrueInterestTest is BaseTest {
     using MathLib for uint256;
 
@@ -228,5 +230,3 @@ contract AccrueInterestTest is BaseTest {
         assertApproxEqAbs(vault.previewRedeem(vault.balanceOf(performanceFeeRecipient)), performanceFeeAssets, 100);
     }
 }
-
-contract Reverting {}
