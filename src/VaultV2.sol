@@ -9,7 +9,6 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
-import {UtilsLib} from "./libraries/UtilsLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 
@@ -241,10 +240,8 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setVic(address newVic) external timelocked {
-        try this.accrueInterest() {}
-        catch {
-            lastUpdate = uint64(block.timestamp);
-        }
+        if (vic.code.length != 0) try this.accrueInterest() {} catch {}
+        lastUpdate = uint64(block.timestamp);
         vic = newVic;
         emit EventsLib.SetVic(newVic);
     }
@@ -475,8 +472,7 @@ contract VaultV2 is IVaultV2 {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
-        uint256 tentativeInterestPerSecond =
-            UtilsLib.controlledStaticCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+        uint256 tentativeInterestPerSecond = IVic(vic).interestPerSecond(_totalAssets, elapsed);
 
         uint256 interestPerSecond = tentativeInterestPerSecond
             <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;

@@ -150,54 +150,40 @@ contract AccrueInterestTest is BaseTest {
         assertApproxEqRel(vault.totalAssets(), deposit * 3, 0.00001e18);
     }
 
-    function testAccrueInterestVicNoCode(uint256 elapsed) public {
-        elapsed = bound(elapsed, 0, 1000 weeks);
+    function testSetVicWithNoCodeVic(uint256 elapsed) public {
+        elapsed = bound(elapsed, 1, 1000 weeks);
 
         // Setup.
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(0))));
+        vault.setVic(address(0));
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        vm.expectRevert();
+        vault.accrueInterest();
+
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setVic, (address(42))));
         vault.setVic(address(42));
-        vm.warp(vm.getBlockTimestamp() + elapsed);
-
-        // Vic reverts.
-        uint256 totalAssetsBefore = vault.totalAssets();
-        vault.accrueInterest();
-        assertEq(vault.totalAssets(), totalAssetsBefore);
     }
 
-    function testAccrueInterestRevertWhenVicRevertsWithoutData(uint256 elapsed) public {
+    function testSetVicWithRevertingVic(uint256 elapsed) public {
         elapsed = bound(elapsed, 1, 1000 weeks);
 
-        // Since interests are accrued after setting the Vic, it reverts only after the first call.
-        address revertingWithoutData = address(new RevertingWithoutData());
-
-        // Setup.
-        vault.accrueInterest(); // skip next accrual
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (revertingWithoutData)));
-        vault.setVic(revertingWithoutData);
-        vm.warp(vm.getBlockTimestamp() + elapsed);
-
-        // Vic reverts.
-        vm.expectRevert(ErrorsLib.StaticCallRevertedWithoutData.selector);
-        vault.accrueInterest();
-    }
-
-    function testAccrueInterestSuccessWhenVicRevertingWithData(uint256 elapsed) public {
-        elapsed = bound(elapsed, 0, 1000 weeks);
-
-        address revertingWithData = address(new RevertingWithData());
+        address reverting = address(new Reverting());
 
         // Setup.
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (revertingWithData)));
-        vault.setVic(revertingWithData);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (reverting)));
+        vault.setVic(reverting);
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
-        // Vic reverts.
-        uint256 totalAssetsBefore = vault.totalAssets();
+        vm.expectRevert();
         vault.accrueInterest();
-        assertEq(vault.totalAssets(), totalAssetsBefore);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(42))));
+        vault.setVic(address(42));
     }
 
     function testAccrueInterestFees(
@@ -243,10 +229,4 @@ contract AccrueInterestTest is BaseTest {
     }
 }
 
-contract RevertingWithoutData {}
-
-contract RevertingWithData {
-    fallback() external {
-        revert("Reverting with data");
-    }
-}
+contract Reverting {}
