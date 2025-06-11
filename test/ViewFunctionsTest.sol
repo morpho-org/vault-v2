@@ -79,7 +79,7 @@ contract ViewFunctionsTest is BaseTest {
         writeTotalAssets(initialDeposit + interest);
 
         assertEq(
-            VaultV2(address(vault)).convertToAssets(shares),
+            IVaultV2(address(vault)).convertToAssets(shares),
             shares * (vault.totalAssets() + 1) / (vault.totalSupply() + 1)
         );
     }
@@ -93,7 +93,7 @@ contract ViewFunctionsTest is BaseTest {
         writeTotalAssets(initialDeposit + interest);
 
         assertEq(
-            VaultV2(address(vault)).convertToShares(assets),
+            IVaultV2(address(vault)).convertToShares(assets),
             assets * (vault.totalSupply() + 1) / (vault.totalAssets() + 1)
         );
     }
@@ -107,7 +107,7 @@ contract ViewFunctionsTest is BaseTest {
         writeTotalAssets(initialDeposit + interest);
 
         assertEq(
-            VaultV2(address(vault)).previewDeposit(initialDeposit),
+            IVaultV2(address(vault)).previewDeposit(initialDeposit),
             initialDeposit * (vault.totalSupply() + 1) / (vault.totalAssets() + 1)
         );
     }
@@ -122,7 +122,7 @@ contract ViewFunctionsTest is BaseTest {
 
         // Precision 1 because rounded up.
         assertApproxEqAbs(
-            VaultV2(address(vault)).previewMint(shares),
+            IVaultV2(address(vault)).previewMint(shares),
             shares * (vault.totalAssets() + 1) / (vault.totalSupply() + 1),
             1
         );
@@ -138,7 +138,7 @@ contract ViewFunctionsTest is BaseTest {
 
         // Precision 1 because rounded up.
         assertApproxEqAbs(
-            VaultV2(address(vault)).previewWithdraw(assets),
+            IVaultV2(address(vault)).previewWithdraw(assets),
             assets * (vault.totalSupply() + 1) / (vault.totalAssets() + 1),
             1
         );
@@ -153,7 +153,7 @@ contract ViewFunctionsTest is BaseTest {
         writeTotalAssets(initialDeposit + interest);
 
         assertApproxEqAbs(
-            VaultV2(address(vault)).previewRedeem(shares),
+            IVaultV2(address(vault)).previewRedeem(shares),
             shares * (vault.totalAssets() + 1) / (vault.totalSupply() + 1),
             1
         );
