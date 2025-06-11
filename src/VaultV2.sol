@@ -257,7 +257,6 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev This function never reverts, assuming that the corresponding data is timelocked.
     /// @dev Users cannot access their funds if the Vic reverts, so this function might better be under a long timelock.
-    /// @dev It is not guaranteed that this function accrues interest, so users might lose interest since last update.
     function setVic(address newVic) external timelocked {
         try this.accrueInterest() {}
         catch {
