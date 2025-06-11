@@ -13,15 +13,18 @@ import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 
 import {Test, console} from "../lib/forge-std/src/Test.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
+import {stdStorage, StdStorage} from "../lib/forge-std/src/Test.sol";
 
 contract BaseTest is Test {
+    using stdStorage for StdStorage;
+
     address immutable owner = makeAddr("owner");
     address immutable curator = makeAddr("curator");
     address immutable allocator = makeAddr("allocator");
     address immutable sentinel = makeAddr("sentinel");
 
     // The packed slot containing both _totalAssets and lastUpdate.
-    bytes32 TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT = bytes32(uint256(12));
+    bytes32 TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT = bytes32(uint256(11));
 
     ERC20Mock underlyingToken;
     IVaultV2Factory vaultFactory;
@@ -65,6 +68,16 @@ contract BaseTest is Test {
         bytes32 strippedValue = (value >> 192) << 192;
         assertLe(newTotalAssets, type(uint192).max, "wrong written value");
         vm.store(address(vault), TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT, strippedValue | bytes32(newTotalAssets));
+    }
+
+    function increaseAbsoluteAndRelativeCapToMax(bytes memory idData) internal {
+        vm.startPrank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
+        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, WAD)));
+        vm.stopPrank();
+
+        vault.increaseAbsoluteCap(idData, type(uint128).max);
+        vault.increaseRelativeCap(idData, WAD);
     }
 }
 

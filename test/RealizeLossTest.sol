@@ -56,6 +56,12 @@ contract RealizeLossTest is BaseTest {
         expectedLoss = bound(expectedLoss, 0, deposit);
 
         vault.deposit(deposit, address(this));
+
+        // Move to an adapter so the assets can be lost.
+        increaseAbsoluteAndRelativeCapToMax(idData);
+        vm.prank(allocator);
+        vault.allocate(address(adapter), hex"", deposit);
+
         adapter.setLoss(expectedLoss);
 
         // Realize the loss.
