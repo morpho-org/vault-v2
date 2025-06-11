@@ -241,8 +241,11 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setVic(address newVic) external timelocked {
+        try this.accrueInterest() {}
+        catch {
+            lastUpdate = uint64(block.timestamp);
+        }
         vic = newVic;
-        accrueInterest();
         emit EventsLib.SetVic(newVic);
     }
 
