@@ -31,7 +31,7 @@ rule livenessAccrueInterest(env e) {
     requireInvariant managementFeeRecipient();
 
     // Necessary condition for the rule to be true.
-    require enterGate() == 0 || (canReceive(performanceFeeRecipient()) && canReceive(managementFeeRecipient()));
+    require sharesGate() == 0 || (canReceive(performanceFeeRecipient()) && canReceive(managementFeeRecipient()));
 
     accrueInterest@withrevert(e);
     assert !lastReverted;
