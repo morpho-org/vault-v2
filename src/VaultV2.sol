@@ -84,7 +84,7 @@ contract VaultV2 is IVaultV2 {
     /* INTEREST STORAGE */
 
     /// @dev Approximates real assets for the purpose of detecting bad debt.
-    uint256 public totalAllocationApprox;
+    uint256 public totalAllocation;
     uint192 internal _totalAssets;
     uint64 public lastUpdate;
     address public vic;
@@ -379,8 +379,8 @@ contract VaultV2 is IVaultV2 {
 
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets);
 
-        totalAllocationApprox = uint256(totalAllocationApprox).zeroFloorAddInt(change);
-        uint256 realAssetsApprox = totalAllocationApprox + IERC20(asset).balanceOf(address(this));
+        totalAllocation = uint256(totalAllocation).zeroFloorAddInt(change);
+        uint256 realAssetsApprox = totalAllocation + IERC20(asset).balanceOf(address(this));
 
         if (_totalAssets > realAssetsApprox) {
             _totalAssets = uint192(realAssetsApprox);
@@ -413,8 +413,8 @@ contract VaultV2 is IVaultV2 {
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
 
-        totalAllocationApprox = uint256(totalAllocationApprox).zeroFloorAddInt(change);
-        uint256 realAssetsApprox = totalAllocationApprox + IERC20(asset).balanceOf(address(this));
+        totalAllocation = uint256(totalAllocation).zeroFloorAddInt(change);
+        uint256 realAssetsApprox = totalAllocation + IERC20(asset).balanceOf(address(this));
 
         if (_totalAssets > realAssetsApprox) {
             _totalAssets = uint192(realAssetsApprox);
