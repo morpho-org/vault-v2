@@ -244,8 +244,10 @@ contract VaultV2 is IVaultV2 {
     /// this function is key to ensure non-custodiality.
     /// @dev It is not guaranteed that this function accrues interest, so users might lose interest since last update.
     function setVic(address newVic) external timelocked {
-        try this.accrueInterest() {} catch {}
-        lastUpdate = uint64(block.timestamp);
+        try this.accrueInterest() {}
+        catch {
+            lastUpdate = uint64(block.timestamp);
+        }
         vic = newVic;
         emit EventsLib.SetVic(newVic);
     }
