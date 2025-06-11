@@ -56,6 +56,13 @@ contract RealizeLossTest is BaseTest {
         expectedLoss = bound(expectedLoss, 0, deposit);
 
         vault.deposit(deposit, address(this));
+
+        // Move to an adapter so the assets can be lost.
+        increaseAbsoluteCap(idData, type(uint128).max);
+        increaseRelativeCap(idData, WAD);
+        vm.prank(allocator);
+        vault.allocate(address(adapter), hex"", deposit);
+
         adapter.setLoss(expectedLoss);
 
         // Realize the loss.
@@ -146,9 +153,7 @@ contract RealizeLossTest is BaseTest {
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, address(adapter), true));
         vault.setIsAdapter(address(adapter), true);
         vm.prank(allocator);
-        vault.setLiquidityAdapter(address(adapter));
-        vm.prank(allocator);
-        vault.setLiquidityData(hex"");
+        vault.setLiquidityMarket(address(adapter), hex"");
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, deposit));
         vault.increaseAbsoluteCap(idData, deposit);

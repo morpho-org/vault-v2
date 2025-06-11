@@ -38,4 +38,10 @@ library MathLib {
             z := xor(x, mul(xor(x, y), lt(y, x)))
         }
     }
+
+    /// @dev Casts to uint128, reverting if input number is too large.
+    function toUint128(uint256 x) internal pure returns (uint128) {
+        require(x <= type(uint128).max, ErrorsLib.CastOverflow());
+        return uint128(x);
+    }
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.28;
 
-import {IVaultV2, IERC20} from "./interfaces/IVaultV2.sol";
+import {IVaultV2, IERC20, Caps} from "./interfaces/IVaultV2.sol";
 import {IAdapter} from "./interfaces/IAdapter.sol";
 import {IVic} from "./interfaces/IVic.sol";
 
@@ -30,7 +30,7 @@ import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 /// - They must enforce that only the vault can call allocate/deallocate.
 /// - They must enter/exit markets only in allocate/deallocate.
 /// - They must return the right ids on allocate/deallocate.
-/// - They must have approved `assets` for the vault at the end of deallocate.
+/// - After a call to deallocate, the vault must have an approval to transfer at least `assets` from the adapter.
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
 /// @dev Liquidity market:
 /// - `liquidityAdapter` is allocated to on deposit/mint, and deallocated from on withdraw/redeem if idle assets don't
@@ -38,12 +38,28 @@ import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 /// - The liquidity market is mostly useful on exit, so that exit liquidity is available in addition to the idle assets.
 /// But the same adapter/data is used for both entry and exit to have the property that in the general case looping
 /// supply-withdraw or withdraw-supply should not change the allocation.
+/// @dev List of assumptions on the token that guarantees that the vault behaves as expected:
+/// - It should be ERC-20 compliant, except that it can omit return values on `transfer` and `transferFrom`.
+/// - The balance of the vault should only decrease on `transfer` and `transferFrom`. In particular, tokens with burn
+/// functions are not supported.
+/// - It should not re-enter the vault on `transfer` nor `transferFrom`.
+/// - The balance of the sender (resp. receiver) should decrease (resp. increase) by exactly the given amount on
+/// `transfer` and `transferFrom`. In particular, tokens with fees on transfer are not supported.
+/// @dev List of assumptions that guarantees the vault's liveness properties:
+/// - The token should not revert on `transfer` and `transferFrom` if balances and approvals are right.
+/// - The token should not revert on `transfer` to self.
+/// - totalAssets and totalSupply must stay below ~10^35.
+/// - The vault is pinged more than once every 20 years.
+/// - Adapters must not revert on `deallocate` if the underlying markets are liquid.
+/// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
+/// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
 
     /* IMMUTABLE */
 
     address public immutable asset;
+    uint8 public immutable decimals;
 
     /* ROLES STORAGE */
 
@@ -58,6 +74,8 @@ contract VaultV2 is IVaultV2 {
 
     /* TOKEN STORAGE */
 
+    string public name;
+    string public symbol;
     uint256 public totalSupply;
     mapping(address account => uint256) public balanceOf;
     mapping(address owner => mapping(address spender => uint256)) public allowance;
@@ -65,10 +83,8 @@ contract VaultV2 is IVaultV2 {
 
     /* INTEREST STORAGE */
 
-    /// @dev Last known idle assets.
-    uint256 public idleAssets;
     /// @dev Approximates real assets for the purpose of detecting bad debt.
-    uint256 public realAssetsApprox;
+    uint256 public totalAllocation;
     uint192 internal _totalAssets;
     uint64 public lastUpdate;
     address public vic;
@@ -78,31 +94,29 @@ contract VaultV2 is IVaultV2 {
     /* CURATION STORAGE */
 
     mapping(address account => bool) public isAdapter;
+
+    /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
     /// @dev The allocation is not updated to take interests into account.
     /// @dev Some underlying markets might allow to take into account interest (fixed rate, fixed term), some might not.
-    mapping(bytes32 id => uint256) public allocation;
-
     /// @dev The absolute cap is checked on allocate (where allocations can increase) for the ids returned by the
     /// adapter.
-    mapping(bytes32 id => uint256) public absoluteCap;
-
-    /// @dev Unit is WAD.
     /// @dev The relative cap is relative to `totalAssets`.
     /// @dev Relative caps are "soft" in the sense that they are only checked on allocate for the ids returned by the
     /// adapter.
-    mapping(bytes32 id => uint256) public relativeCap;
+    /// @dev The relative cap unit is WAD.
+    mapping(bytes32 id => Caps) internal caps;
 
     mapping(address adapter => uint256) public forceDeallocatePenalty;
 
     /* LIQUIDITY ADAPTER STORAGE */
 
-    /// @dev This invariant holds: liquidityAdapter != address(0) => isAdapter[liquidityAdapter].
     address public liquidityAdapter;
     bytes public liquidityData;
 
     /* TIMELOCKS STORAGE */
 
-    /// @dev The timelock of decreaseTimelock is hard-coded at TIMELOCK_CAP.
+    /// @dev The timelock of decreaseTimelock is initially set to TIMELOCK_CAP, and can only be changed to
+    /// type(uint256).max through abdicateSubmit..
     /// @dev Only functions with the modifier `timelocked` are timelocked.
     /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
     /// timelocked data can potentially be changed shortly afterwards.
@@ -132,16 +146,31 @@ contract VaultV2 is IVaultV2 {
     /* GETTERS */
 
     function totalAssets() external view returns (uint256) {
-        return _totalAssets;
+        (uint256 newTotalAssets,,) = accrueInterestView();
+        return newTotalAssets;
     }
 
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
         return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
     }
 
+    function absoluteCap(bytes32 id) external view returns (uint256) {
+        return caps[id].absoluteCap;
+    }
+
+    function relativeCap(bytes32 id) external view returns (uint256) {
+        return caps[id].relativeCap;
+    }
+
+    function allocation(bytes32 id) external view returns (uint256) {
+        return caps[id].allocation;
+    }
+
     /* MULTICALL */
 
-    /// @dev Mostly useful to batch admin actions together.
+    /// @dev Useful for EOAs to batch admin calls.
+    /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do
+    /// the multicall themselves.
     function multicall(bytes[] calldata data) external {
         for (uint256 i = 0; i < data.length; i++) {
             (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
@@ -159,6 +188,7 @@ contract VaultV2 is IVaultV2 {
         asset = _asset;
         owner = _owner;
         lastUpdate = uint64(block.timestamp);
+        decimals = IERC20(_asset).decimals();
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         emit EventsLib.Constructor(_owner, _asset);
     }
@@ -181,6 +211,18 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
         isSentinel[account] = newIsSentinel;
         emit EventsLib.SetIsSentinel(account, newIsSentinel);
+    }
+
+    function setName(string memory newName) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        name = newName;
+        emit EventsLib.SetName(newName);
+    }
+
+    function setSymbol(string memory newSymbol) external {
+        require(msg.sender == owner, ErrorsLib.Unauthorized());
+        symbol = newSymbol;
+        emit EventsLib.SetSymbol(newSymbol);
     }
 
     /* CURATOR ACTIONS */
@@ -207,7 +249,6 @@ contract VaultV2 is IVaultV2 {
     }
 
     function setIsAdapter(address account, bool newIsAdapter) external timelocked {
-        require(account != liquidityAdapter, ErrorsLib.LiquidityAdapterInvariantBroken());
         isAdapter[account] = newIsAdapter;
         emit EventsLib.SetIsAdapter(account, newIsAdapter);
     }
@@ -223,7 +264,8 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Irreversibly disable submit for a selector.
     /// @dev Be particularly careful as this action is not reversible.
-    /// @dev After abdicating the submission of a function, it can still be executed with previously timelocked data.
+    /// @dev Existing timelocked operations submitted before abdicating the selector can still be executed. The
+    /// abdication of a selector only prevents future operations to be submitted.
     function abdicateSubmit(bytes4 selector) external timelocked {
         timelock[selector] = type(uint256).max;
         emit EventsLib.AbdicateSubmit(selector);
@@ -280,27 +322,29 @@ contract VaultV2 is IVaultV2 {
 
     function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external timelocked {
         bytes32 id = keccak256(idData);
-        require(newAbsoluteCap >= absoluteCap[id], ErrorsLib.AbsoluteCapNotIncreasing());
+        require(newAbsoluteCap >= caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotIncreasing());
 
-        absoluteCap[id] = newAbsoluteCap;
+        caps[id].absoluteCap = newAbsoluteCap.toUint128();
         emit EventsLib.IncreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
     function decreaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external {
         bytes32 id = keccak256(idData);
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        require(newAbsoluteCap <= absoluteCap[id], ErrorsLib.AbsoluteCapNotDecreasing());
+        require(newAbsoluteCap <= caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotDecreasing());
 
-        absoluteCap[id] = newAbsoluteCap;
+        // safe by invariant: config.absoluteCap fits on 128 bits
+        caps[id].absoluteCap = uint128(newAbsoluteCap);
         emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
     function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
         bytes32 id = keccak256(idData);
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
-        require(newRelativeCap >= relativeCap[id], ErrorsLib.RelativeCapNotIncreasing());
+        require(newRelativeCap >= caps[id].relativeCap, ErrorsLib.RelativeCapNotIncreasing());
 
-        relativeCap[id] = newRelativeCap;
+        // safe since WAD fits on 128 bits
+        caps[id].relativeCap = uint128(newRelativeCap);
 
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
@@ -308,9 +352,10 @@ contract VaultV2 is IVaultV2 {
     function decreaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external {
         bytes32 id = keccak256(idData);
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        require(newRelativeCap <= relativeCap[id], ErrorsLib.RelativeCapNotDecreasing());
+        require(newRelativeCap <= caps[id].relativeCap, ErrorsLib.RelativeCapNotDecreasing());
 
-        relativeCap[id] = newRelativeCap;
+        // safe since WAD fits on 128 bits
+        caps[id].relativeCap = uint128(newRelativeCap);
 
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }
@@ -319,14 +364,6 @@ contract VaultV2 is IVaultV2 {
         require(newForceDeallocatePenalty <= MAX_FORCE_DEALLOCATE_PENALTY, ErrorsLib.PenaltyTooHigh());
         forceDeallocatePenalty[adapter] = newForceDeallocatePenalty;
         emit EventsLib.SetForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
-    }
-
-    /* INTERNAL IDLE ASSETS TRACKING */
-
-    function updateIdleAssets() internal returns (int256 change) {
-        uint256 newIdleAssets = IERC20(asset).balanceOf(address(this));
-        change = int256(newIdleAssets) - int256(idleAssets);
-        idleAssets = newIdleAssets;
     }
 
     /* ALLOCATOR ACTIONS */
@@ -340,10 +377,10 @@ contract VaultV2 is IVaultV2 {
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
 
-        (bytes32[] memory ids, int256 adapterChange) = IAdapter(adapter).allocate(data, assets);
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets);
 
-        int256 idleChange = updateIdleAssets();
-        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange + adapterChange);
+        totalAllocation = uint256(totalAllocation).zeroFloorAddInt(change);
+        uint256 realAssetsApprox = totalAllocation + IERC20(asset).balanceOf(address(this));
 
         if (_totalAssets > realAssetsApprox) {
             _totalAssets = uint192(realAssetsApprox);
@@ -351,16 +388,16 @@ contract VaultV2 is IVaultV2 {
         }
 
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorAddInt(adapterChange);
+            Caps storage _caps = caps[ids[i]];
+            _caps.allocation = _caps.allocation.zeroFloorAddInt(change);
 
-            require(allocation[ids[i]] <= absoluteCap[ids[i]], ErrorsLib.AbsoluteCapExceeded());
-            uint256 _relativeCap = relativeCap[ids[i]];
+            require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
             require(
-                _relativeCap == WAD || allocation[ids[i]] <= uint256(_totalAssets).mulDivDown(_relativeCap, WAD),
+                _caps.relativeCap == WAD || _caps.allocation <= uint256(_totalAssets).mulDivDown(_caps.relativeCap, WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
-        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, adapterChange);
+        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, change);
     }
 
     /// @dev This function will automatically realize potential losses.
@@ -372,12 +409,12 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        (bytes32[] memory ids, int256 adapterChange) = IAdapter(adapter).deallocate(data, assets);
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets);
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
 
-        int256 idleChange = updateIdleAssets();
-        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange + adapterChange);
+        totalAllocation = uint256(totalAllocation).zeroFloorAddInt(change);
+        uint256 realAssetsApprox = totalAllocation + IERC20(asset).balanceOf(address(this));
 
         if (_totalAssets > realAssetsApprox) {
             _totalAssets = uint192(realAssetsApprox);
@@ -385,27 +422,19 @@ contract VaultV2 is IVaultV2 {
         }
 
         for (uint256 i; i < ids.length; i++) {
-            require(allocation[ids[i]] != 0, ErrorsLib.DeallocateEmptyId());
-            allocation[ids[i]] = allocation[ids[i]].zeroFloorAddInt(adapterChange);
+            Caps storage _caps = caps[ids[i]];
+            _caps.allocation = _caps.allocation.zeroFloorAddInt(change);
         }
 
-        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, adapterChange);
+        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, change);
     }
 
-    function setLiquidityAdapter(address newLiquidityAdapter) external {
+    /// @dev Whether newLiquidityAdapter is an adapter is checked in allocate/deallocate.
+    function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external {
         require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
-        require(
-            newLiquidityAdapter == address(0) || isAdapter[newLiquidityAdapter],
-            ErrorsLib.LiquidityAdapterInvariantBroken()
-        );
         liquidityAdapter = newLiquidityAdapter;
-        emit EventsLib.SetLiquidityAdapter(msg.sender, newLiquidityAdapter);
-    }
-
-    function setLiquidityData(bytes memory newLiquidityData) external {
-        require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         liquidityData = newLiquidityData;
-        emit EventsLib.SetLiquidityData(msg.sender, newLiquidityData);
+        emit EventsLib.SetLiquidityMarket(msg.sender, newLiquidityAdapter, newLiquidityData);
     }
 
     /* TIMELOCKS */
@@ -436,6 +465,7 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE */
 
     function accrueInterest() public {
+        if (lastUpdate == block.timestamp) return;
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         _totalAssets = newTotalAssets.toUint192();
@@ -445,6 +475,9 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
+    /// @dev The IPS is taken to be 0 if VIC reverts, has no code, returns a data that is not of size 32, or if the
+    /// corresponding rate is above the max rate.
+    /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
@@ -454,31 +487,24 @@ contract VaultV2 is IVaultV2 {
 
         uint256 interestPerSecond = tentativeInterestPerSecond
             <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
-        uint256 newTotalAssets = MathLib.min(_totalAssets + (interestPerSecond * elapsed), realAssetsApprox);
+        uint256 newTotalAssets = MathLib.min(_totalAssets + (interestPerSecond * elapsed), totalAllocation + IERC20(asset).balanceOf(address(this)));
         uint256 interest = newTotalAssets - _totalAssets;
 
-        uint256 performanceFeeShares;
-        uint256 managementFeeShares;
-        // Note: the fee assets is subtracted from the total assets in the fee shares calculation to compensate for the
-        // fact that total assets is already increased by the total interest (including the fee assets).
-        // Note: `feeAssets` may be rounded down to 0 if `totalInterest * fee < WAD`.
+        // The performance fee assets may be rounded down to 0 if `interest * fee < WAD`.
+        uint256 performanceFeeAssets = interest > 0 && performanceFee != 0 && canReceive(performanceFeeRecipient)
+            ? interest.mulDivDown(performanceFee, WAD)
+            : 0;
+        // The management fee is taken on `newTotalAssets` to make all approximations consistent (interacting less
+        // increases fees).
+        uint256 managementFeeAssets = managementFee != 0 && canReceive(managementFeeRecipient)
+            ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD)
+            : 0;
 
-        if (interest > 0 && performanceFee != 0 && canReceive(performanceFeeRecipient)) {
-            // Note: the accrued performance fee might be smaller than this because of the management fee.
-            uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
-            performanceFeeShares =
-                performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssets + 1 - performanceFeeAssets);
-        }
-        if (managementFee != 0 && canReceive(managementFeeRecipient)) {
-            // Note: The vault must be pinged at least once every 20 years to avoid management fees exceeding total
-            // assets and revert forever.
-            // Note: The management fee is taken on newTotalAssets to make all approximations consistent (interacting
-            // less increases management fees).
-            uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
-            managementFeeShares = managementFeeAssets.mulDivDown(
-                totalSupply + 1 + performanceFeeShares, newTotalAssets + 1 - managementFeeAssets
-            );
-        }
+        // Interest should be accrued at least every 10 years to avoid fees exceeding total assets.
+        uint256 newTotalAssetsWithoutFees = newTotalAssets - performanceFeeAssets - managementFeeAssets;
+        uint256 performanceFeeShares = performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssetsWithoutFees + 1);
+        uint256 managementFeeShares = managementFeeAssets.mulDivDown(totalSupply + 1, newTotalAssetsWithoutFees + 1);
+
         return (newTotalAssets, performanceFeeShares, managementFeeShares);
     }
 
@@ -510,6 +536,38 @@ contract VaultV2 is IVaultV2 {
         return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + 1);
     }
 
+    /// @dev Returns corresponding shares (rounded down).
+    function convertToShares(uint256 assets) external view returns (uint256) {
+        return previewDeposit(assets);
+    }
+
+    /// @dev Returns corresponding assets (rounded down).
+    function convertToAssets(uint256 shares) external view returns (uint256) {
+        return previewRedeem(shares);
+    }
+
+    /* MAX */
+
+    /// @dev Returns the maximum amount of assets that can be deposited.
+    function maxDeposit(address onBehalf) external view returns (uint256) {
+        return canReceive(onBehalf) ? type(uint256).max : 0;
+    }
+
+    /// @dev Returns the maximum amount of shares that can be minted.
+    function maxMint(address onBehalf) external view returns (uint256) {
+        return canReceive(onBehalf) ? type(uint256).max : 0;
+    }
+
+    /// @dev Gross underestimation because it does not (and cannot) take into account the liquidity market.
+    function maxWithdraw(address) external pure returns (uint256) {
+        return 0;
+    }
+
+    /// @dev Gross underestimation because it does not (and cannot) take into account the liquidity market.
+    function maxRedeem(address) external pure returns (uint256) {
+        return 0;
+    }
+
     /* USER MAIN FUNCTIONS */
 
     /// @dev Returns minted shares.
@@ -538,11 +596,8 @@ contract VaultV2 is IVaultV2 {
         createShares(onBehalf, shares);
         _totalAssets += assets.toUint192();
 
-        int256 idleChange = updateIdleAssets();
-        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange);
-
         if (liquidityAdapter != address(0)) {
-            try this.allocate(liquidityAdapter, liquidityData, assets) {} catch {}
+            this.allocate(liquidityAdapter, liquidityData, assets);
         }
         emit EventsLib.Deposit(msg.sender, onBehalf, assets, shares);
     }
@@ -568,9 +623,9 @@ contract VaultV2 is IVaultV2 {
         require(canSend(onBehalf), ErrorsLib.CannotSend());
         require(canReceiveUnderlyingAssets(receiver), ErrorsLib.CannotReceiveUnderlyingAssets());
 
-        uint256 _idleAssets = IERC20(asset).balanceOf(address(this));
-        if (assets > _idleAssets && liquidityAdapter != address(0)) {
-            this.deallocate(liquidityAdapter, liquidityData, assets - _idleAssets);
+        uint256 idleAssets = IERC20(asset).balanceOf(address(this));
+        if (assets > idleAssets && liquidityAdapter != address(0)) {
+            this.deallocate(liquidityAdapter, liquidityData, assets - idleAssets);
         }
 
         if (msg.sender != onBehalf) {
@@ -583,24 +638,27 @@ contract VaultV2 is IVaultV2 {
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
 
-        int256 idleChange = updateIdleAssets();
-        realAssetsApprox = uint256(realAssetsApprox).zeroFloorAddInt(idleChange);
-
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }
 
     /// @dev Returns shares withdrawn as penalty.
     /// @dev This function will automatically realize potential losses.
+    /// @dev When calling this function, a penalty is taken from `onBehalf`, in order to discourage allocation
+    /// manipulations.
+    /// @dev The penalty is taken as a withdrawal for which assets are returned to the vault. In consequence,
+    /// totalAssets is decreased normally along with totalSupply (the share price doesn't change except because of
+    /// rounding errors), but the amount of assets actually controlled by the vault is not decreased.
+    /// @dev If a user has A assets in the vault, and that the vault is already fully illiquid, the optimal amount to
+    /// force deallocate in order to exit the vault is min(liquidity_of_market, A / (1 + penalty)).
+    /// This ensures that either the market is empty or that it leaves no shares nor liquidity after exiting.
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256)
     {
         this.deallocate(adapter, data, assets);
-
-        // The penalty is taken as a withdrawal that is donated to the vault.
-        uint256 penaltyAssets = assets.mulDivDown(forceDeallocatePenalty[adapter], WAD);
+        uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
-        emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf);
+        emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf, penaltyAssets);
         return shares;
     }
 
@@ -648,6 +706,7 @@ contract VaultV2 is IVaultV2 {
         return true;
     }
 
+    /// @dev Signature malleability is not explicitly prevented but it is not a problem thanks to the nonce.
     function permit(address _owner, address spender, uint256 shares, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         external
     {
