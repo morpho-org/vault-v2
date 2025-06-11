@@ -53,13 +53,15 @@ interface IVaultV2 is IERC20, IPermissionedToken {
     function timelock(bytes4 selector) external view returns (uint256);
     function liquidityAdapter() external view returns (address);
     function liquidityData() external view returns (bytes memory);
-    function enterGate() external view returns (address);
-    function exitGate() external view returns (address);
+    function sharesGate() external view returns (address);
+    function receiveAssetsGate() external view returns (address);
+    function sendAssetsGate() external view returns (address);
 
     // Owner actions
     function setOwner(address newOwner) external;
-    function setExitGate(address newExitGate) external;
-    function setEnterGate(address newEnterGate) external;
+    function setSharesGate(address newSharesGate) external;
+    function setReceiveAssetsGate(address newReceiveAssetsGate) external;
+    function setSendAssetsGate(address newSendAssetsGate) external;
     function setCurator(address newCurator) external;
     function setIsSentinel(address account, bool isSentinel) external;
     function setName(string memory newName) external;
@@ -103,7 +105,7 @@ interface IVaultV2 is IERC20, IPermissionedToken {
         external
         returns (uint256 withdrawnShares);
 
-    // Gate vault / permissioned token
-    function canSendUnderlyingAssets(address account) external view returns (bool);
-    function canReceiveUnderlyingAssets(address account) external view returns (bool);
+    // Permissioned token
+    function canSend(address account) external view returns (bool);
+    function canReceive(address account) external view returns (bool);
 }

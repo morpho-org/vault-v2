@@ -712,40 +712,58 @@ contract SettersTest is BaseTest {
         vault.setForceDeallocatePenalty(adapter, tooHighPenalty);
     }
 
-    function testSetEnterGate(address rdm) public {
+    function testSetSharesGate(address rdm) public {
         vm.assume(rdm != curator);
-        address newEnterGate = makeAddr("newEnterGate");
+        address newSharesGate = makeAddr("newSharesGate");
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
-        vault.setEnterGate(newEnterGate);
+        vault.setSharesGate(newSharesGate);
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setEnterGate.selector, newEnterGate));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setSharesGate.selector, newSharesGate));
         vm.expectEmit();
-        emit EventsLib.SetEnterGate(newEnterGate);
-        vault.setEnterGate(newEnterGate);
-        assertEq(vault.enterGate(), newEnterGate);
+        emit EventsLib.SetSharesGate(newSharesGate);
+        vault.setSharesGate(newSharesGate);
+        assertEq(vault.sharesGate(), newSharesGate);
     }
 
-    function testSetExitGate(address rdm) public {
+    function testSetReceiveAssetsGate(address rdm) public {
         vm.assume(rdm != curator);
-        address newExitGate = makeAddr("newExitGate");
+        address newReceiveAssetsGate = makeAddr("newReceiveAssetsGate");
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
-        vault.setExitGate(newExitGate);
+        vault.setReceiveAssetsGate(newReceiveAssetsGate);
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setExitGate.selector, newExitGate));
+        vault.submit(abi.encodeWithSelector(IVaultV2.setReceiveAssetsGate.selector, newReceiveAssetsGate));
         vm.expectEmit();
-        emit EventsLib.SetExitGate(newExitGate);
-        vault.setExitGate(newExitGate);
-        assertEq(vault.exitGate(), newExitGate);
+        emit EventsLib.SetReceiveAssetsGate(newReceiveAssetsGate);
+        vault.setReceiveAssetsGate(newReceiveAssetsGate);
+        assertEq(vault.receiveAssetsGate(), newReceiveAssetsGate);
+    }
+
+    function testSetSendAssetsGate(address rdm) public {
+        vm.assume(rdm != curator);
+        address newSendAssetsGate = makeAddr("newSendAssetsGate");
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.setSendAssetsGate(newSendAssetsGate);
+
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.setSendAssetsGate.selector, newSendAssetsGate));
+        vm.expectEmit();
+        emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
+        vault.setSendAssetsGate(newSendAssetsGate);
+        assertEq(vault.sendAssetsGate(), newSendAssetsGate);
     }
 
     /* ALLOCATOR SETTERS */

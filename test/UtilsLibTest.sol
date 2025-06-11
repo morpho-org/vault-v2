@@ -5,7 +5,6 @@ import "./BaseTest.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
 import {UtilsLib} from "../src/libraries/UtilsLib.sol";
 import {VaultV2} from "../src/VaultV2.sol";
-import {min} from "./BaseTest.sol";
 
 contract ReturnsInput {
     fallback() external {
@@ -40,14 +39,6 @@ contract ReturnsBomb {
         assembly {
             mstore(mul(sub(words, 1), 32), 1)
             return(0, mul(words, 32))
-        }
-    }
-}
-
-contract BurnsAllGas {
-    fallback() external {
-        assembly {
-            invalid()
         }
     }
 }
@@ -108,25 +99,6 @@ contract ControlledStaticCallTest is BaseTest {
         uint256 gas = 4953 * 2;
         vm.expectRevert();
         this._testReturnsBombLowLevelStaticCall{gas: gas}(account);
-    }
-
-    uint256 constant SAFE_GAS_AMOUNT = 900_000;
-
-    function testCanUpdateVicIfVicBurnsAllGas() public {
-        BurnsAllGas burnsAllGas = new BurnsAllGas();
-
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(vault.setVic, (address(burnsAllGas))));
-        vault.setVic(address(burnsAllGas));
-
-        skip(1);
-        // Check that vic can still be changed
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(vault.setVic, (address(0))));
-        vault.setVic{gas: SAFE_GAS_AMOUNT}(address(0));
-
-        // Check that gas was almost entirely burned
-        assertGt(vm.lastCallGas().gasTotalUsed, SAFE_GAS_AMOUNT * 63 / 64);
     }
 
     /* HELPERS */

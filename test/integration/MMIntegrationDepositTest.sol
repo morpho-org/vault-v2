@@ -36,12 +36,11 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
         vm.prank(allocator);
         vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
 
-        vault.deposit(assets, address(this));
-
         if (assets > MM_NB_MARKETS * CAP) {
-            checkAssetsInIdle(assets);
-            // No need to check positions on Morpho since Morpho has no balance.
+            vm.expectRevert();
+            vault.deposit(assets, address(this));
         } else {
+            vault.deposit(assets, address(this));
             checkAssetsInMetaMorphoMarkets(assets);
             uint256 positionOnMorpho;
             for (uint256 i; i < MM_NB_MARKETS; i++) {
