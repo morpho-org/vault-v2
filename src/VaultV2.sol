@@ -485,9 +485,6 @@ contract VaultV2 is IVaultV2 {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
-        bool mayReceivePerformanceFee = performanceFee > 0 && canReceive(performanceFeeRecipient);
-        bool mayReceiveManagementFee = managementFee > 0 && canReceive(managementFeeRecipient);
-
         uint256 tentativeInterestPerSecond =
             UtilsLib.controlledStaticCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
 
@@ -497,12 +494,14 @@ contract VaultV2 is IVaultV2 {
         uint256 newTotalAssets = _totalAssets + interest;
 
         // The performance fee assets may be rounded down to 0 if `interest * fee < WAD`.
-        uint256 performanceFeeAssets =
-            interest > 0 && mayReceivePerformanceFee ? interest.mulDivDown(performanceFee, WAD) : 0;
+        uint256 performanceFeeAssets = interest > 0 && performanceFee > 0 && canReceive(performanceFeeRecipient)
+            ? interest.mulDivDown(performanceFee, WAD)
+            : 0;
         // The management fee is taken on `newTotalAssets` to make all approximations consistent (interacting less
         // increases fees).
-        uint256 managementFeeAssets =
-            mayReceiveManagementFee ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD) : 0;
+        uint256 managementFeeAssets = managementFee > 0 && canReceive(managementFeeRecipient)
+            ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD)
+            : 0;
 
         // Interest should be accrued at least every 10 years to avoid fees exceeding total assets.
         uint256 newTotalAssetsWithoutFees = newTotalAssets - performanceFeeAssets - managementFeeAssets;
