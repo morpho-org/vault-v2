@@ -538,22 +538,22 @@ contract VaultV2 is IVaultV2 {
 
     /* MAX */
 
-    /// @dev Returns the maximum amount of assets that can be deposited.
-    function maxDeposit(address onBehalf) external view returns (uint256) {
-        return canReceive(onBehalf) ? type(uint256).max : 0;
+    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
+    function maxDeposit(address) external pure returns (uint256) {
+        return 0;
     }
 
-    /// @dev Returns the maximum amount of shares that can be minted.
-    function maxMint(address onBehalf) external view returns (uint256) {
-        return canReceive(onBehalf) ? type(uint256).max : 0;
+    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
+    function maxMint(address) external pure returns (uint256) {
+        return 0;
     }
 
-    /// @dev Gross underestimation because it does not (and cannot) take into account the liquidity market.
+    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
     function maxWithdraw(address) external pure returns (uint256) {
         return 0;
     }
 
-    /// @dev Gross underestimation because it does not (and cannot) take into account the liquidity market.
+    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
     function maxRedeem(address) external pure returns (uint256) {
         return 0;
     }
