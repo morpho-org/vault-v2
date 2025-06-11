@@ -21,10 +21,9 @@ contract MMIntegrationIkrTest is MMIntegrationTest {
 
         setSupplyQueueAllMarkets();
 
-        vm.startPrank(curator);
+        vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(metaMorphoAdapter), penalty)));
         vault.setForceDeallocatePenalty(address(metaMorphoAdapter), penalty);
-        vm.stopPrank();
     }
 
     function setUpAssets(uint256 assets) internal {

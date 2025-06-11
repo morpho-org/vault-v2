@@ -18,7 +18,10 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /* IMMUTABLES */
 
     address public immutable parentVault;
+    address public immutable asset;
     address public immutable morpho;
+    address public immutable irm;
+    bytes32 public immutable adapterId;
 
     /* STORAGE */
 
@@ -27,11 +30,14 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
     /* FUNCTIONS */
 
-    constructor(address _parentVault, address _morpho) {
-        morpho = _morpho;
+    constructor(address _parentVault, address _morpho, address _irm) {
         parentVault = _parentVault;
-        SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _morpho, type(uint256).max);
-        SafeERC20Lib.safeApprove(IVaultV2(_parentVault).asset(), _parentVault, type(uint256).max);
+        morpho = _morpho;
+        irm = _irm;
+        asset = IVaultV2(_parentVault).asset();
+        adapterId = keccak256(abi.encode("adapter", address(this)));
+        SafeERC20Lib.safeApprove(asset, _morpho, type(uint256).max);
+        SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -52,9 +58,11 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the PnL in this allocation.
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
-        require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
+        require(msg.sender == parentVault, NotAuthorized());
+        require(marketParams.loanToken == asset, LoanAssetMismatch());
+        require(marketParams.irm == irm, IrmMismatch());
 
         if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
 
@@ -70,9 +78,11 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the PnL in this allocation.
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
-        require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
+        require(msg.sender == parentVault, NotAuthorized());
+        require(marketParams.loanToken == asset, LoanAssetMismatch());
+        require(marketParams.irm == irm, IrmMismatch());
 
         if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
 
@@ -86,9 +96,9 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     }
 
     /// @dev Returns adapter's ids.
-    function ids(MarketParams memory marketParams) internal view returns (bytes32[] memory) {
+    function ids(MarketParams memory marketParams) public view returns (bytes32[] memory) {
         bytes32[] memory ids_ = new bytes32[](3);
-        ids_[0] = keccak256(abi.encode("adapter", address(this)));
+        ids_[0] = adapterId;
         ids_[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
         ids_[2] = keccak256(
             abi.encode(
