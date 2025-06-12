@@ -1,4 +1,4 @@
-name: Foundry
+name: Foundry sizes
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  sizes:
     strategy:
       fail-fast: true
 
@@ -21,8 +21,5 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Run forge fmt
-        run: forge fmt --check
-
-      - name: Run forge tests
-        run: forge test -vvv
+      - name: Run forge build
+        run: forge build --force --sizes
