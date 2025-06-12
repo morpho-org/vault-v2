@@ -21,7 +21,7 @@ methods {
     function timelock(bytes4 selector) external returns uint256 envfree;
     function isAdapter(address adapter) external returns bool envfree;
     function balanceOf(address) external returns uint256 envfree;
-    function enterGate() external returns address envfree;
+    function sharesGate() external returns address envfree;
     function canReceive(address) external returns bool envfree;
 
     function Utils.wad() external returns uint256 envfree;

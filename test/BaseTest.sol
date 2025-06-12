@@ -25,7 +25,7 @@ contract BaseTest is Test {
     address immutable sentinel = makeAddr("sentinel");
 
     // The packed slot containing both _totalAssets and lastUpdate.
-    bytes32 TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT = bytes32(uint256(13));
+    bytes32 TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT = bytes32(uint256(14));
 
     ERC20Mock underlyingToken;
     IVaultV2Factory vaultFactory;
@@ -90,7 +90,6 @@ contract BaseTest is Test {
         vault.increaseRelativeCap(idData, relativeCap);
         assertEq(vault.relativeCap(id), relativeCap);
     }
-
 }
 
 function min(uint256 a, uint256 b) pure returns (uint256) {

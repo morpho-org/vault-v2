@@ -6,16 +6,12 @@ import "../../src/VaultV2.sol";
 contract VaultV2Harness is VaultV2 {
     constructor(address owner, address asset) VaultV2(owner, asset) {}
 
-    function accrueInterestViewMocked() external view {
-        uint256 elapsed = block.timestamp;
-
-        (bool success, bytes memory data) =
-            address(vic).staticcall(abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
-        uint256 output;
-        if (success) {
-            assembly ("memory-safe") {
-                output := mload(add(data, 32))
-            }
+    function setVicMocked(address newVic) external {
+        try this.accrueInterest() {}
+        catch {
+            lastUpdate = uint64(block.timestamp);
         }
+        vic = newVic;
+        emit EventsLib.SetVic(newVic);
     }
 }

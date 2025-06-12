@@ -9,9 +9,8 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
-import {UtilsLib} from "./libraries/UtilsLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
-import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
+import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
 
 /// @dev Not ERC-4626 compliant due to missing functions and `totalAssets()` is not up to date.
 /// @dev Zero checks are not systematically performed.
@@ -21,8 +20,8 @@ import {IExitGate, IEnterGate} from "./interfaces/IGate.sol";
 /// See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 /// @dev Roles are not "two-step" so one must check if they really have this role.
 /// @dev The shares are represented with ERC-20, also compliant with ERC-2612 (permit extension).
-/// @dev To accrue interest, the vault queries the Vault Interest Controller (VIC) which returns the interest per second
-/// that must be distributed on the period (since `lastUpdate`). The VIC must be chosen and managed carefully to not
+/// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
+/// that must be distributed on the period (since `lastUpdate`). The Vic must be chosen and managed carefully to not
 /// distribute more than what the vault's investments are earning.
 /// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
 /// because flashloan based shorting is prevented.
@@ -65,10 +64,21 @@ contract VaultV2 is IVaultV2 {
 
     address public owner;
     address public curator;
-    /// @notice Gates receiving shares and depositing.
-    address public enterGate;
-    /// @notice Gates sending shares and withdrawing.
-    address public exitGate;
+    /// @dev Gates sending and receiving shares.
+    /// @dev canSendShares can lock users out of exiting the vault.
+    /// @dev canReceiveShares can prevent users from getting back their shares that they deposited on other protocols. If
+    /// it reverts or consumes a lot of gas, it can also make accrueInterest revert, thus freezing the vault.
+    /// @dev Set to 0 to disable the gate.
+    address public sharesGate;
+    /// @dev Gates receiving assets from the vault.
+    /// @dev Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
+    /// @dev Set to 0 to disable the gate.
+    address public receiveAssetsGate;
+    /// @dev Gates depositing assets to the vault.
+    /// @dev This gate is not critical (cannot block users' funds), while still being able to gate supplies.
+    /// @dev Set to 0 to disable the gate.
+    address public sendAssetsGate;
+
     mapping(address account => bool) public isSentinel;
     mapping(address account => bool) public isAllocator;
 
@@ -232,18 +242,28 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
 
-    function setEnterGate(address newEnterGate) external timelocked {
-        enterGate = newEnterGate;
-        emit EventsLib.SetEnterGate(newEnterGate);
+    function setSharesGate(address newSharesGate) external timelocked {
+        sharesGate = newSharesGate;
+        emit EventsLib.SetSharesGate(newSharesGate);
     }
 
-    function setExitGate(address newExitGate) external timelocked {
-        exitGate = newExitGate;
-        emit EventsLib.SetExitGate(newExitGate);
+    function setReceiveAssetsGate(address newReceiveAssetsGate) external timelocked {
+        receiveAssetsGate = newReceiveAssetsGate;
+        emit EventsLib.SetReceiveAssetsGate(newReceiveAssetsGate);
     }
 
+    function setSendAssetsGate(address newSendAssetsGate) external timelocked {
+        sendAssetsGate = newSendAssetsGate;
+        emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
+    }
+
+    /// @dev This function never reverts, assuming that the corresponding data is timelocked.
+    /// @dev Users cannot access their funds if the Vic reverts, so this function might better be under a long timelock.
     function setVic(address newVic) external timelocked {
-        accrueInterest();
+        try this.accrueInterest() {}
+        catch {
+            lastUpdate = uint64(block.timestamp);
+        }
         vic = newVic;
         emit EventsLib.SetVic(newVic);
     }
@@ -333,7 +353,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(newAbsoluteCap <= caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotDecreasing());
 
-        // safe by invariant: config.absoluteCap fits on 128 bits
+        // Safe by invariant: config.absoluteCap fits in 128 bits.
         caps[id].absoluteCap = uint128(newAbsoluteCap);
         emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
@@ -343,7 +363,7 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
         require(newRelativeCap >= caps[id].relativeCap, ErrorsLib.RelativeCapNotIncreasing());
 
-        // safe since WAD fits on 128 bits
+        // Safe since WAD fits in 128 bits.
         caps[id].relativeCap = uint128(newRelativeCap);
 
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
@@ -354,7 +374,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(newRelativeCap <= caps[id].relativeCap, ErrorsLib.RelativeCapNotDecreasing());
 
-        // safe since WAD fits on 128 bits
+        // Safe since WAD fits in 128 bits.
         caps[id].relativeCap = uint128(newRelativeCap);
 
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
@@ -474,28 +494,28 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
-    /// @dev The IPS is taken to be 0 if VIC reverts, has no code, returns a data that is not of size 32, or if the
-    /// corresponding rate is above the max rate.
+    /// @dev Reverts if the call to the Vic reverts.
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
-        uint256 tentativeInterestPerSecond =
-            UtilsLib.controlledStaticCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+        uint256 tentativeInterestPerSecond = IVic(vic).interestPerSecond(_totalAssets, elapsed);
 
         uint256 interestPerSecond = tentativeInterestPerSecond
             <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
-        uint256 newTotalAssets = MathLib.min(_totalAssets + (interestPerSecond * elapsed), totalAllocation + IERC20(asset).balanceOf(address(this)));
+        uint256 newTotalAssets = MathLib.min(
+            _totalAssets + (interestPerSecond * elapsed), totalAllocation + IERC20(asset).balanceOf(address(this))
+        );
         uint256 interest = newTotalAssets - _totalAssets;
 
         // The performance fee assets may be rounded down to 0 if `interest * fee < WAD`.
-        uint256 performanceFeeAssets = interest > 0 && performanceFee != 0 && canReceive(performanceFeeRecipient)
+        uint256 performanceFeeAssets = interest > 0 && performanceFee > 0 && canReceive(performanceFeeRecipient)
             ? interest.mulDivDown(performanceFee, WAD)
             : 0;
         // The management fee is taken on `newTotalAssets` to make all approximations consistent (interacting less
         // increases fees).
-        uint256 managementFeeAssets = managementFee != 0 && canReceive(managementFeeRecipient)
+        uint256 managementFeeAssets = managementFee > 0 && canReceive(managementFeeRecipient)
             ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD)
             : 0;
 
@@ -547,22 +567,22 @@ contract VaultV2 is IVaultV2 {
 
     /* MAX */
 
-    /// @dev Returns the maximum amount of assets that can be deposited.
-    function maxDeposit(address onBehalf) external view returns (uint256) {
-        return canReceive(onBehalf) ? type(uint256).max : 0;
+    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
+    function maxDeposit(address) external pure returns (uint256) {
+        return 0;
     }
 
-    /// @dev Returns the maximum amount of shares that can be minted.
-    function maxMint(address onBehalf) external view returns (uint256) {
-        return canReceive(onBehalf) ? type(uint256).max : 0;
+    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
+    function maxMint(address) external pure returns (uint256) {
+        return 0;
     }
 
-    /// @dev Gross underestimation because it does not (and cannot) take into account the liquidity market.
+    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
     function maxWithdraw(address) external pure returns (uint256) {
         return 0;
     }
 
-    /// @dev Gross underestimation because it does not (and cannot) take into account the liquidity market.
+    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
     function maxRedeem(address) external pure returns (uint256) {
         return 0;
     }
@@ -589,7 +609,10 @@ contract VaultV2 is IVaultV2 {
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
         require(!enterBlocked, ErrorsLib.EnterBlocked());
         require(canReceive(onBehalf), ErrorsLib.CannotReceive());
-        require(canSendUnderlyingAssets(msg.sender), ErrorsLib.CannotSendUnderlyingAssets());
+        require(
+            sendAssetsGate == address(0) || ISendAssetsGate(sendAssetsGate).canSendAssets(msg.sender),
+            ErrorsLib.CannotSendUnderlyingAssets()
+        );
 
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
@@ -619,7 +642,10 @@ contract VaultV2 is IVaultV2 {
     /// @dev Internal function for withdraw and redeem.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         require(canSend(onBehalf), ErrorsLib.CannotSend());
-        require(canReceiveUnderlyingAssets(receiver), ErrorsLib.CannotReceiveUnderlyingAssets());
+        require(
+            receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(receiver),
+            ErrorsLib.CannotReceiveUnderlyingAssets()
+        );
 
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
@@ -734,21 +760,13 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Transfer(from, address(0), shares);
     }
 
-    /* PERMISSION FUNCTIONS HELPERS */
-
-    function canReceiveUnderlyingAssets(address account) public view returns (bool) {
-        return exitGate == address(0) || IExitGate(exitGate).canReceiveAssets(account);
-    }
-
-    function canSendUnderlyingAssets(address account) public view returns (bool) {
-        return enterGate == address(0) || IEnterGate(enterGate).canSendAssets(account);
-    }
+    /* PERMISSIONED TOKEN */
 
     function canSend(address account) public view returns (bool) {
-        return exitGate == address(0) || IExitGate(exitGate).canSendShares(account);
+        return sharesGate == address(0) || ISharesGate(sharesGate).canSendShares(account);
     }
 
     function canReceive(address account) public view returns (bool) {
-        return enterGate == address(0) || IEnterGate(enterGate).canReceiveShares(account);
+        return sharesGate == address(0) || ISharesGate(sharesGate).canReceiveShares(account);
     }
 }
