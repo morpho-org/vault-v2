@@ -77,20 +77,20 @@ This reduces their position in the vault and increases their position in the und
 
 [Gated vaults](Gates) can circumvent the in-kind redemption mechanism by configuring an `exitGate`.
 
-### Vault Interest Controller (VIC)
+### Vault Interest Controller (Vic)
 
 Vault V2 can allocate assets across many markets, especially when interacting with Morpho Markets V2.
 Looping through all markets to compute the total assets is not realistic in the general case.
 This differs from Vault V1, where total assets were automatically computed from the vault's underlying allocations.
 As a result, in Vault V2, curators are responsible for monitoring the vault’s total assets and setting an appropriate interest rate.
-The interest rate is set through the VIC, a contract responsible for returning the `interestPerSecond` used to accrue fees.
-The rate returned by the VIC must be below `200% APR`.
+The interest rate is set through the Vic, a contract responsible for returning the `interestPerSecond` used to accrue fees.
+The rate returned by the Vic must be below `200% APR`.
 
 The vault interest controller can typically be simple smart contract storing the `interestPerSecond`, whose value is regularly set by the curator.
-For now only a VIC of this type is provided, the [ManualVic](./src/vic/ManualVic.sol), with the following added features:
+For now only a Vic of this type is provided, the [ManualVic](./src/vic/ManualVic.sol), with the following added features:
 
 - the interest per second can be set by the allocators and sentinels of the vault;
-- the VIC has an additional internal notion of max interest per second, to ensure that the role of allocator can be given more safely.
+- the Vic has an additional internal notion of max interest per second, to ensure that the role of allocator can be given more safely.
   The curator controls this internal notion of max interest per second, while the sentinels are only able to decrease it to reduce the risk of having a rate too high.
 
 ### Bad debt
@@ -107,21 +107,24 @@ If a gate is not set, its corresponding operations are not restricted.
 Gate changes can be timelocked.
 Using `abdicateSubmit`, a curator can commit to keeping the vault completely ungated, or, for instance, to only gate deposits and shares reception, but not withdrawals.
 
-Two gates are defined:
+Three gates are defined:
 
-**Enter Gate** (`enterGate`): Controls permissions related to depositing assets and receiving shares. Implements [IEnterGate](./src/interfaces/IGate.sol).
-
-When set:
-
-- Upon `deposit`, `mint` and transfers, the shares receiver must pass the `enterGate.canReceiveShares` check.
-- Upon `deposit` and `mint`, `msg.sender` must pass the `enterGate.canSendAssets` check.
-
-**Exit Gate** (`exitGate`): Controls permissions related to redeeming shares and receiving underlying assets. Implements [IExitGate](./src/interfaces/IGate.sol).
+**Shares Gate** (`shareGate`): Controls permissions related to sending and receiving shares. Implements [ISharesGate](./src/interfaces/IGate.sol).
 
 When set:
 
-- Upon `withdraw`, `redeem` and transfers, the shares sender must pass the `exitGate.canSendShares` check.
-- Upon `withdraw` and `redeem`, `receiver` must pass the `exitGate.canReceiveAssets` check.
+- Upon `deposit`, `mint` and transfers, the shares receiver must pass the `canReceiveShares` check. Performance and management fee recipients must also pass this check, otherwise their respective fee will be 0.
+- Upon `withdraw`, `redeem` and transfers, the shares sender must pass the `canSendShares` check.
+
+If the shares gate reverts upon `canReceiveShares` and there is a nonzero fee to be sent, `accrueInterest` will revert.
+
+**Receive Assets Gate** (`receiveAssetsGate`): Controls permissions related to receiving assets. Implements [IReceiveAssetsGate](./src/interfaces/IGate.sol).
+
+- Upon `withdraw` and `redeem`, `receiver` must pass the `canReceiveAssets` check.
+
+**Send Assets Gate** (`receiveAssetsGate`): Controls permissions related to sending assets. Implements [ISendAssetsGate](./src/interfaces/IGate.sol).
+
+- Upon `deposit` and `mint`, `msg.sender` must pass the `canSendAssets` check.
 
 An example gate is defined in [test/examples/GateExample.sol](./test/examples/GateExample.sol).
 

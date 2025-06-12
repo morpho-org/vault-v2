@@ -22,7 +22,7 @@ contract BaseTest is Test {
     address immutable sentinel = makeAddr("sentinel");
 
     // The packed slot containing both _totalAssets and lastUpdate.
-    bytes32 TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT = bytes32(uint256(10));
+    bytes32 TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT = bytes32(uint256(13));
 
     ERC20Mock underlyingToken;
     IVaultV2Factory vaultFactory;
@@ -52,7 +52,7 @@ contract BaseTest is Test {
         vm.stopPrank();
 
         vm.startPrank(curator);
-        ManualVic(vic).increaseMaxInterestPerSecond(type(uint256).max);
+        ManualVic(vic).setMaxInterestPerSecond(type(uint96).max);
         vault.submit(abi.encodeCall(IVaultV2.setIsAllocator, (allocator, true)));
         vault.submit(abi.encodeCall(IVaultV2.setVic, (address(vic))));
         vm.stopPrank();

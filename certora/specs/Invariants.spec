@@ -9,7 +9,6 @@ methods {
     function curator() external returns address envfree;
     function isSentinel(address) external returns bool envfree;
     function lastUpdate() external returns uint64 envfree;
-    function totalAssets() external returns uint256 envfree;
     function totalSupply() external returns uint256 envfree;
     function performanceFee() external returns uint96 envfree;
     function performanceFeeRecipient() external returns address envfree;
@@ -20,11 +19,9 @@ methods {
     function relativeCap(bytes32 id) external returns uint256 envfree;
     function allocation(bytes32 id) external returns uint256 envfree;
     function timelock(bytes4 selector) external returns uint256 envfree;
-    function liquidityAdapter() external returns address envfree;
-    function liquidityData() external returns bytes memory envfree;
     function isAdapter(address adapter) external returns bool envfree;
     function balanceOf(address) external returns uint256 envfree;
-    function enterGate() external returns address envfree;
+    function sharesGate() external returns address envfree;
     function canReceive(address) external returns bool envfree;
 
     function Utils.wad() external returns uint256 envfree;
@@ -72,9 +69,6 @@ strong invariant timelockBounds(bytes4 selector)
 
 strong invariant decreaseTimelockTimelock()
     timelock(decreaseTimelockSelector()) == Utils.timelockCap() || timelock(decreaseTimelockSelector()) == max_uint256;
-
-strong invariant liquidityAdapterInvariant()
-    liquidityAdapter() == 0 || isAdapter(liquidityAdapter());
 
 strong invariant totalSupplyIsSumOfBalances()
     totalSupply() == sumOfBalances;

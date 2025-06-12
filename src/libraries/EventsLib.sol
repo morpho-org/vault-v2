@@ -24,9 +24,11 @@ library EventsLib {
 
     event SetIsAllocator(address indexed account, bool newIsAllocator);
 
-    event SetExitGate(address indexed newExitGate);
+    event SetSharesGate(address indexed newSharesGate);
 
-    event SetEnterGate(address indexed newEnterGate);
+    event SetReceiveAssetsGate(address indexed newReceiveAssetsGate);
+
+    event SetSendAssetsGate(address indexed newSendAssetsGate);
 
     event SetPerformanceFeeRecipient(address indexed);
 
@@ -90,4 +92,8 @@ library EventsLib {
     );
 
     event CreateVaultV2(address indexed owner, address indexed asset, address indexed vaultV2);
+
+    event SetName(string indexed newName);
+
+    event SetSymbol(string indexed newSymbol);
 }
