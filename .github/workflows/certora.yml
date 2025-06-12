@@ -19,6 +19,8 @@ jobs:
           - AbdicatedFunctions
           - Invariants
           - Liveness
+          - MetaMorphoAdapterFactory
+          - MorphoBlueAdapterFactory
 
     steps:
       - uses: actions/checkout@v4
