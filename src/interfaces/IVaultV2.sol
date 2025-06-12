@@ -12,7 +12,7 @@ struct Caps {
 }
 
 interface IVaultV2 is IERC4626, IPermissionedToken {
-    // State variables
+    // Storage variables
     function owner() external view returns (address);
     function curator() external view returns (address);
     function sharesGate() external view returns (address);
@@ -89,7 +89,7 @@ interface IVaultV2 is IERC4626, IPermissionedToken {
         view
         returns (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares);
 
-    // Force reallocate to idle
+    // Force deallocate
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256 withdrawnShares);
