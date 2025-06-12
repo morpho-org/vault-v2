@@ -400,9 +400,9 @@ contract VaultV2 is IVaultV2 {
 
         totalAllocation = uint256(totalAllocation).zeroFloorAddInt(change);
 
-        uint256 realAssetsApprox = totalAllocation + IERC20(asset).balanceOf(address(this));
-        if (_totalAssets > realAssetsApprox) {
-            _totalAssets = uint192(realAssetsApprox);
+        uint256 assetBalance = IERC20(asset).balanceOf(address(this));
+        if (_totalAssets > totalAllocation + assetBalance) {
+            _totalAssets = uint192(totalAllocation + assetBalance);
             enterBlocked = true;
         }
 
@@ -434,9 +434,9 @@ contract VaultV2 is IVaultV2 {
 
         totalAllocation = uint256(totalAllocation).zeroFloorAddInt(change);
 
-        uint256 realAssetsApprox = totalAllocation + IERC20(asset).balanceOf(address(this));
-        if (_totalAssets > realAssetsApprox) {
-            _totalAssets = uint192(realAssetsApprox);
+        uint256 assetBalance = IERC20(asset).balanceOf(address(this));
+        if (_totalAssets > totalAllocation + assetBalance) {
+            _totalAssets = uint192(totalAllocation + assetBalance);
             enterBlocked = true;
         }
 
