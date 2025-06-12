@@ -197,7 +197,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Constructor(_owner, _asset);
     }
 
-    /* OWNER ACTIONS */
+    /* OWNER FUNCTIONS */
 
     function setOwner(address newOwner) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
@@ -254,7 +254,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Revoke(msg.sender, bytes4(data), data);
     }
 
-    /* CURATOR ACTIONS */
+    /* CURATOR FUNCTIONS */
 
     function setIsAllocator(address account, bool newIsAllocator) external timelocked {
         isAllocator[account] = newIsAllocator;
@@ -405,7 +405,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
     }
 
-    /* ALLOCATOR ACTIONS */
+    /* ALLOCATOR FUNCTIONS */
 
     /// @dev This function will automatically realize potential losses.
     function allocate(address adapter, bytes memory data, uint256 assets) external {
