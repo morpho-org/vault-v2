@@ -95,6 +95,9 @@ interface IVaultV2 is IERC4626, IPermissionedToken {
         external
         returns (uint256 withdrawnShares);
 
+    // PnL realization, incentivized when the loss changes _totalAssets.
+    function realize(address adapter, bytes memory data) external returns (int256 change, uint256 incentiveShares);
+
     // Permissioned token
     function canSend(address account) external view returns (bool);
     function canReceive(address account) external view returns (bool);

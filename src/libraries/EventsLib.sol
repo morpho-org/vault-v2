@@ -60,6 +60,10 @@ library EventsLib {
 
     event Deallocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, int256 change);
 
+    event Realize(
+        address indexed sender, address indexed adapter, bytes32[] ids, int256 change, uint256 incentiveShares
+    );
+
     event SetLiquidityMarket(
         address indexed sender, address indexed newLiquidityAdapter, bytes indexed newLiquidityData
     );

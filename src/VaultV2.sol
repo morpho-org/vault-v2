@@ -54,6 +54,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
+    using MathLib for int256;
 
     /* IMMUTABLE */
 
@@ -398,13 +399,7 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets);
 
-        totalAllocation = uint256(totalAllocation).zeroFloorAddInt(change);
-
-        uint256 assetBalance = IERC20(asset).balanceOf(address(this));
-        if (_totalAssets > totalAllocation + assetBalance) {
-            _totalAssets = uint192(totalAllocation + assetBalance);
-            enterBlocked = true;
-        }
+        totalAllocationUpdate(change);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
@@ -429,16 +424,9 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets);
-
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
 
-        totalAllocation = uint256(totalAllocation).zeroFloorAddInt(change);
-
-        uint256 assetBalance = IERC20(asset).balanceOf(address(this));
-        if (_totalAssets > totalAllocation + assetBalance) {
-            _totalAssets = uint192(totalAllocation + assetBalance);
-            enterBlocked = true;
-        }
+        totalAllocationUpdate(change);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
@@ -684,6 +672,38 @@ contract VaultV2 is IVaultV2 {
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
         emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf, penaltyAssets);
         return shares;
+    }
+    /// @dev Realize a profit or loss.
+    /// @dev Losses provide an incentive in the form of shares to the caller.
+
+    function realize(address adapter, bytes memory data) external returns (int256, uint256) {
+        accrueInterest();
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, 0);
+
+        totalAllocationUpdate(change);
+
+        uint256 incentiveShares;
+        if (change < 0 && canReceive(msg.sender)) {
+            uint256 incentive = change.abs().mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
+            incentiveShares = incentive.mulDivDown(totalSupply + 1, uint256(_totalAssets).zeroFloorSub(incentive) + 1);
+            createShares(msg.sender, incentiveShares);
+        }
+
+        emit EventsLib.Realize(msg.sender, adapter, ids, change, incentiveShares);
+        return (change, incentiveShares);
+    }
+
+    /// @dev Apply a positive or negative change to totalAllocation.
+    /// @dev _totalAssets is bounded to totalAllocation.
+    /// @dev If _totalAssets must be lowered, enter cannot be used until the end of the transaction.
+    function totalAllocationUpdate(int256 change) internal {
+        totalAllocation = uint256(totalAllocation).zeroFloorAddInt(change);
+
+        uint256 assetBalance = IERC20(asset).balanceOf(address(this));
+        if (_totalAssets > totalAllocation + assetBalance) {
+            _totalAssets = uint192(totalAllocation + assetBalance);
+            enterBlocked = true;
+        }
     }
 
     /* ERC20 */
