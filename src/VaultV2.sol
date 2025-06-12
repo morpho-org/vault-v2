@@ -376,12 +376,11 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
-
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets);
 
         totalAllocation = uint256(totalAllocation).zeroFloorAddInt(change);
-        uint256 realAssetsApprox = totalAllocation + IERC20(asset).balanceOf(address(this));
 
+        uint256 realAssetsApprox = totalAllocation + IERC20(asset).balanceOf(address(this));
         if (_totalAssets > realAssetsApprox) {
             _totalAssets = uint192(realAssetsApprox);
             enterBlocked = true;
@@ -414,8 +413,8 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
 
         totalAllocation = uint256(totalAllocation).zeroFloorAddInt(change);
-        uint256 realAssetsApprox = totalAllocation + IERC20(asset).balanceOf(address(this));
 
+        uint256 realAssetsApprox = totalAllocation + IERC20(asset).balanceOf(address(this));
         if (_totalAssets > realAssetsApprox) {
             _totalAssets = uint192(realAssetsApprox);
             enterBlocked = true;
@@ -595,7 +594,6 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
         _totalAssets += assets.toUint192();
-
         if (liquidityAdapter != address(0)) {
             this.allocate(liquidityAdapter, liquidityData, assets);
         }
@@ -637,7 +635,6 @@ contract VaultV2 is IVaultV2 {
         _totalAssets -= assets.toUint192();
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
-
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }
 
