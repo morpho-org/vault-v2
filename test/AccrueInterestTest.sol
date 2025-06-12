@@ -87,6 +87,8 @@ contract AccrueInterestTest is BaseTest {
         vic.setInterestPerSecondAndDeadline(interestPerSecond, type(uint64).max);
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
+        writeTotalAllocation(deposit * 1000);
+
         // Normal path.
         uint256 interest = interestPerSecond * elapsed;
         uint256 totalAssets = deposit + interest;
@@ -144,6 +146,7 @@ contract AccrueInterestTest is BaseTest {
         vault.deposit(deposit, address(this));
         vm.prank(allocator);
         vic.setInterestPerSecondAndDeadline(deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD), type(uint64).max);
+        writeTotalAllocation(deposit * 1000);
         skip(365 days);
 
         vault.accrueInterest();
@@ -175,6 +178,7 @@ contract AccrueInterestTest is BaseTest {
         vault.submit(abi.encodeCall(IVaultV2.setVic, (reverting)));
         vault.setVic(reverting);
         vm.warp(vm.getBlockTimestamp() + elapsed);
+
 
         // Vic reverts.
         uint256 totalAssetsBefore = vault.totalAssets();
@@ -211,6 +215,8 @@ contract AccrueInterestTest is BaseTest {
         vic.setInterestPerSecondAndDeadline(interestPerSecond, type(uint64).max);
 
         vm.warp(block.timestamp + elapsed);
+
+        writeTotalAllocation(deposit * 1000);
 
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssetsBefore + interest;

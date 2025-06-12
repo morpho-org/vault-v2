@@ -71,6 +71,10 @@ contract BaseTest is Test {
         vm.store(address(vault), TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT, strippedValue | bytes32(newTotalAssets));
     }
 
+    function writeTotalAllocation(uint256 newTotalAllocation) internal {
+        stdstore.target(address(vault)).sig("totalAllocation()").checked_write(newTotalAllocation);
+    }
+
     function increaseAbsoluteCap(bytes memory idData, uint256 absoluteCap) internal {
         bytes32 id = keccak256(idData);
         vm.prank(curator);
@@ -86,6 +90,7 @@ contract BaseTest is Test {
         vault.increaseRelativeCap(idData, relativeCap);
         assertEq(vault.relativeCap(id), relativeCap);
     }
+
 }
 
 function min(uint256 a, uint256 b) pure returns (uint256) {

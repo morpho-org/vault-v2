@@ -31,6 +31,9 @@ contract MainFunctionsTest is BaseTest {
         vm.prank(allocator);
         vic.setInterestPerSecondAndDeadline(uint256(2e18) / (365 days), type(uint64).max);
         skip(10);
+
+        writeTotalAllocation(INITIAL_DEPOSIT * 3);
+
         vault.accrueInterest();
         assertNotEq((vault.totalAssets() + 1) % (vault.totalSupply() + 1), 0);
 

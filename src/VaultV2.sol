@@ -486,8 +486,8 @@ contract VaultV2 is IVaultV2 {
 
         uint256 interestPerSecond = tentativeInterestPerSecond
             <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
-        uint256 interest = interestPerSecond * elapsed;
-        uint256 newTotalAssets = _totalAssets + interest;
+        uint256 newTotalAssets = MathLib.min(_totalAssets + (interestPerSecond * elapsed), totalAllocation + IERC20(asset).balanceOf(address(this)));
+        uint256 interest = newTotalAssets - _totalAssets;
 
         // The performance fee assets may be rounded down to 0 if `interest * fee < WAD`.
         uint256 performanceFeeAssets = interest > 0 && performanceFee != 0 && canReceive(performanceFeeRecipient)
