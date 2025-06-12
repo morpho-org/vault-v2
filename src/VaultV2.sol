@@ -675,7 +675,6 @@ contract VaultV2 is IVaultV2 {
     }
     /// @dev Realize a profit or loss.
     /// @dev Losses provide an incentive in the form of shares to the caller.
-
     function realize(address adapter, bytes memory data) external returns (int256, uint256) {
         accrueInterest();
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, 0);
