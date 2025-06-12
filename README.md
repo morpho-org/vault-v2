@@ -5,7 +5,7 @@ Depositors of Morpho Vault V2 earn from the underlying protocols without having 
 Management of deposited assets is the responsability of a set of different roles (owner, curator and allocators).
 The active management of invested positions involve enabling and allocating liquidity to protocols.
 
-[Morpho Vault V2](./src/VaultV2.sol) shares are [ERC-20](https://eips.ethereum.org/EIPS/eip-20) compliant, with [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) permit.
+[Morpho Vault V2](./src/VaultV2.sol) shares are [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) compliant.
 The [VaultV2Factory](./src/VaultV2Factory.sol) deploys instances of Vaults V2.
 All the contracts are immutable.
 
@@ -109,7 +109,8 @@ Using `abdicateSubmit`, a curator can commit to keeping the vault completely ung
 
 Three gates are defined:
 
-**Shares Gate** (`shareGate`): Controls permissions related to sending and receiving shares. Implements [ISharesGate](./src/interfaces/IGate.sol).
+**Shares Gate** (`shareGate`): Controls permissions related to sending and receiving shares.
+Implements [ISharesGate](./src/interfaces/IGate.sol).
 
 When set:
 
@@ -118,11 +119,13 @@ When set:
 
 If the shares gate reverts upon `canReceiveShares` and there is a nonzero fee to be sent, `accrueInterest` will revert.
 
-**Receive Assets Gate** (`receiveAssetsGate`): Controls permissions related to receiving assets. Implements [IReceiveAssetsGate](./src/interfaces/IGate.sol).
+**Receive Assets Gate** (`receiveAssetsGate`): Controls permissions related to receiving assets.
+Implements [IReceiveAssetsGate](./src/interfaces/IGate.sol).
 
 - Upon `withdraw` and `redeem`, `receiver` must pass the `canReceiveAssets` check.
 
-**Send Assets Gate** (`receiveAssetsGate`): Controls permissions related to sending assets. Implements [ISendAssetsGate](./src/interfaces/IGate.sol).
+**Send Assets Gate** (`receiveAssetsGate`): Controls permissions related to sending assets.
+Implements [ISendAssetsGate](./src/interfaces/IGate.sol).
 
 - Upon `deposit` and `mint`, `msg.sender` must pass the `canSendAssets` check.
 
