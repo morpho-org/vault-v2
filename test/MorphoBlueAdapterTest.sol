@@ -134,6 +134,23 @@ contract MorphoBlueAdapterTest is Test {
         assertEq(loss, 0, "Loss should be zero");
     }
 
+    function testAllocateMaxSlippageExceeded() public {
+        deal(address(loanToken), address(adapter), 201);
+        deal(address(loanToken), address(this), 101);
+        loanToken.approve(address(morpho), 101);
+
+        _overrideMarketTotalSupplyAssets(int256(1e6 * 101 - 1));
+        (uint256 assets,) = morpho.supply(marketParams, 0, 1, address(this), hex"");
+        assertEq(assets, 101, "shares: allocate");
+
+        vm.expectRevert(IMorphoBlueAdapter.MaxSlippageExceeded.selector);
+        vm.prank(address(parentVault));
+        adapter.allocate(abi.encode(marketParams), 201);
+
+        vm.prank(address(parentVault));
+        adapter.allocate(abi.encode(marketParams), 200);
+    }
+
     function testDeallocate(uint256 initialAssets, uint256 withdrawAssets) public {
         initialAssets = _boundAssets(initialAssets);
         withdrawAssets = bound(withdrawAssets, 1, initialAssets);

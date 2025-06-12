@@ -68,7 +68,11 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         IMorpho(morpho).accrueInterest(marketParams);
         uint256 loss =
             assetsInMarket[marketId].zeroFloorSub(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this)));
-        if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+        (, uint256 shares) = assets > 0 ? IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"") : (0, 0);
+        // Rounding error protection such that maximum 100 assets are lost due to rounding errors. The numerical value
+        // 100 has been chosen to balance the max price of a Morpho share against the assets that can be lost to
+        // rounding errors.
+        require(shares >= assets / 100, MaxSlippageExceeded());
         assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
 
         return (ids(marketParams), loss);
