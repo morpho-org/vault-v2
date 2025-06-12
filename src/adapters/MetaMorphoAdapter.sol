@@ -25,6 +25,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
     address public skimRecipient;
     uint256 public assetsInMetaMorpho;
+    uint256 public sharesInMetaMorpho;
 
     /* FUNCTIONS */
 
@@ -60,16 +61,14 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        IERC4626(metaMorpho).deposit(assets, address(this));
+        uint256 shares = IERC4626(metaMorpho).deposit(assets, address(this));
 
-        uint256 newAssetsInMetaMorpho =
-            IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
+        sharesInMetaMorpho += shares;
+        uint256 newAssets = IERC4626(metaMorpho).convertToAssets(sharesInMetaMorpho);
+        int256 assetsChange = newAssets.toInt256() - assetsInMetaMorpho.toInt256();
+        assetsInMetaMorpho = newAssets;
 
-        int256 change = int256(newAssetsInMetaMorpho) - int256(assetsInMetaMorpho);
-
-        assetsInMetaMorpho = newAssetsInMetaMorpho;
-
-        return (ids(), change);
+        return (ids(), assetsChange);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -78,16 +77,14 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
+        uint256 shares = IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
 
-        uint256 newAssetsInMetaMorpho =
-            IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
+        sharesInMetaMorpho = sharesInMetaMorpho.zeroFloorSub(shares);
+        uint256 newAssets = IERC4626(metaMorpho).convertToAssets(sharesInMetaMorpho);
+        int256 assetsChange = newAssets.toInt256() - assetsInMetaMorpho.toInt256();
+        assetsInMetaMorpho = newAssets;
 
-        int256 change = int256(newAssetsInMetaMorpho) - int256(assetsInMetaMorpho);
-
-        assetsInMetaMorpho = newAssetsInMetaMorpho;
-
-        return (ids(), change);
+        return (ids(), assetsChange);
     }
 
     /// @dev Returns adapter's ids.

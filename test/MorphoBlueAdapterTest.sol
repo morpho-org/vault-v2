@@ -10,6 +10,7 @@ import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {IrmMock} from "../lib/morpho-blue/src/mocks/IrmMock.sol";
 import {IMorpho, MarketParams, Id, Market} from "../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MorphoBalancesLib} from "../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {MorphoLib} from "../lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
 import {MarketParamsLib} from "../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
@@ -348,5 +349,35 @@ contract MorphoBlueAdapterTest is Test {
 
     function testIds() public view {
         assertEq(adapter.ids(marketParams), expectedIds);
+    }
+
+    function testDonationResistance(uint256 deposit, uint256 donation) public {
+        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        donation = bound(donation, 1, MAX_TEST_ASSETS);
+
+        // Deposit some assets
+        deal(address(loanToken), address(adapter), deposit * 2);
+        vm.prank(address(parentVault));
+        adapter.allocate(abi.encode(marketParams), deposit);
+
+        uint256 sharesInMarket = MorphoLib.supplyShares(morpho, marketId, address(adapter));
+        assertEq(adapter.sharesInMarket(marketId), sharesInMarket, "shares not recorded");
+
+        // Donate to adapter
+        address donor = makeAddr("donor");
+        deal(address(loanToken), donor, donation);
+        vm.startPrank(donor);
+        loanToken.approve(address(morpho), type(uint256).max);
+        morpho.supply(marketParams, donation, 0, address(adapter), "");
+        vm.stopPrank();
+
+        // Test internal adapter state
+        assertGt(MorphoLib.supplyShares(morpho, marketId, address(adapter)), sharesInMarket, "shares did not increase");
+        assertEq(adapter.sharesInMarket(marketId), sharesInMarket, "shares recorded not equal");
+
+        // Test no impact on allocation
+        vm.prank(address(parentVault));
+        (, int256 change) = adapter.allocate(abi.encode(marketParams), deposit);
+        assertEq(change, int256(deposit), "change not 0");
     }
 }

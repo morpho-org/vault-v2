@@ -14,6 +14,13 @@ library MathLib {
         return (x * y + (d - 1)) / d;
     }
 
+    /// @dev Returns max(0, x - y).
+    function zeroFloorSub(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        assembly {
+            z := mul(gt(x, y), sub(x, y))
+        }
+    }
+
     /// @dev Returns max(0, x + y).
     function zeroFloorAddInt(uint256 x, int256 y) internal pure returns (uint256 z) {
         if (y < 0) {
@@ -36,5 +43,11 @@ library MathLib {
     function toUint128(uint256 x) internal pure returns (uint128) {
         require(x <= type(uint128).max, ErrorsLib.CastOverflow());
         return uint128(x);
+    }
+
+    /// @dev Casts to int256, reverting if input number is too large.
+    function toInt256(uint256 x) internal pure returns (int256) {
+        require(x <= uint256(type(int256).max), ErrorsLib.CastOverflow());
+        return int256(x);
     }
 }
