@@ -18,7 +18,6 @@ jobs:
         conf:
           - AbdicatedFunctions
           - Invariants
-          - NotRevertingCalls
           - Liveness
 
     steps:

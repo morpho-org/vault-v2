@@ -152,23 +152,25 @@ contract AccrueInterestTest is BaseTest {
         assertApproxEqRel(vault.totalAssets(), deposit * 3, 0.00001e18);
     }
 
-    function testAccrueInterestVicNoCode(uint256 elapsed) public {
-        elapsed = bound(elapsed, 0, 1000 weeks);
+    function testSetVicWithNoCodeVic(uint256 elapsed) public {
+        elapsed = bound(elapsed, 1, 1000 weeks);
 
         // Setup.
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(42))));
-        vault.setVic(address(42));
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(0))));
+        vault.setVic(address(0));
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
-        // Vic reverts.
-        uint256 totalAssetsBefore = vault.totalAssets();
+        vm.expectRevert();
         vault.accrueInterest();
-        assertEq(vault.totalAssets(), totalAssetsBefore);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(42))));
+        vault.setVic(address(42));
     }
 
-    function testAccrueInterestVicReverting(uint256 elapsed) public {
-        elapsed = bound(elapsed, 0, 1000 weeks);
+    function testSetVicWithRevertingVic(uint256 elapsed) public {
+        elapsed = bound(elapsed, 1, 1000 weeks);
 
         address reverting = address(new Reverting());
 
@@ -178,10 +180,12 @@ contract AccrueInterestTest is BaseTest {
         vault.setVic(reverting);
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
-        // Vic reverts.
-        uint256 totalAssetsBefore = vault.totalAssets();
+        vm.expectRevert();
         vault.accrueInterest();
-        assertEq(vault.totalAssets(), totalAssetsBefore);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(42))));
+        vault.setVic(address(42));
     }
 
     function testAccrueInterestFees(
