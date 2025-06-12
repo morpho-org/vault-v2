@@ -93,7 +93,7 @@ contract VaultV2 is IVaultV2 {
 
     /* INTEREST STORAGE */
 
-    /// @dev Approximates real assets for the purpose of detecting bad debt.
+    /// @dev Approximates the total allocation
     uint256 public totalAllocation;
     uint192 internal _totalAssets;
     uint64 public lastUpdate;

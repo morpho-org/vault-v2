@@ -11,7 +11,9 @@ import {IMorphoBlueAdapter} from "./interfaces/IMorphoBlueAdapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 
-struct MarketAllocation {
+/// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
+/// @dev `assets` are the recorded share value at the last allocate or deallocate.
+struct PositionInMarket {
     uint128 shares;
     uint128 assets;
 }
@@ -33,7 +35,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /* STORAGE */
 
     address public skimRecipient;
-    mapping(Id => MarketAllocation) internal marketAllocation;
+    mapping(Id => PositionInMarket) internal positionInMarket;
 
     /* FUNCTIONS */
 
@@ -48,11 +50,11 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     }
 
     function assetsInMarket(Id marketId) external view returns (uint256) {
-        return marketAllocation[marketId].assets;
+        return positionInMarket[marketId].assets;
     }
 
     function sharesInMarket(Id marketId) external view returns (uint256) {
-        return marketAllocation[marketId].shares;
+        return positionInMarket[marketId].shares;
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -80,16 +82,14 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         require(marketParams.irm == irm, IrmMismatch());
 
         uint256 shares;
-        if (assets > 0) {
-            (, shares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-        }
+        if (assets > 0) (, shares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
 
-        MarketAllocation storage allocation = marketAllocation[marketId];
+        PositionInMarket storage position = positionInMarket[marketId];
 
-        allocation.shares += uint128(shares);
-        uint128 newAssets = uint128(expectedSupplyAssets(marketParams, allocation.shares));
-        int256 assetsChange = int256(uint256(newAssets)) - int256(uint256(allocation.assets));
-        allocation.assets = newAssets;
+        position.shares += uint128(shares);
+        uint128 newAssets = uint128(expectedSupplyAssets(marketParams, position.shares));
+        int256 assetsChange = int256(uint256(newAssets)) - int256(uint256(position.assets));
+        position.assets = newAssets;
 
         return (ids(marketParams), assetsChange);
     }
@@ -104,16 +104,14 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         require(marketParams.irm == irm, IrmMismatch());
 
         uint256 shares;
-        if (assets > 0) {
-            (, shares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-        }
+        if (assets > 0) (, shares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
 
-        MarketAllocation storage allocation = marketAllocation[marketId];
+        PositionInMarket storage position = positionInMarket[marketId];
 
-        allocation.shares = uint128(uint256(allocation.shares).zeroFloorSub(shares));
-        uint128 newAssets = uint128(expectedSupplyAssets(marketParams, allocation.shares));
-        int256 assetsChange = int256(uint256(newAssets)) - int256(uint256(allocation.assets));
-        allocation.assets = newAssets;
+        position.shares = uint128(uint256(position.shares).zeroFloorSub(shares));
+        uint128 newAssets = uint128(expectedSupplyAssets(marketParams, position.shares));
+        int256 assetsChange = int256(uint256(newAssets)) - int256(uint256(position.assets));
+        position.assets = newAssets;
 
         return (ids(marketParams), assetsChange);
     }
