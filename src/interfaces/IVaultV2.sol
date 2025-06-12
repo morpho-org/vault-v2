@@ -45,6 +45,7 @@ interface IVaultV2 is IERC4626, IPermissionedToken {
     function sharesGate() external view returns (address);
     function receiveAssetsGate() external view returns (address);
     function sendAssetsGate() external view returns (address);
+    function totalAllocation() external view returns (uint256);
 
     // Owner actions
     function setOwner(address newOwner) external;

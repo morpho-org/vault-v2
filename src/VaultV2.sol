@@ -507,6 +507,7 @@ contract VaultV2 is IVaultV2 {
         uint256 newTotalAssets = MathLib.min(
             _totalAssets + (interestPerSecond * elapsed), totalAllocation + IERC20(asset).balanceOf(address(this))
         );
+        // Safe by invariant totalAllocation + balanceOf(this) >= _totalAssets.
         uint256 interest = newTotalAssets - _totalAssets;
 
         // The performance fee assets may be rounded down to 0 if `interest * fee < WAD`.

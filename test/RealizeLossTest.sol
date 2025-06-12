@@ -51,7 +51,7 @@ contract RealizeLossTest is BaseTest {
         adapter.setIds(expectedIds);
     }
 
-    function testRealizeLossAllocate(uint256 deposit, uint256 expectedLoss) public {
+    function testRealizeLossAllocateNoBuffer(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 0, deposit);
 
@@ -62,6 +62,7 @@ contract RealizeLossTest is BaseTest {
         increaseRelativeCap(idData, WAD);
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", deposit);
+        uint256 oldTotalAllocation = vault.totalAllocation();
 
         adapter.setLoss(expectedLoss);
 
@@ -69,6 +70,11 @@ contract RealizeLossTest is BaseTest {
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", 0);
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
+        assertEq(
+            vault.totalAllocation(),
+            oldTotalAllocation - expectedLoss,
+            "total allocation should have decreased by the expected loss"
+        );
 
         if (expectedLoss > 0) {
             assertTrue(vault.enterBlocked(), "enter should be blocked");
@@ -79,7 +85,46 @@ contract RealizeLossTest is BaseTest {
         }
     }
 
-    function testRealizeLossDeallocate(uint256 deposit, uint256 expectedLoss) public {
+    function testRealizeLossAllocateWithBuffer(uint256 deposit, uint256 adapterLoss, uint256 buffer) public {
+        deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
+        adapterLoss = bound(adapterLoss, 0, deposit);
+        buffer = bound(buffer, 0, deposit);
+
+        vault.deposit(deposit, address(this));
+
+        // Move to an adapter so the assets can be lost.
+        increaseAbsoluteCap(idData, type(uint128).max);
+        increaseRelativeCap(idData, WAD);
+        vm.prank(allocator);
+        vault.allocate(address(adapter), hex"", deposit);
+        uint256 oldTotalAllocation = vault.totalAllocation();
+
+        writeTotalAllocation(oldTotalAllocation + buffer);
+
+        adapter.setLoss(adapterLoss);
+
+        // Realize the loss.
+        vm.prank(allocator);
+        vault.allocate(address(adapter), hex"", 0);
+
+        uint256 expectedLoss = buffer > adapterLoss ? 0 : adapterLoss - buffer;
+        assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the expected loss");
+        assertEq(
+            vault.totalAllocation(),
+            oldTotalAllocation + buffer - adapterLoss,
+            "total allocation should have decreased by the adapter loss"
+        );
+
+        if (expectedLoss > 0) {
+            assertTrue(vault.enterBlocked(), "enter should be blocked");
+
+            // Cannot enter
+            vm.expectRevert(ErrorsLib.EnterBlocked.selector);
+            vault.deposit(0, address(this));
+        }
+    }
+
+    function testRealizeLossDeallocateNoBuffer(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 0, deposit);
 
@@ -112,7 +157,51 @@ contract RealizeLossTest is BaseTest {
         }
     }
 
-    function testRealizeLossForceDeallocate(uint256 deposit, uint256 expectedLoss) public {
+    function testRealizeLossDeallocateWithBuffer(uint256 deposit, uint256 adapterLoss, uint256 buffer) public {
+        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+        adapterLoss = bound(adapterLoss, 0, deposit);
+        buffer = bound(buffer, 0, deposit);
+
+        vault.deposit(deposit, address(this));
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, deposit)));
+        vault.increaseAbsoluteCap(idData, deposit);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, WAD));
+        vault.increaseRelativeCap(idData, WAD);
+
+        vm.prank(allocator);
+        vault.allocate(address(adapter), "", deposit);
+        uint256 oldTotalAllocation = vault.totalAllocation();
+
+        writeTotalAllocation(oldTotalAllocation + buffer);
+
+        adapter.setLoss(adapterLoss);
+
+        // Realize the loss.
+        vm.prank(allocator);
+        vault.deallocate(address(adapter), hex"", 0);
+
+        uint256 expectedLoss = buffer > adapterLoss ? 0 : adapterLoss - buffer;
+        assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the expected loss");
+        assertEq(
+            vault.totalAllocation(),
+            oldTotalAllocation + buffer - adapterLoss,
+            "total allocation should have decreased by the adapter loss"
+        );
+
+        if (expectedLoss > 0) {
+            assertTrue(vault.enterBlocked(), "enter should be blocked");
+
+            // Cannot enter
+            vm.expectRevert(ErrorsLib.EnterBlocked.selector);
+            vault.deposit(0, address(this));
+        }
+    }
+
+    function testRealizeLossForceDeallocateNoBuffer(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 0, deposit);
 
@@ -135,6 +224,50 @@ contract RealizeLossTest is BaseTest {
         vm.prank(allocator);
         vault.forceDeallocate(address(adapter), hex"", 0, address(this));
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
+
+        if (expectedLoss > 0) {
+            assertTrue(vault.enterBlocked(), "enter should be blocked");
+
+            // Cannot enter
+            vm.expectRevert(ErrorsLib.EnterBlocked.selector);
+            vault.deposit(0, address(this));
+        }
+    }
+
+    function testRealizeLossForceDeallocateWithBuffer(uint256 deposit, uint256 adapterLoss, uint256 buffer) public {
+        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+        adapterLoss = bound(adapterLoss, 0, deposit);
+        buffer = bound(buffer, 0, deposit);
+
+        vault.deposit(deposit, address(this));
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, deposit)));
+        vault.increaseAbsoluteCap(idData, deposit);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, WAD));
+        vault.increaseRelativeCap(idData, WAD);
+
+        vm.prank(allocator);
+        vault.allocate(address(adapter), "", deposit);
+        uint256 oldTotalAllocation = vault.totalAllocation();
+
+        writeTotalAllocation(oldTotalAllocation + buffer);
+
+        adapter.setLoss(adapterLoss);
+
+        // Realize the loss.
+        vm.prank(allocator);
+        vault.forceDeallocate(address(adapter), hex"", 0, address(this));
+
+        uint256 expectedLoss = buffer > adapterLoss ? 0 : adapterLoss - buffer;
+        assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the expected loss");
+        assertEq(
+            vault.totalAllocation(),
+            oldTotalAllocation + buffer - adapterLoss,
+            "total allocation should have decreased by the adapter loss"
+        );
 
         if (expectedLoss > 0) {
             assertTrue(vault.enterBlocked(), "enter should be blocked");

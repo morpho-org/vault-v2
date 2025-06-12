@@ -110,6 +110,78 @@ contract AccrueInterestTest is BaseTest {
         assertEq(vault.balanceOf(managementFeeRecipient), managementFeeShares);
     }
 
+    function testAccrueInterestBounded(
+        uint256 deposit,
+        uint256 allocated,
+        uint256 totalAllocation,
+        uint256 performanceFee,
+        uint256 managementFee,
+        uint256 interestPerSecond,
+        uint256 elapsed
+    ) public {
+        performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
+        managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
+        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        allocated = bound(allocated, 0, deposit);
+        interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
+        interestPerSecond = bound(interestPerSecond, 0, type(uint96).max);
+        elapsed = bound(elapsed, 1, 10 * 365 days);
+
+        // Setup.
+        vault.deposit(deposit, address(this));
+        vm.startPrank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));
+        vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (managementFee)));
+        vm.stopPrank();
+        vault.setPerformanceFee(performanceFee);
+        vault.setManagementFee(managementFee);
+        vm.prank(allocator);
+        vic.setInterestPerSecondAndDeadline(interestPerSecond, type(uint64).max);
+
+        address mockAdapter = address(new AdapterMock(address(vault)));
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (mockAdapter, true)));
+        vault.setIsAdapter(mockAdapter, true);
+
+        increaseAbsoluteCap("id-0", type(uint128).max);
+        increaseAbsoluteCap("id-1", type(uint128).max);
+        increaseRelativeCap("id-0", WAD);
+        increaseRelativeCap("id-1", WAD);
+
+        vm.prank(allocator);
+        vault.allocate(mockAdapter, "", allocated);
+
+        uint256 oldTotalAssets = vault.totalAssets();
+        uint256 oldTotalAllocation = vault.totalAllocation();
+
+        vm.warp(vm.getBlockTimestamp() + elapsed);
+
+        // Set total allocation
+        uint256 unboundedInterest = interestPerSecond * elapsed;
+        totalAllocation = bound(totalAllocation, oldTotalAllocation, oldTotalAllocation + unboundedInterest);
+        writeTotalAllocation(totalAllocation);
+
+        // Bounded path
+        uint256 interest = totalAllocation - oldTotalAllocation;
+        uint256 totalAssets = oldTotalAssets + interest;
+
+        uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
+        uint256 managementFeeAssets = (totalAssets * elapsed).mulDivDown(managementFee, WAD);
+        uint256 performanceFeeShares = performanceFeeAssets.mulDivDown(
+            vault.totalSupply() + 1, totalAssets + 1 - performanceFeeAssets - managementFeeAssets
+        );
+        uint256 managementFeeShares = managementFeeAssets.mulDivDown(
+            vault.totalSupply() + 1, totalAssets + 1 - managementFeeAssets - performanceFeeAssets
+        );
+        vm.expectEmit();
+        emit EventsLib.AccrueInterest(deposit, totalAssets, performanceFeeShares, managementFeeShares);
+
+        vault.accrueInterest();
+        assertEq(vault.totalAssets(), totalAssets);
+        assertEq(vault.balanceOf(performanceFeeRecipient), performanceFeeShares);
+        assertEq(vault.balanceOf(managementFeeRecipient), managementFeeShares);
+    }
+
     function testAccrueInterestTooHigh(
         uint256 deposit,
         uint256 performanceFee,
