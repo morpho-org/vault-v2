@@ -85,7 +85,8 @@ contract MorphoBlueAdapterTest is Test {
         return bound(assets, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
     }
 
-    function testParentVaultAndMorphoSet() public view {
+    function testFactoryAndParentVaultAndMorphoSet() public view {
+        assertEq(adapter.factory(), address(factory), "Incorrect factory set");
         assertEq(adapter.parentVault(), address(parentVault), "Incorrect parent vault set");
         assertEq(adapter.morpho(), address(morpho), "Incorrect morpho set");
     }

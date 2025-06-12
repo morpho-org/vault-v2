@@ -17,6 +17,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
     /* IMMUTABLES */
 
+    address public immutable factory;
     address public immutable parentVault;
     address public immutable asset;
     address public immutable morpho;
@@ -31,6 +32,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /* FUNCTIONS */
 
     constructor(address _parentVault, address _morpho, address _irm) {
+        factory = msg.sender;
         parentVault = _parentVault;
         morpho = _morpho;
         irm = _irm;
