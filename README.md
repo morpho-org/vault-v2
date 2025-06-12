@@ -77,20 +77,20 @@ This reduces their position in the vault and increases their position in the und
 
 [Gated vaults](Gates) can circumvent the in-kind redemption mechanism by configuring an `exitGate`.
 
-### Vault Interest Controller (VIC)
+### Vault Interest Controller (Vic)
 
 Vault V2 can allocate assets across many markets, especially when interacting with Morpho Markets V2.
 Looping through all markets to compute the total assets is not realistic in the general case.
 This differs from Vault V1, where total assets were automatically computed from the vault's underlying allocations.
 As a result, in Vault V2, curators are responsible for monitoring the vault’s total assets and setting an appropriate interest rate.
-The interest rate is set through the VIC, a contract responsible for returning the `interestPerSecond` used to accrue fees.
-The rate returned by the VIC must be below `200% APR`.
+The interest rate is set through the Vic, a contract responsible for returning the `interestPerSecond` used to accrue fees.
+The rate returned by the Vic must be below `200% APR`.
 
 The vault interest controller can typically be simple smart contract storing the `interestPerSecond`, whose value is regularly set by the curator.
-For now only a VIC of this type is provided, the [ManualVic](./src/vic/ManualVic.sol), with the following added features:
+For now only a Vic of this type is provided, the [ManualVic](./src/vic/ManualVic.sol), with the following added features:
 
 - the interest per second can be set by the allocators and sentinels of the vault;
-- the VIC has an additional internal notion of max interest per second, to ensure that the role of allocator can be given more safely.
+- the Vic has an additional internal notion of max interest per second, to ensure that the role of allocator can be given more safely.
   The curator controls this internal notion of max interest per second, while the sentinels are only able to decrease it to reduce the risk of having a rate too high.
 
 ### Bad debt

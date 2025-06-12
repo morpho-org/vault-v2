@@ -2,6 +2,7 @@
 pragma solidity >=0.5.0;
 
 import {IERC20} from "./IERC20.sol";
+import {IERC4626} from "./IERC4626.sol";
 import {IPermissionedToken} from "./IPermissionedToken.sol";
 
 struct Caps {
@@ -10,7 +11,7 @@ struct Caps {
     uint128 relativeCap;
 }
 
-interface IVaultV2 is IERC20, IPermissionedToken {
+interface IVaultV2 is IERC4626, IPermissionedToken {
     // Multicall
     function multicall(bytes[] memory data) external;
 
@@ -19,18 +20,6 @@ interface IVaultV2 is IERC20, IPermissionedToken {
         external;
     function nonces(address owner) external view returns (uint256);
     function DOMAIN_SEPARATOR() external view returns (bytes32);
-
-    // ERC-4626-v2
-    function asset() external view returns (address);
-    function totalAssets() external view returns (uint256);
-    function previewDeposit(uint256 assets) external view returns (uint256 shares);
-    function deposit(uint256 assets, address receiver) external returns (uint256 shares);
-    function previewMint(uint256 shares) external view returns (uint256 assets);
-    function mint(uint256 shares, address receiver) external returns (uint256 assets);
-    function previewWithdraw(uint256 assets) external view returns (uint256 shares);
-    function withdraw(uint256 assets, address receiver, address onBehalf) external returns (uint256 shares);
-    function previewRedeem(uint256 shares) external view returns (uint256 assets);
-    function redeem(uint256 shares, address receiver, address onBehalf) external returns (uint256 assets);
 
     // State variables
     function owner() external view returns (address);

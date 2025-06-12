@@ -9,7 +9,6 @@ import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
-import {UtilsLib} from "./libraries/UtilsLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
 
@@ -21,8 +20,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 /// @dev Roles are not "two-step" so one must check if they really have this role.
 /// @dev The shares are represented with ERC-20, also compliant with ERC-2612 (permit extension).
-/// @dev To accrue interest, the vault queries the Vault Interest Controller (VIC) which returns the interest per second
-/// that must be distributed on the period (since `lastUpdate`). The VIC must be chosen and managed carefully to not
+/// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
+/// that must be distributed on the period (since `lastUpdate`). The Vic must be chosen and managed carefully to not
 /// distribute more than what the vault's investments are earning.
 /// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
 /// because flashloan based shorting is prevented.
@@ -256,8 +255,13 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
     }
 
+    /// @dev This function never reverts, assuming that the corresponding data is timelocked.
+    /// @dev Users cannot access their funds if the Vic reverts, so this function might better be under a long timelock.
     function setVic(address newVic) external timelocked {
-        accrueInterest();
+        try this.accrueInterest() {}
+        catch {
+            lastUpdate = uint64(block.timestamp);
+        }
         vic = newVic;
         emit EventsLib.SetVic(newVic);
     }
@@ -347,7 +351,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(newAbsoluteCap <= caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotDecreasing());
 
-        // safe by invariant: config.absoluteCap fits on 128 bits
+        // Safe by invariant: config.absoluteCap fits in 128 bits.
         caps[id].absoluteCap = uint128(newAbsoluteCap);
         emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
@@ -357,7 +361,7 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
         require(newRelativeCap >= caps[id].relativeCap, ErrorsLib.RelativeCapNotIncreasing());
 
-        // safe since WAD fits on 128 bits
+        // Safe since WAD fits in 128 bits.
         caps[id].relativeCap = uint128(newRelativeCap);
 
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
@@ -368,7 +372,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(newRelativeCap <= caps[id].relativeCap, ErrorsLib.RelativeCapNotDecreasing());
 
-        // safe since WAD fits on 128 bits
+        // Safe since WAD fits in 128 bits.
         caps[id].relativeCap = uint128(newRelativeCap);
 
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
@@ -481,15 +485,13 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
-    /// @dev The IPS is taken to be 0 if VIC reverts, has no code, returns a data that is not of size 32, or if the
-    /// corresponding rate is above the max rate.
+    /// @dev Reverts if the call to the Vic reverts.
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
-        uint256 tentativeInterestPerSecond =
-            UtilsLib.controlledStaticCall(vic, abi.encodeCall(IVic.interestPerSecond, (_totalAssets, elapsed)));
+        uint256 tentativeInterestPerSecond = IVic(vic).interestPerSecond(_totalAssets, elapsed);
 
         uint256 interestPerSecond = tentativeInterestPerSecond
             <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
@@ -554,22 +556,22 @@ contract VaultV2 is IVaultV2 {
 
     /* MAX */
 
-    /// @dev Returns the maximum amount of assets that can be deposited.
-    function maxDeposit(address onBehalf) external view returns (uint256) {
-        return canReceive(onBehalf) ? type(uint256).max : 0;
+    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
+    function maxDeposit(address) external pure returns (uint256) {
+        return 0;
     }
 
-    /// @dev Returns the maximum amount of shares that can be minted.
-    function maxMint(address onBehalf) external view returns (uint256) {
-        return canReceive(onBehalf) ? type(uint256).max : 0;
+    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
+    function maxMint(address) external pure returns (uint256) {
+        return 0;
     }
 
-    /// @dev Gross underestimation because it does not (and cannot) take into account the liquidity market.
+    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
     function maxWithdraw(address) external pure returns (uint256) {
         return 0;
     }
 
-    /// @dev Gross underestimation because it does not (and cannot) take into account the liquidity market.
+    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
     function maxRedeem(address) external pure returns (uint256) {
         return 0;
     }
