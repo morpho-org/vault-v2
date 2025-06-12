@@ -28,37 +28,37 @@ contract ViewFunctionsTest is BaseTest {
 
     function testMaxDepositWithGateCanReceive() public {
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setEnterGate, (gate)));
-        vault.setEnterGate(gate);
+        vault.submit(abi.encodeCall(IVaultV2.setSharesGate, (gate)));
+        vault.setSharesGate(gate);
 
-        vm.mockCall(gate, IEnterGate.canReceiveShares.selector, abi.encode(true));
+        vm.mockCall(gate, ISharesGate.canReceiveShares.selector, abi.encode(true));
         assertEq(VaultV2(address(vault)).maxDeposit(receiver), type(uint256).max);
     }
 
     function testMaxMintWithGateCanReceive() public {
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setEnterGate, (address(gate))));
-        vault.setEnterGate(address(gate));
+        vault.submit(abi.encodeCall(IVaultV2.setSharesGate, (address(gate))));
+        vault.setSharesGate(address(gate));
 
-        vm.mockCall(gate, IEnterGate.canReceiveShares.selector, abi.encode(true));
+        vm.mockCall(gate, ISharesGate.canReceiveShares.selector, abi.encode(true));
         assertEq(VaultV2(address(vault)).maxMint(receiver), type(uint256).max);
     }
 
     function testMaxDepositWithGateCannotReceive() public {
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setEnterGate, (address(gate))));
-        vault.setEnterGate(address(gate));
+        vault.submit(abi.encodeCall(IVaultV2.setSharesGate, (address(gate))));
+        vault.setSharesGate(address(gate));
 
-        vm.mockCall(gate, IEnterGate.canReceiveShares.selector, abi.encode(false));
+        vm.mockCall(gate, ISharesGate.canReceiveShares.selector, abi.encode(false));
         assertEq(VaultV2(address(vault)).maxDeposit(receiver), 0);
     }
 
     function testMaxMintWithGateCannotReceive() public {
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setEnterGate, (address(gate))));
-        vault.setEnterGate(address(gate));
+        vault.submit(abi.encodeCall(IVaultV2.setSharesGate, (address(gate))));
+        vault.setSharesGate(address(gate));
 
-        vm.mockCall(gate, IEnterGate.canReceiveShares.selector, abi.encode(false));
+        vm.mockCall(gate, ISharesGate.canReceiveShares.selector, abi.encode(false));
         assertEq(VaultV2(address(vault)).maxMint(receiver), 0);
     }
 
