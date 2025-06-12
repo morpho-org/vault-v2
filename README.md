@@ -65,11 +65,6 @@ The market $M$ would typically be a very liquid Market V1.
 Non-custodial guarantees come from [in-kind redemptions](#in-kind-redemptions) and [timelocks](#curator-timelocks).
 These mechanisms allow users to withdraw their assets before any critical configuration change takes effect.
 
-Users may wish to exit the vault if:
-- allocation caps are increased for markets they consider risky.
-- an adapter the user considers dangerous is added.
-- timelock durations are shortened, reducing reaction time for future changes.
-
 <a id="in-king-redemptions"></a>
 ### In-kind redemptions with `forceDeallocate`
 
