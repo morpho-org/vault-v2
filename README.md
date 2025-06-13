@@ -65,7 +65,7 @@ The market $M$ would typically be a very liquid Market V1.
 Non-custodial guarantees come from [in-kind redemptions](#in-kind-redemptions) and [timelocks](#curator-timelocks).
 These mechanisms allow users to withdraw their assets before any critical configuration change takes effect.
 
-<a id="in-king-redemptions"></a>
+<a id="in-kind-redemptions"></a>
 ### In-kind redemptions with `forceDeallocate`
 
 To guarantee exits even in the absence of assets immediately available for withdrawal, the permissionless `forceDeallocate` function allows anyone to move assets from an adapter to the vault's idle assets.
