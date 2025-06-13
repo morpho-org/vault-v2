@@ -285,18 +285,6 @@ contract RealizeLossTest is BaseTest {
         }
     }
 
-    // function testRealizeLossWithRealize(uint256 deposit, uint256 expectedLoss) public {
-    //     deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
-    //     expectedLoss = bound(expectedLoss, 0, deposit);
-
-    //     vault.deposit(deposit, address(this));
-    //     adapter.setLoss(expectedLoss);
-
-    //     // Realize the loss.
-    //     vault.realizeLoss(address(adapter), hex"");
-    //     assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
-    // }
-
     function testRealizeLossAllocationUpdate(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 0, deposit);
