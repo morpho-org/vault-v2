@@ -93,7 +93,7 @@ contract VaultV2 is IVaultV2 {
     /* INTEREST STORAGE */
 
     uint192 internal _totalAssets;
-    uint192 public transient firstTotalAssets;
+    uint256 public transient firstTotalAssets;
     uint64 public lastUpdate;
     address public vic;
     /// @dev Prevents floashloan-based shorting of vault shares during loss realizations.

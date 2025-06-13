@@ -27,6 +27,8 @@ contract AllocateTest is BaseTest {
         ids[1] = keccak256("id-1");
     }
 
+    /// forge-config: default.isolate = true
+    /// forge-config: no_via_ir.isolate = true
     function testAllocate(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(vault));
@@ -35,6 +37,7 @@ contract AllocateTest is BaseTest {
 
         // Setup.
         vault.deposit(assets, address(this));
+        assertEq(vault.firstTotalAssets(), assets, "firstTotalAssets"); // check that the isolation works.
         assertEq(underlyingToken.balanceOf(address(vault)), assets, "Initial vault balance incorrect");
         assertEq(underlyingToken.balanceOf(mockAdapter), 0, "Initial adapter balance incorrect");
         assertEq(vault.allocation(keccak256("id-0")), 0, "Initial allocation incorrect");
@@ -96,6 +99,24 @@ contract AllocateTest is BaseTest {
         assertEq(vault.allocation(keccak256("id-1")), assets, "Allocation incorrect after allocation");
         assertEq(AdapterMock(mockAdapter).recordedAllocateData(), data, "Data incorrect after allocation");
         assertEq(AdapterMock(mockAdapter).recordedAllocateAssets(), assets, "Assets incorrect after allocation");
+    }
+
+    function testRelativeCapManipulationProtection(uint256 deposit, uint256 allocation) public {
+        deposit = bound(deposit, 1, type(uint128).max);
+        allocation = bound(allocation, 1, deposit);
+
+        vault.deposit(deposit, address(this));
+        assertEq(vault.firstTotalAssets(), 0, "firstTotalAssets");
+
+        increaseAbsoluteCap("id-0", allocation);
+        increaseAbsoluteCap("id-1", allocation);
+        increaseRelativeCap("id-0", WAD - 1); // Not WAD because it deactivates the cap.
+        increaseRelativeCap("id-1", WAD - 1);
+
+        assertEq(vault.firstTotalAssets(), 0, "firstTotalAssets");
+        vm.prank(allocator);
+        vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
+        vault.allocate(mockAdapter, hex"", allocation);
     }
 
     function testAllocateRelativeCapCheckRoundsDown(bytes memory data) public {

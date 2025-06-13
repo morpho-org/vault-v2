@@ -20,6 +20,7 @@ interface IVaultV2 is IERC4626, IPermissionedToken {
     function sendAssetsGate() external view returns (address);
     function isSentinel(address account) external view returns (bool);
     function isAllocator(address account) external view returns (bool);
+    function firstTotalAssets() external view returns (uint256);
     function lastUpdate() external view returns (uint64);
     function vic() external view returns (address);
     function enterBlocked() external view returns (bool);
