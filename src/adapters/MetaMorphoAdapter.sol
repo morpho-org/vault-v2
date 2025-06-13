@@ -25,6 +25,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
     address public skimRecipient;
     uint256 public assetsInMetaMorpho;
+    uint256 public sharesInMetaMorpho;
     uint256 public realizableLoss;
 
     /* FUNCTIONS */
@@ -63,13 +64,16 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 newAssetsInMetaMorpho =
-            IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
+        uint256 newAssetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
         realizableLoss += assetsInMetaMorpho.zeroFloorSub(newAssetsInMetaMorpho);
         uint256 interest = newAssetsInMetaMorpho.zeroFloorSub(assetsInMetaMorpho);
 
-        if (assets > 0) IERC4626(metaMorpho).deposit(assets, address(this));
-        assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
+        if (assets > 0) {
+            uint256 shares = IERC4626(metaMorpho).deposit(assets, address(this));
+            sharesInMetaMorpho += shares;
+        }
+
+        assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
 
         return (ids(), interest);
     }
@@ -82,13 +86,16 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 newAssetsInMetaMorpho =
-            IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
+        uint256 newAssetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
         realizableLoss += assetsInMetaMorpho.zeroFloorSub(newAssetsInMetaMorpho);
         uint256 interest = newAssetsInMetaMorpho.zeroFloorSub(assetsInMetaMorpho);
 
-        if (assets > 0) IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
-        assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
+        if (assets > 0) {
+            uint256 shares = IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
+            sharesInMetaMorpho = sharesInMetaMorpho.zeroFloorSub(shares);
+        }
+
+        assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
 
         return (ids(), interest);
     }
@@ -97,8 +104,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(data.length == 0, InvalidData());
 
-        uint256 newAssetsInMetaMorpho =
-            IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
+        uint256 newAssetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
         uint256 loss = realizableLoss + assetsInMetaMorpho.zeroFloorSub(newAssetsInMetaMorpho);
         realizableLoss = 0;
         assetsInMetaMorpho = newAssetsInMetaMorpho;

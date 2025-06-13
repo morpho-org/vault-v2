@@ -285,6 +285,33 @@ contract MetaMorphoAdapterTest is Test {
         vm.expectRevert(IMetaMorphoAdapter.AssetMismatch.selector);
         new MetaMorphoAdapter(address(parentVault), address(newMetaMorpho));
     }
+
+    function testDonationResistance(uint256 deposit, uint256 donation) public {
+        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        donation = bound(donation, 1, MAX_TEST_ASSETS);
+
+        // Deposit some assets
+        deal(address(asset), address(adapter), deposit * 2);
+        vm.prank(address(parentVault));
+        adapter.allocate(hex"", deposit);
+
+        uint256 adapterShares = metaMorpho.balanceOf(address(adapter));
+        assertEq(adapter.sharesInMetaMorpho(), adapterShares, "shares not recorded");
+
+        // Donate to adapter
+        address donor = makeAddr("donor");
+        deal(address(asset), donor, donation);
+        vm.startPrank(donor);
+        asset.approve(address(metaMorpho), type(uint256).max);
+        metaMorpho.deposit(donation, address(adapter));
+        vm.stopPrank();
+
+        // Test no impact on allocation
+        uint256 oldAssetsInMetaMorpho = adapter.assetsInMetaMorpho();
+        vm.prank(address(parentVault));
+        adapter.allocate(hex"", deposit);
+        assertEq(adapter.assetsInMetaMorpho(), oldAssetsInMetaMorpho + deposit, "assets have changed");
+    }
 }
 
 contract ERC4626MockExtended is ERC4626Mock {

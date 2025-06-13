@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
@@ -10,8 +11,17 @@ import {IMorphoBlueAdapter} from "./interfaces/IMorphoBlueAdapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 
+/// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
+/// @dev `assets` are the recorded share value at the last allocate or deallocate.
+struct PositionInMarket {
+    uint128 shares;
+    uint128 assets;
+    uint256 realizableLoss;
+}
+
 contract MorphoBlueAdapter is IMorphoBlueAdapter {
     using MathLib for uint256;
+    using SharesMathLib for uint256;
     using MorphoBalancesLib for IMorpho;
     using MarketParamsLib for MarketParams;
 
@@ -26,8 +36,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /* STORAGE */
 
     address public skimRecipient;
-    mapping(Id => uint256) public assetsInMarket;
-    mapping(Id => uint256) public realizableLoss;
+    mapping(Id => PositionInMarket) internal positionInMarket;
 
     /* FUNCTIONS */
 
@@ -39,6 +48,18 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         adapterId = keccak256(abi.encode("adapter", address(this)));
         SafeERC20Lib.safeApprove(asset, _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
+    }
+
+    function assetsInMarket(Id marketId) external view returns (uint256) {
+        return positionInMarket[marketId].assets;
+    }
+
+    function sharesInMarket(Id marketId) external view returns (uint256) {
+        return positionInMarket[marketId].shares;
+    }
+
+    function realizableLoss(Id marketId) external view returns (uint256) {
+        return positionInMarket[marketId].realizableLoss;
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -68,12 +89,17 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
 
-        uint256 _assetsInMarket = assetsInMarket[marketId];
-        uint256 newAssetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
-        realizableLoss[marketId] += _assetsInMarket.zeroFloorSub(newAssetsInMarket);
-        uint256 interest = newAssetsInMarket.zeroFloorSub(_assetsInMarket);
-        if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-        assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+        PositionInMarket storage position = positionInMarket[marketId];
+
+        uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, position.shares);
+        position.realizableLoss += uint256(position.assets).zeroFloorSub(newAssetsInMarket);
+        uint256 interest = newAssetsInMarket.zeroFloorSub(position.assets);
+        if (assets > 0) {
+            uint256 shares;
+            (, shares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+            position.shares += uint128(shares);
+        }
+        position.assets = uint128(expectedSupplyAssets(marketParams, position.shares));
 
         return (ids(marketParams), interest);
     }
@@ -89,12 +115,18 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
-        uint256 _assetsInMarket = assetsInMarket[marketId];
-        uint256 newAssetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
-        realizableLoss[marketId] += _assetsInMarket.zeroFloorSub(newAssetsInMarket);
-        uint256 interest = newAssetsInMarket.zeroFloorSub(_assetsInMarket);
-        if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-        assetsInMarket[marketId] = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
+
+        PositionInMarket storage position = positionInMarket[marketId];
+
+        uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, position.shares);
+        position.realizableLoss += uint256(position.assets).zeroFloorSub(newAssetsInMarket);
+        uint256 interest = newAssetsInMarket.zeroFloorSub(position.assets);
+        if (assets > 0) {
+            uint256 shares;
+            (, shares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+            position.shares = uint128(uint256(position.shares).zeroFloorSub(shares));
+        }
+        position.assets = uint128(expectedSupplyAssets(marketParams, position.shares));
 
         return (ids(marketParams), interest);
     }
@@ -104,10 +136,12 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
 
-        uint256 newAssetsInMarket = IMorpho(morpho).expectedSupplyAssets(marketParams, address(this));
-        uint256 loss = realizableLoss[marketId] + assetsInMarket[marketId].zeroFloorSub(newAssetsInMarket);
-        realizableLoss[marketId] = 0;
-        assetsInMarket[marketId] = newAssetsInMarket;
+        PositionInMarket storage position = positionInMarket[marketId];
+
+        uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, position.shares);
+        uint256 loss = position.realizableLoss + uint256(position.assets).zeroFloorSub(newAssetsInMarket);
+        position.realizableLoss = 0;
+        position.assets = uint128(newAssetsInMarket);
 
         return (ids(marketParams), loss);
     }
@@ -123,5 +157,16 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
             )
         );
         return ids_;
+    }
+
+    function expectedSupplyAssets(MarketParams memory marketParams, uint256 supplyShares)
+        internal
+        view
+        returns (uint256)
+    {
+        (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
+            MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
+
+        return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }
 }
