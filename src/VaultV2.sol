@@ -79,7 +79,6 @@ contract VaultV2 is IVaultV2 {
     /// @dev This gate is not critical (cannot block users' funds), while still being able to gate supplies.
     /// @dev Set to 0 to disable the gate.
     address public sendAssetsGate;
-
     mapping(address account => bool) public isSentinel;
     mapping(address account => bool) public isAllocator;
 
@@ -105,7 +104,6 @@ contract VaultV2 is IVaultV2 {
     /* CURATION STORAGE */
 
     mapping(address account => bool) public isAdapter;
-
     /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
     /// @dev The allocation is not updated to take interests into account.
     /// @dev Some underlying markets might allow to take into account interest (fixed rate, fixed term), some might not.
@@ -116,7 +114,6 @@ contract VaultV2 is IVaultV2 {
     /// adapter.
     /// @dev The relative cap unit is WAD.
     mapping(bytes32 id => Caps) internal caps;
-
     mapping(address adapter => uint256) public forceDeallocatePenalty;
 
     /* LIQUIDITY ADAPTER STORAGE */
@@ -138,7 +135,6 @@ contract VaultV2 is IVaultV2 {
     ///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock
     /// ).
     mapping(bytes4 selector => uint256) public timelock;
-
     /// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist,
     /// conditions are not met, etc.).
     mapping(bytes data => uint256) public executableAt;
@@ -204,7 +200,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Constructor(_owner, _asset);
     }
 
-    /* OWNER ACTIONS */
+    /* OWNER FUNCTIONS */
 
     function setOwner(address newOwner) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
@@ -236,7 +232,32 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetSymbol(newSymbol);
     }
 
-    /* CURATOR ACTIONS */
+    /* TIMELOCKS FOR CURATOR FUNCTIONS */
+
+    function submit(bytes calldata data) external {
+        require(msg.sender == curator, ErrorsLib.Unauthorized());
+        require(executableAt[data] == 0, ErrorsLib.DataAlreadyPending());
+
+        bytes4 selector = bytes4(data);
+        executableAt[data] = block.timestamp + timelock[selector];
+        emit EventsLib.Submit(selector, data, executableAt[data]);
+    }
+
+    modifier timelocked() {
+        require(executableAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
+        require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
+        executableAt[msg.data] = 0;
+        _;
+    }
+
+    function revoke(bytes calldata data) external {
+        require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
+        require(executableAt[data] != 0, ErrorsLib.DataNotTimelocked());
+        executableAt[data] = 0;
+        emit EventsLib.Revoke(msg.sender, bytes4(data), data);
+    }
+
+    /* CURATOR FUNCTIONS */
 
     function setIsAllocator(address account, bool newIsAllocator) external timelocked {
         isAllocator[account] = newIsAllocator;
@@ -387,7 +408,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
     }
 
-    /* ALLOCATOR ACTIONS */
+    /* ALLOCATOR FUNCTIONS */
 
     /// @dev This function will automatically realize potential losses.
     function allocate(address adapter, bytes memory data, uint256 assets) external {
@@ -439,32 +460,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetLiquidityMarket(msg.sender, newLiquidityAdapter, newLiquidityData);
     }
 
-    /* TIMELOCKS */
-
-    function submit(bytes calldata data) external {
-        require(msg.sender == curator, ErrorsLib.Unauthorized());
-        require(executableAt[data] == 0, ErrorsLib.DataAlreadyPending());
-
-        bytes4 selector = bytes4(data);
-        executableAt[data] = block.timestamp + timelock[selector];
-        emit EventsLib.Submit(selector, data, executableAt[data]);
-    }
-
-    modifier timelocked() {
-        require(executableAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
-        require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
-        executableAt[msg.data] = 0;
-        _;
-    }
-
-    function revoke(bytes calldata data) external {
-        require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        require(executableAt[data] != 0, ErrorsLib.DataNotTimelocked());
-        executableAt[data] = 0;
-        emit EventsLib.Revoke(msg.sender, bytes4(data), data);
-    }
-
-    /* EXCHANGE RATE */
+    /* EXCHANGE RATE FUNCTIONS */
 
     function accrueInterest() public {
         if (lastUpdate == block.timestamp) return;
@@ -549,7 +545,7 @@ contract VaultV2 is IVaultV2 {
         return previewRedeem(shares);
     }
 
-    /* MAX */
+    /* MAX FUNCTIONS */
 
     /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
     function maxDeposit(address) external pure returns (uint256) {
@@ -706,7 +702,7 @@ contract VaultV2 is IVaultV2 {
         }
     }
 
-    /* ERC20 */
+    /* ERC20 FUNCTIONS */
 
     /// @dev Returns success (always true because reverts on failure).
     function transfer(address to, uint256 shares) external returns (bool) {
@@ -781,7 +777,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Transfer(from, address(0), shares);
     }
 
-    /* PERMISSIONED TOKEN */
+    /* PERMISSIONED TOKEN FUNCTIONS */
 
     function canSend(address account) public view returns (bool) {
         return sharesGate == address(0) || ISharesGate(sharesGate).canSendShares(account);
