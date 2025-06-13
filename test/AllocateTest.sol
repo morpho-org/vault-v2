@@ -27,11 +27,12 @@ contract AllocateTest is BaseTest {
         ids[1] = keccak256("id-1");
     }
 
-    function testAllocate(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
+    function testAllocate(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap, uint256 profit) public {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(vault));
         assets = bound(assets, 1, type(uint128).max);
         absoluteCap = bound(absoluteCap, assets, type(uint128).max);
+        profit = absoluteCap - assets;
 
         // Setup.
         vault.deposit(assets, address(this));
@@ -62,8 +63,8 @@ contract AllocateTest is BaseTest {
         vault.allocate(mockAdapter, data, assets);
 
         // Relative cap check fails on 0 cap.
-        increaseAbsoluteCap("id-0", assets);
-        increaseAbsoluteCap("id-1", assets);
+        increaseAbsoluteCap("id-0", absoluteCap);
+        increaseAbsoluteCap("id-1", absoluteCap);
         vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
         vm.prank(allocator);
         vault.allocate(mockAdapter, data, assets);
@@ -86,14 +87,18 @@ contract AllocateTest is BaseTest {
         // Normal path.
         increaseRelativeCap("id-0", WAD);
         increaseRelativeCap("id-1", WAD);
+
+        AdapterMock(mockAdapter).setProfit(profit);
+
         vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.Allocate(allocator, mockAdapter, assets, ids, int256(assets));
+        emit EventsLib.Allocate(allocator, mockAdapter, assets, ids, int256(assets + profit), 0);
         vault.allocate(mockAdapter, data, assets);
         assertEq(underlyingToken.balanceOf(address(vault)), 0, "Vault balance should be zero after allocation");
         assertEq(underlyingToken.balanceOf(mockAdapter), assets, "Adapter balance incorrect after allocation");
-        assertEq(vault.allocation(keccak256("id-0")), assets, "Allocation incorrect after allocation");
-        assertEq(vault.allocation(keccak256("id-1")), assets, "Allocation incorrect after allocation");
+        assertEq(vault.allocation(keccak256("id-0")), assets + profit, "Allocation incorrect after allocation");
+        assertEq(vault.allocation(keccak256("id-1")), assets + profit, "Allocation incorrect after allocation");
+        assertEq(vault.totalAllocation(), assets + profit, "Total allocation incorrect after allocation");
         assertEq(AdapterMock(mockAdapter).recordedAllocateData(), data, "Data incorrect after allocation");
         assertEq(AdapterMock(mockAdapter).recordedAllocateAssets(), assets, "Assets incorrect after allocation");
     }
@@ -113,15 +118,21 @@ contract AllocateTest is BaseTest {
         vault.allocate(mockAdapter, data, 100);
     }
 
-    function testDeallocate(bytes memory data, uint256 assetsIn, uint256 assetsOut, address rdm, uint256 absoluteCap)
-        public
-    {
+    function testDeallocate(
+        bytes memory data,
+        uint256 assetsIn,
+        uint256 assetsOut,
+        address rdm,
+        uint256 absoluteCap,
+        uint256 profit
+    ) public {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(sentinel));
         vm.assume(rdm != address(vault));
         assetsIn = bound(assetsIn, 1, type(uint128).max);
         assetsOut = bound(assetsOut, 1, assetsIn);
         absoluteCap = bound(absoluteCap, assetsIn, type(uint128).max);
+        profit = absoluteCap - assetsIn;
 
         // Setup.
         deal(address(underlyingToken), address(vault), assetsIn);
@@ -149,16 +160,27 @@ contract AllocateTest is BaseTest {
         vault.deallocate(address(this), data, assetsOut);
 
         // Normal path.
+        AdapterMock(mockAdapter).setProfit(profit);
+
         vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.Deallocate(allocator, mockAdapter, assetsOut, ids, -int256(assetsOut));
+        emit EventsLib.Deallocate(allocator, mockAdapter, assetsOut, ids, -int256(assetsOut) + int256(profit), 0);
         vault.deallocate(mockAdapter, data, assetsOut);
         assertEq(underlyingToken.balanceOf(address(vault)), assetsOut, "Vault balance incorrect after deallocation");
         assertEq(
             underlyingToken.balanceOf(mockAdapter), assetsIn - assetsOut, "Adapter balance incorrect after deallocation"
         );
-        assertEq(vault.allocation(keccak256("id-0")), assetsIn - assetsOut, "Allocation incorrect after deallocation");
-        assertEq(vault.allocation(keccak256("id-1")), assetsIn - assetsOut, "Allocation incorrect after deallocation");
+        assertEq(
+            vault.allocation(keccak256("id-0")),
+            assetsIn - assetsOut + profit,
+            "Allocation incorrect after deallocation"
+        );
+        assertEq(
+            vault.allocation(keccak256("id-1")),
+            assetsIn - assetsOut + profit,
+            "Allocation incorrect after deallocation"
+        );
+        assertEq(vault.totalAllocation(), assetsIn - assetsOut + profit, "Total allocation incorrect after allocation");
         assertEq(AdapterMock(mockAdapter).recordedDeallocateData(), data, "Data incorrect after deallocation");
         assertEq(AdapterMock(mockAdapter).recordedDeallocateAssets(), assetsOut, "Assets incorrect after deallocation");
     }

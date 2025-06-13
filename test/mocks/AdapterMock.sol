@@ -14,6 +14,8 @@ contract AdapterMock is IAdapter {
     bytes public recordedDeallocateData;
     uint256 public recordedDeallocateAssets;
 
+    uint256 profit;
+
     constructor(address _vault) {
         vault = _vault;
         IERC20(IVaultV2(_vault).asset()).approve(_vault, type(uint256).max);
@@ -22,13 +24,13 @@ contract AdapterMock is IAdapter {
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         recordedAllocateData = data;
         recordedAllocateAssets = assets;
-        return (ids(), int256(assets));
+        return (ids(), int256(assets + profit));
     }
 
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         recordedDeallocateData = data;
         recordedDeallocateAssets = assets;
-        return (ids(), -int256(assets));
+        return (ids(), int256(profit) - int256(assets));
     }
 
     function ids() internal pure returns (bytes32[] memory) {
@@ -36,5 +38,9 @@ contract AdapterMock is IAdapter {
         _ids[0] = keccak256("id-0");
         _ids[1] = keccak256("id-1");
         return _ids;
+    }
+
+    function setProfit(uint256 _profit) external {
+        profit = _profit;
     }
 }

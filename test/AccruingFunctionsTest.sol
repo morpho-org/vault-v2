@@ -46,6 +46,18 @@ contract AccrueInterestTest is BaseTest {
         vault.deallocate(address(adapter), hex"", 0);
     }
 
+    function testForceDeallocateAccruesInterest() public {
+        skip(1);
+        vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
+        vault.forceDeallocate(address(adapter), hex"", 0, address(this));
+    }
+
+    function testRealizeAccruesInterest() public {
+        skip(1);
+        vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
+        vault.realize(address(adapter), hex"");
+    }
+
     function testDepositAccruesInterest() public {
         skip(1);
         vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));

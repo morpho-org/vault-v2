@@ -50,18 +50,6 @@ contract MathTest is Test {
         }
     }
 
-    function testAbs(int256 x) public pure {
-        uint256 expectedAbsX;
-        if (x >= 0) {
-            expectedAbsX = uint256(x);
-        } else {
-            unchecked {
-                expectedAbsX = 0 - uint256(x);
-            }
-        }
-        assertEq(MathLib.abs(x), expectedAbsX);
-    }
-
     /// From solady
     /// @dev Returns the absolute value of `x`.
     function abs(int256 x) internal pure returns (uint256 z) {

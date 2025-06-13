@@ -33,14 +33,6 @@ library MathLib {
         }
     }
 
-    /// @dev Returns abs(x).
-    function abs(int256 x) internal pure returns (uint256 z) {
-        assembly {
-            let mask := sar(255, x)
-            z := xor(add(x, mask), mask)
-        }
-    }
-
     /// @dev Casts to uint192, reverting if input number is too large.
     function toUint192(uint256 x) internal pure returns (uint192) {
         require(x <= type(uint192).max, ErrorsLib.CastOverflow());

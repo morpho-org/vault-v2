@@ -65,7 +65,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         sharesInMetaMorpho += shares;
         uint256 newAssets = IERC4626(metaMorpho).convertToAssets(sharesInMetaMorpho);
-        int256 assetsChange = int(newAssets) - int(assetsInMetaMorpho);
+        int256 assetsChange = int256(newAssets) - int256(assetsInMetaMorpho);
         assetsInMetaMorpho = newAssets;
 
         return (ids(), assetsChange);
@@ -81,7 +81,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         sharesInMetaMorpho = sharesInMetaMorpho.zeroFloorSub(shares);
         uint256 newAssets = IERC4626(metaMorpho).convertToAssets(sharesInMetaMorpho);
-        int256 assetsChange = int256(newAssets) - int(assetsInMetaMorpho);
+        int256 assetsChange = int256(newAssets) - int256(assetsInMetaMorpho);
         assetsInMetaMorpho = newAssets;
 
         return (ids(), assetsChange);
