@@ -22,7 +22,7 @@ contract BaseTest is Test {
     address immutable sentinel = makeAddr("sentinel");
 
     // The packed slot containing both _totalAssets and lastUpdate.
-    bytes32 TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT = bytes32(uint256(10));
+    bytes32 TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT = bytes32(uint256(13));
 
     ERC20Mock underlyingToken;
     IVaultV2Factory vaultFactory;
@@ -52,7 +52,7 @@ contract BaseTest is Test {
         vm.stopPrank();
 
         vm.startPrank(curator);
-        ManualVic(vic).increaseMaxInterestPerSecond(type(uint256).max);
+        ManualVic(vic).setMaxInterestPerSecond(type(uint96).max);
         vault.submit(abi.encodeCall(IVaultV2.setIsAllocator, (allocator, true)));
         vault.submit(abi.encodeCall(IVaultV2.setVic, (address(vic))));
         vm.stopPrank();
@@ -68,29 +68,19 @@ contract BaseTest is Test {
         vm.store(address(vault), TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT, strippedValue | bytes32(newTotalAssets));
     }
 
-    function _setAbsoluteCap(bytes memory idData, uint256 absoluteCap) internal {
+    function increaseAbsoluteCap(bytes memory idData, uint256 absoluteCap) internal {
         bytes32 id = keccak256(idData);
-        if (absoluteCap > vault.absoluteCap(id)) {
-            vm.prank(curator);
-            vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, absoluteCap)));
-            vault.increaseAbsoluteCap(idData, absoluteCap);
-        } else {
-            vm.prank(curator);
-            vault.decreaseAbsoluteCap(idData, absoluteCap);
-        }
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, absoluteCap)));
+        vault.increaseAbsoluteCap(idData, absoluteCap);
         assertEq(vault.absoluteCap(id), absoluteCap);
     }
 
-    function _setRelativeCap(bytes memory idData, uint256 relativeCap) internal {
+    function increaseRelativeCap(bytes memory idData, uint256 relativeCap) internal {
         bytes32 id = keccak256(idData);
-        if (relativeCap > vault.relativeCap(id)) {
-            vm.prank(curator);
-            vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, relativeCap));
-            vault.increaseRelativeCap(idData, relativeCap);
-        } else {
-            vm.prank(curator);
-            vault.decreaseRelativeCap(idData, relativeCap);
-        }
+        vm.prank(curator);
+        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, relativeCap));
+        vault.increaseRelativeCap(idData, relativeCap);
         assertEq(vault.relativeCap(id), relativeCap);
     }
 }

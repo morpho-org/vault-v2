@@ -20,6 +20,8 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     address public immutable parentVault;
     address public immutable asset;
     address public immutable morpho;
+    address public immutable irm;
+    bytes32 public immutable adapterId;
 
     /* STORAGE */
 
@@ -28,10 +30,12 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
     /* FUNCTIONS */
 
-    constructor(address _parentVault, address _morpho) {
-        morpho = _morpho;
+    constructor(address _parentVault, address _morpho, address _irm) {
         parentVault = _parentVault;
+        morpho = _morpho;
+        irm = _irm;
         asset = IVaultV2(_parentVault).asset();
+        adapterId = keccak256(abi.encode("adapter", address(this)));
         SafeERC20Lib.safeApprove(asset, _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
@@ -57,7 +61,8 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
-        require(marketParams.loanToken == asset, WrongAsset());
+        require(marketParams.loanToken == asset, LoanAssetMismatch());
+        require(marketParams.irm == irm, IrmMismatch());
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
@@ -75,7 +80,8 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
-        require(marketParams.loanToken == asset, WrongAsset());
+        require(marketParams.loanToken == asset, LoanAssetMismatch());
+        require(marketParams.irm == irm, IrmMismatch());
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
@@ -88,9 +94,9 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     }
 
     /// @dev Returns adapter's ids.
-    function ids(MarketParams memory marketParams) internal view returns (bytes32[] memory) {
+    function ids(MarketParams memory marketParams) public view returns (bytes32[] memory) {
         bytes32[] memory ids_ = new bytes32[](3);
-        ids_[0] = keccak256(abi.encode("adapter", address(this)));
+        ids_[0] = adapterId;
         ids_[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
         ids_[2] = keccak256(
             abi.encode(

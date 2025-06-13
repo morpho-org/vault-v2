@@ -24,9 +24,11 @@ library EventsLib {
 
     event SetIsAllocator(address indexed account, bool newIsAllocator);
 
-    event SetExitGate(address indexed newExitGate);
+    event SetSharesGate(address indexed newSharesGate);
 
-    event SetEnterGate(address indexed newEnterGate);
+    event SetReceiveAssetsGate(address indexed newReceiveAssetsGate);
+
+    event SetSendAssetsGate(address indexed newSendAssetsGate);
 
     event SetPerformanceFeeRecipient(address indexed);
 
@@ -58,9 +60,9 @@ library EventsLib {
 
     event Deallocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 loss);
 
-    event SetLiquidityAdapter(address indexed sender, address indexed newLiquidityAdapter);
-
-    event SetLiquidityData(address indexed sender, bytes indexed newLiquidityData);
+    event SetLiquidityMarket(
+        address indexed sender, address indexed newLiquidityAdapter, bytes indexed newLiquidityData
+    );
 
     event Deposit(address indexed sender, address indexed onBehalf, uint256 assets, uint256 shares);
 
@@ -77,8 +79,17 @@ library EventsLib {
     );
 
     event ForceDeallocate(
-        address indexed sender, address adapter, bytes data, uint256 assets, address indexed onBehalf
+        address indexed sender,
+        address adapter,
+        bytes data,
+        uint256 assets,
+        address indexed onBehalf,
+        uint256 penaltyAssets
     );
 
     event CreateVaultV2(address indexed owner, address indexed asset, address indexed vaultV2);
+
+    event SetName(string indexed newName);
+
+    event SetSymbol(string indexed newSymbol);
 }

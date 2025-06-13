@@ -71,8 +71,8 @@ contract BlueIntegrationTest is BaseTest {
 
         /* VAULT SETUP */
 
-        factory = new MorphoBlueAdapterFactory(address(morpho));
-        adapter = MorphoBlueAdapter(factory.createMorphoBlueAdapter(address(vault)));
+        factory = new MorphoBlueAdapterFactory();
+        adapter = MorphoBlueAdapter(factory.createMorphoBlueAdapter(address(vault), address(morpho), address(irm)));
 
         expectedIdData1 = new bytes[](3);
         expectedIdData1[0] = abi.encode("adapter", address(adapter));
