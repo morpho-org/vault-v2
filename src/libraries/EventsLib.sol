@@ -56,23 +56,9 @@ library EventsLib {
 
     event SetForceDeallocatePenalty(address indexed adapter, uint256 forceDeallocatePenalty);
 
-    event Allocate(
-        address indexed sender,
-        address indexed adapter,
-        uint256 assets,
-        bytes32[] ids,
-        int256 change,
-        uint256 lostAssets
-    );
+    event Allocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, int256 change);
 
-    event Deallocate(
-        address indexed sender,
-        address indexed adapter,
-        uint256 assets,
-        bytes32[] ids,
-        int256 change,
-        uint256 lostAssets
-    );
+    event Deallocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, int256 change);
 
     event Realize(
         address indexed sender,
