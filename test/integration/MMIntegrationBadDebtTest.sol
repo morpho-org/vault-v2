@@ -53,8 +53,8 @@ contract MMIntegrationBadDebtTest is MMIntegrationTest {
         metaMorpho.updateWithdrawQueue(indexes);
         vm.stopPrank();
 
-        vm.prank(allocator);
-        vault.deallocate(address(metaMorphoAdapter), hex"", 0);
+        // send incentive to this so the total balance does not change
+        vault.realize(address(metaMorphoAdapter), hex"");
 
         assertEq(vault.totalAssets(), initialOnMarket0);
         assertEq(vault.previewRedeem(vault.balanceOf(address(this))), initialOnMarket0);
@@ -86,8 +86,8 @@ contract MMIntegrationBadDebtTest is MMIntegrationTest {
         );
         morpho.liquidate(allMarketParams[1], borrower, collateralOfBorrower, 0, hex"");
 
-        vm.prank(allocator);
-        vault.deallocate(address(metaMorphoAdapter), hex"", 0);
+        // send incentive to this so the total balance does not change
+        vault.realize(address(metaMorphoAdapter), hex"");
 
         assertEq(vault.totalAssets(), initialOnMarket0);
         assertEq(vault.previewRedeem(vault.balanceOf(address(this))), initialOnMarket0);

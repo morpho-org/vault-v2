@@ -421,6 +421,7 @@ contract VaultV2 is IVaultV2 {
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets);
 
         uint256 lostAssets = updateAllocation(ids, change);
+        require(lostAssets == 0, ErrorsLib.UnrealizedLoss());
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
@@ -448,6 +449,7 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
 
         uint256 lostAssets = updateAllocation(ids, change);
+        require(lostAssets == 0, ErrorsLib.UnrealizedLoss());
 
         emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, change, lostAssets);
     }
