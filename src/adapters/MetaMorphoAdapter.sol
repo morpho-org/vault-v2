@@ -61,9 +61,8 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 shares = IERC4626(metaMorpho).deposit(assets, address(this));
-
-        sharesInMetaMorpho += shares;
+        uint256 mintedShares = IERC4626(metaMorpho).deposit(assets, address(this));
+        sharesInMetaMorpho += mintedShares;
         uint256 newAssets = IERC4626(metaMorpho).convertToAssets(sharesInMetaMorpho);
         int256 assetsChange = int256(newAssets) - int256(assetsInMetaMorpho);
         assetsInMetaMorpho = newAssets;
@@ -77,9 +76,8 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 shares = IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
-
-        sharesInMetaMorpho = sharesInMetaMorpho.zeroFloorSub(shares);
+        uint256 redeemedShares = IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
+        sharesInMetaMorpho -= redeemedShares;
         uint256 newAssets = IERC4626(metaMorpho).convertToAssets(sharesInMetaMorpho);
         int256 assetsChange = int256(newAssets) - int256(assetsInMetaMorpho);
         assetsInMetaMorpho = newAssets;
