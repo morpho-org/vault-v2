@@ -93,6 +93,7 @@ contract VaultV2 is IVaultV2 {
     /* INTEREST STORAGE */
 
     uint192 internal _totalAssets;
+    /// @dev Total assets at the beginning of the transaction (even before interest accrual).
     uint256 public transient firstTotalAssets;
     uint64 public lastUpdate;
     address public vic;
@@ -429,8 +430,7 @@ contract VaultV2 is IVaultV2 {
 
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
             require(
-                _caps.relativeCap == WAD
-                    || _caps.allocation <= uint256(firstTotalAssets).mulDivDown(_caps.relativeCap, WAD),
+                _caps.relativeCap == WAD || _caps.allocation <= firstTotalAssets.mulDivDown(_caps.relativeCap, WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
@@ -473,9 +473,9 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE FUNCTIONS */
 
     function accrueInterest() public {
+        if (firstTotalAssets == 0) firstTotalAssets = _totalAssets;
         if (lastUpdate == block.timestamp) return;
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
-        if (firstTotalAssets == 0) firstTotalAssets = newTotalAssets.toUint192();
         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         _totalAssets = newTotalAssets.toUint192();
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);

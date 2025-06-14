@@ -37,7 +37,6 @@ contract AllocateTest is BaseTest {
 
         // Setup.
         vault.deposit(assets, address(this));
-        assertEq(vault.firstTotalAssets(), assets, "firstTotalAssets"); // check that the isolation works.
         assertEq(underlyingToken.balanceOf(address(vault)), assets, "Initial vault balance incorrect");
         assertEq(underlyingToken.balanceOf(mockAdapter), 0, "Initial adapter balance incorrect");
         assertEq(vault.allocation(keccak256("id-0")), 0, "Initial allocation incorrect");
