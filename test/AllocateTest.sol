@@ -28,7 +28,6 @@ contract AllocateTest is BaseTest {
     }
 
     /// forge-config: default.isolate = true
-    /// forge-config: no_via_ir.isolate = true
     function testAllocate(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(vault));
@@ -100,22 +99,35 @@ contract AllocateTest is BaseTest {
         assertEq(AdapterMock(mockAdapter).recordedAllocateAssets(), assets, "Assets incorrect after allocation");
     }
 
-    function testRelativeCapManipulationProtection(uint256 deposit, uint256 allocation) public {
-        deposit = bound(deposit, 1, type(uint128).max);
-        allocation = bound(allocation, 1, deposit);
+    /// forge-config: default.isolate = true
+    function testRelativeCapManipulationProtection(uint256 allocation) public {
+        allocation = bound(allocation, 1, type(uint128).max / 2);
+        deal(address(underlyingToken), allocator, type(uint256).max);
+        vm.prank(allocator);
+        underlyingToken.approve(address(vault), type(uint256).max);
 
-        vault.deposit(deposit, address(this));
-        assertEq(vault.firstTotalAssets(), 0, "firstTotalAssets");
+        vault.deposit(allocation, address(this));
 
         increaseAbsoluteCap("id-0", allocation);
         increaseAbsoluteCap("id-1", allocation);
-        increaseRelativeCap("id-0", WAD - 1); // Not WAD because it deactivates the cap.
-        increaseRelativeCap("id-1", WAD - 1);
+        increaseRelativeCap("id-0", WAD / 2);
+        increaseRelativeCap("id-1", WAD / 2);
 
-        assertEq(vault.firstTotalAssets(), 0, "firstTotalAssets");
+        // Fails if the deposit and allocation are done in the same transactions.
+        bytes[] memory data = new bytes[](3);
+        data[0] = abi.encodeCall(vault.deposit, (allocation, allocator));
+        data[1] = abi.encodeCall(vault.allocate, (mockAdapter, hex"", allocation));
+        data[2] = abi.encodeCall(vault.withdraw, (allocation, allocator, allocator));
+
         vm.prank(allocator);
         vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
+        vault.multicall(data);
+
+        // Passes if they are done in separate transactions.
+        vm.startPrank(allocator);
+        vault.deposit(allocation, allocator);
         vault.allocate(mockAdapter, hex"", allocation);
+        vault.withdraw(allocation, allocator, allocator);
     }
 
     function testAllocateRelativeCapCheckRoundsDown(bytes memory data) public {
