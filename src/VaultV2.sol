@@ -11,7 +11,6 @@ import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
-import {console} from "forge-std/console.sol";
 
 /// @dev Not ERC-4626 compliant due to missing functions and `totalAssets()` is not up to date.
 /// @dev Zero checks are not systematically performed.
@@ -419,7 +418,6 @@ contract VaultV2 is IVaultV2 {
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
         (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).allocate(data, assets);
-        console.log(firstTotalAssets);
 
         if (loss > 0) {
             _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
