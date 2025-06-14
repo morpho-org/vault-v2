@@ -13,6 +13,7 @@ import {MathLib} from "../libraries/MathLib.sol";
 
 /// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
 /// @dev `assets` are the recorded share value at the last allocate or deallocate.
+/// @dev `realizableLoss` is the recorded loss not yet realized in the parent vault.
 struct PositionInMarket {
     uint128 shares;
     uint128 assets;
