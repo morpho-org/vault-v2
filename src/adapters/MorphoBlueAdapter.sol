@@ -96,9 +96,9 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         position.realizableLoss += uint256(position.assets).zeroFloorSub(newAssetsInMarket);
         uint256 interest = newAssetsInMarket.zeroFloorSub(position.assets);
         if (assets > 0) {
-            uint256 shares;
-            (, shares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-            position.shares += uint128(shares);
+            uint256 mintedShares;
+            (, mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+            position.shares += uint128(mintedShares);
         }
         position.assets = uint128(expectedSupplyAssets(marketParams, position.shares));
 
@@ -123,9 +123,9 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         position.realizableLoss += uint256(position.assets).zeroFloorSub(newAssetsInMarket);
         uint256 interest = newAssetsInMarket.zeroFloorSub(position.assets);
         if (assets > 0) {
-            uint256 shares;
-            (, shares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-            position.shares = uint128(uint256(position.shares).zeroFloorSub(shares));
+            uint256 redeemedShares;
+            (, redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+            position.shares -= uint128(redeemedShares);
         }
         position.assets = uint128(expectedSupplyAssets(marketParams, position.shares));
 

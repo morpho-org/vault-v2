@@ -69,8 +69,8 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         uint256 interest = newAssetsInMetaMorpho.zeroFloorSub(assetsInMetaMorpho);
 
         if (assets > 0) {
-            uint256 shares = IERC4626(metaMorpho).deposit(assets, address(this));
-            sharesInMetaMorpho += shares;
+            uint256 mintedShares = IERC4626(metaMorpho).deposit(assets, address(this));
+            sharesInMetaMorpho += mintedShares;
         }
 
         assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
@@ -91,8 +91,8 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         uint256 interest = newAssetsInMetaMorpho.zeroFloorSub(assetsInMetaMorpho);
 
         if (assets > 0) {
-            uint256 shares = IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
-            sharesInMetaMorpho = sharesInMetaMorpho.zeroFloorSub(shares);
+            uint256 redeemedShares = IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
+            sharesInMetaMorpho -= redeemedShares;
         }
 
         assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
