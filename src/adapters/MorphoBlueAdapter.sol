@@ -81,12 +81,14 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         require(marketParams.loanToken == asset, LoanAssetMismatch());
         require(marketParams.irm == irm, IrmMismatch());
 
-        uint256 shares;
-        if (assets > 0) (, shares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-
         PositionInMarket storage position = positionInMarket[marketId];
 
-        position.shares += uint128(shares);
+        if (assets > 0) {
+            uint256 shares;
+            (, shares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+            position.shares += uint128(shares);
+        }
+
         uint128 newAssets = uint128(expectedSupplyAssets(marketParams, position.shares));
         int256 assetsChange = int256(uint256(newAssets)) - int256(uint256(position.assets));
         position.assets = newAssets;
@@ -103,12 +105,13 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         require(marketParams.loanToken == asset, LoanAssetMismatch());
         require(marketParams.irm == irm, IrmMismatch());
 
-        uint256 shares;
-        if (assets > 0) (, shares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-
         PositionInMarket storage position = positionInMarket[marketId];
+        if (assets > 0) {
+            uint256 shares;
+            (, shares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+            position.shares = uint128(uint256(position.shares).zeroFloorSub(shares));
+        }
 
-        position.shares = uint128(uint256(position.shares).zeroFloorSub(shares));
         uint128 newAssets = uint128(expectedSupplyAssets(marketParams, position.shares));
         int256 assetsChange = int256(uint256(newAssets)) - int256(uint256(position.assets));
         position.assets = newAssets;
