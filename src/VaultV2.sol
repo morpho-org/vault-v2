@@ -692,7 +692,7 @@ contract VaultV2 is IVaultV2 {
             caps[ids[i]].allocation = caps[ids[i]].allocation.zeroFloorAddInt(change);
         }
 
-        totalAllocation = uint256(totalAllocation).zeroFloorAddInt(change);
+        totalAllocation = totalAllocation.zeroFloorAddInt(change);
 
         uint256 totalAllocationWithBalance = totalAllocation + IERC20(asset).balanceOf(address(this));
         if (_totalAssets > totalAllocationWithBalance) {
