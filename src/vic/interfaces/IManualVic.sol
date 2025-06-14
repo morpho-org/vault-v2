@@ -7,17 +7,17 @@ interface IManualVic is IVic {
     /* EVENTS */
 
     event SetInterestPerSecondAndDeadline(address indexed caller, uint256 newInterestPerSecond, uint256 newDeadline);
-    event ZeroInterestPerSecond(address indexed caller);
     event SetMaxInterestPerSecond(uint256 newMaxInterestPerSecond);
+    event ZeroInterestPerSecond(address indexed caller);
     event ZeroMaxInterestPerSecond(address indexed caller);
 
     /* ERRORS */
 
-    error Unauthorized();
+    error CastOverflow();
+    error DeadlineAlreadyPassed();
     error InterestPerSecondTooHigh();
     error InterestPerSecondTooLow();
-    error DeadlineAlreadyPassed();
-    error CastOverflow();
+    error Unauthorized();
 
     /* FUNCTIONS */
 
