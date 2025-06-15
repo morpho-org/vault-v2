@@ -685,14 +685,14 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Apply a positive or negative change to the allocation.
-    /// @dev _totalAssets is bounded to totalAllocation.
+    /// @dev _totalAssets is capped at totalAllocation.
     /// @dev If _totalAssets must be lowered, enter is blocked until the end of the transaction.
     function updateAllocation(bytes32[] memory ids, int256 change) internal returns (uint256 lostAssets) {
         for (uint256 i; i < ids.length; i++) {
             caps[ids[i]].allocation = caps[ids[i]].allocation.zeroFloorAddInt(change);
         }
 
-        totalAllocation = uint256(totalAllocation).zeroFloorAddInt(change);
+        totalAllocation = totalAllocation.zeroFloorAddInt(change);
 
         uint256 totalAllocationWithBalance = totalAllocation + IERC20(asset).balanceOf(address(this));
         if (_totalAssets > totalAllocationWithBalance) {
