@@ -429,7 +429,8 @@ contract VaultV2 is IVaultV2 {
 
             uint256 idleAssets = IERC20(asset).balanceOf(address(this));
             require(
-                _caps.relativeCap == WAD || _caps.allocation <= (totalAllocation + idleAssets).mulDivDown(_caps.relativeCap, WAD),
+                _caps.relativeCap == WAD
+                    || _caps.allocation <= (totalAllocation + idleAssets).mulDivDown(_caps.relativeCap, WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
