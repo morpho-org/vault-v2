@@ -74,7 +74,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the potential loss.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256, uint256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
@@ -95,12 +95,14 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         }
         position.assets = uint128(expectedSupplyAssets(marketParams, position.shares));
 
-        return (ids(marketParams), interest);
+        uint256 gainedAssets = position.assets - newAssetsInMarket;
+
+        return (ids(marketParams), interest, gainedAssets);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the potential loss.
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256, uint256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
@@ -121,7 +123,9 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         }
         position.assets = uint128(expectedSupplyAssets(marketParams, position.shares));
 
-        return (ids(marketParams), interest);
+        uint256 lostAssets = newAssetsInMarket - position.assets;
+
+        return (ids(marketParams), interest, lostAssets);
     }
 
     function realizeLoss(bytes memory data) external returns (bytes32[] memory, uint256) {

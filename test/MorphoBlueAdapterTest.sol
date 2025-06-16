@@ -128,7 +128,8 @@ contract MorphoBlueAdapterTest is Test {
         deal(address(loanToken), address(adapter), assets);
 
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 interest) = adapter.allocate(abi.encode(marketParams), assets);
+        (bytes32[] memory ids, uint256 interest, uint256 gainedAssets) =
+            adapter.allocate(abi.encode(marketParams), assets);
 
         assertEq(adapter.assetsInMarket(marketId), assets, "Incorrect assetsInMarket");
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), assets, "Incorrect assets in Morpho");
@@ -149,7 +150,8 @@ contract MorphoBlueAdapterTest is Test {
         assertEq(beforeSupply, initialAssets, "Precondition failed: supply not set");
 
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 interest) = adapter.deallocate(abi.encode(marketParams), withdrawAssets);
+        (bytes32[] memory ids, uint256 interest, uint256 lostAssets) =
+            adapter.deallocate(abi.encode(marketParams), withdrawAssets);
 
         assertEq(interest, 0, "Interest should be zero");
         assertEq(adapter.assetsInMarket(marketId), initialAssets - withdrawAssets, "Incorrect assetsInMarket");
@@ -248,12 +250,13 @@ contract MorphoBlueAdapterTest is Test {
         // Allocate reverts
         vm.prank(address(parentVault));
         if (expectedLoss > 0) vm.expectRevert(IMorphoBlueAdapter.RealizableLoss.selector);
-        (bytes32[] memory ids, uint256 interest) = adapter.allocate(abi.encode(marketParams), 0);
+        (bytes32[] memory ids, uint256 interest, uint256 gainedAssets) = adapter.allocate(abi.encode(marketParams), 0);
 
         // Deallocate reverts
         vm.prank(address(parentVault));
         if (expectedLoss > 0) vm.expectRevert(IMorphoBlueAdapter.RealizableLoss.selector);
-        (ids, interest) = adapter.deallocate(abi.encode(marketParams), 0);
+        uint256 lostAssets;
+        (ids, interest, lostAssets) = adapter.deallocate(abi.encode(marketParams), 0);
 
         // Realize loss
         uint256 snapshot = vm.snapshotState();

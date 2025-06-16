@@ -6,12 +6,12 @@ import "./BaseTest.sol";
 contract EmptyAdapter is IAdapter {
     bytes32[] ids = [keccak256("id")];
 
-    function allocate(bytes memory, uint256) external view returns (bytes32[] memory, uint256) {
-        return (ids, 0);
+    function allocate(bytes memory, uint256 assets) external view returns (bytes32[] memory, uint256, uint256) {
+        return (ids, 0, assets);
     }
 
-    function deallocate(bytes memory, uint256) external view returns (bytes32[] memory, uint256) {
-        return (ids, 0);
+    function deallocate(bytes memory, uint256 assets) external view returns (bytes32[] memory, uint256, uint256) {
+        return (ids, 0, assets);
     }
 
     function realizeLoss(bytes memory) external view returns (bytes32[] memory, uint256) {}

@@ -57,7 +57,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the potential loss.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256, uint256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
@@ -74,12 +74,14 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
 
-        return (ids(), interest);
+        uint256 gainedAssets = assetsInMetaMorpho - newAssetsInMetaMorpho;
+
+        return (ids(), interest, gainedAssets);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the potential loss.
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256, uint256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
@@ -96,7 +98,9 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
 
-        return (ids(), interest);
+        uint256 lostAssets = newAssetsInMetaMorpho - assetsInMetaMorpho;
+
+        return (ids(), interest, lostAssets);
     }
 
     function realizeLoss(bytes memory data) external returns (bytes32[] memory, uint256) {

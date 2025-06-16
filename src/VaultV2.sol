@@ -414,11 +414,11 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
-        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).allocate(data, assets);
+        (bytes32[] memory ids, uint256 interest, uint256 gainedAssets) = IAdapter(adapter).allocate(data, assets);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
-            _caps.allocation = _caps.allocation + assets + interest;
+            _caps.allocation = _caps.allocation + gainedAssets + interest;
 
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
             require(
@@ -426,7 +426,7 @@ contract VaultV2 is IVaultV2 {
                 ErrorsLib.RelativeCapExceeded()
             );
         }
-        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, interest);
+        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, interest, gainedAssets);
     }
 
     function deallocate(address adapter, bytes memory data, uint256 assets) external {
@@ -437,15 +437,15 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets);
+        (bytes32[] memory ids, uint256 interest, uint256 lostAssets) = IAdapter(adapter).deallocate(data, assets);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
-            _caps.allocation = (_caps.allocation + interest).zeroFloorSub(assets);
+            _caps.allocation = (_caps.allocation + interest).zeroFloorSub(lostAssets);
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
-        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, interest);
+        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, interest, lostAssets);
     }
 
     /// @dev Whether newLiquidityAdapter is an adapter is checked in allocate/deallocate.

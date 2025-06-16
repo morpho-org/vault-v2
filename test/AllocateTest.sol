@@ -88,7 +88,7 @@ contract AllocateTest is BaseTest {
         increaseRelativeCap("id-1", WAD);
         vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.Allocate(allocator, mockAdapter, assets, ids, 0);
+        emit EventsLib.Allocate(allocator, mockAdapter, assets, ids, 0, assets);
         vault.allocate(mockAdapter, data, assets);
         assertEq(underlyingToken.balanceOf(address(vault)), 0, "Vault balance should be zero after allocation");
         assertEq(underlyingToken.balanceOf(mockAdapter), assets, "Adapter balance incorrect after allocation");
@@ -151,7 +151,7 @@ contract AllocateTest is BaseTest {
         // Normal path.
         vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.Deallocate(allocator, mockAdapter, assetsOut, ids, 0);
+        emit EventsLib.Deallocate(allocator, mockAdapter, assetsOut, ids, 0, assetsOut);
         vault.deallocate(mockAdapter, data, assetsOut);
         assertEq(underlyingToken.balanceOf(address(vault)), assetsOut, "Vault balance incorrect after deallocation");
         assertEq(

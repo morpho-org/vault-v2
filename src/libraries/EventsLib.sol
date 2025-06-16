@@ -20,8 +20,22 @@ library EventsLib {
     event Constructor(address indexed owner, address indexed asset);
 
     // Allocation events
-    event Allocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 interest);
-    event Deallocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 interest);
+    event Allocate(
+        address indexed sender,
+        address indexed adapter,
+        uint256 assets,
+        bytes32[] ids,
+        uint256 interest,
+        uint256 gainedAssets
+    );
+    event Deallocate(
+        address indexed sender,
+        address indexed adapter,
+        uint256 assets,
+        bytes32[] ids,
+        uint256 interest,
+        uint256 lostAssets
+    );
     event ForceDeallocate(
         address indexed sender,
         address adapter,

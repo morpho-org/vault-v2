@@ -71,7 +71,7 @@ contract MetaMorphoAdapterTest is Test {
         deal(address(asset), address(adapter), assets);
 
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 interest) = adapter.allocate(hex"", assets);
+        (bytes32[] memory ids, uint256 interest, uint256 gainedAssets) = adapter.allocate(hex"", assets);
 
         assertEq(adapter.assetsInMetaMorpho(), assets, "incorrect assetsInMetaMorpho");
         uint256 adapterShares = metaMorpho.balanceOf(address(adapter));
@@ -95,7 +95,7 @@ contract MetaMorphoAdapterTest is Test {
         assertEq(beforeShares, initialAssets, "Precondition failed: shares not set");
 
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 interest) = adapter.deallocate(hex"", withdrawAssets);
+        (bytes32[] memory ids, uint256 interest, uint256 lostAssets) = adapter.deallocate(hex"", withdrawAssets);
 
         assertEq(adapter.assetsInMetaMorpho(), initialAssets - withdrawAssets, "incorrect assetsInMetaMorpho");
         uint256 afterShares = metaMorpho.balanceOf(address(adapter));
