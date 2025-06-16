@@ -72,11 +72,18 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the PnL in this allocation.
+    /// @dev Always withdraw the full value of shares.
+    /// @dev Assets withdrawn in excess of the requested amount are donated to the vault.
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 redeemedShares = IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
+        uint redeemedShares = IERC4626(metaMorpho).previewWithdraw(assets);
+        uint withdrawnAssets = IERC4626(metaMorpho).redeem(shares,address(this));
+
+        SafeERC20Lib.safeTransfer(asset, address(vault), withdrawnAssets - assets);
+
+        // uint256 redeemedShares = IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
         sharesInMetaMorpho -= redeemedShares;
         uint256 newAssets = IERC4626(metaMorpho).convertToAssets(sharesInMetaMorpho);
         int256 assetsChange = int256(newAssets) - int256(assetsInMetaMorpho);
