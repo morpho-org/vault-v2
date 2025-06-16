@@ -147,7 +147,7 @@ It can:
 
 Only one address can have this role.
 
-Some actions of the curator are timelockable (between 0 and 2 weeks, or infinite if the action has been frozen).
+Some actions of the curator are timelockable (between 0 and 3 weeks, or infinite if the action has been frozen).
 Once the timelock passed, the action can be executed by anyone.
 
 It can:
@@ -162,7 +162,7 @@ It can:
 - [Timelockable] Set adapters.
 - [Timelockable] Set allocators.
 - Increase timelocks.
-- [Timelocked 2 weeks] Decrease timelocks.
+- [Timelocked 3 weeks] Decrease timelocks.
 - [Timelockable] Set the `performanceFee`.
   The performance fee is capped at 50% of generated interest.
 - [Timelockable] Set the `managementFee`.
@@ -170,7 +170,7 @@ It can:
 - [Timelockable] Set the `performanceFeeRecipient`.
 - [Timelockable] Set the `managementFeeRecipient`.
 - [Timelockable] Abdicate submitting of an action.
-  The timelock on abdicate should be set to a high value (e.g. 2 weeks) after the vault has been created and initial abdications have been done, if any.
+  The timelock on abdicate should be set to a high value (e.g. 3 weeks) after the vault has been created and initial abdications have been done, if any.
 
 **Allocator**
 
