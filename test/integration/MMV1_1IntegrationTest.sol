@@ -22,7 +22,7 @@ import {IManualVicFactory} from "../../src/vic/interfaces/IManualVicFactory.sol"
 import {VaultV2Factory} from "../../src/VaultV2Factory.sol";
 import {ManualVic, ManualVicFactory} from "../../src/vic/ManualVicFactory.sol";
 import "../../src/VaultV2.sol";
-import {MetaMorphoAdapter} from "../../src/adapters/MetaMorphoAdapter.sol";
+import "../../src/adapters/MetaMorphoAdapter.sol";
 import {MetaMorphoAdapterFactory} from "../../src/adapters/MetaMorphoAdapterFactory.sol";
 
 contract MMV1_1IntegrationTest is BaseTest {
