@@ -28,4 +28,5 @@ interface IMorphoBlueAdapter is IAdapter {
     function skim(address token) external;
     function assetsInMarket(Id marketId) external view returns (uint256);
     function sharesInMarket(Id marketId) external view returns (uint256);
+    function realizableLoss(Id marketId) external view returns (uint256);
 }
