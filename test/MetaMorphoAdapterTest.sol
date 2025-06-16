@@ -186,83 +186,67 @@ contract MetaMorphoAdapterTest is Test {
     function testLossRealization(
         uint256 initialAssets,
         uint256 lossAssets,
-        uint256 realizedLoss,
         uint256 deposit,
         uint256 withdraw,
-        uint256 _interest
+        uint256 interest
     ) public {
         initialAssets = bound(initialAssets, 1, MAX_TEST_ASSETS);
         lossAssets = bound(lossAssets, 1, initialAssets);
-        realizedLoss = bound(realizedLoss, 0, lossAssets - 1);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         withdraw = bound(withdraw, 0, initialAssets - lossAssets);
-        _interest = bound(_interest, 0, initialAssets);
+        interest = bound(interest, 0, initialAssets);
 
         // Setup.
         deal(address(asset), address(adapter), initialAssets + deposit);
         vm.prank(address(parentVault));
         adapter.allocate(hex"", initialAssets);
-
-        // Loss realization with allocate.
         metaMorpho.lose(lossAssets);
-        uint256 snapshot = vm.snapshotState();
-        vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 interest) = adapter.allocate(hex"", 0);
-        assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(interest, 0, "Incorrect interest returned");
-        assertEq(adapter.realizableLoss(), lossAssets, "Incorrect realizableLoss");
-        assertEq(adapter.assetsInMetaMorpho(), initialAssets - lossAssets, "AssetsInMetaMorpho after allocate");
 
-        // Loss realization with deallocate.
-        vm.revertToState(snapshot);
+        // Allocate is blocked.
         vm.prank(address(parentVault));
-        (ids, interest) = adapter.deallocate(hex"", 0);
-        assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(interest, 0, "Incorrect interest returned");
-        assertEq(adapter.realizableLoss(), lossAssets, "Incorrect realizableLoss");
-        assertEq(adapter.assetsInMetaMorpho(), initialAssets - lossAssets, "AssetsInMetaMorpho after deallocate");
+        vm.expectRevert(IMetaMorphoAdapter.RealizableLoss.selector);
+        adapter.allocate(hex"", 0);
+
+        // Deallocate is blocked.
+        vm.prank(address(parentVault));
+        vm.expectRevert(IMetaMorphoAdapter.RealizableLoss.selector);
+        adapter.deallocate(hex"", 0);
 
         // Can't realize more.
+        uint256 snapshot = vm.snapshotState();
         vm.prank(address(parentVault));
-        (ids, interest) = adapter.deallocate(hex"", 0);
+        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
         assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(interest, 0, "Incorrect interest returned");
-        assertEq(adapter.realizableLoss(), lossAssets, "Incorrect realizableLoss");
-        assertEq(adapter.assetsInMetaMorpho(), initialAssets - lossAssets, "AssetsInMetaMorpho after rerealization");
+        assertEq(loss, lossAssets, "Incorrect loss returned");
+        assertEq(
+            adapter.assetsInMetaMorpho(),
+            metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter))),
+            "assetsInMetaMorpho"
+        );
 
         // Deposit realizes the right loss.
         vm.revertToState(snapshot);
-        vm.prank(address(parentVault));
-        (ids, interest) = adapter.allocate(hex"", deposit);
-        assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(interest, 0, "Incorrect interest returned");
-        assertEq(adapter.realizableLoss(), lossAssets, "Incorrect realizableLoss");
-        assertApproxEqAbs(
-            adapter.assetsInMetaMorpho(), initialAssets - lossAssets + deposit, 1, "AssetsInMetaMorpho after deposit"
-        );
-
-        // Withdraw doesn't change the loss.
-        vm.revertToState(snapshot);
-        vm.prank(address(parentVault));
-        (ids, interest) = adapter.deallocate(hex"", withdraw);
-        assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(interest, 0, "Incorrect interest returned");
-        assertEq(adapter.realizableLoss(), lossAssets, "Incorrect realizableLoss");
-        assertApproxEqAbs(
-            adapter.assetsInMetaMorpho(), initialAssets - lossAssets - withdraw, 1, "AssetsInMetaMorpho after withdraw"
-        );
-
-        // Interest cover the loss.
-        vm.revertToState(snapshot);
-        asset.transfer(address(metaMorpho), _interest);
-        vm.prank(address(parentVault));
-        (ids, interest) = adapter.allocate(hex"", 0);
-        assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertApproxEqAbs(interest, _interest.zeroFloorSub(lossAssets), 1, "Incorrect interest returned");
-        assertApproxEqAbs(adapter.realizableLoss(), lossAssets.zeroFloorSub(_interest), 1, "Incorrect realizableLoss");
-        assertApproxEqAbs(
-            adapter.assetsInMetaMorpho(), initialAssets - lossAssets + _interest, 1, "AssetsInMetaMorpho after interest"
-        );
+        asset.transfer(address(metaMorpho), interest);
+        if (interest >= lossAssets) {
+            assertGe(
+                metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter))),
+                adapter.assetsInMetaMorpho(),
+                "previewRedeem < assetsInMetaMorpho"
+            );
+            vm.prank(address(parentVault));
+            vm.expectRevert(IMetaMorphoAdapter.NoRealizableLoss.selector);
+            adapter.realizeLoss(hex"");
+        } else {
+            vm.prank(address(parentVault));
+            (ids, loss) = adapter.realizeLoss(hex"");
+            assertEq(ids, expectedIds, "Incorrect ids returned");
+            assertEq(loss, lossAssets - interest, "Incorrect loss returned");
+            assertEq(
+                adapter.assetsInMetaMorpho(),
+                metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter))),
+                "AssetsInMetaMorpho after deposit"
+            );
+        }
     }
 
     function testIds() public view {

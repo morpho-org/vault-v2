@@ -31,7 +31,7 @@ contract AdapterMock is IAdapter {
         return (ids(), 0);
     }
 
-    function realizeLoss(bytes memory data) external returns (bytes32[] memory, uint256) {
+    function realizeLoss(bytes memory) external pure returns (bytes32[] memory, uint256) {
         return (ids(), 0);
     }
 

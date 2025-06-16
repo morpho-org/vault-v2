@@ -13,11 +13,9 @@ import {MathLib} from "../libraries/MathLib.sol";
 
 /// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
 /// @dev `assets` are the recorded share value at the last allocate or deallocate.
-/// @dev `realizableLoss` is the recorded loss not yet realized in the parent vault.
 struct PositionInMarket {
     uint128 shares;
     uint128 assets;
-    uint256 realizableLoss;
 }
 
 contract MorphoBlueAdapter is IMorphoBlueAdapter {
@@ -59,10 +57,6 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         return positionInMarket[marketId].shares;
     }
 
-    function realizableLoss(Id marketId) external view returns (uint256) {
-        return positionInMarket[marketId].realizableLoss;
-    }
-
     function setSkimRecipient(address newSkimRecipient) external {
         require(msg.sender == IVaultV2(parentVault).owner(), NotAuthorized());
         skimRecipient = newSkimRecipient;
@@ -93,8 +87,8 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         PositionInMarket storage position = positionInMarket[marketId];
 
         uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, position.shares);
-        position.realizableLoss += uint256(position.assets).zeroFloorSub(newAssetsInMarket);
-        uint256 interest = newAssetsInMarket.zeroFloorSub(position.assets);
+        require(newAssetsInMarket >= position.assets, RealizableLoss());
+        uint256 interest = newAssetsInMarket - position.assets;
         if (assets > 0) {
             (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
             position.shares += uint128(mintedShares);
@@ -119,8 +113,8 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         PositionInMarket storage position = positionInMarket[marketId];
 
         uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, position.shares);
-        position.realizableLoss += uint256(position.assets).zeroFloorSub(newAssetsInMarket);
-        uint256 interest = newAssetsInMarket.zeroFloorSub(position.assets);
+        require(newAssetsInMarket >= position.assets, RealizableLoss());
+        uint256 interest = newAssetsInMarket - position.assets;
         if (assets > 0) {
             (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
             position.shares -= uint128(redeemedShares);
@@ -138,8 +132,8 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         PositionInMarket storage position = positionInMarket[marketId];
 
         uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, position.shares);
-        uint256 loss = position.realizableLoss + uint256(position.assets).zeroFloorSub(newAssetsInMarket);
-        position.realizableLoss = 0;
+        require(newAssetsInMarket < position.assets, NoRealizableLoss());
+        uint256 loss = position.assets - newAssetsInMarket;
         position.assets = uint128(newAssetsInMarket);
 
         return (ids(marketParams), loss);
