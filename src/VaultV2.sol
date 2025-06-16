@@ -94,6 +94,8 @@ contract VaultV2 is IVaultV2 {
 
     uint192 internal _totalAssets;
     /// @dev Total assets at the beginning of the transaction (even before interest accrual).
+    /// @dev If the vault is empty at the beginning of the transaction, it might not be 0, but it is not a problem
+    /// because the vault was empty, and this variable is used to prevent allocation manipulations.
     uint256 public transient firstTotalAssets;
     uint64 public lastUpdate;
     address public vic;
