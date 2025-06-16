@@ -417,20 +417,19 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
+        int256 change = IAdapter(adapter).updateAllocation(data);
+        require(change > 0, ErrorsLib.RealizableLoss());
+
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
-        (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets);
+        bytes32[] memory ids = IAdapter(adapter).allocate(data, assets);
 
-        uint256 lostAssets = updateAllocation(ids, change);
-
+        uint256 realAssets = IERC20(asset).balanceOf(address(this));
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
 
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
-
-            uint256 idleAssets = IERC20(asset).balanceOf(address(this));
             require(
-                _caps.relativeCap == WAD
-                    || _caps.allocation <= (totalAllocation + idleAssets).mulDivDown(_caps.relativeCap, WAD),
+                _caps.relativeCap == WAD || _caps.allocation <= realAssets.mulDivDown(_caps.relativeCap, WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
@@ -447,10 +446,15 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets);
+        int256 change = IAdapter(adapter).updateAllocation(data);
+        require(change > 0, ErrorsLib.RealizableLoss());
+
+        bytes32[] memory ids = IAdapter(adapter).deallocate(data, assets);
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
 
-        uint256 lostAssets = updateAllocation(ids, change);
+        for (uint256 i; i < ids.length; i++) {
+            caps[ids[i]].allocation = caps[ids[i]].allocation.zeroFloorAddInt(change);
+        }
 
         emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, change, lostAssets);
     }
@@ -667,14 +671,24 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf, penaltyAssets);
         return shares;
     }
+
     /// @dev Realize a profit or loss.
     /// @dev Losses provide a shares incentive to the caller.
-
     function realize(address adapter, bytes memory data) external returns (int256, uint256) {
         accrueInterest();
-        (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, 0);
 
-        uint256 lostAssets = updateAllocation(ids, change);
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).updateAllocation(data);
+        require(change < 0, ErrorsLib.NoRealizableLoss());
+
+        for (uint256 i; i < ids.length; i++) {
+            caps[ids[i]].allocation = caps[ids[i]].allocation.zeroFloorAddInt(change);
+        }
+        totalAllocation = totalAllocation.zeroFloorAddInt(change);
+        uint256 realAssets = totalAllocation + IERC20(asset).balanceOf(address(this));
+        if (realAssets < _totalAssets) {
+            _totalAssets -= lossToApply.toUint192();
+            enterBlocked = true;
+        }
 
         uint256 incentiveShares;
         if (lostAssets > 0 && canReceive(msg.sender)) {
@@ -685,24 +699,6 @@ contract VaultV2 is IVaultV2 {
 
         emit EventsLib.Realize(msg.sender, adapter, ids, change, lostAssets, incentiveShares);
         return (change, lostAssets);
-    }
-
-    /// @dev Apply a positive or negative change to the allocation.
-    /// @dev _totalAssets is capped at totalAllocation.
-    /// @dev If _totalAssets must be lowered, enter is blocked until the end of the transaction.
-    function updateAllocation(bytes32[] memory ids, int256 change) internal returns (uint256 lostAssets) {
-        for (uint256 i; i < ids.length; i++) {
-            caps[ids[i]].allocation = caps[ids[i]].allocation.zeroFloorAddInt(change);
-        }
-
-        totalAllocation = totalAllocation.zeroFloorAddInt(change);
-
-        uint256 totalAllocationWithBalance = totalAllocation + IERC20(asset).balanceOf(address(this));
-        if (_totalAssets > totalAllocationWithBalance) {
-            lostAssets = _totalAssets - totalAllocationWithBalance;
-            _totalAssets = uint192(totalAllocationWithBalance);
-            enterBlocked = true;
-        }
     }
 
     /* ERC20 FUNCTIONS */

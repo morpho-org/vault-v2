@@ -72,49 +72,50 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         emit Skim(token, balance);
     }
 
-    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the allocation and the PnL in this allocation.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
+    function updateAllocation(bytes memory data) external returns (bytes32[] memory, int256) {
+        require(msg.sender == IVaultV2(parentVault).owner(), NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Id marketId = marketParams.id();
-        require(msg.sender == parentVault, NotAuthorized());
-        require(marketParams.loanToken == asset, LoanAssetMismatch());
-        require(marketParams.irm == irm, IrmMismatch());
-
-        PositionInMarket storage position = positionInMarket[marketId];
-
-        if (assets > 0) {
-            (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-            position.shares += uint128(mintedShares);
-        }
-
-        uint128 newAssets = uint128(expectedSupplyAssets(marketParams, position.shares));
-        int256 assetsChange = int256(uint256(newAssets)) - int256(uint256(position.assets));
+        PositionInMarket storage position = positionInMarket[marketParams.id()];
+        uint256 newAssets = expectedSupplyAssets(marketParams, position.shares);
+        int256 assetsChange = int256(newAssets) - int256(position.assets);
         position.assets = newAssets;
-
         return (ids(marketParams), assetsChange);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the deallocation and the PnL in this allocation.
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
+    /// @dev Returns the ids of the allocation and the PnL in this allocation.
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
         require(marketParams.irm == irm, IrmMismatch());
 
-        PositionInMarket storage position = positionInMarket[marketId];
+        PositionInMarket storage position = positionInMarket[marketParams.id()];
+        if (assets > 0) {
+            (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+            position.shares += uint128(mintedShares);
+        }
+        position.assets = uint128(expectedSupplyAssets(marketParams, position.shares));
+
+        return ids(marketParams);
+    }
+
+    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
+    /// @dev Returns the ids of the deallocation and the PnL in this allocation.
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+        MarketParams memory marketParams = abi.decode(data, (MarketParams));
+        require(msg.sender == parentVault, NotAuthorized());
+        require(marketParams.loanToken == asset, LoanAssetMismatch());
+        require(marketParams.irm == irm, IrmMismatch());
+
+        PositionInMarket storage position = positionInMarket[marketParams.id()];
         if (assets > 0) {
             (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
             position.shares -= uint128(redeemedShares);
         }
+        position.assets = uint128(expectedSupplyAssets(marketParams, position.shares));
 
-        uint128 newAssets = uint128(expectedSupplyAssets(marketParams, position.shares));
-        int256 assetsChange = int256(uint256(newAssets)) - int256(uint256(position.assets));
-        position.assets = newAssets;
-
-        return (ids(marketParams), assetsChange);
+        return ids(marketParams);
     }
 
     /// @dev Returns adapter's ids.
@@ -137,7 +138,6 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     {
         (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
             MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
-
         return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }
 }

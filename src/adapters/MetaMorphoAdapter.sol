@@ -55,34 +55,37 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         emit Skim(token, balance);
     }
 
-    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the allocation and the PnL in this allocation.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
+    function updateAllocation(bytes memory data) external returns (bytes32[] memory, int256) {
         require(data.length == 0, InvalidData());
-        require(msg.sender == parentVault, NotAuthorized());
-
-        uint256 mintedShares = IERC4626(metaMorpho).deposit(assets, address(this));
-        sharesInMetaMorpho += mintedShares;
+        require(msg.sender == IVaultV2(parentVault).owner(), NotAuthorized());
         uint256 newAssets = IERC4626(metaMorpho).convertToAssets(sharesInMetaMorpho);
         int256 assetsChange = int256(newAssets) - int256(assetsInMetaMorpho);
         assetsInMetaMorpho = newAssets;
-
         return (ids(), assetsChange);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the deallocation and the PnL in this allocation.
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
+    /// @dev Returns the ids of the allocation and the PnL in this allocation.
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 redeemedShares = IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
-        sharesInMetaMorpho -= redeemedShares;
-        uint256 newAssets = IERC4626(metaMorpho).convertToAssets(sharesInMetaMorpho);
-        int256 assetsChange = int256(newAssets) - int256(assetsInMetaMorpho);
-        assetsInMetaMorpho = newAssets;
+        sharesInMetaMorpho += IERC4626(metaMorpho).deposit(assets, address(this));
+        assetsInMetaMorpho = IERC4626(metaMorpho).convertToAssets(sharesInMetaMorpho);
 
-        return (ids(), assetsChange);
+        return ids();
+    }
+
+    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
+    /// @dev Returns the ids of the deallocation and the PnL in this allocation.
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory) {
+        require(data.length == 0, InvalidData());
+        require(msg.sender == parentVault, NotAuthorized());
+
+        sharesInMetaMorpho -= IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
+        assetsInMetaMorpho = IERC4626(metaMorpho).convertToAssets(sharesInMetaMorpho);
+
+        return ids();
     }
 
     /// @dev Returns adapter's ids.

@@ -287,7 +287,7 @@ contract MorphoBlueAdapterTest is Test {
         vm.revertToState(snapshot);
         _overrideMarketTotalSupplyAssets(int256(interest));
         vm.prank(address(parentVault));
-        (ids, change) = adapter.allocate(abi.encode(marketParams), 0);
+        ids = adapter.allocate(abi.encode(marketParams), 0);
         assertEq(ids, expectedIds, "ids: interest");
         assertEq(
             change > 0 ? int256(0) : change,
@@ -374,10 +374,5 @@ contract MorphoBlueAdapterTest is Test {
         // Test internal adapter state
         assertGt(MorphoLib.supplyShares(morpho, marketId, address(adapter)), sharesInMarket, "shares did not increase");
         assertEq(adapter.sharesInMarket(marketId), sharesInMarket, "shares recorded not equal");
-
-        // Test no impact on allocation
-        vm.prank(address(parentVault));
-        (, int256 change) = adapter.allocate(abi.encode(marketParams), deposit);
-        assertEq(change, int256(deposit), "change not 0");
     }
 }
