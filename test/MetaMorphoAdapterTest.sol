@@ -47,7 +47,8 @@ contract MetaMorphoAdapterTest is Test {
         expectedIds[0] = keccak256(abi.encode("adapter", address(adapter)));
     }
 
-    function testParentVaultAndAssetSet() public view {
+    function testFactoryAndParentVaultAndAssetSet() public view {
+        assertEq(adapter.factory(), address(factory), "Incorrect factory set");
         assertEq(adapter.parentVault(), address(parentVault), "Incorrect parent vault set");
         assertEq(adapter.metaMorpho(), address(metaMorpho), "Incorrect metaMorpho vault set");
     }

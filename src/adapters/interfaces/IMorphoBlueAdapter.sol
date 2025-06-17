@@ -18,6 +18,7 @@ interface IMorphoBlueAdapter is IAdapter {
 
     /* FUNCTIONS */
 
+    function factory() external view returns (address);
     function parentVault() external view returns (address);
     function morpho() external view returns (address);
     function irm() external view returns (address);

@@ -18,6 +18,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
     /* IMMUTABLES */
 
+    address public immutable factory;
     address public immutable parentVault;
     address public immutable metaMorpho;
     bytes32 public immutable adapterId;
@@ -30,6 +31,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /* FUNCTIONS */
 
     constructor(address _parentVault, address _metaMorpho) {
+        factory = msg.sender;
         parentVault = _parentVault;
         metaMorpho = _metaMorpho;
         adapterId = keccak256(abi.encode("adapter", address(this)));

@@ -4,6 +4,10 @@ pragma solidity 0.8.28;
 
 import "../../src/libraries/ConstantsLib.sol";
 
+interface IReturnFactory {
+    function factory() external view returns (address);
+}
+
 contract Utils {
     function toBytes4(bytes memory data) public pure returns (bytes4) {
         return bytes4(data);
@@ -31,5 +35,9 @@ contract Utils {
 
     function maxForceDeallocatePenalty() external pure returns (uint256) {
         return MAX_FORCE_DEALLOCATE_PENALTY;
+    }
+
+    function factory(address adapter) external view returns (address) {
+        return IReturnFactory(adapter).factory();
     }
 }

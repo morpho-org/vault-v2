@@ -19,6 +19,7 @@ interface IMetaMorphoAdapter is IAdapter {
 
     /* FUNCTIONS */
 
+    function factory() external view returns (address);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
     function parentVault() external view returns (address);
