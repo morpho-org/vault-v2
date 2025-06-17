@@ -232,20 +232,17 @@ contract VaultV2 is IVaultV2 {
 
     /* TIMELOCKS FOR CURATOR FUNCTIONS */
 
-    function submit(bytes calldata data) external {
-        require(msg.sender == curator, ErrorsLib.Unauthorized());
-        require(executableAt[data] == 0, ErrorsLib.DataAlreadyPending());
-
-        bytes4 selector = bytes4(data);
-        executableAt[data] = block.timestamp + timelock[selector];
-        emit EventsLib.Submit(selector, data, executableAt[data]);
-    }
-
     modifier timelocked() {
-        require(executableAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
-        require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
-        executableAt[msg.data] = 0;
-        _;
+        if (executableAt[msg.data] == 0) {
+            require(msg.sender == curator, ErrorsLib.Unauthorized());
+            bytes4 selector = bytes4(msg.data);
+            executableAt[msg.data] = block.timestamp + timelock[selector];
+            emit EventsLib.Submit(selector, msg.data, executableAt[msg.data]);
+        } else {
+            require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
+            executableAt[msg.data] = 0;
+            _;
+        }
     }
 
     function revoke(bytes calldata data) external {

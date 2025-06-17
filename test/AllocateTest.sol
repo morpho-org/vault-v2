@@ -20,7 +20,7 @@ contract AllocateTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (mockAdapter, true)));
+        vault.setIsAdapter(mockAdapter, true);
         vault.setIsAdapter(mockAdapter, true);
 
         ids = new bytes32[](2);

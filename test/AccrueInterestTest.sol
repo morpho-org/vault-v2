@@ -17,8 +17,8 @@ contract AccrueInterestTest is BaseTest {
         super.setUp();
 
         vm.startPrank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (performanceFeeRecipient)));
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFeeRecipient, (managementFeeRecipient)));
+        vault.setPerformanceFeeRecipient(performanceFeeRecipient);
+        vault.setManagementFeeRecipient(managementFeeRecipient);
         vm.stopPrank();
 
         vault.setPerformanceFeeRecipient(performanceFeeRecipient);
@@ -46,8 +46,8 @@ contract AccrueInterestTest is BaseTest {
         vm.prank(allocator);
         vic.setInterestPerSecondAndDeadline(interestPerSecond, type(uint64).max);
         vm.startPrank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (managementFee)));
+        vault.setPerformanceFee(performanceFee);
+        vault.setManagementFee(managementFee);
         vm.stopPrank();
         vault.setPerformanceFee(performanceFee);
         vault.setManagementFee(managementFee);
@@ -81,8 +81,8 @@ contract AccrueInterestTest is BaseTest {
         // Setup.
         vault.deposit(deposit, address(this));
         vm.startPrank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (managementFee)));
+        vault.setPerformanceFee(performanceFee);
+        vault.setManagementFee(managementFee);
         vm.stopPrank();
         vault.setPerformanceFee(performanceFee);
         vault.setManagementFee(managementFee);
@@ -126,8 +126,8 @@ contract AccrueInterestTest is BaseTest {
         // Setup.
         vault.deposit(deposit, address(this));
         vm.startPrank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (managementFee)));
+        vault.setPerformanceFee(performanceFee);
+        vault.setManagementFee(managementFee);
         vm.stopPrank();
         vault.setPerformanceFee(performanceFee);
         vault.setManagementFee(managementFee);
@@ -158,7 +158,7 @@ contract AccrueInterestTest is BaseTest {
 
         // Setup.
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(0))));
+        vault.setVic(address(0));
         vault.setVic(address(0));
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
@@ -166,7 +166,7 @@ contract AccrueInterestTest is BaseTest {
         vault.accrueInterest();
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(42))));
+        vault.setVic(address(42));
         vault.setVic(address(42));
     }
 
@@ -177,7 +177,7 @@ contract AccrueInterestTest is BaseTest {
 
         // Setup.
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (reverting)));
+        vault.setVic(reverting);
         vault.setVic(reverting);
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
@@ -185,7 +185,7 @@ contract AccrueInterestTest is BaseTest {
         vault.accrueInterest();
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(42))));
+        vault.setVic(address(42));
         vault.setVic(address(42));
     }
 
@@ -204,11 +204,11 @@ contract AccrueInterestTest is BaseTest {
         elapsed = bound(elapsed, 0, 10 * 365 days);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));
+        vault.setPerformanceFee(performanceFee);
         vault.setPerformanceFee(performanceFee);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (managementFee)));
+        vault.setManagementFee(managementFee);
         vault.setManagementFee(managementFee);
 
         vault.deposit(deposit, address(this));

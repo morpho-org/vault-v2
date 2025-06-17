@@ -16,7 +16,7 @@ contract EmptyAdapter is IAdapter {
     }
 }
 
-contract AccrueInterestTest is BaseTest {
+contract AccruingFunctionsTest is BaseTest {
     EmptyAdapter adapter;
 
     function setUp() public override {
@@ -25,11 +25,11 @@ contract AccrueInterestTest is BaseTest {
         adapter = new EmptyAdapter();
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
+        vault.setIsAdapter(address(adapter), true);
         vault.setIsAdapter(address(adapter), true);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(vic))));
+        vault.setVic(address(vic));
         vault.setVic(address(vic));
     }
 
@@ -74,7 +74,7 @@ contract AccrueInterestTest is BaseTest {
     function testSetVicAccruesInterest() public {
         skip(1);
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(vic))));
+        vault.setVic(address(vic));
         vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
         vault.setVic(address(vic));
     }
@@ -82,7 +82,7 @@ contract AccrueInterestTest is BaseTest {
     function testSetPerformanceFeeAccruesInterest() public {
         skip(1);
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (0)));
+        vault.setPerformanceFee(0);
         vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
         vault.setPerformanceFee(0);
     }
@@ -90,7 +90,7 @@ contract AccrueInterestTest is BaseTest {
     function testSetManagementFeeAccruesInterest() public {
         skip(1);
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (0)));
+        vault.setManagementFee(0);
         vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
         vault.setManagementFee(0);
     }
@@ -98,7 +98,7 @@ contract AccrueInterestTest is BaseTest {
     function testSetPerformanceFeeRecipientAccruesInterest() public {
         skip(1);
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (address(0))));
+        vault.setPerformanceFeeRecipient(address(0));
         vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
         vault.setPerformanceFeeRecipient(address(0));
     }
@@ -106,7 +106,7 @@ contract AccrueInterestTest is BaseTest {
     function testSetManagementFeeRecipientAccruesInterest() public {
         skip(1);
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFeeRecipient, (address(0))));
+        vault.setManagementFeeRecipient(address(0));
         vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
         vault.setManagementFeeRecipient(address(0));
     }

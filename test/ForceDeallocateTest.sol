@@ -34,7 +34,7 @@ contract ForceDeallocateTest is BaseTest {
         forceDeallocatePenalty = bound(forceDeallocatePenalty, 0, MAX_FORCE_DEALLOCATE_PENALTY);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (adapter, true)));
+        vault.setIsAdapter(adapter, true);
 
         vault.setIsAdapter(adapter, true);
 
@@ -46,7 +46,7 @@ contract ForceDeallocateTest is BaseTest {
         assertEq(underlyingToken.balanceOf(adapter), supplied);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (adapter, forceDeallocatePenalty)));
+        vault.setForceDeallocatePenalty(adapter, forceDeallocatePenalty);
         vault.setForceDeallocatePenalty(adapter, forceDeallocatePenalty);
 
         uint256 penaltyAssets = deallocated.mulDivUp(forceDeallocatePenalty, WAD);

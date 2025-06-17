@@ -54,8 +54,8 @@ contract BaseTest is Test {
 
         vm.startPrank(curator);
         ManualVic(vic).setMaxInterestPerSecond(type(uint96).max);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAllocator, (allocator, true)));
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(vic))));
+        vault.setIsAllocator(allocator, true);
+        vault.setVic(address(vic));
         vm.stopPrank();
 
         vault.setIsAllocator(allocator, true);
@@ -72,7 +72,7 @@ contract BaseTest is Test {
     function increaseAbsoluteCap(bytes memory idData, uint256 absoluteCap) internal {
         bytes32 id = keccak256(idData);
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, absoluteCap)));
+        vault.increaseAbsoluteCap(idData, absoluteCap);
         vault.increaseAbsoluteCap(idData, absoluteCap);
         assertEq(vault.absoluteCap(id), absoluteCap);
     }
@@ -80,7 +80,7 @@ contract BaseTest is Test {
     function increaseRelativeCap(bytes memory idData, uint256 relativeCap) internal {
         bytes32 id = keccak256(idData);
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, relativeCap));
+        vault.increaseRelativeCap(idData, relativeCap);
         vault.increaseRelativeCap(idData, relativeCap);
         assertEq(vault.relativeCap(id), relativeCap);
     }

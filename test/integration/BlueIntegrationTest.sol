@@ -90,7 +90,7 @@ contract BlueIntegrationTest is BaseTest {
         );
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
+        vault.setIsAdapter(address(adapter), true);
         vault.setIsAdapter(address(adapter), true);
 
         increaseAbsoluteAndRelativeCapToMax(expectedIdData1[0]);
@@ -105,8 +105,8 @@ contract BlueIntegrationTest is BaseTest {
 
     function increaseAbsoluteAndRelativeCapToMax(bytes memory idData) internal {
         vm.startPrank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
-        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, WAD)));
+        vault.increaseAbsoluteCap(idData, type(uint128).max);
+        vault.increaseRelativeCap(idData, WAD);
         vm.stopPrank();
 
         vault.increaseAbsoluteCap(idData, type(uint128).max);

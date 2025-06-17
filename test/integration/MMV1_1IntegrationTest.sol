@@ -121,9 +121,9 @@ contract MMV1_1IntegrationTest is BaseTest {
 
         bytes memory idData = abi.encode("adapter", address(metaMorphoAdapter));
         vm.startPrank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(metaMorphoAdapter), true)));
-        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
-        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
+        vault.setIsAdapter(address(metaMorphoAdapter), true);
+        vault.increaseAbsoluteCap(idData, type(uint128).max);
+        vault.increaseRelativeCap(idData, 1e18);
         vm.stopPrank();
 
         vault.setIsAdapter(address(metaMorphoAdapter), true);

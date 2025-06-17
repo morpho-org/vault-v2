@@ -55,7 +55,6 @@ interface IVaultV2 is IERC4626, IPermissionedToken {
     function setSymbol(string memory newSymbol) external;
 
     // Timelocks for curator functions
-    function submit(bytes memory data) external;
     function revoke(bytes memory data) external;
 
     // Curator functions

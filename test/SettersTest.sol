@@ -3,8 +3,11 @@
 pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
+import "../lib/forge-std/src/StdStorage.sol";
 
 contract SettersTest is BaseTest {
+    using stdStorage for StdStorage;
+
     function setUp() public override {
         super.setUp();
 
@@ -112,26 +115,12 @@ contract SettersTest is BaseTest {
 
     /* CURATOR SETTERS */
 
-    function testSubmit(bytes memory data, address rdm) public {
-        vm.assume(rdm != curator);
-
-        // Only curator can submit
-        vm.assume(rdm != curator);
-        vm.expectRevert(ErrorsLib.Unauthorized.selector);
-        vm.prank(rdm);
-        vault.submit(data);
-
-        // Normal path
+    function expectSubmit(bytes memory data) internal {
         vm.expectEmit();
         emit EventsLib.Submit(bytes4(data), data, block.timestamp + vault.timelock(bytes4(data)));
         vm.prank(curator);
-        vault.submit(data);
-        assertEq(vault.executableAt(data), block.timestamp + vault.timelock(bytes4(data)));
 
-        // Data already pending
-        vm.expectRevert(ErrorsLib.DataAlreadyPending.selector);
-        vm.prank(curator);
-        vault.submit(data);
+        assertEq(vault.executableAt(data), block.timestamp + vault.timelock(bytes4(data)));
     }
 
     function testRevoke(bytes memory data, address rdm) public {
@@ -145,7 +134,7 @@ contract SettersTest is BaseTest {
 
         // Setup
         vm.prank(curator);
-        vault.submit(data);
+        stdstore.target(address(vault)).sig(IVaultV2.executableAt.selector).with_key(keccak256(data)).checked_write(1);
 
         // Access control
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
@@ -176,7 +165,7 @@ contract SettersTest is BaseTest {
         assertEq(vault.timelock(IVaultV2.setVic.selector), timelock);
         bytes memory data = abi.encodeCall(IVaultV2.setVic, address(1));
         vm.prank(curator);
-        vault.submit(data);
+        // vault.submit(data);
         assertEq(vault.executableAt(data), block.timestamp + timelock);
 
         // Timelock didn't pass.
@@ -203,7 +192,7 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAllocator, (newAllocator, true)));
+        vault.setIsAllocator(newAllocator, true);
         vm.expectEmit();
         emit EventsLib.SetIsAllocator(newAllocator, true);
         vault.setIsAllocator(newAllocator, true);
@@ -211,7 +200,7 @@ contract SettersTest is BaseTest {
 
         // Removal
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAllocator, (newAllocator, false)));
+        vault.setIsAllocator(newAllocator, false);
         vm.expectEmit();
         emit EventsLib.SetIsAllocator(newAllocator, false);
         vault.setIsAllocator(newAllocator, false);
@@ -229,7 +218,7 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (newVic)));
+        vault.setVic(newVic);
         skip(elapsed);
         vm.expectEmit();
         emit EventsLib.SetVic(newVic);
@@ -249,7 +238,7 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (newAdapter, true)));
+        vault.setIsAdapter(newAdapter, true);
         vm.expectEmit();
         emit EventsLib.SetIsAdapter(newAdapter, true);
         vault.setIsAdapter(newAdapter, true);
@@ -257,7 +246,7 @@ contract SettersTest is BaseTest {
 
         // Removal
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (newAdapter, false)));
+        vault.setIsAdapter(newAdapter, false);
         vm.expectEmit();
         emit EventsLib.SetIsAdapter(newAdapter, false);
         vault.setIsAdapter(newAdapter, false);
@@ -305,7 +294,7 @@ contract SettersTest is BaseTest {
 
         // Can abdicate submit
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.abdicateSubmit.selector, selector));
+        vault.abdicateSubmit(selector);
         vm.expectEmit();
         emit EventsLib.AbdicateSubmit(selector);
         vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
@@ -317,10 +306,10 @@ contract SettersTest is BaseTest {
         if (selector == IVaultV2.decreaseTimelock.selector) {
             vm.expectRevert(stdError.arithmeticError);
             vm.prank(curator);
-            vault.submit(abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, selector, 1 weeks));
+            vault.decreaseTimelock(selector, 1 weeks);
         } else {
             vm.prank(curator);
-            vault.submit(abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, selector, 1 weeks));
+            vault.decreaseTimelock(selector, 1 weeks);
             vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
             vm.expectRevert(ErrorsLib.InfiniteTimelock.selector);
             vault.decreaseTimelock(selector, 1 weeks);
@@ -347,14 +336,14 @@ contract SettersTest is BaseTest {
 
         // Can't increase timelock with decreaseTimelock
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, oldTimelock + 1)));
+        vault.decreaseTimelock(selector, oldTimelock + 1);
         vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
         vm.expectRevert(ErrorsLib.TimelockNotDecreasing.selector);
         vault.decreaseTimelock(selector, oldTimelock + 1);
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, newTimelock)));
+        vault.decreaseTimelock(selector, newTimelock);
         vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
         vm.expectEmit();
         emit EventsLib.DecreaseTimelock(selector, newTimelock);
@@ -363,7 +352,7 @@ contract SettersTest is BaseTest {
 
         // Cannot decrease decreaseTimelock's timelock
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (IVaultV2.decreaseTimelock.selector, 1 weeks)));
+        vault.decreaseTimelock(IVaultV2.decreaseTimelock.selector, 1 weeks);
         vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
         vm.expectRevert(ErrorsLib.TimelockCapIsFixed.selector);
         vault.decreaseTimelock(IVaultV2.decreaseTimelock.selector, 1 weeks);
@@ -380,25 +369,25 @@ contract SettersTest is BaseTest {
 
         // No op works
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (0)));
+        vault.setPerformanceFee(0);
         vault.setPerformanceFee(0);
 
         // Can't go over fee cap
         uint256 tooHighFee = 1 ether + 1;
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (tooHighFee)));
+        vault.setPerformanceFee(tooHighFee);
         vm.expectRevert(ErrorsLib.FeeTooHigh.selector);
         vault.setPerformanceFee(tooHighFee);
 
         // Fee invariant
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (newPerformanceFee)));
+        vault.setPerformanceFee(newPerformanceFee);
         vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
         vault.setPerformanceFee(newPerformanceFee);
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (makeAddr("newPerformanceFeeRecipient"))));
+        vault.setPerformanceFeeRecipient(makeAddr("newPerformanceFeeRecipient"));
         vault.setPerformanceFeeRecipient(makeAddr("newPerformanceFeeRecipient"));
         vm.expectEmit();
         emit EventsLib.SetPerformanceFee(newPerformanceFee);
@@ -417,25 +406,25 @@ contract SettersTest is BaseTest {
 
         // No op works
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (0)));
+        vault.setManagementFee(0);
         vault.setManagementFee(0);
 
         // Can't go over fee cap
         uint256 tooHighFee = 1 ether + 1;
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (tooHighFee)));
+        vault.setManagementFee(tooHighFee);
         vm.expectRevert(ErrorsLib.FeeTooHigh.selector);
         vault.setManagementFee(tooHighFee);
 
         // Fee invariant
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (newManagementFee)));
+        vault.setManagementFee(newManagementFee);
         vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
         vault.setManagementFee(newManagementFee);
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFeeRecipient, (makeAddr("newManagementFeeRecipient"))));
+        vault.setManagementFeeRecipient(makeAddr("newManagementFeeRecipient"));
         vault.setManagementFeeRecipient(makeAddr("newManagementFeeRecipient"));
         vm.expectEmit();
         emit EventsLib.SetManagementFee(newManagementFee);
@@ -447,11 +436,11 @@ contract SettersTest is BaseTest {
         newManagementFee = bound(newManagementFee, 1, MAX_MANAGEMENT_FEE);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFeeRecipient, (makeAddr("newManagementFeeRecipient"))));
+        vault.setManagementFeeRecipient(makeAddr("newManagementFeeRecipient"));
         vault.setManagementFeeRecipient(makeAddr("newManagementFeeRecipient"));
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (newManagementFee)));
+        vault.setManagementFee(newManagementFee);
         skip(elapsed);
         vault.setManagementFee(newManagementFee);
         assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
@@ -459,7 +448,7 @@ contract SettersTest is BaseTest {
 
     function testSetManagementFeeRecipientLastUpdateRefresh(address newRecipient, uint48 elapsed) public {
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFeeRecipient, (newRecipient)));
+        vault.setManagementFeeRecipient(newRecipient);
         skip(elapsed);
         vault.setManagementFeeRecipient(newRecipient);
         assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
@@ -469,11 +458,11 @@ contract SettersTest is BaseTest {
         newPerformanceFee = bound(newPerformanceFee, 1, MAX_PERFORMANCE_FEE);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (makeAddr("newPerformanceFeeRecipient"))));
+        vault.setPerformanceFeeRecipient(makeAddr("newPerformanceFeeRecipient"));
         vault.setPerformanceFeeRecipient(makeAddr("newPerformanceFeeRecipient"));
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (newPerformanceFee)));
+        vault.setPerformanceFee(newPerformanceFee);
         skip(elapsed);
         vault.setPerformanceFee(newPerformanceFee);
         assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
@@ -481,7 +470,7 @@ contract SettersTest is BaseTest {
 
     function testSetPerformanceFeeRecipientLastUpdateRefresh(address newRecipient, uint48 elapsed) public {
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (newRecipient)));
+        vault.setPerformanceFeeRecipient(newRecipient);
         skip(elapsed);
         vault.setPerformanceFeeRecipient(newRecipient);
         assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
@@ -498,7 +487,7 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (newPerformanceFeeRecipient)));
+        vault.setPerformanceFeeRecipient(newPerformanceFeeRecipient);
         vm.expectEmit();
         emit EventsLib.SetPerformanceFeeRecipient(newPerformanceFeeRecipient);
         vault.setPerformanceFeeRecipient(newPerformanceFeeRecipient);
@@ -507,10 +496,10 @@ contract SettersTest is BaseTest {
         // Fee invariant
         uint256 newPerformanceFee = 0.05 ether;
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (newPerformanceFee)));
+        vault.setPerformanceFee(newPerformanceFee);
         vault.setPerformanceFee(newPerformanceFee);
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (address(0))));
+        vault.setPerformanceFeeRecipient(address(0));
         vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
         vault.setPerformanceFeeRecipient(address(0));
     }
@@ -526,7 +515,7 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFeeRecipient, (newManagementFeeRecipient)));
+        vault.setManagementFeeRecipient(newManagementFeeRecipient);
         vm.expectEmit();
         emit EventsLib.SetManagementFeeRecipient(newManagementFeeRecipient);
         vault.setManagementFeeRecipient(newManagementFeeRecipient);
@@ -535,10 +524,10 @@ contract SettersTest is BaseTest {
         // Fee invariant
         uint256 newManagementFee = 0.01 ether / uint256(365 days);
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (newManagementFee)));
+        vault.setManagementFee(newManagementFee);
         vault.setManagementFee(newManagementFee);
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFeeRecipient, (address(0))));
+        vault.setManagementFeeRecipient(address(0));
         vm.expectRevert(ErrorsLib.FeeInvariantBroken.selector);
         vault.setManagementFeeRecipient(address(0));
     }
@@ -555,7 +544,7 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, newAbsoluteCap)));
+        vault.increaseAbsoluteCap(idData, newAbsoluteCap);
         vm.expectEmit();
         emit EventsLib.IncreaseAbsoluteCap(id, idData, newAbsoluteCap);
         vault.increaseAbsoluteCap(idData, newAbsoluteCap);
@@ -564,7 +553,7 @@ contract SettersTest is BaseTest {
         // Can't decrease absolute cap
         if (newAbsoluteCap > 0) {
             vm.prank(curator);
-            vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, newAbsoluteCap - 1)));
+            vault.increaseAbsoluteCap(idData, newAbsoluteCap - 1);
             vm.expectRevert(ErrorsLib.AbsoluteCapNotIncreasing.selector);
             vault.increaseAbsoluteCap(idData, newAbsoluteCap - 1);
         }
@@ -573,7 +562,7 @@ contract SettersTest is BaseTest {
     function testIncreaseAbsoluteCapOverflow(bytes memory idData, uint256 newAbsoluteCap) public {
         newAbsoluteCap = bound(newAbsoluteCap, uint256(type(uint128).max) + 1, type(uint256).max);
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, newAbsoluteCap)));
+        vault.increaseAbsoluteCap(idData, newAbsoluteCap);
         vm.expectRevert(ErrorsLib.CastOverflow.selector);
         vault.increaseAbsoluteCap(idData, newAbsoluteCap);
     }
@@ -589,7 +578,7 @@ contract SettersTest is BaseTest {
         bytes32 id = keccak256(idData);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, oldAbsoluteCap)));
+        vault.increaseAbsoluteCap(idData, oldAbsoluteCap);
         vault.increaseAbsoluteCap(idData, oldAbsoluteCap);
 
         // Access control
@@ -618,7 +607,7 @@ contract SettersTest is BaseTest {
         bytes32 id = keccak256(idData);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, oldRelativeCap)));
+        vault.increaseRelativeCap(idData, oldRelativeCap);
         vault.increaseRelativeCap(idData, oldRelativeCap);
 
         // Nobody can set directly
@@ -628,13 +617,13 @@ contract SettersTest is BaseTest {
 
         // Can't increase relative cap above 1
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, WAD + 1)));
+        vault.increaseRelativeCap(idData, WAD + 1);
         vm.expectRevert(ErrorsLib.RelativeCapAboveOne.selector);
         vault.increaseRelativeCap(idData, WAD + 1);
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, newRelativeCap)));
+        vault.increaseRelativeCap(idData, newRelativeCap);
         vm.expectEmit();
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
         vault.increaseRelativeCap(idData, newRelativeCap);
@@ -643,7 +632,7 @@ contract SettersTest is BaseTest {
         // Can't decrease relative cap
         if (newRelativeCap < WAD) {
             vm.prank(curator);
-            vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, newRelativeCap - 1)));
+            vault.increaseRelativeCap(idData, newRelativeCap - 1);
             vm.expectRevert(ErrorsLib.RelativeCapNotIncreasing.selector);
             vault.increaseRelativeCap(idData, newRelativeCap - 1);
         }
@@ -662,7 +651,7 @@ contract SettersTest is BaseTest {
         newRelativeCap = bound(newRelativeCap, 0, oldRelativeCap);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, oldRelativeCap)));
+        vault.increaseRelativeCap(idData, oldRelativeCap);
         vault.increaseRelativeCap(idData, oldRelativeCap);
 
         // Access control
@@ -690,7 +679,7 @@ contract SettersTest is BaseTest {
         // Setup.
         address adapter = makeAddr("adapter");
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (adapter, true)));
+        vault.setIsAdapter(adapter, true);
         vault.setIsAdapter(adapter, true);
 
         // Nobody can set directly
@@ -699,7 +688,7 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (adapter, newForceDeallocatePenalty)));
+        vault.setForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
         vm.expectEmit();
         emit EventsLib.SetForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
         vault.setForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
@@ -708,7 +697,7 @@ contract SettersTest is BaseTest {
         // Can't set fee above cap
         uint256 tooHighPenalty = MAX_FORCE_DEALLOCATE_PENALTY + 1;
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (adapter, tooHighPenalty)));
+        vault.setForceDeallocatePenalty(adapter, tooHighPenalty);
         vm.expectRevert(ErrorsLib.PenaltyTooHigh.selector);
         vault.setForceDeallocatePenalty(adapter, tooHighPenalty);
     }
@@ -724,7 +713,7 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setSharesGate.selector, newSharesGate));
+        vault.setSharesGate(newSharesGate);
         vm.expectEmit();
         emit EventsLib.SetSharesGate(newSharesGate);
         vault.setSharesGate(newSharesGate);
@@ -742,7 +731,7 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setReceiveAssetsGate.selector, newReceiveAssetsGate));
+        vault.setReceiveAssetsGate(newReceiveAssetsGate);
         vm.expectEmit();
         emit EventsLib.SetReceiveAssetsGate(newReceiveAssetsGate);
         vault.setReceiveAssetsGate(newReceiveAssetsGate);
@@ -760,7 +749,7 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setSendAssetsGate.selector, newSendAssetsGate));
+        vault.setSendAssetsGate(newSendAssetsGate);
         vm.expectEmit();
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
         vault.setSendAssetsGate(newSendAssetsGate);
@@ -781,7 +770,7 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (liquidityAdapter, true)));
+        vault.setIsAdapter(liquidityAdapter, true);
         vault.setIsAdapter(liquidityAdapter, true);
         vm.prank(allocator);
         vm.expectEmit();

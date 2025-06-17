@@ -24,13 +24,13 @@ contract GatingTest is BaseTest {
 
     function setGate() internal {
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setSharesGate, (gate)));
+        vault.setSharesGate(gate);
         vault.setSharesGate(gate);
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setReceiveAssetsGate, (gate)));
+        vault.setReceiveAssetsGate(gate);
         vault.setReceiveAssetsGate(gate);
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setSendAssetsGate, (gate)));
+        vault.setSendAssetsGate(gate);
         vault.setSendAssetsGate(gate);
     }
 

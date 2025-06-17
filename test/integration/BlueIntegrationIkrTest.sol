@@ -21,7 +21,7 @@ contract BlueIntegrationIkrTest is BlueIntegrationTest {
         super.setUp();
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(adapter), penalty)));
+        vault.setForceDeallocatePenalty(address(adapter), penalty);
         vault.setForceDeallocatePenalty(address(adapter), penalty);
     }
 

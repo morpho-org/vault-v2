@@ -23,7 +23,7 @@ contract MMV1_1IntegrationIkrTest is MMV1_1IntegrationTest {
         setSupplyQueueAllMarkets();
 
         vm.startPrank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(metaMorphoAdapter), penalty)));
+        vault.setForceDeallocatePenalty(address(metaMorphoAdapter), penalty);
         vault.setForceDeallocatePenalty(address(metaMorphoAdapter), penalty);
         vm.stopPrank();
     }
