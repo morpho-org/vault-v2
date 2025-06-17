@@ -686,6 +686,7 @@ contract VaultV2 is IVaultV2 {
         return shares;
     }
 
+    /// @dev Returns the minted incentive shares.
     function realizeLoss(address adapter, bytes memory data) external returns (uint256) {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 

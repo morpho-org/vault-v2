@@ -3,15 +3,6 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
-contract Adapter is IAdapter {
-    constructor(address _underlyingToken, address _vault) {
-        IERC20(_underlyingToken).approve(_vault, type(uint256).max);
-    }
-
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids, int256 change) {}
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids, int256 change) {}
-}
-
 contract ForceDeallocateTest is BaseTest {
     using MathLib for uint256;
 
@@ -21,10 +12,15 @@ contract ForceDeallocateTest is BaseTest {
     function setUp() public override {
         super.setUp();
 
-        adapter = address(new Adapter(address(underlyingToken), address(vault)));
+        adapter = address(new AdapterMock(address(vault)));
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
+
+        increaseAbsoluteCap("id-0", type(uint128).max);
+        increaseAbsoluteCap("id-1", type(uint128).max);
+        increaseRelativeCap("id-0", WAD);
+        increaseRelativeCap("id-1", WAD);
     }
 
     function testForceDeallocate(uint256 supplied, uint256 deallocated, uint256 forceDeallocatePenalty) public {

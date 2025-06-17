@@ -151,13 +151,13 @@ contract MorphoBlueAdapterTest is Test {
         vm.prank(address(parentVault));
         (bytes32[] memory ids, int256 change) = adapter.deallocate(abi.encode(marketParams), withdrawAssets);
 
-        assertEq(uint256(change), withdrawAssets, "Incorrect change");
         assertEq(adapter.assetsInMarket(marketId), initialAssets - withdrawAssets, "Incorrect assetsInMarket");
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
         assertEq(loanToken.balanceOf(address(adapter)), withdrawAssets, "Adapter did not receive withdrawn tokens");
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
         assertEq(ids, expectedIds, "Incorrect ids returned");
+        assertEq(uint256(-change), withdrawAssets, "Incorrect change");
     }
 
     function testFactoryCreateMorphoBlueAdapter() public {
@@ -225,18 +225,10 @@ contract MorphoBlueAdapterTest is Test {
         adapter.skim(address(token));
     }
 
-    function testLossRealization(
-        uint256 initial,
-        uint256 expectedLoss,
-        uint256 deposit,
-        uint256 withdraw,
-        uint256 _interest
-    ) public {
+    function testLossRealization(uint256 initial, uint256 expectedLoss, uint256 interest) public {
         initial = _boundAssets(initial);
         expectedLoss = bound(expectedLoss, 0, initial / 2);
-        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
-        withdraw = bound(withdraw, 0, initial - expectedLoss);
-        _interest = bound(_interest, 0, initial);
+        interest = bound(interest, 0, initial);
 
         // Setup
         deal(address(loanToken), address(adapter), initial);
@@ -250,20 +242,9 @@ contract MorphoBlueAdapterTest is Test {
         // Realize loss
         uint256 snapshot = vm.snapshotState();
         vm.prank(address(parentVault));
-        if (expectedLoss > 0) {
-            (ids, change) = adapter.deallocate(abi.encode(marketParams), 0);
-            assertEq(ids, expectedIds, "ids: realizeLoss");
-            assertEq(uint256(-change), expectedLoss, "loss: realizeLoss");
-        } else {
-            (ids, change) = adapter.deallocate(abi.encode(marketParams), 0);
-            assertEq(ids, expectedIds, "ids: interest");
-            assertEq(uint256(change), expectedLoss - _interest, "interest: interest");
-            assertEq(
-                adapter.assetsInMarket(marketId),
-                morpho.expectedSupplyAssets(marketParams, address(adapter)),
-                "assetsInMarket: interest"
-            );
-        }
+        (ids, change) = adapter.deallocate(abi.encode(marketParams), 0);
+        assertEq(ids, expectedIds, "ids: realizeLoss");
+        assertEq(uint256(-change), expectedLoss, "loss: realizeLoss");
         assertEq(
             adapter.assetsInMarket(marketId),
             morpho.expectedSupplyAssets(marketParams, address(adapter)),
@@ -283,27 +264,16 @@ contract MorphoBlueAdapterTest is Test {
 
         // Interest covers the loss.
         vm.revertToState(snapshot);
-        _overrideMarketTotalSupplyAssets(int256(_interest));
+        _overrideMarketTotalSupplyAssets(int256(interest));
         vm.prank(address(parentVault));
-        if (_interest >= expectedLoss) {
-            (ids, change) = adapter.deallocate(abi.encode(marketParams), 0);
-            assertEq(ids, expectedIds, "ids: interest");
-            assertEq(uint256(change), expectedLoss - _interest, "interest: interest");
-            assertEq(
-                adapter.assetsInMarket(marketId),
-                morpho.expectedSupplyAssets(marketParams, address(adapter)),
-                "assetsInMarket: interest"
-            );
-        } else {
-            (ids, change) = adapter.deallocate(abi.encode(marketParams), 0);
-            assertEq(ids, expectedIds, "ids: interest");
-            assertEq(uint256(-change), expectedLoss - _interest, "interest: interest");
-            assertEq(
-                adapter.assetsInMarket(marketId),
-                morpho.expectedSupplyAssets(marketParams, address(adapter)),
-                "assetsInMarket: interest"
-            );
-        }
+        (ids, change) = adapter.deallocate(abi.encode(marketParams), 0);
+        assertEq(ids, expectedIds, "ids: interest");
+        assertApproxEqAbs(change, int256(interest) - int256(expectedLoss), 1, "interest: interest");
+        assertEq(
+            adapter.assetsInMarket(marketId),
+            morpho.expectedSupplyAssets(marketParams, address(adapter)),
+            "assetsInMarket: interest"
+        );
     }
 
     function testWrongIrm(address randomIrm) public {
