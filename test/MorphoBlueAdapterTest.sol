@@ -128,13 +128,13 @@ contract MorphoBlueAdapterTest is Test {
         deal(address(loanToken), address(adapter), assets);
 
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, int256 interest) = adapter.allocate(abi.encode(marketParams), assets);
+        (bytes32[] memory ids, int256 change) = adapter.allocate(abi.encode(marketParams), assets);
 
         assertEq(adapter.assetsInMarket(marketId), assets, "Incorrect assetsInMarket");
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), assets, "Incorrect assets in Morpho");
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
         assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(interest, 0, "Interest should be zero");
+        assertEq(uint256(change), assets, "Incorrect change");
     }
 
     function testDeallocate(uint256 initialAssets, uint256 withdrawAssets) public {
@@ -149,9 +149,9 @@ contract MorphoBlueAdapterTest is Test {
         assertEq(beforeSupply, initialAssets, "Precondition failed: supply not set");
 
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, int256 interest) = adapter.deallocate(abi.encode(marketParams), withdrawAssets);
+        (bytes32[] memory ids, int256 change) = adapter.deallocate(abi.encode(marketParams), withdrawAssets);
 
-        assertEq(interest, 0, "Interest should be zero");
+        assertEq(uint256(change), withdrawAssets, "Incorrect change");
         assertEq(adapter.assetsInMarket(marketId), initialAssets - withdrawAssets, "Incorrect assetsInMarket");
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");

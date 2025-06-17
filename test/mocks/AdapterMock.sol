@@ -22,13 +22,13 @@ contract AdapterMock is IAdapter {
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         recordedAllocateData = data;
         recordedAllocateAssets = assets;
-        return (ids(), 0);
+        return (ids(), int256(assets));
     }
 
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         recordedDeallocateData = data;
         recordedDeallocateAssets = assets;
-        return (ids(), 0);
+        return (ids(), -int256(assets));
     }
 
     function ids() internal pure returns (bytes32[] memory) {

@@ -71,7 +71,7 @@ contract MetaMorphoAdapterTest is Test {
         deal(address(asset), address(adapter), assets);
 
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, int256 interest) = adapter.allocate(hex"", assets);
+        (bytes32[] memory ids, int256 change) = adapter.allocate(hex"", assets);
 
         assertEq(adapter.assetsInMetaMorpho(), assets, "incorrect assetsInMetaMorpho");
         uint256 adapterShares = metaMorpho.balanceOf(address(adapter));
@@ -79,7 +79,7 @@ contract MetaMorphoAdapterTest is Test {
         assertEq(adapterShares, assets, "Incorrect share balance after deposit");
         assertEq(asset.balanceOf(address(adapter)), 0, "Underlying tokens not transferred to vault");
         assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(interest, 0, "Incorrect interest returned");
+        assertEq(uint256(change), assets, "Incorrect change");
     }
 
     function testDeallocate(uint256 initialAssets, uint256 withdrawAssets) public {
@@ -95,7 +95,7 @@ contract MetaMorphoAdapterTest is Test {
         assertEq(beforeShares, initialAssets, "Precondition failed: shares not set");
 
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, int256 interest) = adapter.deallocate(hex"", withdrawAssets);
+        (bytes32[] memory ids, int256 change) = adapter.deallocate(hex"", withdrawAssets);
 
         assertEq(adapter.assetsInMetaMorpho(), initialAssets - withdrawAssets, "incorrect assetsInMetaMorpho");
         uint256 afterShares = metaMorpho.balanceOf(address(adapter));
@@ -104,7 +104,7 @@ contract MetaMorphoAdapterTest is Test {
         uint256 adapterBalance = asset.balanceOf(address(adapter));
         assertEq(adapterBalance, withdrawAssets, "Adapter did not receive withdrawn tokens");
         assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(interest, 0, "Incorrect interest returned");
+        assertEq(uint256(change), withdrawAssets, "Incorrect change");
     }
 
     function testFactoryCreateAdapter() public {

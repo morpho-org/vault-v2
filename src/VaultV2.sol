@@ -447,7 +447,7 @@ contract VaultV2 is IVaultV2 {
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets);
 
         // Realize loss.
-        if (change < int256(assets)) {
+        if (change < -int256(assets)) {
             uint256 loss = assets.zeroFloorSubInt(change);
             _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
             enterBlocked = true;
