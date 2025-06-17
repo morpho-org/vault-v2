@@ -26,64 +26,64 @@ contract MathLibTest is Test {
         assertEq(MathLib.zeroFloorSub(x, y), x < y ? 0 : x - y);
     }
 
+    /// forge-config: default.allow_internal_expect_revert = true
     function testZeroFloorAddInt(uint256 x, int256 y) public {
-        if (x > uint256(type(int256).max)) {
-            vm.expectRevert(ErrorsLib.CastOverflow.selector);
-            this.zeroFloorAddInt(x, y);
-        } else if (y == type(int256).min) {
-            vm.expectRevert(ErrorsLib.CastOverflow.selector);
-            this.zeroFloorAddInt(x, y);
-        } else if (y > 0 && x > uint256(type(int256).max) - uint256(y)) {
-            vm.expectRevert(stdError.arithmeticError);
-            this.zeroFloorAddInt(x, y);
+        if (y < 0) {
+            assertEq(MathLib.zeroFloorAddInt(x, y), x < abs(y) ? 0 : x - abs(y), "down");
         } else {
-            assertEq(MathLib.zeroFloorAddInt(x, y), int256(x) >= -y ? uint256(int256(x) + y) : 0);
+            uint256 z;
+            unchecked {
+                z = x + uint256(y);
+            }
+            if (z < x) {
+                vm.expectRevert();
+                MathLib.zeroFloorAddInt(x, y);
+            } else {
+                assertEq(z, MathLib.zeroFloorAddInt(x, y), "up");
+            }
         }
     }
 
+    /// forge-config: default.allow_internal_expect_revert = true
     function testZeroFloorSubInt(uint256 x, int256 y) public {
         if (x > uint256(type(int256).max)) {
             vm.expectRevert(ErrorsLib.CastOverflow.selector);
-            this.zeroFloorSubInt(x, y);
+            MathLib.zeroFloorSubInt(x, y);
         } else if (y < 0 && int256(x) > type(int256).max + y) {
             vm.expectRevert(stdError.arithmeticError);
-            this.zeroFloorSubInt(x, y);
+            MathLib.zeroFloorSubInt(x, y);
         } else {
             assertEq(MathLib.zeroFloorSubInt(x, y), int256(x) >= y ? uint256(int256(x) - y) : 0);
         }
     }
 
+    /// forge-config: default.allow_internal_expect_revert = true
     function testToUint192(uint256 x) public {
         if (x > type(uint192).max) {
             vm.expectRevert(ErrorsLib.CastOverflow.selector);
-            this.toUint192(x);
+            MathLib.toUint192(x);
         } else {
-            assertEq(this.toUint192(x), uint192(x));
+            assertEq(MathLib.toUint192(x), uint192(x));
         }
     }
 
+    /// forge-config: default.allow_internal_expect_revert = true
     function testToUint128(uint256 x) public {
         if (x > type(uint128).max) {
             vm.expectRevert(ErrorsLib.CastOverflow.selector);
-            this.toUint128(x);
+            MathLib.toUint128(x);
         } else {
-            assertEq(this.toUint128(x), uint128(x));
+            assertEq(MathLib.toUint128(x), uint128(x));
         }
     }
 
-    function toUint192(uint256 x) external pure returns (uint192) {
-        return MathLib.toUint192(x);
-    }
+    /* INTERNAL FUNCTIONS */
 
-    function toUint128(uint256 x) external pure returns (uint128) {
-        return MathLib.toUint128(x);
-    }
-
-    function zeroFloorAddInt(uint256 x, int256 y) external pure returns (uint256) {
-        return MathLib.zeroFloorAddInt(x, y);
-    }
-
-    function zeroFloorSubInt(uint256 x, int256 y) external pure returns (uint256) {
-        return MathLib.zeroFloorSubInt(x, y);
+    /// From solady
+    /// @dev Returns the absolute value of `x`.
+    function abs(int256 x) internal pure returns (uint256 z) {
+        unchecked {
+            z = (uint256(x) + uint256(x >> 255)) ^ uint256(x >> 255);
+        }
     }
 }

@@ -22,10 +22,15 @@ library MathLib {
     }
 
     /// @dev Returns max(0, x + y).
-    function zeroFloorAddInt(uint256 x, int256 y) internal pure returns (uint256) {
-        require(x <= uint256(type(int256).max), ErrorsLib.CastOverflow());
-        require(y > type(int256).min, ErrorsLib.CastOverflow());
-        return int256(x) >= -y ? uint256(int256(x) + y) : 0;
+    function zeroFloorAddInt(uint256 x, int256 y) internal pure returns (uint256 z) {
+        if (y < 0) {
+            assembly {
+                let sum := add(x, y)
+                z := mul(lt(sum, x), sum)
+            }
+        } else {
+            z = x + uint256(y);
+        }
     }
 
     /// @dev Returns max(0, x - y).

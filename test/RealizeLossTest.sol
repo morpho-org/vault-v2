@@ -65,15 +65,18 @@ contract RealizeLossTest is BaseTest {
         if (expectedLoss > 0) assertTrue(vault.enterBlocked(), "enter should be blocked");
     }
 
-    function testRealizeLossThroughDeallocate(uint256 deposit, uint256 expectedLoss) public {
+    function testRealizeLossThroughDeallocate(uint256 deposit, uint256 expectedLoss, uint256 deallocated) public {
         deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 0, deposit);
+        deallocated = bound(deallocated, 0, deposit - expectedLoss);
 
         vault.deposit(deposit, address(this));
         adapter.setLoss(expectedLoss);
 
+        deal(address(underlyingToken), address(adapter), MAX_TEST_AMOUNT);
+
         vm.prank(allocator);
-        vault.deallocate(address(adapter), hex"", 0);
+        vault.deallocate(address(adapter), hex"", deallocated);
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
         if (expectedLoss > 0) assertTrue(vault.enterBlocked(), "enter should be blocked");
     }
