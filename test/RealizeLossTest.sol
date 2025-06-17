@@ -24,6 +24,18 @@ contract RealizeLossTest is BaseTest {
         ids = adapter.ids();
     }
 
+    function testRealizeLossNotAdapter(address rdm) public {
+        vm.assume(rdm != address(adapter));
+        vm.expectRevert(ErrorsLib.NotAdapter.selector);
+        vault.realizeLoss(rdm, hex"");
+    }
+
+    function testRealizeLossNoRealizableLoss() public {
+        adapter.setInterest(100);
+        vm.expectRevert(ErrorsLib.NoRealizableLoss.selector);
+        vault.realizeLoss(address(adapter), hex"");
+    }
+
     function testRealizeLoss(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 0, deposit);

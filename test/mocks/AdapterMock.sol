@@ -15,6 +15,7 @@ contract AdapterMock is IAdapter {
     uint256 public recordedDeallocateAssets;
 
     uint256 public loss;
+    uint256 public interest;
 
     constructor(address _vault) {
         vault = _vault;
@@ -25,16 +26,20 @@ contract AdapterMock is IAdapter {
         loss = _loss;
     }
 
+    function setInterest(uint256 _interest) external {
+        interest = _interest;
+    }
+
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         recordedAllocateData = data;
         recordedAllocateAssets = assets;
-        return (ids(), int256(assets) - int256(loss));
+        return (ids(), int256(assets) - int256(loss) + int256(interest));
     }
 
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         recordedDeallocateData = data;
         recordedDeallocateAssets = assets;
-        return (ids(), -int256(assets) - int256(loss));
+        return (ids(), -int256(assets) - int256(loss) + int256(interest));
     }
 
     function ids() public pure returns (bytes32[] memory) {
