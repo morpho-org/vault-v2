@@ -60,6 +60,7 @@ contract VaultV2 is IVaultV2 {
 
     address public immutable asset;
     uint8 public immutable decimals;
+    bytes32 public immutable adaptersId = keccak256("adapters");
 
     /* ROLES STORAGE */
 
@@ -94,7 +95,6 @@ contract VaultV2 is IVaultV2 {
     /* INTEREST STORAGE */
 
     /// @dev Approximates the total allocation
-    uint256 public totalAllocation;
     uint192 internal _totalAssets;
     uint64 public lastUpdate;
     address public vic;
@@ -197,6 +197,8 @@ contract VaultV2 is IVaultV2 {
         lastUpdate = uint64(block.timestamp);
         decimals = IERC20(_asset).decimals();
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
+        caps[adaptersId].relativeCap = uint128(WAD);
+        caps[adaptersId].absoluteCap = type(uint128).max;
         emit EventsLib.Constructor(_owner, _asset);
     }
 
@@ -422,8 +424,7 @@ contract VaultV2 is IVaultV2 {
 
         uint256 lostAssets = updateAllocation(ids, change);
 
-        uint256 idleAssets = IERC20(asset).balanceOf(address(this));
-        uint256 _totalAllocation = totalAllocation;
+        uint256 totalAllocation = caps[adaptersId].allocation + idleAllocation();
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
 
@@ -431,7 +432,7 @@ contract VaultV2 is IVaultV2 {
 
             require(
                 _caps.relativeCap == WAD
-                    || _caps.allocation <= (_totalAllocation + idleAssets).mulDivDown(_caps.relativeCap, WAD),
+                    || _caps.allocation <= totalAllocation.mulDivDown(_caps.relativeCap, WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
@@ -488,9 +489,9 @@ contract VaultV2 is IVaultV2 {
         uint256 interestPerSecond = tentativeInterestPerSecond
             <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
         uint256 newTotalAssets = MathLib.min(
-            _totalAssets + (interestPerSecond * elapsed), totalAllocation + IERC20(asset).balanceOf(address(this))
+            _totalAssets + (interestPerSecond * elapsed), caps[adaptersId].allocation + idleAllocation()
         );
-        // Safe by invariant totalAllocation + balanceOf(this) >= _totalAssets.
+        // Safe by invariant totalAllocation >= _totalAssets.
         uint256 interest = newTotalAssets - _totalAssets;
 
         // The performance fee assets may be rounded down to 0 if `interest * fee < WAD`.
@@ -696,12 +697,10 @@ contract VaultV2 is IVaultV2 {
             caps[ids[i]].allocation = caps[ids[i]].allocation.zeroFloorAddInt(change);
         }
 
-        totalAllocation = totalAllocation.zeroFloorAddInt(change);
-
-        uint256 totalAllocationWithBalance = totalAllocation + IERC20(asset).balanceOf(address(this));
-        if (_totalAssets > totalAllocationWithBalance) {
-            lostAssets = _totalAssets - totalAllocationWithBalance;
-            _totalAssets = uint192(totalAllocationWithBalance);
+        uint256 totalAllocation = caps[adaptersId].allocation + idleAllocation();
+        if (_totalAssets > totalAllocation) {
+            lostAssets = _totalAssets - totalAllocation;
+            _totalAssets = uint192(totalAllocation);
             enterBlocked = true;
         }
     }
@@ -789,5 +788,9 @@ contract VaultV2 is IVaultV2 {
 
     function canReceive(address account) public view returns (bool) {
         return sharesGate == address(0) || ISharesGate(sharesGate).canReceiveShares(account);
+    }
+
+    function idleAllocation() internal view returns (uint) {
+        IERC20(asset).balanceOf(address(this));
     }
 }
