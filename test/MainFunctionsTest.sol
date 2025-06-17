@@ -28,11 +28,12 @@ contract MainFunctionsTest is BaseTest {
         assertEq(vault.totalSupply(), initialSharesDeposit, "totalSupply vault");
 
         // Accrue some interest to make sure there is a rounding error.
+        writeBuffer(type(uint256).max);
         vm.prank(allocator);
         vic.setInterestPerSecondAndDeadline(uint256(2e18) / (365 days), type(uint64).max);
         skip(10);
         vault.accrueInterest();
-        // assertNotEq((vault.totalAssets() + 1) % (vault.totalSupply() + 1), 0);
+        assertNotEq((vault.totalAssets() + 1) % (vault.totalSupply() + 1), 0);
 
         totalAssetsAfterInterest = vault.totalAssets();
         deal(address(underlyingToken), address(vault), totalAssetsAfterInterest);
