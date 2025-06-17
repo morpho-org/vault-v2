@@ -410,7 +410,11 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev This function will automatically realize potential losses.
     function allocate(address adapter, bytes memory data, uint256 assets) external {
-        require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized());
+        require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
+        allocateInternal(adapter, data, assets);
+    }
+
+    function allocateInternal(address adapter, bytes memory data, uint256 assets) internal {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
@@ -607,7 +611,7 @@ contract VaultV2 is IVaultV2 {
         createShares(onBehalf, shares);
         _totalAssets += assets.toUint192();
         if (liquidityAdapter != address(0)) {
-            this.allocate(liquidityAdapter, liquidityData, assets);
+            allocateInternal(liquidityAdapter, liquidityData, assets);
         }
         emit EventsLib.Deposit(msg.sender, onBehalf, assets, shares);
     }
