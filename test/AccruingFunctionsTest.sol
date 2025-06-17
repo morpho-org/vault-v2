@@ -6,15 +6,13 @@ import "./BaseTest.sol";
 contract EmptyAdapter is IAdapter {
     bytes32[] ids = [keccak256("id")];
 
-    function allocate(bytes memory, uint256) external view returns (bytes32[] memory, uint256) {
+    function allocate(bytes memory, uint256) external view returns (bytes32[] memory, int256) {
         return (ids, 0);
     }
 
-    function deallocate(bytes memory, uint256) external view returns (bytes32[] memory, uint256) {
+    function deallocate(bytes memory, uint256) external view returns (bytes32[] memory, int256) {
         return (ids, 0);
     }
-
-    function realizeLoss(bytes memory) external view returns (bytes32[] memory, uint256) {}
 }
 
 contract AccrueInterestTest is BaseTest {
@@ -57,7 +55,7 @@ contract AccrueInterestTest is BaseTest {
     function testRealizeAccruesInterest() public {
         skip(1);
         vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
-        vault.realizeLoss(address(adapter), hex"");
+        vault.realizeLoss(address(adapter), hex"", false);
     }
 
     function testDepositAccruesInterest() public {

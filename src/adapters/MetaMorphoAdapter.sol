@@ -56,59 +56,33 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the allocation and the potential loss.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    /// @dev Returns the ids of the allocation and the change in assets in the position.
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        // To accrue interest only one time.
-        IERC4626(metaMorpho).deposit(0, address(this));
+        if (assets > 0) sharesInMetaMorpho += IERC4626(metaMorpho).deposit(assets, address(this));
+
         uint256 newAssetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
-        require(newAssetsInMetaMorpho >= assetsInMetaMorpho, RealizableLoss());
-        uint256 interest = newAssetsInMetaMorpho.zeroFloorSub(assetsInMetaMorpho);
+        int256 change = int256(newAssetsInMetaMorpho) - int256(assetsInMetaMorpho);
+        assetsInMetaMorpho = newAssetsInMetaMorpho;
 
-        if (assets > 0) {
-            uint256 mintedShares = IERC4626(metaMorpho).deposit(assets, address(this));
-            sharesInMetaMorpho += mintedShares;
-        }
-
-        assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
-
-        return (ids(), interest);
+        return (ids(), change);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the deallocation and the potential loss.
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    /// @dev Returns the ids of the deallocation and the change in assets in the position.
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        // To accrue interest only one time.
-        IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 newAssetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
-        require(newAssetsInMetaMorpho >= assetsInMetaMorpho, RealizableLoss());
-        uint256 interest = newAssetsInMetaMorpho.zeroFloorSub(assetsInMetaMorpho);
-
-        if (assets > 0) {
-            uint256 redeemedShares = IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
-            sharesInMetaMorpho -= redeemedShares;
-        }
-
-        assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
-
-        return (ids(), interest);
-    }
-
-    function realizeLoss(bytes memory data) external returns (bytes32[] memory, uint256) {
-        require(msg.sender == parentVault, NotAuthorized());
-        require(data.length == 0, InvalidData());
+        if (assets > 0) sharesInMetaMorpho -= IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
 
         uint256 newAssetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
-        require(newAssetsInMetaMorpho < assetsInMetaMorpho, NoRealizableLoss());
-        uint256 loss = assetsInMetaMorpho - newAssetsInMetaMorpho;
+        int256 change = int256(newAssetsInMetaMorpho) - int256(assetsInMetaMorpho);
         assetsInMetaMorpho = newAssetsInMetaMorpho;
 
-        return (ids(), loss);
+        return (ids(), change);
     }
 
     /// @dev Returns adapter's ids.

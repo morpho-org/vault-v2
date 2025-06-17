@@ -19,19 +19,15 @@ contract AdapterMock is IAdapter {
         IERC20(IVaultV2(_vault).asset()).approve(_vault, type(uint256).max);
     }
 
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         recordedAllocateData = data;
         recordedAllocateAssets = assets;
         return (ids(), 0);
     }
 
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         recordedDeallocateData = data;
         recordedDeallocateAssets = assets;
-        return (ids(), 0);
-    }
-
-    function realizeLoss(bytes memory) external pure returns (bytes32[] memory, uint256) {
         return (ids(), 0);
     }
 

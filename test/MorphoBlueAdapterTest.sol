@@ -128,7 +128,7 @@ contract MorphoBlueAdapterTest is Test {
         deal(address(loanToken), address(adapter), assets);
 
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 interest) = adapter.allocate(abi.encode(marketParams), assets);
+        (bytes32[] memory ids, int256 interest) = adapter.allocate(abi.encode(marketParams), assets);
 
         assertEq(adapter.assetsInMarket(marketId), assets, "Incorrect assetsInMarket");
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), assets, "Incorrect assets in Morpho");
@@ -149,7 +149,7 @@ contract MorphoBlueAdapterTest is Test {
         assertEq(beforeSupply, initialAssets, "Precondition failed: supply not set");
 
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 interest) = adapter.deallocate(abi.encode(marketParams), withdrawAssets);
+        (bytes32[] memory ids, int256 interest) = adapter.deallocate(abi.encode(marketParams), withdrawAssets);
 
         assertEq(interest, 0, "Interest should be zero");
         assertEq(adapter.assetsInMarket(marketId), initialAssets - withdrawAssets, "Incorrect assetsInMarket");
@@ -248,7 +248,7 @@ contract MorphoBlueAdapterTest is Test {
         // Allocate reverts
         vm.prank(address(parentVault));
         if (expectedLoss > 0) vm.expectRevert(IMorphoBlueAdapter.RealizableLoss.selector);
-        (bytes32[] memory ids, uint256 interest) = adapter.allocate(abi.encode(marketParams), 0);
+        (bytes32[] memory ids, int256 interest) = adapter.allocate(abi.encode(marketParams), 0);
 
         // Deallocate reverts
         vm.prank(address(parentVault));
@@ -258,14 +258,14 @@ contract MorphoBlueAdapterTest is Test {
         // Realize loss
         uint256 snapshot = vm.snapshotState();
         vm.prank(address(parentVault));
-        uint256 loss;
+        int256 change;
         if (expectedLoss > 0) {
-            (ids, loss) = adapter.realizeLoss(abi.encode(marketParams));
+            (ids, change) = adapter.deallocate(abi.encode(marketParams), 0);
             assertEq(ids, expectedIds, "ids: realizeLoss");
-            assertEq(loss, expectedLoss, "loss: realizeLoss");
+            assertEq(uint256(-change), expectedLoss, "loss: realizeLoss");
         } else {
             vm.expectRevert(IMorphoBlueAdapter.NoRealizableLoss.selector);
-            adapter.realizeLoss(abi.encode(marketParams));
+            adapter.deallocate(abi.encode(marketParams), 0);
         }
         assertEq(
             adapter.assetsInMarket(marketId),
@@ -276,7 +276,7 @@ contract MorphoBlueAdapterTest is Test {
         // Can't realize twice
         vm.prank(address(parentVault));
         vm.expectRevert(IMorphoBlueAdapter.NoRealizableLoss.selector);
-        (ids, loss) = adapter.realizeLoss(abi.encode(marketParams));
+        (ids, change) = adapter.deallocate(abi.encode(marketParams), 0);
 
         // Interest covers the loss.
         vm.revertToState(snapshot);
@@ -284,11 +284,11 @@ contract MorphoBlueAdapterTest is Test {
         vm.prank(address(parentVault));
         if (_interest >= expectedLoss) {
             vm.expectRevert(IMorphoBlueAdapter.NoRealizableLoss.selector);
-            adapter.realizeLoss(abi.encode(marketParams));
+            adapter.deallocate(abi.encode(marketParams), 0);
         } else {
-            (ids, loss) = adapter.realizeLoss(abi.encode(marketParams));
+            (ids, change) = adapter.deallocate(abi.encode(marketParams), 0);
             assertEq(ids, expectedIds, "ids: interest");
-            assertEq(loss, expectedLoss - _interest, "interest: interest");
+            assertEq(uint256(-change), expectedLoss - _interest, "interest: interest");
             assertEq(
                 adapter.assetsInMarket(marketId),
                 morpho.expectedSupplyAssets(marketParams, address(adapter)),

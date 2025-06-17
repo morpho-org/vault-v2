@@ -17,16 +17,12 @@ contract MockAdapter is IAdapter {
         loss = _loss;
     }
 
-    function allocate(bytes memory, uint256) external view returns (bytes32[] memory, uint256) {
+    function allocate(bytes memory, uint256) external view returns (bytes32[] memory, int256) {
         return (ids, 0);
     }
 
-    function deallocate(bytes memory, uint256) external view returns (bytes32[] memory, uint256) {
+    function deallocate(bytes memory, uint256) external view returns (bytes32[] memory, int256) {
         return (ids, 0);
-    }
-
-    function realizeLoss(bytes memory) external view returns (bytes32[] memory, uint256) {
-        return (ids, loss);
     }
 }
 
@@ -63,7 +59,7 @@ contract RealizeLossTest is BaseTest {
         adapter.setLoss(expectedLoss);
 
         // Realize the loss.
-        vault.realizeLoss(address(adapter), hex"");
+        vault.realizeLoss(address(adapter), hex"", false);
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
     }
 
@@ -79,7 +75,7 @@ contract RealizeLossTest is BaseTest {
         vault.allocate(address(adapter), hex"", 0);
 
         // Realize the loss.
-        vault.realizeLoss(address(adapter), hex"");
+        vault.realizeLoss(address(adapter), hex"", false);
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
 
         if (expectedLoss > 0) {
@@ -103,7 +99,7 @@ contract RealizeLossTest is BaseTest {
         vault.deallocate(address(adapter), hex"", 0);
 
         // Realize the loss.
-        vault.realizeLoss(address(adapter), hex"");
+        vault.realizeLoss(address(adapter), hex"", false);
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
 
         if (expectedLoss > 0) {
@@ -127,7 +123,7 @@ contract RealizeLossTest is BaseTest {
         vault.forceDeallocate(address(adapter), hex"", 0, address(this));
 
         // Realize the loss.
-        vault.realizeLoss(address(adapter), hex"");
+        vault.realizeLoss(address(adapter), hex"", true);
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
 
         if (expectedLoss > 0) {
@@ -162,7 +158,7 @@ contract RealizeLossTest is BaseTest {
 
         // Realize the loss.
         vm.prank(allocator);
-        vault.realizeLoss(address(adapter), hex"");
+        vault.realizeLoss(address(adapter), hex"", false);
         assertEq(vault.allocation(id), deposit - expectedLoss, "allocation should have decreased by the loss");
     }
 }

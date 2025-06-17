@@ -22,6 +22,7 @@ library ErrorsLib {
     error InvalidSigner();
     error NoCode();
     error NotAdapter();
+    error NoRealizableLoss();
     error PenaltyTooHigh();
     error PermitDeadlineExpired();
     error RelativeCapAboveOne();

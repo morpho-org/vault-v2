@@ -71,7 +71,7 @@ contract MetaMorphoAdapterTest is Test {
         deal(address(asset), address(adapter), assets);
 
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 interest) = adapter.allocate(hex"", assets);
+        (bytes32[] memory ids, int256 interest) = adapter.allocate(hex"", assets);
 
         assertEq(adapter.assetsInMetaMorpho(), assets, "incorrect assetsInMetaMorpho");
         uint256 adapterShares = metaMorpho.balanceOf(address(adapter));
@@ -95,7 +95,7 @@ contract MetaMorphoAdapterTest is Test {
         assertEq(beforeShares, initialAssets, "Precondition failed: shares not set");
 
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 interest) = adapter.deallocate(hex"", withdrawAssets);
+        (bytes32[] memory ids, int256 interest) = adapter.deallocate(hex"", withdrawAssets);
 
         assertEq(adapter.assetsInMetaMorpho(), initialAssets - withdrawAssets, "incorrect assetsInMetaMorpho");
         uint256 afterShares = metaMorpho.balanceOf(address(adapter));
@@ -215,9 +215,9 @@ contract MetaMorphoAdapterTest is Test {
         // Can't realize more.
         uint256 snapshot = vm.snapshotState();
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
+        (bytes32[] memory ids, int256 loss) = adapter.deallocate(hex"", 0);
         assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(loss, lossAssets, "Incorrect loss returned");
+        assertEq(uint256(-loss), lossAssets, "Incorrect loss returned");
         assertEq(
             adapter.assetsInMetaMorpho(),
             metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter))),
@@ -235,12 +235,12 @@ contract MetaMorphoAdapterTest is Test {
             );
             vm.prank(address(parentVault));
             vm.expectRevert(IMetaMorphoAdapter.NoRealizableLoss.selector);
-            adapter.realizeLoss(hex"");
+            adapter.deallocate(hex"", 0);
         } else {
             vm.prank(address(parentVault));
-            (ids, loss) = adapter.realizeLoss(hex"");
+            (ids, loss) = adapter.deallocate(hex"", 0);
             assertEq(ids, expectedIds, "Incorrect ids returned");
-            assertEq(loss, lossAssets - interest, "Incorrect loss returned");
+            assertEq(uint256(-loss), lossAssets - interest, "Incorrect loss returned");
             assertEq(
                 adapter.assetsInMetaMorpho(),
                 metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter))),

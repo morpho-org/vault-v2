@@ -22,12 +22,12 @@ contract BlueIntegrationAllocationTest is BlueIntegrationTest {
         vm.prank(allocator);
         vault.allocate(address(adapter), abi.encode(marketParams1), initialInMarket1);
 
-        assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle);
-        assertEq(underlyingToken.balanceOf(address(adapter)), 0);
-        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket1);
-        assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), initialInMarket1);
-        assertEq(vault.allocation(keccak256(expectedIdData1[2])), initialInMarket1);
-        assertEq(vault.allocation(keccak256(expectedIdData2[2])), 0);
+        assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle, "underlyingToken.balanceOf(vault)");
+        assertEq(underlyingToken.balanceOf(address(adapter)), 0, "underlyingToken.balanceOf(adapter)");
+        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket1, "underlyingToken.balanceOf(morpho)");
+        assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), initialInMarket1, "expectedSupplyAssets");
+        assertEq(vault.allocation(keccak256(expectedIdData1[2])), initialInMarket1, "allocation(1)");
+        assertEq(vault.allocation(keccak256(expectedIdData2[2])), 0, "allocation(2)");
     }
 
     function testDeallocateLessThanAllocated(uint256 assets) public {

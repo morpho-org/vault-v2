@@ -55,7 +55,7 @@ contract MMV1_1IntegrationBadDebtTest is MMV1_1IntegrationTest {
 
         vm.prank(address(0x123));
         vm.expectRevert(IMetaMorphoAdapter.NoRealizableLoss.selector);
-        vault.realizeLoss(address(metaMorphoAdapter), hex"");
+        vault.realizeLoss(address(metaMorphoAdapter), hex"", false);
     }
 
     function testNoBadDebtThroughLiquidate() public {
@@ -86,6 +86,6 @@ contract MMV1_1IntegrationBadDebtTest is MMV1_1IntegrationTest {
 
         vm.prank(address(0x123));
         vm.expectRevert(IMetaMorphoAdapter.NoRealizableLoss.selector);
-        vault.realizeLoss(address(metaMorphoAdapter), hex"");
+        vault.realizeLoss(address(metaMorphoAdapter), hex"", false);
     }
 }

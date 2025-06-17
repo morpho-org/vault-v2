@@ -73,70 +73,43 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the allocation and the potential loss.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    /// @dev Returns the ids of the allocation and the change in assets in the position.
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
         require(marketParams.irm == irm, IrmMismatch());
 
-        // To accrue interest only one time.
-        IMorpho(morpho).accrueInterest(marketParams);
-
-        PositionInMarket storage position = positionInMarket[marketId];
-
-        uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, position.shares);
-        require(newAssetsInMarket >= position.assets, RealizableLoss());
-        uint256 interest = newAssetsInMarket - position.assets;
+        PositionInMarket storage position = positionInMarket[marketParams.id()];
         if (assets > 0) {
             (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
             position.shares += uint128(mintedShares);
         }
-        position.assets = uint128(expectedSupplyAssets(marketParams, position.shares));
+        uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, position.shares);
+        int256 change = int256(newAssetsInMarket) - int128(position.assets);
+        position.assets = uint128(newAssetsInMarket);
 
-        return (ids(marketParams), interest);
+        return (ids(marketParams), change);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the deallocation and the potential loss.
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    /// @dev Returns the ids of the deallocation and the change in assets in the position.
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
         require(marketParams.irm == irm, IrmMismatch());
 
-        // To accrue interest only one time.
-        IMorpho(morpho).accrueInterest(marketParams);
-
-        PositionInMarket storage position = positionInMarket[marketId];
-
-        uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, position.shares);
-        require(newAssetsInMarket >= position.assets, RealizableLoss());
-        uint256 interest = newAssetsInMarket - position.assets;
+        PositionInMarket storage position = positionInMarket[marketParams.id()];
         if (assets > 0) {
             (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
             position.shares -= uint128(redeemedShares);
         }
-        position.assets = uint128(expectedSupplyAssets(marketParams, position.shares));
-
-        return (ids(marketParams), interest);
-    }
-
-    function realizeLoss(bytes memory data) external returns (bytes32[] memory, uint256) {
-        require(msg.sender == parentVault, NotAuthorized());
-        MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Id marketId = marketParams.id();
-
-        PositionInMarket storage position = positionInMarket[marketId];
-
         uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, position.shares);
-        require(newAssetsInMarket < position.assets, NoRealizableLoss());
-        uint256 loss = position.assets - newAssetsInMarket;
+        int256 change = int256(newAssetsInMarket) - int128(position.assets);
         position.assets = uint128(newAssetsInMarket);
 
-        return (ids(marketParams), loss);
+        return (ids(marketParams), change);
     }
 
     /// @dev Returns adapter's ids.
