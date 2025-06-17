@@ -26,6 +26,11 @@ library MathLib {
         return int256(x) >= y ? uint256(int256(x) + y) : 0;
     }
 
+    /// @dev Returns max(0, x - y).
+    function zeroFloorSubInt(uint256 x, int256 y) internal pure returns (uint256) {
+        return int256(x) >= y ? uint256(int256(x) - y) : 0;
+    }
+
     /// @dev Casts to uint192, reverting if input number is too large.
     function toUint192(uint256 x) internal pure returns (uint192) {
         require(x <= type(uint192).max, ErrorsLib.CastOverflow());

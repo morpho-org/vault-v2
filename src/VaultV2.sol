@@ -416,8 +416,9 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets);
 
-        uint256 loss = assets.zeroFloorSub(uint256(change));
-        if (loss > 0) {
+        // Realize loss.
+        if (change < int256(assets)) {
+            uint256 loss = assets.zeroFloorSubInt(change);
             _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
             enterBlocked = true;
         }
@@ -445,8 +446,9 @@ contract VaultV2 is IVaultV2 {
 
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets);
 
-        uint256 loss = assets.zeroFloorSub(uint256(change));
-        if (loss > 0) {
+        // Realize loss.
+        if (change < int256(assets)) {
+            uint256 loss = assets.zeroFloorSubInt(change);
             _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
             enterBlocked = true;
         }
@@ -684,20 +686,20 @@ contract VaultV2 is IVaultV2 {
         return shares;
     }
 
-    function realizeLoss(address adapter, bytes memory data, bool mintShares) external returns (uint256) {
+    function realizeLoss(address adapter, bytes memory data) external returns (uint256) {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
 
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, 0);
-        require(change < 0, ErrorsLib.NoRealizableLoss());
+        require(change <= 0, ErrorsLib.NoRealizableLoss());
         uint256 loss = uint256(-change);
 
         _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
         enterBlocked = true;
 
         uint256 tentativeIncentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
-        uint256 incentiveShares = mintShares && canReceive(msg.sender)
+        uint256 incentiveShares = canReceive(msg.sender)
             ? tentativeIncentive.mulDivDown(totalSupply + 1, uint256(_totalAssets).zeroFloorSub(tentativeIncentive) + 1)
             : 0;
         if (incentiveShares > 0) createShares(msg.sender, incentiveShares);
