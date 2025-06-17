@@ -52,15 +52,21 @@ contract RealizeLossTest is BaseTest {
         }
     }
 
-    function testRealizeLossThroughAllocate(uint256 deposit, uint256 expectedLoss) public {
+    function testRealizeLossThroughAllocate(uint256 deposit, uint256 expectedLoss, uint256 allocated) public {
         deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 0, deposit);
+        allocated = bound(allocated, 0, deposit - expectedLoss);
+
+        increaseAbsoluteCap("id-0", type(uint128).max);
+        increaseAbsoluteCap("id-1", type(uint128).max);
+        increaseRelativeCap("id-0", WAD);
+        increaseRelativeCap("id-1", WAD);
 
         vault.deposit(deposit, address(this));
         adapter.setLoss(expectedLoss);
 
         vm.prank(allocator);
-        vault.allocate(address(adapter), hex"", 0);
+        vault.allocate(address(adapter), hex"", allocated);
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
         if (expectedLoss > 0) assertTrue(vault.enterBlocked(), "enter should be blocked");
     }
@@ -81,15 +87,18 @@ contract RealizeLossTest is BaseTest {
         if (expectedLoss > 0) assertTrue(vault.enterBlocked(), "enter should be blocked");
     }
 
-    function testRealizeLossThroughForceDeallocate(uint256 deposit, uint256 expectedLoss) public {
+    function testRealizeLossThroughForceDeallocate(uint256 deposit, uint256 expectedLoss, uint256 deallocated) public {
         deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 0, deposit);
+        deallocated = bound(deallocated, 0, deposit - expectedLoss);
 
         vault.deposit(deposit, address(this));
         adapter.setLoss(expectedLoss);
 
+        deal(address(underlyingToken), address(adapter), MAX_TEST_AMOUNT);
+
         vm.prank(allocator);
-        vault.forceDeallocate(address(adapter), hex"", 0, address(this));
+        vault.forceDeallocate(address(adapter), hex"", deallocated, address(this));
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
         if (expectedLoss > 0) assertTrue(vault.enterBlocked(), "enter should be blocked");
     }
