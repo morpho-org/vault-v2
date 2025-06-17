@@ -97,6 +97,7 @@ contract VaultV2 is IVaultV2 {
     address public vic;
     /// @dev Prevents floashloan-based shorting of vault shares during loss realizations.
     bool public transient enterBlocked;
+    uint256 public buffer;
 
     /* CURATION STORAGE */
 
@@ -415,6 +416,7 @@ contract VaultV2 is IVaultV2 {
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
         (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).allocate(data, assets);
+        buffer += interest;
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
@@ -438,6 +440,7 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets);
+        buffer += interest;
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
@@ -462,6 +465,7 @@ contract VaultV2 is IVaultV2 {
         if (lastUpdate == block.timestamp) return;
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
+        buffer = buffer - (newTotalAssets - _totalAssets);
         _totalAssets = newTotalAssets.toUint192();
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
@@ -479,7 +483,7 @@ contract VaultV2 is IVaultV2 {
 
         uint256 interestPerSecond = tentativeInterestPerSecond
             <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
-        uint256 interest = interestPerSecond * elapsed;
+        uint256 interest = MathLib.min(interestPerSecond * elapsed, buffer);
         uint256 newTotalAssets = _totalAssets + interest;
 
         // The performance fee assets may be rounded down to 0 if `interest * fee < WAD`.
@@ -666,7 +670,8 @@ contract VaultV2 is IVaultV2 {
 
         uint256 incentiveShares;
         if (loss > 0) {
-            _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
+            _totalAssets -= loss.zeroFloorSub(buffer).toUint192();
+            buffer = buffer.zeroFloorSub(loss);
 
             if (canReceive(msg.sender)) {
                 uint256 incentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);

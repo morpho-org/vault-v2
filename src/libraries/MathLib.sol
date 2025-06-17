@@ -32,4 +32,8 @@ library MathLib {
         require(x <= type(uint128).max, ErrorsLib.CastOverflow());
         return uint128(x);
     }
+
+    function min(uint256 x, uint256 y) internal pure returns (uint256) {
+        return x < y ? x : y;
+    }
 }

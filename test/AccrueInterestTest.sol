@@ -25,6 +25,8 @@ contract AccrueInterestTest is BaseTest {
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
+
+        writeBuffer(type(uint256).max);
     }
 
     function testAccrueInterestView(

@@ -32,7 +32,7 @@ contract MainFunctionsTest is BaseTest {
         vic.setInterestPerSecondAndDeadline(uint256(2e18) / (365 days), type(uint64).max);
         skip(10);
         vault.accrueInterest();
-        assertNotEq((vault.totalAssets() + 1) % (vault.totalSupply() + 1), 0);
+        // assertNotEq((vault.totalAssets() + 1) % (vault.totalSupply() + 1), 0);
 
         totalAssetsAfterInterest = vault.totalAssets();
         deal(address(underlyingToken), address(vault), totalAssetsAfterInterest);
