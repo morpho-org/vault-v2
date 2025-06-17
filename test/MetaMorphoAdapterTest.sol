@@ -107,6 +107,25 @@ contract MetaMorphoAdapterTest is Test {
         assertEq(interest, 0, "Incorrect interest returned");
     }
 
+    // function testAllocateMaxSlippageExceeded() public {
+    //     deal(address(asset), address(adapter), 1000);
+
+    //     vm.prank(address(parentVault));
+    //     adapter.allocate(hex"", 100);
+
+    //     // increase share price to 101
+    //     deal(address(asset), address(metaMorpho), 1);
+    //     assertEq(metaMorpho.mint(1, address(this)), 101);
+
+    //     vm.prank(address(parentVault));
+    //     vm.expectRevert(IMetaMorphoAdapter.MaxSlippageExceeded.selector);
+    //     adapter.deallocate(hex"", 201);
+
+    //     vm.prank(address(parentVault));
+    //     adapter.allocate(hex"", 150);
+    // }
+
+
     function testFactoryCreateAdapter() public {
         VaultV2Mock newParentVault = new VaultV2Mock(address(asset), owner, address(0), address(0), address(0));
         ERC4626Mock newVault = new ERC4626Mock(address(asset));

@@ -15,9 +15,14 @@ import {MathLib} from "../libraries/MathLib.sol";
 contract MetaMorphoAdapter is IMetaMorphoAdapter {
     using MathLib for uint256;
 
+    /* ERRORS */
+
+    error MissingAssets();
+
     /* IMMUTABLES */
 
     address public immutable parentVault;
+    address public immutable asset;
     address public immutable metaMorpho;
     bytes32 public immutable adapterId;
 
@@ -33,10 +38,11 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         parentVault = _parentVault;
         metaMorpho = _metaMorpho;
         adapterId = keccak256(abi.encode("adapter", address(this)));
-        address asset = IVaultV2(_parentVault).asset();
-        require(asset == IERC4626(_metaMorpho).asset(), AssetMismatch());
-        SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
-        SafeERC20Lib.safeApprove(asset, _metaMorpho, type(uint256).max);
+        address _asset = IVaultV2(_parentVault).asset();
+        asset = _asset;
+        require(_asset == IERC4626(_metaMorpho).asset(), AssetMismatch());
+        SafeERC20Lib.safeApprove(_asset, _parentVault, type(uint256).max);
+        SafeERC20Lib.safeApprove(_asset, _metaMorpho, type(uint256).max);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -72,12 +78,21 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the change in assets in the position.
+    /// @dev Always withdraw the full value of redeemed shares.
+    /// @dev Assets withdrawn in excess of the requested amount are donated to the vault.
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        if (assets > 0) sharesInMetaMorpho -= IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
+        uint withdrawnAssets;
+        if (assets > 0) {
+            uint redeemedShares = IERC4626(metaMorpho).previewWithdraw(assets);
+            sharesInMetaMorpho -= redeemedShares;
+            withdrawnAssets = IERC4626(metaMorpho).redeem(redeemedShares,address(this), address(this));
+        }
+        require(withdrawnAssets >= assets, MissingAssets());
 
+        IERC20(asset).transfer(parentVault,withdrawnAssets);
         uint256 newAssetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
         int256 change = int256(newAssetsInMetaMorpho) - int256(assetsInMetaMorpho);
         assetsInMetaMorpho = newAssetsInMetaMorpho;

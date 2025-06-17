@@ -456,7 +456,7 @@ contract VaultV2 is IVaultV2 {
             _caps.allocation = _caps.allocation.zeroFloorAddInt(change);
         }
 
-        SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
+        // SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
         emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, change);
     }
 

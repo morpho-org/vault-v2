@@ -24,6 +24,10 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     using MorphoBalancesLib for IMorpho;
     using MarketParamsLib for MarketParams;
 
+    /* ERRORS */
+
+    error MissingAssets();
+
     /* IMMUTABLES */
 
     address public immutable parentVault;
@@ -43,10 +47,11 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         parentVault = _parentVault;
         morpho = _morpho;
         irm = _irm;
-        asset = IVaultV2(_parentVault).asset();
+        address _asset = IVaultV2(_parentVault).asset();
+        asset = _asset;
         adapterId = keccak256(abi.encode("adapter", address(this)));
-        SafeERC20Lib.safeApprove(asset, _morpho, type(uint256).max);
-        SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
+        SafeERC20Lib.safeApprove(_asset, _morpho, type(uint256).max);
+        SafeERC20Lib.safeApprove(_asset, _parentVault, type(uint256).max);
     }
 
     function assetsInMarket(Id marketId) external view returns (uint256) {
@@ -94,6 +99,8 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the change in assets in the position.
+    /// @dev Always withdraw the full value of redeemed shares.
+    /// @dev Assets withdrawn in excess of the requested amount are donated to the vault.
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         require(msg.sender == parentVault, NotAuthorized());
@@ -101,10 +108,16 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         require(marketParams.irm == irm, IrmMismatch());
 
         PositionInMarket storage position = positionInMarket[marketParams.id()];
+        uint withdrawnAssets;
         if (assets > 0) {
-            (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+            (uint totalSupplyAssets, uint totalSupplyShares,,) = MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
+            uint redeemedShares = assets.toSharesUp(totalSupplyAssets, totalSupplyShares);
             position.shares -= uint128(redeemedShares);
+            (withdrawnAssets, ) = IMorpho(morpho).withdraw(marketParams, 0, redeemedShares, address(this), address(this));
         }
+        require(withdrawnAssets >= assets, MissingAssets());
+
+        IERC20(asset).transfer(parentVault,withdrawnAssets);
         uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, position.shares);
         int256 change = int256(newAssetsInMarket) - int128(position.assets);
         position.assets = uint128(newAssetsInMarket);
