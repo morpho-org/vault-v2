@@ -55,7 +55,7 @@ contract AccrueInterestTest is BaseTest {
     function testRealizeAccruesInterest() public {
         skip(1);
         vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
-        vault.realizeLoss(address(adapter), hex"", false);
+        vault.realizeLoss(address(adapter), hex"");
     }
 
     function testDepositAccruesInterest() public {
