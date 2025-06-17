@@ -23,11 +23,14 @@ library MathLib {
 
     /// @dev Returns max(0, x + y).
     function zeroFloorAddInt(uint256 x, int256 y) internal pure returns (uint256) {
+        require(x <= uint256(type(int256).max), ErrorsLib.CastOverflow());
+        require(y > type(int256).min, ErrorsLib.CastOverflow());
         return int256(x) >= -y ? uint256(int256(x) + y) : 0;
     }
 
     /// @dev Returns max(0, x - y).
     function zeroFloorSubInt(uint256 x, int256 y) internal pure returns (uint256) {
+        require(x <= uint256(type(int256).max), ErrorsLib.CastOverflow());
         return int256(x) >= y ? uint256(int256(x) - y) : 0;
     }
 
