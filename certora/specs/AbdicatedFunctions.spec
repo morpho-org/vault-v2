@@ -13,7 +13,7 @@ methods {
 
 // Check that abdicating a function set their timelock to infinity.
 rule abidcatedFunctionHasInfiniteTimelock(env e, bytes4 selector) {
-    abdicateSubmit(e, selector);
+    abdicateSubmitMocked(e, selector);
 
     assert timelock(selector) == 2^256 - 1;
 }
@@ -35,6 +35,7 @@ rule abdicatedFunctionsCantBeSubmitted(env e, bytes data) {
     // Assume that the function has been abdicated.
     require timelock(Utils.toBytes4(data)) == 2^256 - 1;
 
-    submit@withrevert(e, data);
+    submitMocked@withrevert(e, data);
+
     assert lastReverted;
 }

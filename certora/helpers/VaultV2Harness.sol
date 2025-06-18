@@ -15,4 +15,17 @@ contract VaultV2Harness is VaultV2 {
         vic = newVic;
         emit EventsLib.SetVic(newVic);
     }
+
+    function abdicateSubmitMocked(bytes4 selector) external {
+        timelock[selector] = type(uint256).max;
+        emit EventsLib.AbdicateSubmit(selector);
+    }
+
+    function submitMocked(bytes memory data) external {
+        require(executableAt[data] == 0);
+        require(msg.sender == curator, ErrorsLib.Unauthorized());
+        bytes4 selector = bytes4(data);
+        executableAt[data] = block.timestamp + timelock[selector];
+        emit EventsLib.Submit(selector, data, executableAt[data]);
+    }
 }

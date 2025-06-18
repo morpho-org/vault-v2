@@ -9,6 +9,11 @@ interface IReturnFactory {
 }
 
 contract Utils {
+    function call(address account, bytes memory data) public {
+        (bool success,) = account.call(data);
+        require(success);
+    }
+
     function toBytes4(bytes memory data) public pure returns (bytes4) {
         return bytes4(data);
     }
