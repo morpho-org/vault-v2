@@ -27,7 +27,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     address public skimRecipient;
     uint256 public assetsInMetaMorpho;
     uint256 public sharesInMetaMorpho;
-    uint256 public pendingDeposits;
+    uint256 public buffer;
 
     /* FUNCTIONS */
 
@@ -65,17 +65,20 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(msg.sender == parentVault, NotAuthorized());
 
         // Buffer to avoid large rounding losses
-        pendingDeposits += assets;
-        uint256 mintedShares = IERC4626(metaMorpho).previewDeposit(IERC20(asset).balanceOf(address(this)));
-        if (mintedShares > 0) {
-            sharesInMetaMorpho += mintedShares;
-            uint256 depositedAssets = IERC4626(metaMorpho).mint(mintedShares, address(this));
-            pendingDeposits -= depositedAssets;
-        }
+        buffer += assets;
+        uint256 mintedShares = IERC4626(metaMorpho).previewDeposit(buffer);
 
+        uint depositedAssets;
         uint256 newAssetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
         int256 change = int256(newAssetsInMetaMorpho) - int256(assetsInMetaMorpho);
-        assetsInMetaMorpho = newAssetsInMetaMorpho;
+
+        if (mintedShares > 0) {
+            sharesInMetaMorpho += mintedShares;
+            depositedAssets = IERC4626(metaMorpho).mint(mintedShares, address(this));
+            buffer -= depositedAssets;
+        }
+
+        assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
 
         return (ids(), change);
     }
