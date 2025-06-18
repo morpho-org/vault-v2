@@ -14,7 +14,6 @@ library ErrorsLib {
     error CannotSendUnderlyingAssets();
     error CapExceeded();
     error CastOverflow();
-    error DataAlreadyPending();
     error DataNotTimelocked();
     error EnterBlocked();
     error FeeInvariantBroken();
