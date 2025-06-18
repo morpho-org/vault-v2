@@ -435,11 +435,9 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev This function will automatically realize potential losses.
     function deallocate(address adapter, bytes memory data, uint256 assets) external {
-        require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        deallocateInternal(adapter, data, assets);
-    }
-
-    function deallocateInternal(address adapter, bytes memory data, uint256 assets) internal {
+        require(
+            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized()
+        );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
@@ -635,7 +633,7 @@ contract VaultV2 is IVaultV2 {
 
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
-            deallocateInternal(liquidityAdapter, liquidityData, assets - idleAssets);
+            this.deallocate(liquidityAdapter, liquidityData, assets - idleAssets);
         }
 
         if (msg.sender != onBehalf) {
@@ -664,7 +662,7 @@ contract VaultV2 is IVaultV2 {
         external
         returns (uint256)
     {
-        deallocateInternal(adapter, data, assets);
+        this.deallocate(adapter, data, assets);
         uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
         emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf, penaltyAssets);
