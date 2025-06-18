@@ -60,7 +60,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the change in assets in the position.
-    function allocate(bytes memory data, uint assets) external returns (bytes32[] memory, int256) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
@@ -69,7 +69,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         uint256 mintedShares = IERC4626(metaMorpho).previewDeposit(IERC20(asset).balanceOf(address(this)));
         if (mintedShares > 0) {
             sharesInMetaMorpho += mintedShares;
-            uint depositedAssets = IERC4626(metaMorpho).mint(mintedShares, address(this));
+            uint256 depositedAssets = IERC4626(metaMorpho).mint(mintedShares, address(this));
             pendingDeposits -= depositedAssets;
         }
 
@@ -85,7 +85,6 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
-
 
         if (assets > 0) sharesInMetaMorpho -= IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
 

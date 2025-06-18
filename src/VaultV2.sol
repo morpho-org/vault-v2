@@ -414,7 +414,7 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
-        (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data,assets);
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets);
 
         // Realize loss.
         if (change < 0) {
