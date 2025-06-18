@@ -693,7 +693,7 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, 0);
-        require(change <= 0, ErrorsLib.NoRealizableLoss());
+        require(change < 0, ErrorsLib.NoRealizableLoss());
         uint256 loss = uint256(-change);
 
         _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
