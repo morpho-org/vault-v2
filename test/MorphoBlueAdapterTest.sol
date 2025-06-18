@@ -130,7 +130,7 @@ contract MorphoBlueAdapterTest is Test {
         vm.prank(address(parentVault));
         (bytes32[] memory ids, uint256 interest) = adapter.allocate(abi.encode(marketParams), assets);
 
-        assertEq(adapter.assetsInMarket(marketId), assets, "Incorrect assetsInMarket");
+        assertEq(adapter.trackedAllocation(marketId), assets, "Incorrect trackedAllocation");
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), assets, "Incorrect assets in Morpho");
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
         assertEq(ids, expectedIds, "Incorrect ids returned");
@@ -152,7 +152,7 @@ contract MorphoBlueAdapterTest is Test {
         (bytes32[] memory ids, uint256 interest) = adapter.deallocate(abi.encode(marketParams), withdrawAssets);
 
         assertEq(interest, 0, "Interest should be zero");
-        assertEq(adapter.assetsInMarket(marketId), initialAssets - withdrawAssets, "Incorrect assetsInMarket");
+        assertEq(adapter.trackedAllocation(marketId), initialAssets - withdrawAssets, "Incorrect trackedAllocation");
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
         assertEq(loanToken.balanceOf(address(adapter)), withdrawAssets, "Adapter did not receive withdrawn tokens");
@@ -238,7 +238,7 @@ contract MorphoBlueAdapterTest is Test {
         deal(address(loanToken), address(adapter), initial);
         vm.prank(address(parentVault));
         adapter.allocate(abi.encode(marketParams), initial);
-        assertEq(adapter.assetsInMarket(marketId), initial, "Initial assetsInMarket incorrect");
+        assertEq(adapter.trackedAllocation(marketId), initial, "Initial trackedAllocation incorrect");
         _overrideMarketTotalSupplyAssets(-int256(expectedLoss));
 
         // Allocate goes through.
@@ -256,9 +256,9 @@ contract MorphoBlueAdapterTest is Test {
         assertEq(ids, expectedIds, "ids: realizeLoss");
         assertEq(interest, expectedLoss, "loss: realizeLoss");
         assertEq(
-            adapter.assetsInMarket(marketId),
+            adapter.trackedAllocation(marketId),
             morpho.expectedSupplyAssets(marketParams, address(adapter)),
-            "assetsInMarket: realizeLoss: 1"
+            "trackedAllocation: realizeLoss: 1"
         );
 
         // Can't realize twice
@@ -337,7 +337,7 @@ contract MorphoBlueAdapterTest is Test {
         adapter.allocate(abi.encode(marketParams), deposit);
 
         uint256 sharesInMarket = MorphoLib.supplyShares(morpho, marketId, address(adapter));
-        assertEq(adapter.sharesInMarket(marketId), sharesInMarket, "shares not recorded");
+        assertEq(adapter.shares(marketId), sharesInMarket, "shares not recorded");
 
         // Donate to adapter
         address donor = makeAddr("donor");
@@ -348,9 +348,9 @@ contract MorphoBlueAdapterTest is Test {
         vm.stopPrank();
 
         // Test no impact on allocation
-        uint256 oldAssetsInMarket = adapter.assetsInMarket(marketId);
+        uint256 oldTrackedAllocation = adapter.trackedAllocation(marketId);
         vm.prank(address(parentVault));
         adapter.allocate(abi.encode(marketParams), deposit);
-        assertEq(adapter.assetsInMarket(marketId), oldAssetsInMarket + deposit, "assets have changed");
+        assertEq(adapter.trackedAllocation(marketId), oldTrackedAllocation + deposit, "assets have changed");
     }
 }
