@@ -68,7 +68,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         if (assets > 0) shares += IERC4626(metaMorpho).deposit(assets, address(this));
 
-        trackedAllocation = uint256(trackedAllocation + interest + assets);
+        trackedAllocation = trackedAllocation + interest + assets;
 
         return (ids(), interest);
     }
