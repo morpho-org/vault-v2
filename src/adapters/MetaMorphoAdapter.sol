@@ -19,6 +19,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
     address public immutable parentVault;
     address public immutable metaMorpho;
+    address public immutable asset;
     bytes32 public immutable adapterId;
 
     /* STORAGE */
@@ -26,6 +27,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     address public skimRecipient;
     uint256 public assetsInMetaMorpho;
     uint256 public sharesInMetaMorpho;
+    uint256 public pendingDeposits;
 
     /* FUNCTIONS */
 
@@ -33,10 +35,11 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         parentVault = _parentVault;
         metaMorpho = _metaMorpho;
         adapterId = keccak256(abi.encode("adapter", address(this)));
-        address asset = IVaultV2(_parentVault).asset();
-        require(asset == IERC4626(_metaMorpho).asset(), AssetMismatch());
-        SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
-        SafeERC20Lib.safeApprove(asset, _metaMorpho, type(uint256).max);
+        address _asset = IVaultV2(_parentVault).asset();
+        asset = _asset;
+        require(_asset == IERC4626(_metaMorpho).asset(), AssetMismatch());
+        SafeERC20Lib.safeApprove(_asset, _parentVault, type(uint256).max);
+        SafeERC20Lib.safeApprove(_asset, _metaMorpho, type(uint256).max);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -57,17 +60,17 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the change in assets in the position.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
+    function allocate(bytes memory data, uint assets) external returns (bytes32[] memory, int256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        if (assets > 0) {
-            // Buffer to avoid large rounding losses
-            uint mintedShares = IERC4626(metaMorpho).previewDeposit(IERC20(asset).balanceOf(this));
-            if (mintedShares > 0) {
-                sharesInMetaMorpho += mintedShares;
-                IERC4626(metaMorpho).mint(mintedShares,address(this));
-            }
+        // Buffer to avoid large rounding losses
+        pendingDeposits += assets;
+        uint256 mintedShares = IERC4626(metaMorpho).previewDeposit(IERC20(asset).balanceOf(address(this)));
+        if (mintedShares > 0) {
+            sharesInMetaMorpho += mintedShares;
+            uint depositedAssets = IERC4626(metaMorpho).mint(mintedShares, address(this));
+            pendingDeposits -= depositedAssets;
         }
 
         uint256 newAssetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
@@ -82,6 +85,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
+
 
         if (assets > 0) sharesInMetaMorpho -= IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
 

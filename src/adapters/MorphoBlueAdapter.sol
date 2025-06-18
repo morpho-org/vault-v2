@@ -16,6 +16,7 @@ import {MathLib} from "../libraries/MathLib.sol";
 struct PositionInMarket {
     uint128 shares;
     uint128 assets;
+    uint pendingDeposits;
 }
 
 contract MorphoBlueAdapter is IMorphoBlueAdapter {
@@ -74,21 +75,24 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the change in assets in the position.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
+    function allocate(bytes memory data, uint assets) external returns (bytes32[] memory, int256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
         require(marketParams.irm == irm, IrmMismatch());
 
         PositionInMarket storage position = positionInMarket[marketParams.id()];
-        if (assets > 0) {
-            // Buffer to avoid large rounding losses
-            (uint totalSupplyAssets, uint totalSupplyShares,,) = MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
-            uint mintedShares = assets.toSharesDown(totalSupplyAssets, totalSupplyShares);
-            if (mintedShares > 0) {
-                position.shares += uint128(mintedShares);
-                (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, 0, mintedShares, address(this), hex"");
-            }
+
+        position.pendingDeposits += assets;
+
+        // Buffer to avoid large rounding losses
+        (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
+            MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
+        uint256 mintedShares = position.pendingDeposits.toSharesDown(totalSupplyAssets, totalSupplyShares);
+        if (mintedShares > 0) {
+            position.shares += uint128(mintedShares);
+            (uint depositedAssets, ) = IMorpho(morpho).supply(marketParams, 0, mintedShares, address(this), hex"");
+            position.pendingDeposits -= depositedAssets;
         }
         uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, position.shares);
         int256 change = int256(newAssetsInMarket) - int128(position.assets);
