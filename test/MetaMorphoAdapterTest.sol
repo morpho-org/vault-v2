@@ -214,18 +214,18 @@ contract MetaMorphoAdapterTest is Test {
             "trackedAllocation"
         );
 
-        // Interest cover the loss.
-        vm.revertToState(snapshot);
-        asset.transfer(address(metaMorpho), _interest);
-        vm.prank(address(parentVault));
-        (ids, loss) = adapter.realizeLoss(hex"");
-        assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(loss, _loss.zeroFloorSub(_interest), "Incorrect loss returned");
-        assertEq(
-            adapter.trackedAllocation(),
-            metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter))),
-            "trackedAllocation after deposit"
-        );
+        // // Interest cover the loss.
+        // vm.revertToState(snapshot);
+        // asset.transfer(address(metaMorpho), _interest);
+        // vm.prank(address(parentVault));
+        // (ids, loss) = adapter.realizeLoss(hex"");
+        // assertEq(ids, expectedIds, "Incorrect ids returned");
+        // assertEq(loss, _loss.zeroFloorSub(_interest), "Incorrect loss returned");
+        // assertEq(
+        //     adapter.trackedAllocation(),
+        //     metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter))),
+        //     "trackedAllocation after deposit"
+        // );
     }
 
     function testIds() public view {

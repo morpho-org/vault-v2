@@ -92,9 +92,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
             _market.shares += uint128(mintedShares);
         }
 
-        uint256 roundingError =
-            (allocationBefore + assets).zeroFloorSub(expectedSupplyAssets(marketParams, _market.shares));
-        _market.trackedAllocation = uint128(_market.trackedAllocation + assets - roundingError);
+        _market.trackedAllocation = uint128(_market.trackedAllocation + interest + assets);
 
         return (ids(marketParams), interest);
     }
@@ -119,9 +117,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
             _market.shares -= uint128(redeemedShares);
         }
 
-        uint256 roundingError =
-            (allocationBefore - assets).zeroFloorSub(expectedSupplyAssets(marketParams, _market.shares));
-        _market.trackedAllocation = uint128(_market.trackedAllocation - assets - roundingError);
+        _market.trackedAllocation = uint128(_market.trackedAllocation + interest - assets);
 
         return (ids(marketParams), interest);
     }

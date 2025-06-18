@@ -68,9 +68,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         if (assets > 0) shares += IERC4626(metaMorpho).deposit(assets, address(this));
 
-        uint256 roundingError =
-            (trackedAllocation + interest + assets).zeroFloorSub(IERC4626(metaMorpho).previewRedeem(shares));
-        trackedAllocation = uint256(trackedAllocation + assets - roundingError);
+        trackedAllocation = uint256(trackedAllocation + interest + assets);
 
         return (ids(), interest);
     }
@@ -88,9 +86,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         if (assets > 0) shares -= IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
 
-        uint256 roundingError =
-            (allocationBefore + interest - assets).zeroFloorSub(IERC4626(metaMorpho).previewRedeem(shares));
-        trackedAllocation = uint256(trackedAllocation - assets - roundingError);
+        trackedAllocation = uint256(trackedAllocation + interest - assets);
 
         return (ids(), interest);
     }
