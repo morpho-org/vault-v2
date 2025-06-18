@@ -82,8 +82,12 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
         PositionInMarket storage position = positionInMarket[marketParams.id()];
         if (assets > 0) {
-            (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-            position.shares += uint128(mintedShares);
+            (uint totalSupplyAssets, uint totalSupplyShares,,) = MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
+            uint mintedShares = assets.toSharesDown(totalSupplyAssets, totalSupplyShares);
+            if (mintedShares > 0) {
+                position.shares += uint128(mintedShares);
+                (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, 0, mintedShares, address(this), hex"");
+            }
         }
         uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, position.shares);
         int256 change = int256(newAssetsInMarket) - int128(position.assets);

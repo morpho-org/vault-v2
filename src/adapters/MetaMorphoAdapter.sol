@@ -61,7 +61,14 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        if (assets > 0) sharesInMetaMorpho += IERC4626(metaMorpho).deposit(assets, address(this));
+        if (assets > 0) {
+            // Buffer to avoid large rounding losses
+            uint mintedShares = IERC4626(metaMorpho).previewDeposit(IERC20(asset).balanceOf(this));
+            if (mintedShares > 0) {
+                sharesInMetaMorpho += mintedShares;
+                IERC4626(metaMorpho).mint(mintedShares,address(this));
+            }
+        }
 
         uint256 newAssetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
         int256 change = int256(newAssetsInMetaMorpho) - int256(assetsInMetaMorpho);
