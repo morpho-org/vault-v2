@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2025 Morpho Association
 pragma solidity >=0.5.0;
 
 interface IMorphoBlueAdapterFactory {
     /* EVENTS */
 
-    event CreateMorphoBlueAdapter(address indexed vault, address indexed morphoBlueAdapter);
+    event CreateMorphoBlueAdapter(address indexed parentVault, address indexed morphoBlueAdapter);
 
     /* FUNCTIONS */
 
-    function morphoBlueAdapter(address vault, address morpho, address irm) external view returns (address);
-    function isMorphoBlueAdapter(address adapter) external view returns (bool);
-    function createMorphoBlueAdapter(address vault, address morpho, address irm) external returns (address);
+    function morphoBlueAdapter(address parentVault, address morpho, address irm) external view returns (address);
+    function isMorphoBlueAdapter(address account) external view returns (bool);
+    function createMorphoBlueAdapter(address parentVault, address morpho, address irm) external returns (address);
 }

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.28;
 
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
@@ -17,6 +18,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
     /* IMMUTABLES */
 
+    address public immutable factory;
     address public immutable parentVault;
     address public immutable metaMorpho;
     bytes32 public immutable adapterId;
@@ -30,6 +32,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /* FUNCTIONS */
 
     constructor(address _parentVault, address _metaMorpho) {
+        factory = msg.sender;
         parentVault = _parentVault;
         metaMorpho = _metaMorpho;
         adapterId = keccak256(abi.encode("adapter", address(this)));

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
 import "../lib/forge-std/src/Test.sol";
@@ -88,7 +89,8 @@ contract MorphoBlueAdapterTest is Test {
         return bound(assets, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
     }
 
-    function testParentVaultAndMorphoSet() public view {
+    function testFactoryAndParentVaultAndMorphoSet() public view {
+        assertEq(adapter.factory(), address(factory), "Incorrect factory set");
         assertEq(adapter.parentVault(), address(parentVault), "Incorrect parent vault set");
         assertEq(adapter.morpho(), address(morpho), "Incorrect morpho set");
     }

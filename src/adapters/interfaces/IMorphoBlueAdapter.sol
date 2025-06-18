@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2025 Morpho Association
 pragma solidity >=0.5.0;
 
 import {IAdapter} from "../../interfaces/IAdapter.sol";
@@ -20,6 +21,7 @@ interface IMorphoBlueAdapter is IAdapter {
 
     /* FUNCTIONS */
 
+    function factory() external view returns (address);
     function parentVault() external view returns (address);
     function morpho() external view returns (address);
     function irm() external view returns (address);
