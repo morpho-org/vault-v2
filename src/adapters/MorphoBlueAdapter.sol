@@ -76,7 +76,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /// @dev Returns the ids of the allocation and the potential loss.
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Id marketId = marketParams.id();
+        PositionInMarket storage position = positionInMarket[marketParams.id()];
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
         require(marketParams.irm == irm, IrmMismatch());
@@ -84,16 +84,15 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
 
-        PositionInMarket storage position = positionInMarket[marketId];
-
         uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, position.shares);
-        require(newAssetsInMarket >= position.assets, RealizableLoss());
-        uint256 interest = newAssetsInMarket - position.assets;
+        uint256 interest = newAssetsInMarket.zeroFloorSub(position.assets);
+
         if (assets > 0) {
             (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
             position.shares += uint128(mintedShares);
         }
-        position.assets = uint128(expectedSupplyAssets(marketParams, position.shares));
+
+        position.assets = uint128(position.assets + interest + assets);
 
         return (ids(marketParams), interest);
     }
@@ -102,7 +101,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /// @dev Returns the ids of the deallocation and the potential loss.
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Id marketId = marketParams.id();
+        PositionInMarket storage position = positionInMarket[marketParams.id()];
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
         require(marketParams.irm == irm, IrmMismatch());
@@ -110,31 +109,27 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
 
-        PositionInMarket storage position = positionInMarket[marketId];
-
         uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, position.shares);
-        require(newAssetsInMarket >= position.assets, RealizableLoss());
-        uint256 interest = newAssetsInMarket - position.assets;
+        uint256 interest = newAssetsInMarket.zeroFloorSub(position.assets);
+
         if (assets > 0) {
             (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
             position.shares -= uint128(redeemedShares);
         }
-        position.assets = uint128(expectedSupplyAssets(marketParams, position.shares));
+
+        position.assets = uint128(position.assets + interest - assets);
 
         return (ids(marketParams), interest);
     }
 
     function realizeLoss(bytes memory data) external returns (bytes32[] memory, uint256) {
-        require(msg.sender == parentVault, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Id marketId = marketParams.id();
-
-        PositionInMarket storage position = positionInMarket[marketId];
+        PositionInMarket storage position = positionInMarket[marketParams.id()];
+        require(msg.sender == parentVault, NotAuthorized());
 
         uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, position.shares);
-        require(newAssetsInMarket < position.assets, NoRealizableLoss());
-        uint256 loss = position.assets - newAssetsInMarket;
-        position.assets = uint128(newAssetsInMarket);
+        uint256 loss = uint256(position.assets).zeroFloorSub(newAssetsInMarket);
+        position.assets = uint128(newAssetsInMarket); // Reset to the real value.
 
         return (ids(marketParams), loss);
     }
