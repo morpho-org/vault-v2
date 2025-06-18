@@ -418,7 +418,7 @@ contract VaultV2 is IVaultV2 {
 
         // Realize loss.
         if (change < int256(assets)) {
-            uint256 loss = assets.zeroFloorSubInt(change);
+            uint256 loss = uint256(MathLib.max(int256(assets) - change, 0));
             _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
             enterBlocked = true;
         }
@@ -448,7 +448,7 @@ contract VaultV2 is IVaultV2 {
 
         // Realize loss.
         if (change < -int256(assets)) {
-            uint256 loss = assets.zeroFloorSubInt(change);
+            uint256 loss = uint256(MathLib.max(-int256(assets) - change, 0));
             _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
             enterBlocked = true;
         }

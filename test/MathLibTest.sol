@@ -44,17 +44,8 @@ contract MathLibTest is Test {
         }
     }
 
-    /// forge-config: default.allow_internal_expect_revert = true
-    function testZeroFloorSubInt(uint256 x, int256 y) public {
-        if (x > uint256(type(int256).max)) {
-            vm.expectRevert(ErrorsLib.CastOverflow.selector);
-            MathLib.zeroFloorSubInt(x, y);
-        } else if (y < 0 && int256(x) > type(int256).max + y) {
-            vm.expectRevert(stdError.arithmeticError);
-            MathLib.zeroFloorSubInt(x, y);
-        } else {
-            assertEq(MathLib.zeroFloorSubInt(x, y), int256(x) >= y ? uint256(int256(x) - y) : 0);
-        }
+    function testMax(int256 x, int256 y) public pure {
+        assertEq(MathLib.max(x, y), x >= y ? x : y);
     }
 
     /// forge-config: default.allow_internal_expect_revert = true

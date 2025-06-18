@@ -33,10 +33,8 @@ library MathLib {
         }
     }
 
-    /// @dev Returns max(0, x - y).
-    function zeroFloorSubInt(uint256 x, int256 y) internal pure returns (uint256) {
-        require(x <= uint256(type(int256).max), ErrorsLib.CastOverflow());
-        return int256(x) >= y ? uint256(int256(x) - y) : 0;
+    function max(int256 x, int256 y) internal pure returns (int256) {
+        return x >= y ? x : y;
     }
 
     /// @dev Casts to uint192, reverting if input number is too large.
