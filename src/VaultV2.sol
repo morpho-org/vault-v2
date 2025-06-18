@@ -232,16 +232,16 @@ contract VaultV2 is IVaultV2 {
 
     /* TIMELOCKS FOR CURATOR FUNCTIONS */
 
-    modifier timelocked() {
+    function timelocked() internal returns (bool isTimelocked) {
         if (executableAt[msg.data] == 0) {
             require(msg.sender == curator, ErrorsLib.Unauthorized());
             bytes4 selector = bytes4(msg.data);
             executableAt[msg.data] = block.timestamp + timelock[selector];
             emit EventsLib.Submit(selector, msg.data, executableAt[msg.data]);
+            isTimelocked = true;
         } else {
             require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
             executableAt[msg.data] = 0;
-            _;
         }
     }
 
@@ -254,29 +254,34 @@ contract VaultV2 is IVaultV2 {
 
     /* CURATOR FUNCTIONS */
 
-    function setIsAllocator(address account, bool newIsAllocator) external timelocked {
+    function setIsAllocator(address account, bool newIsAllocator) external {
+        if (timelocked()) return;
         isAllocator[account] = newIsAllocator;
         emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
 
-    function setSharesGate(address newSharesGate) external timelocked {
+    function setSharesGate(address newSharesGate) external {
+        if (timelocked()) return;
         sharesGate = newSharesGate;
         emit EventsLib.SetSharesGate(newSharesGate);
     }
 
-    function setReceiveAssetsGate(address newReceiveAssetsGate) external timelocked {
+    function setReceiveAssetsGate(address newReceiveAssetsGate) external {
+        if (timelocked()) return;
         receiveAssetsGate = newReceiveAssetsGate;
         emit EventsLib.SetReceiveAssetsGate(newReceiveAssetsGate);
     }
 
-    function setSendAssetsGate(address newSendAssetsGate) external timelocked {
+    function setSendAssetsGate(address newSendAssetsGate) external {
+        if (timelocked()) return;
         sendAssetsGate = newSendAssetsGate;
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
     }
 
     /// @dev This function never reverts, assuming that the corresponding data is timelocked.
     /// @dev Users cannot access their funds if the Vic reverts, so this function might better be under a long timelock.
-    function setVic(address newVic) external timelocked {
+    function setVic(address newVic) external {
+        if (timelocked()) return;
         try this.accrueInterest() {}
         catch {
             lastUpdate = uint64(block.timestamp);
@@ -285,7 +290,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetVic(newVic);
     }
 
-    function setIsAdapter(address account, bool newIsAdapter) external timelocked {
+    function setIsAdapter(address account, bool newIsAdapter) external {
+        if (timelocked()) return;
         isAdapter[account] = newIsAdapter;
         emit EventsLib.SetIsAdapter(account, newIsAdapter);
     }
@@ -303,12 +309,14 @@ contract VaultV2 is IVaultV2 {
     /// @dev Be particularly careful as this action is not reversible.
     /// @dev Existing timelocked operations submitted before abdicating the selector can still be executed. The
     /// abdication of a selector only prevents future operations to be submitted.
-    function abdicateSubmit(bytes4 selector) external timelocked {
+    function abdicateSubmit(bytes4 selector) external {
+        if (timelocked()) return;
         timelock[selector] = type(uint256).max;
         emit EventsLib.AbdicateSubmit(selector);
     }
 
-    function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
+    function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
+        if (timelocked()) return;
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(timelock[selector] != type(uint256).max, ErrorsLib.InfiniteTimelock());
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
@@ -317,7 +325,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseTimelock(selector, newDuration);
     }
 
-    function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
+    function setPerformanceFee(uint256 newPerformanceFee) external {
+        if (timelocked()) return;
         require(newPerformanceFee <= MAX_PERFORMANCE_FEE, ErrorsLib.FeeTooHigh());
         require(performanceFeeRecipient != address(0) || newPerformanceFee == 0, ErrorsLib.FeeInvariantBroken());
 
@@ -328,7 +337,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetPerformanceFee(newPerformanceFee);
     }
 
-    function setManagementFee(uint256 newManagementFee) external timelocked {
+    function setManagementFee(uint256 newManagementFee) external {
+        if (timelocked()) return;
         require(newManagementFee <= MAX_MANAGEMENT_FEE, ErrorsLib.FeeTooHigh());
         require(managementFeeRecipient != address(0) || newManagementFee == 0, ErrorsLib.FeeInvariantBroken());
 
@@ -339,7 +349,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetManagementFee(newManagementFee);
     }
 
-    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
+    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external {
+        if (timelocked()) return;
         require(newPerformanceFeeRecipient != address(0) || performanceFee == 0, ErrorsLib.FeeInvariantBroken());
 
         accrueInterest();
@@ -348,7 +359,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetPerformanceFeeRecipient(newPerformanceFeeRecipient);
     }
 
-    function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
+    function setManagementFeeRecipient(address newManagementFeeRecipient) external {
+        if (timelocked()) return;
         require(newManagementFeeRecipient != address(0) || managementFee == 0, ErrorsLib.FeeInvariantBroken());
 
         accrueInterest();
@@ -357,7 +369,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetManagementFeeRecipient(newManagementFeeRecipient);
     }
 
-    function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external timelocked {
+    function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external {
+        if (timelocked()) return;
         bytes32 id = keccak256(idData);
         require(newAbsoluteCap >= caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotIncreasing());
 
@@ -375,7 +388,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
-    function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
+    function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external {
+        if (timelocked()) return;
         bytes32 id = keccak256(idData);
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
         require(newRelativeCap >= caps[id].relativeCap, ErrorsLib.RelativeCapNotIncreasing());
@@ -397,7 +411,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }
 
-    function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external timelocked {
+    function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external {
+        if (timelocked()) return;
         require(newForceDeallocatePenalty <= MAX_FORCE_DEALLOCATE_PENALTY, ErrorsLib.PenaltyTooHigh());
         forceDeallocatePenalty[adapter] = newForceDeallocatePenalty;
         emit EventsLib.SetForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
