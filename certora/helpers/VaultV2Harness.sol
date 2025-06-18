@@ -5,7 +5,7 @@ pragma solidity 0.8.28;
 import "../../src/VaultV2.sol";
 
 contract VaultV2Harness is VaultV2 {
-    constructor(address owner, address asset) VaultV2(owner, asset) {}
+    constructor(address lens, address owner, address asset) VaultV2(lens, owner, asset) {}
 
     function setVicMocked(address newVic) external {
         try this.accrueInterest() {}
