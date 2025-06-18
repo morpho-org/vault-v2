@@ -86,7 +86,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         if (assets > 0) shares -= IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
 
-        trackedAllocation = uint256(trackedAllocation + interest - assets);
+        trackedAllocation = trackedAllocation + interest - assets;
 
         return (ids(), interest);
     }
