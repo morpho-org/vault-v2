@@ -96,7 +96,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(data.length == 0, InvalidData());
 
         uint256 newAssetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
-        uint256 loss = assetsInMetaMorpho - newAssetsInMetaMorpho;
+        uint256 loss = assetsInMetaMorpho.zeroFloorSub(newAssetsInMetaMorpho);
         assetsInMetaMorpho = newAssetsInMetaMorpho; // Reset to the real value.
 
         return (ids(), loss);

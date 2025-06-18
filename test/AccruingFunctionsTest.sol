@@ -3,27 +3,13 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
-contract EmptyAdapter is IAdapter {
-    bytes32[] ids = [keccak256("id")];
-
-    function allocate(bytes memory, uint256) external view returns (bytes32[] memory, uint256) {
-        return (ids, 0);
-    }
-
-    function deallocate(bytes memory, uint256) external view returns (bytes32[] memory, uint256) {
-        return (ids, 0);
-    }
-
-    function realizeLoss(bytes memory) external view returns (bytes32[] memory, uint256) {}
-}
-
 contract AccrueInterestTest is BaseTest {
-    EmptyAdapter adapter;
+    AdapterMock adapter;
 
     function setUp() public override {
         super.setUp();
 
-        adapter = new EmptyAdapter();
+        adapter = new AdapterMock(address(vault));
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
@@ -57,6 +43,8 @@ contract AccrueInterestTest is BaseTest {
     function testRealizeAccruesInterest() public {
         skip(1);
         vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
+        bytes32[] memory ids = new bytes32[](0);
+        vm.mockCall(address(adapter), abi.encodeCall(IAdapter.realizeLoss, (hex"")), abi.encode(ids, 1));
         vault.realizeLoss(address(adapter), hex"");
     }
 

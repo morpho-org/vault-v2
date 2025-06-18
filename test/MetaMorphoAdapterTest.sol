@@ -202,14 +202,12 @@ contract MetaMorphoAdapterTest is Test {
         adapter.allocate(hex"", initialAssets);
         metaMorpho.lose(lossAssets);
 
-        // Allocate is blocked.
+        // Allocate goes through.
         vm.prank(address(parentVault));
-        vm.expectRevert(IMetaMorphoAdapter.RealizableLoss.selector);
         adapter.allocate(hex"", 0);
 
-        // Deallocate is blocked.
+        // Deallocate goes through.
         vm.prank(address(parentVault));
-        vm.expectRevert(IMetaMorphoAdapter.RealizableLoss.selector);
         adapter.deallocate(hex"", 0);
 
         // Can't realize more.
@@ -227,26 +225,15 @@ contract MetaMorphoAdapterTest is Test {
         // Deposit realizes the right loss.
         vm.revertToState(snapshot);
         asset.transfer(address(metaMorpho), interest);
-        if (interest >= lossAssets) {
-            assertGe(
-                metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter))),
-                adapter.assetsInMetaMorpho(),
-                "previewRedeem < assetsInMetaMorpho"
-            );
-            vm.prank(address(parentVault));
-            vm.expectRevert(IMetaMorphoAdapter.NoRealizableLoss.selector);
-            adapter.realizeLoss(hex"");
-        } else {
-            vm.prank(address(parentVault));
-            (ids, loss) = adapter.realizeLoss(hex"");
-            assertEq(ids, expectedIds, "Incorrect ids returned");
-            assertEq(loss, lossAssets - interest, "Incorrect loss returned");
-            assertEq(
-                adapter.assetsInMetaMorpho(),
-                metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter))),
-                "AssetsInMetaMorpho after deposit"
-            );
-        }
+        vm.prank(address(parentVault));
+        (ids, loss) = adapter.realizeLoss(hex"");
+        assertEq(ids, expectedIds, "Incorrect ids returned");
+        assertEq(loss, lossAssets.zeroFloorSub(interest), "Incorrect loss returned");
+        assertEq(
+            adapter.assetsInMetaMorpho(),
+            metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter))),
+            "AssetsInMetaMorpho after deposit"
+        );
     }
 
     function testIds() public view {

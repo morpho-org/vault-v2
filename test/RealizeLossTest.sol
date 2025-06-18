@@ -56,8 +56,8 @@ contract RealizeLossTest is BaseTest {
     }
 
     function testRealizeLossDirectly(uint256 deposit, uint256 expectedLoss) public {
-        deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
-        expectedLoss = bound(expectedLoss, 0, deposit);
+        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+        expectedLoss = bound(expectedLoss, 1, deposit);
 
         vault.deposit(deposit, address(this));
         adapter.setLoss(expectedLoss);
@@ -68,8 +68,8 @@ contract RealizeLossTest is BaseTest {
     }
 
     function testRealizeLossAllocate(uint256 deposit, uint256 expectedLoss) public {
-        deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
-        expectedLoss = bound(expectedLoss, 0, deposit);
+        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+        expectedLoss = bound(expectedLoss, 1, deposit);
 
         vault.deposit(deposit, address(this));
         adapter.setLoss(expectedLoss);
@@ -92,8 +92,8 @@ contract RealizeLossTest is BaseTest {
     }
 
     function testRealizeLossDeallocate(uint256 deposit, uint256 expectedLoss) public {
-        deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
-        expectedLoss = bound(expectedLoss, 0, deposit);
+        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+        expectedLoss = bound(expectedLoss, 1, deposit);
 
         vault.deposit(deposit, address(this));
         adapter.setLoss(expectedLoss);
@@ -116,8 +116,8 @@ contract RealizeLossTest is BaseTest {
     }
 
     function testRealizeLossForceDeallocate(uint256 deposit, uint256 expectedLoss) public {
-        deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
-        expectedLoss = bound(expectedLoss, 0, deposit);
+        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+        expectedLoss = bound(expectedLoss, 1, deposit);
 
         vault.deposit(deposit, address(this));
         adapter.setLoss(expectedLoss);
@@ -140,8 +140,8 @@ contract RealizeLossTest is BaseTest {
     }
 
     function testRealizeLossAllocationUpdate(uint256 deposit, uint256 expectedLoss) public {
-        deposit = bound(deposit, 0, MAX_TEST_AMOUNT);
-        expectedLoss = bound(expectedLoss, 0, deposit);
+        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+        expectedLoss = bound(expectedLoss, 1, deposit);
 
         vm.prank(curator);
         vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, address(adapter), true));
