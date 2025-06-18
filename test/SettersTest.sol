@@ -115,12 +115,30 @@ contract SettersTest is BaseTest {
 
     /* CURATOR SETTERS */
 
-    function expectSubmit(bytes memory data) internal {
-        vm.expectEmit();
-        emit EventsLib.Submit(bytes4(data), data, block.timestamp + vault.timelock(bytes4(data)));
-        vm.prank(curator);
+    function testSubmit(address rdm, address account, bool newIsAllocator) public {
+        vm.assume(rdm != curator);
+        bytes memory data = abi.encodeCall(IVaultV2.setIsAllocator, (account, newIsAllocator));
+        assertEq(bytes4(data), IVaultV2.setIsAllocator.selector);
 
-        assertEq(vault.executableAt(data), block.timestamp + vault.timelock(bytes4(data)));
+        // Setup
+        vm.prank(curator);
+        vault.increaseTimelock(IVaultV2.setIsAllocator.selector, 1 weeks);
+        assertEq(vault.timelock(IVaultV2.setIsAllocator.selector), 1 weeks);
+
+        // Only curator can submit
+        vm.assume(rdm != curator);
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.setIsAllocator(account, newIsAllocator);
+
+        // Normal path
+        vm.expectEmit();
+        emit EventsLib.Submit(
+            IVaultV2.setIsAllocator.selector, data, block.timestamp + vault.timelock(IVaultV2.setIsAllocator.selector)
+        );
+        vm.prank(curator);
+        vault.setIsAllocator(account, newIsAllocator);
+        assertEq(vault.executableAt(data), block.timestamp + vault.timelock(IVaultV2.setIsAllocator.selector));
     }
 
     function testRevoke(bytes memory data, address rdm) public {
@@ -133,8 +151,8 @@ contract SettersTest is BaseTest {
         vault.revoke(data);
 
         // Setup
-        vm.prank(curator);
-        stdstore.target(address(vault)).sig(IVaultV2.executableAt.selector).with_key(keccak256(data)).checked_write(1);
+        stdstore.target(address(vault)).sig(IVaultV2.executableAt.selector).with_calldata(abi.encode(data))
+            .checked_write(1);
 
         // Access control
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
@@ -163,9 +181,9 @@ contract SettersTest is BaseTest {
         vm.prank(curator);
         vault.increaseTimelock(IVaultV2.setVic.selector, timelock);
         assertEq(vault.timelock(IVaultV2.setVic.selector), timelock);
-        bytes memory data = abi.encodeCall(IVaultV2.setVic, address(1));
         vm.prank(curator);
-        // vault.submit(data);
+        vault.setVic(address(1));
+        bytes memory data = abi.encodeCall(IVaultV2.setVic, address(1));
         assertEq(vault.executableAt(data), block.timestamp + timelock);
 
         // Timelock didn't pass.
@@ -176,17 +194,14 @@ contract SettersTest is BaseTest {
         // Normal path.
         vm.warp(vm.getBlockTimestamp() + 1);
         vault.setVic(address(1));
-
-        // Data not timelocked.
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setVic(address(1));
     }
 
     function testSetIsAllocator(address rdm) public {
+        vm.assume(rdm != curator);
         address newAllocator = makeAddr("newAllocator");
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        // Only curator can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.setIsAllocator(newAllocator, true);
 
@@ -211,8 +226,8 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != curator);
         address newVic = address(new ManualVic(address(vault)));
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        // Only curator can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.setVic(newVic);
 
@@ -231,8 +246,8 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != curator);
         address newAdapter = makeAddr("newAdapter");
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        // Only curator can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.setIsAdapter(newAdapter, true);
 
@@ -287,8 +302,8 @@ contract SettersTest is BaseTest {
     function testAbdicateSubmit(address rdm, bytes4 selector) public {
         vm.assume(rdm != curator);
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        // Only curator can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.abdicateSubmit(selector);
 
@@ -326,8 +341,8 @@ contract SettersTest is BaseTest {
         vm.prank(curator);
         vault.increaseTimelock(selector, oldTimelock);
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        // Only curator can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.decreaseTimelock(selector, newTimelock);
 
@@ -362,8 +377,8 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != curator);
         newPerformanceFee = bound(newPerformanceFee, 1, MAX_PERFORMANCE_FEE);
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        // Only curator can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.setPerformanceFee(newPerformanceFee);
 
@@ -399,8 +414,8 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != curator);
         newManagementFee = bound(newManagementFee, 1, MAX_MANAGEMENT_FEE);
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        // Only curator can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.setManagementFee(newManagementFee);
 
@@ -480,8 +495,8 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != curator);
         vm.assume(newPerformanceFeeRecipient != address(0));
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        // Only curator can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.setPerformanceFeeRecipient(newPerformanceFeeRecipient);
 
@@ -508,8 +523,8 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != curator);
         vm.assume(newManagementFeeRecipient != address(0));
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        // Only curator can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.setManagementFeeRecipient(newManagementFeeRecipient);
 
@@ -537,8 +552,8 @@ contract SettersTest is BaseTest {
         newAbsoluteCap = bound(newAbsoluteCap, 0, type(uint128).max);
         bytes32 id = keccak256(idData);
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        // Only curator can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.increaseAbsoluteCap(idData, newAbsoluteCap);
 
@@ -602,6 +617,7 @@ contract SettersTest is BaseTest {
     function testIncreaseRelativeCap(address rdm, bytes memory idData, uint256 oldRelativeCap, uint256 newRelativeCap)
         public
     {
+        vm.assume(rdm != curator);
         oldRelativeCap = bound(oldRelativeCap, 1, WAD - 1);
         newRelativeCap = bound(newRelativeCap, oldRelativeCap, WAD - 1);
         bytes32 id = keccak256(idData);
@@ -610,8 +626,8 @@ contract SettersTest is BaseTest {
         vault.increaseRelativeCap(idData, oldRelativeCap);
         vault.increaseRelativeCap(idData, oldRelativeCap);
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        // Only curator can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.increaseRelativeCap(idData, newRelativeCap);
 
@@ -682,8 +698,8 @@ contract SettersTest is BaseTest {
         vault.setIsAdapter(adapter, true);
         vault.setIsAdapter(adapter, true);
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        // Only curator can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vault.setForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
 
         // Normal path
@@ -706,8 +722,8 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != curator);
         address newSharesGate = makeAddr("newSharesGate");
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        // Only curator can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.setSharesGate(newSharesGate);
 
@@ -724,8 +740,8 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != curator);
         address newReceiveAssetsGate = makeAddr("newReceiveAssetsGate");
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        // Only curator can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.setReceiveAssetsGate(newReceiveAssetsGate);
 
@@ -742,8 +758,8 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != curator);
         address newSendAssetsGate = makeAddr("newSendAssetsGate");
 
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        // Only curator can submit
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.setSendAssetsGate(newSendAssetsGate);
 
