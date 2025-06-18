@@ -57,32 +57,34 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the change in assets in the position.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256, uint256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
         if (assets > 0) sharesInMetaMorpho += IERC4626(metaMorpho).deposit(assets, address(this));
 
         uint256 newAssetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
-        int256 change = int256(newAssetsInMetaMorpho) - int256(assetsInMetaMorpho);
+        uint256 interest = newAssetsInMetaMorpho.zeroFloorSub(assetsInMetaMorpho + assets);
+        uint256 loss = (assetsInMetaMorpho + assets).zeroFloorSub(newAssetsInMetaMorpho);
         assetsInMetaMorpho = newAssetsInMetaMorpho;
 
-        return (ids(), change);
+        return (ids(), interest, loss);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the change in assets in the position.
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256, uint256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
         if (assets > 0) sharesInMetaMorpho -= IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
 
         uint256 newAssetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
-        int256 change = int256(newAssetsInMetaMorpho) - int256(assetsInMetaMorpho);
+        uint256 interest = newAssetsInMetaMorpho.zeroFloorSub(assetsInMetaMorpho + assets);
+        uint256 loss = (assetsInMetaMorpho + assets).zeroFloorSub(newAssetsInMetaMorpho);
         assetsInMetaMorpho = newAssetsInMetaMorpho;
 
-        return (ids(), change);
+        return (ids(), interest, loss);
     }
 
     /// @dev Returns adapter's ids.

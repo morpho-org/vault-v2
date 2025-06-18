@@ -74,7 +74,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the change in assets in the position.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
+    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256, uint256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
@@ -86,15 +86,16 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
             position.shares += uint128(mintedShares);
         }
         uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, position.shares);
-        int256 change = int256(newAssetsInMarket) - int128(position.assets);
+        uint256 interest = newAssetsInMarket.zeroFloorSub(position.assets);
+        uint256 loss = uint256(position.assets).zeroFloorSub(newAssetsInMarket);
         position.assets = uint128(newAssetsInMarket);
 
-        return (ids(marketParams), change);
+        return (ids(marketParams), interest, loss);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the change in assets in the position.
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
+    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256, uint256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
@@ -106,10 +107,11 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
             position.shares -= uint128(redeemedShares);
         }
         uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, position.shares);
-        int256 change = int256(newAssetsInMarket) - int128(position.assets);
+        uint256 interest = newAssetsInMarket.zeroFloorSub(position.assets);
+        uint256 loss = uint256(position.assets).zeroFloorSub(newAssetsInMarket);
         position.assets = uint128(newAssetsInMarket);
 
-        return (ids(marketParams), change);
+        return (ids(marketParams), interest, loss);
     }
 
     /// @dev Returns adapter's ids.
