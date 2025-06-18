@@ -82,6 +82,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
         PositionInMarket storage position = positionInMarket[marketParams.id()];
         if (assets > 0) {
+            // Buffer to avoid large rounding losses
             (uint totalSupplyAssets, uint totalSupplyShares,,) = MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
             uint mintedShares = assets.toSharesDown(totalSupplyAssets, totalSupplyShares);
             if (mintedShares > 0) {
