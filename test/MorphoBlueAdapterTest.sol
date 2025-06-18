@@ -225,54 +225,104 @@ contract MorphoBlueAdapterTest is Test {
         adapter.skim(address(token));
     }
 
-    function testLossRealization(uint256 initial, uint256 expectedLoss, uint256 deposit, uint256 withdraw, uint256 gain)
-        public
-    {
-        initial = _boundAssets(initial);
-        expectedLoss = bound(expectedLoss, 0, initial / 2);
-        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
-        withdraw = bound(withdraw, 0, initial - expectedLoss);
-        gain = bound(gain, 0, initial);
+    function testLossRealizationZero(uint256 deposit) public {
+        deposit = _boundAssets(deposit);
 
-        // Setup
+        // Setup.
+        deal(address(loanToken), address(adapter), deposit);
+        vm.prank(address(parentVault));
+        adapter.allocate(abi.encode(marketParams), deposit);
+
+        // Realize loss.
+        vm.prank(address(parentVault));
+        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
+        assertEq(ids, expectedIds, "ids");
+        assertEq(loss, 0, "loss");
+        assertEq(adapter.trackedAllocation(marketId), deposit, "trackedAllocation");
+    }
+
+    function testLossRealization(uint256 deposit, uint256 _loss) public {
+        deposit = _boundAssets(deposit);
+        _loss = bound(_loss, 0, deposit);
+
+        // Setup.
+        deal(address(loanToken), address(adapter), deposit);
+        vm.prank(address(parentVault));
+        adapter.allocate(abi.encode(marketParams), deposit);
+        _overrideMarketTotalSupplyAssets(-int256(_loss));
+
+        // Realize loss.
+        vm.prank(address(parentVault));
+        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
+        assertEq(ids, expectedIds, "ids");
+        assertEq(loss, _loss, "loss");
+        assertEq(adapter.trackedAllocation(marketId), deposit - _loss, "trackedAllocation");
+    }
+
+    function testLossRealizationAfterAllocate(uint256 deposit1, uint256 _loss, uint256 deposit2) public {
+        deposit1 = _boundAssets(deposit1);
+        _loss = bound(_loss, 0, deposit1 / 2); // Limit the loss to avoid the share price to explode.
+        deposit2 = bound(deposit2, 0, MAX_TEST_ASSETS);
+
+        // Setup.
+        deal(address(loanToken), address(adapter), deposit1 + deposit2);
+        vm.prank(address(parentVault));
+        adapter.allocate(abi.encode(marketParams), deposit1);
+        _overrideMarketTotalSupplyAssets(-int256(_loss));
+
+        // Allocate.
+        vm.prank(address(parentVault));
+        adapter.allocate(abi.encode(marketParams), deposit2);
+
+        // Realize loss.
+        vm.prank(address(parentVault));
+        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
+        assertEq(ids, expectedIds, "ids");
+        assertEq(loss, _loss, "loss");
+        assertEq(adapter.trackedAllocation(marketId), deposit1 - _loss + deposit2, "trackedAllocation");
+    }
+
+    function testLossRealizationAfterDeallocate(uint256 initial, uint256 _loss, uint256 withdraw) public {
+        initial = _boundAssets(initial);
+        _loss = bound(_loss, 0, initial);
+        withdraw = bound(withdraw, 0, initial - _loss);
+
+        // Setup.
         deal(address(loanToken), address(adapter), initial);
         vm.prank(address(parentVault));
         adapter.allocate(abi.encode(marketParams), initial);
-        assertEq(adapter.trackedAllocation(marketId), initial, "Initial trackedAllocation incorrect");
-        _overrideMarketTotalSupplyAssets(-int256(expectedLoss));
+        _overrideMarketTotalSupplyAssets(-int256(_loss));
 
-        // Allocate goes through.
+        // Deallocate.
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 interest) = adapter.allocate(abi.encode(marketParams), 0);
+        adapter.deallocate(abi.encode(marketParams), withdraw);
 
-        // Deallocate goes through.
+        // Realize loss.
         vm.prank(address(parentVault));
-        (ids, interest) = adapter.deallocate(abi.encode(marketParams), 0);
+        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
+        assertEq(ids, expectedIds, "ids");
+        assertEq(loss, _loss, "loss");
+        assertEq(adapter.trackedAllocation(marketId), initial - _loss - withdraw, "trackedAllocation");
+    }
 
-        // Realize loss
-        uint256 snapshot = vm.snapshotState();
-        vm.prank(address(parentVault));
-        (ids, interest) = adapter.realizeLoss(abi.encode(marketParams));
-        assertEq(ids, expectedIds, "ids: realizeLoss");
-        assertEq(interest, expectedLoss, "loss: realizeLoss");
-        assertEq(
-            adapter.trackedAllocation(marketId),
-            morpho.expectedSupplyAssets(marketParams, address(adapter)),
-            "trackedAllocation: realizeLoss: 1"
-        );
+    function testLossRealizationAfterInterest(uint256 deposit, uint256 _loss, uint256 interest) public {
+        deposit = _boundAssets(deposit);
+        _loss = bound(_loss, 0, deposit);
+        interest = bound(interest, 0, deposit);
 
-        // Can't realize twice
+        // Setup.
+        deal(address(loanToken), address(adapter), deposit + interest);
         vm.prank(address(parentVault));
-        (ids, interest) = adapter.realizeLoss(abi.encode(marketParams));
-        assertEq(interest, 0, "interest: realizeLoss");
+        adapter.allocate(abi.encode(marketParams), deposit);
+        _overrideMarketTotalSupplyAssets(-int256(_loss));
 
         // Interest covers the loss.
-        vm.revertToState(snapshot);
-        _overrideMarketTotalSupplyAssets(int256(gain));
+        _overrideMarketTotalSupplyAssets(int256(interest));
         vm.prank(address(parentVault));
-        (ids, interest) = adapter.realizeLoss(abi.encode(marketParams));
-        assertEq(ids, expectedIds, "ids: realizeLoss");
-        assertEq(interest, expectedLoss.zeroFloorSub(gain), "interest: realizeLoss");
+        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
+        assertEq(ids, expectedIds, "ids");
+        assertEq(loss, _loss.zeroFloorSub(interest), "loss");
+        assertApproxEqAbs(adapter.trackedAllocation(marketId), deposit - _loss + interest, 1, "trackedAllocation");
     }
 
     function testWrongIrm(address randomIrm) public {
