@@ -6,6 +6,7 @@ import {IVaultV2Factory} from "../src/interfaces/IVaultV2Factory.sol";
 import {IVaultV2, IERC20} from "../src/interfaces/IVaultV2.sol";
 import {IManualVicFactory} from "../src/vic/interfaces/IManualVicFactory.sol";
 
+import {Lens} from "../src/Lens.sol";
 import {VaultV2Factory} from "../src/VaultV2Factory.sol";
 import {ManualVic, ManualVicFactory} from "../src/vic/ManualVicFactory.sol";
 import "../src/VaultV2.sol";
@@ -25,6 +26,7 @@ contract BaseTest is Test {
     // The packed slot containing both _totalAssets and lastUpdate.
     bytes32 TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT = bytes32(uint256(13));
 
+    address lens;
     ERC20Mock underlyingToken;
     IVaultV2Factory vaultFactory;
     IVaultV2 vault;
@@ -39,7 +41,8 @@ contract BaseTest is Test {
         underlyingToken = new ERC20Mock();
         vm.label(address(underlyingToken), "underlying");
 
-        vaultFactory = IVaultV2Factory(address(new VaultV2Factory()));
+        lens = address(new Lens());
+        vaultFactory = IVaultV2Factory(address(new VaultV2Factory(lens)));
 
         vault = IVaultV2(vaultFactory.createVaultV2(owner, address(underlyingToken), bytes32(0)));
         vm.label(address(vault), "vault");

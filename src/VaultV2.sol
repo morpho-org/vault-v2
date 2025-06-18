@@ -53,55 +53,56 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - Adapters must not revert on `deallocate` if the underlying markets are liquid.
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
 /// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
-contract VaultV2 is IVaultV2 {
+contract VaultV2 {
     using MathLib for uint256;
 
     /* IMMUTABLE */
 
+    address public immutable lens;
     address public immutable asset;
     uint8 public immutable decimals;
 
     /* ROLES STORAGE */
 
-    address public owner;
-    address public curator;
+    address internal owner;
+    address internal curator;
     /// @dev Gates sending and receiving shares.
     /// @dev canSendShares can lock users out of exiting the vault.
     /// @dev canReceiveShares can prevent users from getting back their shares that they deposited on other protocols. If
     /// it reverts or consumes a lot of gas, it can also make accrueInterest revert, thus freezing the vault.
     /// @dev Set to 0 to disable the gate.
-    address public sharesGate;
+    address internal sharesGate;
     /// @dev Gates receiving assets from the vault.
     /// @dev Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
     /// @dev Set to 0 to disable the gate.
-    address public receiveAssetsGate;
+    address internal receiveAssetsGate;
     /// @dev Gates depositing assets to the vault.
     /// @dev This gate is not critical (cannot block users' funds), while still being able to gate supplies.
     /// @dev Set to 0 to disable the gate.
-    address public sendAssetsGate;
-    mapping(address account => bool) public isSentinel;
-    mapping(address account => bool) public isAllocator;
+    address internal sendAssetsGate;
+    mapping(address account => bool) internal isSentinel;
+    mapping(address account => bool) internal isAllocator;
 
     /* TOKEN STORAGE */
 
-    string public name;
-    string public symbol;
-    uint256 public totalSupply;
-    mapping(address account => uint256) public balanceOf;
-    mapping(address owner => mapping(address spender => uint256)) public allowance;
-    mapping(address account => uint256) public nonces;
+    string internal name;
+    string internal symbol;
+    uint256 internal totalSupply;
+    mapping(address account => uint256) internal balanceOf;
+    mapping(address owner => mapping(address spender => uint256)) internal allowance;
+    mapping(address account => uint256) internal nonces;
 
     /* INTEREST STORAGE */
 
     uint192 internal _totalAssets;
-    uint64 public lastUpdate;
-    address public vic;
+    uint64 internal lastUpdate;
+    address internal vic;
     /// @dev Prevents floashloan-based shorting of vault shares during loss realizations.
-    bool public transient enterBlocked;
+    bool internal transient enterBlocked;
 
     /* CURATION STORAGE */
 
-    mapping(address account => bool) public isAdapter;
+    mapping(address account => bool) internal isAdapter;
     /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
     /// @dev The allocation is not updated to take interests into account.
     /// @dev Some underlying markets might allow to take into account interest (fixed rate, fixed term), some might not.
@@ -112,12 +113,12 @@ contract VaultV2 is IVaultV2 {
     /// adapter.
     /// @dev The relative cap unit is WAD.
     mapping(bytes32 id => Caps) internal caps;
-    mapping(address adapter => uint256) public forceDeallocatePenalty;
+    mapping(address adapter => uint256) internal forceDeallocatePenalty;
 
     /* LIQUIDITY ADAPTER STORAGE */
 
-    address public liquidityAdapter;
-    bytes public liquidityData;
+    address internal liquidityAdapter;
+    bytes internal liquidityData;
 
     /* TIMELOCKS STORAGE */
 
@@ -132,21 +133,21 @@ contract VaultV2 is IVaultV2 {
     ///     executableAt[selector::_],
     ///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock
     /// ).
-    mapping(bytes4 selector => uint256) public timelock;
+    mapping(bytes4 selector => uint256) internal timelock;
     /// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist,
     /// conditions are not met, etc.).
-    mapping(bytes data => uint256) public executableAt;
+    mapping(bytes data => uint256) internal executableAt;
 
     /* FEES STORAGE */
 
     /// @dev Fees unit is WAD.
     /// @dev This invariant holds for both fees: fee != 0 => recipient != address(0).
-    uint96 public performanceFee;
-    address public performanceFeeRecipient;
+    uint96 internal performanceFee;
+    address internal performanceFeeRecipient;
     /// @dev Fees unit is WAD.
     /// @dev This invariant holds for both fees: fee != 0 => recipient != address(0).
-    uint96 public managementFee;
-    address public managementFeeRecipient;
+    uint96 internal managementFee;
+    address internal managementFeeRecipient;
 
     /* GETTERS */
 
@@ -159,16 +160,19 @@ contract VaultV2 is IVaultV2 {
         return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
     }
 
-    function absoluteCap(bytes32 id) external view returns (uint256) {
-        return caps[id].absoluteCap;
-    }
+    /* FALLBACK */
 
-    function relativeCap(bytes32 id) external view returns (uint256) {
-        return caps[id].relativeCap;
-    }
-
-    function allocation(bytes32 id) external view returns (uint256) {
-        return caps[id].allocation;
+    fallback() external {
+        (bool success, bytes memory returnData) = lens.delegatecall(msg.data);
+        if (!success) {
+            assembly ("memory-safe") {
+                revert(add(32, returnData), mload(returnData))
+            }
+        } else {
+            assembly ("memory-safe") {
+                return(add(32, returnData), mload(returnData))
+            }
+        }
     }
 
     /* MULTICALL */
@@ -189,7 +193,8 @@ contract VaultV2 is IVaultV2 {
 
     /* CONSTRUCTOR */
 
-    constructor(address _owner, address _asset) {
+    constructor(address _lens, address _owner, address _asset) {
+        lens = _lens;
         asset = _asset;
         owner = _owner;
         lastUpdate = uint64(block.timestamp);
@@ -550,28 +555,6 @@ contract VaultV2 is IVaultV2 {
     /// @dev Returns corresponding assets (rounded down).
     function convertToAssets(uint256 shares) external view returns (uint256) {
         return previewRedeem(shares);
-    }
-
-    /* MAX FUNCTIONS */
-
-    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
-    function maxDeposit(address) external pure returns (uint256) {
-        return 0;
-    }
-
-    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
-    function maxMint(address) external pure returns (uint256) {
-        return 0;
-    }
-
-    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
-    function maxWithdraw(address) external pure returns (uint256) {
-        return 0;
-    }
-
-    /// @dev Gross underestimation because being revert-free cannot be guaranteed when calling the gate.
-    function maxRedeem(address) external pure returns (uint256) {
-        return 0;
     }
 
     /* USER MAIN FUNCTIONS */
