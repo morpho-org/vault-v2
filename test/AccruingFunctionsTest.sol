@@ -16,7 +16,7 @@ contract EmptyAdapter is IAdapter {
     }
 }
 
-contract AccrueInterestTest is BaseTest {
+contract AccruingFunctionsTest is BaseTest {
     EmptyAdapter adapter;
 
     function setUp() public override {

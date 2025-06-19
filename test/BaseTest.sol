@@ -80,7 +80,7 @@ contract BaseTest is Test {
     function increaseRelativeCap(bytes memory idData, uint256 relativeCap) internal {
         bytes32 id = keccak256(idData);
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, relativeCap));
+        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, relativeCap)));
         vault.increaseRelativeCap(idData, relativeCap);
         assertEq(vault.relativeCap(id), relativeCap);
     }
