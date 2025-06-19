@@ -31,7 +31,7 @@ contract AllocateTest is BaseTest {
     function testAllocate(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(vault));
-        assets = bound(assets, 1, type(uint128).max);
+        assets = bound(assets, 2, type(uint128).max);
         absoluteCap = bound(absoluteCap, assets, type(uint128).max);
 
         // Setup.
@@ -40,15 +40,6 @@ contract AllocateTest is BaseTest {
         assertEq(underlyingToken.balanceOf(mockAdapter), 0, "Initial adapter balance incorrect");
         assertEq(vault.allocation(keccak256("id-0")), 0, "Initial allocation incorrect");
         assertEq(vault.allocation(keccak256("id-1")), 0, "Initial allocation incorrect");
-
-        // Access control.
-        vm.prank(rdm);
-        vm.expectRevert(ErrorsLib.Unauthorized.selector);
-        vault.allocate(mockAdapter, data, assets);
-        vm.prank(address(vault));
-        vault.allocate(mockAdapter, hex"", 0);
-        vm.prank(allocator);
-        vault.allocate(mockAdapter, hex"", 0);
 
         // Can't allocate if not adapter.
         vm.prank(allocator);
@@ -61,6 +52,15 @@ contract AllocateTest is BaseTest {
         vm.expectRevert(ErrorsLib.AbsoluteCapExceeded.selector);
         vm.prank(allocator);
         vault.allocate(mockAdapter, data, assets);
+
+        // Access control.
+        vm.prank(rdm);
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vault.allocate(mockAdapter, data, assets);
+        vm.prank(address(vault));
+        vault.allocate(mockAdapter, hex"", 0);
+        vm.prank(allocator);
+        vault.allocate(mockAdapter, hex"", 0);
 
         // Relative cap check fails on 0 cap.
         increaseAbsoluteCap("id-0", assets);

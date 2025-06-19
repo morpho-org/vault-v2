@@ -421,6 +421,7 @@ contract VaultV2 is IVaultV2 {
             Caps storage _caps = caps[ids[i]];
             _caps.allocation = _caps.allocation + assets + interest;
 
+            require(_caps.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
             require(
                 _caps.relativeCap == WAD || _caps.allocation <= uint256(_totalAssets).mulDivDown(_caps.relativeCap, WAD),
@@ -442,6 +443,7 @@ contract VaultV2 is IVaultV2 {
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
+            require(_caps.allocation > 0, ErrorsLib.ZeroAllocation());
             _caps.allocation = (_caps.allocation + interest).zeroFloorSub(assets);
         }
 
