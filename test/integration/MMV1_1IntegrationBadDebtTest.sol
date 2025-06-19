@@ -54,7 +54,7 @@ contract MMV1_1IntegrationBadDebtTest is MMV1_1IntegrationTest {
         vm.stopPrank();
 
         vm.prank(address(0x123));
-        vm.expectRevert(ErrorsLib.NoRealizableLoss.selector);
+        vm.expectRevert(IMetaMorphoAdapter.NoLoss.selector);
         vault.realizeLoss(address(metaMorphoAdapter), hex"");
     }
 
@@ -85,7 +85,7 @@ contract MMV1_1IntegrationBadDebtTest is MMV1_1IntegrationTest {
         morpho.liquidate(allMarketParams[1], borrower, collateralOfBorrower, 0, hex"");
 
         vm.prank(address(0x123));
-        vm.expectRevert(ErrorsLib.NoRealizableLoss.selector);
+        vm.expectRevert(IMetaMorphoAdapter.NoLoss.selector);
         vault.realizeLoss(address(metaMorphoAdapter), hex"");
     }
 }

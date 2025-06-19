@@ -663,7 +663,6 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).realizeLoss(data);
-        require(loss > 0, ErrorsLib.NoRealizableLoss());
 
         uint256 incentiveShares;
         if (loss > 0) {

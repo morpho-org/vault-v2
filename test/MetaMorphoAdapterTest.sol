@@ -193,10 +193,8 @@ contract MetaMorphoAdapterTest is Test {
 
         // Realize loss.
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
-        assertEq(ids, expectedIds, "ids");
-        assertEq(loss, 0, "loss");
-        assertEq(adapter.trackedAllocation(), deposit, "trackedAllocation");
+        vm.expectRevert(IMetaMorphoAdapter.NoLoss.selector);
+        adapter.realizeLoss(hex"");
     }
 
     function testLossRealization(uint256 deposit, uint256 _loss) public {
@@ -277,11 +275,15 @@ contract MetaMorphoAdapterTest is Test {
 
         // Realize loss.
         asset.transfer(address(metaMorpho), interest);
+        uint256 expectedLoss = _loss.zeroFloorSub(interest);
         vm.prank(address(parentVault));
+        if (expectedLoss == 0) vm.expectRevert(IMetaMorphoAdapter.NoLoss.selector);
         (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
-        assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(loss, _loss.zeroFloorSub(interest), "Incorrect loss returned");
-        assertApproxEqAbs(adapter.trackedAllocation(), deposit - _loss + interest, 1, "trackedAllocation");
+        if (expectedLoss > 0) {
+            assertEq(ids, expectedIds, "ids");
+            assertEq(loss, _loss - interest, "loss");
+            assertApproxEqAbs(adapter.trackedAllocation(), deposit - _loss + interest, 1, "trackedAllocation");
+        }
     }
 
     function testIds() public view {

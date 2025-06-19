@@ -21,7 +21,6 @@ library ErrorsLib {
     error InfiniteTimelock();
     error InvalidSigner();
     error NoCode();
-    error NoRealizableLoss();
     error NotAdapter();
     error PenaltyTooHigh();
     error PermitDeadlineExpired();

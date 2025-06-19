@@ -235,15 +235,13 @@ contract MorphoBlueAdapterTest is Test {
 
         // Realize loss.
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
-        assertEq(ids, expectedIds, "ids");
-        assertEq(loss, 0, "loss");
-        assertEq(adapter.trackedAllocation(marketId), deposit, "trackedAllocation");
+        vm.expectRevert(IMorphoBlueAdapter.NoLoss.selector);
+        adapter.realizeLoss(abi.encode(marketParams));
     }
 
     function testLossRealization(uint256 deposit, uint256 _loss) public {
         deposit = _boundAssets(deposit);
-        _loss = bound(_loss, 0, deposit);
+        _loss = bound(_loss, 1, deposit);
 
         // Setup.
         deal(address(loanToken), address(adapter), deposit);
@@ -261,7 +259,7 @@ contract MorphoBlueAdapterTest is Test {
 
     function testLossRealizationAfterAllocate(uint256 deposit1, uint256 _loss, uint256 deposit2) public {
         deposit1 = _boundAssets(deposit1);
-        _loss = bound(_loss, 0, deposit1 / 2); // Limit the loss to avoid the share price to explode.
+        _loss = bound(_loss, 1, deposit1 / 2); // Limit the loss to avoid the share price to explode.
         deposit2 = bound(deposit2, 0, MAX_TEST_ASSETS);
 
         // Setup.
@@ -284,7 +282,7 @@ contract MorphoBlueAdapterTest is Test {
 
     function testLossRealizationAfterDeallocate(uint256 initial, uint256 _loss, uint256 withdraw) public {
         initial = _boundAssets(initial);
-        _loss = bound(_loss, 0, initial);
+        _loss = bound(_loss, 1, initial);
         withdraw = bound(withdraw, 0, initial - _loss);
 
         // Setup.
@@ -307,7 +305,7 @@ contract MorphoBlueAdapterTest is Test {
 
     function testLossRealizationAfterInterest(uint256 deposit, uint256 _loss, uint256 interest) public {
         deposit = _boundAssets(deposit);
-        _loss = bound(_loss, 0, deposit);
+        _loss = bound(_loss, 1, deposit);
         interest = bound(interest, 0, deposit);
 
         // Setup.
@@ -318,11 +316,15 @@ contract MorphoBlueAdapterTest is Test {
 
         // Interest covers the loss.
         _overrideMarketTotalSupplyAssets(int256(interest));
+        uint256 expectedLoss = _loss.zeroFloorSub(interest);
         vm.prank(address(parentVault));
+        if (expectedLoss == 0) vm.expectRevert(IMorphoBlueAdapter.NoLoss.selector);
         (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
-        assertEq(ids, expectedIds, "ids");
-        assertEq(loss, _loss.zeroFloorSub(interest), "loss");
-        assertApproxEqAbs(adapter.trackedAllocation(marketId), deposit - _loss + interest, 1, "trackedAllocation");
+        if (expectedLoss > 0) {
+            assertEq(ids, expectedIds, "ids");
+            assertEq(loss, _loss - interest, "loss");
+            assertApproxEqAbs(adapter.trackedAllocation(marketId), deposit - _loss + interest, 1, "trackedAllocation");
+        }
     }
 
     function testWrongIrm(address randomIrm) public {
