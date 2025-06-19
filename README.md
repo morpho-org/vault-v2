@@ -5,7 +5,7 @@ Depositors of Morpho Vault V2 earn from the underlying protocols without having 
 Management of deposited assets is the responsability of a set of different roles (owner, curator and allocators).
 The active management of invested positions involve enabling and allocating liquidity to protocols.
 
-[Morpho Vault V2](./src/VaultV2.sol) shares are [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) compliant.
+[Morpho Vault V2](./src/VaultV2.sol) is [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) and [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) compliant.
 The [VaultV2Factory](./src/VaultV2Factory.sol) deploys instances of Vaults V2.
 All the contracts are immutable.
 
@@ -61,11 +61,14 @@ When defined, the liquidity market $M$ is also used as the market users are depo
 The market $M$ would typically be a very liquid Market V1.
 
 <a id="non-custodial"></a>
+
 ### Non-custodial guarantees
+
 Non-custodial guarantees come from [in-kind redemptions](#in-kind-redemptions) and [timelocks](#curator-timelocks).
 These mechanisms allow users to withdraw their assets before any critical configuration change takes effect.
 
 <a id="in-kind-redemptions"></a>
+
 ### In-kind redemptions with `forceDeallocate`
 
 To guarantee exits even in the absence of assets immediately available for withdrawal, the permissionless `forceDeallocate` function allows anyone to move assets from an adapter to the vault's idle assets.
