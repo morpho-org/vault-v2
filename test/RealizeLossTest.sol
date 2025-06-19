@@ -43,7 +43,7 @@ contract RealizeLossTest is BaseTest {
         adapter = new MockAdapter();
 
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, address(adapter), true));
+        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
         vault.setIsAdapter(address(adapter), true);
 
         deal(address(underlyingToken), address(this), type(uint256).max);
@@ -145,15 +145,15 @@ contract RealizeLossTest is BaseTest {
         expectedLoss = bound(expectedLoss, 1, deposit);
 
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setIsAdapter.selector, address(adapter), true));
+        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
         vault.setIsAdapter(address(adapter), true);
         vm.prank(allocator);
         vault.setLiquidityMarket(address(adapter), hex"");
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.increaseAbsoluteCap.selector, idData, deposit));
+        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, deposit)));
         vault.increaseAbsoluteCap(idData, deposit);
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, WAD));
+        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, WAD)));
         vault.increaseRelativeCap(idData, WAD);
 
         vault.deposit(deposit, address(this));

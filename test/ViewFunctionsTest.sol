@@ -16,19 +16,19 @@ contract ViewFunctionsTest is BaseTest {
     }
 
     function testMaxDeposit() public view {
-        assertEq(VaultV2(address(vault)).maxDeposit(receiver), 0);
+        assertEq(vault.maxDeposit(receiver), 0);
     }
 
     function testMaxMint() public view {
-        assertEq(VaultV2(address(vault)).maxMint(receiver), 0);
+        assertEq(vault.maxMint(receiver), 0);
     }
 
     function testMaxWithdraw() public view {
-        assertEq(VaultV2(address(vault)).maxWithdraw(address(this)), 0);
+        assertEq(vault.maxWithdraw(address(this)), 0);
     }
 
     function testMaxRedeem() public view {
-        assertEq(VaultV2(address(vault)).maxRedeem(address(this)), 0);
+        assertEq(vault.maxRedeem(address(this)), 0);
     }
 
     function testConvertToAssets(uint256 initialDeposit, uint256 interest, uint256 shares) public {
@@ -39,10 +39,7 @@ contract ViewFunctionsTest is BaseTest {
         vault.deposit(initialDeposit, address(this));
         writeTotalAssets(initialDeposit + interest);
 
-        assertEq(
-            IVaultV2(address(vault)).convertToAssets(shares),
-            shares * (vault.totalAssets() + 1) / (vault.totalSupply() + 1)
-        );
+        assertEq(vault.convertToAssets(shares), shares * (vault.totalAssets() + 1) / (vault.totalSupply() + 1));
     }
 
     function testConvertToShares(uint256 initialDeposit, uint256 interest, uint256 assets) public {
@@ -53,10 +50,7 @@ contract ViewFunctionsTest is BaseTest {
         vault.deposit(initialDeposit, address(this));
         writeTotalAssets(initialDeposit + interest);
 
-        assertEq(
-            IVaultV2(address(vault)).convertToShares(assets),
-            assets * (vault.totalSupply() + 1) / (vault.totalAssets() + 1)
-        );
+        assertEq(vault.convertToShares(assets), assets * (vault.totalSupply() + 1) / (vault.totalAssets() + 1));
     }
 
     function testPreviewDeposit(uint256 initialDeposit, uint256 interest, uint256 assets) public {
@@ -68,8 +62,7 @@ contract ViewFunctionsTest is BaseTest {
         writeTotalAssets(initialDeposit + interest);
 
         assertEq(
-            IVaultV2(address(vault)).previewDeposit(initialDeposit),
-            initialDeposit * (vault.totalSupply() + 1) / (vault.totalAssets() + 1)
+            vault.previewDeposit(initialDeposit), initialDeposit * (vault.totalSupply() + 1) / (vault.totalAssets() + 1)
         );
     }
 
@@ -82,11 +75,7 @@ contract ViewFunctionsTest is BaseTest {
         writeTotalAssets(initialDeposit + interest);
 
         // Precision 1 because rounded up.
-        assertApproxEqAbs(
-            IVaultV2(address(vault)).previewMint(shares),
-            shares * (vault.totalAssets() + 1) / (vault.totalSupply() + 1),
-            1
-        );
+        assertApproxEqAbs(vault.previewMint(shares), shares * (vault.totalAssets() + 1) / (vault.totalSupply() + 1), 1);
     }
 
     function testPreviewWithdraw(uint256 initialDeposit, uint256 interest, uint256 assets) public {
@@ -99,9 +88,7 @@ contract ViewFunctionsTest is BaseTest {
 
         // Precision 1 because rounded up.
         assertApproxEqAbs(
-            IVaultV2(address(vault)).previewWithdraw(assets),
-            assets * (vault.totalSupply() + 1) / (vault.totalAssets() + 1),
-            1
+            vault.previewWithdraw(assets), assets * (vault.totalSupply() + 1) / (vault.totalAssets() + 1), 1
         );
     }
 
@@ -114,9 +101,7 @@ contract ViewFunctionsTest is BaseTest {
         writeTotalAssets(initialDeposit + interest);
 
         assertApproxEqAbs(
-            IVaultV2(address(vault)).previewRedeem(shares),
-            shares * (vault.totalAssets() + 1) / (vault.totalSupply() + 1),
-            1
+            vault.previewRedeem(shares), shares * (vault.totalAssets() + 1) / (vault.totalSupply() + 1), 1
         );
     }
 }

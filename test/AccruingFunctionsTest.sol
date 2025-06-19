@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
-contract AccrueInterestTest is BaseTest {
+contract AccruingFunctionsTest is BaseTest {
     AdapterMock adapter;
 
     function setUp() public override {
