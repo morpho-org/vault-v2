@@ -16,7 +16,7 @@ interface IMetaMorphoAdapter is IAdapter {
     error InvalidData();
     error NoLoss();
     error NotAuthorized();
-    
+
     /* FUNCTIONS */
 
     function setSkimRecipient(address newSkimRecipient) external;
