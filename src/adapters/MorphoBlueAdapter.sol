@@ -127,10 +127,10 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         Position storage _position = position[marketParams.id()];
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 newAssetsInMarket = expectedSupplyAssets(marketParams, _position.shares);
-        require(newAssetsInMarket < _position.trackedAllocation, NoLoss());
-        uint256 loss = _position.trackedAllocation - newAssetsInMarket;
-        _position.trackedAllocation = uint128(newAssetsInMarket); // Reset to the real value.
+        uint256 allocation = expectedSupplyAssets(marketParams, _position.shares);
+        require(allocation < _position.trackedAllocation, NoLoss());
+        uint256 loss = _position.trackedAllocation - allocation;
+        _position.trackedAllocation = uint128(allocation);
 
         return (ids(marketParams), loss);
     }
