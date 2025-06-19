@@ -28,6 +28,12 @@ contract AllocateTest is BaseTest {
         ids[1] = keccak256("id-1");
     }
 
+    function testAllocateZeroAbsoluteCap() public {
+        vm.prank(allocator);
+        vm.expectRevert(ErrorsLib.ZeroAbsoluteCap.selector);
+        vault.allocate(mockAdapter, hex"", 0);
+    }
+
     function testAllocate(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(vault));
@@ -112,6 +118,12 @@ contract AllocateTest is BaseTest {
         vm.prank(allocator);
         vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
         vault.allocate(mockAdapter, data, 100);
+    }
+
+    function testDeallocateZeroAllocation() public {
+        vm.prank(allocator);
+        vm.expectRevert(ErrorsLib.ZeroAllocation.selector);
+        vault.deallocate(mockAdapter, hex"", 0);
     }
 
     function testDeallocate(bytes memory data, uint256 assetsIn, uint256 assetsOut, address rdm, uint256 absoluteCap)
