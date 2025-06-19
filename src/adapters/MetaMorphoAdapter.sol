@@ -26,8 +26,8 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /* STORAGE */
 
     address public skimRecipient;
-    uint256 public assetsInMetaMorpho;
-    uint256 public sharesInMetaMorpho;
+    uint256 public trackedAllocation;
+    uint256 public shares;
 
     /* FUNCTIONS */
 
@@ -59,45 +59,35 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the allocation and the potential loss.
+    /// @dev Returns the ids of the allocation and the interest accrued.
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 newAssetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
-        require(newAssetsInMetaMorpho >= assetsInMetaMorpho, RealizableLoss());
-        uint256 interest = newAssetsInMetaMorpho.zeroFloorSub(assetsInMetaMorpho);
+        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(trackedAllocation);
 
-        if (assets > 0) {
-            uint256 mintedShares = IERC4626(metaMorpho).deposit(assets, address(this));
-            sharesInMetaMorpho += mintedShares;
-        }
+        if (assets > 0) shares += IERC4626(metaMorpho).deposit(assets, address(this));
 
-        assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
+        trackedAllocation = trackedAllocation + interest + assets;
 
         return (ids(), interest);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the deallocation and the potential loss.
+    /// @dev Returns the ids of the deallocation and the interest accrued.
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 newAssetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
-        require(newAssetsInMetaMorpho >= assetsInMetaMorpho, RealizableLoss());
-        uint256 interest = newAssetsInMetaMorpho.zeroFloorSub(assetsInMetaMorpho);
+        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(trackedAllocation);
 
-        if (assets > 0) {
-            uint256 redeemedShares = IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
-            sharesInMetaMorpho -= redeemedShares;
-        }
+        if (assets > 0) shares -= IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
 
-        assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
+        trackedAllocation = trackedAllocation + interest - assets;
 
         return (ids(), interest);
     }
@@ -106,10 +96,10 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(data.length == 0, InvalidData());
 
-        uint256 newAssetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(sharesInMetaMorpho);
-        require(newAssetsInMetaMorpho < assetsInMetaMorpho, NoRealizableLoss());
-        uint256 loss = assetsInMetaMorpho - newAssetsInMetaMorpho;
-        assetsInMetaMorpho = newAssetsInMetaMorpho;
+        uint256 allocation = IERC4626(metaMorpho).previewRedeem(shares);
+        require(allocation < trackedAllocation, NoLoss());
+        uint256 loss = trackedAllocation - allocation;
+        trackedAllocation = allocation;
 
         return (ids(), loss);
     }

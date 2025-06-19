@@ -15,9 +15,8 @@ interface IMetaMorphoAdapter is IAdapter {
     error AssetMismatch();
     error CannotSkimMetaMorphoShares();
     error InvalidData();
-    error NoRealizableLoss();
+    error NoLoss();
     error NotAuthorized();
-    error RealizableLoss();
 
     /* FUNCTIONS */
 
@@ -27,6 +26,6 @@ interface IMetaMorphoAdapter is IAdapter {
     function parentVault() external view returns (address);
     function metaMorpho() external view returns (address);
     function skimRecipient() external view returns (address);
-    function sharesInMetaMorpho() external view returns (uint256);
-    function assetsInMetaMorpho() external view returns (uint256);
+    function trackedAllocation() external view returns (uint256);
+    function shares() external view returns (uint256);
 }
