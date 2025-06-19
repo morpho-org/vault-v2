@@ -93,6 +93,10 @@ contract VaultV2 is IVaultV2 {
     /* INTEREST STORAGE */
 
     uint192 internal _totalAssets;
+    /// @dev Total assets after the first interest accrual of the transaction.
+    /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
+    /// @dev This mechanism can make a big deposit revert if the liquidity market's relative cap is almost reached.
+    uint256 public transient firstTotalAssets;
     uint64 public lastUpdate;
     /// @dev Set to 0 to disable the Vic (=> no interest accrual).
     address public vic;
@@ -429,7 +433,7 @@ contract VaultV2 is IVaultV2 {
 
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
             require(
-                _caps.relativeCap == WAD || _caps.allocation <= uint256(_totalAssets).mulDivDown(_caps.relativeCap, WAD),
+                _caps.relativeCap == WAD || _caps.allocation <= firstTotalAssets.mulDivDown(_caps.relativeCap, WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
@@ -472,13 +476,15 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE FUNCTIONS */
 
     function accrueInterest() public {
-        if (lastUpdate == block.timestamp) return;
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
-        emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
-        _totalAssets = newTotalAssets.toUint192();
-        if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
-        if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
-        lastUpdate = uint64(block.timestamp);
+        if (lastUpdate != block.timestamp) {
+            (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+            emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
+            _totalAssets = newTotalAssets.toUint192();
+            if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
+            if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
+            lastUpdate = uint64(block.timestamp);
+        }
+        if (firstTotalAssets == 0) firstTotalAssets = _totalAssets;
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
