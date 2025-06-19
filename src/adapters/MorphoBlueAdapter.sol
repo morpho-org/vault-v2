@@ -83,6 +83,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
         require(marketParams.irm == irm, IrmMismatch());
+        require(assets != 0 || _position.shares != 0, UnknownMarket());
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
@@ -108,6 +109,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
         require(marketParams.irm == irm, IrmMismatch());
+        require(_position.shares != 0, UnknownMarket());
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
