@@ -30,6 +30,86 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
         assertEq(morpho.expectedSupplyAssets(idleParams, address(metaMorpho)), assets, "expected assets of metaMorpho");
     }
 
+    function testDepositRoundingLoss(uint256 donation, uint256 roundedDeposit) public {
+        // Setup
+        donation = bound(donation, 2, MAX_TEST_ASSETS);
+        roundedDeposit = bound(roundedDeposit, 1, donation - 1);
+        setSupplyQueueIdle();
+        vm.prank(allocator);
+        vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
+        underlyingToken.approve(address(morpho), type(uint256).max);
+
+        // Donate
+        morpho.supply(idleParams, donation, 0, address(metaMorpho), hex"");
+
+        // Check rounded deposit effect
+        uint256 previousAdapterBalance = metaMorpho.balanceOf(address(metaMorphoAdapter));
+        uint256 previousMMTotalAssets = vault.totalAssets();
+        uint256 previousAdapterTrackedAllocation = metaMorphoAdapter.trackedAllocation();
+
+        vault.deposit(roundedDeposit, address(this));
+
+        assertEq(metaMorpho.balanceOf(address(metaMorphoAdapter)), previousAdapterBalance, "adapter shares balance");
+        assertEq(vault.totalAssets(), previousMMTotalAssets + roundedDeposit, "MM total assets");
+        assertEq(
+            metaMorphoAdapter.trackedAllocation(),
+            previousAdapterTrackedAllocation + roundedDeposit,
+            "MM Adapter tracked allocation"
+        );
+
+        // Check rounding is realizable
+        vault.realizeLoss(address(metaMorphoAdapter), "");
+
+        assertEq(vault.totalAssets(), previousMMTotalAssets, "MM total assets, after");
+        assertEq(
+            metaMorphoAdapter.trackedAllocation(),
+            previousAdapterTrackedAllocation,
+            "MM Adapter tracked allocation, after"
+        );
+    }
+
+    function testWithdrawRoundingLoss(uint256 initialDeposit, uint256 donationFactor, uint256 roundedWithdraw) public {
+        // Setup
+        initialDeposit = 1e18;
+        donationFactor = bound(donationFactor, 2, 100);
+        roundedWithdraw = bound(roundedWithdraw, 1, donationFactor / 2);
+        setSupplyQueueIdle();
+        vm.prank(allocator);
+        vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
+        underlyingToken.approve(address(morpho), type(uint256).max);
+
+        // Donate
+        morpho.supply(idleParams, donationFactor, 0, address(metaMorpho), hex"");
+
+        // Initial deposit
+        vault.deposit(initialDeposit * donationFactor, address(this));
+
+        // Check rounded withdraw effect
+        uint256 previousAdapterBalance = metaMorpho.balanceOf(address(metaMorphoAdapter));
+        uint256 previousMMTotalAssets = vault.totalAssets();
+        uint256 previousAdapterTrackedAllocation = metaMorphoAdapter.trackedAllocation();
+
+        vault.withdraw(roundedWithdraw, address(this), address(this));
+
+        assertEq(metaMorpho.balanceOf(address(metaMorphoAdapter)), previousAdapterBalance - 1, "adapter shares balance");
+        assertEq(vault.totalAssets(), previousMMTotalAssets - roundedWithdraw, "MM total assets");
+        assertEq(
+            metaMorphoAdapter.trackedAllocation(),
+            previousAdapterTrackedAllocation - roundedWithdraw,
+            "MM Adapter tracked allocation"
+        );
+
+        // Check rounding is realizable
+        vault.realizeLoss(address(metaMorphoAdapter), "");
+
+        assertLt(vault.totalAssets(), previousMMTotalAssets - roundedWithdraw, "MM total assets, after");
+        assertLt(
+            metaMorphoAdapter.trackedAllocation(),
+            previousAdapterTrackedAllocation - roundedWithdraw,
+            "MM Adapter tracked allocation, after"
+        );
+    }
+
     function testDepositLiquidityAdapterCanFail(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
 
