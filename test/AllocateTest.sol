@@ -113,7 +113,7 @@ contract AllocateTest is BaseTest {
         increaseRelativeCap("id-0", WAD / 2);
         increaseRelativeCap("id-1", WAD / 2);
 
-        // Fails if the deposit and allocation are done in the same transactions.
+        // Fails if the deposit and allocation are done in the same transaction.
         bytes[] memory data = new bytes[](3);
         data[0] = abi.encodeCall(vault.deposit, (allocation, allocator));
         data[1] = abi.encodeCall(vault.allocate, (mockAdapter, hex"", allocation));
