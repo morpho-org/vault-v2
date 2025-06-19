@@ -123,7 +123,6 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev The timelock of decreaseTimelock is initially set to TIMELOCK_CAP, and can only be changed to
     /// type(uint256).max through abdicateSubmit..
-    /// @dev Only certain functions are timelocked.
     /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
     /// timelocked data can potentially be changed shortly afterwards.
     /// @dev The minimum time in which a function can be called is the following:
