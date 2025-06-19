@@ -93,9 +93,10 @@ contract VaultV2 is IVaultV2 {
     /* INTEREST STORAGE */
 
     uint192 internal _totalAssets;
-    /// @dev Total assets at the beginning of the transaction (even before interest accrual).
-    /// @dev If the vault is empty at the beginning of the transaction, it might not be 0, but it is not a problem
-    /// because the vault was empty, and this variable is used to prevent allocation manipulations.
+    /// @dev Total assets after the first accrueInterest of the transaction. Used to prevent bypassing relative caps
+    /// with flashloans.
+    /// @dev The variable does not behave correctly if the vault is empty, but it is not a problem because there are no
+    /// funds to manipulate.
     uint256 public transient firstTotalAssets;
     uint64 public lastUpdate;
     address public vic;
@@ -475,14 +476,15 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE FUNCTIONS */
 
     function accrueInterest() public {
+        if (lastUpdate != block.timestamp) {
+            (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+            emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
+            _totalAssets = newTotalAssets.toUint192();
+            if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
+            if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
+            lastUpdate = uint64(block.timestamp);
+        }
         if (firstTotalAssets == 0) firstTotalAssets = _totalAssets;
-        if (lastUpdate == block.timestamp) return;
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
-        emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
-        _totalAssets = newTotalAssets.toUint192();
-        if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
-        if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
-        lastUpdate = uint64(block.timestamp);
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
