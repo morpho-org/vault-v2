@@ -84,8 +84,8 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
 
-        uint256 allocationBefore = expectedSupplyAssets(marketParams, _position.shares);
-        uint256 interest = allocationBefore.zeroFloorSub(_position.trackedAllocation);
+        uint256 interest =
+            expectedSupplyAssets(marketParams, _position.shares).zeroFloorSub(_position.trackedAllocation);
 
         if (assets > 0) {
             (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
@@ -109,8 +109,8 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
 
-        uint256 allocationBefore = expectedSupplyAssets(marketParams, _position.shares);
-        uint256 interest = allocationBefore.zeroFloorSub(_position.trackedAllocation);
+        uint256 interest =
+            expectedSupplyAssets(marketParams, _position.shares).zeroFloorSub(_position.trackedAllocation);
 
         if (assets > 0) {
             (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));

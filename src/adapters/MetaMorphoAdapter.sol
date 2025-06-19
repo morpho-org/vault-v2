@@ -63,8 +63,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 allocationBefore = IERC4626(metaMorpho).previewRedeem(shares);
-        uint256 interest = allocationBefore.zeroFloorSub(trackedAllocation);
+        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(trackedAllocation);
 
         if (assets > 0) shares += IERC4626(metaMorpho).deposit(assets, address(this));
 
@@ -81,8 +80,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 allocationBefore = IERC4626(metaMorpho).previewRedeem(shares);
-        uint256 interest = allocationBefore.zeroFloorSub(trackedAllocation);
+        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(trackedAllocation);
 
         if (assets > 0) shares -= IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
 
