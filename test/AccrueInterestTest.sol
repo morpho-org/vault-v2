@@ -28,6 +28,20 @@ contract AccrueInterestTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
     }
 
+    function testAccrueInterestNoVic(uint256 elapsed) public {
+        elapsed = bound(elapsed, 1, 10 * 365 days);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(0))));
+        vault.setVic(address(0));
+
+        uint256 totalAssetsBefore = vault.totalAssets();
+        skip(elapsed);
+
+        vault.accrueInterest();
+        assertEq(vault.totalAssets(), totalAssetsBefore);
+    }
+
     function testAccrueInterestView(
         uint256 deposit,
         uint256 performanceFee,
@@ -158,8 +172,8 @@ contract AccrueInterestTest is BaseTest {
 
         // Setup.
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(0))));
-        vault.setVic(address(0));
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(1))));
+        vault.setVic(address(1));
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
         vm.expectRevert();

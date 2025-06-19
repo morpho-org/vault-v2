@@ -305,7 +305,7 @@ contract SettersTest is BaseTest {
 
         // Can abdicate submit
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.abdicateSubmit.selector, selector));
+        vault.submit(abi.encodeCall(IVaultV2.abdicateSubmit, (selector)));
         vm.expectEmit();
         emit EventsLib.AbdicateSubmit(selector);
         vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
@@ -317,10 +317,10 @@ contract SettersTest is BaseTest {
         if (selector == IVaultV2.decreaseTimelock.selector) {
             vm.expectRevert(stdError.arithmeticError);
             vm.prank(curator);
-            vault.submit(abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, selector, 1 weeks));
+            vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, 1 weeks)));
         } else {
             vm.prank(curator);
-            vault.submit(abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, selector, 1 weeks));
+            vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, 1 weeks)));
             vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
             vm.expectRevert(ErrorsLib.InfiniteTimelock.selector);
             vault.decreaseTimelock(selector, 1 weeks);
@@ -724,7 +724,7 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setSharesGate.selector, newSharesGate));
+        vault.submit(abi.encodeCall(IVaultV2.setSharesGate, (newSharesGate)));
         vm.expectEmit();
         emit EventsLib.SetSharesGate(newSharesGate);
         vault.setSharesGate(newSharesGate);
@@ -742,7 +742,7 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setReceiveAssetsGate.selector, newReceiveAssetsGate));
+        vault.submit(abi.encodeCall(IVaultV2.setReceiveAssetsGate, (newReceiveAssetsGate)));
         vm.expectEmit();
         emit EventsLib.SetReceiveAssetsGate(newReceiveAssetsGate);
         vault.setReceiveAssetsGate(newReceiveAssetsGate);
@@ -760,7 +760,7 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setSendAssetsGate.selector, newSendAssetsGate));
+        vault.submit(abi.encodeCall(IVaultV2.setSendAssetsGate, (newSendAssetsGate)));
         vm.expectEmit();
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
         vault.setSendAssetsGate(newSendAssetsGate);
