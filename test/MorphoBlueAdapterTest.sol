@@ -116,11 +116,37 @@ contract MorphoBlueAdapterTest is Test {
         adapter.allocate(abi.encode(marketParams), assets);
     }
 
+    function testAllocateZeroFirstReverts() public {
+        vm.expectRevert(IMorphoBlueAdapter.UnknownMarket.selector);
+        vm.prank(address(parentVault));
+        adapter.allocate(abi.encode(marketParams), 0);
+    }
+
+    function testAllocateNonZeroThenZero(uint256 assets) public {
+        assets = _boundAssets(assets);
+        deal(address(loanToken), address(adapter), type(uint256).max);
+        loanToken.approve(address(adapter), type(uint256).max);
+        vm.prank(address(parentVault));
+        adapter.allocate(abi.encode(marketParams), assets);
+
+        vm.prank(address(parentVault));
+        adapter.allocate(abi.encode(marketParams), 0);
+    }
+
     function testDeallocateDifferentAssetReverts(address randomAsset, uint256 assets) public {
         vm.assume(randomAsset != marketParams.loanToken);
         assets = _boundAssets(assets);
         marketParams.loanToken = randomAsset;
         vm.expectRevert(IMorphoBlueAdapter.LoanAssetMismatch.selector);
+        vm.prank(address(parentVault));
+        adapter.deallocate(abi.encode(marketParams), assets);
+    }
+
+    function testDeallocateUnknownMarket(address randomAsset, uint256 assets) public {
+        vm.assume(randomAsset != marketParams.collateralToken);
+        assets = _boundAssets(assets);
+        marketParams.collateralToken = randomAsset;
+        vm.expectRevert(IMorphoBlueAdapter.UnknownMarket.selector);
         vm.prank(address(parentVault));
         adapter.deallocate(abi.encode(marketParams), assets);
     }
@@ -382,7 +408,7 @@ contract MorphoBlueAdapterTest is Test {
     }
 
     function testDonationResistance(uint256 deposit, uint256 donation) public {
-        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
         donation = bound(donation, 1, MAX_TEST_ASSETS);
 
         // Deposit some assets

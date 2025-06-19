@@ -3,6 +3,7 @@
 pragma solidity ^0.8.0;
 
 import "./BlueIntegrationTest.sol";
+import {IMorphoBlueAdapter} from "../../src/adapters/interfaces/IMorphoBlueAdapter.sol";
 
 contract BlueIntegrationAllocationTest is BlueIntegrationTest {
     using MorphoBalancesLib for IMorpho;
@@ -85,8 +86,25 @@ contract BlueIntegrationAllocationTest is BlueIntegrationTest {
         assertEq(vault.allocation(keccak256(expectedIdData2[2])), 0);
     }
 
-    function testAllocateLessThanIdleToMarket2(uint256 assets) public {
+    function testDeallocateUnknownMarket(uint256 assets) public {
+        MarketParams memory marketParams3 = MarketParams({
+            loanToken: address(underlyingToken),
+            collateralToken: address(new ERC20Mock()),
+            irm: address(irm),
+            oracle: address(oracle),
+            lltv: 0.8 ether
+        });
+        morpho.createMarket(marketParams3);
+
         assets = bound(assets, 0, initialInIdle);
+
+        vm.prank(allocator);
+        vm.expectRevert(IMorphoBlueAdapter.UnknownMarket.selector);
+        vault.deallocate(address(adapter), abi.encode(marketParams3), assets);
+    }
+
+    function testAllocateLessThanIdleToMarket2(uint256 assets) public {
+        assets = bound(assets, 1, initialInIdle);
 
         vm.prank(allocator);
         vault.allocate(address(adapter), abi.encode(marketParams2), assets);
@@ -106,5 +124,37 @@ contract BlueIntegrationAllocationTest is BlueIntegrationTest {
         vm.prank(allocator);
         vm.expectRevert(ErrorsLib.TransferReverted.selector);
         vault.allocate(address(adapter), abi.encode(marketParams1), assets);
+    }
+
+    function testAllocateUnknownMarketZero() public {
+        MarketParams memory marketParams3 = MarketParams({
+            loanToken: address(underlyingToken),
+            collateralToken: address(new ERC20Mock()),
+            irm: address(irm),
+            oracle: address(oracle),
+            lltv: 0.8 ether
+        });
+        morpho.createMarket(marketParams3);
+
+        vm.prank(allocator);
+        vm.expectRevert(IMorphoBlueAdapter.UnknownMarket.selector);
+        vault.allocate(address(adapter), abi.encode(marketParams3), 0);
+    }
+
+    function testAllocateUnknownMarketNonZero(uint256 assets) public {
+        MarketParams memory marketParams3 = MarketParams({
+            loanToken: address(underlyingToken),
+            collateralToken: address(new ERC20Mock()),
+            irm: address(irm),
+            oracle: address(oracle),
+            lltv: 0.8 ether
+        });
+        morpho.createMarket(marketParams3);
+
+        assets = bound(assets, 1, initialInIdle);
+
+        vm.prank(allocator);
+        vm.expectRevert(ErrorsLib.AbsoluteCapExceeded.selector);
+        vault.allocate(address(adapter), abi.encode(marketParams3), assets);
     }
 }
