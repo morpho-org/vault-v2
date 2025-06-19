@@ -93,7 +93,7 @@ contract VaultV2 is IVaultV2 {
     /* INTEREST STORAGE */
 
     uint192 internal _totalAssets;
-    /// @dev Total assets after the first interest accrual of the transaction. 
+    /// @dev Total assets after the first interest accrual of the transaction.
     /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
     /// @dev This mechanism can make a big deposit revert if the liquidity market's relative cap is almost reached.
     uint256 public transient firstTotalAssets;
