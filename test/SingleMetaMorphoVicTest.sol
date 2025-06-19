@@ -14,36 +14,11 @@ import {IERC4626} from "../src/interfaces/IERC4626.sol";
 
 uint256 constant MAX_TEST_ASSETS = 1e36;
 
-contract MockMetaMorphoAdapter is IMetaMorphoAdapter {
-    address public immutable override metaMorpho;
+contract MockMetaMorphoAdapter {
+    address public immutable metaMorpho;
 
     constructor(address _metaMorpho) {
         metaMorpho = _metaMorpho;
-    }
-
-    function factory() external pure override returns (address) {
-        return address(0);
-    }
-
-    function parentVault() external pure override returns (address) {
-        return address(0);
-    }
-
-    function skimRecipient() external pure override returns (address) {
-        return address(0);
-    }
-
-    function setSkimRecipient(address) external override {}
-    function skim(address) external override {}
-
-    function allocate(bytes memory, uint256) external pure override returns (bytes32[] memory ids, uint256 loss) {
-        ids = new bytes32[](0);
-        loss = 0;
-    }
-
-    function deallocate(bytes memory, uint256) external pure override returns (bytes32[] memory ids, uint256 loss) {
-        ids = new bytes32[](0);
-        loss = 0;
     }
 }
 
