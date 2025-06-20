@@ -26,8 +26,6 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /* STORAGE */
 
     address public skimRecipient;
-    /// @dev `allocation` are the share's value without taking into account unrealized losses.
-    uint256 public allocation;
     /// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
     uint256 public shares;
 
@@ -68,11 +66,9 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(allocation);
+        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(allocation());
 
         if (assets > 0) shares += IERC4626(metaMorpho).deposit(assets, address(this));
-
-        allocation = allocation + interest + assets;
 
         return (ids(), interest);
     }
@@ -85,22 +81,23 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(allocation);
+        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(allocation());
 
         if (assets > 0) shares -= IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
-
-        allocation = allocation + interest - assets;
 
         return (ids(), interest);
     }
 
-    function realizeLoss(bytes memory data) external returns (bytes32[] memory, uint256) {
+    function allocation() public view returns (uint256) {
+        return IVaultV2(parentVault).allocation(ids()[0]);
+    }
+
+    function realizeLoss(bytes memory data) external view returns (bytes32[] memory, uint256) {
         require(msg.sender == parentVault, NotAuthorized());
         require(data.length == 0, InvalidData());
 
         uint256 assetsInVault = IERC4626(metaMorpho).previewRedeem(shares);
-        uint256 loss = allocation - assetsInVault;
-        allocation = assetsInVault;
+        uint256 loss = allocation() - assetsInVault;
 
         return (ids(), loss);
     }
