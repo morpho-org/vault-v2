@@ -296,7 +296,6 @@ contract VaultV2 is IVaultV2 {
     /// @dev Users cannot access their funds if the Vic reverts, so this function might better be under a long timelock.
     function setVic(address newVic) external {
         timelocked();
-        updateCurrentContext();
         try this.accrueInterest() {}
         catch {
             lastUpdate = uint64(block.timestamp);
@@ -487,7 +486,6 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE FUNCTIONS */
 
     function accrueInterest() public {
-        updateCurrentContext();
         if (lastUpdate != block.timestamp) {
             (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
             emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
@@ -727,7 +725,6 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns success (always true because reverts on failure).
     function transfer(address to, uint256 shares) external returns (bool) {
-        updateCurrentContext();
         require(to != address(0), ErrorsLib.ZeroAddress());
 
         require(canSend(msg.sender), ErrorsLib.CannotSend());
@@ -741,7 +738,6 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns success (always true because reverts on failure).
     function transferFrom(address from, address to, uint256 shares) external returns (bool) {
-        updateCurrentContext();
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
 
