@@ -462,8 +462,8 @@ contract VaultV2 is IVaultV2 {
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
-            require(_caps.allocation > 0, ErrorsLib.ZeroAllocation());
-            _caps.allocation = (_caps.allocation + interest).zeroFloorSub(assets);
+            require(assets > 0 || _caps.allocation > 0, ErrorsLib.ZeroAllocation());
+            _caps.allocation = _caps.allocation + interest - assets;
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);

@@ -42,4 +42,5 @@ library ErrorsLib {
     error ZeroAbsoluteCap();
     error ZeroAddress();
     error ZeroAllocation();
+    error ZeroAssets();
 }
