@@ -62,6 +62,11 @@ contract VaultV2 is IVaultV2 {
     address public immutable asset;
     uint8 public immutable decimals;
 
+    /* TRANSIENT STORAGE */
+
+    address public transient currentSender;
+    address public transient currentSelector;
+
     /* ROLES STORAGE */
 
     address public owner;
@@ -184,6 +189,8 @@ contract VaultV2 is IVaultV2 {
     function multicall(bytes[] calldata data) external {
         for (uint256 i = 0; i < data.length; i++) {
             (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
+            currentSender = address(0);
+            currentSelector = bytes4(0);
             if (!success) {
                 assembly ("memory-safe") {
                     revert(add(32, returnData), mload(returnData))
@@ -289,6 +296,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Users cannot access their funds if the Vic reverts, so this function might better be under a long timelock.
     function setVic(address newVic) external {
         timelocked();
+        updateCurrentContext();
         try this.accrueInterest() {}
         catch {
             lastUpdate = uint64(block.timestamp);
@@ -479,6 +487,7 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE FUNCTIONS */
 
     function accrueInterest() public {
+        updateCurrentContext();
         if (lastUpdate != block.timestamp) {
             (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
             emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
@@ -494,6 +503,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Reverts if the call to the Vic reverts.
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     /// @dev The performance and management fees are taken even if the vault incurs some losses.
+    /// @dev When called directly, the vic and gates will not receive the correct context.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
@@ -603,6 +613,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
+        updateCurrentContext();
         require(!enterBlocked, ErrorsLib.EnterBlocked());
         require(canReceive(onBehalf), ErrorsLib.CannotReceive());
         require(
@@ -637,6 +648,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for withdraw and redeem.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
+        updateCurrentContext();
         require(canSend(onBehalf), ErrorsLib.CannotSend());
         require(
             receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(receiver),
@@ -673,6 +685,7 @@ contract VaultV2 is IVaultV2 {
         external
         returns (uint256)
     {
+        updateCurrentContext();
         this.deallocate(adapter, data, assets);
         uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
@@ -681,6 +694,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function realizeLoss(address adapter, bytes memory data) external {
+        updateCurrentContext();
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
@@ -713,6 +727,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns success (always true because reverts on failure).
     function transfer(address to, uint256 shares) external returns (bool) {
+        updateCurrentContext();
         require(to != address(0), ErrorsLib.ZeroAddress());
 
         require(canSend(msg.sender), ErrorsLib.CannotSend());
@@ -726,6 +741,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns success (always true because reverts on failure).
     function transferFrom(address from, address to, uint256 shares) external returns (bool) {
+        updateCurrentContext();
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
 
@@ -792,5 +808,18 @@ contract VaultV2 is IVaultV2 {
 
     function canReceive(address account) public view returns (bool) {
         return sharesGate == address(0) || ISharesGate(sharesGate).canReceiveShares(account);
+    }
+
+
+    /* CONTEXT HANDLING FUNCTIONS */
+
+    function updateCurrentContext() internal {
+        // Ignore self-calls
+        if (msg.sender != address(this)) {
+            // Reentrency is not allowed.
+            require(currentSender == address(0),ErrorsLib.Reentrancy());
+            currentSender = msg.sender;
+            currentSelector = msg.sig;
+        }
     }
 }
