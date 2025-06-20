@@ -76,7 +76,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the potential loss.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    function allocate(bytes memory data, uint256 assets, address) external returns (bytes32[] memory, uint256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Position storage _position = position[marketParams.id()];
         require(msg.sender == parentVault, NotAuthorized());
@@ -99,7 +99,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the potential loss.
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    function deallocate(bytes memory data, uint256 assets, address) external returns (bytes32[] memory, uint256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Position storage _position = position[marketParams.id()];
         require(msg.sender == parentVault, NotAuthorized());
@@ -120,7 +120,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         return (ids(marketParams), interest);
     }
 
-    function realizeLoss(bytes memory data) external returns (bytes32[] memory, uint256) {
+    function realizeLoss(bytes memory data, address) external returns (bytes32[] memory, uint256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Position storage _position = position[marketParams.id()];
         require(msg.sender == parentVault, NotAuthorized());

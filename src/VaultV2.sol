@@ -448,7 +448,7 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
-        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).allocate(data, assets);
+        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).allocate(data, assets, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
@@ -474,7 +474,7 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets);
+        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
@@ -703,7 +703,7 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).realizeLoss(data);
+        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).realizeLoss(data, msg.sender);
 
         uint256 incentiveShares;
         if (loss > 0) {
