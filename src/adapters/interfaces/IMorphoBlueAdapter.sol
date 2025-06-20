@@ -3,6 +3,7 @@
 pragma solidity >=0.5.0;
 
 import {IAdapter} from "../../interfaces/IAdapter.sol";
+import {Id} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 interface IMorphoBlueAdapter is IAdapter {
     /* EVENTS */
@@ -25,4 +26,6 @@ interface IMorphoBlueAdapter is IAdapter {
     function skimRecipient() external view returns (address);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
+    function trackedAllocation(Id marketId) external view returns (uint256);
+    function shares(Id marketId) external view returns (uint256);
 }

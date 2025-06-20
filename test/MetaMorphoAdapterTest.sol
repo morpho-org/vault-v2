@@ -14,8 +14,11 @@ import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 import {IMetaMorphoAdapterFactory} from "../src/adapters/interfaces/IMetaMorphoAdapterFactory.sol";
+import {MathLib} from "../src/libraries/MathLib.sol";
 
 contract MetaMorphoAdapterTest is Test {
+    using MathLib for uint256;
+
     ERC20Mock internal asset;
     ERC20Mock internal rewardToken;
     VaultV2Mock internal parentVault;
@@ -70,14 +73,15 @@ contract MetaMorphoAdapterTest is Test {
         deal(address(asset), address(adapter), assets);
 
         vm.prank(address(parentVault));
-        (bytes32[] memory ids,) = adapter.allocate(hex"", assets);
+        (bytes32[] memory ids, uint256 interest) = adapter.allocate(hex"", assets);
 
-        assertEq(adapter.assetsInMetaMorpho(), assets, "incorrect assetsInMetaMorpho");
+        assertEq(adapter.trackedAllocation(), assets, "incorrect trackedAllocation");
         uint256 adapterShares = metaMorpho.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(adapterShares, assets, "Incorrect share balance after deposit");
         assertEq(asset.balanceOf(address(adapter)), 0, "Underlying tokens not transferred to vault");
         assertEq(ids, expectedIds, "Incorrect ids returned");
+        assertEq(interest, 0, "Incorrect interest returned");
     }
 
     function testDeallocate(uint256 initialAssets, uint256 withdrawAssets) public {
@@ -93,15 +97,16 @@ contract MetaMorphoAdapterTest is Test {
         assertEq(beforeShares, initialAssets, "Precondition failed: shares not set");
 
         vm.prank(address(parentVault));
-        (bytes32[] memory ids,) = adapter.deallocate(hex"", withdrawAssets);
+        (bytes32[] memory ids, uint256 interest) = adapter.deallocate(hex"", withdrawAssets);
 
-        assertEq(adapter.assetsInMetaMorpho(), initialAssets - withdrawAssets, "incorrect assetsInMetaMorpho");
+        assertEq(adapter.trackedAllocation(), initialAssets - withdrawAssets, "incorrect trackedAllocation");
         uint256 afterShares = metaMorpho.balanceOf(address(adapter));
         assertEq(afterShares, initialAssets - withdrawAssets, "Share balance not decreased correctly");
 
         uint256 adapterBalance = asset.balanceOf(address(adapter));
         assertEq(adapterBalance, withdrawAssets, "Adapter did not receive withdrawn tokens");
         assertEq(ids, expectedIds, "Incorrect ids returned");
+        assertEq(interest, 0, "Incorrect interest returned");
     }
 
     function testFactoryCreateAdapter() public {
@@ -180,80 +185,125 @@ contract MetaMorphoAdapterTest is Test {
         adapter.skim(address(metaMorpho));
     }
 
-    function testLossRealization(
-        uint256 initialAssets,
-        uint256 lossAssets,
-        uint256 realizedLoss,
-        uint256 deposit,
-        uint256 withdraw,
-        uint256 interest
-    ) public {
-        initialAssets = bound(initialAssets, 1, MAX_TEST_ASSETS);
-        lossAssets = bound(lossAssets, 1, initialAssets);
-        realizedLoss = bound(realizedLoss, 0, lossAssets - 1);
-        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
-        withdraw = bound(withdraw, 0, initialAssets - lossAssets);
-        interest = bound(interest, 0, initialAssets);
+    function testLossRealizationImpossible(uint256 deposit) public {
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
 
         // Setup.
-        deal(address(asset), address(adapter), initialAssets + deposit);
+        deal(address(asset), address(adapter), deposit);
         vm.prank(address(parentVault));
-        adapter.allocate(hex"", initialAssets);
+        adapter.allocate(hex"", deposit);
+        asset.transfer(address(metaMorpho), 2);
 
-        // Loss realization with allocate.
-        metaMorpho.lose(lossAssets);
-        uint256 snapshot = vm.snapshotState();
+        // Realize loss.
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.allocate(hex"", 0);
-        assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(loss, lossAssets, "Loss should be realized");
-        assertEq(adapter.assetsInMetaMorpho(), initialAssets - lossAssets, "AssetsInMetaMorpho after allocate");
+        vm.expectRevert(stdError.arithmeticError);
+        adapter.realizeLoss(hex"");
+    }
 
-        // Loss realization with deallocate.
-        vm.revertToState(snapshot);
+    function testLossRealizationZero(uint256 deposit) public {
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
+
+        // Setup.
+        deal(address(asset), address(adapter), deposit);
         vm.prank(address(parentVault));
-        (ids, loss) = adapter.deallocate(hex"", 0);
-        assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(loss, lossAssets, "Loss should be realized");
-        assertEq(adapter.assetsInMetaMorpho(), initialAssets - lossAssets, "AssetsInMetaMorpho after deallocate");
+        adapter.allocate(hex"", deposit);
 
-        // Can't realize more.
+        // Realize loss.
         vm.prank(address(parentVault));
-        (ids, loss) = adapter.deallocate(hex"", 0);
-        assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(loss, 0, "loss should be zero");
-        assertEq(adapter.assetsInMetaMorpho(), initialAssets - lossAssets, "AssetsInMetaMorpho after rerealization");
+        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
+        assertEq(ids, expectedIds, "ids");
+        assertEq(loss, 0, "loss");
+        assertEq(adapter.trackedAllocation(), deposit, "trackedAllocation");
+    }
 
-        // Deposit realizes the right loss.
-        vm.revertToState(snapshot);
+    function testLossRealization(uint256 deposit, uint256 _loss) public {
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
+        _loss = bound(_loss, 1, deposit);
+
+        // Setup.
+        deal(address(asset), address(adapter), deposit);
         vm.prank(address(parentVault));
-        (ids, loss) = adapter.allocate(hex"", deposit);
-        assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(loss, lossAssets, "Loss should be correct after deposit");
-        assertApproxEqAbs(
-            adapter.assetsInMetaMorpho(), initialAssets - lossAssets + deposit, 1, "AssetsInMetaMorpho after deposit"
-        );
+        adapter.allocate(hex"", deposit);
+        metaMorpho.lose(_loss);
 
-        // Withdraw doesn't change the loss.
-        vm.revertToState(snapshot);
+        // Realize loss.
         vm.prank(address(parentVault));
-        (ids, loss) = adapter.deallocate(hex"", withdraw);
-        assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(loss, lossAssets, "Loss should be correct after withdraw");
-        assertApproxEqAbs(
-            adapter.assetsInMetaMorpho(), initialAssets - lossAssets - withdraw, 1, "AssetsInMetaMorpho after withdraw"
-        );
+        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
+        assertEq(ids, expectedIds, "ids");
+        assertEq(loss, _loss, "loss");
+        assertEq(adapter.trackedAllocation(), deposit - _loss, "trackedAllocation");
+    }
 
-        // Interest cover the loss.
-        vm.revertToState(snapshot);
+    function testLossRealizationAfterAllocate(uint256 deposit, uint256 _loss, uint256 deposit2) public {
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
+        _loss = bound(_loss, 1, deposit);
+        deposit2 = bound(deposit2, 0, MAX_TEST_ASSETS);
+
+        // Setup.
+        deal(address(asset), address(adapter), deposit + deposit2);
+        vm.prank(address(parentVault));
+        adapter.allocate(hex"", deposit);
+        metaMorpho.lose(_loss);
+
+        // Allocate.
+        vm.prank(address(parentVault));
+        adapter.allocate(hex"", deposit2);
+
+        // Realize loss.
+        vm.prank(address(parentVault));
+        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
+        assertEq(ids, expectedIds, "ids");
+        assertEq(loss, _loss, "loss");
+        assertEq(adapter.trackedAllocation(), deposit - _loss + deposit2, "trackedAllocation");
+    }
+
+    function testLossRealizationAfterDeallocate(uint256 deposit, uint256 _loss, uint256 withdraw) public {
+        deposit = bound(deposit, 2, MAX_TEST_ASSETS);
+        _loss = bound(_loss, 1, deposit - 1);
+        withdraw = bound(withdraw, 0, MAX_TEST_ASSETS);
+
+        // Setup.
+        deal(address(asset), address(adapter), deposit + withdraw);
+        vm.prank(address(parentVault));
+        adapter.allocate(hex"", deposit);
+        metaMorpho.lose(_loss);
+
+        // Deallocate.
+        withdraw = bound(withdraw, 1, metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter))));
+        vm.prank(address(parentVault));
+        adapter.deallocate(hex"", withdraw);
+
+        // Realize loss.
+        vm.prank(address(parentVault));
+        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
+        assertEq(ids, expectedIds, "ids");
+        assertEq(loss, _loss, "loss");
+        assertEq(adapter.trackedAllocation(), deposit - _loss - withdraw, "trackedAllocation");
+    }
+
+    function testLossRealizationAfterInterest(uint256 deposit, uint256 _loss, uint256 interest) public {
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
+        _loss = bound(_loss, 1, deposit);
+        interest = bound(interest, 0, deposit);
+
+        // Setup.
+        deal(address(asset), address(adapter), deposit + interest);
+        vm.prank(address(parentVault));
+        adapter.allocate(hex"", deposit);
+        uint256 expectedSupplyBefore = metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter)));
+        metaMorpho.lose(_loss);
+
+        // Realize loss.
         asset.transfer(address(metaMorpho), interest);
+        uint256 expectedSupplyAfter = metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter)));
         vm.prank(address(parentVault));
-        (ids, loss) = adapter.allocate(hex"", 0);
-        assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(loss, zeroFloorSub(lossAssets, interest), "Loss should be correct after interest");
-        assertApproxEqAbs(
-            adapter.assetsInMetaMorpho(), initialAssets - lossAssets + interest, 1, "AssetsInMetaMorpho after interest"
-        );
+        if (expectedSupplyAfter > expectedSupplyBefore) vm.expectRevert(stdError.arithmeticError);
+        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
+        if (_loss >= interest) {
+            assertEq(ids, expectedIds, "ids");
+            assertEq(loss, _loss - interest, "loss");
+            assertApproxEqAbs(adapter.trackedAllocation(), deposit - _loss + interest, 1, "trackedAllocation");
+        }
     }
 
     function testIds() public view {
@@ -275,6 +325,33 @@ contract MetaMorphoAdapterTest is Test {
         ERC4626MockExtended newMetaMorpho = new ERC4626MockExtended(randomAsset);
         vm.expectRevert(IMetaMorphoAdapter.AssetMismatch.selector);
         new MetaMorphoAdapter(address(parentVault), address(newMetaMorpho));
+    }
+
+    function testDonationResistance(uint256 deposit, uint256 donation) public {
+        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        donation = bound(donation, 1, MAX_TEST_ASSETS);
+
+        // Deposit some assets
+        deal(address(asset), address(adapter), deposit * 2);
+        vm.prank(address(parentVault));
+        adapter.allocate(hex"", deposit);
+
+        uint256 adapterShares = metaMorpho.balanceOf(address(adapter));
+        assertEq(adapter.shares(), adapterShares, "shares not recorded");
+
+        // Donate to adapter
+        address donor = makeAddr("donor");
+        deal(address(asset), donor, donation);
+        vm.startPrank(donor);
+        asset.approve(address(metaMorpho), type(uint256).max);
+        metaMorpho.deposit(donation, address(adapter));
+        vm.stopPrank();
+
+        // Test no impact on allocation
+        uint256 oldTrackedAllocation = adapter.trackedAllocation();
+        vm.prank(address(parentVault));
+        adapter.allocate(hex"", deposit);
+        assertEq(adapter.trackedAllocation(), oldTrackedAllocation + deposit, "assets have changed");
     }
 }
 

@@ -26,7 +26,8 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /* STORAGE */
 
     address public skimRecipient;
-    uint256 public assetsInMetaMorpho;
+    uint256 public trackedAllocation;
+    uint256 public shares;
 
     /* FUNCTIONS */
 
@@ -58,35 +59,46 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the allocation and the potential loss.
+    /// @dev Returns the ids of the allocation and the interest accrued.
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 loss = assetsInMetaMorpho.zeroFloorSub(
-            IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)))
-        );
-        if (assets > 0) IERC4626(metaMorpho).deposit(assets, address(this));
-        assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
+        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(trackedAllocation);
 
-        return (ids(), loss);
+        if (assets > 0) shares += IERC4626(metaMorpho).deposit(assets, address(this));
+
+        trackedAllocation = trackedAllocation + interest + assets;
+
+        return (ids(), interest);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the deallocation and the potential loss.
+    /// @dev Returns the ids of the deallocation and the interest accrued.
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 loss = assetsInMetaMorpho.zeroFloorSub(
-            IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)))
-        );
-        if (assets > 0) IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
-        assetsInMetaMorpho = IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(address(this)));
+        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(trackedAllocation);
+
+        if (assets > 0) shares -= IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
+
+        trackedAllocation = trackedAllocation + interest - assets;
+
+        return (ids(), interest);
+    }
+
+    function realizeLoss(bytes memory data) external returns (bytes32[] memory, uint256) {
+        require(msg.sender == parentVault, NotAuthorized());
+        require(data.length == 0, InvalidData());
+
+        uint256 allocation = IERC4626(metaMorpho).previewRedeem(shares);
+        uint256 loss = trackedAllocation - allocation;
+        trackedAllocation = allocation;
 
         return (ids(), loss);
     }

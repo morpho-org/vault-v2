@@ -54,12 +54,9 @@ contract MMV1_1IntegrationBadDebtTest is MMV1_1IntegrationTest {
         metaMorpho.updateWithdrawQueue(indexes);
         vm.stopPrank();
 
-        vm.prank(allocator);
-        vault.deallocate(address(metaMorphoAdapter), hex"", 0);
-
-        // MM v1.1 doesn't realize bad debt.
+        vm.prank(address(0x123));
+        vault.realizeLoss(address(metaMorphoAdapter), hex"");
         assertEq(vault.totalAssets(), initialDeposit);
-        assertEq(vault.previewRedeem(vault.balanceOf(address(this))), initialDeposit);
     }
 
     function testNoBadDebtThroughLiquidate() public {
@@ -88,11 +85,8 @@ contract MMV1_1IntegrationBadDebtTest is MMV1_1IntegrationTest {
         );
         morpho.liquidate(allMarketParams[1], borrower, collateralOfBorrower, 0, hex"");
 
-        vm.prank(allocator);
-        vault.deallocate(address(metaMorphoAdapter), hex"", 0);
-
-        // MM v1.1 doesn't realize bad debt.
+        vm.prank(address(0x123));
+        vault.realizeLoss(address(metaMorphoAdapter), hex"");
         assertEq(vault.totalAssets(), initialDeposit);
-        assertEq(vault.previewRedeem(vault.balanceOf(address(this))), initialDeposit);
     }
 }

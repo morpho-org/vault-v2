@@ -95,4 +95,7 @@ interface IVaultV2 is IERC4626, IPermissionedToken {
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256 withdrawnShares);
+
+    // Realize loss
+    function realizeLoss(address adapter, bytes memory data) external;
 }

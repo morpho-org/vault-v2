@@ -427,7 +427,6 @@ contract VaultV2 is IVaultV2 {
 
     /* ALLOCATOR FUNCTIONS */
 
-    /// @dev This function will automatically realize potential losses.
     function allocate(address adapter, bytes memory data, uint256 assets) external {
         require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
@@ -435,16 +434,11 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
-        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).allocate(data, assets);
-
-        if (loss > 0) {
-            _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
-            enterBlocked = true;
-        }
+        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).allocate(data, assets);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
-            _caps.allocation = _caps.allocation.zeroFloorSub(loss) + assets;
+            _caps.allocation = _caps.allocation + assets + interest;
 
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
             require(
@@ -452,10 +446,9 @@ contract VaultV2 is IVaultV2 {
                 ErrorsLib.RelativeCapExceeded()
             );
         }
-        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, loss);
+        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, interest);
     }
 
-    /// @dev This function will automatically realize potential losses.
     function deallocate(address adapter, bytes memory data, uint256 assets) external {
         require(
             isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized()
@@ -464,20 +457,15 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).deallocate(data, assets);
-
-        if (loss > 0) {
-            _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
-            enterBlocked = true;
-        }
+        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
-            _caps.allocation = _caps.allocation.zeroFloorSub(loss + assets);
+            _caps.allocation = (_caps.allocation + interest).zeroFloorSub(assets);
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
-        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, loss);
+        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, interest);
     }
 
     /// @dev Whether newLiquidityAdapter is an adapter is checked in allocate/deallocate.
@@ -673,7 +661,6 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns shares withdrawn as penalty.
-    /// @dev This function will automatically realize potential losses.
     /// @dev When calling this function, a penalty is taken from `onBehalf`, in order to discourage allocation
     /// manipulations.
     /// @dev The penalty is taken as a withdrawal for which assets are returned to the vault. In consequence,
@@ -691,6 +678,35 @@ contract VaultV2 is IVaultV2 {
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
         emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf, penaltyAssets);
         return shares;
+    }
+
+    function realizeLoss(address adapter, bytes memory data) external {
+        require(isAdapter[adapter], ErrorsLib.NotAdapter());
+
+        accrueInterest();
+
+        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).realizeLoss(data);
+
+        uint256 incentiveShares;
+        if (loss > 0) {
+            _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
+
+            if (canReceive(msg.sender)) {
+                uint256 incentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
+                incentiveShares =
+                    incentive.mulDivDown(totalSupply + 1, uint256(_totalAssets).zeroFloorSub(incentive) + 1);
+                createShares(msg.sender, incentiveShares);
+            }
+
+            for (uint256 i; i < ids.length; i++) {
+                Caps storage _caps = caps[ids[i]];
+                _caps.allocation = _caps.allocation.zeroFloorSub(loss);
+            }
+
+            enterBlocked = true;
+        }
+
+        emit EventsLib.RealizeLoss(msg.sender, adapter, ids, loss, incentiveShares);
     }
 
     /* ERC20 FUNCTIONS */
