@@ -25,6 +25,6 @@ interface IMetaMorphoAdapter is IAdapter {
     function parentVault() external view returns (address);
     function metaMorpho() external view returns (address);
     function skimRecipient() external view returns (address);
-    function trackedAllocation() external view returns (uint256);
+    function assetsIfNoLoss() external view returns (uint256);
     function shares() external view returns (uint256);
 }
