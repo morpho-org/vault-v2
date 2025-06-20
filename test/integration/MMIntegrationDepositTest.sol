@@ -62,9 +62,7 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
 
         assertEq(vault.totalAssets(), previousVaultTotalAssets, "vault total assets, after");
         assertEq(
-            metaMorphoAdapter.allocation(),
-            previousAdapterTrackedAllocation,
-            "MM Adapter tracked allocation, after"
+            metaMorphoAdapter.allocation(), previousAdapterTrackedAllocation, "MM Adapter tracked allocation, after"
         );
     }
 
@@ -103,9 +101,15 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
         vault.realizeLoss(address(metaMorphoAdapter), "");
 
         assertLt(vault.totalAssets(), previousVaultTotalAssets - roundedWithdraw, "vault total assets, after");
+        assertGe(vault.totalAssets(), previousVaultTotalAssets - donationFactor, "vault total assets, after");
         assertLt(
             metaMorphoAdapter.allocation(),
             previousAdapterTrackedAllocation - roundedWithdraw,
+            "MM Adapter tracked allocation, after"
+        );
+        assertGe(
+            metaMorphoAdapter.allocation(),
+            previousAdapterTrackedAllocation - donationFactor,
             "MM Adapter tracked allocation, after"
         );
     }
