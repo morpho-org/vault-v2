@@ -97,7 +97,6 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(data.length == 0, InvalidData());
 
         uint256 allocation = IERC4626(metaMorpho).previewRedeem(shares);
-        require(allocation < trackedAllocation, NoLoss());
         uint256 loss = trackedAllocation - allocation;
         trackedAllocation = allocation;
 
