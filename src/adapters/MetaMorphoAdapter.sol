@@ -88,16 +88,11 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         return (ids(), interest);
     }
 
-    function allocation() public view returns (uint256) {
-        return IVaultV2(parentVault).allocation(ids()[0]);
-    }
-
     function realizeLoss(bytes memory data) external view returns (bytes32[] memory, uint256) {
         require(msg.sender == parentVault, NotAuthorized());
         require(data.length == 0, InvalidData());
 
-        uint256 assetsInVault = IERC4626(metaMorpho).previewRedeem(shares);
-        uint256 loss = allocation() - assetsInVault;
+        uint256 loss = allocation() - IERC4626(metaMorpho).previewRedeem(shares);
 
         return (ids(), loss);
     }
@@ -107,5 +102,9 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         bytes32[] memory ids_ = new bytes32[](1);
         ids_[0] = adapterId;
         return ids_;
+    }
+
+    function allocation() public view returns (uint256) {
+        return IVaultV2(parentVault).allocation(ids()[0]);
     }
 }
