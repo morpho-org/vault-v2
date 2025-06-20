@@ -72,7 +72,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         if (assets > 0) shares += IERC4626(metaMorpho).deposit(assets, address(this)).toUint128();
 
-        // Safe cast since the absolute cap fits in 128 bits.
+        // Safe cast since the vault's absolute cap fits in 128 bits.
         allocation = uint128(allocation + interest + assets);
 
         return (ids(), interest);

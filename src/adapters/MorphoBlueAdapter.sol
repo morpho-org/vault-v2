@@ -95,7 +95,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
             _position.shares += uint128(mintedShares);
         }
 
-        // Safe cast since the absolute cap fits in 128 bits.
+        // Safe cast since the vault's absolute cap fits in 128 bits.
         _position.allocation = uint128(_position.allocation + interest + assets);
 
         return (ids(marketParams), interest);
@@ -133,6 +133,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
         uint256 assetsInMarket = expectedSupplyAssets(marketParams, _position.shares);
         uint256 loss = _position.allocation - assetsInMarket;
+        // Safe cast since allocation fits in 128 bits and assetsInMarket<allocation.
         _position.allocation = uint128(assetsInMarket);
 
         return (ids(marketParams), loss);
