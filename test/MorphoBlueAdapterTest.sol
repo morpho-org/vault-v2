@@ -227,6 +227,21 @@ contract MorphoBlueAdapterTest is Test {
         adapter.skim(address(token));
     }
 
+    function testLossRealizationImpossible(uint256 deposit) public {
+        deposit = _boundAssets(deposit);
+
+        // Setup
+        deal(address(loanToken), address(adapter), deposit);
+        vm.prank(address(parentVault));
+        adapter.allocate(abi.encode(marketParams), deposit);
+        _overrideMarketTotalSupplyAssets(2);
+
+        // Realize loss.
+        vm.prank(address(parentVault));
+        vm.expectRevert(stdError.arithmeticError);
+        adapter.realizeLoss(abi.encode(marketParams));
+    }
+
     function testLossRealizationZero(uint256 deposit) public {
         deposit = _boundAssets(deposit);
 
@@ -237,8 +252,10 @@ contract MorphoBlueAdapterTest is Test {
 
         // Realize loss.
         vm.prank(address(parentVault));
-        vm.expectRevert(IMorphoBlueAdapter.NoLoss.selector);
-        adapter.realizeLoss(abi.encode(marketParams));
+        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
+        assertEq(ids, expectedIds, "ids");
+        assertEq(loss, 0, "loss");
+        assertEq(adapter.trackedAllocation(marketId), deposit, "trackedAllocation");
     }
 
     function testLossRealization(uint256 deposit, uint256 _loss) public {
@@ -314,15 +331,16 @@ contract MorphoBlueAdapterTest is Test {
         deal(address(loanToken), address(adapter), deposit + interest);
         vm.prank(address(parentVault));
         adapter.allocate(abi.encode(marketParams), deposit);
+        uint256 expectedSupplyBefore = morpho.expectedSupplyAssets(marketParams, address(adapter));
         _overrideMarketTotalSupplyAssets(-int256(_loss));
 
         // Interest covers the loss.
         _overrideMarketTotalSupplyAssets(int256(interest));
-        uint256 expectedLoss = _loss.zeroFloorSub(interest);
+        uint256 expectedSupplyAfter = morpho.expectedSupplyAssets(marketParams, address(adapter));
         vm.prank(address(parentVault));
-        if (expectedLoss == 0) vm.expectRevert(IMorphoBlueAdapter.NoLoss.selector);
+        if (expectedSupplyAfter > expectedSupplyBefore) vm.expectRevert(stdError.arithmeticError);
         (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
-        if (expectedLoss > 0) {
+        if (_loss >= interest) {
             assertEq(ids, expectedIds, "ids");
             assertEq(loss, _loss - interest, "loss");
             assertApproxEqAbs(adapter.trackedAllocation(marketId), deposit - _loss + interest, 1, "trackedAllocation");
