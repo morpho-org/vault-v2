@@ -13,14 +13,13 @@ import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
 
-/// @dev Not ERC-4626 compliant due to missing functions and `totalAssets()` is not up to date.
 /// @dev Zero checks are not systematically performed.
 /// @dev No-ops are allowed.
 /// @dev Natspec are specified only when it brings clarity.
 /// @dev The vault has 1 virtual asset and a decimals offset of 0.
 /// See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 /// @dev Roles are not "two-step" so one must check if they really have this role.
-/// @dev The shares are represented with ERC-20, also compliant with ERC-2612 (permit extension).
+/// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension).
 /// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
 /// that must be distributed on the period (since `lastUpdate`). The Vic must be chosen and managed carefully to not
 /// distribute more than what the vault's investments are earning.
@@ -49,8 +48,10 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - The token should not revert on `transfer` and `transferFrom` if balances and approvals are right.
 /// - The token should not revert on `transfer` to self.
 /// - totalAssets and totalSupply must stay below ~10^35.
-/// - The vault is pinged more than once every 20 years.
+/// - The vault is pinged more than once every 10 years.
 /// - Adapters must not revert on `deallocate` if the underlying markets are liquid.
+/// - Returned ids do not repeat.
+/// - Adapters ignore donations of shares in their respective markets.
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
 /// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
 contract VaultV2 is IVaultV2 {
@@ -94,7 +95,12 @@ contract VaultV2 is IVaultV2 {
     /* INTEREST STORAGE */
 
     uint192 internal _totalAssets;
+    /// @dev Total assets after the first interest accrual of the transaction.
+    /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
+    /// @dev This mechanism can make a big deposit revert if the liquidity market's relative cap is almost reached.
+    uint256 public transient firstTotalAssets;
     uint64 public lastUpdate;
+    /// @dev Set to 0 to disable the Vic (=> no interest accrual).
     address public vic;
     /// @dev Prevents floashloan-based shorting of vault shares during loss realizations.
     bool public transient enterBlocked;
@@ -123,7 +129,6 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev The timelock of decreaseTimelock is initially set to TIMELOCK_CAP, and can only be changed to
     /// type(uint256).max through abdicateSubmit..
-    /// @dev Only functions with the modifier `timelocked` are timelocked.
     /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
     /// timelocked data can potentially be changed shortly afterwards.
     /// @dev The minimum time in which a function can be called is the following:
@@ -241,11 +246,10 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Submit(selector, data, executableAt[data]);
     }
 
-    modifier timelocked() {
+    function timelocked() internal {
         require(executableAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
         require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
         executableAt[msg.data] = 0;
-        _;
     }
 
     function revoke(bytes calldata data) external {
@@ -257,29 +261,34 @@ contract VaultV2 is IVaultV2 {
 
     /* CURATOR FUNCTIONS */
 
-    function setIsAllocator(address account, bool newIsAllocator) external timelocked {
+    function setIsAllocator(address account, bool newIsAllocator) external {
+        timelocked();
         isAllocator[account] = newIsAllocator;
         emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
 
-    function setSharesGate(address newSharesGate) external timelocked {
+    function setSharesGate(address newSharesGate) external {
+        timelocked();
         sharesGate = newSharesGate;
         emit EventsLib.SetSharesGate(newSharesGate);
     }
 
-    function setReceiveAssetsGate(address newReceiveAssetsGate) external timelocked {
+    function setReceiveAssetsGate(address newReceiveAssetsGate) external {
+        timelocked();
         receiveAssetsGate = newReceiveAssetsGate;
         emit EventsLib.SetReceiveAssetsGate(newReceiveAssetsGate);
     }
 
-    function setSendAssetsGate(address newSendAssetsGate) external timelocked {
+    function setSendAssetsGate(address newSendAssetsGate) external {
+        timelocked();
         sendAssetsGate = newSendAssetsGate;
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
     }
 
     /// @dev This function never reverts, assuming that the corresponding data is timelocked.
     /// @dev Users cannot access their funds if the Vic reverts, so this function might better be under a long timelock.
-    function setVic(address newVic) external timelocked {
+    function setVic(address newVic) external {
+        timelocked();
         try this.accrueInterest() {}
         catch {
             lastUpdate = uint64(block.timestamp);
@@ -288,7 +297,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetVic(newVic);
     }
 
-    function setIsAdapter(address account, bool newIsAdapter) external timelocked {
+    function setIsAdapter(address account, bool newIsAdapter) external {
+        timelocked();
         isAdapter[account] = newIsAdapter;
         emit EventsLib.SetIsAdapter(account, newIsAdapter);
     }
@@ -306,12 +316,14 @@ contract VaultV2 is IVaultV2 {
     /// @dev Be particularly careful as this action is not reversible.
     /// @dev Existing timelocked operations submitted before abdicating the selector can still be executed. The
     /// abdication of a selector only prevents future operations to be submitted.
-    function abdicateSubmit(bytes4 selector) external timelocked {
+    function abdicateSubmit(bytes4 selector) external {
+        timelocked();
         timelock[selector] = type(uint256).max;
         emit EventsLib.AbdicateSubmit(selector);
     }
 
-    function decreaseTimelock(bytes4 selector, uint256 newDuration) external timelocked {
+    function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
+        timelocked();
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
         require(timelock[selector] != type(uint256).max, ErrorsLib.InfiniteTimelock());
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
@@ -320,7 +332,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseTimelock(selector, newDuration);
     }
 
-    function setPerformanceFee(uint256 newPerformanceFee) external timelocked {
+    function setPerformanceFee(uint256 newPerformanceFee) external {
+        timelocked();
         require(newPerformanceFee <= MAX_PERFORMANCE_FEE, ErrorsLib.FeeTooHigh());
         require(performanceFeeRecipient != address(0) || newPerformanceFee == 0, ErrorsLib.FeeInvariantBroken());
 
@@ -331,7 +344,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetPerformanceFee(newPerformanceFee);
     }
 
-    function setManagementFee(uint256 newManagementFee) external timelocked {
+    function setManagementFee(uint256 newManagementFee) external {
+        timelocked();
         require(newManagementFee <= MAX_MANAGEMENT_FEE, ErrorsLib.FeeTooHigh());
         require(managementFeeRecipient != address(0) || newManagementFee == 0, ErrorsLib.FeeInvariantBroken());
 
@@ -342,7 +356,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetManagementFee(newManagementFee);
     }
 
-    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external timelocked {
+    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external {
+        timelocked();
         require(newPerformanceFeeRecipient != address(0) || performanceFee == 0, ErrorsLib.FeeInvariantBroken());
 
         accrueInterest();
@@ -351,7 +366,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetPerformanceFeeRecipient(newPerformanceFeeRecipient);
     }
 
-    function setManagementFeeRecipient(address newManagementFeeRecipient) external timelocked {
+    function setManagementFeeRecipient(address newManagementFeeRecipient) external {
+        timelocked();
         require(newManagementFeeRecipient != address(0) || managementFee == 0, ErrorsLib.FeeInvariantBroken());
 
         accrueInterest();
@@ -360,7 +376,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetManagementFeeRecipient(newManagementFeeRecipient);
     }
 
-    function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external timelocked {
+    function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external {
+        timelocked();
         bytes32 id = keccak256(idData);
         require(newAbsoluteCap >= caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotIncreasing());
 
@@ -378,7 +395,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
-    function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external timelocked {
+    function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external {
+        timelocked();
         bytes32 id = keccak256(idData);
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
         require(newRelativeCap >= caps[id].relativeCap, ErrorsLib.RelativeCapNotIncreasing());
@@ -400,7 +418,8 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
     }
 
-    function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external timelocked {
+    function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external {
+        timelocked();
         require(newForceDeallocatePenalty <= MAX_FORCE_DEALLOCATE_PENALTY, ErrorsLib.PenaltyTooHigh());
         forceDeallocatePenalty[adapter] = newForceDeallocatePenalty;
         emit EventsLib.SetForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
@@ -424,7 +443,7 @@ contract VaultV2 is IVaultV2 {
             require(_caps.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
             require(
-                _caps.relativeCap == WAD || _caps.allocation <= uint256(_totalAssets).mulDivDown(_caps.relativeCap, WAD),
+                _caps.relativeCap == WAD || _caps.allocation <= firstTotalAssets.mulDivDown(_caps.relativeCap, WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
@@ -462,13 +481,15 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE FUNCTIONS */
 
     function accrueInterest() public {
-        if (lastUpdate == block.timestamp) return;
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
-        emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
-        _totalAssets = newTotalAssets.toUint192();
-        if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
-        if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
-        lastUpdate = uint64(block.timestamp);
+        if (lastUpdate != block.timestamp) {
+            (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+            emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
+            _totalAssets = newTotalAssets.toUint192();
+            if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
+            if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
+            lastUpdate = uint64(block.timestamp);
+        }
+        if (firstTotalAssets == 0) firstTotalAssets = _totalAssets;
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
@@ -479,7 +500,7 @@ contract VaultV2 is IVaultV2 {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
-        uint256 tentativeInterestPerSecond = IVic(vic).interestPerSecond(_totalAssets, elapsed);
+        uint256 tentativeInterestPerSecond = vic != address(0) ? IVic(vic).interestPerSecond(_totalAssets, elapsed) : 0;
 
         uint256 interestPerSecond = tentativeInterestPerSecond
             <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
@@ -679,11 +700,12 @@ contract VaultV2 is IVaultV2 {
                 createShares(msg.sender, incentiveShares);
             }
 
-            enterBlocked = true;
-        }
+            for (uint256 i; i < ids.length; i++) {
+                Caps storage _caps = caps[ids[i]];
+                _caps.allocation = _caps.allocation.zeroFloorSub(loss);
+            }
 
-        for (uint256 i; i < ids.length; i++) {
-            caps[ids[i]].allocation = caps[ids[i]].allocation.zeroFloorSub(loss);
+            enterBlocked = true;
         }
 
         emit EventsLib.RealizeLoss(msg.sender, adapter, ids, loss, incentiveShares);
