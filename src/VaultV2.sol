@@ -16,7 +16,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Zero checks are not systematically performed.
 /// @dev No-ops are allowed.
 /// @dev Natspec are specified only when it brings clarity.
-/// @dev The vault has 1 virtual asset and a decimals offset of 0.
+/// @dev The vault has 1 virtual asset and a decimal offset of 18.zeroFloorSub(assetDecimals).
 /// See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 /// @dev Roles are not "two-step" so one must check if they really have this role.
 /// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension).
@@ -61,6 +61,7 @@ contract VaultV2 is IVaultV2 {
 
     address public immutable asset;
     uint8 public immutable decimals;
+    uint256 public immutable decimalOffset;
 
     /* ROLES STORAGE */
 
@@ -198,7 +199,9 @@ contract VaultV2 is IVaultV2 {
         asset = _asset;
         owner = _owner;
         lastUpdate = uint64(block.timestamp);
-        decimals = IERC20(_asset).decimals();
+        uint256 assetDecimals = IERC20(_asset).decimals();
+        decimals = uint8(assetDecimals + uint256(18).zeroFloorSub(assetDecimals));
+        decimalOffset = 10 ** uint256(18).zeroFloorSub(assetDecimals);
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         emit EventsLib.Constructor(_owner, _asset);
     }
@@ -517,8 +520,8 @@ contract VaultV2 is IVaultV2 {
 
         // Interest should be accrued at least every 10 years to avoid fees exceeding total assets.
         uint256 newTotalAssetsWithoutFees = newTotalAssets - performanceFeeAssets - managementFeeAssets;
-        uint256 performanceFeeShares = performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssetsWithoutFees + 1);
-        uint256 managementFeeShares = managementFeeAssets.mulDivDown(totalSupply + 1, newTotalAssetsWithoutFees + 1);
+        uint256 performanceFeeShares = performanceFeeAssets.mulDivDown(totalSupply + decimalOffset, newTotalAssetsWithoutFees + 1);
+        uint256 managementFeeShares = managementFeeAssets.mulDivDown(totalSupply + decimalOffset, newTotalAssetsWithoutFees + 1);
 
         return (newTotalAssets, performanceFeeShares, managementFeeShares);
     }
@@ -527,28 +530,28 @@ contract VaultV2 is IVaultV2 {
     function previewDeposit(uint256 assets) public view returns (uint256) {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
-        return assets.mulDivDown(newTotalSupply + 1, newTotalAssets + 1);
+        return assets.mulDivDown(newTotalSupply + decimalOffset, newTotalAssets + 1);
     }
 
     /// @dev Returns previewed deposited assets.
     function previewMint(uint256 shares) public view returns (uint256) {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
-        return shares.mulDivUp(newTotalAssets + 1, newTotalSupply + 1);
+        return shares.mulDivUp(newTotalAssets + 1, newTotalSupply + decimalOffset);
     }
 
     /// @dev Returns previewed redeemed shares.
     function previewWithdraw(uint256 assets) public view returns (uint256) {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
-        return assets.mulDivUp(newTotalSupply + 1, newTotalAssets + 1);
+        return assets.mulDivUp(newTotalSupply + decimalOffset, newTotalAssets + 1);
     }
 
     /// @dev Returns previewed withdrawn assets.
     function previewRedeem(uint256 shares) public view returns (uint256) {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
-        return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + 1);
+        return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + decimalOffset);
     }
 
     /// @dev Returns corresponding shares (rounded down).
@@ -694,7 +697,7 @@ contract VaultV2 is IVaultV2 {
             if (canReceive(msg.sender)) {
                 uint256 incentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
                 incentiveShares =
-                    incentive.mulDivDown(totalSupply + 1, uint256(_totalAssets).zeroFloorSub(incentive) + 1);
+                    incentive.mulDivDown(totalSupply + decimalOffset, uint256(_totalAssets).zeroFloorSub(incentive) + 1);
                 createShares(msg.sender, incentiveShares);
             }
 
