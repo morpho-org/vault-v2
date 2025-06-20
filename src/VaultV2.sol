@@ -806,14 +806,13 @@ contract VaultV2 is IVaultV2 {
         return sharesGate == address(0) || ISharesGate(sharesGate).canReceiveShares(account);
     }
 
-
     /* CONTEXT HANDLING FUNCTIONS */
 
     function updateCurrentContext() internal {
         // Ignore self-calls
         if (msg.sender != address(this)) {
             // Reentrency is not allowed.
-            require(currentSender == address(0),ErrorsLib.Reentrancy());
+            require(currentSender == address(0), ErrorsLib.Reentrancy());
             currentSender = msg.sender;
             currentSelector = msg.sig;
         }
