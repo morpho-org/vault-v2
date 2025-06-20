@@ -677,11 +677,12 @@ contract VaultV2 is IVaultV2 {
                 createShares(msg.sender, incentiveShares);
             }
 
-            enterBlocked = true;
-        }
+            for (uint256 i; i < ids.length; i++) {
+                Caps storage _caps = caps[ids[i]];
+                _caps.allocation = _caps.allocation.zeroFloorSub(loss);
+            }
 
-        for (uint256 i; i < ids.length; i++) {
-            caps[ids[i]].allocation = caps[ids[i]].allocation.zeroFloorSub(loss);
+            enterBlocked = true;
         }
 
         emit EventsLib.RealizeLoss(msg.sender, adapter, ids, loss, incentiveShares);
