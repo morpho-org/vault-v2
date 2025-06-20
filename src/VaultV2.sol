@@ -65,7 +65,7 @@ contract VaultV2 is IVaultV2 {
     /* TRANSIENT STORAGE */
 
     address public transient currentSender;
-    address public transient currentSelector;
+    bytes4 public transient currentSelector;
 
     /* ROLES STORAGE */
 
