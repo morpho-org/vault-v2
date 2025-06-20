@@ -185,6 +185,21 @@ contract MetaMorphoAdapterTest is Test {
         adapter.skim(address(metaMorpho));
     }
 
+    function testLossRealizationImpossible(uint256 deposit) public {
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
+
+        // Setup.
+        deal(address(asset), address(adapter), deposit);
+        vm.prank(address(parentVault));
+        adapter.allocate(hex"", deposit);
+        asset.transfer(address(metaMorpho), 2);
+
+        // Realize loss.
+        vm.prank(address(parentVault));
+        vm.expectRevert(stdError.arithmeticError);
+        adapter.realizeLoss(hex"");
+    }
+
     function testLossRealizationZero(uint256 deposit) public {
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
 
@@ -195,8 +210,10 @@ contract MetaMorphoAdapterTest is Test {
 
         // Realize loss.
         vm.prank(address(parentVault));
-        vm.expectRevert(IMetaMorphoAdapter.NoLoss.selector);
-        adapter.realizeLoss(hex"");
+        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
+        assertEq(ids, expectedIds, "ids");
+        assertEq(loss, 0, "loss");
+        assertEq(adapter.trackedAllocation(), deposit, "trackedAllocation");
     }
 
     function testLossRealization(uint256 deposit, uint256 _loss) public {
@@ -273,15 +290,16 @@ contract MetaMorphoAdapterTest is Test {
         deal(address(asset), address(adapter), deposit + interest);
         vm.prank(address(parentVault));
         adapter.allocate(hex"", deposit);
+        uint256 expectedSupplyBefore = metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter)));
         metaMorpho.lose(_loss);
 
         // Realize loss.
         asset.transfer(address(metaMorpho), interest);
-        uint256 expectedLoss = _loss.zeroFloorSub(interest);
+        uint256 expectedSupplyAfter = metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter)));
         vm.prank(address(parentVault));
-        if (expectedLoss == 0) vm.expectRevert(IMetaMorphoAdapter.NoLoss.selector);
+        if (expectedSupplyAfter > expectedSupplyBefore) vm.expectRevert(stdError.arithmeticError);
         (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
-        if (expectedLoss > 0) {
+        if (_loss >= interest) {
             assertEq(ids, expectedIds, "ids");
             assertEq(loss, _loss - interest, "loss");
             assertApproxEqAbs(adapter.trackedAllocation(), deposit - _loss + interest, 1, "trackedAllocation");
