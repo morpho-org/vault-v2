@@ -43,14 +43,14 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
         morpho.supply(idleParams, donation, 0, address(metaMorpho), hex"");
 
         // Check rounded deposit effect
-        uint256 previousAdapterBalance = metaMorpho.balanceOf(address(metaMorphoAdapter));
-        uint256 previousMMTotalAssets = vault.totalAssets();
+        uint256 previousAdapterShares = metaMorpho.balanceOf(address(metaMorphoAdapter));
+        uint256 previousVaultTotalAssets = vault.totalAssets();
         uint256 previousAdapterTrackedAllocation = metaMorphoAdapter.trackedAllocation();
 
         vault.deposit(roundedDeposit, address(this));
 
-        assertEq(metaMorpho.balanceOf(address(metaMorphoAdapter)), previousAdapterBalance, "adapter shares balance");
-        assertEq(vault.totalAssets(), previousMMTotalAssets + roundedDeposit, "MM total assets");
+        assertEq(metaMorpho.balanceOf(address(metaMorphoAdapter)), previousAdapterShares, "adapter shares balance");
+        assertEq(vault.totalAssets(), previousVaultTotalAssets + roundedDeposit, "MM total assets");
         assertEq(
             metaMorphoAdapter.trackedAllocation(),
             previousAdapterTrackedAllocation + roundedDeposit,
@@ -60,7 +60,7 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
         // Check rounding is realizable
         vault.realizeLoss(address(metaMorphoAdapter), "");
 
-        assertEq(vault.totalAssets(), previousMMTotalAssets, "MM total assets, after");
+        assertEq(vault.totalAssets(), previousVaultTotalAssets, "MM total assets, after");
         assertEq(
             metaMorphoAdapter.trackedAllocation(),
             previousAdapterTrackedAllocation,
@@ -85,14 +85,14 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
         vault.deposit(initialDeposit * donationFactor, address(this));
 
         // Check rounded withdraw effect
-        uint256 previousAdapterBalance = metaMorpho.balanceOf(address(metaMorphoAdapter));
-        uint256 previousMMTotalAssets = vault.totalAssets();
+        uint256 previousAdapterShares = metaMorpho.balanceOf(address(metaMorphoAdapter));
+        uint256 previousVaultTotalAssets = vault.totalAssets();
         uint256 previousAdapterTrackedAllocation = metaMorphoAdapter.trackedAllocation();
 
         vault.withdraw(roundedWithdraw, address(this), address(this));
 
-        assertEq(metaMorpho.balanceOf(address(metaMorphoAdapter)), previousAdapterBalance - 1, "adapter shares balance");
-        assertEq(vault.totalAssets(), previousMMTotalAssets - roundedWithdraw, "MM total assets");
+        assertEq(metaMorpho.balanceOf(address(metaMorphoAdapter)), previousAdapterShares - 1, "adapter shares balance");
+        assertEq(vault.totalAssets(), previousVaultTotalAssets - roundedWithdraw, "MM total assets");
         assertEq(
             metaMorphoAdapter.trackedAllocation(),
             previousAdapterTrackedAllocation - roundedWithdraw,
@@ -102,7 +102,7 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
         // Check rounding is realizable
         vault.realizeLoss(address(metaMorphoAdapter), "");
 
-        assertLt(vault.totalAssets(), previousMMTotalAssets - roundedWithdraw, "MM total assets, after");
+        assertLt(vault.totalAssets(), previousVaultTotalAssets - roundedWithdraw, "MM total assets, after");
         assertLt(
             metaMorphoAdapter.trackedAllocation(),
             previousAdapterTrackedAllocation - roundedWithdraw,
