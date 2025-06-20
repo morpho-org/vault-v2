@@ -102,7 +102,7 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
         // Check rounding is realizable
         vault.realizeLoss(address(metaMorphoAdapter), "");
 
-        assertLt(vault.totalAssets(), previousVaultTotalAssets - roundedWithdraw, "MM total assets, after");
+        assertLt(vault.totalAssets(), previousVaultTotalAssets - roundedWithdraw, "vault total assets, after");
         assertLt(
             metaMorphoAdapter.trackedAllocation(),
             previousAdapterTrackedAllocation - roundedWithdraw,
