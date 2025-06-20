@@ -13,10 +13,10 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 
 /// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
-/// @dev `assetsIfNoLoss` are the share's value without taking into account unrealized losses.
+/// @dev `allocation` are the share's value without taking into account unrealized losses.
 struct Position {
     uint128 shares;
-    uint128 assetsIfNoLoss;
+    uint128 allocation;
 }
 
 contract MorphoBlueAdapter is IMorphoBlueAdapter {
@@ -52,8 +52,8 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
 
-    function assetsIfNoLoss(Id marketId) external view returns (uint256) {
-        return position[marketId].assetsIfNoLoss;
+    function allocation(Id marketId) external view returns (uint256) {
+        return position[marketId].allocation;
     }
 
     function shares(Id marketId) external view returns (uint256) {
@@ -87,7 +87,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
 
-        uint256 interest = expectedSupplyAssets(marketParams, _position.shares).zeroFloorSub(_position.assetsIfNoLoss);
+        uint256 interest = expectedSupplyAssets(marketParams, _position.shares).zeroFloorSub(_position.allocation);
 
         if (assets > 0) {
             (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
@@ -96,7 +96,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         }
 
         // Safe cast since the absolute cap fits in 128 bits.
-        _position.assetsIfNoLoss = uint128(_position.assetsIfNoLoss + interest + assets);
+        _position.allocation = uint128(_position.allocation + interest + assets);
 
         return (ids(marketParams), interest);
     }
@@ -113,7 +113,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
 
-        uint256 interest = expectedSupplyAssets(marketParams, _position.shares).zeroFloorSub(_position.assetsIfNoLoss);
+        uint256 interest = expectedSupplyAssets(marketParams, _position.shares).zeroFloorSub(_position.allocation);
 
         if (assets > 0) {
             (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
@@ -121,7 +121,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
             _position.shares -= uint128(redeemedShares);
         }
 
-        _position.assetsIfNoLoss = (_position.assetsIfNoLoss + interest - assets).toUint128();
+        _position.allocation = (_position.allocation + interest - assets).toUint128();
 
         return (ids(marketParams), interest);
     }
@@ -131,9 +131,9 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         Position storage _position = position[marketParams.id()];
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 assets = expectedSupplyAssets(marketParams, _position.shares);
-        uint256 loss = _position.assetsIfNoLoss - assets;
-        _position.assetsIfNoLoss = uint128(assets);
+        uint256 assetsInMarket = expectedSupplyAssets(marketParams, _position.shares);
+        uint256 loss = _position.allocation - assetsInMarket;
+        _position.allocation = uint128(assetsInMarket);
 
         return (ids(marketParams), loss);
     }

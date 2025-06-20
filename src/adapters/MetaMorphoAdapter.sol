@@ -26,7 +26,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /* STORAGE */
 
     address public skimRecipient;
-    uint128 public assetsIfNoLoss;
+    uint128 public allocation;
     uint128 public shares;
 
     /* FUNCTIONS */
@@ -66,12 +66,12 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(assetsIfNoLoss);
+        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(allocation);
 
         if (assets > 0) shares += IERC4626(metaMorpho).deposit(assets, address(this)).toUint128();
 
         // Safe cast since the absolute cap fits in 128 bits.
-        assetsIfNoLoss = uint128(assetsIfNoLoss + interest + assets);
+        allocation = uint128(allocation + interest + assets);
 
         return (ids(), interest);
     }
@@ -84,12 +84,13 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(assetsIfNoLoss);
+        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(allocation);
 
         // Safe cast since shares fits in 128 bits.
         if (assets > 0) shares -= uint128(IERC4626(metaMorpho).withdraw(assets, address(this), address(this)));
 
-        assetsIfNoLoss = (assetsIfNoLoss + interest - assets).toUint128();
+
+        allocation = (allocation + interest - assets).toUint128();
 
         return (ids(), interest);
     }
@@ -99,9 +100,9 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(data.length == 0, InvalidData());
 
         uint256 assets = IERC4626(metaMorpho).previewRedeem(shares);
-        uint256 loss = assetsIfNoLoss - assets;
+        uint256 loss = allocation - assets;
         // Safe cast since assetsIfNoLoss fits in 128 bits.
-        assetsIfNoLoss = uint128(assets);
+        allocation = uint128(assets);
 
         return (ids(), loss);
     }
