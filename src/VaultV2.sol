@@ -50,6 +50,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - totalAssets and totalSupply must stay below ~10^35.
 /// - The vault is pinged more than once every 10 years.
 /// - Adapters must not revert on `deallocate` if the underlying markets are liquid.
+/// - Returned ids do not repeat.
+/// - Adapters ignore donations of shares in their respective markets.
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
 /// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
 contract VaultV2 is IVaultV2 {
