@@ -33,7 +33,7 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
     function testDepositRoundingLoss(uint256 donation, uint256 roundedDeposit) public {
         // Setup
         donation = bound(donation, 2, MAX_TEST_ASSETS);
-        roundedDeposit = bound(roundedDeposit, 1, donation - 1);
+        roundedDeposit = bound(roundedDeposit, 1, donation);
         setSupplyQueueIdle();
         vm.prank(allocator);
         vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
