@@ -92,7 +92,7 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
         vault.withdraw(roundedWithdraw, address(this), address(this));
 
         assertEq(metaMorpho.balanceOf(address(metaMorphoAdapter)), previousAdapterShares - 1, "adapter shares balance");
-        assertEq(vault.totalAssets(), previousVaultTotalAssets - roundedWithdraw, "MM total assets");
+        assertEq(vault.totalAssets(), previousVaultTotalAssets - roundedWithdraw, "vault total assets");
         assertEq(
             metaMorphoAdapter.trackedAllocation(),
             previousAdapterTrackedAllocation - roundedWithdraw,
