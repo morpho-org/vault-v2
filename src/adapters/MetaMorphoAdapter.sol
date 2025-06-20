@@ -26,7 +26,9 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /* STORAGE */
 
     address public skimRecipient;
+    /// @dev `allocation` are the share's value without taking into account unrealized losses.
     uint256 public allocation;
+    /// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
     uint256 public shares;
 
     /* FUNCTIONS */
