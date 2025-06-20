@@ -26,7 +26,9 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /* STORAGE */
 
     address public skimRecipient;
+    /// @dev `allocation` are the share's value without taking into account unrealized losses.
     uint128 public allocation;
+    /// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
     uint128 public shares;
 
     /* FUNCTIONS */
@@ -101,7 +103,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         uint256 assets = IERC4626(metaMorpho).previewRedeem(shares);
         uint256 loss = allocation - assets;
-        // Safe cast since assetsIfNoLoss fits in 128 bits.
+        // Safe cast since allocation fits in 128 bits and assets<allocation.
         allocation = uint128(assets);
 
         return (ids(), loss);
