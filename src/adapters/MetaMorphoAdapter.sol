@@ -91,7 +91,6 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         // Safe cast since shares fits in 128 bits.
         if (assets > 0) shares -= uint128(IERC4626(metaMorpho).withdraw(assets, address(this), address(this)));
 
-
         allocation = (allocation + interest - assets).toUint128();
 
         return (ids(), interest);
