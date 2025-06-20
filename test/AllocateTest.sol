@@ -28,6 +28,7 @@ contract AllocateTest is BaseTest {
         ids[1] = keccak256("id-1");
     }
 
+    /// forge-config: default.isolate = true
     function testAllocate(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(vault));
@@ -97,6 +98,37 @@ contract AllocateTest is BaseTest {
         assertEq(vault.allocation(keccak256("id-1")), assets, "Allocation incorrect after allocation");
         assertEq(AdapterMock(mockAdapter).recordedAllocateData(), data, "Data incorrect after allocation");
         assertEq(AdapterMock(mockAdapter).recordedAllocateAssets(), assets, "Assets incorrect after allocation");
+    }
+
+    /// forge-config: default.isolate = true
+    function testRelativeCapManipulationProtection(uint256 allocation) public {
+        allocation = bound(allocation, 1, type(uint128).max / 2);
+        deal(address(underlyingToken), allocator, type(uint256).max);
+        vm.prank(allocator);
+        underlyingToken.approve(address(vault), type(uint256).max);
+
+        vault.deposit(allocation, address(this));
+
+        increaseAbsoluteCap("id-0", allocation);
+        increaseAbsoluteCap("id-1", allocation);
+        increaseRelativeCap("id-0", WAD / 2);
+        increaseRelativeCap("id-1", WAD / 2);
+
+        // Fails if the deposit and allocation are done in the same transaction.
+        bytes[] memory data = new bytes[](3);
+        data[0] = abi.encodeCall(vault.deposit, (allocation, allocator));
+        data[1] = abi.encodeCall(vault.allocate, (mockAdapter, hex"", allocation));
+        data[2] = abi.encodeCall(vault.withdraw, (allocation, allocator, allocator));
+
+        vm.prank(allocator);
+        vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
+        vault.multicall(data);
+
+        // Passes if they are done in separate transactions.
+        vm.startPrank(allocator);
+        vault.deposit(allocation, allocator);
+        vault.allocate(mockAdapter, hex"", allocation);
+        vault.withdraw(allocation, allocator, allocator);
     }
 
     function testAllocateRelativeCapCheckRoundsDown(bytes memory data) public {

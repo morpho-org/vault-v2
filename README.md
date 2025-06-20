@@ -1,11 +1,11 @@
 # Vault v2
 
-Morpho Vault V2 enables anyone to create vaults that allocate assets to any protocols, including but not limited to Morpho Market V1, Morpho Market V2, and MetaMorpho Vaults.
+Morpho Vault V2 enables anyone to create [non-custodial](#non-custodial) vaults that allocate assets to any protocols, including but not limited to Morpho Market V1, Morpho Market V2, and MetaMorpho Vaults.
 Depositors of Morpho Vault V2 earn from the underlying protocols without having to actively manage the risk of their position.
 Management of deposited assets is the responsability of a set of different roles (owner, curator and allocators).
 The active management of invested positions involve enabling and allocating liquidity to protocols.
 
-[Morpho Vault V2](./src/VaultV2.sol) shares are [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) compliant.
+[Morpho Vault V2](./src/VaultV2.sol) is [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) and [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) compliant.
 The [VaultV2Factory](./src/VaultV2Factory.sol) deploys instances of Vaults V2.
 All the contracts are immutable.
 
@@ -60,20 +60,24 @@ When defined, the liquidity market $M$ is also used as the market users are depo
 
 The market $M$ would typically be a very liquid Market V1.
 
+<a id="non-custodial"></a>
+
+### Non-custodial guarantees
+
+Non-custodial guarantees come from [in-kind redemptions](#in-kind-redemptions) and [timelocks](#curator-timelocks).
+These mechanisms allow users to withdraw their assets before any critical configuration change takes effect.
+
+<a id="in-kind-redemptions"></a>
+
 ### In-kind redemptions with `forceDeallocate`
-
-Critical [configuration changes](#curator-timelocks) can be timelocked. Users may want to exit before a specific change is put in place. For instance:
-
-- unzeroing or increasing some caps for markets the user finds too risky.
-- adding an adapter the user considers dangerous.
-- decreasing the timelock of an action, giving the user too little time to react in the future.
 
 To guarantee exits even in the absence of assets immediately available for withdrawal, the permissionless `forceDeallocate` function allows anyone to move assets from an adapter to the vault's idle assets.
 
-A penalty of up to 2% can be set per adapter. This disincentivizes the manipulation of allocations, in particular of relative caps which are not checked on withdraw.
-
 `forceDeallocate` provides a form of in-kind redemption: users can flashloan liquidity, supply it to an adapters' market, and withdraw the liquidity through `forceDeallocate` before repaying the flashloan.
 This reduces their position in the vault and increases their position in the underlying market.
+
+A penalty of up to 2% can be set per adapter.
+This disincentivizes the manipulation of allocations, in particular of relative caps which are not checked on withdraw.
 
 [Gated vaults](Gates) can circumvent the in-kind redemption mechanism by configuring an `exitGate`.
 

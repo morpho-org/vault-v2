@@ -26,7 +26,9 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /* STORAGE */
 
     address public skimRecipient;
-    uint256 public trackedAllocation;
+    /// @dev `allocation` are the share's value without taking into account unrealized losses.
+    uint256 public allocation;
+    /// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
     uint256 public shares;
 
     /* FUNCTIONS */
@@ -66,11 +68,11 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(trackedAllocation);
+        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(allocation);
 
         if (assets > 0) shares += IERC4626(metaMorpho).deposit(assets, address(this));
 
-        trackedAllocation = trackedAllocation + interest + assets;
+        allocation = allocation + interest + assets;
 
         return (ids(), interest);
     }
@@ -83,11 +85,11 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(trackedAllocation);
+        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(allocation);
 
         if (assets > 0) shares -= IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
 
-        trackedAllocation = trackedAllocation + interest - assets;
+        allocation = allocation + interest - assets;
 
         return (ids(), interest);
     }
@@ -96,10 +98,9 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(data.length == 0, InvalidData());
 
-        uint256 allocation = IERC4626(metaMorpho).previewRedeem(shares);
-        require(allocation < trackedAllocation, NoLoss());
-        uint256 loss = trackedAllocation - allocation;
-        trackedAllocation = allocation;
+        uint256 assetsInVault = IERC4626(metaMorpho).previewRedeem(shares);
+        uint256 loss = allocation - assetsInVault;
+        allocation = assetsInVault;
 
         return (ids(), loss);
     }

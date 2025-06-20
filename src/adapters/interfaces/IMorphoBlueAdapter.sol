@@ -15,7 +15,6 @@ interface IMorphoBlueAdapter is IAdapter {
 
     error IrmMismatch();
     error LoanAssetMismatch();
-    error NoLoss();
     error NotAuthorized();
 
     /* FUNCTIONS */
@@ -27,6 +26,6 @@ interface IMorphoBlueAdapter is IAdapter {
     function skimRecipient() external view returns (address);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
-    function trackedAllocation(Id marketId) external view returns (uint256);
+    function allocation(Id marketId) external view returns (uint256);
     function shares(Id marketId) external view returns (uint256);
 }
