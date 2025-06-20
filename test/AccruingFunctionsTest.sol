@@ -50,11 +50,11 @@ contract AccruingFunctionsTest is BaseTest {
         vault.forceDeallocate(address(adapter), hex"", 0, address(this));
     }
 
-    // function testRealizeAccruesInterest() public {
-    //     skip(1);
-    //     vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
-    //     vault.realizeLoss(address(adapter), hex"");
-    // }
+    function testRealizeAccruesInterest() public {
+        skip(1);
+        vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
+        vault.realizeLoss(address(adapter), hex"");
+    }
 
     function testDepositAccruesInterest() public {
         skip(1);
