@@ -50,7 +50,7 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
         vault.deposit(roundedDeposit, address(this));
 
         assertEq(metaMorpho.balanceOf(address(metaMorphoAdapter)), previousAdapterShares, "adapter shares balance");
-        assertEq(vault.totalAssets(), previousVaultTotalAssets + roundedDeposit, "MM total assets");
+        assertEq(vault.totalAssets(), previousVaultTotalAssets + roundedDeposit, "vault total assets");
         assertEq(
             metaMorphoAdapter.trackedAllocation(),
             previousAdapterTrackedAllocation + roundedDeposit,
