@@ -701,7 +701,9 @@ contract VaultV2 is IVaultV2 {
                 createShares(msg.sender, incentiveShares);
             }
 
-            for (uint256 i; i < ids.length; i++) caps[ids[i]].allocation -= loss;
+            for (uint256 i; i < ids.length; i++) {
+                caps[ids[i]].allocation -= loss;
+            }
 
             enterBlocked = true;
         }
