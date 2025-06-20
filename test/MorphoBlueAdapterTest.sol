@@ -278,7 +278,7 @@ contract MorphoBlueAdapterTest is Test {
 
     function testLossRealizationAfterAllocate(uint256 deposit1, uint256 _loss, uint256 deposit2) public {
         deposit1 = _boundAssets(deposit1);
-        _loss = bound(_loss, 1, deposit1 / 2); // Limit the loss to avoid the share price to explode.
+        _loss = bound(_loss, 1, deposit1 / 2); // Limit the loss to avoid the share price to explose.
         deposit2 = bound(deposit2, 0, MAX_TEST_ASSETS);
 
         // Setup.

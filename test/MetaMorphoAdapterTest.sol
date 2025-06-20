@@ -235,8 +235,8 @@ contract MetaMorphoAdapterTest is Test {
     }
 
     function testLossRealizationAfterAllocate(uint256 deposit, uint256 _loss, uint256 deposit2) public {
-        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
-        _loss = bound(_loss, 1, deposit);
+        deposit = bound(deposit, 2, MAX_TEST_ASSETS);
+        _loss = bound(_loss, 1, deposit / 2); // Limit the loss to avoid the share price to explose.
         deposit2 = bound(deposit2, 0, MAX_TEST_ASSETS);
 
         // Setup.

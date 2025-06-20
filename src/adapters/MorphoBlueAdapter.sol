@@ -91,9 +91,11 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
         if (assets > 0) {
             (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+            // Safe cast since shares fits in 128 bits.
             _position.shares += uint128(mintedShares);
         }
 
+        // Safe cast since the absolute cap fits in 128 bits.
         _position.assetsIfNoLoss = uint128(_position.assetsIfNoLoss + interest + assets);
 
         return (ids(marketParams), interest);
@@ -115,10 +117,11 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
         if (assets > 0) {
             (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+            // Safe cast since shares fits in 128 bits.
             _position.shares -= uint128(redeemedShares);
         }
 
-        _position.assetsIfNoLoss = uint128(_position.assetsIfNoLoss + interest - assets);
+        _position.assetsIfNoLoss = (_position.assetsIfNoLoss + interest - assets).toUint128();
 
         return (ids(marketParams), interest);
     }

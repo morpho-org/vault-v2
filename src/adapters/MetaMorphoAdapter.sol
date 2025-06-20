@@ -26,8 +26,8 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /* STORAGE */
 
     address public skimRecipient;
-    uint256 public assetsIfNoLoss;
-    uint256 public shares;
+    uint128 public assetsIfNoLoss;
+    uint128 public shares;
 
     /* FUNCTIONS */
 
@@ -68,9 +68,10 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         IERC4626(metaMorpho).deposit(0, address(this));
         uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(assetsIfNoLoss);
 
-        if (assets > 0) shares += IERC4626(metaMorpho).deposit(assets, address(this));
+        if (assets > 0) shares += IERC4626(metaMorpho).deposit(assets, address(this)).toUint128();
 
-        assetsIfNoLoss = assetsIfNoLoss + interest + assets;
+        // Safe cast since the absolute cap fits in 128 bits.
+        assetsIfNoLoss = uint128(assetsIfNoLoss + interest + assets);
 
         return (ids(), interest);
     }
@@ -85,9 +86,10 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         IERC4626(metaMorpho).deposit(0, address(this));
         uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(assetsIfNoLoss);
 
-        if (assets > 0) shares -= IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
+        // Safe cast since shares fits in 128 bits.
+        if (assets > 0) shares -= uint128(IERC4626(metaMorpho).withdraw(assets, address(this), address(this)));
 
-        assetsIfNoLoss = assetsIfNoLoss + interest - assets;
+        assetsIfNoLoss = (assetsIfNoLoss + interest - assets).toUint128();
 
         return (ids(), interest);
     }
@@ -98,7 +100,8 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         uint256 assets = IERC4626(metaMorpho).previewRedeem(shares);
         uint256 loss = assetsIfNoLoss - assets;
-        assetsIfNoLoss = assets;
+        // Safe cast since assetsIfNoLoss fits in 128 bits.
+        assetsIfNoLoss = uint128(assets);
 
         return (ids(), loss);
     }
