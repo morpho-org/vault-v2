@@ -239,7 +239,7 @@ contract MorphoBlueAdapterTest is Test {
         // Realize loss.
         vm.prank(address(parentVault));
         vm.expectRevert(stdError.arithmeticError);
-        adapter.realizeLoss(abi.encode(marketParams));
+        adapter.realizePnL(abi.encode(marketParams));
     }
 
     function testLossRealizationZero(uint256 deposit) public {
@@ -252,7 +252,7 @@ contract MorphoBlueAdapterTest is Test {
 
         // Realize loss.
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
+        (bytes32[] memory ids, uint256 interest, uint256 loss) = adapter.realizePnL(abi.encode(marketParams));
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, 0, "loss");
         assertEq(adapter.allocation(marketId), deposit, "allocation");
@@ -270,7 +270,7 @@ contract MorphoBlueAdapterTest is Test {
 
         // Realize loss.
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
+        (bytes32[] memory ids, uint256 interest, uint256 loss) = adapter.realizePnL(abi.encode(marketParams));
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, _loss, "loss");
         assertEq(adapter.allocation(marketId), deposit - _loss, "allocation");
@@ -293,7 +293,7 @@ contract MorphoBlueAdapterTest is Test {
 
         // Realize loss.
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
+        (bytes32[] memory ids, uint256 interest, uint256 loss) = adapter.realizePnL(abi.encode(marketParams));
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, _loss, "loss");
         assertEq(adapter.allocation(marketId), deposit1 - _loss + deposit2, "allocation");
@@ -316,7 +316,7 @@ contract MorphoBlueAdapterTest is Test {
 
         // Realize loss.
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
+        (bytes32[] memory ids, uint256 interest, uint256 loss) = adapter.realizePnL(abi.encode(marketParams));
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, _loss, "loss");
         assertEq(adapter.allocation(marketId), initial - _loss - withdraw, "allocation");
@@ -339,7 +339,7 @@ contract MorphoBlueAdapterTest is Test {
         uint256 expectedSupplyAfter = morpho.expectedSupplyAssets(marketParams, address(adapter));
         vm.prank(address(parentVault));
         if (expectedSupplyAfter > expectedSupplyBefore) vm.expectRevert(stdError.arithmeticError);
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
+        (bytes32[] memory ids, uint256 interest, uint256 loss) = adapter.realizePnL(abi.encode(marketParams));
         if (_loss >= interest) {
             assertEq(ids, expectedIds, "ids");
             assertEq(loss, _loss - interest, "loss");

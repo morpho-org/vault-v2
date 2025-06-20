@@ -411,6 +411,7 @@ contract VaultV2 is IVaultV2 {
     function allocate(address adapter, bytes memory data, uint256 assets) external {
         require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
+        require(assets > 0, ErrorsLib.ZeroAssets());
 
         accrueInterest();
 
@@ -435,6 +436,7 @@ contract VaultV2 is IVaultV2 {
             isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized()
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
+        require(assets > 0, ErrorsLib.ZeroAssets());
 
         accrueInterest();
 
@@ -659,19 +661,20 @@ contract VaultV2 is IVaultV2 {
         return shares;
     }
 
-    function realizeLoss(address adapter, bytes memory data) external {
+    /// @dev Incentivized if there is a loss.
+    function realizePnL(address adapter, bytes memory data) external {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
 
-        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).realizeLoss(data);
+        (bytes32[] memory ids, uint256 interest, uint256 loss) = IAdapter(adapter).realizePnL(data);
+
+        _totalAssets -= uint192(loss);
 
         uint256 incentiveShares;
         if (loss > 0) {
-            _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
-
             if (canReceive(msg.sender)) {
-                uint256 incentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
+                uint256 incentive = (loss).mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
                 incentiveShares =
                     incentive.mulDivDown(totalSupply + 1, uint256(_totalAssets).zeroFloorSub(incentive) + 1);
                 createShares(msg.sender, incentiveShares);
@@ -681,10 +684,12 @@ contract VaultV2 is IVaultV2 {
         }
 
         for (uint256 i; i < ids.length; i++) {
-            caps[ids[i]].allocation = caps[ids[i]].allocation.zeroFloorSub(loss);
+            Caps storage _caps = caps[ids[i]];
+            _caps.allocation -= loss;
+            _caps.allocation += interest;
         }
 
-        emit EventsLib.RealizeLoss(msg.sender, adapter, ids, loss, incentiveShares);
+        emit EventsLib.RealizePnL(msg.sender, adapter, ids, interest, loss, incentiveShares);
     }
 
     /* ERC20 FUNCTIONS */

@@ -45,8 +45,8 @@ contract AccruingFunctionsTest is BaseTest {
         skip(1);
         vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
         bytes32[] memory ids = new bytes32[](0);
-        vm.mockCall(address(adapter), abi.encodeCall(IAdapter.realizeLoss, (hex"")), abi.encode(ids, 1));
-        vault.realizeLoss(address(adapter), hex"");
+        vm.mockCall(address(adapter), abi.encodeCall(IAdapter.realizePnL, (hex"")), abi.encode(ids, 0, 1));
+        vault.realizePnL(address(adapter), hex"");
     }
 
     function testDepositAccruesInterest() public {

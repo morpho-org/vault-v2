@@ -16,6 +16,10 @@ import {MathLib} from "../libraries/MathLib.sol";
 contract MetaMorphoAdapter is IMetaMorphoAdapter {
     using MathLib for uint256;
 
+    /* ERRORS */
+
+    error CannotRealizePnL();
+
     /* IMMUTABLES */
 
     address public immutable factory;
@@ -68,7 +72,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         IERC4626(metaMorpho).deposit(0, address(this));
         uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(allocation);
 
-        if (assets > 0) shares += IERC4626(metaMorpho).deposit(assets, address(this));
+        shares += IERC4626(metaMorpho).deposit(assets, address(this));
 
         allocation = allocation + interest + assets;
 
@@ -85,22 +89,27 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         IERC4626(metaMorpho).deposit(0, address(this));
         uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(allocation);
 
-        if (assets > 0) shares -= IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
+        shares -= IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
 
         allocation = allocation + interest - assets;
 
         return (ids(), interest);
     }
 
-    function realizeLoss(bytes memory data) external returns (bytes32[] memory, uint256) {
+    function realizePnL(bytes memory data) external returns (bytes32[] memory, uint256, uint256) {
         require(msg.sender == parentVault, NotAuthorized());
         require(data.length == 0, InvalidData());
 
         uint256 assetsInVault = IERC4626(metaMorpho).previewRedeem(shares);
-        uint256 loss = allocation - assetsInVault;
+        require(allocation > 0 || assetsInVault > 0, CannotRealizePnL());
+        uint256 allocationBefore = allocation;
         allocation = assetsInVault;
 
-        return (ids(), loss);
+        if (assetsInVault > allocationBefore) {
+            return (ids(), assetsInVault - allocationBefore, 0);
+        } else {
+            return (ids(), 0, allocationBefore - assetsInVault);
+        }
     }
 
     /// @dev Returns adapter's ids.

@@ -197,7 +197,7 @@ contract MetaMorphoAdapterTest is Test {
         // Realize loss.
         vm.prank(address(parentVault));
         vm.expectRevert(stdError.arithmeticError);
-        adapter.realizeLoss(hex"");
+        adapter.realizePnL(hex"");
     }
 
     function testLossRealizationZero(uint256 deposit) public {
@@ -210,7 +210,7 @@ contract MetaMorphoAdapterTest is Test {
 
         // Realize loss.
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
+        (bytes32[] memory ids, uint256 interest, uint256 loss) = adapter.realizePnL(hex"");
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, 0, "loss");
         assertEq(adapter.allocation(), deposit, "allocation");
@@ -228,7 +228,7 @@ contract MetaMorphoAdapterTest is Test {
 
         // Realize loss.
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
+        (bytes32[] memory ids, uint256 interest, uint256 loss) = adapter.realizePnL(hex"");
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, _loss, "loss");
         assertEq(adapter.allocation(), deposit - _loss, "allocation");
@@ -251,7 +251,7 @@ contract MetaMorphoAdapterTest is Test {
 
         // Realize loss.
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
+        (bytes32[] memory ids, uint256 interest, uint256 loss) = adapter.realizePnL(hex"");
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, _loss, "loss");
         assertEq(adapter.allocation(), deposit - _loss + deposit2, "allocation");
@@ -275,7 +275,7 @@ contract MetaMorphoAdapterTest is Test {
 
         // Realize loss.
         vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
+        (bytes32[] memory ids, uint256 interest, uint256 loss) = adapter.realizePnL(hex"");
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, _loss, "loss");
         assertEq(adapter.allocation(), deposit - _loss - withdraw, "allocation");
@@ -298,7 +298,7 @@ contract MetaMorphoAdapterTest is Test {
         uint256 expectedSupplyAfter = metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter)));
         vm.prank(address(parentVault));
         if (expectedSupplyAfter > expectedSupplyBefore) vm.expectRevert(stdError.arithmeticError);
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
+        (bytes32[] memory ids, uint256 interest2, uint256 loss) = adapter.realizePnL(hex"");
         if (_loss >= interest) {
             assertEq(ids, expectedIds, "ids");
             assertEq(loss, _loss - interest, "loss");

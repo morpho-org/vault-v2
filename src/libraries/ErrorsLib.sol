@@ -40,4 +40,6 @@ library ErrorsLib {
     error TransferReverted();
     error Unauthorized();
     error ZeroAddress();
+    error ZeroAllocation();
+    error ZeroAssets();
 }

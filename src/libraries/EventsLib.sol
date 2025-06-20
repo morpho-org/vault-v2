@@ -32,9 +32,14 @@ library EventsLib {
         uint256 penaltyAssets
     );
 
-    // Loss realization events
-    event RealizeLoss(
-        address indexed sender, address indexed adapter, bytes32[] ids, uint256 loss, uint256 incentiveShares
+    // PnL realization events
+    event RealizePnL(
+        address indexed sender,
+        address indexed adapter,
+        bytes32[] ids,
+        uint256 interest,
+        uint256 loss,
+        uint256 incentiveShares
     );
 
     // Fee and interest events

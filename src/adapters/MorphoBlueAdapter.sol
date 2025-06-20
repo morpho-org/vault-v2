@@ -25,6 +25,10 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     using MorphoBalancesLib for IMorpho;
     using MarketParamsLib for MarketParams;
 
+    /* ERRORS */
+
+    error CannotRealizePnL();
+
     /* IMMUTABLES */
 
     address public immutable factory;
@@ -89,10 +93,8 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
         uint256 interest = expectedSupplyAssets(marketParams, _position.shares).zeroFloorSub(_position.allocation);
 
-        if (assets > 0) {
-            (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-            _position.shares += uint128(mintedShares);
-        }
+        (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+        _position.shares += uint128(mintedShares);
 
         _position.allocation = uint128(_position.allocation + interest + assets);
 
@@ -113,26 +115,29 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
 
         uint256 interest = expectedSupplyAssets(marketParams, _position.shares).zeroFloorSub(_position.allocation);
 
-        if (assets > 0) {
-            (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-            _position.shares -= uint128(redeemedShares);
-        }
+        (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+        _position.shares -= uint128(redeemedShares);
 
         _position.allocation = uint128(_position.allocation + interest - assets);
 
         return (ids(marketParams), interest);
     }
 
-    function realizeLoss(bytes memory data) external returns (bytes32[] memory, uint256) {
+    function realizePnL(bytes memory data) external returns (bytes32[] memory, uint256, uint256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Position storage _position = position[marketParams.id()];
         require(msg.sender == parentVault, NotAuthorized());
 
         uint256 assetsInMarket = expectedSupplyAssets(marketParams, _position.shares);
-        uint256 loss = _position.allocation - assetsInMarket;
+        require(_position.allocation > 0 || assetsInMarket > 0, CannotRealizePnL());
+        uint256 allocationBefore = _position.allocation;
         _position.allocation = uint128(assetsInMarket);
 
-        return (ids(marketParams), loss);
+        if (assetsInMarket > allocationBefore) {
+            return (ids(marketParams), assetsInMarket - allocationBefore, 0);
+        } else {
+            return (ids(marketParams), 0, allocationBefore - assetsInMarket);
+        }
     }
 
     /// @dev Returns adapter's ids.
