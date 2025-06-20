@@ -45,14 +45,14 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
         // Check rounded deposit effect
         uint256 previousAdapterShares = metaMorpho.balanceOf(address(metaMorphoAdapter));
         uint256 previousVaultTotalAssets = vault.totalAssets();
-        uint256 previousAdapterTrackedAllocation = metaMorphoAdapter.trackedAllocation();
+        uint256 previousAdapterTrackedAllocation = metaMorphoAdapter.allocation();
 
         vault.deposit(roundedDeposit, address(this));
 
         assertEq(metaMorpho.balanceOf(address(metaMorphoAdapter)), previousAdapterShares, "adapter shares balance");
         assertEq(vault.totalAssets(), previousVaultTotalAssets + roundedDeposit, "vault total assets");
         assertEq(
-            metaMorphoAdapter.trackedAllocation(),
+            metaMorphoAdapter.allocation(),
             previousAdapterTrackedAllocation + roundedDeposit,
             "MM Adapter tracked allocation"
         );
@@ -62,7 +62,7 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
 
         assertEq(vault.totalAssets(), previousVaultTotalAssets, "vault total assets, after");
         assertEq(
-            metaMorphoAdapter.trackedAllocation(),
+            metaMorphoAdapter.allocation(),
             previousAdapterTrackedAllocation,
             "MM Adapter tracked allocation, after"
         );
@@ -87,14 +87,14 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
         // Check rounded withdraw effect
         uint256 previousAdapterShares = metaMorpho.balanceOf(address(metaMorphoAdapter));
         uint256 previousVaultTotalAssets = vault.totalAssets();
-        uint256 previousAdapterTrackedAllocation = metaMorphoAdapter.trackedAllocation();
+        uint256 previousAdapterTrackedAllocation = metaMorphoAdapter.allocation();
 
         vault.withdraw(roundedWithdraw, address(this), address(this));
 
         assertEq(metaMorpho.balanceOf(address(metaMorphoAdapter)), previousAdapterShares - 1, "adapter shares balance");
         assertEq(vault.totalAssets(), previousVaultTotalAssets - roundedWithdraw, "vault total assets");
         assertEq(
-            metaMorphoAdapter.trackedAllocation(),
+            metaMorphoAdapter.allocation(),
             previousAdapterTrackedAllocation - roundedWithdraw,
             "MM Adapter tracked allocation"
         );
@@ -104,7 +104,7 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
 
         assertLt(vault.totalAssets(), previousVaultTotalAssets - roundedWithdraw, "vault total assets, after");
         assertLt(
-            metaMorphoAdapter.trackedAllocation(),
+            metaMorphoAdapter.allocation(),
             previousAdapterTrackedAllocation - roundedWithdraw,
             "MM Adapter tracked allocation, after"
         );
