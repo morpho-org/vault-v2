@@ -26,7 +26,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /* STORAGE */
 
     address public skimRecipient;
-    uint256 public assetsIfNoLoss;
+    uint256 public allocation;
     uint256 public shares;
 
     /* FUNCTIONS */
@@ -66,11 +66,11 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(assetsIfNoLoss);
+        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(allocation);
 
         if (assets > 0) shares += IERC4626(metaMorpho).deposit(assets, address(this));
 
-        assetsIfNoLoss = assetsIfNoLoss + interest + assets;
+        allocation = allocation + interest + assets;
 
         return (ids(), interest);
     }
@@ -83,11 +83,11 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(assetsIfNoLoss);
+        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(allocation);
 
         if (assets > 0) shares -= IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
 
-        assetsIfNoLoss = assetsIfNoLoss + interest - assets;
+        allocation = allocation + interest - assets;
 
         return (ids(), interest);
     }
@@ -97,8 +97,8 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(data.length == 0, InvalidData());
 
         uint256 assets = IERC4626(metaMorpho).previewRedeem(shares);
-        uint256 loss = assetsIfNoLoss - assets;
-        assetsIfNoLoss = assets;
+        uint256 loss = allocation - assets;
+        allocation = assets;
 
         return (ids(), loss);
     }

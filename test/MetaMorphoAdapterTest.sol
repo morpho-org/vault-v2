@@ -75,7 +75,7 @@ contract MetaMorphoAdapterTest is Test {
         vm.prank(address(parentVault));
         (bytes32[] memory ids, uint256 interest) = adapter.allocate(hex"", assets);
 
-        assertEq(adapter.assetsIfNoLoss(), assets, "incorrect assetsIfNoLoss");
+        assertEq(adapter.allocation(), assets, "incorrect allocation");
         uint256 adapterShares = metaMorpho.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(adapterShares, assets, "Incorrect share balance after deposit");
@@ -99,7 +99,7 @@ contract MetaMorphoAdapterTest is Test {
         vm.prank(address(parentVault));
         (bytes32[] memory ids, uint256 interest) = adapter.deallocate(hex"", withdrawAssets);
 
-        assertEq(adapter.assetsIfNoLoss(), initialAssets - withdrawAssets, "incorrect assetsIfNoLoss");
+        assertEq(adapter.allocation(), initialAssets - withdrawAssets, "incorrect allocation");
         uint256 afterShares = metaMorpho.balanceOf(address(adapter));
         assertEq(afterShares, initialAssets - withdrawAssets, "Share balance not decreased correctly");
 
@@ -213,7 +213,7 @@ contract MetaMorphoAdapterTest is Test {
         (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, 0, "loss");
-        assertEq(adapter.assetsIfNoLoss(), deposit, "assetsIfNoLoss");
+        assertEq(adapter.allocation(), deposit, "allocation");
     }
 
     function testLossRealization(uint256 deposit, uint256 _loss) public {
@@ -231,7 +231,7 @@ contract MetaMorphoAdapterTest is Test {
         (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, _loss, "loss");
-        assertEq(adapter.assetsIfNoLoss(), deposit - _loss, "assetsIfNoLoss");
+        assertEq(adapter.allocation(), deposit - _loss, "allocation");
     }
 
     function testLossRealizationAfterAllocate(uint256 deposit, uint256 _loss, uint256 deposit2) public {
@@ -254,7 +254,7 @@ contract MetaMorphoAdapterTest is Test {
         (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, _loss, "loss");
-        assertEq(adapter.assetsIfNoLoss(), deposit - _loss + deposit2, "assetsIfNoLoss");
+        assertEq(adapter.allocation(), deposit - _loss + deposit2, "allocation");
     }
 
     function testLossRealizationAfterDeallocate(uint256 deposit, uint256 _loss, uint256 withdraw) public {
@@ -278,7 +278,7 @@ contract MetaMorphoAdapterTest is Test {
         (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, _loss, "loss");
-        assertEq(adapter.assetsIfNoLoss(), deposit - _loss - withdraw, "assetsIfNoLoss");
+        assertEq(adapter.allocation(), deposit - _loss - withdraw, "allocation");
     }
 
     function testLossRealizationAfterInterest(uint256 deposit, uint256 _loss, uint256 interest) public {
@@ -302,7 +302,7 @@ contract MetaMorphoAdapterTest is Test {
         if (_loss >= interest) {
             assertEq(ids, expectedIds, "ids");
             assertEq(loss, _loss - interest, "loss");
-            assertApproxEqAbs(adapter.assetsIfNoLoss(), deposit - _loss + interest, 1, "assetsIfNoLoss");
+            assertApproxEqAbs(adapter.allocation(), deposit - _loss + interest, 1, "allocation");
         }
     }
 
@@ -348,10 +348,10 @@ contract MetaMorphoAdapterTest is Test {
         vm.stopPrank();
 
         // Test no impact on allocation
-        uint256 oldAssetsIfNoLoss = adapter.assetsIfNoLoss();
+        uint256 oldallocation = adapter.allocation();
         vm.prank(address(parentVault));
         adapter.allocate(hex"", deposit);
-        assertEq(adapter.assetsIfNoLoss(), oldAssetsIfNoLoss + deposit, "assets have changed");
+        assertEq(adapter.allocation(), oldallocation + deposit, "assets have changed");
     }
 }
 
