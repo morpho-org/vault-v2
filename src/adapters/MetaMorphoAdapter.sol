@@ -96,9 +96,9 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(data.length == 0, InvalidData());
 
-        uint256 assets = IERC4626(metaMorpho).previewRedeem(shares);
-        uint256 loss = allocation - assets;
-        allocation = assets;
+        uint256 assetsInVault = IERC4626(metaMorpho).previewRedeem(shares);
+        uint256 loss = allocation - assetsInVault;
+        allocation = assetsInVault;
 
         return (ids(), loss);
     }

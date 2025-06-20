@@ -128,9 +128,9 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         Position storage _position = position[marketParams.id()];
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 assets = expectedSupplyAssets(marketParams, _position.shares);
-        uint256 loss = _position.allocation - assets;
-        _position.allocation = uint128(assets);
+        uint256 assetsInMarket = expectedSupplyAssets(marketParams, _position.shares);
+        uint256 loss = _position.allocation - assetsInMarket;
+        _position.allocation = uint128(assetsInMarket);
 
         return (ids(marketParams), loss);
     }
