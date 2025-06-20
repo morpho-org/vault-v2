@@ -132,7 +132,7 @@ contract MorphoBlueAdapterTest is Test {
         vm.prank(address(parentVault));
         (bytes32[] memory ids, uint256 interest) = adapter.allocate(abi.encode(marketParams), assets);
 
-        assertEq(adapter.trackedAllocation(marketId), assets, "Incorrect trackedAllocation");
+        assertEq(adapter.allocation(marketId), assets, "Incorrect allocation");
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), assets, "Incorrect assets in Morpho");
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
         assertEq(ids, expectedIds, "Incorrect ids returned");
@@ -154,7 +154,7 @@ contract MorphoBlueAdapterTest is Test {
         (bytes32[] memory ids, uint256 interest) = adapter.deallocate(abi.encode(marketParams), withdrawAssets);
 
         assertEq(interest, 0, "Interest should be zero");
-        assertEq(adapter.trackedAllocation(marketId), initialAssets - withdrawAssets, "Incorrect trackedAllocation");
+        assertEq(adapter.allocation(marketId), initialAssets - withdrawAssets, "Incorrect allocation");
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
         assertEq(loanToken.balanceOf(address(adapter)), withdrawAssets, "Adapter did not receive withdrawn tokens");
@@ -255,7 +255,7 @@ contract MorphoBlueAdapterTest is Test {
         (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, 0, "loss");
-        assertEq(adapter.trackedAllocation(marketId), deposit, "trackedAllocation");
+        assertEq(adapter.allocation(marketId), deposit, "allocation");
     }
 
     function testLossRealization(uint256 deposit, uint256 _loss) public {
@@ -273,7 +273,7 @@ contract MorphoBlueAdapterTest is Test {
         (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, _loss, "loss");
-        assertEq(adapter.trackedAllocation(marketId), deposit - _loss, "trackedAllocation");
+        assertEq(adapter.allocation(marketId), deposit - _loss, "allocation");
     }
 
     function testLossRealizationAfterAllocate(uint256 deposit1, uint256 _loss, uint256 deposit2) public {
@@ -296,7 +296,7 @@ contract MorphoBlueAdapterTest is Test {
         (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, _loss, "loss");
-        assertEq(adapter.trackedAllocation(marketId), deposit1 - _loss + deposit2, "trackedAllocation");
+        assertEq(adapter.allocation(marketId), deposit1 - _loss + deposit2, "allocation");
     }
 
     function testLossRealizationAfterDeallocate(uint256 initial, uint256 _loss, uint256 withdraw) public {
@@ -319,7 +319,7 @@ contract MorphoBlueAdapterTest is Test {
         (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, _loss, "loss");
-        assertEq(adapter.trackedAllocation(marketId), initial - _loss - withdraw, "trackedAllocation");
+        assertEq(adapter.allocation(marketId), initial - _loss - withdraw, "allocation");
     }
 
     function testLossRealizationAfterInterest(uint256 deposit, uint256 _loss, uint256 interest) public {
@@ -343,7 +343,7 @@ contract MorphoBlueAdapterTest is Test {
         if (_loss >= interest) {
             assertEq(ids, expectedIds, "ids");
             assertEq(loss, _loss - interest, "loss");
-            assertApproxEqAbs(adapter.trackedAllocation(marketId), deposit - _loss + interest, 1, "trackedAllocation");
+            assertApproxEqAbs(adapter.allocation(marketId), deposit - _loss + interest, 1, "allocation");
         }
     }
 
@@ -420,9 +420,9 @@ contract MorphoBlueAdapterTest is Test {
         vm.stopPrank();
 
         // Test no impact on allocation
-        uint256 oldTrackedAllocation = adapter.trackedAllocation(marketId);
+        uint256 oldallocation = adapter.allocation(marketId);
         vm.prank(address(parentVault));
         adapter.allocate(abi.encode(marketParams), deposit);
-        assertEq(adapter.trackedAllocation(marketId), oldTrackedAllocation + deposit, "assets have changed");
+        assertEq(adapter.allocation(marketId), oldallocation + deposit, "assets have changed");
     }
 }
