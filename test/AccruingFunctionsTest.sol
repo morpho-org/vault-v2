@@ -45,7 +45,7 @@ contract AccruingFunctionsTest is BaseTest {
         skip(1);
         vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
         bytes32[] memory ids = new bytes32[](0);
-        vm.mockCall(address(adapter), abi.encodeCall(IAdapter.realizeLoss, (hex"")), abi.encode(ids, 1));
+        vm.mockCall(address(adapter), abi.encodeCall(IAdapter.realizeLoss, (hex"", address(0))), abi.encode(ids, 1));
         vault.realizeLoss(address(adapter), hex"");
     }
 

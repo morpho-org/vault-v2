@@ -18,15 +18,15 @@ contract MockAdapter is IAdapter {
         loss = _loss;
     }
 
-    function allocate(bytes memory, uint256) external view returns (bytes32[] memory, uint256) {
+    function allocate(bytes memory, uint256, address) external view returns (bytes32[] memory, uint256) {
         return (ids, 0);
     }
 
-    function deallocate(bytes memory, uint256) external view returns (bytes32[] memory, uint256) {
+    function deallocate(bytes memory, uint256, address) external view returns (bytes32[] memory, uint256) {
         return (ids, 0);
     }
 
-    function realizeLoss(bytes memory) external view returns (bytes32[] memory, uint256) {
+    function realizeLoss(bytes memory, address) external view returns (bytes32[] memory, uint256) {
         return (ids, loss);
     }
 }
