@@ -444,7 +444,7 @@ contract VaultV2 is IVaultV2 {
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
             require(_caps.allocation > 0, ErrorsLib.ZeroAllocation());
-            _caps.allocation = (_caps.allocation + interest).zeroFloorSub(assets);
+            _caps.allocation = _caps.allocation + interest - assets;
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
@@ -670,7 +670,8 @@ contract VaultV2 is IVaultV2 {
 
         uint256 incentiveShares;
         if (loss > 0) {
-            _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
+            // Safe cast because loss is bounded by totalAssets.
+            _totalAssets -= uint192(loss);
 
             if (canReceive(msg.sender)) {
                 uint256 incentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
@@ -683,7 +684,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         for (uint256 i; i < ids.length; i++) {
-            caps[ids[i]].allocation = caps[ids[i]].allocation.zeroFloorSub(loss);
+            caps[ids[i]].allocation -= loss;
         }
 
         emit EventsLib.RealizeLoss(msg.sender, adapter, ids, loss, incentiveShares);

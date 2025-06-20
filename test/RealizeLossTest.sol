@@ -32,6 +32,8 @@ contract RealizeLossTest is BaseTest {
         expectedLoss = bound(expectedLoss, 1, deposit);
 
         vault.deposit(deposit, address(this));
+        vm.prank(allocator);
+        vault.allocate(address(adapter), hex"", deposit);
         adapter.setLoss(expectedLoss);
 
         // Realize the loss.
@@ -44,6 +46,8 @@ contract RealizeLossTest is BaseTest {
         expectedLoss = bound(expectedLoss, 1, deposit);
 
         vault.deposit(deposit, address(this));
+        vm.prank(allocator);
+        vault.allocate(address(adapter), hex"", deposit);
         adapter.setLoss(expectedLoss);
 
         // Account the loss.
@@ -69,7 +73,7 @@ contract RealizeLossTest is BaseTest {
 
         vault.deposit(deposit, address(this));
         vm.prank(allocator);
-        vault.allocate(address(adapter), hex"", 1);
+        vault.allocate(address(adapter), hex"", deposit);
         adapter.setLoss(expectedLoss);
 
         // Account the loss.
@@ -95,7 +99,7 @@ contract RealizeLossTest is BaseTest {
 
         vault.deposit(deposit, address(this));
         vm.prank(allocator);
-        vault.allocate(address(adapter), hex"", 1);
+        vault.allocate(address(adapter), hex"", deposit);
         adapter.setLoss(expectedLoss);
 
         // Account the loss.
