@@ -56,6 +56,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
+    using MathLib for uint192;
 
     /* IMMUTABLE */
 
@@ -691,8 +692,8 @@ contract VaultV2 is IVaultV2 {
 
         uint256 incentiveShares;
         if (loss > 0) {
-            // Safe cast because loss is bounded by totalAssets.
-            _totalAssets -= uint192(loss);
+            // Safe cast because the result is smaller than totalAssets.
+            _totalAssets = uint192(_totalAssets.zeroFloorSub(loss));
 
             if (canReceive(msg.sender)) {
                 uint256 incentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
