@@ -2,9 +2,9 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MMIntegrationTest.sol";
+import "./MorphoVaultV1_1IntegrationTest.sol";
 
-contract MMIntegrationAllocationTest is MMIntegrationTest {
+contract MorphoVaultV1_1IntegrationAllocationTest is MorphoVaultV1_1IntegrationTest {
     using MorphoBalancesLib for IMorpho;
 
     address internal immutable borrower = makeAddr("borrower");
@@ -23,7 +23,7 @@ contract MMIntegrationAllocationTest is MMIntegrationTest {
         setSupplyQueueAllMarkets();
 
         vm.prank(allocator);
-        vault.allocate(address(metaMorphoAdapter), hex"", initialInMM);
+        vault.allocate(address(morphoVaultV1Adapter), hex"", initialInMM);
 
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialInMM);
@@ -33,13 +33,15 @@ contract MMIntegrationAllocationTest is MMIntegrationTest {
         assets = bound(assets, 0, initialInMM);
 
         vm.prank(allocator);
-        vault.deallocate(address(metaMorphoAdapter), hex"", assets);
+        vault.deallocate(address(morphoVaultV1Adapter), hex"", assets);
 
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle + assets);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialInMM - assets);
-        assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0);
-        assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0);
-        assertEq(metaMorpho.previewRedeem(metaMorpho.balanceOf(address(metaMorphoAdapter))), initialInMM - assets);
+        assertEq(underlyingToken.balanceOf(address(morphoVaultV1)), 0);
+        assertEq(underlyingToken.balanceOf(address(morphoVaultV1Adapter)), 0);
+        assertEq(
+            morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter))), initialInMM - assets
+        );
     }
 
     function testDeallocateMoreThanAllocated(uint256 assets) public {
@@ -47,13 +49,13 @@ contract MMIntegrationAllocationTest is MMIntegrationTest {
 
         vm.prank(allocator);
         vm.expectRevert();
-        vault.deallocate(address(metaMorphoAdapter), hex"", assets);
+        vault.deallocate(address(morphoVaultV1Adapter), hex"", assets);
     }
 
     function testDeallocateNoLiquidity(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialTotal);
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
+        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
 
         // Remove liquidity by borrowing.
         deal(address(collateralToken), borrower, type(uint256).max);
@@ -66,20 +68,22 @@ contract MMIntegrationAllocationTest is MMIntegrationTest {
 
         vm.prank(allocator);
         vm.expectRevert();
-        vault.deallocate(address(metaMorphoAdapter), hex"", assets);
+        vault.deallocate(address(morphoVaultV1Adapter), hex"", assets);
     }
 
     function testAllocateLessThanIdle(uint256 assets) public {
         assets = bound(assets, 0, initialInIdle);
 
         vm.prank(allocator);
-        vault.allocate(address(metaMorphoAdapter), hex"", assets);
+        vault.allocate(address(morphoVaultV1Adapter), hex"", assets);
 
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle - assets);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialInMM + assets);
-        assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0);
-        assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0);
-        assertEq(metaMorpho.previewRedeem(metaMorpho.balanceOf(address(metaMorphoAdapter))), initialInMM + assets);
+        assertEq(underlyingToken.balanceOf(address(morphoVaultV1)), 0);
+        assertEq(underlyingToken.balanceOf(address(morphoVaultV1Adapter)), 0);
+        assertEq(
+            morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter))), initialInMM + assets
+        );
     }
 
     function testAllocateMoreThanIdle(uint256 assets) public {
@@ -87,22 +91,22 @@ contract MMIntegrationAllocationTest is MMIntegrationTest {
 
         vm.prank(allocator);
         vm.expectRevert(ErrorsLib.TransferReverted.selector);
-        vault.allocate(address(metaMorphoAdapter), hex"", assets);
+        vault.allocate(address(morphoVaultV1Adapter), hex"", assets);
     }
 
-    function testAllocateMoreThanMetaMorphoCap(uint256 assets) public {
+    function testAllocateMoreThanMorphoVaultV1Cap(uint256 assets) public {
         assets = bound(assets, 1, MAX_TEST_ASSETS);
 
         // Put all caps to the limit.
         vm.startPrank(mmCurator);
-        metaMorpho.submitCap(allMarketParams[0], initialInMM);
+        morphoVaultV1.submitCap(allMarketParams[0], initialInMM);
         for (uint256 i = 1; i < MM_NB_MARKETS; i++) {
-            metaMorpho.submitCap(allMarketParams[i], 0);
+            morphoVaultV1.submitCap(allMarketParams[i], 0);
         }
         vm.stopPrank();
 
         vm.prank(allocator);
         vm.expectRevert();
-        vault.allocate(address(metaMorphoAdapter), hex"", assets);
+        vault.allocate(address(morphoVaultV1Adapter), hex"", assets);
     }
 }

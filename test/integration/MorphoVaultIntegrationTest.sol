@@ -23,10 +23,10 @@ import {IManualVicFactory} from "../../src/vic/interfaces/IManualVicFactory.sol"
 import {VaultV2Factory} from "../../src/VaultV2Factory.sol";
 import {ManualVic, ManualVicFactory} from "../../src/vic/ManualVicFactory.sol";
 import "../../src/VaultV2.sol";
-import {MetaMorphoAdapter} from "../../src/adapters/MetaMorphoAdapter.sol";
-import {MetaMorphoAdapterFactory} from "../../src/adapters/MetaMorphoAdapterFactory.sol";
+import {MorphoVaultV1Adapter} from "../../src/adapters/MorphoVaultV1Adapter.sol";
+import {MorphoVaultV1AdapterFactory} from "../../src/adapters/MorphoVaultV1AdapterFactory.sol";
 
-contract MMIntegrationTest is BaseTest {
+contract MorphoVaultIntegrationTest is BaseTest {
     using MarketParamsLib for MarketParams;
 
     uint256 internal constant MAX_TEST_ASSETS = 1e32;
@@ -38,8 +38,8 @@ contract MMIntegrationTest is BaseTest {
     OracleMock internal oracle;
     IrmMock internal irm;
 
-    // MetaMorpho.
-    IMetaMorpho internal metaMorpho;
+    // Morpho Vault V1.
+    IMetaMorpho internal morphoVaultV1;
     address internal immutable mmOwner = makeAddr("mmOwner");
     address internal immutable mmAllocator = makeAddr("mmAllocator");
     address internal immutable mmCurator = makeAddr("mmCurator");
@@ -50,8 +50,8 @@ contract MMIntegrationTest is BaseTest {
     MarketParams internal idleParams;
 
     // Adapter.
-    MetaMorphoAdapterFactory internal metaMorphoAdapterFactory;
-    MetaMorphoAdapter internal metaMorphoAdapter;
+    MorphoVaultV1AdapterFactory internal morphoVaultV1AdapterFactory;
+    MorphoVaultV1Adapter internal morphoVaultV1Adapter;
 
     function setUp() public virtual override {
         super.setUp();
@@ -102,31 +102,32 @@ contract MMIntegrationTest is BaseTest {
 
         allMarketParams.push(idleParams);
 
-        // Setup metaMorpho.
-        metaMorpho = IMetaMorpho(
+        // Setup morphoVaultV1.
+        morphoVaultV1 = IMetaMorpho(
             deployCode(
                 "MetaMorpho.sol",
                 abi.encode(mmOwner, address(morpho), MM_TIMELOCK, address(underlyingToken), "metamorpho", "MM")
             )
         );
         vm.startPrank(mmOwner);
-        metaMorpho.setCurator(mmCurator);
-        metaMorpho.setIsAllocator(mmAllocator, true);
+        morphoVaultV1.setCurator(mmCurator);
+        morphoVaultV1.setIsAllocator(mmAllocator, true);
         vm.stopPrank();
 
-        // Setup metaMorphoAdapter and vault.
-        metaMorphoAdapterFactory = new MetaMorphoAdapterFactory();
-        metaMorphoAdapter =
-            MetaMorphoAdapter(metaMorphoAdapterFactory.createMetaMorphoAdapter(address(vault), address(metaMorpho)));
+        // Setup morphoVaultV1Adapter and vault.
+        morphoVaultV1AdapterFactory = new MorphoVaultV1AdapterFactory();
+        morphoVaultV1Adapter = MorphoVaultV1Adapter(
+            morphoVaultV1AdapterFactory.createMorphoVaultV1Adapter(address(vault), address(morphoVaultV1))
+        );
 
-        bytes memory idData = abi.encode("adapter", address(metaMorphoAdapter));
+        bytes memory idData = abi.encode("adapter", address(morphoVaultV1Adapter));
         vm.startPrank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(metaMorphoAdapter), true)));
+        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(morphoVaultV1Adapter), true)));
         vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
         vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
         vm.stopPrank();
 
-        vault.setIsAdapter(address(metaMorphoAdapter), true);
+        vault.setIsAdapter(address(morphoVaultV1Adapter), true);
         vault.increaseAbsoluteCap(idData, type(uint128).max);
         vault.increaseRelativeCap(idData, 1e18);
 
@@ -136,28 +137,28 @@ contract MMIntegrationTest is BaseTest {
     }
 
     function setSupplyQueueIdle() internal {
-        setMetaMorphoCap(idleParams, type(uint184).max);
+        setMorphoVaultV1Cap(idleParams, type(uint184).max);
         Id[] memory supplyQueue = new Id[](1);
         supplyQueue[0] = idleParams.id();
         vm.prank(mmAllocator);
-        metaMorpho.setSupplyQueue(supplyQueue);
+        morphoVaultV1.setSupplyQueue(supplyQueue);
     }
 
     function setSupplyQueueAllMarkets() internal {
         Id[] memory supplyQueue = new Id[](MM_NB_MARKETS);
         for (uint256 i; i < MM_NB_MARKETS; i++) {
             MarketParams memory marketParams = allMarketParams[i];
-            setMetaMorphoCap(marketParams, CAP);
+            setMorphoVaultV1Cap(marketParams, CAP);
             supplyQueue[i] = marketParams.id();
         }
         vm.prank(mmAllocator);
-        metaMorpho.setSupplyQueue(supplyQueue);
+        morphoVaultV1.setSupplyQueue(supplyQueue);
     }
 
-    function setMetaMorphoCap(MarketParams memory marketParams, uint256 newCap) internal {
+    function setMorphoVaultV1Cap(MarketParams memory marketParams, uint256 newCap) internal {
         vm.prank(mmCurator);
-        metaMorpho.submitCap(marketParams, newCap);
-        vm.warp(block.timestamp + metaMorpho.timelock());
-        metaMorpho.acceptCap(marketParams);
+        morphoVaultV1.submitCap(marketParams, newCap);
+        vm.warp(block.timestamp + morphoVaultV1.timelock());
+        morphoVaultV1.acceptCap(marketParams);
     }
 }

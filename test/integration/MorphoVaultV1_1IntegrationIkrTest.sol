@@ -2,10 +2,10 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MMIntegrationTest.sol";
+import "./MorphoVaultV1_1IntegrationTest.sol";
 import {MathLib} from "../../src/libraries/MathLib.sol";
 
-contract MMIntegrationIkrTest is MMIntegrationTest {
+contract MorphoVaultV1_1IntegrationIkrTest is MorphoVaultV1_1IntegrationTest {
     using MathLib for uint256;
     using MorphoBalancesLib for IMorpho;
 
@@ -22,16 +22,17 @@ contract MMIntegrationIkrTest is MMIntegrationTest {
 
         setSupplyQueueAllMarkets();
 
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(metaMorphoAdapter), penalty)));
-        vault.setForceDeallocatePenalty(address(metaMorphoAdapter), penalty);
+        vm.startPrank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(morphoVaultV1Adapter), penalty)));
+        vault.setForceDeallocatePenalty(address(morphoVaultV1Adapter), penalty);
+        vm.stopPrank();
     }
 
     function setUpAssets(uint256 assets) internal {
         vault.deposit(assets, address(this));
 
         vm.prank(allocator);
-        vault.allocate(address(metaMorphoAdapter), hex"", assets);
+        vault.allocate(address(morphoVaultV1Adapter), hex"", assets);
 
         assertEq(underlyingToken.balanceOf(address(morpho)), assets);
 
@@ -72,9 +73,9 @@ contract MMIntegrationIkrTest is MMIntegrationTest {
         uint256 deallocatedAssets = optimalDeallocateAssets(assets);
         // Simulate a flashloan.
         deal(address(underlyingToken), address(this), deallocatedAssets);
-        underlyingToken.approve(address(metaMorpho), type(uint256).max);
-        metaMorpho.deposit(deallocatedAssets, address(this));
-        vault.forceDeallocate(address(metaMorphoAdapter), hex"", deallocatedAssets, address(this));
+        underlyingToken.approve(address(morphoVaultV1), type(uint256).max);
+        morphoVaultV1.deposit(deallocatedAssets, address(this));
+        vault.forceDeallocate(address(morphoVaultV1Adapter), hex"", deallocatedAssets, address(this));
         vault.withdraw(deallocatedAssets, address(this), address(this));
 
         // No assets left after reimbursing the flashloan.
@@ -83,8 +84,8 @@ contract MMIntegrationIkrTest is MMIntegrationTest {
         uint256 assetsLeftInVault = vault.previewRedeem(vault.balanceOf(address(this)));
         assertApproxEqAbs(assetsLeftInVault, 0, 1);
         // Equivalent position in MM.
-        uint256 shares = metaMorpho.balanceOf(address(this));
-        uint256 expectedAssets = metaMorpho.previewRedeem(shares);
+        uint256 shares = morphoVaultV1.balanceOf(address(this));
+        uint256 expectedAssets = morphoVaultV1.previewRedeem(shares);
         assertEq(expectedAssets, deallocatedAssets);
     }
 
@@ -95,7 +96,7 @@ contract MMIntegrationIkrTest is MMIntegrationTest {
         // Pause deposits on MM.
         Id[] memory emptySupplyQueue = new Id[](0);
         vm.prank(mmAllocator);
-        metaMorpho.setSupplyQueue(emptySupplyQueue);
+        morphoVaultV1.setSupplyQueue(emptySupplyQueue);
 
         uint256 deallocatedAssets = optimalDeallocateAssets(assets);
         vm.assume(deallocatedAssets > 0);
@@ -103,7 +104,7 @@ contract MMIntegrationIkrTest is MMIntegrationTest {
         deal(address(underlyingToken), address(this), deallocatedAssets);
         underlyingToken.approve(address(morpho), type(uint256).max);
         morpho.supply(allMarketParams[0], deallocatedAssets, 0, address(this), hex"");
-        vault.forceDeallocate(address(metaMorphoAdapter), hex"", deallocatedAssets, address(this));
+        vault.forceDeallocate(address(morphoVaultV1Adapter), hex"", deallocatedAssets, address(this));
         vault.withdraw(deallocatedAssets, address(this), address(this));
 
         // No assets left after reimbursing the flashloan.

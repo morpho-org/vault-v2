@@ -3,11 +3,11 @@
 using Utils as Utils;
 
 methods {
-    function isMetaMorphoAdapter(address) external returns bool envfree;
+    function isMorphoVaultV1Adapter(address) external returns bool envfree;
 
     function Utils.factory(address) external returns address envfree;
     function _.factory() external => DISPATCHER(true);
 }
 
 strong invariant genuineAdaptersReturnTheFactory(address adapter)
-    isMetaMorphoAdapter(adapter) => Utils.factory(adapter) == currentContract;
+    isMorphoVaultV1Adapter(adapter) => Utils.factory(adapter) == currentContract;

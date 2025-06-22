@@ -2,9 +2,9 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MMIntegrationTest.sol";
+import "./MorphoVaultIntegrationTest.sol";
 
-contract MMIntegrationDepositTest is MMIntegrationTest {
+contract MorphoVaultIntegrationDepositTest is MorphoVaultIntegrationTest {
     using MarketParamsLib for MarketParams;
     using MorphoBalancesLib for IMorpho;
 
@@ -14,7 +14,7 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
         vault.deposit(assets, address(this));
 
         checkAssetsInIdle(assets);
-        assertEq(morpho.expectedSupplyAssets(idleParams, address(metaMorpho)), 0, "expected assets of metaMorpho");
+        assertEq(morpho.expectedSupplyAssets(idleParams, address(morphoVaultV1)), 0, "expected assets of morphoVaultV1");
     }
 
     function testDepositLiquidityAdapterSuccess(uint256 assets) public {
@@ -22,12 +22,14 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
 
         setSupplyQueueIdle();
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
+        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
 
         vault.deposit(assets, address(this));
 
-        checkAssetsInMetaMorphoMarkets(assets);
-        assertEq(morpho.expectedSupplyAssets(idleParams, address(metaMorpho)), assets, "expected assets of metaMorpho");
+        checkAssetsInMorphoVaultV1Markets(assets);
+        assertEq(
+            morpho.expectedSupplyAssets(idleParams, address(morphoVaultV1)), assets, "expected assets of morphoVaultV1"
+        );
     }
 
     function testDepositRoundingLoss(uint256 donation, uint256 roundedDeposit) public {
@@ -36,34 +38,36 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
         roundedDeposit = bound(roundedDeposit, 1, donation);
         setSupplyQueueIdle();
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
+        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
         underlyingToken.approve(address(morpho), type(uint256).max);
 
         // Donate
-        morpho.supply(idleParams, donation, 0, address(metaMorpho), hex"");
-        assertEq(metaMorpho.previewRedeem(1), donation + 1, "share price");
+        morpho.supply(idleParams, donation, 0, address(morphoVaultV1), hex"");
+        assertEq(morphoVaultV1.previewRedeem(1), donation + 1, "share price");
 
         // Check rounded deposit effect
-        uint256 previousAdapterShares = metaMorpho.balanceOf(address(metaMorphoAdapter));
+        uint256 previousAdapterShares = morphoVaultV1.balanceOf(address(morphoVaultV1Adapter));
         uint256 previousVaultTotalAssets = vault.totalAssets();
-        uint256 previousAdapterTrackedAllocation = metaMorphoAdapter.allocation();
+        uint256 previousAdapterTrackedAllocation = morphoVaultV1Adapter.allocation();
 
         vault.deposit(roundedDeposit, address(this));
 
-        assertEq(metaMorpho.balanceOf(address(metaMorphoAdapter)), previousAdapterShares, "adapter shares balance");
+        assertEq(
+            morphoVaultV1.balanceOf(address(morphoVaultV1Adapter)), previousAdapterShares, "adapter shares balance"
+        );
         assertEq(vault.totalAssets(), previousVaultTotalAssets + roundedDeposit, "vault total assets");
         assertEq(
-            metaMorphoAdapter.allocation(),
+            morphoVaultV1Adapter.allocation(),
             previousAdapterTrackedAllocation + roundedDeposit,
             "MM Adapter tracked allocation"
         );
 
         // Check rounding is realizable
-        vault.realizeLoss(address(metaMorphoAdapter), "");
+        vault.realizeLoss(address(morphoVaultV1Adapter), "");
 
         assertEq(vault.totalAssets(), previousVaultTotalAssets, "vault total assets, after");
         assertEq(
-            metaMorphoAdapter.allocation(), previousAdapterTrackedAllocation, "MM Adapter tracked allocation, after"
+            morphoVaultV1Adapter.allocation(), previousAdapterTrackedAllocation, "MM Adapter tracked allocation, after"
         );
     }
 
@@ -72,32 +76,36 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
         roundedWithdraw = bound(roundedWithdraw, 1, donationFactor / 2);
         setSupplyQueueIdle();
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
+        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
         underlyingToken.approve(address(morpho), type(uint256).max);
 
         // Donate
-        morpho.supply(idleParams, donationFactor - 1, 0, address(metaMorpho), hex"");
-        assertEq(metaMorpho.previewRedeem(1), donationFactor, "share price");
+        morpho.supply(idleParams, donationFactor - 1, 0, address(morphoVaultV1), hex"");
+        assertEq(morphoVaultV1.previewRedeem(1), donationFactor, "share price");
 
         // Initial deposit
         vault.deposit(donationFactor, address(this));
 
         // Check rounded withdraw effect
-        uint256 previousAdapterShares = metaMorpho.balanceOf(address(metaMorphoAdapter));
+        uint256 previousAdapterShares = morphoVaultV1.balanceOf(address(morphoVaultV1Adapter));
         uint256 previousVaultTotalAssets = vault.totalAssets();
-        uint256 previousAdapterTrackedAllocation = metaMorphoAdapter.allocation();
+        uint256 previousAdapterTrackedAllocation = morphoVaultV1Adapter.allocation();
 
         vault.withdraw(roundedWithdraw, address(this), address(this));
 
-        assertEq(metaMorpho.balanceOf(address(metaMorphoAdapter)), previousAdapterShares - 1, "adapter shares balance");
+        assertEq(
+            morphoVaultV1.balanceOf(address(morphoVaultV1Adapter)), previousAdapterShares - 1, "adapter shares balance"
+        );
         assertEq(vault.totalAssets(), previousVaultTotalAssets - roundedWithdraw, "total assets");
-        assertEq(metaMorphoAdapter.allocation(), previousAdapterTrackedAllocation - roundedWithdraw, "allocation");
+        assertEq(morphoVaultV1Adapter.allocation(), previousAdapterTrackedAllocation - roundedWithdraw, "allocation");
 
         // Check rounding is realizable
-        vault.realizeLoss(address(metaMorphoAdapter), "");
+        vault.realizeLoss(address(morphoVaultV1Adapter), "");
 
         assertEq(vault.totalAssets(), previousVaultTotalAssets - donationFactor, "total assets, after");
-        assertEq(metaMorphoAdapter.allocation(), previousAdapterTrackedAllocation - donationFactor, "allocation, after");
+        assertEq(
+            morphoVaultV1Adapter.allocation(), previousAdapterTrackedAllocation - donationFactor, "allocation, after"
+        );
     }
 
     function testDepositLiquidityAdapterCanFail(uint256 assets) public {
@@ -105,35 +113,35 @@ contract MMIntegrationDepositTest is MMIntegrationTest {
 
         setSupplyQueueAllMarkets();
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
+        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
 
         if (assets > MM_NB_MARKETS * CAP) {
             vm.expectRevert();
             vault.deposit(assets, address(this));
         } else {
             vault.deposit(assets, address(this));
-            checkAssetsInMetaMorphoMarkets(assets);
+            checkAssetsInMorphoVaultV1Markets(assets);
             uint256 positionOnMorpho;
             for (uint256 i; i < MM_NB_MARKETS; i++) {
-                positionOnMorpho += morpho.expectedSupplyAssets(allMarketParams[i], address(metaMorpho));
+                positionOnMorpho += morpho.expectedSupplyAssets(allMarketParams[i], address(morphoVaultV1));
             }
-            assertEq(positionOnMorpho, assets, "expected assets of metaMorpho");
+            assertEq(positionOnMorpho, assets, "expected assets of morphoVaultV1");
         }
     }
 
-    function checkAssetsInMetaMorphoMarkets(uint256 assets) internal view {
+    function checkAssetsInMorphoVaultV1Markets(uint256 assets) internal view {
         assertEq(underlyingToken.balanceOf(address(morpho)), assets, "underlying balance of Morpho");
-        assertEq(metaMorpho.previewRedeem(metaMorpho.balanceOf(address(metaMorphoAdapter))), assets);
-        assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0, "underlying balance of metaMorpho");
-        assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0, "underlying balance of adapter");
+        assertEq(morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter))), assets);
+        assertEq(underlyingToken.balanceOf(address(morphoVaultV1)), 0, "underlying balance of morphoVaultV1");
+        assertEq(underlyingToken.balanceOf(address(morphoVaultV1Adapter)), 0, "underlying balance of adapter");
         assertEq(underlyingToken.balanceOf(address(vault)), 0, "underlying balance of vault");
     }
 
     function checkAssetsInIdle(uint256 assets) public view {
         assertEq(underlyingToken.balanceOf(address(morpho)), 0, "underlying balance of Morpho");
-        assertEq(metaMorpho.previewRedeem(metaMorpho.balanceOf(address(metaMorphoAdapter))), 0);
-        assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0, "underlying balance of metaMorpho");
-        assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0, "underlying balance of adapter");
+        assertEq(morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter))), 0);
+        assertEq(underlyingToken.balanceOf(address(morphoVaultV1)), 0, "underlying balance of morphoVaultV1");
+        assertEq(underlyingToken.balanceOf(address(morphoVaultV1Adapter)), 0, "underlying balance of adapter");
         assertEq(underlyingToken.balanceOf(address(vault)), assets, "underlying balance of vault");
     }
 }

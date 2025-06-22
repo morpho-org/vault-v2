@@ -2,9 +2,9 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MMV1_1IntegrationTest.sol";
+import "./MorphoVaultIntegrationTest.sol";
 
-contract MMV1_1IntegrationWithdrawTest is MMV1_1IntegrationTest {
+contract MorphoVaultIntegrationWithdrawTest is MorphoVaultIntegrationTest {
     using MorphoBalancesLib for IMorpho;
 
     address internal immutable receiver = makeAddr("receiver");
@@ -24,7 +24,7 @@ contract MMV1_1IntegrationWithdrawTest is MMV1_1IntegrationTest {
         setSupplyQueueAllMarkets();
 
         vm.prank(allocator);
-        vault.allocate(address(metaMorphoAdapter), hex"", initialInMM);
+        vault.allocate(address(morphoVaultV1Adapter), hex"", initialInMM);
 
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialInMM);
@@ -38,9 +38,9 @@ contract MMV1_1IntegrationWithdrawTest is MMV1_1IntegrationTest {
         assertEq(underlyingToken.balanceOf(receiver), assets);
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle - assets);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialInMM);
-        assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0);
-        assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0);
-        assertEq(metaMorpho.previewRedeem(metaMorpho.balanceOf(address(metaMorphoAdapter))), initialInMM);
+        assertEq(underlyingToken.balanceOf(address(morphoVaultV1)), 0);
+        assertEq(underlyingToken.balanceOf(address(morphoVaultV1Adapter)), 0);
+        assertEq(morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter))), initialInMM);
     }
 
     function testWithdrawMoreThanIdleNoLiquidityAdapter(uint256 assets) public {
@@ -53,21 +53,23 @@ contract MMV1_1IntegrationWithdrawTest is MMV1_1IntegrationTest {
     function testWithdrawThanksToLiquidityAdapter(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialTotal);
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
+        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
 
         vault.withdraw(assets, receiver, address(this));
         assertEq(underlyingToken.balanceOf(receiver), assets);
         assertEq(underlyingToken.balanceOf(address(vault)), 0);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialTotal - assets);
-        assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0);
-        assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0);
-        assertEq(metaMorpho.previewRedeem(metaMorpho.balanceOf(address(metaMorphoAdapter))), initialTotal - assets);
+        assertEq(underlyingToken.balanceOf(address(morphoVaultV1)), 0);
+        assertEq(underlyingToken.balanceOf(address(morphoVaultV1Adapter)), 0);
+        assertEq(
+            morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter))), initialTotal - assets
+        );
     }
 
     function testWithdrawTooMuchEvenWithLiquidityAdapter(uint256 assets) public {
         assets = bound(assets, initialTotal + 1, MAX_TEST_ASSETS);
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
+        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
 
         vm.expectRevert();
         vault.withdraw(assets, receiver, address(this));
@@ -76,7 +78,7 @@ contract MMV1_1IntegrationWithdrawTest is MMV1_1IntegrationTest {
     function testWithdrawLiquidityAdapterNoLiquidity(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialTotal);
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
+        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
 
         // Remove liquidity by borrowing.
         deal(address(collateralToken), borrower, type(uint256).max);

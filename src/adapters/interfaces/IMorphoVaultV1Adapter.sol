@@ -4,7 +4,7 @@ pragma solidity >= 0.5.0;
 
 import {IAdapter} from "../../interfaces/IAdapter.sol";
 
-interface IMetaMorphoAdapter is IAdapter {
+interface IMorphoVaultV1Adapter is IAdapter {
     /* EVENTS */
 
     event SetSkimRecipient(address indexed newSkimRecipient);
@@ -13,7 +13,7 @@ interface IMetaMorphoAdapter is IAdapter {
     /* ERRORS */
 
     error AssetMismatch();
-    error CannotSkimMetaMorphoShares();
+    error CannotSkimMorphoVaultV1Shares();
     error InvalidData();
     error NotAuthorized();
 
@@ -23,7 +23,7 @@ interface IMetaMorphoAdapter is IAdapter {
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
     function parentVault() external view returns (address);
-    function metaMorpho() external view returns (address);
+    function morphoVaultV1() external view returns (address);
     function skimRecipient() external view returns (address);
     function allocation() external view returns (uint256);
     function shares() external view returns (uint256);

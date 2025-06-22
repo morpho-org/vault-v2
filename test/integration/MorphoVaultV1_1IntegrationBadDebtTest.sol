@@ -2,10 +2,10 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MMV1_1IntegrationTest.sol";
+import "./MorphoVaultV1_1IntegrationTest.sol";
 import {EventsLib as MorphoEventsLib} from "../../lib/metamorpho-v1.1/lib/morpho-blue/src/libraries/EventsLib.sol";
 
-contract MMV1_1IntegrationBadDebtTest is MMV1_1IntegrationTest {
+contract MorphoVaultV1_1IntegrationBadDebtTest is MorphoVaultV1_1IntegrationTest {
     using MorphoBalancesLib for IMorpho;
     using MarketParamsLib for MarketParams;
 
@@ -26,15 +26,15 @@ contract MMV1_1IntegrationBadDebtTest is MMV1_1IntegrationTest {
         setSupplyQueueAllMarkets();
 
         vm.prank(allocator);
-        vault.allocate(address(metaMorphoAdapter), hex"", initialDeposit);
+        vault.allocate(address(morphoVaultV1Adapter), hex"", initialDeposit);
 
         assertEq(underlyingToken.balanceOf(address(vault)), 0);
-        assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0);
-        assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0);
+        assertEq(underlyingToken.balanceOf(address(morphoVaultV1Adapter)), 0);
+        assertEq(underlyingToken.balanceOf(address(morphoVaultV1)), 0);
 
         assertEq(underlyingToken.balanceOf(address(morpho)), initialDeposit);
-        assertEq(morpho.expectedSupplyAssets(allMarketParams[0], address(metaMorpho)), initialOnMarket0);
-        assertEq(morpho.expectedSupplyAssets(allMarketParams[1], address(metaMorpho)), initialOnMarket1);
+        assertEq(morpho.expectedSupplyAssets(allMarketParams[0], address(morphoVaultV1)), initialOnMarket0);
+        assertEq(morpho.expectedSupplyAssets(allMarketParams[1], address(morphoVaultV1)), initialOnMarket1);
     }
 
     function testNoBadDebtThroughSubmitMarketRemoval() public {
@@ -43,19 +43,19 @@ contract MMV1_1IntegrationBadDebtTest is MMV1_1IntegrationTest {
 
         // Create bad debt by removing market1.
         vm.startPrank(mmCurator);
-        metaMorpho.submitCap(allMarketParams[1], 0);
-        metaMorpho.submitMarketRemoval(allMarketParams[1]);
-        vm.warp(block.timestamp + metaMorpho.timelock());
+        morphoVaultV1.submitCap(allMarketParams[1], 0);
+        morphoVaultV1.submitMarketRemoval(allMarketParams[1]);
+        vm.warp(block.timestamp + morphoVaultV1.timelock());
         uint256[] memory indexes = new uint256[](4);
         indexes[0] = 0;
         indexes[1] = 2;
         indexes[2] = 3;
         indexes[3] = 4;
-        metaMorpho.updateWithdrawQueue(indexes);
+        morphoVaultV1.updateWithdrawQueue(indexes);
         vm.stopPrank();
 
         vm.prank(address(0x123));
-        vault.realizeLoss(address(metaMorphoAdapter), hex"");
+        vault.realizeLoss(address(morphoVaultV1Adapter), hex"");
         assertEq(vault.totalAssets(), initialDeposit);
     }
 
@@ -86,7 +86,7 @@ contract MMV1_1IntegrationBadDebtTest is MMV1_1IntegrationTest {
         morpho.liquidate(allMarketParams[1], borrower, collateralOfBorrower, 0, hex"");
 
         vm.prank(address(0x123));
-        vault.realizeLoss(address(metaMorphoAdapter), hex"");
+        vault.realizeLoss(address(morphoVaultV1Adapter), hex"");
         assertEq(vault.totalAssets(), initialDeposit);
     }
 }

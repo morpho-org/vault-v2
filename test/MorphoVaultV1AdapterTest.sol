@@ -7,24 +7,24 @@ import "../lib/forge-std/src/Test.sol";
 import {IERC4626} from "../src/interfaces/IERC4626.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {ERC4626Mock} from "./mocks/ERC4626Mock.sol";
-import {IMetaMorphoAdapter} from "../src/adapters/interfaces/IMetaMorphoAdapter.sol";
-import {MetaMorphoAdapter} from "../src/adapters/MetaMorphoAdapter.sol";
-import {MetaMorphoAdapterFactory} from "../src/adapters/MetaMorphoAdapterFactory.sol";
+import {IMorphoVaultV1Adapter} from "../src/adapters/interfaces/IMorphoVaultV1Adapter.sol";
+import {MorphoVaultV1Adapter} from "../src/adapters/MorphoVaultV1Adapter.sol";
+import {MorphoVaultV1AdapterFactory} from "../src/adapters/MorphoVaultV1AdapterFactory.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
-import {IMetaMorphoAdapterFactory} from "../src/adapters/interfaces/IMetaMorphoAdapterFactory.sol";
+import {IMorphoVaultV1AdapterFactory} from "../src/adapters/interfaces/IMorphoVaultV1AdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
 
-contract MetaMorphoAdapterTest is Test {
+contract MorphoVaultV1AdapterTest is Test {
     using MathLib for uint256;
 
     ERC20Mock internal asset;
     ERC20Mock internal rewardToken;
     VaultV2Mock internal parentVault;
-    ERC4626MockExtended internal metaMorpho;
-    MetaMorphoAdapterFactory internal factory;
-    MetaMorphoAdapter internal adapter;
+    ERC4626MockExtended internal morphoVaultV1;
+    MorphoVaultV1AdapterFactory internal factory;
+    MorphoVaultV1Adapter internal adapter;
     address internal owner;
     address internal recipient;
     bytes32[] internal expectedIds;
@@ -37,14 +37,14 @@ contract MetaMorphoAdapterTest is Test {
 
         asset = new ERC20Mock();
         rewardToken = new ERC20Mock();
-        metaMorpho = new ERC4626MockExtended(address(asset));
+        morphoVaultV1 = new ERC4626MockExtended(address(asset));
         parentVault = new VaultV2Mock(address(asset), owner, address(0), address(0), address(0));
 
-        factory = new MetaMorphoAdapterFactory();
-        adapter = MetaMorphoAdapter(factory.createMetaMorphoAdapter(address(parentVault), address(metaMorpho)));
+        factory = new MorphoVaultV1AdapterFactory();
+        adapter = MorphoVaultV1Adapter(factory.createMorphoVaultV1Adapter(address(parentVault), address(morphoVaultV1)));
 
         deal(address(asset), address(this), type(uint256).max);
-        asset.approve(address(metaMorpho), type(uint256).max);
+        asset.approve(address(morphoVaultV1), type(uint256).max);
 
         expectedIds = new bytes32[](1);
         expectedIds[0] = keccak256(abi.encode("adapter", address(adapter)));
@@ -53,18 +53,18 @@ contract MetaMorphoAdapterTest is Test {
     function testFactoryAndParentVaultAndAssetSet() public view {
         assertEq(adapter.factory(), address(factory), "Incorrect factory set");
         assertEq(adapter.parentVault(), address(parentVault), "Incorrect parent vault set");
-        assertEq(adapter.metaMorpho(), address(metaMorpho), "Incorrect metaMorpho vault set");
+        assertEq(adapter.morphoVaultV1(), address(morphoVaultV1), "Incorrect morphoVaultV1 vault set");
     }
 
     function testAllocateNotAuthorizedReverts(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
-        vm.expectRevert(IMetaMorphoAdapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoVaultV1Adapter.NotAuthorized.selector);
         adapter.allocate(hex"", assets);
     }
 
     function testDeallocateNotAuthorizedReverts(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
-        vm.expectRevert(IMetaMorphoAdapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoVaultV1Adapter.NotAuthorized.selector);
         adapter.deallocate(hex"", assets);
     }
 
@@ -76,7 +76,7 @@ contract MetaMorphoAdapterTest is Test {
         (bytes32[] memory ids, uint256 interest) = adapter.allocate(hex"", assets);
 
         assertEq(adapter.allocation(), assets, "incorrect allocation");
-        uint256 adapterShares = metaMorpho.balanceOf(address(adapter));
+        uint256 adapterShares = morphoVaultV1.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(adapterShares, assets, "Incorrect share balance after deposit");
         assertEq(asset.balanceOf(address(adapter)), 0, "Underlying tokens not transferred to vault");
@@ -92,7 +92,7 @@ contract MetaMorphoAdapterTest is Test {
         vm.prank(address(parentVault));
         adapter.allocate(hex"", initialAssets);
 
-        uint256 beforeShares = metaMorpho.balanceOf(address(adapter));
+        uint256 beforeShares = morphoVaultV1.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(beforeShares, initialAssets, "Precondition failed: shares not set");
 
@@ -100,7 +100,7 @@ contract MetaMorphoAdapterTest is Test {
         (bytes32[] memory ids, uint256 interest) = adapter.deallocate(hex"", withdrawAssets);
 
         assertEq(adapter.allocation(), initialAssets - withdrawAssets, "incorrect allocation");
-        uint256 afterShares = metaMorpho.balanceOf(address(adapter));
+        uint256 afterShares = morphoVaultV1.balanceOf(address(adapter));
         assertEq(afterShares, initialAssets - withdrawAssets, "Share balance not decreased correctly");
 
         uint256 adapterBalance = asset.balanceOf(address(adapter));
@@ -115,27 +115,27 @@ contract MetaMorphoAdapterTest is Test {
 
         bytes32 initCodeHash = keccak256(
             abi.encodePacked(
-                type(MetaMorphoAdapter).creationCode, abi.encode(address(newParentVault), address(newVault))
+                type(MorphoVaultV1Adapter).creationCode, abi.encode(address(newParentVault), address(newVault))
             )
         );
         address expectedNewAdapter =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
-        emit IMetaMorphoAdapterFactory.CreateMetaMorphoAdapter(
+        emit IMorphoVaultV1AdapterFactory.CreateMorphoVaultV1Adapter(
             address(newParentVault), address(newVault), expectedNewAdapter
         );
 
-        address newAdapter = factory.createMetaMorphoAdapter(address(newParentVault), address(newVault));
+        address newAdapter = factory.createMorphoVaultV1Adapter(address(newParentVault), address(newVault));
 
         assertTrue(newAdapter != address(0), "Adapter not created");
-        assertEq(MetaMorphoAdapter(newAdapter).parentVault(), address(newParentVault), "Incorrect parent vault");
-        assertEq(MetaMorphoAdapter(newAdapter).metaMorpho(), address(newVault), "Incorrect metaMorpho vault");
+        assertEq(MorphoVaultV1Adapter(newAdapter).parentVault(), address(newParentVault), "Incorrect parent vault");
+        assertEq(MorphoVaultV1Adapter(newAdapter).morphoVaultV1(), address(newVault), "Incorrect morphoVaultV1 vault");
         assertEq(
-            factory.metaMorphoAdapter(address(newParentVault), address(newVault)),
+            factory.morphoVaultV1Adapter(address(newParentVault), address(newVault)),
             newAdapter,
             "Adapter not tracked correctly"
         );
-        assertTrue(factory.isMetaMorphoAdapter(newAdapter), "Adapter not tracked correctly");
+        assertTrue(factory.isMorphoVaultV1Adapter(newAdapter), "Adapter not tracked correctly");
     }
 
     function testSetSkimRecipient(address newRecipient, address caller) public {
@@ -145,13 +145,13 @@ contract MetaMorphoAdapterTest is Test {
 
         // Access control
         vm.prank(caller);
-        vm.expectRevert(IMetaMorphoAdapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoVaultV1Adapter.NotAuthorized.selector);
         adapter.setSkimRecipient(newRecipient);
 
         // Normal path
         vm.prank(owner);
         vm.expectEmit();
-        emit IMetaMorphoAdapter.SetSkimRecipient(newRecipient);
+        emit IMorphoVaultV1Adapter.SetSkimRecipient(newRecipient);
         adapter.setSkimRecipient(newRecipient);
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
     }
@@ -169,20 +169,20 @@ contract MetaMorphoAdapterTest is Test {
 
         // Normal path
         vm.expectEmit();
-        emit IMetaMorphoAdapter.Skim(address(token), assets);
+        emit IMorphoVaultV1Adapter.Skim(address(token), assets);
         vm.prank(recipient);
         adapter.skim(address(token));
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
         assertEq(token.balanceOf(recipient), assets, "Recipient did not receive tokens");
 
         // Access control
-        vm.expectRevert(IMetaMorphoAdapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoVaultV1Adapter.NotAuthorized.selector);
         adapter.skim(address(token));
 
-        // Cant skim metaMorpho
-        vm.expectRevert(IMetaMorphoAdapter.CannotSkimMetaMorphoShares.selector);
+        // Cant skim morphoVaultV1
+        vm.expectRevert(IMorphoVaultV1Adapter.CannotSkimMorphoVaultV1Shares.selector);
         vm.prank(recipient);
-        adapter.skim(address(metaMorpho));
+        adapter.skim(address(morphoVaultV1));
     }
 
     function testLossRealizationImpossible(uint256 deposit) public {
@@ -192,7 +192,7 @@ contract MetaMorphoAdapterTest is Test {
         deal(address(asset), address(adapter), deposit);
         vm.prank(address(parentVault));
         adapter.allocate(hex"", deposit);
-        asset.transfer(address(metaMorpho), 2);
+        asset.transfer(address(morphoVaultV1), 2);
 
         // Realize loss.
         vm.prank(address(parentVault));
@@ -224,7 +224,7 @@ contract MetaMorphoAdapterTest is Test {
         deal(address(asset), address(adapter), deposit);
         vm.prank(address(parentVault));
         adapter.allocate(hex"", deposit);
-        metaMorpho.lose(_loss);
+        morphoVaultV1.lose(_loss);
 
         // Realize loss.
         vm.prank(address(parentVault));
@@ -243,7 +243,7 @@ contract MetaMorphoAdapterTest is Test {
         deal(address(asset), address(adapter), deposit + deposit2);
         vm.prank(address(parentVault));
         adapter.allocate(hex"", deposit);
-        metaMorpho.lose(_loss);
+        morphoVaultV1.lose(_loss);
 
         // Allocate.
         vm.prank(address(parentVault));
@@ -266,10 +266,10 @@ contract MetaMorphoAdapterTest is Test {
         deal(address(asset), address(adapter), deposit + withdraw);
         vm.prank(address(parentVault));
         adapter.allocate(hex"", deposit);
-        metaMorpho.lose(_loss);
+        morphoVaultV1.lose(_loss);
 
         // Deallocate.
-        withdraw = bound(withdraw, 1, metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter))));
+        withdraw = bound(withdraw, 1, morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(adapter))));
         vm.prank(address(parentVault));
         adapter.deallocate(hex"", withdraw);
 
@@ -290,12 +290,12 @@ contract MetaMorphoAdapterTest is Test {
         deal(address(asset), address(adapter), deposit + interest);
         vm.prank(address(parentVault));
         adapter.allocate(hex"", deposit);
-        uint256 expectedSupplyBefore = metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter)));
-        metaMorpho.lose(_loss);
+        uint256 expectedSupplyBefore = morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(adapter)));
+        morphoVaultV1.lose(_loss);
 
         // Realize loss.
-        asset.transfer(address(metaMorpho), interest);
-        uint256 expectedSupplyAfter = metaMorpho.previewRedeem(metaMorpho.balanceOf(address(adapter)));
+        asset.transfer(address(morphoVaultV1), interest);
+        uint256 expectedSupplyAfter = morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(adapter)));
         vm.prank(address(parentVault));
         if (expectedSupplyAfter > expectedSupplyBefore) vm.expectRevert(stdError.arithmeticError);
         (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
@@ -313,18 +313,18 @@ contract MetaMorphoAdapterTest is Test {
     function testInvalidData(bytes memory data) public {
         vm.assume(data.length > 0);
 
-        vm.expectRevert(IMetaMorphoAdapter.InvalidData.selector);
+        vm.expectRevert(IMorphoVaultV1Adapter.InvalidData.selector);
         adapter.allocate(data, 0);
 
-        vm.expectRevert(IMetaMorphoAdapter.InvalidData.selector);
+        vm.expectRevert(IMorphoVaultV1Adapter.InvalidData.selector);
         adapter.deallocate(data, 0);
     }
 
     function testDifferentAssetReverts(address randomAsset) public {
         vm.assume(randomAsset != parentVault.asset());
-        ERC4626MockExtended newMetaMorpho = new ERC4626MockExtended(randomAsset);
-        vm.expectRevert(IMetaMorphoAdapter.AssetMismatch.selector);
-        new MetaMorphoAdapter(address(parentVault), address(newMetaMorpho));
+        ERC4626MockExtended newMorphoVaultV1 = new ERC4626MockExtended(randomAsset);
+        vm.expectRevert(IMorphoVaultV1Adapter.AssetMismatch.selector);
+        new MorphoVaultV1Adapter(address(parentVault), address(newMorphoVaultV1));
     }
 
     function testDonationResistance(uint256 deposit, uint256 donation) public {
@@ -336,15 +336,15 @@ contract MetaMorphoAdapterTest is Test {
         vm.prank(address(parentVault));
         adapter.allocate(hex"", deposit);
 
-        uint256 adapterShares = metaMorpho.balanceOf(address(adapter));
+        uint256 adapterShares = morphoVaultV1.balanceOf(address(adapter));
         assertEq(adapter.shares(), adapterShares, "shares not recorded");
 
         // Donate to adapter
         address donor = makeAddr("donor");
         deal(address(asset), donor, donation);
         vm.startPrank(donor);
-        asset.approve(address(metaMorpho), type(uint256).max);
-        metaMorpho.deposit(donation, address(adapter));
+        asset.approve(address(morphoVaultV1), type(uint256).max);
+        morphoVaultV1.deposit(donation, address(adapter));
         vm.stopPrank();
 
         // Test no impact on allocation

@@ -19,7 +19,7 @@ jobs:
           - AbdicatedFunctions
           - Invariants
           - Liveness
-          - MetaMorphoAdapterFactory
+          - MorphoVaultV1AdapterFactory
           - MorphoBlueAdapterFactory
           - PreviewFunctions
 

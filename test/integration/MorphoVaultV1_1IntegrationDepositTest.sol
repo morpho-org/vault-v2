@@ -2,9 +2,9 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MMV1_1IntegrationTest.sol";
+import "./MorphoVaultV1_1IntegrationTest.sol";
 
-contract MMV1_1IntegrationDepositTest is MMV1_1IntegrationTest {
+contract MorphoVaultV1_1IntegrationDepositTest is MorphoVaultV1_1IntegrationTest {
     using MarketParamsLib for MarketParams;
     using MorphoBalancesLib for IMorpho;
 
@@ -14,7 +14,7 @@ contract MMV1_1IntegrationDepositTest is MMV1_1IntegrationTest {
         vault.deposit(assets, address(this));
 
         checkAssetsInIdle(assets);
-        assertEq(morpho.expectedSupplyAssets(idleParams, address(metaMorpho)), 0, "expected assets of metaMorpho");
+        assertEq(morpho.expectedSupplyAssets(idleParams, address(morphoVaultV1)), 0, "expected assets of morphoVaultV1");
     }
 
     function testDepositLiquidityAdapterSuccess(uint256 assets) public {
@@ -22,12 +22,14 @@ contract MMV1_1IntegrationDepositTest is MMV1_1IntegrationTest {
 
         setSupplyQueueIdle();
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
+        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
 
         vault.deposit(assets, address(this));
 
-        checkAssetsInMetaMorphoMarkets(assets);
-        assertEq(morpho.expectedSupplyAssets(idleParams, address(metaMorpho)), assets, "expected assets of metaMorpho");
+        checkAssetsInMorphoVaultV1Markets(assets);
+        assertEq(
+            morpho.expectedSupplyAssets(idleParams, address(morphoVaultV1)), assets, "expected assets of morphoVaultV1"
+        );
     }
 
     function testDepositLiquidityAdapterCanFail(uint256 assets) public {
@@ -35,35 +37,35 @@ contract MMV1_1IntegrationDepositTest is MMV1_1IntegrationTest {
 
         setSupplyQueueAllMarkets();
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(metaMorphoAdapter), hex"");
+        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
 
         if (assets > MM_NB_MARKETS * CAP) {
             vm.expectRevert();
             vault.deposit(assets, address(this));
         } else {
             vault.deposit(assets, address(this));
-            checkAssetsInMetaMorphoMarkets(assets);
+            checkAssetsInMorphoVaultV1Markets(assets);
             uint256 positionOnMorpho;
             for (uint256 i; i < MM_NB_MARKETS; i++) {
-                positionOnMorpho += morpho.expectedSupplyAssets(allMarketParams[i], address(metaMorpho));
+                positionOnMorpho += morpho.expectedSupplyAssets(allMarketParams[i], address(morphoVaultV1));
             }
-            assertEq(positionOnMorpho, assets, "expected assets of metaMorpho");
+            assertEq(positionOnMorpho, assets, "expected assets of morphoVaultV1");
         }
     }
 
-    function checkAssetsInMetaMorphoMarkets(uint256 assets) internal view {
+    function checkAssetsInMorphoVaultV1Markets(uint256 assets) internal view {
         assertEq(underlyingToken.balanceOf(address(morpho)), assets, "underlying balance of Morpho");
-        assertEq(metaMorpho.previewRedeem(metaMorpho.balanceOf(address(metaMorphoAdapter))), assets);
-        assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0, "underlying balance of metaMorpho");
-        assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0, "underlying balance of adapter");
+        assertEq(morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter))), assets);
+        assertEq(underlyingToken.balanceOf(address(morphoVaultV1)), 0, "underlying balance of morphoVaultV1");
+        assertEq(underlyingToken.balanceOf(address(morphoVaultV1Adapter)), 0, "underlying balance of adapter");
         assertEq(underlyingToken.balanceOf(address(vault)), 0, "underlying balance of vault");
     }
 
     function checkAssetsInIdle(uint256 assets) public view {
         assertEq(underlyingToken.balanceOf(address(morpho)), 0, "underlying balance of Morpho");
-        assertEq(metaMorpho.previewRedeem(metaMorpho.balanceOf(address(metaMorphoAdapter))), 0);
-        assertEq(underlyingToken.balanceOf(address(metaMorpho)), 0, "underlying balance of metaMorpho");
-        assertEq(underlyingToken.balanceOf(address(metaMorphoAdapter)), 0, "underlying balance of adapter");
+        assertEq(morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter))), 0);
+        assertEq(underlyingToken.balanceOf(address(morphoVaultV1)), 0, "underlying balance of morphoVaultV1");
+        assertEq(underlyingToken.balanceOf(address(morphoVaultV1Adapter)), 0, "underlying balance of adapter");
         assertEq(underlyingToken.balanceOf(address(vault)), assets, "underlying balance of vault");
     }
 }

@@ -5,22 +5,22 @@ pragma solidity 0.8.28;
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IMetaMorphoAdapter} from "./interfaces/IMetaMorphoAdapter.sol";
+import {IMorphoVaultV1Adapter} from "./interfaces/IMorphoVaultV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 
-/// @dev Designed, developped and audited for MetaMorpho Vaults (v1.0 and v1.1). Integration with other vaults must be
+/// @dev Designed, developped and audited for Morpho Vaults (v1.0 and v1.1). Integration with other vaults must be
 /// carefully assessed from a security standpoint.
-/// @dev MetaMorpho V1.1 vaults do not realize bad debt, so vaults V2 supplying in them will not realize the
+/// @dev Morpho Vaults V1.1 vaults do not realize bad debt, so vaults V2 supplying in them will not realize the
 /// corresponding bad debt.
-contract MetaMorphoAdapter is IMetaMorphoAdapter {
+contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     using MathLib for uint256;
 
     /* IMMUTABLES */
 
     address public immutable factory;
     address public immutable parentVault;
-    address public immutable metaMorpho;
+    address public immutable morphoVaultV1;
     bytes32 public immutable adapterId;
 
     /* STORAGE */
@@ -33,15 +33,15 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
     /* FUNCTIONS */
 
-    constructor(address _parentVault, address _metaMorpho) {
+    constructor(address _parentVault, address _morphoVaultV1) {
         factory = msg.sender;
         parentVault = _parentVault;
-        metaMorpho = _metaMorpho;
+        morphoVaultV1 = _morphoVaultV1;
         adapterId = keccak256(abi.encode("adapter", address(this)));
         address asset = IVaultV2(_parentVault).asset();
-        require(asset == IERC4626(_metaMorpho).asset(), AssetMismatch());
+        require(asset == IERC4626(_morphoVaultV1).asset(), AssetMismatch());
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
-        SafeERC20Lib.safeApprove(asset, _metaMorpho, type(uint256).max);
+        SafeERC20Lib.safeApprove(asset, _morphoVaultV1, type(uint256).max);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -54,7 +54,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /// @dev This is useful to handle rewards that the adapter has earned.
     function skim(address token) external {
         require(msg.sender == skimRecipient, NotAuthorized());
-        require(token != metaMorpho, CannotSkimMetaMorphoShares());
+        require(token != morphoVaultV1, CannotSkimMorphoVaultV1Shares());
         uint256 balance = IERC20(token).balanceOf(address(this));
         SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
         emit Skim(token, balance);
@@ -67,10 +67,10 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(msg.sender == parentVault, NotAuthorized());
 
         // To accrue interest only one time.
-        IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(allocation);
+        IERC4626(morphoVaultV1).deposit(0, address(this));
+        uint256 interest = IERC4626(morphoVaultV1).previewRedeem(shares).zeroFloorSub(allocation);
 
-        if (assets > 0) shares += IERC4626(metaMorpho).deposit(assets, address(this));
+        if (assets > 0) shares += IERC4626(morphoVaultV1).deposit(assets, address(this));
 
         allocation = allocation + interest + assets;
 
@@ -84,10 +84,10 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(msg.sender == parentVault, NotAuthorized());
 
         // To accrue interest only one time.
-        IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(allocation);
+        IERC4626(morphoVaultV1).deposit(0, address(this));
+        uint256 interest = IERC4626(morphoVaultV1).previewRedeem(shares).zeroFloorSub(allocation);
 
-        if (assets > 0) shares -= IERC4626(metaMorpho).withdraw(assets, address(this), address(this));
+        if (assets > 0) shares -= IERC4626(morphoVaultV1).withdraw(assets, address(this), address(this));
 
         allocation = allocation + interest - assets;
 
@@ -98,7 +98,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(data.length == 0, InvalidData());
 
-        uint256 assetsInVault = IERC4626(metaMorpho).previewRedeem(shares);
+        uint256 assetsInVault = IERC4626(morphoVaultV1).previewRedeem(shares);
         uint256 loss = allocation - assetsInVault;
         allocation = assetsInVault;
 
