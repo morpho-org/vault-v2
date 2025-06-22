@@ -1,6 +1,6 @@
 # Vault v2
 
-Morpho Vault V2 enables anyone to create [non-custodial](#non-custodial) vaults that allocate assets to any protocols, including but not limited to Morpho Market V1, Morpho Market V2, and MetaMorpho Vaults.
+Morpho Vault V2 enables anyone to create [non-custodial](#non-custodial) vaults that allocate assets to any protocols, including but not limited to Morpho Market V1, Morpho Market V2, and Morpho Vaults V1.
 Depositors of Morpho Vault V2 earn from the underlying protocols without having to actively manage the risk of their position.
 Management of deposited assets is the responsability of a set of different roles (owner, curator and allocators).
 The active management of invested positions involve enabling and allocating liquidity to protocols.
@@ -22,9 +22,9 @@ Adapters for the following protocols are currently available:
 - [Morpho Blue](./src/adapters/MorphoBlueAdapter.sol);
   This adapter allocates to any market of Morpho Blue, constrained by the allocation caps (see [Id system](#id-system) below).
   The adapter holds a position on each respective market of Morpho Blue, on behalf of the vault V2.
-- [MetaMorpho Vaults](./src/adapters/MetaMorphoAdapter.sol).
-  This adapter allocates to a fixed MetaMorpho vault (v1.0 and v1.1).
-  The adapter holds shares of the corresponding MetaMorpho vault on behalf of the vault V2.
+- [Morpho vaults V1](./src/adapters/MorphoVaultV1Adapter.sol).
+  This adapter allocates to a fixed Morpho vault (v1.0 and v1.1).
+  The adapter holds shares of the corresponding Morpho vault on behalf of the vault V2.
 
 A Morpho Market V2 adapter will be released together with Market V2.
 
