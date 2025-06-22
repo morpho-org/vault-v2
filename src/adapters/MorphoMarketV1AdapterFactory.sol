@@ -8,7 +8,8 @@ import {IMorphoMarketV1AdapterFactory} from "./interfaces/IMorphoMarketV1Adapter
 contract MorphoMarketV1AdapterFactory is IMorphoMarketV1AdapterFactory {
     /* STORAGE */
 
-    mapping(address parentVault => mapping(address morpho => mapping(address irm => address))) public morphoMarketV1Adapter;
+    mapping(address parentVault => mapping(address morpho => mapping(address irm => address))) public
+        morphoMarketV1Adapter;
     mapping(address account => bool) public isMorphoMarketV1Adapter;
 
     /* FUNCTIONS */

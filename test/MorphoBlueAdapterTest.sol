@@ -72,8 +72,9 @@ contract MorphoMarketV1AdapterTest is Test {
         marketId = marketParams.id();
         parentVault = new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0));
         factory = new MorphoMarketV1AdapterFactory();
-        adapter =
-            MorphoMarketV1Adapter(factory.createMorphoMarketV1Adapter(address(parentVault), address(morpho), address(irm)));
+        adapter = MorphoMarketV1Adapter(
+            factory.createMorphoMarketV1Adapter(address(parentVault), address(morpho), address(irm))
+        );
 
         expectedIds = new bytes32[](3);
         expectedIds[0] = keccak256(abi.encode("adapter", address(adapter)));
