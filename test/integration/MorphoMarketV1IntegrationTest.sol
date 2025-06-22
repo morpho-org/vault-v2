@@ -4,8 +4,8 @@ pragma solidity ^0.8.0;
 
 import "../BaseTest.sol";
 
-import {MorphoBlueAdapter} from "../../src/adapters/MorphoBlueAdapter.sol";
-import {MorphoBlueAdapterFactory} from "../../src/adapters/MorphoBlueAdapterFactory.sol";
+import {MorphoMarketV1Adapter} from "../../src/adapters/MorphoMarketV1Adapter.sol";
+import {MorphoMarketV1AdapterFactory} from "../../src/adapters/MorphoMarketV1AdapterFactory.sol";
 
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 import {OracleMock} from "../../lib/morpho-blue/src/mocks/OracleMock.sol";
@@ -14,7 +14,7 @@ import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IM
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 
-contract BlueIntegrationTest is BaseTest {
+contract MorphoMarketV1IntegrationTest is BaseTest {
     IMorpho internal morpho;
     ERC20Mock internal collateralToken;
     OracleMock internal oracle;
@@ -22,8 +22,8 @@ contract BlueIntegrationTest is BaseTest {
     MarketParams internal marketParams1;
     MarketParams internal marketParams2;
 
-    MorphoBlueAdapterFactory internal factory;
-    MorphoBlueAdapter internal adapter;
+    MorphoMarketV1AdapterFactory internal factory;
+    MorphoMarketV1Adapter internal adapter;
 
     bytes[] internal expectedIdData1;
     bytes[] internal expectedIdData2;
@@ -72,8 +72,8 @@ contract BlueIntegrationTest is BaseTest {
 
         /* VAULT SETUP */
 
-        factory = new MorphoBlueAdapterFactory();
-        adapter = MorphoBlueAdapter(factory.createMorphoBlueAdapter(address(vault), address(morpho), address(irm)));
+        factory = new MorphoMarketV1AdapterFactory();
+        adapter = MorphoMarketV1Adapter(factory.createMorphoMarketV1Adapter(address(vault), address(morpho), address(irm)));
 
         expectedIdData1 = new bytes[](3);
         expectedIdData1[0] = abi.encode("adapter", address(adapter));

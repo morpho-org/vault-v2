@@ -2,10 +2,10 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./BlueIntegrationTest.sol";
+import "./MorphoMarketV1IntegrationTest.sol";
 import {EventsLib as MorphoEventsLib} from "../../lib/morpho-blue/src/libraries/EventsLib.sol";
 
-contract BlueIntegrationBadDebtTest is BlueIntegrationTest {
+contract MorphoMarketV1IntegrationBadDebtTest is MorphoMarketV1IntegrationTest {
     using MorphoBalancesLib for IMorpho;
     using MarketParamsLib for MarketParams;
 

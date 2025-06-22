@@ -20,7 +20,7 @@ jobs:
           - Invariants
           - Liveness
           - MorphoVaultV1AdapterFactory
-          - MorphoBlueAdapterFactory
+          - MorphoMarketV1AdapterFactory
           - PreviewFunctions
 
     steps:

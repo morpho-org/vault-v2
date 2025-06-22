@@ -111,7 +111,7 @@ contract MorphoVaultIntegrationIkrTest is MorphoVaultIntegrationTest {
         // No assets left as shares in the vault.
         uint256 assetsLeftInVault = vault.previewRedeem(vault.balanceOf(address(this)));
         assertApproxEqAbs(assetsLeftInVault, 0, 1);
-        // Equivalent position in Blue.
+        // Equivalent position in the market.
         uint256 expectedAssets = morpho.expectedSupplyAssets(allMarketParams[0], address(this));
         assertEq(expectedAssets, deallocatedAssets);
     }

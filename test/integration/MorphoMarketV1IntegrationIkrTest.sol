@@ -2,10 +2,10 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./BlueIntegrationTest.sol";
+import "./MorphoMarketV1IntegrationTest.sol";
 import {MathLib} from "../../src/libraries/MathLib.sol";
 
-contract BlueIntegrationIkrTest is BlueIntegrationTest {
+contract MorphoMarketV1IntegrationIkrTest is MorphoMarketV1IntegrationTest {
     using MathLib for uint256;
     using MorphoBalancesLib for IMorpho;
 
@@ -92,7 +92,7 @@ contract BlueIntegrationIkrTest is BlueIntegrationTest {
         // No assets left as shares in the vault.
         uint256 assetsLeftInVault = vault.previewRedeem(vault.balanceOf(address(this)));
         assertApproxEqAbs(assetsLeftInVault, 0, 1);
-        // Equivalent position in Blue.
+        // Equivalent position in the market.
         uint256 expectedAssets = morpho.expectedSupplyAssets(marketParams1, address(this));
         assertEq(expectedAssets, deallocatedAssets);
     }
