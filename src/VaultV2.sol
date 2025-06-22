@@ -480,7 +480,9 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterest() public {
         if (lastUpdate != block.timestamp) {
-            (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+            (uint256 elapsed, uint256 tentativeInterestPerSecond) = vicInterestPerSecond();
+            (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) =
+                _accrueInterestView(elapsed, tentativeInterestPerSecond);
             emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
             _totalAssets = newTotalAssets.toUint192();
             if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
@@ -495,10 +497,16 @@ contract VaultV2 is IVaultV2 {
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     /// @dev The performance and management fees are taken even if the vault incurs some losses.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
-        uint256 elapsed = block.timestamp - lastUpdate;
-        if (elapsed == 0) return (_totalAssets, 0, 0);
+        (uint256 elapsed, uint256 tentativeInterestPerSecond) = vicInterestPerSecondView();
+        return _accrueInterestView(elapsed, tentativeInterestPerSecond);
+    }
 
-        uint256 tentativeInterestPerSecond = vic != address(0) ? IVic(vic).interestPerSecond(_totalAssets, elapsed) : 0;
+    function _accrueInterestView(uint256 elapsed, uint256 tentativeInterestPerSecond)
+        internal
+        view
+        returns (uint256, uint256, uint256)
+    {
+        if (elapsed == 0) return (_totalAssets, 0, 0);
 
         uint256 interestPerSecond = tentativeInterestPerSecond
             <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
@@ -521,6 +529,19 @@ contract VaultV2 is IVaultV2 {
         uint256 managementFeeShares = managementFeeAssets.mulDivDown(totalSupply + 1, newTotalAssetsWithoutFees + 1);
 
         return (newTotalAssets, performanceFeeShares, managementFeeShares);
+    }
+
+    function vicInterestPerSecond() internal returns (uint256, uint256) {
+        uint256 elapsed = block.timestamp - lastUpdate;
+        uint256 tentativeInterestPerSecond = vic != address(0) ? IVic(vic).interestPerSecond(_totalAssets, elapsed) : 0;
+        return (elapsed, tentativeInterestPerSecond);
+    }
+
+    function vicInterestPerSecondView() internal view returns (uint256, uint256) {
+        uint256 elapsed = block.timestamp - lastUpdate;
+        uint256 tentativeInterestPerSecond =
+            vic != address(0) ? IVic(vic).interestPerSecondView(_totalAssets, elapsed) : 0;
+        return (elapsed, tentativeInterestPerSecond);
     }
 
     /// @dev Returns previewed minted shares.

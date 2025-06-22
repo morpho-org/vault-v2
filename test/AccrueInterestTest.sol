@@ -244,4 +244,38 @@ contract AccrueInterestTest is BaseTest {
         assertApproxEqAbs(vault.previewRedeem(vault.balanceOf(managementFeeRecipient)), managementFeeAssets, 100);
         assertApproxEqAbs(vault.previewRedeem(vault.balanceOf(performanceFeeRecipient)), performanceFeeAssets, 100);
     }
+
+    function testAccrueViewAndNonViewSameResultIfVicSameResult(uint256 initialTotalAssets, uint256 result) public {
+        initialTotalAssets = bound(initialTotalAssets, 0, MAX_TEST_ASSETS);
+        result = bound(result, 0, MAX_TEST_ASSETS);
+
+        vm.mockCall(address(vic), IVic.interestPerSecond.selector, abi.encode(result));
+        vm.mockCall(address(vic), IVic.interestPerSecondView.selector, abi.encode(result));
+
+        writeTotalAssets(initialTotalAssets);
+
+        bool nonViewReverted;
+        uint256 nonViewInterest;
+        bool viewReverted;
+        uint256 viewInterest;
+
+        try vault.accrueInterest() {
+            nonViewInterest = vault.totalAssets() - initialTotalAssets;
+        } catch {
+            nonViewReverted = true;
+        }
+
+        try vault.accrueInterestView() returns (
+            uint256 _newTotalAssets, uint256 _performanceFeeShares, uint256 _managementFeeShares
+        ) {
+            _performanceFeeShares;
+            _managementFeeShares;
+            viewInterest = _newTotalAssets - initialTotalAssets;
+        } catch {
+            viewReverted = true;
+        }
+
+        require(viewReverted == nonViewReverted, "mismatched reverts");
+        require(viewInterest == nonViewInterest, "mismatched interests");
+    }
 }
