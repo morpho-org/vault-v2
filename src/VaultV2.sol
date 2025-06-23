@@ -433,7 +433,11 @@ contract VaultV2 is IVaultV2 {
     /* ALLOCATOR FUNCTIONS */
 
     function allocate(address adapter, bytes memory data, uint256 assets) external {
-        require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized());
+        require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
+        allocateInternal(adapter, data, assets);
+    }
+
+    function allocateInternal(address adapter, bytes memory data, uint256 assets) internal {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         updateCurrentContext();
@@ -456,9 +460,11 @@ contract VaultV2 is IVaultV2 {
     }
 
     function deallocate(address adapter, bytes memory data, uint256 assets) external {
-        require(
-            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized()
-        );
+        require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.Unauthorized());
+        deallocateInternal(adapter, data, assets);
+    }
+
+    function deallocateInternal(address adapter, bytes memory data, uint256 assets) internal {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         updateCurrentContext();
@@ -622,7 +628,7 @@ contract VaultV2 is IVaultV2 {
         createShares(onBehalf, shares);
         _totalAssets += assets.toUint192();
         if (liquidityAdapter != address(0)) {
-            this.allocate(liquidityAdapter, liquidityData, assets);
+            allocateInternal(liquidityAdapter, liquidityData, assets);
         }
         emit EventsLib.Deposit(msg.sender, onBehalf, assets, shares);
     }
@@ -654,7 +660,7 @@ contract VaultV2 is IVaultV2 {
 
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
-            this.deallocate(liquidityAdapter, liquidityData, assets - idleAssets);
+            deallocateInternal(liquidityAdapter, liquidityData, assets - idleAssets);
         }
 
         if (msg.sender != onBehalf) {
@@ -683,7 +689,7 @@ contract VaultV2 is IVaultV2 {
         returns (uint256)
     {
         updateCurrentContext();
-        this.deallocate(adapter, data, assets);
+        deallocateInternal(adapter, data, assets);
         uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
         emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf, penaltyAssets);
@@ -805,12 +811,9 @@ contract VaultV2 is IVaultV2 {
     /* CONTEXT HANDLING FUNCTIONS */
 
     function updateCurrentContext() internal {
-        // Ignore self-calls
-        if (msg.sender != address(this)) {
-            // Reentrancy is not allowed.
-            require(currentContext.sender == address(0), ErrorsLib.Reentrancy());
-            currentContext.sender = msg.sender;
-            currentContext.selector = msg.sig;
-        }
+        // Reentrancy is not allowed.
+        require(currentContext.sender == address(0), ErrorsLib.Reentrancy());
+        currentContext.sender = msg.sender;
+        currentContext.selector = msg.sig;
     }
 }

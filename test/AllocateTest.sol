@@ -46,8 +46,6 @@ contract AllocateTest is BaseTest {
         vm.prank(rdm);
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vault.allocate(mockAdapter, data, assets);
-        vm.prank(address(vault));
-        vault.allocate(mockAdapter, hex"", 0);
         vm.prank(allocator);
         vault.allocate(mockAdapter, hex"", 0);
 
@@ -172,8 +170,6 @@ contract AllocateTest is BaseTest {
         vm.prank(allocator);
         vault.deallocate(mockAdapter, hex"", 0);
         vm.prank(sentinel);
-        vault.deallocate(mockAdapter, hex"", 0);
-        vm.prank(address(vault));
         vault.deallocate(mockAdapter, hex"", 0);
 
         // Can't deallocate if not adapter.
