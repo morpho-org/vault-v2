@@ -76,17 +76,14 @@ contract BlueIntegrationTest is BaseTest {
         adapter = MorphoBlueAdapter(factory.createMorphoBlueAdapter(address(vault), address(morpho)));
 
         expectedIdData1 = new bytes[](4);
-        expectedIdData1[0] = abi.encode("primary", address(adapter));
+        expectedIdData1[0] = abi.encode("this", address(adapter));
         expectedIdData1[1] = abi.encode("collateralToken", marketParams1.collateralToken);
-        expectedIdData1[2] = abi.encode(
-            "collateralToken/oracle/lltv", marketParams1.collateralToken, marketParams1.oracle, marketParams1.lltv
-        );
-        expectedIdData1[2] = abi.encode("primary", address(adapter), marketParams1);
+        expectedIdData1[2] = abi.encode("this/marketParams", address(adapter), marketParams1);
 
         expectedIdData2 = new bytes[](4);
-        expectedIdData2[0] = abi.encode("primary", address(adapter));
+        expectedIdData2[0] = abi.encode("this", address(adapter));
         expectedIdData2[1] = abi.encode("collateralToken", marketParams2.collateralToken);
-        expectedIdData2[2] = abi.encode("primary", address(adapter), marketParams2);
+        expectedIdData2[2] = abi.encode("this/marketParams", address(adapter), marketParams2);
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
