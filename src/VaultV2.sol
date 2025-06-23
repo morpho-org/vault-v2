@@ -520,8 +520,10 @@ contract VaultV2 is IVaultV2 {
 
         // Interest should be accrued at least every 10 years to avoid fees exceeding total assets.
         uint256 newTotalAssetsWithoutFees = newTotalAssets - performanceFeeAssets - managementFeeAssets;
-        uint256 performanceFeeShares = performanceFeeAssets.mulDivDown(totalSupply + decimalOffset, newTotalAssetsWithoutFees + 1);
-        uint256 managementFeeShares = managementFeeAssets.mulDivDown(totalSupply + decimalOffset, newTotalAssetsWithoutFees + 1);
+        uint256 performanceFeeShares =
+            performanceFeeAssets.mulDivDown(totalSupply + decimalOffset, newTotalAssetsWithoutFees + 1);
+        uint256 managementFeeShares =
+            managementFeeAssets.mulDivDown(totalSupply + decimalOffset, newTotalAssetsWithoutFees + 1);
 
         return (newTotalAssets, performanceFeeShares, managementFeeShares);
     }
