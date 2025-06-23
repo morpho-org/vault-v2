@@ -730,13 +730,23 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns success (always true because reverts on failure).
     function transfer(address to, uint256 shares) external returns (bool) {
-        _transfer(msg.sender, to, shares);
+        require(to != address(0), ErrorsLib.ZeroAddress());
+
+        require(canSend(msg.sender), ErrorsLib.CannotSend());
+        require(canReceive(to), ErrorsLib.CannotReceive());
+        balanceOf[msg.sender] -= shares;
+        balanceOf[to] += shares;
+        emit EventsLib.Transfer(msg.sender, to, shares);
         return true;
     }
 
     /// @dev Returns success (always true because reverts on failure).
     function transferFrom(address from, address to, uint256 shares) external returns (bool) {
-        _transfer(from, to, shares);
+        require(from != address(0), ErrorsLib.ZeroAddress());
+        require(to != address(0), ErrorsLib.ZeroAddress());
+
+        require(canSend(from), ErrorsLib.CannotSend());
+        require(canReceive(to), ErrorsLib.CannotReceive());
 
         if (msg.sender != from) {
             uint256 _allowance = allowance[from][msg.sender];
@@ -746,18 +756,11 @@ contract VaultV2 is IVaultV2 {
             }
         }
 
-        return true;
-    }
-
-    function _transfer(address from, address to, uint256 shares) internal {
-        require(from != address(0), ErrorsLib.ZeroAddress());
-        require(to != address(0), ErrorsLib.ZeroAddress());
-        require(canSend(from), ErrorsLib.CannotSend());
-        require(canReceive(to), ErrorsLib.CannotReceive());
-
         balanceOf[from] -= shares;
         balanceOf[to] += shares;
         emit EventsLib.Transfer(from, to, shares);
+
+        return true;
     }
 
     /// @dev Returns success (always true because reverts on failure).
