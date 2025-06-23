@@ -11,7 +11,7 @@ import {MathLib} from "../libraries/MathLib.sol";
 
 /// @dev Designed, developped and audited for Morpho Vaults (v1.0 and v1.1). Integration with other vaults must be
 /// carefully assessed from a security standpoint.
-/// @dev Morpho Vaults v1 and v1.1 are formerly known as MetaMorpho.
+/// @dev Morpho Vaults v1 and v1.1 are also known as MetaMorpho v1 and v1.1.
 /// @dev Morpho Vaults v1.1 vaults do not realize bad debt, so vaults V2 supplying in them will not realize the
 /// corresponding bad debt.
 contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
