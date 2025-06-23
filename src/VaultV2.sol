@@ -64,7 +64,7 @@ contract VaultV2 is IVaultV2 {
 
     /* TRANSIENT STORAGE */
 
-    CurrentContext public currentContext;
+    CurrentContext public transient currentContext;
 
     /* ROLES STORAGE */
 
