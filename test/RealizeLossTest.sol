@@ -6,33 +6,8 @@ import "./BaseTest.sol";
 
 uint256 constant MAX_TEST_AMOUNT = 1e36;
 
-contract MockAdapter is IAdapter {
-    bytes32[] public ids;
-    uint256 public loss;
-
-    function setIds(bytes32[] memory _ids) external {
-        ids = _ids;
-    }
-
-    function setLoss(uint256 _loss) external {
-        loss = _loss;
-    }
-
-    function allocate(bytes memory, uint256) external view returns (bytes32[] memory, uint256) {
-        return (ids, 0);
-    }
-
-    function deallocate(bytes memory, uint256) external view returns (bytes32[] memory, uint256) {
-        return (ids, 0);
-    }
-
-    function realizeLoss(bytes memory) external view returns (bytes32[] memory, uint256) {
-        return (ids, loss);
-    }
-}
-
 contract RealizeLossTest is BaseTest {
-    MockAdapter internal adapter;
+    AdapterMock internal adapter;
     bytes internal idData;
     bytes32 internal id;
     bytes32[] internal expectedIds;
@@ -40,7 +15,7 @@ contract RealizeLossTest is BaseTest {
     function setUp() public override {
         super.setUp();
 
-        adapter = new MockAdapter();
+        adapter = new AdapterMock(address(0));
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
@@ -149,12 +124,8 @@ contract RealizeLossTest is BaseTest {
         vault.setIsAdapter(address(adapter), true);
         vm.prank(allocator);
         vault.setLiquidityMarket(address(adapter), hex"");
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, deposit)));
-        vault.increaseAbsoluteCap(idData, deposit);
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, WAD)));
-        vault.increaseRelativeCap(idData, WAD);
+        increaseAbsoluteCap(idData, deposit);
+        increaseRelativeCap(idData, WAD);
 
         vault.deposit(deposit, address(this));
         assertEq(vault.allocation(id), deposit, "allocation should be equal to the deposit");

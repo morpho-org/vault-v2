@@ -9,6 +9,9 @@ import {IERC20} from "../../src/interfaces/IERC20.sol";
 contract AdapterMock is IAdapter {
     address public immutable vault;
 
+    bytes32[] public _ids;
+    uint256 public loss;
+
     bytes public recordedAllocateData;
     uint256 public recordedAllocateAssets;
 
@@ -17,7 +20,20 @@ contract AdapterMock is IAdapter {
 
     constructor(address _vault) {
         vault = _vault;
-        IERC20(IVaultV2(_vault).asset()).approve(_vault, type(uint256).max);
+        if (_vault != address(0)) {
+            IERC20(IVaultV2(_vault).asset()).approve(_vault, type(uint256).max);
+        }
+
+        _ids.push(keccak256("id-0"));
+        _ids.push(keccak256("id-1"));
+    }
+
+    function setIds(bytes32[] memory newIds) external {
+        _ids = newIds;
+    }
+
+    function setLoss(uint256 _loss) external {
+        loss = _loss;
     }
 
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
@@ -32,14 +48,11 @@ contract AdapterMock is IAdapter {
         return (ids(), 0);
     }
 
-    function realizeLoss(bytes memory) external pure returns (bytes32[] memory, uint256) {
-        return (ids(), 0);
+    function realizeLoss(bytes memory) external view returns (bytes32[] memory, uint256) {
+        return (ids(), loss);
     }
 
-    function ids() internal pure returns (bytes32[] memory) {
-        bytes32[] memory _ids = new bytes32[](2);
-        _ids[0] = keccak256("id-0");
-        _ids[1] = keccak256("id-1");
+    function ids() internal view returns (bytes32[] memory) {
         return _ids;
     }
 }
