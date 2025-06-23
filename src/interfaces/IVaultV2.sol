@@ -13,11 +13,6 @@ struct Caps {
     uint128 relativeCap;
 }
 
-struct CurrentContext {
-    address sender;
-    bytes4 selector;
-}
-
 interface IVaultV2 is IERC4626, IPermissionedToken, IERC2612 {
     // Storage variables
     function owner() external view returns (address);

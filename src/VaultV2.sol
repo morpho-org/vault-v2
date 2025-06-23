@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.28;
 
-import {IVaultV2, IERC20, Caps, CurrentContext} from "./interfaces/IVaultV2.sol";
+import {IVaultV2, IERC20, Caps} from "./interfaces/IVaultV2.sol";
 import {IAdapter} from "./interfaces/IAdapter.sol";
 import {IVic} from "./interfaces/IVic.sol";
 
@@ -64,7 +64,8 @@ contract VaultV2 is IVaultV2 {
 
     /* TRANSIENT STORAGE */
 
-    CurrentContext public transient currentContext;
+    address public transient currentSender;
+    bytes4 public transient currentSelector;
 
     /* ROLES STORAGE */
 
@@ -188,7 +189,7 @@ contract VaultV2 is IVaultV2 {
     function multicall(bytes[] calldata data) external {
         for (uint256 i = 0; i < data.length; i++) {
             (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
-            delete currentContext;
+            unsetCurrentContext();
             if (!success) {
                 assembly ("memory-safe") {
                     revert(add(32, returnData), mload(returnData))
@@ -440,11 +441,12 @@ contract VaultV2 is IVaultV2 {
     function allocateInternal(address adapter, bytes memory data, uint256 assets) internal {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        updateCurrentContext();
         accrueInterest();
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
+        setCurrentContext();
         (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).allocate(data, assets);
+        unsetCurrentContext();
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
@@ -467,10 +469,11 @@ contract VaultV2 is IVaultV2 {
     function deallocateInternal(address adapter, bytes memory data, uint256 assets) internal {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        updateCurrentContext();
         accrueInterest();
 
+        setCurrentContext();
         (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets);
+        unsetCurrentContext();
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
@@ -616,7 +619,6 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
-        updateCurrentContext();
         require(!enterBlocked, ErrorsLib.EnterBlocked());
         require(canReceive(onBehalf), ErrorsLib.CannotReceive());
         require(
@@ -651,7 +653,6 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for withdraw and redeem.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
-        updateCurrentContext();
         require(canSend(onBehalf), ErrorsLib.CannotSend());
         require(
             receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(receiver),
@@ -688,7 +689,6 @@ contract VaultV2 is IVaultV2 {
         external
         returns (uint256)
     {
-        updateCurrentContext();
         deallocateInternal(adapter, data, assets);
         uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
@@ -697,12 +697,13 @@ contract VaultV2 is IVaultV2 {
     }
 
     function realizeLoss(address adapter, bytes memory data) external {
-        updateCurrentContext();
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
 
+        setCurrentContext();
         (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).realizeLoss(data);
+        unsetCurrentContext();
 
         uint256 incentiveShares;
         if (loss > 0) {
@@ -813,8 +814,15 @@ contract VaultV2 is IVaultV2 {
 
     /* CONTEXT HANDLING FUNCTIONS */
 
-    function updateCurrentContext() internal {
-        currentContext.sender = msg.sender;
-        currentContext.selector = msg.sig;
+    function setCurrentContext() internal {
+        // Reentrancy is not allowed.
+        require(currentSender == address(0), ErrorsLib.Reentrancy());
+        currentSender = msg.sender;
+        currentSelector = msg.sig;
+    }
+
+    function unsetCurrentContext() internal {
+        currentSender = address(0);
+        currentSelector = bytes4(0);
     }
 }
