@@ -94,23 +94,16 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
         vault.setIsAdapter(address(adapter), true);
 
-        increaseAbsoluteAndRelativeCapToMax(expectedIdData1[0]);
-        increaseAbsoluteAndRelativeCapToMax(expectedIdData1[1]);
-        increaseAbsoluteAndRelativeCapToMax(expectedIdData1[2]);
-        // expectedIdData2[0] and expectedIdData2[1] are the same as expectedIdData1[0] and expectedIdData1[1]
-        increaseAbsoluteAndRelativeCapToMax(expectedIdData2[2]);
+        increaseAbsoluteCap(expectedIdData1[0], type(uint128).max);
+        increaseRelativeCap(expectedIdData1[0], WAD);
+        increaseAbsoluteCap(expectedIdData1[1], type(uint128).max);
+        increaseRelativeCap(expectedIdData1[1], WAD);
+        increaseAbsoluteCap(expectedIdData1[2], type(uint128).max);
+        increaseRelativeCap(expectedIdData1[2], WAD);
+        increaseAbsoluteCap(expectedIdData2[2], type(uint128).max);
+        increaseRelativeCap(expectedIdData2[2], WAD);
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
-    }
-
-    function increaseAbsoluteAndRelativeCapToMax(bytes memory idData) internal {
-        vm.startPrank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
-        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, WAD)));
-        vm.stopPrank();
-
-        vault.increaseAbsoluteCap(idData, type(uint128).max);
-        vault.increaseRelativeCap(idData, WAD);
     }
 }
