@@ -31,6 +31,10 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - They must return the right ids on allocate/deallocate.
 /// - After a call to deallocate, the vault must have an approval to transfer at least `assets` from the adapter.
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
+/// - Returned ids do not repeat.
+/// - They ignore donations of shares in their respective markets.
+/// - They return at least one id unique to themselves. When applicable, ids returned by adapters are fine-grained
+/// enough to prevent the vault from interacting with unknown external contracts.
 /// @dev Liquidity market:
 /// - `liquidityAdapter` is allocated to on deposit/mint, and deallocated from on withdraw/redeem if idle assets don't
 /// cover the withdraw.
@@ -44,14 +48,12 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - It should not re-enter the vault on `transfer` nor `transferFrom`.
 /// - The balance of the sender (resp. receiver) should decrease (resp. increase) by exactly the given amount on
 /// `transfer` and `transferFrom`. In particular, tokens with fees on transfer are not supported.
-/// @dev List of assumptions that guarantees the vault's liveness properties:
+/// @dev List of assumptions that guarantees the vault's correct functioning:
 /// - The token should not revert on `transfer` and `transferFrom` if balances and approvals are right.
 /// - The token should not revert on `transfer` to self.
 /// - totalAssets and totalSupply must stay below ~10^35.
 /// - The vault is pinged more than once every 10 years.
 /// - Adapters must not revert on `deallocate` if the underlying markets are liquid.
-/// - Returned ids do not repeat.
-/// - Adapters ignore donations of shares in their respective markets.
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
 /// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
 contract VaultV2 is IVaultV2 {
