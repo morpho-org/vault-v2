@@ -370,8 +370,7 @@ contract MorphoBlueAdapterTest is Test {
 
         // Deposit some assets
         deal(address(loanToken), address(adapter), deposit * 2);
-        vm.prank(address(parentVault));
-        adapter.allocate(abi.encode(marketParams), deposit);
+        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
 
         uint256 sharesInMarket = MorphoLib.supplyShares(morpho, marketId, address(adapter));
         assertEq(adapter.shares(marketId), sharesInMarket, "shares not recorded");
