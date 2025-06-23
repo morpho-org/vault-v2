@@ -12,13 +12,6 @@ import {IMorphoBlueAdapter} from "./interfaces/IMorphoBlueAdapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 
-/// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
-/// @dev `allocation` are the share's value without taking into account unrealized losses.
-struct Position {
-    uint128 shares;
-    uint128 allocation;
-}
-
 contract MorphoBlueAdapter is IMorphoBlueAdapter {
     using MathLib for uint256;
     using SharesMathLib for uint256;
@@ -36,7 +29,8 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /* STORAGE */
 
     address public skimRecipient;
-    mapping(Id => Position) internal position;
+    /// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
+    mapping(Id => uint256) public shares;
 
     /* FUNCTIONS */
 
@@ -48,14 +42,6 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         adapterId = keccak256(abi.encode("this", address(this)));
         SafeERC20Lib.safeApprove(asset, _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
-    }
-
-    function allocation(Id marketId) external view returns (uint256) {
-        return position[marketId].allocation;
-    }
-
-    function shares(Id marketId) external view returns (uint256) {
-        return position[marketId].shares;
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -77,21 +63,19 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /// @dev Returns the ids of the allocation and the potential loss.
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Position storage _position = position[marketParams.id()];
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
 
-        uint256 interest = expectedSupplyAssets(marketParams, _position.shares).zeroFloorSub(_position.allocation);
+        uint256 interest =
+            expectedSupplyAssets(marketParams, shares[marketParams.id()]).zeroFloorSub(allocation(marketParams));
 
         if (assets > 0) {
             (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-            _position.shares += uint128(mintedShares);
+            shares[marketParams.id()] += mintedShares;
         }
-
-        _position.allocation = uint128(_position.allocation + interest + assets);
 
         return (ids(marketParams), interest);
     }
@@ -100,35 +84,34 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
     /// @dev Returns the ids of the deallocation and the potential loss.
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Position storage _position = position[marketParams.id()];
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
 
-        uint256 interest = expectedSupplyAssets(marketParams, _position.shares).zeroFloorSub(_position.allocation);
+        uint256 interest =
+            expectedSupplyAssets(marketParams, shares[marketParams.id()]).zeroFloorSub(allocation(marketParams));
 
         if (assets > 0) {
             (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-            _position.shares -= uint128(redeemedShares);
+            shares[marketParams.id()] -= redeemedShares;
         }
-
-        _position.allocation = uint128(_position.allocation + interest - assets);
 
         return (ids(marketParams), interest);
     }
 
-    function realizeLoss(bytes memory data) external returns (bytes32[] memory, uint256) {
+    function realizeLoss(bytes memory data) external view returns (bytes32[] memory, uint256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Position storage _position = position[marketParams.id()];
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 assetsInMarket = expectedSupplyAssets(marketParams, _position.shares);
-        uint256 loss = _position.allocation - assetsInMarket;
-        _position.allocation = uint128(assetsInMarket);
+        uint256 loss = allocation(marketParams) - expectedSupplyAssets(marketParams, shares[marketParams.id()]);
 
         return (ids(marketParams), loss);
+    }
+
+    function allocation(MarketParams memory marketParams) public view returns (uint256) {
+        return IVaultV2(parentVault).allocation(keccak256(abi.encode("this/marketParams", address(this), marketParams)));
     }
 
     /// @dev Returns adapter's ids.
