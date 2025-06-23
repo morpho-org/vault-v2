@@ -9,7 +9,7 @@ interface IMorphoBlueAdapterFactory {
 
     /* FUNCTIONS */
 
-    function morphoBlueAdapter(address parentVault, address morpho, address irm) external view returns (address);
+    function morphoBlueAdapter(address parentVault, address morpho) external view returns (address);
     function isMorphoBlueAdapter(address account) external view returns (bool);
-    function createMorphoBlueAdapter(address parentVault, address morpho, address irm) external returns (address);
+    function createMorphoBlueAdapter(address parentVault, address morpho) external returns (address);
 }

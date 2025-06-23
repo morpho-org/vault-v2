@@ -119,7 +119,7 @@ contract MMIntegrationTest is BaseTest {
         metaMorphoAdapter =
             MetaMorphoAdapter(metaMorphoAdapterFactory.createMetaMorphoAdapter(address(vault), address(metaMorpho)));
 
-        bytes memory idData = abi.encode("adapter", address(metaMorphoAdapter));
+        bytes memory idData = abi.encode("primary", address(metaMorphoAdapter));
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(metaMorphoAdapter), true)));
         vault.setIsAdapter(address(metaMorphoAdapter), true);

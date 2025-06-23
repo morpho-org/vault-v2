@@ -47,7 +47,7 @@ contract MetaMorphoAdapterTest is Test {
         asset.approve(address(metaMorpho), type(uint256).max);
 
         expectedIds = new bytes32[](1);
-        expectedIds[0] = keccak256(abi.encode("adapter", address(adapter)));
+        expectedIds[0] = keccak256(abi.encode("primary", address(adapter)));
     }
 
     function testFactoryAndParentVaultAndAssetSet() public view {

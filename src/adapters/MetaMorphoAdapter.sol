@@ -37,7 +37,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         factory = msg.sender;
         parentVault = _parentVault;
         metaMorpho = _metaMorpho;
-        adapterId = keccak256(abi.encode("adapter", address(this)));
+        adapterId = keccak256(abi.encode("primary", address(this)));
         address asset = IVaultV2(_parentVault).asset();
         require(asset == IERC4626(_metaMorpho).asset(), AssetMismatch());
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
