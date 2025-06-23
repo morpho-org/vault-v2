@@ -33,6 +33,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
 /// - Returned ids do not repeat.
 /// - They ignore donations of shares in their respective markets.
+/// @dev Ids being reused by multiple adapters are useful to do "cross-caps". Adapters can add "this" to an id to avoid
+/// it being re-used by other adapters.
 /// @dev Liquidity market:
 /// - `liquidityAdapter` is allocated to on deposit/mint, and deallocated from on withdraw/redeem if idle assets don't
 /// cover the withdraw.
