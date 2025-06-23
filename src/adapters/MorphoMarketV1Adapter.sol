@@ -19,6 +19,7 @@ struct Position {
     uint128 allocation;
 }
 
+/// @dev Morpho Market v1 is also known as Morpho Blue.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MathLib for uint256;
     using SharesMathLib for uint256;
