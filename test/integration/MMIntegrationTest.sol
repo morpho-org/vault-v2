@@ -119,16 +119,13 @@ contract MMIntegrationTest is BaseTest {
         metaMorphoAdapter =
             MetaMorphoAdapter(metaMorphoAdapterFactory.createMetaMorphoAdapter(address(vault), address(metaMorpho)));
 
-        bytes memory idData = abi.encode("adapter", address(metaMorphoAdapter));
-        vm.startPrank(curator);
+        bytes memory idData = abi.encode("this", address(metaMorphoAdapter));
+        vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(metaMorphoAdapter), true)));
-        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
-        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
-        vm.stopPrank();
-
         vault.setIsAdapter(address(metaMorphoAdapter), true);
-        vault.increaseAbsoluteCap(idData, type(uint128).max);
-        vault.increaseRelativeCap(idData, 1e18);
+
+        increaseAbsoluteCap(idData, type(uint128).max);
+        increaseRelativeCap(idData, 1e18);
 
         // Approval.
         deal(address(underlyingToken), address(this), type(uint256).max);

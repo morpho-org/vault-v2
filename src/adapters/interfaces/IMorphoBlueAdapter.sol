@@ -3,7 +3,7 @@
 pragma solidity >=0.5.0;
 
 import {IAdapter} from "../../interfaces/IAdapter.sol";
-import {Id} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {Id, MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 interface IMorphoBlueAdapter is IAdapter {
     /* EVENTS */
@@ -13,7 +13,6 @@ interface IMorphoBlueAdapter is IAdapter {
 
     /* ERRORS */
 
-    error IrmMismatch();
     error LoanAssetMismatch();
     error NotAuthorized();
 
@@ -22,10 +21,9 @@ interface IMorphoBlueAdapter is IAdapter {
     function factory() external view returns (address);
     function parentVault() external view returns (address);
     function morpho() external view returns (address);
-    function irm() external view returns (address);
     function skimRecipient() external view returns (address);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
-    function allocation(Id marketId) external view returns (uint256);
     function shares(Id marketId) external view returns (uint256);
+    function allocation(MarketParams memory marketParams) external view returns (uint256);
 }

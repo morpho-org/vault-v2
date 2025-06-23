@@ -26,8 +26,6 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     /* STORAGE */
 
     address public skimRecipient;
-    /// @dev `allocation` are the share's value without taking into account unrealized losses.
-    uint128 public allocation;
     /// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
     uint128 public shares;
 
@@ -37,7 +35,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         factory = msg.sender;
         parentVault = _parentVault;
         metaMorpho = _metaMorpho;
-        adapterId = keccak256(abi.encode("adapter", address(this)));
+        adapterId = keccak256(abi.encode("this", address(this)));
         address asset = IVaultV2(_parentVault).asset();
         require(asset == IERC4626(_metaMorpho).asset(), AssetMismatch());
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
@@ -68,12 +66,9 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(allocation);
+        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(allocation());
 
         if (assets > 0) shares += IERC4626(metaMorpho).deposit(assets, address(this)).toUint128();
-
-        // Safe cast since the vault's absolute cap fits in 128 bits.
-        allocation = uint128(allocation + interest + assets);
 
         return (ids(), interest);
     }
@@ -86,24 +81,19 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
 
         // To accrue interest only one time.
         IERC4626(metaMorpho).deposit(0, address(this));
-        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(allocation);
+        uint256 interest = IERC4626(metaMorpho).previewRedeem(shares).zeroFloorSub(allocation());
 
         // Safe cast since shares fits in 128 bits.
         if (assets > 0) shares -= uint128(IERC4626(metaMorpho).withdraw(assets, address(this), address(this)));
 
-        allocation = (allocation + interest - assets).toUint128();
-
         return (ids(), interest);
     }
 
-    function realizeLoss(bytes memory data) external returns (bytes32[] memory, uint256) {
-        require(msg.sender == parentVault, NotAuthorized());
+    function realizeLoss(bytes memory data) external view returns (bytes32[] memory, uint256) {
         require(data.length == 0, InvalidData());
+        require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 assets = IERC4626(metaMorpho).previewRedeem(shares);
-        uint256 loss = allocation - assets;
-        // Safe cast since allocation fits in 128 bits and assets<allocation.
-        allocation = uint128(assets);
+        uint256 loss = allocation() - IERC4626(metaMorpho).previewRedeem(shares);
 
         return (ids(), loss);
     }
@@ -113,5 +103,9 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         bytes32[] memory ids_ = new bytes32[](1);
         ids_[0] = adapterId;
         return ids_;
+    }
+
+    function allocation() public view returns (uint256) {
+        return IVaultV2(parentVault).allocation(ids()[0]);
     }
 }

@@ -72,17 +72,12 @@ contract MorphoBlueAdapterTest is Test {
         marketId = marketParams.id();
         parentVault = new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0));
         factory = new MorphoBlueAdapterFactory();
-        adapter =
-            MorphoBlueAdapter(factory.createMorphoBlueAdapter(address(parentVault), address(morpho), address(irm)));
+        adapter = MorphoBlueAdapter(factory.createMorphoBlueAdapter(address(parentVault), address(morpho)));
 
         expectedIds = new bytes32[](3);
-        expectedIds[0] = keccak256(abi.encode("adapter", address(adapter)));
+        expectedIds[0] = keccak256(abi.encode("this", address(adapter)));
         expectedIds[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
-        expectedIds[2] = keccak256(
-            abi.encode(
-                "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
-            )
-        );
+        expectedIds[2] = keccak256(abi.encode("this/marketParams", address(adapter), marketParams));
     }
 
     function _boundAssets(uint256 assets) internal pure returns (uint256) {
@@ -129,10 +124,10 @@ contract MorphoBlueAdapterTest is Test {
         assets = _boundAssets(assets);
         deal(address(loanToken), address(adapter), assets);
 
-        vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 interest) = adapter.allocate(abi.encode(marketParams), assets);
+        (bytes32[] memory ids, uint256 interest) =
+            parentVault.allocateMocked(address(adapter), abi.encode(marketParams), assets);
 
-        assertEq(adapter.allocation(marketId), assets, "Incorrect allocation");
+        assertEq(adapter.allocation(marketParams), assets, "Incorrect allocation");
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), assets, "Incorrect assets in Morpho");
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
         assertEq(ids, expectedIds, "Incorrect ids returned");
@@ -144,17 +139,16 @@ contract MorphoBlueAdapterTest is Test {
         withdrawAssets = bound(withdrawAssets, 1, initialAssets);
 
         deal(address(loanToken), address(adapter), initialAssets);
-        vm.prank(address(parentVault));
-        adapter.allocate(abi.encode(marketParams), initialAssets);
+        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), initialAssets);
 
         uint256 beforeSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(beforeSupply, initialAssets, "Precondition failed: supply not set");
 
-        vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 interest) = adapter.deallocate(abi.encode(marketParams), withdrawAssets);
+        (bytes32[] memory ids, uint256 interest) =
+            parentVault.deallocateMocked(address(adapter), abi.encode(marketParams), withdrawAssets);
 
         assertEq(interest, 0, "Interest should be zero");
-        assertEq(adapter.allocation(marketId), initialAssets - withdrawAssets, "Incorrect allocation");
+        assertEq(adapter.allocation(marketParams), initialAssets - withdrawAssets, "Incorrect allocation");
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
         assertEq(loanToken.balanceOf(address(adapter)), withdrawAssets, "Adapter did not receive withdrawn tokens");
@@ -166,23 +160,20 @@ contract MorphoBlueAdapterTest is Test {
         address newParentVaultAddr =
             address(new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0)));
 
-        bytes32 initCodeHash = keccak256(
-            abi.encodePacked(type(MorphoBlueAdapter).creationCode, abi.encode(newParentVaultAddr, morpho, irm))
-        );
+        bytes32 initCodeHash =
+            keccak256(abi.encodePacked(type(MorphoBlueAdapter).creationCode, abi.encode(newParentVaultAddr, morpho)));
         address expectedNewAdapter =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
         emit IMorphoBlueAdapterFactory.CreateMorphoBlueAdapter(newParentVaultAddr, expectedNewAdapter);
 
-        address newAdapter = factory.createMorphoBlueAdapter(newParentVaultAddr, address(morpho), address(irm));
+        address newAdapter = factory.createMorphoBlueAdapter(newParentVaultAddr, address(morpho));
 
         assertTrue(newAdapter != address(0), "Adapter not created");
         assertEq(MorphoBlueAdapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
         assertEq(MorphoBlueAdapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
         assertEq(
-            factory.morphoBlueAdapter(newParentVaultAddr, address(morpho), address(irm)),
-            newAdapter,
-            "Adapter not tracked correctly"
+            factory.morphoBlueAdapter(newParentVaultAddr, address(morpho)), newAdapter, "Adapter not tracked correctly"
         );
         assertTrue(factory.isMorphoBlueAdapter(newAdapter), "Adapter not tracked correctly");
     }
@@ -232,14 +223,12 @@ contract MorphoBlueAdapterTest is Test {
 
         // Setup
         deal(address(loanToken), address(adapter), deposit);
-        vm.prank(address(parentVault));
-        adapter.allocate(abi.encode(marketParams), deposit);
+        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
         _overrideMarketTotalSupplyAssets(2);
 
         // Realize loss.
-        vm.prank(address(parentVault));
         vm.expectRevert(stdError.arithmeticError);
-        adapter.realizeLoss(abi.encode(marketParams));
+        parentVault.realizeLossMocked(address(adapter), abi.encode(marketParams));
     }
 
     function testLossRealizationZero(uint256 deposit) public {
@@ -247,15 +236,13 @@ contract MorphoBlueAdapterTest is Test {
 
         // Setup.
         deal(address(loanToken), address(adapter), deposit);
-        vm.prank(address(parentVault));
-        adapter.allocate(abi.encode(marketParams), deposit);
+        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
 
         // Realize loss.
-        vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
+        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), abi.encode(marketParams));
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, 0, "loss");
-        assertEq(adapter.allocation(marketId), deposit, "allocation");
+        assertEq(adapter.allocation(marketParams), deposit, "allocation");
     }
 
     function testLossRealization(uint256 deposit, uint256 _loss) public {
@@ -264,16 +251,14 @@ contract MorphoBlueAdapterTest is Test {
 
         // Setup.
         deal(address(loanToken), address(adapter), deposit);
-        vm.prank(address(parentVault));
-        adapter.allocate(abi.encode(marketParams), deposit);
+        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
         _overrideMarketTotalSupplyAssets(-int256(_loss));
 
         // Realize loss.
-        vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
+        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), abi.encode(marketParams));
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, _loss, "loss");
-        assertEq(adapter.allocation(marketId), deposit - _loss, "allocation");
+        assertEq(adapter.allocation(marketParams), deposit - _loss, "allocation");
     }
 
     function testLossRealizationAfterAllocate(uint256 deposit1, uint256 _loss, uint256 deposit2) public {
@@ -283,20 +268,17 @@ contract MorphoBlueAdapterTest is Test {
 
         // Setup.
         deal(address(loanToken), address(adapter), deposit1 + deposit2);
-        vm.prank(address(parentVault));
-        adapter.allocate(abi.encode(marketParams), deposit1);
+        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit1);
         _overrideMarketTotalSupplyAssets(-int256(_loss));
 
         // Allocate.
-        vm.prank(address(parentVault));
-        adapter.allocate(abi.encode(marketParams), deposit2);
+        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit2);
 
         // Realize loss.
-        vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
+        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), abi.encode(marketParams));
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, _loss, "loss");
-        assertEq(adapter.allocation(marketId), deposit1 - _loss + deposit2, "allocation");
+        assertEq(adapter.allocation(marketParams), deposit1 - _loss + deposit2, "allocation");
     }
 
     function testLossRealizationAfterDeallocate(uint256 initial, uint256 _loss, uint256 withdraw) public {
@@ -306,20 +288,17 @@ contract MorphoBlueAdapterTest is Test {
 
         // Setup.
         deal(address(loanToken), address(adapter), initial);
-        vm.prank(address(parentVault));
-        adapter.allocate(abi.encode(marketParams), initial);
+        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), initial);
         _overrideMarketTotalSupplyAssets(-int256(_loss));
 
         // Deallocate.
-        vm.prank(address(parentVault));
-        adapter.deallocate(abi.encode(marketParams), withdraw);
+        parentVault.deallocateMocked(address(adapter), abi.encode(marketParams), withdraw);
 
         // Realize loss.
-        vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
+        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), abi.encode(marketParams));
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, _loss, "loss");
-        assertEq(adapter.allocation(marketId), initial - _loss - withdraw, "allocation");
+        assertEq(adapter.allocation(marketParams), initial - _loss - withdraw, "allocation");
     }
 
     function testLossRealizationAfterInterest(uint256 deposit, uint256 _loss, uint256 interest) public {
@@ -329,34 +308,20 @@ contract MorphoBlueAdapterTest is Test {
 
         // Setup.
         deal(address(loanToken), address(adapter), deposit + interest);
-        vm.prank(address(parentVault));
-        adapter.allocate(abi.encode(marketParams), deposit);
+        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
         uint256 expectedSupplyBefore = morpho.expectedSupplyAssets(marketParams, address(adapter));
         _overrideMarketTotalSupplyAssets(-int256(_loss));
 
         // Interest covers the loss.
         _overrideMarketTotalSupplyAssets(int256(interest));
         uint256 expectedSupplyAfter = morpho.expectedSupplyAssets(marketParams, address(adapter));
-        vm.prank(address(parentVault));
         if (expectedSupplyAfter > expectedSupplyBefore) vm.expectRevert(stdError.arithmeticError);
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(abi.encode(marketParams));
+        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), abi.encode(marketParams));
         if (_loss >= interest) {
             assertEq(ids, expectedIds, "ids");
             assertEq(loss, _loss - interest, "loss");
-            assertApproxEqAbs(adapter.allocation(marketId), deposit - _loss + interest, 1, "allocation");
+            assertApproxEqAbs(adapter.allocation(marketParams), deposit - _loss + interest, 1, "allocation");
         }
-    }
-
-    function testWrongIrm(address randomIrm) public {
-        vm.assume(randomIrm != address(irm));
-        marketParams.irm = randomIrm;
-        vm.expectRevert(IMorphoBlueAdapter.IrmMismatch.selector);
-        vm.prank(address(parentVault));
-        adapter.allocate(abi.encode(marketParams), 0);
-
-        vm.prank(address(parentVault));
-        vm.expectRevert(IMorphoBlueAdapter.IrmMismatch.selector);
-        adapter.deallocate(abi.encode(marketParams), 0);
     }
 
     function _overrideMarketTotalSupplyAssets(int256 change) internal {
@@ -420,9 +385,8 @@ contract MorphoBlueAdapterTest is Test {
         vm.stopPrank();
 
         // Test no impact on allocation
-        uint256 oldallocation = adapter.allocation(marketId);
-        vm.prank(address(parentVault));
-        adapter.allocate(abi.encode(marketParams), deposit);
-        assertEq(adapter.allocation(marketId), oldallocation + deposit, "assets have changed");
+        uint256 oldallocation = adapter.allocation(marketParams);
+        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
+        assertEq(adapter.allocation(marketParams), oldallocation + deposit, "assets have changed");
     }
 }

@@ -32,6 +32,8 @@ contract BaseTest is Test {
     ManualVic vic;
 
     bytes[] bundle;
+    bytes32[] expectedIds;
+    bytes[] expectedIdData;
 
     function setUp() public virtual {
         vm.label(address(this), "testContract");
@@ -60,6 +62,14 @@ contract BaseTest is Test {
 
         vault.setIsAllocator(allocator, true);
         vault.setVic(address(vic));
+
+        expectedIds = new bytes32[](2);
+        expectedIds[0] = keccak256("id-0");
+        expectedIds[1] = keccak256("id-1");
+
+        expectedIdData = new bytes[](2);
+        expectedIdData[0] = "id-0";
+        expectedIdData[1] = "id-1";
     }
 
     function writeTotalAssets(uint256 newTotalAssets) internal {
@@ -70,19 +80,17 @@ contract BaseTest is Test {
     }
 
     function increaseAbsoluteCap(bytes memory idData, uint256 absoluteCap) internal {
-        bytes32 id = keccak256(idData);
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, absoluteCap)));
         vault.increaseAbsoluteCap(idData, absoluteCap);
-        assertEq(vault.absoluteCap(id), absoluteCap);
+        assertEq(vault.absoluteCap(keccak256(idData)), absoluteCap);
     }
 
     function increaseRelativeCap(bytes memory idData, uint256 relativeCap) internal {
-        bytes32 id = keccak256(idData);
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, relativeCap)));
         vault.increaseRelativeCap(idData, relativeCap);
-        assertEq(vault.relativeCap(id), relativeCap);
+        assertEq(vault.relativeCap(keccak256(idData)), relativeCap);
     }
 }
 
