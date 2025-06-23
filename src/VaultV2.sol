@@ -814,8 +814,6 @@ contract VaultV2 is IVaultV2 {
     /* CONTEXT HANDLING FUNCTIONS */
 
     function updateCurrentContext() internal {
-        // Reentrancy is not allowed.
-        require(currentContext.sender == address(0), ErrorsLib.Reentrancy());
         currentContext.sender = msg.sender;
         currentContext.selector = msg.sig;
     }
