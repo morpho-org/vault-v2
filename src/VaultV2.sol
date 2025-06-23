@@ -438,6 +438,7 @@ contract VaultV2 is IVaultV2 {
         require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized());
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
+        updateCurrentContext();
         accrueInterest();
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
@@ -462,6 +463,7 @@ contract VaultV2 is IVaultV2 {
         );
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
+        updateCurrentContext();
         accrueInterest();
 
         (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets);
