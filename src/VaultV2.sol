@@ -734,6 +734,7 @@ contract VaultV2 is IVaultV2 {
 
         require(canSend(msg.sender), ErrorsLib.CannotSend());
         require(canReceive(to), ErrorsLib.CannotReceive());
+
         balanceOf[msg.sender] -= shares;
         balanceOf[to] += shares;
         emit EventsLib.Transfer(msg.sender, to, shares);
@@ -759,7 +760,6 @@ contract VaultV2 is IVaultV2 {
         balanceOf[from] -= shares;
         balanceOf[to] += shares;
         emit EventsLib.Transfer(from, to, shares);
-
         return true;
     }
 
