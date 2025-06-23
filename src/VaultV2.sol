@@ -733,10 +733,9 @@ contract VaultV2 is IVaultV2 {
         _transfer(from, to, shares);
 
         if (msg.sender != from) {
-            mapping(address => uint256) storage canSpend = allowance[from];
-            uint256 _allowance = canSpend[msg.sender];
+            uint256 _allowance = allowance[from][msg.sender];
             if (_allowance != type(uint256).max) {
-                canSpend[msg.sender] = _allowance - shares;
+                allowance[from][msg.sender] = _allowance - shares;
                 emit EventsLib.AllowanceUpdatedByTransferFrom(from, msg.sender, _allowance - shares);
             }
         }
