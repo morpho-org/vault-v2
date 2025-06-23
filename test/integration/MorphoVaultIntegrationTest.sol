@@ -38,7 +38,7 @@ contract MorphoVaultIntegrationTest is BaseTest {
     OracleMock internal oracle;
     IrmMock internal irm;
 
-    // Morpho Vault V1.
+    // Morpho Vault v1.
     IMetaMorpho internal morphoVaultV1;
     address internal immutable mmOwner = makeAddr("mmOwner");
     address internal immutable mmAllocator = makeAddr("mmAllocator");
