@@ -2,9 +2,13 @@
 // Copyright (c) 2025 Morpho Association
 
 methods {
-    function _.interestPerSecond(uint256, uint256) external => PER_CALLEE_CONSTANT;
+    // Assume that interestPerSecond and interestPerSecondView return the same value on the same inputs.
+    function _.interestPerSecond(uint256 elapsed, uint256 totalAssets) external => ghostInterestPerSecond[elapsed][totalAssets] expect uint256;
+    function _.interestPerSecondView(uint256 elapsed, uint256 totalAssets) external => ghostInterestPerSecond[elapsed][totalAssets] expect uint256;
     function _.canReceiveShares(address) external => PER_CALLEE_CONSTANT;
 }
+
+ghost mapping(uint256 => mapping (uint256 => uint256)) ghostInterestPerSecond;
 
 rule previewDepositValue(env e, uint256 assets, address onBehalf) {
     require e.block.timestamp < 2^64;
