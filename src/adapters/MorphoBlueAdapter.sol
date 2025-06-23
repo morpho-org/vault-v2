@@ -45,7 +45,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         parentVault = _parentVault;
         morpho = _morpho;
         asset = IVaultV2(_parentVault).asset();
-        adapterId = keccak256(abi.encode("primary", address(this)));
+        adapterId = keccak256(abi.encode("this", address(this)));
         SafeERC20Lib.safeApprove(asset, _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
@@ -136,7 +136,7 @@ contract MorphoBlueAdapter is IMorphoBlueAdapter {
         bytes32[] memory ids_ = new bytes32[](3);
         ids_[0] = adapterId;
         ids_[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
-        ids_[2] = keccak256(abi.encode("primary", address(this), marketParams));
+        ids_[2] = keccak256(abi.encode("this/marketParams", address(this), marketParams));
         return ids_;
     }
 
