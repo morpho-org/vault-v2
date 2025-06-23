@@ -95,8 +95,8 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     }
 
     function realizeLoss(bytes memory data) external returns (bytes32[] memory, uint256) {
-        require(msg.sender == parentVault, NotAuthorized());
         require(data.length == 0, InvalidData());
+        require(msg.sender == parentVault, NotAuthorized());
 
         uint256 assetsInVault = IERC4626(metaMorpho).previewRedeem(shares);
         uint256 loss = allocation - assetsInVault;
