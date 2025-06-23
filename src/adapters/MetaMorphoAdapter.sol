@@ -35,7 +35,7 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
         factory = msg.sender;
         parentVault = _parentVault;
         metaMorpho = _metaMorpho;
-        adapterId = keccak256(abi.encode("adapter", address(this)));
+        adapterId = keccak256(abi.encode("this", address(this)));
         address asset = IVaultV2(_parentVault).asset();
         require(asset == IERC4626(_metaMorpho).asset(), AssetMismatch());
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
@@ -89,8 +89,8 @@ contract MetaMorphoAdapter is IMetaMorphoAdapter {
     }
 
     function realizeLoss(bytes memory data) external view returns (bytes32[] memory, uint256) {
-        require(msg.sender == parentVault, NotAuthorized());
         require(data.length == 0, InvalidData());
+        require(msg.sender == parentVault, NotAuthorized());
 
         uint256 loss = allocation() - IERC4626(metaMorpho).previewRedeem(shares);
 
