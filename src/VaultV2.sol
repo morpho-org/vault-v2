@@ -692,7 +692,7 @@ contract VaultV2 is IVaultV2 {
 
         uint256 incentiveShares;
         if (loss > 0) {
-            // Safe cast because the result is smaller than totalAssets.
+            // Safe cast because the result is at most totalAssets.
             _totalAssets = uint192(_totalAssets.zeroFloorSub(loss));
 
             if (canReceive(msg.sender)) {
