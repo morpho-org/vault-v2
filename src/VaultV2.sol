@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.28;
 
-import {IVaultV2, IERC20, Caps} from "./interfaces/IVaultV2.sol";
+import {IVaultV2, IERC20, Caps, CurrentContext} from "./interfaces/IVaultV2.sol";
 import {IAdapter} from "./interfaces/IAdapter.sol";
 import {IVic} from "./interfaces/IVic.sol";
 
@@ -64,8 +64,7 @@ contract VaultV2 is IVaultV2 {
 
     /* TRANSIENT STORAGE */
 
-    address public transient currentSender;
-    bytes4 public transient currentSelector;
+    CurrentContext public currentContext;
 
     /* ROLES STORAGE */
 
@@ -189,8 +188,7 @@ contract VaultV2 is IVaultV2 {
     function multicall(bytes[] calldata data) external {
         for (uint256 i = 0; i < data.length; i++) {
             (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
-            currentSender = address(0);
-            currentSelector = bytes4(0);
+            delete currentContext;
             if (!success) {
                 assembly ("memory-safe") {
                     revert(add(32, returnData), mload(returnData))
@@ -811,9 +809,9 @@ contract VaultV2 is IVaultV2 {
         // Ignore self-calls
         if (msg.sender != address(this)) {
             // Reentrancy is not allowed.
-            require(currentSender == address(0), ErrorsLib.Reentrancy());
-            currentSender = msg.sender;
-            currentSelector = msg.sig;
+            require(currentContext.sender == address(0), ErrorsLib.Reentrancy());
+            currentContext.sender = msg.sender;
+            currentContext.selector = msg.sig;
         }
     }
 }
