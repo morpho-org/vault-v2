@@ -33,8 +33,6 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
 /// - Returned ids do not repeat.
 /// - They ignore donations of shares in their respective markets.
-/// - They return at least one id with the following format: keccak256(abi.encode("primary", address(this), <market
-/// identifier if any>)).
 /// @dev Liquidity market:
 /// - `liquidityAdapter` is allocated to on deposit/mint, and deallocated from on withdraw/redeem if idle assets don't
 /// cover the withdraw.
