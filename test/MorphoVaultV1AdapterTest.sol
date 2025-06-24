@@ -47,7 +47,7 @@ contract MorphoVaultV1AdapterTest is Test {
         asset.approve(address(morphoVaultV1), type(uint256).max);
 
         expectedIds = new bytes32[](1);
-        expectedIds[0] = keccak256(abi.encode("adapter", address(adapter)));
+        expectedIds[0] = keccak256(abi.encode("this", address(adapter)));
     }
 
     function testFactoryAndParentVaultAndAssetSet() public view {

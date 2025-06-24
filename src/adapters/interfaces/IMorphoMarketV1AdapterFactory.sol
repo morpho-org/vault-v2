@@ -9,7 +9,7 @@ interface IMorphoMarketV1AdapterFactory {
 
     /* FUNCTIONS */
 
-    function morphoMarketV1Adapter(address parentVault, address morpho, address irm) external view returns (address);
+    function morphoMarketV1Adapter(address parentVault, address morpho) external view returns (address);
     function isMorphoMarketV1Adapter(address account) external view returns (bool);
-    function createMorphoMarketV1Adapter(address parentVault, address morpho, address irm) external returns (address);
+    function createMorphoMarketV1Adapter(address parentVault, address morpho) external returns (address);
 }

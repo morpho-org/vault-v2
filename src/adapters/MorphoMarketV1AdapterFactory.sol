@@ -8,15 +8,14 @@ import {IMorphoMarketV1AdapterFactory} from "./interfaces/IMorphoMarketV1Adapter
 contract MorphoMarketV1AdapterFactory is IMorphoMarketV1AdapterFactory {
     /* STORAGE */
 
-    mapping(address parentVault => mapping(address morpho => mapping(address irm => address))) public
-        morphoMarketV1Adapter;
+    mapping(address parentVault => mapping(address morpho => address)) public morphoMarketV1Adapter;
     mapping(address account => bool) public isMorphoMarketV1Adapter;
 
     /* FUNCTIONS */
 
-    function createMorphoMarketV1Adapter(address parentVault, address morpho, address irm) external returns (address) {
-        address _MorphoMarketV1Adapter = address(new MorphoMarketV1Adapter{salt: bytes32(0)}(parentVault, morpho, irm));
-        morphoMarketV1Adapter[parentVault][morpho][irm] = _MorphoMarketV1Adapter;
+    function createMorphoMarketV1Adapter(address parentVault, address morpho) external returns (address) {
+        address _MorphoMarketV1Adapter = address(new MorphoMarketV1Adapter{salt: bytes32(0)}(parentVault, morpho));
+        morphoMarketV1Adapter[parentVault][morpho] = _MorphoMarketV1Adapter;
         isMorphoMarketV1Adapter[_MorphoMarketV1Adapter] = true;
         emit CreateMorphoMarketV1Adapter(parentVault, _MorphoMarketV1Adapter);
         return _MorphoMarketV1Adapter;
