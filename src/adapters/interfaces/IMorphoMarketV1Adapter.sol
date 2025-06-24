@@ -13,7 +13,6 @@ interface IMorphoMarketV1Adapter is IAdapter {
 
     /* ERRORS */
 
-    error IrmMismatch();
     error LoanAssetMismatch();
     error NotAuthorized();
 
@@ -22,7 +21,6 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function factory() external view returns (address);
     function parentVault() external view returns (address);
     function morpho() external view returns (address);
-    function irm() external view returns (address);
     function skimRecipient() external view returns (address);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
