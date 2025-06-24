@@ -35,17 +35,43 @@ methods {
 
 definition decreaseTimelockSelector() returns bytes4 = to_bytes4(sig:decreaseTimelock(bytes4,uint256).selector);
 
-ghost mathint sumOfBalances {
-    init_state axiom sumOfBalances == 0;
+ghost mapping(mathint => mathint) sumOfBalances {
+    init_state axiom forall mathint addr. sumOfBalances[addr] == 0;
 }
 
-hook Sload uint256 balance balanceOf[KEY address addr] {
-    require sumOfBalances >= to_mathint(balance);
+ghost mapping(address => uint256) ghostBalances {
+    init_state axiom forall address account. ghostBalances[account] == 0;
 }
 
-hook Sstore balanceOf[KEY address addr] uint256 newValue (uint256 oldValue) {
-    sumOfBalances = sumOfBalances - oldValue + newValue;
+hook Sload uint256 balance balanceOf[KEY address account] {
+    require ghostBalances[account] == balance;
 }
+
+hook Sstore balanceOf[KEY address account] uint256 newValue (uint256 oldValue) {
+    // Update partial sum of balances, for x > to_mathint(account)
+    // Track balance changes in balances.
+    havoc sumOfBalances assuming
+        forall mathint x. sumOfBalances@new[x] ==
+            sumOfBalances@old[x] + (to_mathint(account) < x ? newValue - oldValue : 0);
+    // Update ghost copy of balanceOf.
+    ghostBalances[account] = newValue;
+}
+
+strong invariant sumOfBalancesStartsAtZero()
+    sumOfBalances[0] == 0;
+
+strong invariant sumOfBalancesGrowsCorrectly()
+    forall address addr. sumOfBalances[to_mathint(addr) + 1] ==
+        sumOfBalances[to_mathint(addr)] + ghostBalances[addr];
+
+strong invariant sumOfBalancesMonotone()
+    forall mathint i. forall mathint j. i <= j => sumOfBalances[i] <= sumOfBalances[j]
+    {
+        preserved {
+            requireInvariant sumOfBalancesStartsAtZero();
+            requireInvariant sumOfBalancesGrowsCorrectly();
+        }
+    }
 
 strong invariant performanceFeeRecipient()
     performanceFee() != 0 => performanceFeeRecipient() != 0;
@@ -62,7 +88,7 @@ strong invariant managementFee()
 strong invariant forceDeallocatePenalty(address adapter)
     forceDeallocatePenalty(adapter) <= Utils.maxForceDeallocatePenalty();
 
-strong invariant balanceOfZero()
+strong invariant zeroAddressNoBalance()
     balanceOf(0) == 0;
 
 strong invariant timelockBounds(bytes4 selector)
@@ -72,4 +98,34 @@ strong invariant decreaseTimelockTimelock()
     timelock(decreaseTimelockSelector()) == Utils.timelockCap() || timelock(decreaseTimelockSelector()) == max_uint256;
 
 strong invariant totalSupplyIsSumOfBalances()
-    totalSupply() == sumOfBalances;
+    sumOfBalances[2^160] == to_mathint(totalSupply())
+    {
+        preserved {
+            requireInvariant sumOfBalancesStartsAtZero();
+            requireInvariant sumOfBalancesGrowsCorrectly();
+            requireInvariant sumOfBalancesMonotone();
+        }
+    }
+
+strong invariant balancesLTEqTotalSupply()
+    forall address a. ghostBalances[a] <= sumOfBalances[2^160]
+    {
+        preserved {
+            requireInvariant sumOfBalancesStartsAtZero();
+            requireInvariant sumOfBalancesGrowsCorrectly();
+            requireInvariant sumOfBalancesMonotone();
+            requireInvariant totalSupplyIsSumOfBalances();
+        }
+    }
+
+strong invariant twoBalancesLTEqTotalSupply()
+    forall address a. forall address b. a != b => ghostBalances[a] + ghostBalances[b] <= sumOfBalances[2^160]
+    {
+        preserved {
+            requireInvariant balancesLTEqTotalSupply();
+            requireInvariant sumOfBalancesStartsAtZero();
+            requireInvariant sumOfBalancesGrowsCorrectly();
+            requireInvariant sumOfBalancesMonotone();
+            requireInvariant totalSupplyIsSumOfBalances();
+        }
+    }
