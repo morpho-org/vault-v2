@@ -200,6 +200,16 @@ contract MetaMorphoAdapterTest is Test {
         adapter.realizeLoss(hex"");
     }
 
+    function testLossRealizationAccessControl(address rdm) public {
+        vm.assume(rdm != address(parentVault));
+        vm.prank(rdm);
+        vm.expectRevert(IMetaMorphoAdapter.NotAuthorized.selector);
+        adapter.realizeLoss(hex"");
+
+        vm.prank(address(parentVault));
+        adapter.realizeLoss(hex"");
+    }
+
     function testLossRealizationZero(uint256 deposit) public {
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
 
@@ -318,6 +328,9 @@ contract MetaMorphoAdapterTest is Test {
 
         vm.expectRevert(IMetaMorphoAdapter.InvalidData.selector);
         adapter.deallocate(data, 0);
+
+        vm.expectRevert(IMetaMorphoAdapter.InvalidData.selector);
+        adapter.realizeLoss(data);
     }
 
     function testDifferentAssetReverts(address randomAsset) public {

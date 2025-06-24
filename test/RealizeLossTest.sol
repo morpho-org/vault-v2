@@ -27,6 +27,17 @@ contract RealizeLossTest is BaseTest {
         increaseRelativeCap(expectedIdData[1], WAD);
     }
 
+    function testRealizeLossZero(uint256 deposit) public {
+        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+
+        vault.deposit(deposit, address(this));
+
+        // Realize the loss.
+        vault.realizeLoss(address(adapter), hex"");
+        assertEq(vault.totalAssets(), deposit, "total assets should not have changed");
+        assertEq(vault.enterBlocked(), false, "enter should not be blocked");
+    }
+
     function testRealizeLossDirectly(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);

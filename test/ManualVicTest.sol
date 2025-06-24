@@ -41,6 +41,11 @@ contract ManualVicTest is Test {
         vm.expectRevert(IManualVic.Unauthorized.selector);
         manualVic.setMaxInterestPerSecond(newMaxInterestPerSecond);
 
+        // Cast overflow.
+        vm.prank(curator);
+        vm.expectRevert(IManualVic.CastOverflow.selector);
+        manualVic.setMaxInterestPerSecond(uint256(type(uint96).max) + 1);
+
         // Normal path, increasing.
         vm.prank(curator);
         vm.expectEmit();
@@ -93,7 +98,7 @@ contract ManualVicTest is Test {
         assertEq(manualVic.maxInterestPerSecond(), 0);
     }
 
-    function testsetInterestPerSecondAndDeadline(address rdm, uint256 newInterestPerSecond, uint256 newDeadline)
+    function testSetInterestPerSecondAndDeadline(address rdm, uint256 newInterestPerSecond, uint256 newDeadline)
         public
     {
         vm.assume(rdm != allocator);
@@ -110,9 +115,19 @@ contract ManualVicTest is Test {
         vm.expectRevert(IManualVic.InterestPerSecondTooHigh.selector);
         manualVic.setInterestPerSecondAndDeadline(1, newDeadline);
 
-        // Normal path, increasing.
+        // Deadline already passed.
         vm.prank(curator);
         manualVic.setMaxInterestPerSecond(type(uint96).max);
+        vm.prank(allocator);
+        vm.expectRevert(IManualVic.DeadlineAlreadyPassed.selector);
+        manualVic.setInterestPerSecondAndDeadline(1, block.timestamp - 1);
+
+        // Deadline cast overflow.
+        vm.prank(allocator);
+        vm.expectRevert(IManualVic.CastOverflow.selector);
+        manualVic.setInterestPerSecondAndDeadline(newInterestPerSecond, uint256(type(uint64).max) + 1);
+
+        // Normal path, increasing.
         vm.prank(allocator);
         vm.expectEmit();
         emit IManualVic.SetInterestPerSecondAndDeadline(allocator, newInterestPerSecond, newDeadline);
