@@ -16,7 +16,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Zero checks are not systematically performed.
 /// @dev No-ops are allowed.
 /// @dev Natspec are specified only when it brings clarity.
-/// @dev The vault has 1 virtual asset and a decimal offset of max(0,18 - assetDecimals).
+/// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals).
 /// See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 /// @dev Roles are not "two-step" so one must check if they really have this role.
 /// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension).
