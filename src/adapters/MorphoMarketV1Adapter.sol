@@ -64,18 +64,18 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     /// @dev Returns the ids of the allocation and the potential loss.
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
+        Id id = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
 
-        uint256 interest =
-            expectedSupplyAssets(marketParams, shares[marketParams.id()]).zeroFloorSub(allocation(marketParams));
+        uint256 interest = expectedSupplyAssets(marketParams, shares[id]).zeroFloorSub(allocation(marketParams));
 
         if (assets > 0) {
             (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-            shares[marketParams.id()] += mintedShares;
+            shares[id] += mintedShares;
         }
 
         return (ids(marketParams), interest);
@@ -85,18 +85,18 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     /// @dev Returns the ids of the deallocation and the potential loss.
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
+        Id id = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
 
-        uint256 interest =
-            expectedSupplyAssets(marketParams, shares[marketParams.id()]).zeroFloorSub(allocation(marketParams));
+        uint256 interest = expectedSupplyAssets(marketParams, shares[id]).zeroFloorSub(allocation(marketParams));
 
         if (assets > 0) {
             (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-            shares[marketParams.id()] -= redeemedShares;
+            shares[id] -= redeemedShares;
         }
 
         return (ids(marketParams), interest);
