@@ -41,11 +41,11 @@ contract ManualVic is IManualVic {
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         require(newInterestPerSecond <= maxInterestPerSecond, InterestPerSecondTooHigh());
         require(newDeadline >= block.timestamp, DeadlineAlreadyPassed());
-        require(newInterestPerSecond <= type(uint96).max, CastOverflow());
         require(newDeadline <= type(uint64).max, CastOverflow());
 
         IVaultV2(vault).accrueInterest();
 
+        // Safe cast because newInterestPerSecond <= maxInterestPerSecond.
         storedInterestPerSecond = uint96(newInterestPerSecond);
         deadline = uint64(newDeadline);
         emit SetInterestPerSecondAndDeadline(msg.sender, newInterestPerSecond, newDeadline);
