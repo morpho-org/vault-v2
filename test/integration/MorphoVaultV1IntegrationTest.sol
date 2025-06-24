@@ -26,7 +26,7 @@ import "../../src/VaultV2.sol";
 import {MorphoVaultV1Adapter} from "../../src/adapters/MorphoVaultV1Adapter.sol";
 import {MorphoVaultV1AdapterFactory} from "../../src/adapters/MorphoVaultV1AdapterFactory.sol";
 
-contract MorphoVaultIntegrationTest is BaseTest {
+contract MorphoVaultV1IntegrationTest is BaseTest {
     using MarketParamsLib for MarketParams;
 
     uint256 internal constant MAX_TEST_ASSETS = 1e32;

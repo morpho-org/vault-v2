@@ -2,9 +2,9 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MorphoVaultIntegrationTest.sol";
+import "./MorphoVaultV1IntegrationTest.sol";
 
-contract MorphoVaultIntegrationDepositTest is MorphoVaultIntegrationTest {
+contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
     using MarketParamsLib for MarketParams;
     using MorphoBalancesLib for IMorpho;
 

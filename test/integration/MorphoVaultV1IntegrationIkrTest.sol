@@ -2,10 +2,10 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MorphoVaultIntegrationTest.sol";
+import "./MorphoVaultV1IntegrationTest.sol";
 import {MathLib} from "../../src/libraries/MathLib.sol";
 
-contract MorphoVaultIntegrationIkrTest is MorphoVaultIntegrationTest {
+contract MorphoVaultV1IntegrationIkrTest is MorphoVaultV1IntegrationTest {
     using MathLib for uint256;
     using MorphoBalancesLib for IMorpho;
 
