@@ -37,7 +37,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// allocation to a market:
 ///   - When calculating interest, it must be the positive change between the tracked allocation and the estimate, if
 /// any, since the last interaction.
-///   - When calculating loss, it must be the negative between the tracked allocation and  the estimate, if any, since
+///   - When calculating loss, it must be the negative change between the tracked allocation and  the estimate, if any, since
 /// the last interaction.
 /// @dev Ids being reused by multiple adapters are useful to do "cross-caps". Adapters can add "this" to an id to avoid
 /// it being reused.
