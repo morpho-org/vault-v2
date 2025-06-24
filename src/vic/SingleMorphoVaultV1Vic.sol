@@ -25,12 +25,15 @@ contract SingleMorphoVaultV1Vic is ISingleMorphoVaultV1Vic {
     }
 
     /// @dev Returns the interest per second and the new vic storage.
-    function interestPerSecond(uint256, uint256 elapsed) external view returns (uint256, bytes32) {
-        uint256 previousAssetsInMorphoVaultV1 = uint256(IVaultV2(msg.sender).vicStorage());
+    function interestPerSecond(uint256, uint256 elapsed) external view returns (uint256, uint256) {
+        uint256 previousAssetsInMorphoVaultV1 = IVaultV2(msg.sender).vicStorage();
         uint256 assetsInMorphoVaultV1 =
             IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(morphoVaultV1Adapter));
         return (
-            assetsInMorphoVaultV1.zeroFloorSub(previousAssetsInMorphoVaultV1) / elapsed, bytes32(assetsInMorphoVaultV1)
+            previousAssetsInMorphoVaultV1 != 0
+                ? assetsInMorphoVaultV1.zeroFloorSub(previousAssetsInMorphoVaultV1) / elapsed
+                : 0,
+            assetsInMorphoVaultV1
         );
     }
 }

@@ -25,7 +25,7 @@ interface IVaultV2 is IERC4626, IPermissionedToken, IERC2612 {
     function firstTotalAssets() external view returns (uint256);
     function lastUpdate() external view returns (uint64);
     function vic() external view returns (address);
-    function vicStorage() external view returns (bytes32);
+    function vicStorage() external view returns (uint256);
     function enterBlocked() external view returns (bool);
     function isAdapter(address account) external view returns (bool);
     function allocation(bytes32 id) external view returns (uint256);
