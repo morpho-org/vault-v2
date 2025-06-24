@@ -63,6 +63,8 @@ contract AllocateTest is BaseTest {
         vm.prank(rdm);
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vault.allocate(adapter, data, assets);
+        vm.prank(allocator);
+        vault.allocate(adapter, hex"", 0);
 
         // Relative cap check fails on 0 cap.
         increaseAbsoluteCap("id-0", assets);
