@@ -4,5 +4,5 @@ pragma solidity >=0.5.0;
 
 interface IVic {
     // @dev Returns the interest per second and the new vic storage.
-    function interestPerSecond(uint256 totalAssets, uint256 elapsed) external view returns (uint256, bytes32);
+    function interestPerSecond(uint256 totalAssets, uint256 elapsed) external view returns (uint256, uint256);
 }

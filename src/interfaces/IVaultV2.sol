@@ -85,7 +85,7 @@ interface IVaultV2 is IERC4626, IPermissionedToken, IERC2612 {
     function accrueInterestView()
         external
         view
-        returns (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares, bytes32 vicStorage);
+        returns (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares, uint256 vicStorage);
 
     // Force deallocate
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)

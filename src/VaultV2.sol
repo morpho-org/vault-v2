@@ -113,7 +113,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Set to 0 to disable the Vic (=> no interest accrual).
     address public vic;
     /// @dev Storage slot for the Vic.
-    bytes32 public vicStorage;
+    uint256 public vicStorage;
     /// @dev Prevents floashloan-based shorting of vault shares during loss realizations.
     bool public transient enterBlocked;
 
@@ -305,6 +305,7 @@ contract VaultV2 is IVaultV2 {
         catch {
             lastUpdate = uint64(block.timestamp);
         }
+        vicStorage = 0;
         vic = newVic;
         emit EventsLib.SetVic(newVic);
     }
@@ -494,7 +495,7 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterest() public {
         if (lastUpdate != block.timestamp) {
-            (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares, bytes32 newVicStorage) =
+            (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares, uint256 newVicStorage) =
                 accrueInterestView();
             emit EventsLib.AccrueInterest(
                 _totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares, newVicStorage
@@ -512,12 +513,12 @@ contract VaultV2 is IVaultV2 {
     /// @dev Reverts if the call to the Vic reverts.
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     /// @dev The performance and management fees are taken even if the vault incurs some losses.
-    function accrueInterestView() public view returns (uint256, uint256, uint256, bytes32) {
+    function accrueInterestView() public view returns (uint256, uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        if (elapsed == 0) return (_totalAssets, 0, 0, bytes32(0));
+        if (elapsed == 0) return (_totalAssets, 0, 0, 0);
 
-        (uint256 tentativeInterestPerSecond, bytes32 newVicStorage) =
-            vic != address(0) ? IVic(vic).interestPerSecond(_totalAssets, elapsed) : (0, bytes32(0));
+        (uint256 tentativeInterestPerSecond, uint256 newVicStorage) =
+            vic != address(0) ? IVic(vic).interestPerSecond(_totalAssets, elapsed) : (0, 0);
 
         uint256 interestPerSecond = tentativeInterestPerSecond
             <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
