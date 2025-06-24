@@ -45,26 +45,3 @@ rule livenessSetIsSentinel(env e, address account, bool isSentinel) {
     setIsSentinel@withrevert(e, account, isSentinel);
     assert !lastReverted;
 }
-
-// Check authorized addresses can deallocate if forceDeallocate is possible.
-rule livenessDeallocate(env e, env f, address adapter, bytes data, uint256 assets, address onBehalf) {
-
-    // Safe require statements to instantiate two environments that differ only by the message sender.
-    require e.msg.value == f.msg.value;
-    require e.block.number == f.block.number;
-    require e.block.timestamp == f.block.timestamp;
-    require e.block.basefee == f.block.basefee;
-    require e.block.coinbase == f.block.coinbase;
-    require e.block.difficulty == f.block.difficulty;
-    require e.block.gaslimit == f.block.gaslimit;
-    require e.tx.origin == f.tx.origin;
-
-    forceDeallocate@withrevert(e, adapter, data, assets, onBehalf);
-    bool forceDeallocateReverted = lastReverted;
-
-    // Safe require that ensure that f's message sender is allowed to dealocate.
-    require isAllocator(f.msg.sender) || isSentinel(f.msg.sender) || f.msg.sender == currentContract;
-
-    deallocate@withrevert(f, adapter, data, assets);
-    assert !forceDeallocateReverted => !lastReverted;
-}
