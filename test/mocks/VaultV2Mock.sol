@@ -27,7 +27,7 @@ contract VaultV2Mock {
         external
         returns (bytes32[] memory, uint256)
     {
-        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).allocate(data, assets);
+        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).allocate(data, assets, msg.sig, msg.sender);
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] = allocation[ids[i]] + interest + assets;
         }
@@ -38,7 +38,7 @@ contract VaultV2Mock {
         external
         returns (bytes32[] memory, uint256)
     {
-        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets);
+        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] = allocation[ids[i]] + interest - assets;
         }
@@ -46,7 +46,7 @@ contract VaultV2Mock {
     }
 
     function realizeLossMocked(address adapter, bytes memory data) external returns (bytes32[] memory, uint256) {
-        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).realizeLoss(data);
+        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).realizeLoss(data, msg.sig, msg.sender);
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] -= loss;
         }

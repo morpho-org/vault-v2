@@ -59,13 +59,13 @@ contract MorphoVaultV1AdapterTest is Test {
     function testAllocateNotAuthorizedReverts(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
         vm.expectRevert(IMorphoVaultV1Adapter.NotAuthorized.selector);
-        adapter.allocate(hex"", assets);
+        adapter.allocate(hex"", assets, bytes4(0), address(0));
     }
 
     function testDeallocateNotAuthorizedReverts(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
         vm.expectRevert(IMorphoVaultV1Adapter.NotAuthorized.selector);
-        adapter.deallocate(hex"", assets);
+        adapter.deallocate(hex"", assets, bytes4(0), address(0));
     }
 
     function testAllocate(uint256 assets) public {
@@ -192,17 +192,17 @@ contract MorphoVaultV1AdapterTest is Test {
         // Realize loss.
         vm.prank(address(parentVault));
         vm.expectRevert(stdError.arithmeticError);
-        adapter.realizeLoss(hex"");
+        adapter.realizeLoss(hex"", bytes4(0), address(0));
     }
 
     function testLossRealizationAccessControl(address rdm) public {
         vm.assume(rdm != address(parentVault));
         vm.prank(rdm);
         vm.expectRevert(IMorphoVaultV1Adapter.NotAuthorized.selector);
-        adapter.realizeLoss(hex"");
+        adapter.realizeLoss(hex"", bytes4(0), address(0));
 
         vm.prank(address(parentVault));
-        adapter.realizeLoss(hex"");
+        adapter.realizeLoss(hex"", bytes4(0), address(0));
     }
 
     function testLossRealizationZero(uint256 deposit) public {
@@ -307,13 +307,13 @@ contract MorphoVaultV1AdapterTest is Test {
         vm.assume(data.length > 0);
 
         vm.expectRevert(IMorphoVaultV1Adapter.InvalidData.selector);
-        adapter.allocate(data, 0);
+        adapter.allocate(data, 0, bytes4(0), address(0));
 
         vm.expectRevert(IMorphoVaultV1Adapter.InvalidData.selector);
-        adapter.deallocate(data, 0);
+        adapter.deallocate(data, 0, bytes4(0), address(0));
 
         vm.expectRevert(IMorphoVaultV1Adapter.InvalidData.selector);
-        adapter.realizeLoss(data);
+        adapter.realizeLoss(data, bytes4(0), address(0));
     }
 
     function testDifferentAssetReverts(address randomAsset) public {

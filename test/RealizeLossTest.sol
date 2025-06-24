@@ -43,6 +43,12 @@ contract RealizeLossTest is BaseTest {
         vault.realizeLoss(address(adapter), hex"");
         assertEq(vault.totalAssets(), deposit, "total assets should not have changed");
         assertEq(vault.enterBlocked(), false, "enter should not be blocked");
+        assertEq(
+            AdapterMock(adapter).recordedSelector(),
+            IVaultV2.realizeLoss.selector,
+            "Selector incorrect after realizeLoss"
+        );
+        assertEq(AdapterMock(adapter).recordedSender(), address(this), "Sender incorrect after realizeLoss");
     }
 
     function testRealizeLossDirectly(uint256 deposit, uint256 expectedLoss) public {

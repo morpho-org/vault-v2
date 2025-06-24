@@ -60,7 +60,10 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the interest accrued.
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    function allocate(bytes memory data, uint256 assets, bytes4, address)
+        external
+        returns (bytes32[] memory, uint256)
+    {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
@@ -75,7 +78,10 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the interest accrued.
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    function deallocate(bytes memory data, uint256 assets, bytes4, address)
+        external
+        returns (bytes32[] memory, uint256)
+    {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
@@ -88,7 +94,7 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         return (ids(), interest);
     }
 
-    function realizeLoss(bytes memory data) external view returns (bytes32[] memory, uint256) {
+    function realizeLoss(bytes memory data, bytes4, address) external view returns (bytes32[] memory, uint256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 

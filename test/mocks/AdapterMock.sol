@@ -19,6 +19,9 @@ contract AdapterMock is IAdapter {
     bytes public recordedDeallocateData;
     uint256 public recordedDeallocateAssets;
 
+    bytes4 public recordedSelector;
+    address public recordedSender;
+
     constructor(address _vault) {
         vault = _vault;
         if (_vault != address(0)) {
@@ -37,19 +40,31 @@ contract AdapterMock is IAdapter {
         loss = _loss;
     }
 
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    function allocate(bytes memory data, uint256 assets, bytes4 selector, address sender)
+        external
+        returns (bytes32[] memory, uint256)
+    {
         recordedAllocateData = data;
         recordedAllocateAssets = assets;
+        recordedSelector = selector;
+        recordedSender = sender;
         return (ids(), interest);
     }
 
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    function deallocate(bytes memory data, uint256 assets, bytes4 selector, address sender)
+        external
+        returns (bytes32[] memory, uint256)
+    {
         recordedDeallocateData = data;
         recordedDeallocateAssets = assets;
+        recordedSelector = selector;
+        recordedSender = sender;
         return (ids(), interest);
     }
 
-    function realizeLoss(bytes memory) external view returns (bytes32[] memory, uint256) {
+    function realizeLoss(bytes memory, bytes4 selector, address sender) external returns (bytes32[] memory, uint256) {
+        recordedSelector = selector;
+        recordedSender = sender;
         return (ids(), loss);
     }
 

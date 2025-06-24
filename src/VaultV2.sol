@@ -438,13 +438,17 @@ contract VaultV2 is IVaultV2 {
     /* ALLOCATOR FUNCTIONS */
 
     function allocate(address adapter, bytes memory data, uint256 assets) external {
-        require(isAllocator[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized());
+        require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
+        allocateInternal(adapter, data, assets);
+    }
+
+    function allocateInternal(address adapter, bytes memory data, uint256 assets) internal {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
-        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).allocate(data, assets);
+        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).allocate(data, assets, msg.sig, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
@@ -461,14 +465,16 @@ contract VaultV2 is IVaultV2 {
     }
 
     function deallocate(address adapter, bytes memory data, uint256 assets) external {
-        require(
-            isAllocator[msg.sender] || isSentinel[msg.sender] || msg.sender == address(this), ErrorsLib.Unauthorized()
-        );
+        require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.Unauthorized());
+        deallocateInternal(adapter, data, assets);
+    }
+
+    function deallocateInternal(address adapter, bytes memory data, uint256 assets) internal {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
 
-        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets);
+        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
@@ -626,7 +632,7 @@ contract VaultV2 is IVaultV2 {
         createShares(onBehalf, shares);
         _totalAssets += assets.toUint192();
         if (liquidityAdapter != address(0)) {
-            this.allocate(liquidityAdapter, liquidityData, assets);
+            allocateInternal(liquidityAdapter, liquidityData, assets);
         }
         emit EventsLib.Deposit(msg.sender, onBehalf, assets, shares);
     }
@@ -657,7 +663,7 @@ contract VaultV2 is IVaultV2 {
 
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
-            this.deallocate(liquidityAdapter, liquidityData, assets - idleAssets);
+            deallocateInternal(liquidityAdapter, liquidityData, assets - idleAssets);
         }
 
         if (msg.sender != onBehalf) {
@@ -685,7 +691,7 @@ contract VaultV2 is IVaultV2 {
         external
         returns (uint256)
     {
-        this.deallocate(adapter, data, assets);
+        deallocateInternal(adapter, data, assets);
         uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
         uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
         emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf, penaltyAssets);
@@ -697,7 +703,7 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).realizeLoss(data);
+        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).realizeLoss(data, msg.sig, msg.sender);
 
         uint256 incentiveShares;
         if (loss > 0) {

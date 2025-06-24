@@ -93,13 +93,13 @@ contract MorphoMarketV1AdapterTest is Test {
     function testAllocateNotAuthorizedReverts(uint256 assets) public {
         assets = _boundAssets(assets);
         vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
-        adapter.allocate(abi.encode(marketParams), assets);
+        adapter.allocate(abi.encode(marketParams), assets, bytes4(0), address(0));
     }
 
     function testDeallocateNotAuthorizedReverts(uint256 assets) public {
         assets = _boundAssets(assets);
         vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
-        adapter.deallocate(abi.encode(marketParams), assets);
+        adapter.deallocate(abi.encode(marketParams), assets, bytes4(0), address(0));
     }
 
     function testAllocateDifferentAssetReverts(address randomAsset, uint256 assets) public {
@@ -108,7 +108,7 @@ contract MorphoMarketV1AdapterTest is Test {
         marketParams.loanToken = randomAsset;
         vm.expectRevert(IMorphoMarketV1Adapter.LoanAssetMismatch.selector);
         vm.prank(address(parentVault));
-        adapter.allocate(abi.encode(marketParams), assets);
+        adapter.allocate(abi.encode(marketParams), assets, bytes4(0), address(0));
     }
 
     function testDeallocateDifferentAssetReverts(address randomAsset, uint256 assets) public {
@@ -117,7 +117,7 @@ contract MorphoMarketV1AdapterTest is Test {
         marketParams.loanToken = randomAsset;
         vm.expectRevert(IMorphoMarketV1Adapter.LoanAssetMismatch.selector);
         vm.prank(address(parentVault));
-        adapter.deallocate(abi.encode(marketParams), assets);
+        adapter.deallocate(abi.encode(marketParams), assets, bytes4(0), address(0));
     }
 
     function testAllocate(uint256 assets) public {
@@ -225,10 +225,10 @@ contract MorphoMarketV1AdapterTest is Test {
         vm.assume(rdm != address(parentVault));
         vm.prank(rdm);
         vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
-        adapter.realizeLoss(abi.encode(marketParams));
+        adapter.realizeLoss(abi.encode(marketParams), bytes4(0), address(0));
 
         vm.prank(address(parentVault));
-        adapter.realizeLoss(abi.encode(marketParams));
+        adapter.realizeLoss(abi.encode(marketParams), bytes4(0), address(0));
     }
 
     function testLossRealizationImpossible(uint256 deposit) public {
