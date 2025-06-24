@@ -31,6 +31,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - They must return the right ids on allocate/deallocate.
 /// - After a call to deallocate, the vault must have an approval to transfer at least `assets` from the adapter.
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
+/// - Interest must not be above the actual interest.
+/// - Realizable loss must not be below the actual loss.
 /// @dev Liquidity market:
 /// - `liquidityAdapter` is allocated to on deposit/mint, and deallocated from on withdraw/redeem if idle assets don't
 /// cover the withdraw.
@@ -58,6 +60,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// allocation is zero. This prevents interactions with zero assets with unknown markets. For markets that share all
 /// their ids, it will be impossible to "disable" them (preventing any interaction) without disabling the others using
 /// the same ids.
+/// @dev If allocations underestimate the actual assets, some assets might be lost because deallocating is impossible if
+/// the allocation is zero.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
 
