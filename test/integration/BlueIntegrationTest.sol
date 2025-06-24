@@ -80,7 +80,7 @@ contract BlueIntegrationTest is BaseTest {
         expectedIdData1[1] = abi.encode("collateralToken", marketParams1.collateralToken);
         expectedIdData1[2] = abi.encode("this/marketParams", address(adapter), marketParams1);
 
-        expectedIdData2 = new bytes[](4);
+        expectedIdData2 = new bytes[](3);
         expectedIdData2[0] = abi.encode("this", address(adapter));
         expectedIdData2[1] = abi.encode("collateralToken", marketParams2.collateralToken);
         expectedIdData2[2] = abi.encode("this/marketParams", address(adapter), marketParams2);
