@@ -33,9 +33,12 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
 /// - Returned ids do not repeat.
 /// - They ignore donations of shares in their respective markets.
-/// - Given a method used by the adapter to estimate its assets in a market:
-///   - Interest must be the positive change in estimate, if any, since the last interaction.
-///   - Loss must be the negative change in estimate, if any, since the last interaction.
+/// - Given a method used by the adapter to estimate its assets in a market and a method to internally track its
+/// allocation to a market:
+///   - When calculating interest, it must be the positive change between the tracked allocation and the estimate, if
+/// any, since the last interaction.
+///   - When calculating loss, it must be the negative between the tracked allocation and  the estimate, if any, since
+/// the last interaction.
 /// @dev Ids being reused by multiple adapters are useful to do "cross-caps". Adapters can add "this" to an id to avoid
 /// it being reused.
 /// @dev Liquidity market:
