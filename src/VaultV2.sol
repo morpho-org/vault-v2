@@ -56,6 +56,10 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - Adapters must not revert on `deallocate` if the underlying markets are liquid.
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
 /// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
+/// @dev Allocating is prevented if one of the ids' absolute cap is zero and deallocating is prevented if the id's
+/// allocation is zero. This prevents interactions with zero assets with unknown markets. For markets that share all
+/// their ids, it will be impossible to "disable" them (preventing any interaction) without disabling the others using
+/// the same ids.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
 
