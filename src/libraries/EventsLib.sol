@@ -43,7 +43,7 @@ library EventsLib {
         uint256 newTotalAssets,
         uint256 performanceFeeShares,
         uint256 managementFeeShares,
-        bytes32 vicStorage
+        uint256 vicStorage
     );
 
     // Timelock events
