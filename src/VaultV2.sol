@@ -112,6 +112,8 @@ contract VaultV2 is IVaultV2 {
     uint64 public lastUpdate;
     /// @dev Set to 0 to disable the Vic (=> no interest accrual).
     address public vic;
+    /// @dev Storage slot for the Vic.
+    bytes32 public vicStorage;
     /// @dev Prevents floashloan-based shorting of vault shares during loss realizations.
     bool public transient enterBlocked;
 
@@ -166,7 +168,7 @@ contract VaultV2 is IVaultV2 {
     /* GETTERS */
 
     function totalAssets() external view returns (uint256) {
-        (uint256 newTotalAssets,,) = accrueInterestView();
+        (uint256 newTotalAssets,,,) = accrueInterestView();
         return newTotalAssets;
     }
 
@@ -492,8 +494,12 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterest() public {
         if (lastUpdate != block.timestamp) {
-            (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
-            emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
+            (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares, bytes32 newVicStorage) =
+                accrueInterestView();
+            emit EventsLib.AccrueInterest(
+                _totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares, newVicStorage
+            );
+            vicStorage = newVicStorage;
             _totalAssets = newTotalAssets.toUint192();
             if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
             if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
@@ -502,15 +508,16 @@ contract VaultV2 is IVaultV2 {
         if (firstTotalAssets == 0) firstTotalAssets = _totalAssets;
     }
 
-    /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
+    /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares, vicStorage.
     /// @dev Reverts if the call to the Vic reverts.
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     /// @dev The performance and management fees are taken even if the vault incurs some losses.
-    function accrueInterestView() public view returns (uint256, uint256, uint256) {
+    function accrueInterestView() public view returns (uint256, uint256, uint256, bytes32) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        if (elapsed == 0) return (_totalAssets, 0, 0);
+        if (elapsed == 0) return (_totalAssets, 0, 0, bytes32(0));
 
-        uint256 tentativeInterestPerSecond = vic != address(0) ? IVic(vic).interestPerSecond(_totalAssets, elapsed) : 0;
+        (uint256 tentativeInterestPerSecond, bytes32 newVicStorage) =
+            vic != address(0) ? IVic(vic).interestPerSecond(_totalAssets, elapsed) : (0, bytes32(0));
 
         uint256 interestPerSecond = tentativeInterestPerSecond
             <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
@@ -532,33 +539,33 @@ contract VaultV2 is IVaultV2 {
         uint256 performanceFeeShares = performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssetsWithoutFees + 1);
         uint256 managementFeeShares = managementFeeAssets.mulDivDown(totalSupply + 1, newTotalAssetsWithoutFees + 1);
 
-        return (newTotalAssets, performanceFeeShares, managementFeeShares);
+        return (newTotalAssets, performanceFeeShares, managementFeeShares, newVicStorage);
     }
 
     /// @dev Returns previewed minted shares.
     function previewDeposit(uint256 assets) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares,) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return assets.mulDivDown(newTotalSupply + 1, newTotalAssets + 1);
     }
 
     /// @dev Returns previewed deposited assets.
     function previewMint(uint256 shares) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares,) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivUp(newTotalAssets + 1, newTotalSupply + 1);
     }
 
     /// @dev Returns previewed redeemed shares.
     function previewWithdraw(uint256 assets) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares,) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return assets.mulDivUp(newTotalSupply + 1, newTotalAssets + 1);
     }
 
     /// @dev Returns previewed withdrawn assets.
     function previewRedeem(uint256 shares) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares,) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + 1);
     }

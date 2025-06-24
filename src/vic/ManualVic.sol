@@ -57,8 +57,8 @@ contract ManualVic is IManualVic {
         emit ZeroInterestPerSecond(msg.sender);
     }
 
-    /// @dev Returns the interest per second.
-    function interestPerSecond(uint256, uint256) external view returns (uint256) {
-        return block.timestamp <= deadline ? storedInterestPerSecond : 0;
+    /// @dev Returns the interest per second and the new vic storage.
+    function interestPerSecond(uint256, uint256) external view returns (uint256, bytes32) {
+        return (block.timestamp <= deadline ? storedInterestPerSecond : 0, bytes32(0));
     }
 }
