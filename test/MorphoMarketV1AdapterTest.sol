@@ -72,18 +72,12 @@ contract MorphoMarketV1AdapterTest is Test {
         marketId = marketParams.id();
         parentVault = new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0));
         factory = new MorphoMarketV1AdapterFactory();
-        adapter = MorphoMarketV1Adapter(
-            factory.createMorphoMarketV1Adapter(address(parentVault), address(morpho), address(irm))
-        );
+        adapter = MorphoMarketV1Adapter(factory.createMorphoMarketV1Adapter(address(parentVault), address(morpho)));
 
         expectedIds = new bytes32[](3);
-        expectedIds[0] = keccak256(abi.encode("adapter", address(adapter)));
+        expectedIds[0] = keccak256(abi.encode("this", address(adapter)));
         expectedIds[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
-        expectedIds[2] = keccak256(
-            abi.encode(
-                "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
-            )
-        );
+        expectedIds[2] = keccak256(abi.encode("this/marketParams", address(adapter), marketParams));
     }
 
     function _boundAssets(uint256 assets) internal pure returns (uint256) {
@@ -168,20 +162,20 @@ contract MorphoMarketV1AdapterTest is Test {
             address(new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0)));
 
         bytes32 initCodeHash = keccak256(
-            abi.encodePacked(type(MorphoMarketV1Adapter).creationCode, abi.encode(newParentVaultAddr, morpho, irm))
+            abi.encodePacked(type(MorphoMarketV1Adapter).creationCode, abi.encode(newParentVaultAddr, morpho))
         );
         address expectedNewAdapter =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
         emit IMorphoMarketV1AdapterFactory.CreateMorphoMarketV1Adapter(newParentVaultAddr, expectedNewAdapter);
 
-        address newAdapter = factory.createMorphoMarketV1Adapter(newParentVaultAddr, address(morpho), address(irm));
+        address newAdapter = factory.createMorphoMarketV1Adapter(newParentVaultAddr, address(morpho));
 
         assertTrue(newAdapter != address(0), "Adapter not created");
         assertEq(MorphoMarketV1Adapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
         assertEq(MorphoMarketV1Adapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
         assertEq(
-            factory.morphoMarketV1Adapter(newParentVaultAddr, address(morpho), address(irm)),
+            factory.morphoMarketV1Adapter(newParentVaultAddr, address(morpho)),
             newAdapter,
             "Adapter not tracked correctly"
         );
@@ -346,18 +340,6 @@ contract MorphoMarketV1AdapterTest is Test {
             assertEq(loss, _loss - interest, "loss");
             assertApproxEqAbs(adapter.allocation(marketId), deposit - _loss + interest, 1, "allocation");
         }
-    }
-
-    function testWrongIrm(address randomIrm) public {
-        vm.assume(randomIrm != address(irm));
-        marketParams.irm = randomIrm;
-        vm.expectRevert(IMorphoMarketV1Adapter.IrmMismatch.selector);
-        vm.prank(address(parentVault));
-        adapter.allocate(abi.encode(marketParams), 0);
-
-        vm.prank(address(parentVault));
-        vm.expectRevert(IMorphoMarketV1Adapter.IrmMismatch.selector);
-        adapter.deallocate(abi.encode(marketParams), 0);
     }
 
     function _overrideMarketTotalSupplyAssets(int256 change) internal {

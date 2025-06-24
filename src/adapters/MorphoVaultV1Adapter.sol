@@ -37,7 +37,7 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         factory = msg.sender;
         parentVault = _parentVault;
         morphoVaultV1 = _morphoVaultV1;
-        adapterId = keccak256(abi.encode("adapter", address(this)));
+        adapterId = keccak256(abi.encode("this", address(this)));
         address asset = IVaultV2(_parentVault).asset();
         require(asset == IERC4626(_morphoVaultV1).asset(), AssetMismatch());
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
@@ -95,8 +95,8 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     }
 
     function realizeLoss(bytes memory data) external returns (bytes32[] memory, uint256) {
-        require(msg.sender == parentVault, NotAuthorized());
         require(data.length == 0, InvalidData());
+        require(msg.sender == parentVault, NotAuthorized());
 
         uint256 assetsInVault = IERC4626(morphoVaultV1).previewRedeem(shares);
         uint256 loss = allocation - assetsInVault;

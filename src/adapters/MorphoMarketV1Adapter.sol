@@ -32,7 +32,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     address public immutable parentVault;
     address public immutable asset;
     address public immutable morpho;
-    address public immutable irm;
     bytes32 public immutable adapterId;
 
     /* STORAGE */
@@ -42,13 +41,12 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     /* FUNCTIONS */
 
-    constructor(address _parentVault, address _morpho, address _irm) {
+    constructor(address _parentVault, address _morpho) {
         factory = msg.sender;
         parentVault = _parentVault;
         morpho = _morpho;
-        irm = _irm;
         asset = IVaultV2(_parentVault).asset();
-        adapterId = keccak256(abi.encode("adapter", address(this)));
+        adapterId = keccak256(abi.encode("this", address(this)));
         SafeERC20Lib.safeApprove(asset, _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
@@ -83,7 +81,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         Position storage _position = position[marketParams.id()];
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
-        require(marketParams.irm == irm, IrmMismatch());
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
@@ -107,7 +104,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         Position storage _position = position[marketParams.id()];
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
-        require(marketParams.irm == irm, IrmMismatch());
 
         // To accrue interest only one time.
         IMorpho(morpho).accrueInterest(marketParams);
@@ -141,11 +137,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         bytes32[] memory ids_ = new bytes32[](3);
         ids_[0] = adapterId;
         ids_[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
-        ids_[2] = keccak256(
-            abi.encode(
-                "collateralToken/oracle/lltv", marketParams.collateralToken, marketParams.oracle, marketParams.lltv
-            )
-        );
+        ids_[2] = keccak256(abi.encode("this/marketParams", address(this), marketParams));
         return ids_;
     }
 
