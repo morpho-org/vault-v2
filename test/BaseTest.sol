@@ -32,6 +32,8 @@ contract BaseTest is Test {
     ManualVic vic;
 
     bytes[] bundle;
+    bytes32[] expectedIds;
+    bytes[] expectedIdData;
 
     function setUp() public virtual {
         vm.label(address(this), "testContract");
@@ -60,6 +62,14 @@ contract BaseTest is Test {
 
         vault.setIsAllocator(allocator, true);
         vault.setVic(address(vic));
+
+        expectedIds = new bytes32[](2);
+        expectedIds[0] = keccak256("id-0");
+        expectedIds[1] = keccak256("id-1");
+
+        expectedIdData = new bytes[](2);
+        expectedIdData[0] = "id-0";
+        expectedIdData[1] = "id-1";
     }
 
     function writeTotalAssets(uint256 newTotalAssets) internal {

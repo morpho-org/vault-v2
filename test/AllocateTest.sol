@@ -28,11 +28,17 @@ contract AllocateTest is BaseTest {
         ids[1] = keccak256("id-1");
     }
 
+    function testAllocateZeroAbsoluteCap() public {
+        vm.prank(allocator);
+        vm.expectRevert(ErrorsLib.ZeroAbsoluteCap.selector);
+        vault.allocate(adapter, hex"", 0);
+    }
+
     /// forge-config: default.isolate = true
     function testAllocate(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(vault));
-        assets = bound(assets, 1, type(uint128).max);
+        assets = bound(assets, 2, type(uint128).max);
         absoluteCap = bound(absoluteCap, assets, type(uint128).max);
 
         // Setup.
@@ -41,15 +47,6 @@ contract AllocateTest is BaseTest {
         assertEq(underlyingToken.balanceOf(adapter), 0, "Initial adapter balance incorrect");
         assertEq(vault.allocation(keccak256("id-0")), 0, "Initial allocation incorrect");
         assertEq(vault.allocation(keccak256("id-1")), 0, "Initial allocation incorrect");
-
-        // Access control.
-        vm.prank(rdm);
-        vm.expectRevert(ErrorsLib.Unauthorized.selector);
-        vault.allocate(adapter, data, assets);
-        vm.prank(address(vault));
-        vault.allocate(adapter, hex"", 0);
-        vm.prank(allocator);
-        vault.allocate(adapter, hex"", 0);
 
         // Can't allocate if not adapter.
         vm.prank(allocator);
@@ -62,6 +59,15 @@ contract AllocateTest is BaseTest {
         vm.expectRevert(ErrorsLib.AbsoluteCapExceeded.selector);
         vm.prank(allocator);
         vault.allocate(adapter, data, assets);
+
+        // Access control.
+        vm.prank(rdm);
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vault.allocate(adapter, data, assets);
+        vm.prank(address(vault));
+        vault.allocate(adapter, hex"", 0);
+        vm.prank(allocator);
+        vault.allocate(adapter, hex"", 0);
 
         // Relative cap check fails on 0 cap.
         increaseAbsoluteCap("id-0", assets);
@@ -146,6 +152,12 @@ contract AllocateTest is BaseTest {
         vault.allocate(adapter, data, 100);
     }
 
+    function testDeallocateZeroAllocation() public {
+        vm.prank(allocator);
+        vm.expectRevert(ErrorsLib.ZeroAllocation.selector);
+        vault.deallocate(adapter, hex"", 0);
+    }
+
     function testDeallocate(bytes memory data, uint256 assetsIn, uint256 assetsOut, address rdm, uint256 absoluteCap)
         public
     {
@@ -194,5 +206,90 @@ contract AllocateTest is BaseTest {
         assertEq(vault.allocation(keccak256("id-1")), assetsIn - assetsOut, "Allocation incorrect after deallocation");
         assertEq(AdapterMock(adapter).recordedDeallocateData(), data, "Data incorrect after deallocation");
         assertEq(AdapterMock(adapter).recordedDeallocateAssets(), assetsOut, "Assets incorrect after deallocation");
+    }
+
+    function testAllocateWithInterest(
+        uint256 deposit,
+        uint256 allocation1,
+        uint256 allocation2,
+        uint256 interest,
+        uint256 cap
+    ) public {
+        deposit = bound(deposit, 1, type(uint128).max);
+        allocation1 = bound(allocation1, 0, deposit);
+        allocation2 = bound(allocation2, 0, deposit - allocation1);
+        interest = bound(interest, 1, type(uint128).max);
+        cap = bound(cap, allocation1, type(uint128).max);
+        cap = bound(cap, 1, type(uint128).max); // to avoid zero cap.
+
+        // Setup.
+        increaseAbsoluteCap("id-0", cap);
+        increaseAbsoluteCap("id-1", cap);
+        increaseRelativeCap("id-0", WAD);
+        increaseRelativeCap("id-1", WAD);
+        vault.deposit(deposit, address(this));
+        vm.prank(allocator);
+        vault.allocate(adapter, hex"", allocation1);
+        AdapterMock(adapter).setInterest(interest);
+
+        // Test.
+        vm.prank(allocator);
+        if (cap >= allocation1 + allocation2 + interest) {
+            vm.expectEmit();
+            emit EventsLib.Allocate(allocator, adapter, allocation2, ids, interest);
+            vault.allocate(adapter, hex"", allocation2);
+            assertEq(
+                vault.allocation(keccak256("id-0")),
+                allocation1 + allocation2 + interest,
+                "Allocation incorrect after allocation"
+            );
+            assertEq(
+                vault.allocation(keccak256("id-1")),
+                allocation1 + allocation2 + interest,
+                "Allocation incorrect after allocation"
+            );
+        } else {
+            vm.expectRevert(ErrorsLib.AbsoluteCapExceeded.selector);
+            vault.allocate(adapter, hex"", allocation2);
+        }
+    }
+
+    function testDeallocateWithInterest(
+        uint256 deposit,
+        uint256 allocation,
+        uint256 deallocation,
+        uint256 interest,
+        uint256 cap
+    ) public {
+        deposit = bound(deposit, 1, type(uint128).max);
+        allocation = bound(allocation, 1, deposit); // starts at 1 to avoid zero allocation.
+        deallocation = bound(deallocation, 0, allocation);
+        interest = bound(interest, 1, type(uint128).max);
+        cap = bound(cap, allocation, type(uint128).max);
+        cap = bound(cap, 1, type(uint128).max); // to avoid zero cap.
+
+        // Setup.
+        increaseAbsoluteCap("id-0", cap);
+        increaseAbsoluteCap("id-1", cap);
+        increaseRelativeCap("id-0", WAD);
+        increaseRelativeCap("id-1", WAD);
+        vault.deposit(deposit, address(this));
+        vm.prank(allocator);
+        vault.allocate(adapter, hex"", allocation);
+        AdapterMock(adapter).setInterest(interest);
+
+        // Test.
+        vm.prank(allocator);
+        vault.deallocate(adapter, hex"", deallocation);
+        assertEq(
+            vault.allocation(keccak256("id-0")),
+            allocation - deallocation + interest,
+            "Allocation incorrect after deallocation"
+        );
+        assertEq(
+            vault.allocation(keccak256("id-1")),
+            allocation - deallocation + interest,
+            "Allocation incorrect after deallocation"
+        );
     }
 }
