@@ -1,12 +1,12 @@
 # Vault v2
 
-Morpho Vault V2 enables anyone to create [non-custodial](#non-custodial) vaults that allocate assets to any protocols, including but not limited to Morpho Market V1, Morpho Market V2, and MetaMorpho Vaults.
-Depositors of Morpho Vault V2 earn from the underlying protocols without having to actively manage the risk of their position.
+Morpho Vault v2 enables anyone to create [non-custodial](#non-custodial) vaults that allocate assets to any protocols, including but not limited to Morpho Market v1, Morpho Market v2, and Morpho Vaults v1.
+Depositors of Morpho Vault v2 earn from the underlying protocols without having to actively manage the risk of their position.
 Management of deposited assets is the responsability of a set of different roles (owner, curator and allocators).
 The active management of invested positions involve enabling and allocating liquidity to protocols.
 
-[Morpho Vault V2](./src/VaultV2.sol) is [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) and [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) compliant.
-The [VaultV2Factory](./src/VaultV2Factory.sol) deploys instances of Vaults V2.
+[Morpho Vault v2](./src/VaultV2.sol) is [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) and [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) compliant.
+The [VaultV2Factory](./src/VaultV2Factory.sol) deploys instances of Vaults v2.
 All the contracts are immutable.
 
 ## Overview
@@ -19,14 +19,14 @@ Because adapters hold positions in protocols where assets are allocated, they ar
 To ensure that those rewards can be retrieved, each adapter has a skim function that can be called by the vault's owner.
 Adapters for the following protocols are currently available:
 
-- [Morpho Blue](./src/adapters/MorphoBlueAdapter.sol);
-  This adapter allocates to any market of Morpho Blue, constrained by the allocation caps (see [Id system](#id-system) below).
-  The adapter holds a position on each respective market of Morpho Blue, on behalf of the vault V2.
-- [MetaMorpho Vaults](./src/adapters/MetaMorphoAdapter.sol).
-  This adapter allocates to a fixed MetaMorpho vault (v1.0 and v1.1).
-  The adapter holds shares of the corresponding MetaMorpho vault on behalf of the vault V2.
+- [Morpho Market v1](./src/adapters/MorphoMarketV1Adapter.sol);
+  This adapter allocates to any Morpho Market v1, constrained by the allocation caps (see [Id system](#id-system) below).
+  The adapter holds a position on each respective market, on behalf of the vault v2.
+- [Morpho Vault v1](./src/adapters/MorphoVaultV1Adapter.sol).
+  This adapter allocates to a fixed Morpho Vault v1 (v1.0 and v1.1).
+  The adapter holds shares of the corresponding Morpho Vault v1 (v1.0 and v1.1) on behalf of the vault v2.
 
-A Morpho Market V2 adapter will be released together with Market V2.
+A Morpho Market v2 adapter will be released together with Market v2.
 
 ### Id system
 
@@ -39,7 +39,7 @@ The curator ensures the consistency of the id system by:
 - setting caps for the ids according to an estimation of risk;
 - setting adapters that return consistent ids.
 
-The ids of Morpho V1 lending markets could be for example the tuple `(CollateralToken, LLTV, Oracle)` and `CollateralToken` alone.
+The ids of Morpho v1 lending markets could be for example the tuple `(CollateralToken, LLTV, Oracle)` and `CollateralToken` alone.
 A vault could be setup to enforce the following caps:
 
 - `(stETH, 86%, Chainlink)`: 10M
@@ -58,7 +58,7 @@ When users withdraw assets, the assets are taken in priority from the `idle` mar
 If the `idle` market does not have enough liquidity, liquidity is taken from the liquidity market $M$.
 When defined, the liquidity market $M$ is also used as the market users are depositing into when supplying to the vault.
 
-The market $M$ would typically be a very liquid Market V1.
+The market $M$ would typically be a very liquid Market v1.
 
 <a id="non-custodial"></a>
 
@@ -83,10 +83,10 @@ This disincentivizes the manipulation of allocations, in particular of relative 
 
 ### Vault Interest Controller (Vic)
 
-Vault V2 can allocate assets across many markets, especially when interacting with Morpho Markets V2.
+Vault v2 can allocate assets across many markets, especially when interacting with Morpho Markets v2.
 Looping through all markets to compute the total assets is not realistic in the general case.
-This differs from Vault V1, where total assets were automatically computed from the vault's underlying allocations.
-As a result, in Vault V2, curators are responsible for monitoring the vault’s total assets and setting an appropriate interest rate.
+This differs from Vault v1, where total assets were automatically computed from the vault's underlying allocations.
+As a result, in Vault v2, curators are responsible for monitoring the vault’s total assets and setting an appropriate interest rate.
 The interest rate is set through the Vic, a contract responsible for returning the `interestPerSecond` used to accrue fees.
 The rate returned by the Vic must be below `200% APR`.
 
@@ -97,14 +97,15 @@ For now only a Vic of this type is provided, the [ManualVic](./src/vic/ManualVic
 - the Vic has an additional internal notion of max interest per second, to ensure that the role of allocator can be given more safely.
   The curator controls this internal notion of max interest per second, while the sentinels are only able to decrease it to reduce the risk of having a rate too high.
 
-### Bad debt
+### Bad debt realization
 
-Similarly, the curator is responsible for monitoring the vault's bad debt.
-In contrast to Vault V1.0, bad debt realization is not atomic to avoid share price manipulation with flash loans.
+In contrast to Morpho Vaults v1.0, bad debt realization is not autonomously realized on the vault when it is realized on the underlying market.
+It can be realized on the vault by anyone for an incentive (1% of the loss).
+To prevent flashloan based manipulations, when a loss is realized on the vault, deposits are blocked for the rest of the transaction.
 
 ### Gates
 
-Vaults V2 can use external gate contracts to control share transfer, vault asset deposit, and vault asset withdrawal.
+Vaults v2 can use external gate contracts to control share transfer, vault asset deposit, and vault asset withdrawal.
 
 If a gate is not set, its corresponding operations are not restricted.
 
@@ -198,16 +199,16 @@ It can:
 - Decrease relative caps.
 - Revoke timelocked actions.
 
-### Main differences with Vault V1
+### Main differences with Vault v1
 
-- Vault V2 can supply to arbitrary protocols, including, but not limited to, Morpho Market V1 and Morpho Market V2.
+- Vault v2 can supply to arbitrary protocols, including, but not limited to, Morpho Market v1 and Morpho Market v2.
 - The curator is responsible for setting the interest of the vault.
   This implies monitoring interests generated by the vault in order to set an interest that is in line with the profits generated by the vault.
-- Caps on markets can be set with more granularity than in Vault V1.
+- Caps on markets can be set with more granularity than in Vault v1.
 - Curators can set relative caps, limiting the maximum relative exposure of the vault to arbitrary factors (e.g. colaterral assets or oracle).
 - The owner no longer inherits the other roles.
 - Most management actions are done by the curator, not the owner.
-- The `Guardian` role of Vault V1 has been replaced by a `Sentinel` role.
+- The `Guardian` role of Vault v1 has been replaced by a `Sentinel` role.
   The scope of the sentinel is slightly different than that of the guardian role.
 - Timelocked actions are subject to configurable timelock durations, set individually for each action.
 - Bad debt realization is not automatic, but any allocation or deallocation will realize bad debt amounts returned by the adapter.

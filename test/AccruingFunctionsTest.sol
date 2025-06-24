@@ -20,8 +20,8 @@ contract AccruingFunctionsTest is BaseTest {
         vault.submit(abi.encodeCall(IVaultV2.setVic, (address(vic))));
         vault.setVic(address(vic));
 
-        increaseAbsoluteCap("id-0", WAD);
-        increaseAbsoluteCap("id-1", WAD);
+        increaseAbsoluteCap("id-0", type(uint128).max);
+        increaseAbsoluteCap("id-1", type(uint128).max);
         increaseRelativeCap("id-0", WAD);
         increaseRelativeCap("id-1", WAD);
 
