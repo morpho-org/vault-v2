@@ -36,7 +36,6 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - Given a method used by the adapter to estimate its assets in a market:
 ///   - Interest must be the positive change in estimate, if any, since the last interaction.
 ///   - Loss must be the negative change in estimate, if any, since the last interaction.
-/// - Realizable loss must not be below the actual loss.
 /// @dev Ids being reused by multiple adapters are useful to do "cross-caps". Adapters can add "this" to an id to avoid
 /// it being reused.
 /// @dev Liquidity market:
@@ -715,9 +714,7 @@ contract VaultV2 is IVaultV2 {
             }
 
             for (uint256 i; i < ids.length; i++) {
-                Caps storage _caps = caps[ids[i]];
-                // Zero floor subtraction because the loss could be overestimated.
-                _caps.allocation = _caps.allocation -= loss;
+                caps[ids[i]].allocation -= loss;
             }
 
             enterBlocked = true;
