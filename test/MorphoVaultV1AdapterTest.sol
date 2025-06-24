@@ -47,7 +47,7 @@ contract MorphoVaultV1AdapterTest is Test {
         asset.approve(address(morphoVaultV1), type(uint256).max);
 
         expectedIds = new bytes32[](1);
-        expectedIds[0] = keccak256(abi.encode("adapter", address(adapter)));
+        expectedIds[0] = keccak256(abi.encode("this", address(adapter)));
     }
 
     function testFactoryAndParentVaultAndAssetSet() public view {
@@ -200,6 +200,16 @@ contract MorphoVaultV1AdapterTest is Test {
         adapter.realizeLoss(hex"");
     }
 
+    function testLossRealizationAccessControl(address rdm) public {
+        vm.assume(rdm != address(parentVault));
+        vm.prank(rdm);
+        vm.expectRevert(IMorphoVaultV1Adapter.NotAuthorized.selector);
+        adapter.realizeLoss(hex"");
+
+        vm.prank(address(parentVault));
+        adapter.realizeLoss(hex"");
+    }
+
     function testLossRealizationZero(uint256 deposit) public {
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
 
@@ -318,6 +328,9 @@ contract MorphoVaultV1AdapterTest is Test {
 
         vm.expectRevert(IMorphoVaultV1Adapter.InvalidData.selector);
         adapter.deallocate(data, 0);
+
+        vm.expectRevert(IMorphoVaultV1Adapter.InvalidData.selector);
+        adapter.realizeLoss(data);
     }
 
     function testDifferentAssetReverts(address randomAsset) public {

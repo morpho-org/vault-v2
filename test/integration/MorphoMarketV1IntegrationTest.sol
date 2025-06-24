@@ -73,22 +73,17 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
         /* VAULT SETUP */
 
         factory = new MorphoMarketV1AdapterFactory();
-        adapter =
-            MorphoMarketV1Adapter(factory.createMorphoMarketV1Adapter(address(vault), address(morpho), address(irm)));
+        adapter = MorphoMarketV1Adapter(factory.createMorphoMarketV1Adapter(address(vault), address(morpho)));
 
         expectedIdData1 = new bytes[](3);
-        expectedIdData1[0] = abi.encode("adapter", address(adapter));
+        expectedIdData1[0] = abi.encode("this", address(adapter));
         expectedIdData1[1] = abi.encode("collateralToken", marketParams1.collateralToken);
-        expectedIdData1[2] = abi.encode(
-            "collateralToken/oracle/lltv", marketParams1.collateralToken, marketParams1.oracle, marketParams1.lltv
-        );
+        expectedIdData1[2] = abi.encode("this/marketParams", address(adapter), marketParams1);
 
         expectedIdData2 = new bytes[](3);
-        expectedIdData2[0] = abi.encode("adapter", address(adapter));
+        expectedIdData2[0] = abi.encode("this", address(adapter));
         expectedIdData2[1] = abi.encode("collateralToken", marketParams2.collateralToken);
-        expectedIdData2[2] = abi.encode(
-            "collateralToken/oracle/lltv", marketParams2.collateralToken, marketParams2.oracle, marketParams2.lltv
-        );
+        expectedIdData2[2] = abi.encode("this/marketParams", address(adapter), marketParams2);
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
@@ -96,10 +91,14 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
 
         increaseAbsoluteCap(expectedIdData1[0], type(uint128).max);
         increaseRelativeCap(expectedIdData1[0], WAD);
+
         increaseAbsoluteCap(expectedIdData1[1], type(uint128).max);
         increaseRelativeCap(expectedIdData1[1], WAD);
+
         increaseAbsoluteCap(expectedIdData1[2], type(uint128).max);
         increaseRelativeCap(expectedIdData1[2], WAD);
+
+        // expectedIdData2[0] and expectedIdData2[1] are the same as expectedIdData1[0] and expectedIdData1[1]
         increaseAbsoluteCap(expectedIdData2[2], type(uint128).max);
         increaseRelativeCap(expectedIdData2[2], WAD);
 

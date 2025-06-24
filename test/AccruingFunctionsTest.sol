@@ -19,6 +19,15 @@ contract AccruingFunctionsTest is BaseTest {
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setVic, (address(vic))));
         vault.setVic(address(vic));
+
+        increaseAbsoluteCap("id-0", type(uint128).max);
+        increaseAbsoluteCap("id-1", type(uint128).max);
+        increaseRelativeCap("id-0", WAD);
+        increaseRelativeCap("id-1", WAD);
+
+        deal(address(underlyingToken), address(vault), 1);
+        vm.prank(address(vault));
+        vault.allocate(address(adapter), hex"", 1);
     }
 
     function testAllocateAccruesInterest() public {

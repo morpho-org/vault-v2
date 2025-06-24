@@ -31,6 +31,12 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - They must return the right ids on allocate/deallocate.
 /// - After a call to deallocate, the vault must have an approval to transfer at least `assets` from the adapter.
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
+/// - Returned ids do not repeat.
+/// - They ignore donations of shares in their respective markets.
+/// - Interest must not be above the actual interest.
+/// - Realizable loss must not be below the actual loss.
+/// @dev Ids being reused by multiple adapters are useful to do "cross-caps". Adapters can add "this" to an id to avoid
+/// it being reused.
 /// @dev Liquidity market:
 /// - `liquidityAdapter` is allocated to on deposit/mint, and deallocated from on withdraw/redeem if idle assets don't
 /// cover the withdraw.
@@ -50,10 +56,14 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - totalAssets and totalSupply must stay below ~10^35.
 /// - The vault is pinged more than once every 10 years.
 /// - Adapters must not revert on `deallocate` if the underlying markets are liquid.
-/// - Returned ids do not repeat.
-/// - Adapters ignore donations of shares in their respective markets.
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
 /// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
+/// @dev Allocating is prevented if one of the ids' absolute cap is zero and deallocating is prevented if the id's
+/// allocation is zero. This prevents interactions with zero assets with unknown markets. For markets that share all
+/// their ids, it will be impossible to "disable" them (preventing any interaction) without disabling the others using
+/// the same ids.
+/// @dev If allocations underestimate the actual assets, some assets might be lost because deallocating is impossible if
+/// the allocation is zero.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
 
@@ -102,6 +112,8 @@ contract VaultV2 is IVaultV2 {
     uint64 public lastUpdate;
     /// @dev Set to 0 to disable the Vic (=> no interest accrual).
     address public vic;
+    /// @dev Storage slot for the Vic.
+    bytes32 public vicStorage;
     /// @dev Prevents floashloan-based shorting of vault shares during loss realizations.
     bool public transient enterBlocked;
 
@@ -156,7 +168,7 @@ contract VaultV2 is IVaultV2 {
     /* GETTERS */
 
     function totalAssets() external view returns (uint256) {
-        (uint256 newTotalAssets,,) = accrueInterestView();
+        (uint256 newTotalAssets,,,) = accrueInterestView();
         return newTotalAssets;
     }
 
@@ -440,6 +452,7 @@ contract VaultV2 is IVaultV2 {
             Caps storage _caps = caps[ids[i]];
             _caps.allocation = _caps.allocation + assets + interest;
 
+            require(_caps.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
             require(
                 _caps.relativeCap == WAD || _caps.allocation <= firstTotalAssets.mulDivDown(_caps.relativeCap, WAD),
@@ -461,6 +474,7 @@ contract VaultV2 is IVaultV2 {
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
+            require(_caps.allocation > 0, ErrorsLib.ZeroAllocation());
             _caps.allocation = (_caps.allocation + interest).zeroFloorSub(assets);
         }
 
@@ -480,8 +494,12 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterest() public {
         if (lastUpdate != block.timestamp) {
-            (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
-            emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
+            (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares, bytes32 newVicStorage) =
+                accrueInterestView();
+            emit EventsLib.AccrueInterest(
+                _totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares, newVicStorage
+            );
+            vicStorage = newVicStorage;
             _totalAssets = newTotalAssets.toUint192();
             if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
             if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
@@ -490,15 +508,16 @@ contract VaultV2 is IVaultV2 {
         if (firstTotalAssets == 0) firstTotalAssets = _totalAssets;
     }
 
-    /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
+    /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares, vicStorage.
     /// @dev Reverts if the call to the Vic reverts.
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     /// @dev The performance and management fees are taken even if the vault incurs some losses.
-    function accrueInterestView() public view returns (uint256, uint256, uint256) {
+    function accrueInterestView() public view returns (uint256, uint256, uint256, bytes32) {
         uint256 elapsed = block.timestamp - lastUpdate;
-        if (elapsed == 0) return (_totalAssets, 0, 0);
+        if (elapsed == 0) return (_totalAssets, 0, 0, bytes32(0));
 
-        uint256 tentativeInterestPerSecond = vic != address(0) ? IVic(vic).interestPerSecond(_totalAssets, elapsed) : 0;
+        (uint256 tentativeInterestPerSecond, bytes32 newVicStorage) =
+            vic != address(0) ? IVic(vic).interestPerSecond(_totalAssets, elapsed) : (0, bytes32(0));
 
         uint256 interestPerSecond = tentativeInterestPerSecond
             <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
@@ -520,33 +539,33 @@ contract VaultV2 is IVaultV2 {
         uint256 performanceFeeShares = performanceFeeAssets.mulDivDown(totalSupply + 1, newTotalAssetsWithoutFees + 1);
         uint256 managementFeeShares = managementFeeAssets.mulDivDown(totalSupply + 1, newTotalAssetsWithoutFees + 1);
 
-        return (newTotalAssets, performanceFeeShares, managementFeeShares);
+        return (newTotalAssets, performanceFeeShares, managementFeeShares, newVicStorage);
     }
 
     /// @dev Returns previewed minted shares.
     function previewDeposit(uint256 assets) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares,) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return assets.mulDivDown(newTotalSupply + 1, newTotalAssets + 1);
     }
 
     /// @dev Returns previewed deposited assets.
     function previewMint(uint256 shares) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares,) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivUp(newTotalAssets + 1, newTotalSupply + 1);
     }
 
     /// @dev Returns previewed redeemed shares.
     function previewWithdraw(uint256 assets) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares,) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return assets.mulDivUp(newTotalSupply + 1, newTotalAssets + 1);
     }
 
     /// @dev Returns previewed withdrawn assets.
     function previewRedeem(uint256 shares) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares,) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + 1);
     }

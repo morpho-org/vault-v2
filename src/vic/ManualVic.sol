@@ -41,11 +41,11 @@ contract ManualVic is IManualVic {
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         require(newInterestPerSecond <= maxInterestPerSecond, InterestPerSecondTooHigh());
         require(newDeadline >= block.timestamp, DeadlineAlreadyPassed());
-        require(newInterestPerSecond <= type(uint96).max, CastOverflow());
         require(newDeadline <= type(uint64).max, CastOverflow());
 
         IVaultV2(vault).accrueInterest();
 
+        // Safe cast because newInterestPerSecond <= maxInterestPerSecond.
         storedInterestPerSecond = uint96(newInterestPerSecond);
         deadline = uint64(newDeadline);
         emit SetInterestPerSecondAndDeadline(msg.sender, newInterestPerSecond, newDeadline);
@@ -57,8 +57,8 @@ contract ManualVic is IManualVic {
         emit ZeroInterestPerSecond(msg.sender);
     }
 
-    /// @dev Returns the interest per second.
-    function interestPerSecond(uint256, uint256) external view returns (uint256) {
-        return block.timestamp <= deadline ? storedInterestPerSecond : 0;
+    /// @dev Returns the interest per second and the new vic storage.
+    function interestPerSecond(uint256, uint256) external view returns (uint256, bytes32) {
+        return (block.timestamp <= deadline ? storedInterestPerSecond : 0, bytes32(0));
     }
 }

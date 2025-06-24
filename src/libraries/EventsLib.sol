@@ -39,7 +39,11 @@ library EventsLib {
 
     // Fee and interest events
     event AccrueInterest(
-        uint256 previousTotalAssets, uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares
+        uint256 previousTotalAssets,
+        uint256 newTotalAssets,
+        uint256 performanceFeeShares,
+        uint256 managementFeeShares,
+        bytes32 vicStorage
     );
 
     // Timelock events

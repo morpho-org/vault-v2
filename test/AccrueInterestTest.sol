@@ -71,7 +71,8 @@ contract AccrueInterestTest is BaseTest {
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
         // Normal path.
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = vault.accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares, bytes32 vicStorage) =
+            vault.accrueInterestView();
         vault.accrueInterest();
         assertEq(newTotalAssets, vault.totalAssets());
         assertEq(performanceFeeShares, vault.balanceOf(performanceFeeRecipient));
@@ -116,7 +117,7 @@ contract AccrueInterestTest is BaseTest {
             vault.totalSupply() + 1, totalAssets + 1 - managementFeeAssets - performanceFeeAssets
         );
         vm.expectEmit();
-        emit EventsLib.AccrueInterest(deposit, totalAssets, performanceFeeShares, managementFeeShares);
+        emit EventsLib.AccrueInterest(deposit, totalAssets, performanceFeeShares, managementFeeShares, bytes32(0));
         vault.accrueInterest();
         assertEq(vault.totalAssets(), totalAssets);
         assertEq(vault.balanceOf(performanceFeeRecipient), performanceFeeShares);

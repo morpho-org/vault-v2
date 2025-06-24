@@ -10,6 +10,7 @@ contract AdapterMock is IAdapter {
     address public immutable vault;
 
     bytes32[] public _ids;
+    uint256 public interest;
     uint256 public loss;
 
     bytes public recordedAllocateData;
@@ -28,8 +29,8 @@ contract AdapterMock is IAdapter {
         _ids.push(keccak256("id-1"));
     }
 
-    function setIds(bytes32[] memory newIds) external {
-        _ids = newIds;
+    function setInterest(uint256 _interest) external {
+        interest = _interest;
     }
 
     function setLoss(uint256 _loss) external {
@@ -39,13 +40,13 @@ contract AdapterMock is IAdapter {
     function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         recordedAllocateData = data;
         recordedAllocateAssets = assets;
-        return (ids(), 0);
+        return (ids(), interest);
     }
 
     function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
         recordedDeallocateData = data;
         recordedDeallocateAssets = assets;
-        return (ids(), 0);
+        return (ids(), interest);
     }
 
     function realizeLoss(bytes memory) external view returns (bytes32[] memory, uint256) {

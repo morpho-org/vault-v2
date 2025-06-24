@@ -9,9 +9,9 @@ import {IMorphoVaultV1Adapter} from "./interfaces/IMorphoVaultV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 
-/// @dev Designed, developped and audited for Morpho vaults v1 (v1.0 and v1.1) (also known as MetaMorpho). Integration
+/// @dev Designed, developped and audited for Morpho Vaults v1 (v1.0 and v1.1) (also known as MetaMorpho). Integration
 /// with other vaults must be carefully assessed from a security standpoint.
-/// @dev Morpho vaults v1.1 vaults do not realize bad debt, so vaults v2 supplying in them will not realize the
+/// @dev Morpho Vaults v1.1 do not realize bad debt, so Morpho Vaults v2 supplying in them will not realize the
 /// corresponding bad debt.
 contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     using MathLib for uint256;
@@ -37,7 +37,7 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         factory = msg.sender;
         parentVault = _parentVault;
         morphoVaultV1 = _morphoVaultV1;
-        adapterId = keccak256(abi.encode("adapter", address(this)));
+        adapterId = keccak256(abi.encode("this", address(this)));
         address asset = IVaultV2(_parentVault).asset();
         require(asset == IERC4626(_morphoVaultV1).asset(), AssetMismatch());
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
@@ -95,8 +95,8 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     }
 
     function realizeLoss(bytes memory data) external returns (bytes32[] memory, uint256) {
-        require(msg.sender == parentVault, NotAuthorized());
         require(data.length == 0, InvalidData());
+        require(msg.sender == parentVault, NotAuthorized());
 
         uint256 assetsInVault = IERC4626(morphoVaultV1).previewRedeem(shares);
         uint256 loss = allocation - assetsInVault;
