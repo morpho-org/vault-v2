@@ -117,7 +117,7 @@ contract ManualVicTest is Test {
 
         vm.prank(curator);
         manualVic.setMaxInterestPerSecond(type(uint96).max);
-        
+
         // Deadline already passed.
         vm.prank(allocator);
         vm.expectRevert(IManualVic.DeadlineAlreadyPassed.selector);
