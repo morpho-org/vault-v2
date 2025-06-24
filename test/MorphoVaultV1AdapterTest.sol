@@ -200,6 +200,16 @@ contract MorphoVaultV1AdapterTest is Test {
         adapter.realizeLoss(hex"");
     }
 
+    function testLossRealizationAccessControl(address rdm) public {
+        vm.assume(rdm != address(parentVault));
+        vm.prank(rdm);
+        vm.expectRevert(IMorphoVaultV1Adapter.NotAuthorized.selector);
+        adapter.realizeLoss(hex"");
+
+        vm.prank(address(parentVault));
+        adapter.realizeLoss(hex"");
+    }
+
     function testLossRealizationZero(uint256 deposit) public {
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
 
@@ -318,6 +328,9 @@ contract MorphoVaultV1AdapterTest is Test {
 
         vm.expectRevert(IMorphoVaultV1Adapter.InvalidData.selector);
         adapter.deallocate(data, 0);
+
+        vm.expectRevert(IMorphoVaultV1Adapter.InvalidData.selector);
+        adapter.realizeLoss(data);
     }
 
     function testDifferentAssetReverts(address randomAsset) public {

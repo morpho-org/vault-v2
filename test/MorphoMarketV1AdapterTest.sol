@@ -222,6 +222,16 @@ contract MorphoMarketV1AdapterTest is Test {
         adapter.skim(address(token));
     }
 
+    function testLossRealizationAccessControl(address rdm) public {
+        vm.assume(rdm != address(parentVault));
+        vm.prank(rdm);
+        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        adapter.realizeLoss(abi.encode(marketParams));
+
+        vm.prank(address(parentVault));
+        adapter.realizeLoss(abi.encode(marketParams));
+    }
+
     function testLossRealizationImpossible(uint256 deposit) public {
         deposit = _boundAssets(deposit);
 
