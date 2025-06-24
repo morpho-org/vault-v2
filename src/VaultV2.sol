@@ -307,6 +307,7 @@ contract VaultV2 is IVaultV2 {
         }
         vicStorage = 0;
         vic = newVic;
+        accrueInterest();
         emit EventsLib.SetVic(newVic);
     }
 
