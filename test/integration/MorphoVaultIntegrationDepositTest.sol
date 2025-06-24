@@ -59,7 +59,7 @@ contract MorphoVaultIntegrationDepositTest is MorphoVaultIntegrationTest {
         assertEq(
             morphoVaultV1Adapter.allocation(),
             previousAdapterTrackedAllocation + roundedDeposit,
-            "MM Adapter tracked allocation"
+            "Morpho Vault v1 Adapter tracked allocation"
         );
 
         // Check rounding is realizable
@@ -67,7 +67,9 @@ contract MorphoVaultIntegrationDepositTest is MorphoVaultIntegrationTest {
 
         assertEq(vault.totalAssets(), previousVaultTotalAssets, "vault total assets, after");
         assertEq(
-            morphoVaultV1Adapter.allocation(), previousAdapterTrackedAllocation, "MM Adapter tracked allocation, after"
+            morphoVaultV1Adapter.allocation(),
+            previousAdapterTrackedAllocation,
+            "Morpho Vault v1 Adapter tracked allocation, after"
         );
     }
 
@@ -115,14 +117,14 @@ contract MorphoVaultIntegrationDepositTest is MorphoVaultIntegrationTest {
         vm.prank(allocator);
         vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
 
-        if (assets > MM_NB_MARKETS * CAP) {
+        if (assets > MORPHO_VAULT_V1_NB_MARKETS * CAP) {
             vm.expectRevert();
             vault.deposit(assets, address(this));
         } else {
             vault.deposit(assets, address(this));
             checkAssetsInMorphoVaultV1Markets(assets);
             uint256 positionOnMorpho;
-            for (uint256 i; i < MM_NB_MARKETS; i++) {
+            for (uint256 i; i < MORPHO_VAULT_V1_NB_MARKETS; i++) {
                 positionOnMorpho += morpho.expectedSupplyAssets(allMarketParams[i], address(morphoVaultV1));
             }
             assertEq(positionOnMorpho, assets, "expected assets of morphoVaultV1");

@@ -39,14 +39,14 @@ contract MorphoVaultV1_1IntegrationDepositTest is MorphoVaultV1_1IntegrationTest
         vm.prank(allocator);
         vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
 
-        if (assets > MM_NB_MARKETS * CAP) {
+        if (assets > MORPHO_VAULT_V1_NB_MARKETS * CAP) {
             vm.expectRevert();
             vault.deposit(assets, address(this));
         } else {
             vault.deposit(assets, address(this));
             checkAssetsInMorphoVaultV1Markets(assets);
             uint256 positionOnMorpho;
-            for (uint256 i; i < MM_NB_MARKETS; i++) {
+            for (uint256 i; i < MORPHO_VAULT_V1_NB_MARKETS; i++) {
                 positionOnMorpho += morpho.expectedSupplyAssets(allMarketParams[i], address(morphoVaultV1));
             }
             assertEq(positionOnMorpho, assets, "expected assets of morphoVaultV1");

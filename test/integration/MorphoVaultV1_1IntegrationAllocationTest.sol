@@ -10,42 +10,43 @@ contract MorphoVaultV1_1IntegrationAllocationTest is MorphoVaultV1_1IntegrationT
     address internal immutable borrower = makeAddr("borrower");
 
     uint256 internal initialInIdle = 0.3e18;
-    uint256 internal initialInMM = 0.7e18;
+    uint256 internal initialInMorphoVaultV1 = 0.7e18;
     uint256 internal initialTotal = 1e18;
 
     function setUp() public virtual override {
         super.setUp();
 
-        assertEq(initialTotal, initialInIdle + initialInMM);
+        assertEq(initialTotal, initialInIdle + initialInMorphoVaultV1);
 
         vault.deposit(initialTotal, address(this));
 
         setSupplyQueueAllMarkets();
 
         vm.prank(allocator);
-        vault.allocate(address(morphoVaultV1Adapter), hex"", initialInMM);
+        vault.allocate(address(morphoVaultV1Adapter), hex"", initialInMorphoVaultV1);
 
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle);
-        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMM);
+        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMorphoVaultV1);
     }
 
     function testDeallocateLessThanAllocated(uint256 assets) public {
-        assets = bound(assets, 0, initialInMM);
+        assets = bound(assets, 0, initialInMorphoVaultV1);
 
         vm.prank(allocator);
         vault.deallocate(address(morphoVaultV1Adapter), hex"", assets);
 
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle + assets);
-        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMM - assets);
+        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMorphoVaultV1 - assets);
         assertEq(underlyingToken.balanceOf(address(morphoVaultV1)), 0);
         assertEq(underlyingToken.balanceOf(address(morphoVaultV1Adapter)), 0);
         assertEq(
-            morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter))), initialInMM - assets
+            morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter))),
+            initialInMorphoVaultV1 - assets
         );
     }
 
     function testDeallocateMoreThanAllocated(uint256 assets) public {
-        assets = bound(assets, initialInMM + 1, MAX_TEST_ASSETS);
+        assets = bound(assets, initialInMorphoVaultV1 + 1, MAX_TEST_ASSETS);
 
         vm.prank(allocator);
         vm.expectRevert();
@@ -61,8 +62,8 @@ contract MorphoVaultV1_1IntegrationAllocationTest is MorphoVaultV1_1IntegrationT
         deal(address(collateralToken), borrower, type(uint256).max);
         vm.startPrank(borrower);
         collateralToken.approve(address(morpho), type(uint256).max);
-        morpho.supplyCollateral(allMarketParams[0], 2 * initialInMM, borrower, hex"");
-        morpho.borrow(allMarketParams[0], initialInMM, 0, borrower, borrower);
+        morpho.supplyCollateral(allMarketParams[0], 2 * initialInMorphoVaultV1, borrower, hex"");
+        morpho.borrow(allMarketParams[0], initialInMorphoVaultV1, 0, borrower, borrower);
         vm.stopPrank();
         assertEq(underlyingToken.balanceOf(address(morpho)), 0);
 
@@ -78,11 +79,12 @@ contract MorphoVaultV1_1IntegrationAllocationTest is MorphoVaultV1_1IntegrationT
         vault.allocate(address(morphoVaultV1Adapter), hex"", assets);
 
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle - assets);
-        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMM + assets);
+        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMorphoVaultV1 + assets);
         assertEq(underlyingToken.balanceOf(address(morphoVaultV1)), 0);
         assertEq(underlyingToken.balanceOf(address(morphoVaultV1Adapter)), 0);
         assertEq(
-            morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter))), initialInMM + assets
+            morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter))),
+            initialInMorphoVaultV1 + assets
         );
     }
 
@@ -99,8 +101,8 @@ contract MorphoVaultV1_1IntegrationAllocationTest is MorphoVaultV1_1IntegrationT
 
         // Put all caps to the limit.
         vm.startPrank(mmCurator);
-        morphoVaultV1.submitCap(allMarketParams[0], initialInMM);
-        for (uint256 i = 1; i < MM_NB_MARKETS; i++) {
+        morphoVaultV1.submitCap(allMarketParams[0], initialInMorphoVaultV1);
+        for (uint256 i = 1; i < MORPHO_VAULT_V1_NB_MARKETS; i++) {
             morphoVaultV1.submitCap(allMarketParams[i], 0);
         }
         vm.stopPrank();

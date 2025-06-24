@@ -43,9 +43,9 @@ contract MorphoVaultV1_1IntegrationTest is BaseTest {
     address internal immutable mmOwner = makeAddr("mmOwner");
     address internal immutable mmAllocator = makeAddr("mmAllocator");
     address internal immutable mmCurator = makeAddr("mmCurator");
-    uint256 internal constant MM_NB_MARKETS = 5;
+    uint256 internal constant MORPHO_VAULT_V1_NB_MARKETS = 5;
     uint256 internal constant CAP = 1e18;
-    uint256 internal constant MM_TIMELOCK = 1 weeks;
+    uint256 internal constant MORPHO_VAULT_V1_TIMELOCK = 1 weeks;
     MarketParams[] internal allMarketParams;
     MarketParams internal idleParams;
 
@@ -81,7 +81,7 @@ contract MorphoVaultV1_1IntegrationTest is BaseTest {
 
         morpho.createMarket(idleParams);
 
-        for (uint256 i; i < MM_NB_MARKETS; ++i) {
+        for (uint256 i; i < MORPHO_VAULT_V1_NB_MARKETS; ++i) {
             uint256 lltv = 0.8 ether / (i + 1);
 
             MarketParams memory marketParams = MarketParams({
@@ -106,7 +106,9 @@ contract MorphoVaultV1_1IntegrationTest is BaseTest {
         morphoVaultV1 = IMetaMorphoV1_1(
             deployCode(
                 "MetaMorphoV1_1.sol",
-                abi.encode(mmOwner, address(morpho), MM_TIMELOCK, address(underlyingToken), "metamorpho", "MM")
+                abi.encode(
+                    mmOwner, address(morpho), MORPHO_VAULT_V1_TIMELOCK, address(underlyingToken), "morphoVaultV1", "MV1"
+                )
             )
         );
         vm.startPrank(mmOwner);
@@ -145,8 +147,8 @@ contract MorphoVaultV1_1IntegrationTest is BaseTest {
     }
 
     function setSupplyQueueAllMarkets() internal {
-        Id[] memory supplyQueue = new Id[](MM_NB_MARKETS);
-        for (uint256 i; i < MM_NB_MARKETS; i++) {
+        Id[] memory supplyQueue = new Id[](MORPHO_VAULT_V1_NB_MARKETS);
+        for (uint256 i; i < MORPHO_VAULT_V1_NB_MARKETS; i++) {
             MarketParams memory marketParams = allMarketParams[i];
             setMorphoVaultV1Cap(marketParams, CAP);
             supplyQueue[i] = marketParams.id();
