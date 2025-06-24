@@ -64,9 +64,9 @@ contract MorphoVaultV1_1IntegrationIkrTest is MorphoVaultV1_1IntegrationTest {
         vault.withdraw(assets, receiver, address(this));
     }
 
-    // Note that this method to redeem in-kind is not always available: it is possible that MM deposits are paused.
+    // This method to redeem in-kind is not always available, notably when Morpho Vault v1 deposits are paused.
     // In that case, use the redemption of Morpho Market v1 shares.
-    function testRedeemSharesOfMM(uint256 assets) public {
+    function testRedeemSharesOfMorphoVaultV1(uint256 assets) public {
         assets = bound(assets, MIN_IKR_TEST_ASSETS, MAX_IKR_TEST_ASSETS);
         setUpAssets(assets);
 
@@ -83,17 +83,17 @@ contract MorphoVaultV1_1IntegrationIkrTest is MorphoVaultV1_1IntegrationTest {
         // No assets left as shares in the vault.
         uint256 assetsLeftInVault = vault.previewRedeem(vault.balanceOf(address(this)));
         assertApproxEqAbs(assetsLeftInVault, 0, 1);
-        // Equivalent position in MM.
+        // Equivalent position in Morpho Vault v1.
         uint256 shares = morphoVaultV1.balanceOf(address(this));
         uint256 expectedAssets = morphoVaultV1.previewRedeem(shares);
         assertEq(expectedAssets, deallocatedAssets);
     }
 
-    function testRedeemSharesOfBlue(uint256 assets) public {
+    function testRedeemSharesOfMorphoMarketV1(uint256 assets) public {
         assets = bound(assets, MIN_IKR_TEST_ASSETS, MAX_IKR_TEST_ASSETS);
         setUpAssets(assets);
 
-        // Pause deposits on MM.
+        // Pause deposits on Morpho Vault v1.
         Id[] memory emptySupplyQueue = new Id[](0);
         vm.prank(mmAllocator);
         morphoVaultV1.setSupplyQueue(emptySupplyQueue);
