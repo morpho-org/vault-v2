@@ -4,11 +4,14 @@
 using Utils as Utils;
 
 methods {
+    function _.deallocate(bytes, uint256) external => CONSTANT;
+
     function multicall(bytes[]) external => NONDET DELETE;
 
     function owner() external returns address envfree;
     function curator() external returns address envfree;
     function isSentinel(address) external returns bool envfree;
+    function isAllocator(address) external returns bool envfree;
     function lastUpdate() external returns uint64 envfree;
     function totalSupply() external returns uint256 envfree;
     function performanceFee() external returns uint96 envfree;
