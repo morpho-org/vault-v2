@@ -63,7 +63,7 @@ contract MorphoVaultIntegrationIkrTest is MorphoVaultIntegrationTest {
         vault.withdraw(assets, receiver, address(this));
     }
 
-    // This method to redeem in-kind is not always available, notably when Morpho Vault V1 deposits are paused.
+    // This method to redeem in-kind is not always available, notably when Morpho Vault v1 deposits are paused.
     // In that case, use the redemption of Morpho Market v1 shares.
     function testRedeemSharesOfMorphoVaultV1(uint256 assets) public {
         assets = bound(assets, MIN_IKR_TEST_ASSETS, MAX_IKR_TEST_ASSETS);
