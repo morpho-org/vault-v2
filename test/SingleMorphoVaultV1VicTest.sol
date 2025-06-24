@@ -28,12 +28,14 @@ contract SingleMorphoVaultV1VicTest is Test {
     MockMorphoVaultV1Adapter internal adapter;
     SingleMorphoVaultV1Vic internal vic;
     SingleMorphoVaultV1VicFactory internal factory;
+    address internal parentVault;
 
     function setUp() public {
         asset = new ERC20Mock();
         morphoVaultV1 = new ERC4626Mock(address(asset));
         adapter = new MockMorphoVaultV1Adapter(address(morphoVaultV1));
-        vic = new SingleMorphoVaultV1Vic(address(adapter));
+        parentVault = makeAddr("parentVault");
+        vic = new SingleMorphoVaultV1Vic(parentVault, address(adapter));
         factory = new SingleMorphoVaultV1VicFactory();
 
         deal(address(asset), address(this), type(uint256).max);
@@ -41,21 +43,53 @@ contract SingleMorphoVaultV1VicTest is Test {
     }
 
     function testConstructor() public {
-        SingleMorphoVaultV1Vic newVic = new SingleMorphoVaultV1Vic(address(adapter));
+        SingleMorphoVaultV1Vic newVic = new SingleMorphoVaultV1Vic(parentVault, address(adapter));
         assertEq(newVic.morphoVaultV1Adapter(), address(adapter), "morphoVaultV1Adapter not set correctly");
         assertEq(newVic.morphoVaultV1(), address(morphoVaultV1), "morphoVaultV1 not set correctly");
     }
 
-    function testInterestPerSecond(uint256 deposit, uint256 interest, uint256 elapsed) public {
+    function testInterestPerSecondVaultOnly(uint256 deposit, uint256 interest, uint256 elapsed) public {
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
         interest = bound(interest, 1, MAX_TEST_ASSETS);
         elapsed = bound(elapsed, 1, 2 ** 63);
 
         morphoVaultV1.deposit(deposit, address(adapter));
         asset.transfer(address(morphoVaultV1), interest);
-        uint256 finalInterest = morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(adapter))) - deposit;
+        uint256 realVaultInterest = interest * deposit / (deposit + 1); // account for the virtual share.
 
-        assertEq(vic.interestPerSecond(deposit, elapsed), finalInterest / elapsed, "interest per second");
+        assertEq(vic.interestPerSecond(deposit, elapsed), realVaultInterest / elapsed, "interest per second");
+    }
+
+    function testInterestPerSecondIdleOnly(uint256 deposit, uint256 idleInterest, uint256 elapsed) public {
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
+        idleInterest = bound(idleInterest, 1, MAX_TEST_ASSETS);
+        elapsed = bound(elapsed, 1, 2 ** 63);
+
+        morphoVaultV1.deposit(deposit, address(adapter));
+        asset.transfer(address(parentVault), idleInterest);
+
+        assertEq(vic.interestPerSecond(deposit, elapsed), idleInterest / elapsed, "interest per second");
+    }
+
+    function testInterestPerSecondVaultAndIdle(
+        uint256 deposit,
+        uint256 vaultInterest,
+        uint256 idleInterest,
+        uint256 elapsed
+    ) public {
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
+        vaultInterest = bound(vaultInterest, 1, MAX_TEST_ASSETS);
+        idleInterest = bound(idleInterest, 1, MAX_TEST_ASSETS);
+        elapsed = bound(elapsed, 1, 2 ** 63);
+
+        morphoVaultV1.deposit(deposit, address(adapter));
+        asset.transfer(address(morphoVaultV1), vaultInterest);
+        asset.transfer(address(parentVault), idleInterest);
+        uint256 realVaultInterest = vaultInterest * deposit / (deposit + 1); // account for the virtual share.
+
+        assertEq(
+            vic.interestPerSecond(deposit, elapsed), (realVaultInterest + idleInterest) / elapsed, "interest per second"
+        );
     }
 
     function testInterestPerSecondZero(uint256 deposit, uint256 loss, uint256 elapsed) public {
@@ -71,8 +105,9 @@ contract SingleMorphoVaultV1VicTest is Test {
     }
 
     function testCreateSingleMorphoVaultV1Vic() public {
-        bytes32 initCodeHash =
-            keccak256(abi.encodePacked(type(SingleMorphoVaultV1Vic).creationCode, abi.encode(address(adapter))));
+        bytes32 initCodeHash = keccak256(
+            abi.encodePacked(type(SingleMorphoVaultV1Vic).creationCode, abi.encode(parentVault, address(adapter)))
+        );
         address expectedVic = address(
             uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), address(factory), bytes32(0), initCodeHash))))
         );
@@ -81,13 +116,14 @@ contract SingleMorphoVaultV1VicTest is Test {
             address(adapter), abi.encodeCall(IMorphoVaultV1Adapter.morphoVaultV1, ()), abi.encode(morphoVaultV1)
         );
         vm.expectEmit();
-        emit ISingleMorphoVaultV1VicFactory.CreateSingleMorphoVaultV1Vic(expectedVic, address(adapter));
-        address newVic = factory.createSingleMorphoVaultV1Vic(address(adapter));
+        emit ISingleMorphoVaultV1VicFactory.CreateSingleMorphoVaultV1Vic(expectedVic, parentVault, address(adapter));
+        address newVic = factory.createSingleMorphoVaultV1Vic(parentVault, address(adapter));
 
         assertEq(newVic, expectedVic, "createSingleMorphoVaultV1Vic returned wrong address");
         assertTrue(factory.isSingleMorphoVaultV1Vic(newVic), "Factory did not mark vic as valid");
-        assertEq(factory.singleMorphoVaultV1Vic(address(adapter)), newVic, "Mapping not updated");
+        assertEq(factory.singleMorphoVaultV1Vic(address(parentVault), address(adapter)), newVic, "Mapping not updated");
         assertEq(SingleMorphoVaultV1Vic(newVic).morphoVaultV1Adapter(), address(adapter), "Vic initialized incorrectly");
         assertEq(SingleMorphoVaultV1Vic(newVic).morphoVaultV1(), address(morphoVaultV1), "Vic initialized incorrectly");
+        assertEq(SingleMorphoVaultV1Vic(newVic).parentVault(), parentVault, "Vic initialized incorrectly");
     }
 }
