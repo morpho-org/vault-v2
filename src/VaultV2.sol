@@ -713,7 +713,9 @@ contract VaultV2 is IVaultV2 {
             }
 
             for (uint256 i; i < ids.length; i++) {
-                caps[ids[i]].allocation -= loss;
+                Caps storage _caps = caps[ids[i]];
+                // Zero floor subtraction because the loss could be overestimated.
+                _caps.allocation = _caps.allocation.zeroFloorSub(loss);
             }
 
             enterBlocked = true;
