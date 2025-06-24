@@ -101,6 +101,10 @@ contract AllocateTest is BaseTest {
         assertEq(vault.allocation(keccak256("id-1")), assets, "Allocation incorrect after allocation");
         assertEq(AdapterMock(adapter).recordedAllocateData(), data, "Data incorrect after allocation");
         assertEq(AdapterMock(adapter).recordedAllocateAssets(), assets, "Assets incorrect after allocation");
+        assertEq(
+            AdapterMock(adapter).recordedSelector(), IVaultV2.allocate.selector, "Selector incorrect after allocation"
+        );
+        assertEq(AdapterMock(adapter).recordedSender(), allocator, "Sender incorrect after allocation");
     }
 
     /// forge-config: default.isolate = true
@@ -200,6 +204,12 @@ contract AllocateTest is BaseTest {
         assertEq(vault.allocation(keccak256("id-1")), assetsIn - assetsOut, "Allocation incorrect after deallocation");
         assertEq(AdapterMock(adapter).recordedDeallocateData(), data, "Data incorrect after deallocation");
         assertEq(AdapterMock(adapter).recordedDeallocateAssets(), assetsOut, "Assets incorrect after deallocation");
+        assertEq(
+            AdapterMock(adapter).recordedSelector(),
+            IVaultV2.deallocate.selector,
+            "Selector incorrect after deallocation"
+        );
+        assertEq(AdapterMock(adapter).recordedSender(), allocator, "Sender incorrect after deallocation");
     }
 
     function testAllocateWithInterest(
