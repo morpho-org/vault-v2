@@ -4,8 +4,6 @@
 using Utils as Utils;
 
 methods {
-    function _.deallocate(bytes, uint256) external => CONSTANT;
-
     function multicall(bytes[]) external => NONDET DELETE;
 
     function owner() external returns address envfree;

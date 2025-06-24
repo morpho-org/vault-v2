@@ -3,6 +3,9 @@
 
 import "Invariants.spec";
 
+methods {
+    function _.deallocate(bytes, uint256) external => CONSTANT;
+}
 
 rule livenessSetVicIfDataIsTimelocked(env e, address newVic) {
     require e.msg.value == 0;
