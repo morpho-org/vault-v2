@@ -203,7 +203,7 @@ contract MorphoVaultV1AdapterTest is Test {
     function testLossRealizationAccessControl(address rdm) public {
         vm.assume(rdm != address(parentVault));
         vm.prank(rdm);
-        vm.expectRevert(IMetaMorphoAdapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoVaultV1Adapter.NotAuthorized.selector);
         adapter.realizeLoss(hex"");
 
         vm.prank(address(parentVault));
@@ -329,7 +329,7 @@ contract MorphoVaultV1AdapterTest is Test {
         vm.expectRevert(IMorphoVaultV1Adapter.InvalidData.selector);
         adapter.deallocate(data, 0);
 
-        vm.expectRevert(IMetaMorphoAdapter.InvalidData.selector);
+        vm.expectRevert(IMorphoVaultV1Adapter.InvalidData.selector);
         adapter.realizeLoss(data);
     }
 

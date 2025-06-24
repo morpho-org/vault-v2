@@ -231,7 +231,7 @@ contract MorphoMarketV1AdapterTest is Test {
     function testLossRealizationAccessControl(address rdm) public {
         vm.assume(rdm != address(parentVault));
         vm.prank(rdm);
-        vm.expectRevert(IMorphoBlueAdapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
         adapter.realizeLoss(abi.encode(marketParams));
 
         vm.prank(address(parentVault));
