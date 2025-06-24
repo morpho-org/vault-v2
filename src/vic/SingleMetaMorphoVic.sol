@@ -14,16 +14,17 @@ contract SingleMetaMorphoVic is ISingleMetaMorphoVic {
     /* IMMUTABLES */
 
     address public immutable metaMorphoAdapter;
+    address public immutable metaMorpho;
 
     /* FUNCTIONS */
 
     constructor(address _metaMorphoAdapter) {
         metaMorphoAdapter = _metaMorphoAdapter;
+        metaMorpho = IMetaMorphoAdapter(metaMorphoAdapter).metaMorpho();
     }
 
     /// @dev Returns the interest per second.
     function interestPerSecond(uint256 totalAssets, uint256 elapsed) external view returns (uint256) {
-        address metaMorpho = IMetaMorphoAdapter(metaMorphoAdapter).metaMorpho();
         return IERC4626(metaMorpho).previewRedeem(IERC4626(metaMorpho).balanceOf(metaMorphoAdapter)).zeroFloorSub(
             totalAssets
         ) / elapsed;
