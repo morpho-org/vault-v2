@@ -99,9 +99,9 @@ For now only a Vic of this type is provided, the [ManualVic](./src/vic/ManualVic
 
 ### Bad debt realization
 
-In contrast to Morpho Vaults v1.0, bad debt realization is not autonomously realize when it is realized on the underlying market.
-It can be realized by anyone for an incentive (1% of the loss).
-When a loss is realized, supplies in the vault are blocked for the rest of the transaction to prevent flashloan based manipulations.
+In contrast to Morpho Vaults v1.0, bad debt realization is not autonomously realized on the vault when it is realized on the underlying market.
+It can be realized on the vault by anyone for an incentive (1% of the loss).
+To prevent flashloan based manipulations, when a loss is realized on the vault, supplies in the vault are blocked for the rest of the transaction.
 
 ### Gates
 
