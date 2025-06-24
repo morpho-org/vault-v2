@@ -71,7 +71,7 @@ contract VaultV2 is IVaultV2 {
 
     address public immutable asset;
     uint8 public immutable decimals;
-    uint256 public immutable decimalOffset;
+    uint256 public immutable virtualShares;
 
     /* ROLES STORAGE */
 
@@ -210,8 +210,9 @@ contract VaultV2 is IVaultV2 {
         owner = _owner;
         lastUpdate = uint64(block.timestamp);
         uint256 assetDecimals = IERC20(_asset).decimals();
-        decimals = uint8(assetDecimals + uint256(18).zeroFloorSub(assetDecimals));
-        decimalOffset = 10 ** uint256(18).zeroFloorSub(assetDecimals);
+        uint256 decimalOffset = uint256(18).zeroFloorSub(assetDecimals);
+        decimals = uint8(assetDecimals + decimalOffset);
+        virtualShares = 10 ** decimalOffset;
         timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         emit EventsLib.Constructor(_owner, _asset);
     }
@@ -533,9 +534,9 @@ contract VaultV2 is IVaultV2 {
         // Interest should be accrued at least every 10 years to avoid fees exceeding total assets.
         uint256 newTotalAssetsWithoutFees = newTotalAssets - performanceFeeAssets - managementFeeAssets;
         uint256 performanceFeeShares =
-            performanceFeeAssets.mulDivDown(totalSupply + decimalOffset, newTotalAssetsWithoutFees + 1);
+            performanceFeeAssets.mulDivDown(totalSupply + virtualShares, newTotalAssetsWithoutFees + 1);
         uint256 managementFeeShares =
-            managementFeeAssets.mulDivDown(totalSupply + decimalOffset, newTotalAssetsWithoutFees + 1);
+            managementFeeAssets.mulDivDown(totalSupply + virtualShares, newTotalAssetsWithoutFees + 1);
 
         return (newTotalAssets, performanceFeeShares, managementFeeShares);
     }
@@ -544,28 +545,28 @@ contract VaultV2 is IVaultV2 {
     function previewDeposit(uint256 assets) public view returns (uint256) {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
-        return assets.mulDivDown(newTotalSupply + decimalOffset, newTotalAssets + 1);
+        return assets.mulDivDown(newTotalSupply + virtualShares, newTotalAssets + 1);
     }
 
     /// @dev Returns previewed deposited assets.
     function previewMint(uint256 shares) public view returns (uint256) {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
-        return shares.mulDivUp(newTotalAssets + 1, newTotalSupply + decimalOffset);
+        return shares.mulDivUp(newTotalAssets + 1, newTotalSupply + virtualShares);
     }
 
     /// @dev Returns previewed redeemed shares.
     function previewWithdraw(uint256 assets) public view returns (uint256) {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
-        return assets.mulDivUp(newTotalSupply + decimalOffset, newTotalAssets + 1);
+        return assets.mulDivUp(newTotalSupply + virtualShares, newTotalAssets + 1);
     }
 
     /// @dev Returns previewed withdrawn assets.
     function previewRedeem(uint256 shares) public view returns (uint256) {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
-        return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + decimalOffset);
+        return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + virtualShares);
     }
 
     /// @dev Returns corresponding shares (rounded down).
@@ -711,7 +712,7 @@ contract VaultV2 is IVaultV2 {
             if (canReceive(msg.sender)) {
                 uint256 incentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
                 incentiveShares =
-                    incentive.mulDivDown(totalSupply + decimalOffset, uint256(_totalAssets).zeroFloorSub(incentive) + 1);
+                    incentive.mulDivDown(totalSupply + virtualShares, uint256(_totalAssets).zeroFloorSub(incentive) + 1);
                 createShares(msg.sender, incentiveShares);
             }
 
