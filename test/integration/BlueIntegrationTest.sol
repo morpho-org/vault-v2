@@ -75,7 +75,7 @@ contract BlueIntegrationTest is BaseTest {
         factory = new MorphoBlueAdapterFactory();
         adapter = MorphoBlueAdapter(factory.createMorphoBlueAdapter(address(vault), address(morpho)));
 
-        expectedIdData1 = new bytes[](4);
+        expectedIdData1 = new bytes[](3);
         expectedIdData1[0] = abi.encode("this", address(adapter));
         expectedIdData1[1] = abi.encode("collateralToken", marketParams1.collateralToken);
         expectedIdData1[2] = abi.encode("this/marketParams", address(adapter), marketParams1);
