@@ -29,10 +29,6 @@ contract AdapterMock is IAdapter {
         _ids.push(keccak256("id-1"));
     }
 
-    function setIds(bytes32[] memory newIds) external {
-        _ids = newIds;
-    }
-
     function setInterest(uint256 _interest) external {
         interest = _interest;
     }

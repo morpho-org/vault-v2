@@ -33,6 +33,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
 /// - Returned ids do not repeat.
 /// - They ignore donations of shares in their respective markets.
+/// - Interest must not be above the actual interest.
+/// - Realizable loss must not be below the actual loss.
 /// @dev Ids being reused by multiple adapters are useful to do "cross-caps". Adapters can add "this" to an id to avoid
 /// it being reused.
 /// @dev Liquidity market:
@@ -60,6 +62,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// allocation is zero. This prevents interactions with zero assets with unknown markets. For markets that share all
 /// their ids, it will be impossible to "disable" them (preventing any interaction) without disabling the others using
 /// the same ids.
+/// @dev If allocations underestimate the actual assets, some assets might be lost because deallocating is impossible if
+/// the allocation is zero.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
 
