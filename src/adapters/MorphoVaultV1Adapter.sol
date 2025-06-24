@@ -9,7 +9,7 @@ import {IMorphoVaultV1Adapter} from "./interfaces/IMorphoVaultV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 
-/// @dev Designed, developped and audited for Morpho Vaults (v1.0 and v1.1). Integration with other vaults must be
+/// @dev Designed, developped and audited for Morpho Vaults v1 (v1.0 and v1.1). Integration with other vaults must be
 /// carefully assessed from a security standpoint.
 /// @dev Morpho Vaults v1 and v1.1 are also known as MetaMorpho v1 and v1.1.
 /// @dev Morpho Vaults v1.1 vaults do not realize bad debt, so vaults v2 supplying in them will not realize the
