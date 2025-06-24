@@ -37,7 +37,7 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         factory = msg.sender;
         parentVault = _parentVault;
         morphoVaultV1 = _morphoVaultV1;
-        adapterId = keccak256(abi.encode("adapter", address(this)));
+        adapterId = keccak256(abi.encode("this", address(this)));
         address asset = IVaultV2(_parentVault).asset();
         require(asset == IERC4626(_morphoVaultV1).asset(), AssetMismatch());
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);

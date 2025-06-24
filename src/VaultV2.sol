@@ -31,6 +31,10 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - They must return the right ids on allocate/deallocate.
 /// - After a call to deallocate, the vault must have an approval to transfer at least `assets` from the adapter.
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
+/// - Returned ids do not repeat.
+/// - They ignore donations of shares in their respective markets.
+/// @dev Ids being reused by multiple adapters are useful to do "cross-caps". Adapters can add "this" to an id to avoid
+/// it being reused.
 /// @dev Liquidity market:
 /// - `liquidityAdapter` is allocated to on deposit/mint, and deallocated from on withdraw/redeem if idle assets don't
 /// cover the withdraw.
@@ -50,8 +54,6 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - totalAssets and totalSupply must stay below ~10^35.
 /// - The vault is pinged more than once every 10 years.
 /// - Adapters must not revert on `deallocate` if the underlying markets are liquid.
-/// - Returned ids do not repeat.
-/// - Adapters ignore donations of shares in their respective markets.
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
 /// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
 /// @dev Allocating is prevented if one of the ids' absolute cap is zero and deallocating is prevented if the id's

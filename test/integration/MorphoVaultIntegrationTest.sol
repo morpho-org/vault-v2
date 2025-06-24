@@ -122,7 +122,7 @@ contract MorphoVaultIntegrationTest is BaseTest {
             morphoVaultV1AdapterFactory.createMorphoVaultV1Adapter(address(vault), address(morphoVaultV1))
         );
 
-        bytes memory idData = abi.encode("adapter", address(morphoVaultV1Adapter));
+        bytes memory idData = abi.encode("this", address(morphoVaultV1Adapter));
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(morphoVaultV1Adapter), true)));
         vault.setIsAdapter(address(morphoVaultV1Adapter), true);
