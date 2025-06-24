@@ -8,15 +8,15 @@ contract ForceDeallocateTest is BaseTest {
     using MathLib for uint256;
 
     uint256 constant MAX_TEST_ASSETS = 1e36;
-    address adapter;
+    AdapterMock adapter;
 
     function setUp() public override {
         super.setUp();
 
-        adapter = address(new AdapterMock(address(vault)));
+        adapter = new AdapterMock(address(vault));
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (adapter, true)));
-        vault.setIsAdapter(adapter, true);
+        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
+        vault.setIsAdapter(address(adapter), true);
 
         increaseAbsoluteCap("id-0", type(uint128).max);
         increaseAbsoluteCap("id-1", type(uint128).max);
@@ -37,19 +37,23 @@ contract ForceDeallocateTest is BaseTest {
 
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", supplied);
-        assertEq(underlyingToken.balanceOf(adapter), supplied);
+        assertEq(underlyingToken.balanceOf(address(adapter)), supplied);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (adapter, forceDeallocatePenalty)));
-        vault.setForceDeallocatePenalty(adapter, forceDeallocatePenalty);
+        vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(adapter), forceDeallocatePenalty)));
+        vault.setForceDeallocatePenalty(address(adapter), forceDeallocatePenalty);
 
         uint256 penaltyAssets = deallocated.mulDivUp(forceDeallocatePenalty, WAD);
         uint256 expectedShares = shares - vault.previewWithdraw(penaltyAssets);
         vm.expectEmit();
-        emit EventsLib.ForceDeallocate(address(this), adapter, hex"", deallocated, address(this), penaltyAssets);
-        uint256 withdrawnShares = vault.forceDeallocate(adapter, hex"", deallocated, address(this));
+        emit EventsLib.ForceDeallocate(
+            address(this), address(adapter), hex"", deallocated, address(this), penaltyAssets
+        );
+        uint256 withdrawnShares = vault.forceDeallocate(address(adapter), hex"", deallocated, address(this));
+        assertEq(adapter.recordedSelector(), IVaultV2.forceDeallocate.selector);
+        assertEq(adapter.recordedSender(), address(this));
         assertEq(shares - expectedShares, withdrawnShares);
-        assertEq(underlyingToken.balanceOf(adapter), supplied - deallocated);
+        assertEq(underlyingToken.balanceOf(address(adapter)), supplied - deallocated);
         assertEq(underlyingToken.balanceOf(address(vault)), deallocated);
         assertEq(vault.balanceOf(address(this)), expectedShares);
 

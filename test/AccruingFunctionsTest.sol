@@ -26,7 +26,7 @@ contract AccruingFunctionsTest is BaseTest {
         increaseRelativeCap("id-1", WAD);
 
         deal(address(underlyingToken), address(vault), 1);
-        vm.prank(address(vault));
+        vm.prank(allocator);
         vault.allocate(address(adapter), hex"", 1);
     }
 
@@ -53,6 +53,10 @@ contract AccruingFunctionsTest is BaseTest {
     function testRealizeAccruesInterest() public {
         skip(1);
         vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
+        bytes32[] memory ids = new bytes32[](0);
+        vm.mockCall(
+            address(adapter), abi.encodeCall(IAdapter.realizeLoss, (hex"", bytes4(0), address(0))), abi.encode(ids, 1)
+        );
         vault.realizeLoss(address(adapter), hex"");
     }
 
