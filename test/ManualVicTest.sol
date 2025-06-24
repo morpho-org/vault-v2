@@ -120,7 +120,7 @@ contract ManualVicTest is Test {
         manualVic.setMaxInterestPerSecond(type(uint96).max);
         vm.prank(allocator);
         vm.expectRevert(IManualVic.DeadlineAlreadyPassed.selector);
-        manualVic.setInterestPerSecondAndDeadline(1, block.timestamp - 1);
+        manualVic.setInterestPerSecondAndDeadline(newInterestPerSecond, block.timestamp - 1);
 
         // Deadline cast overflow.
         vm.prank(allocator);
