@@ -39,5 +39,7 @@ library ErrorsLib {
     error TransferReturnedFalse();
     error TransferReverted();
     error Unauthorized();
+    error ZeroAbsoluteCap();
     error ZeroAddress();
+    error ZeroAllocation();
 }

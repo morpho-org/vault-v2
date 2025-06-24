@@ -4,25 +4,13 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
-contract EmptyAdapter is IAdapter {
-    bytes32[] ids = [keccak256("id")];
-
-    function allocate(bytes memory, uint256) external view returns (bytes32[] memory, uint256) {
-        return (ids, 0);
-    }
-
-    function deallocate(bytes memory, uint256) external view returns (bytes32[] memory, uint256) {
-        return (ids, 0);
-    }
-}
-
-contract AccrueInterestTest is BaseTest {
-    EmptyAdapter adapter;
+contract AccruingFunctionsTest is BaseTest {
+    AdapterMock adapter;
 
     function setUp() public override {
         super.setUp();
 
-        adapter = new EmptyAdapter();
+        adapter = new AdapterMock(address(vault));
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
@@ -31,6 +19,15 @@ contract AccrueInterestTest is BaseTest {
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setVic, (address(vic))));
         vault.setVic(address(vic));
+
+        increaseAbsoluteCap("id-0", type(uint128).max);
+        increaseAbsoluteCap("id-1", type(uint128).max);
+        increaseRelativeCap("id-0", WAD);
+        increaseRelativeCap("id-1", WAD);
+
+        deal(address(underlyingToken), address(vault), 1);
+        vm.prank(address(vault));
+        vault.allocate(address(adapter), hex"", 1);
     }
 
     function testAllocateAccruesInterest() public {
@@ -45,6 +42,20 @@ contract AccrueInterestTest is BaseTest {
         vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
         vm.prank(allocator);
         vault.deallocate(address(adapter), hex"", 0);
+    }
+
+    function testForceDeallocateAccruesInterest() public {
+        skip(1);
+        vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
+        vault.forceDeallocate(address(adapter), hex"", 0, address(this));
+    }
+
+    function testRealizeAccruesInterest() public {
+        skip(1);
+        vm.expectCall(address(vic), bytes.concat(IVic.interestPerSecond.selector));
+        bytes32[] memory ids = new bytes32[](0);
+        vm.mockCall(address(adapter), abi.encodeCall(IAdapter.realizeLoss, (hex"")), abi.encode(ids, 1));
+        vault.realizeLoss(address(adapter), hex"");
     }
 
     function testDepositAccruesInterest() public {

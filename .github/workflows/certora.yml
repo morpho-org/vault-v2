@@ -19,8 +19,9 @@ jobs:
           - AbdicatedFunctions
           - Invariants
           - Liveness
-          - MetaMorphoAdapterFactory
-          - MorphoBlueAdapterFactory
+          - MorphoVaultV1AdapterFactory
+          - MorphoMarketV1AdapterFactory
+          - PreviewFunctions
 
     steps:
       - uses: actions/checkout@v4

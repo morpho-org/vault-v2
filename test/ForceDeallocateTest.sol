@@ -4,15 +4,6 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
-contract Adapter is IAdapter {
-    constructor(address _underlyingToken, address _vault) {
-        IERC20(_underlyingToken).approve(_vault, type(uint256).max);
-    }
-
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids, uint256 loss) {}
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory ids, uint256 loss) {}
-}
-
 contract ForceDeallocateTest is BaseTest {
     using MathLib for uint256;
 
@@ -22,21 +13,24 @@ contract ForceDeallocateTest is BaseTest {
     function setUp() public override {
         super.setUp();
 
-        adapter = address(new Adapter(address(underlyingToken), address(vault)));
+        adapter = address(new AdapterMock(address(vault)));
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (adapter, true)));
+        vault.setIsAdapter(adapter, true);
+
+        increaseAbsoluteCap("id-0", type(uint128).max);
+        increaseAbsoluteCap("id-1", type(uint128).max);
+        increaseRelativeCap("id-0", WAD);
+        increaseRelativeCap("id-1", WAD);
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
     }
 
     function testForceDeallocate(uint256 supplied, uint256 deallocated, uint256 forceDeallocatePenalty) public {
-        supplied = bound(supplied, 0, MAX_TEST_ASSETS);
+        supplied = bound(supplied, 1, MAX_TEST_ASSETS); // starts at 1 to avoid zero allocation.
         deallocated = bound(deallocated, 0, supplied);
         forceDeallocatePenalty = bound(forceDeallocatePenalty, 0, MAX_FORCE_DEALLOCATE_PENALTY);
-
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (adapter, true)));
-
-        vault.setIsAdapter(adapter, true);
 
         uint256 shares = vault.deposit(supplied, address(this));
         assertEq(underlyingToken.balanceOf(address(vault)), supplied);
