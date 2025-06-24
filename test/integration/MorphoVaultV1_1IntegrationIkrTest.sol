@@ -89,7 +89,7 @@ contract MorphoVaultV1_1IntegrationIkrTest is MorphoVaultV1_1IntegrationTest {
         assertEq(expectedAssets, deallocatedAssets);
     }
 
-    function testRedeemSharesOfBlue(uint256 assets) public {
+    function testRedeemSharesOfMorphoMarketV1(uint256 assets) public {
         assets = bound(assets, MIN_IKR_TEST_ASSETS, MAX_IKR_TEST_ASSETS);
         setUpAssets(assets);
 
