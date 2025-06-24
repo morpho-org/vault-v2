@@ -3,11 +3,11 @@
 using Utils as Utils;
 
 methods {
-    function isMorphoBlueAdapter(address) external returns bool envfree;
+    function isMorphoMarketV1Adapter(address) external returns bool envfree;
 
     function Utils.factory(address) external returns address envfree;
     function _.factory() external => DISPATCHER(true);
 }
 
 strong invariant genuineAdaptersReturnTheFactory(address adapter)
-    isMorphoBlueAdapter(adapter) => Utils.factory(adapter) == currentContract;
+    isMorphoMarketV1Adapter(adapter) => Utils.factory(adapter) == currentContract;

@@ -19,12 +19,12 @@ Because adapters hold positions in protocols where assets are allocated, they ar
 To ensure that those rewards can be retrieved, each adapter has a skim function that can be called by the vault's owner.
 Adapters for the following protocols are currently available:
 
-- [Morpho Blue](./src/adapters/MorphoBlueAdapter.sol);
-  This adapter allocates to any market of Morpho Blue, constrained by the allocation caps (see [Id system](#id-system) below).
-  The adapter holds a position on each respective market of Morpho Blue, on behalf of the vault v2.
-- [Morpho Vaults v1](./src/adapters/MorphoVaultV1Adapter.sol).
-  This adapter allocates to a fixed Morpho Vault v1 (v1.0 and v1.1).
-  The adapter holds shares of the corresponding Morpho Vault v1 (v1.0 and v1.1) on behalf of the vault v2.
+- [Morpho market v1](./src/adapters/MorphoMarketV1Adapter.sol);
+  This adapter allocates to any Morpho market v1, constrained by the allocation caps (see [Id system](#id-system) below).
+  The adapter holds a position on each respective market, on behalf of the vault v2.
+- [Morpho vaults v1](./src/adapters/MorphoVaultV1Adapter.sol).
+  This adapter allocates to a fixed Morpho vault v1 (v1.0 and v1.1).
+  The adapter holds shares of the corresponding Morpho vault v1 (v1.0 and v1.1) on behalf of the vault v2.
 
 A Morpho Market v2 adapter will be released together with Market v2.
 

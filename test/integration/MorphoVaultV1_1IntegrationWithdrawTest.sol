@@ -11,23 +11,23 @@ contract MorphoVaultV1_1IntegrationWithdrawTest is MorphoVaultV1_1IntegrationTes
     address internal immutable borrower = makeAddr("borrower");
 
     uint256 internal initialInIdle = 0.3e18;
-    uint256 internal initialInMM = 0.7e18;
+    uint256 internal initialInMorphoVaultV1 = 0.7e18;
     uint256 internal initialTotal = 1e18;
 
     function setUp() public virtual override {
         super.setUp();
 
-        assertEq(initialTotal, initialInIdle + initialInMM);
+        assertEq(initialTotal, initialInIdle + initialInMorphoVaultV1);
 
         vault.deposit(initialTotal, address(this));
 
         setSupplyQueueAllMarkets();
 
         vm.prank(allocator);
-        vault.allocate(address(morphoVaultV1Adapter), hex"", initialInMM);
+        vault.allocate(address(morphoVaultV1Adapter), hex"", initialInMorphoVaultV1);
 
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle);
-        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMM);
+        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMorphoVaultV1);
     }
 
     function testWithdrawLessThanIdle(uint256 assets) public {
@@ -37,10 +37,12 @@ contract MorphoVaultV1_1IntegrationWithdrawTest is MorphoVaultV1_1IntegrationTes
 
         assertEq(underlyingToken.balanceOf(receiver), assets);
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle - assets);
-        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMM);
+        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMorphoVaultV1);
         assertEq(underlyingToken.balanceOf(address(morphoVaultV1)), 0);
         assertEq(underlyingToken.balanceOf(address(morphoVaultV1Adapter)), 0);
-        assertEq(morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter))), initialInMM);
+        assertEq(
+            morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter))), initialInMorphoVaultV1
+        );
     }
 
     function testWithdrawMoreThanIdleNoLiquidityAdapter(uint256 assets) public {
@@ -84,8 +86,8 @@ contract MorphoVaultV1_1IntegrationWithdrawTest is MorphoVaultV1_1IntegrationTes
         deal(address(collateralToken), borrower, type(uint256).max);
         vm.startPrank(borrower);
         collateralToken.approve(address(morpho), type(uint256).max);
-        morpho.supplyCollateral(allMarketParams[0], 2 * initialInMM, borrower, hex"");
-        morpho.borrow(allMarketParams[0], initialInMM, 0, borrower, borrower);
+        morpho.supplyCollateral(allMarketParams[0], 2 * initialInMorphoVaultV1, borrower, hex"");
+        morpho.borrow(allMarketParams[0], initialInMorphoVaultV1, 0, borrower, borrower);
         vm.stopPrank();
         assertEq(underlyingToken.balanceOf(address(morpho)), 0);
 

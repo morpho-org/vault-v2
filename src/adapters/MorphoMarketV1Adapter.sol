@@ -8,7 +8,7 @@ import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.s
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IMorphoBlueAdapter} from "./interfaces/IMorphoBlueAdapter.sol";
+import {IMorphoMarketV1Adapter} from "./interfaces/IMorphoMarketV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 
@@ -19,7 +19,8 @@ struct Position {
     uint128 allocation;
 }
 
-contract MorphoBlueAdapter is IMorphoBlueAdapter {
+/// @dev Morpho Market v1 is also known as Morpho Blue.
+contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MathLib for uint256;
     using SharesMathLib for uint256;
     using MorphoBalancesLib for IMorpho;
