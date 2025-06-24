@@ -55,7 +55,8 @@ contract SingleMorphoVaultV1VicTest is Test {
         asset.transfer(address(morphoVaultV1), interest);
         uint256 finalInterest = morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(adapter))) - deposit;
 
-        assertEq(vic.interestPerSecond(deposit, elapsed), finalInterest / elapsed, "interest per second");
+        (uint256 interestPerSecond,) = vic.interestPerSecond(deposit, elapsed);
+        assertEq(interestPerSecond, finalInterest / elapsed, "interest per second");
     }
 
     function testInterestPerSecondZero(uint256 deposit, uint256 loss, uint256 elapsed) public {
@@ -67,7 +68,8 @@ contract SingleMorphoVaultV1VicTest is Test {
         vm.prank(address(morphoVaultV1));
         asset.transfer(address(0xdead), loss);
 
-        assertEq(vic.interestPerSecond(deposit, elapsed), 0, "interest per second");
+        (uint256 interestPerSecond,) = vic.interestPerSecond(deposit, elapsed);
+        assertEq(interestPerSecond, 0, "interest per second");
     }
 
     function testCreateSingleMorphoVaultV1Vic() public {
