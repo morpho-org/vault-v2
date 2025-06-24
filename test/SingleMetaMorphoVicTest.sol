@@ -40,10 +40,10 @@ contract SingleMetaMorphoVicTest is Test {
         asset.approve(address(metaMorpho), type(uint256).max);
     }
 
-    function testConstructor(address randomAdapter) public {
-        vm.assume(randomAdapter != address(0));
-        SingleMetaMorphoVic newVic = new SingleMetaMorphoVic(randomAdapter);
-        assertEq(newVic.metaMorphoAdapter(), randomAdapter, "metaMorphoAdapter not set correctly");
+    function testConstructor() public {
+        SingleMetaMorphoVic newVic = new SingleMetaMorphoVic(address(adapter));
+        assertEq(newVic.metaMorphoAdapter(), address(adapter), "metaMorphoAdapter not set correctly");
+        assertEq(newVic.metaMorpho(), address(metaMorpho), "metaMorpho not set correctly");
     }
 
     function testInterestPerSecond(uint256 deposit, uint256 interest, uint256 elapsed) public {
@@ -70,22 +70,22 @@ contract SingleMetaMorphoVicTest is Test {
         assertEq(vic.interestPerSecond(deposit, elapsed), 0, "interest per second");
     }
 
-    function testCreateSingleMetaMorphoVic(address metaMorphoAdapter) public {
-        vm.assume(metaMorphoAdapter != address(0));
-
+    function testCreateSingleMetaMorphoVic() public {
         bytes32 initCodeHash =
-            keccak256(abi.encodePacked(type(SingleMetaMorphoVic).creationCode, abi.encode(metaMorphoAdapter)));
+            keccak256(abi.encodePacked(type(SingleMetaMorphoVic).creationCode, abi.encode(address(adapter))));
         address expectedVic = address(
             uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), address(factory), bytes32(0), initCodeHash))))
         );
 
+        vm.mockCall(address(adapter), abi.encodeCall(IMetaMorphoAdapter.metaMorpho, ()), abi.encode(metaMorpho));
         vm.expectEmit();
-        emit ISingleMetaMorphoVicFactory.CreateSingleMetaMorphoVic(expectedVic, metaMorphoAdapter);
-        address newVic = factory.createSingleMetaMorphoVic(metaMorphoAdapter);
+        emit ISingleMetaMorphoVicFactory.CreateSingleMetaMorphoVic(expectedVic, address(adapter));
+        address newVic = factory.createSingleMetaMorphoVic(address(adapter));
 
         assertEq(newVic, expectedVic, "createSingleMetaMorphoVic returned wrong address");
         assertTrue(factory.isSingleMetaMorphoVic(newVic), "Factory did not mark vic as valid");
-        assertEq(factory.singleMetaMorphoVic(metaMorphoAdapter), newVic, "Mapping not updated");
-        assertEq(SingleMetaMorphoVic(newVic).metaMorphoAdapter(), metaMorphoAdapter, "Vic initialized incorrectly");
+        assertEq(factory.singleMetaMorphoVic(address(adapter)), newVic, "Mapping not updated");
+        assertEq(SingleMetaMorphoVic(newVic).metaMorphoAdapter(), address(adapter), "Vic initialized incorrectly");
+        assertEq(SingleMetaMorphoVic(newVic).metaMorpho(), address(metaMorpho), "Vic initialized incorrectly");
     }
 }
