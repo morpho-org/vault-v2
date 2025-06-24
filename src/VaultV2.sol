@@ -121,13 +121,11 @@ contract VaultV2 is IVaultV2 {
 
     mapping(address account => bool) public isAdapter;
     /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
-    /// @dev The allocation is not updated to take interests into account.
-    /// @dev Some underlying markets might allow to take into account interest (fixed rate, fixed term), some might not.
-    /// @dev The absolute cap is checked on allocate (where allocations can increase) for the ids returned by the
-    /// adapter.
+    /// @dev The allocation is not always up to date, because interest are added only when (de)allocating in the
+    /// corresponding markets, and losses are removed only when realized for this markets.
+    /// @dev The caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
+    /// @dev Relative caps are "soft" in the sense that they are only checked on allocate.
     /// @dev The relative cap is relative to `totalAssets`.
-    /// @dev Relative caps are "soft" in the sense that they are only checked on allocate for the ids returned by the
-    /// adapter.
     /// @dev The relative cap unit is WAD.
     mapping(bytes32 id => Caps) internal caps;
     mapping(address adapter => uint256) public forceDeallocatePenalty;
