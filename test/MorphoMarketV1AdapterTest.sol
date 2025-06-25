@@ -12,6 +12,7 @@ import {IrmMock} from "../lib/morpho-blue/src/mocks/IrmMock.sol";
 import {IMorpho, MarketParams, Id, Market} from "../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MorphoBalancesLib} from "../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 import {MorphoLib} from "../lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
+import {SharesMathLib} from "../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {MarketParamsLib} from "../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
@@ -400,5 +401,50 @@ contract MorphoMarketV1AdapterTest is Test {
         uint256 oldallocation = adapter.allocation(marketParams);
         parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
         assertEq(adapter.allocation(marketParams), oldallocation + deposit, "assets have changed");
+    }
+
+    function testSkimMarketV1Shares(uint256 assets, uint256 donation) public {
+        assets = bound(assets, 0, MAX_TEST_ASSETS);
+        donation = bound(donation, 1, MAX_TEST_ASSETS);
+
+        // Donate to adapter
+        address donor = makeAddr("donor");
+        deal(address(loanToken), donor, donation);
+        vm.startPrank(donor);
+        loanToken.approve(address(morpho), type(uint256).max);
+        morpho.supply(marketParams, donation, 0, address(adapter), "");
+        vm.stopPrank();
+
+        uint256 donatedShares = MorphoLib.supplyShares(morpho, marketParams.id(), address(adapter));
+
+        // Setup skim recipient
+        vm.prank(owner);
+        adapter.setSkimRecipient(recipient);
+
+        deal(address(loanToken), address(adapter), assets);
+        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), assets);
+        uint256 expectedNewShares = SharesMathLib.toSharesDown(assets, donation, donatedShares);
+        assertEq(
+            MorphoLib.supplyShares(morpho, marketParams.id(), address(adapter)),
+            expectedNewShares + donatedShares,
+            "Token allocation error"
+        );
+        assertEq(adapter.shares(marketId), expectedNewShares, "expected new shares accounting");
+
+        // Normal path
+        vm.expectEmit();
+        emit IMorphoMarketV1Adapter.SkimMarketV1SharesAsAssets(marketParams, donatedShares);
+        vm.prank(recipient);
+        adapter.skimMarketV1SharesAsAssets(marketParams);
+        assertEq(
+            MorphoLib.supplyShares(morpho, marketParams.id(), address(adapter)),
+            expectedNewShares,
+            "Incorrect skimmed amount"
+        );
+        assertEq(loanToken.balanceOf(recipient), donation, "Recipient did not receive tokens");
+
+        // Access control
+        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        adapter.skimMarketV1SharesAsAssets(marketParams);
     }
 }
