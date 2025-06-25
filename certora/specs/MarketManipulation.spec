@@ -6,7 +6,7 @@ import "Invariants.spec";
 methods {
     function isAllocator(address) external returns bool envfree;
     function firstTotalAssets() external returns uint256 envfree;
-    function _.allocate(bytes, uint256) external => CONSTANT;
+    function _.allocate(bytes, uint256, bytes4, address) external => CONSTANT;
     function _.safeTransfer(address, address, uint256) internal => CONSTANT;
 }
 
