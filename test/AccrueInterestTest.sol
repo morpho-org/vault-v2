@@ -110,10 +110,10 @@ contract AccrueInterestTest is BaseTest {
         uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
         uint256 managementFeeAssets = (totalAssets * elapsed).mulDivDown(managementFee, WAD);
         uint256 performanceFeeShares = performanceFeeAssets.mulDivDown(
-            vault.totalSupply() + 1, totalAssets + 1 - performanceFeeAssets - managementFeeAssets
+            vault.totalSupply() + vault.virtualShares(), totalAssets + 1 - performanceFeeAssets - managementFeeAssets
         );
         uint256 managementFeeShares = managementFeeAssets.mulDivDown(
-            vault.totalSupply() + 1, totalAssets + 1 - managementFeeAssets - performanceFeeAssets
+            vault.totalSupply() + vault.virtualShares(), totalAssets + 1 - managementFeeAssets - performanceFeeAssets
         );
         vm.expectEmit();
         emit EventsLib.AccrueInterest(deposit, totalAssets, performanceFeeShares, managementFeeShares);

@@ -39,7 +39,10 @@ contract ViewFunctionsTest is BaseTest {
         vault.deposit(initialDeposit, address(this));
         writeTotalAssets(initialDeposit + interest);
 
-        assertEq(vault.convertToAssets(shares), shares * (vault.totalAssets() + 1) / (vault.totalSupply() + 1));
+        assertEq(
+            vault.convertToAssets(shares),
+            shares * (vault.totalAssets() + 1) / (vault.totalSupply() + vault.virtualShares())
+        );
     }
 
     function testConvertToShares(uint256 initialDeposit, uint256 interest, uint256 assets) public {
@@ -50,7 +53,10 @@ contract ViewFunctionsTest is BaseTest {
         vault.deposit(initialDeposit, address(this));
         writeTotalAssets(initialDeposit + interest);
 
-        assertEq(vault.convertToShares(assets), assets * (vault.totalSupply() + 1) / (vault.totalAssets() + 1));
+        assertEq(
+            vault.convertToShares(assets),
+            assets * (vault.totalSupply() + vault.virtualShares()) / (vault.totalAssets() + 1)
+        );
     }
 
     function testPreviewDeposit(uint256 initialDeposit, uint256 interest, uint256 assets) public {
@@ -62,7 +68,8 @@ contract ViewFunctionsTest is BaseTest {
         writeTotalAssets(initialDeposit + interest);
 
         assertEq(
-            vault.previewDeposit(initialDeposit), initialDeposit * (vault.totalSupply() + 1) / (vault.totalAssets() + 1)
+            vault.previewDeposit(initialDeposit),
+            initialDeposit * (vault.totalSupply() + vault.virtualShares()) / (vault.totalAssets() + 1)
         );
     }
 
@@ -75,7 +82,11 @@ contract ViewFunctionsTest is BaseTest {
         writeTotalAssets(initialDeposit + interest);
 
         // Precision 1 because rounded up.
-        assertApproxEqAbs(vault.previewMint(shares), shares * (vault.totalAssets() + 1) / (vault.totalSupply() + 1), 1);
+        assertApproxEqAbs(
+            vault.previewMint(shares),
+            shares * (vault.totalAssets() + 1) / (vault.totalSupply() + vault.virtualShares()),
+            1
+        );
     }
 
     function testPreviewWithdraw(uint256 initialDeposit, uint256 interest, uint256 assets) public {
@@ -88,7 +99,9 @@ contract ViewFunctionsTest is BaseTest {
 
         // Precision 1 because rounded up.
         assertApproxEqAbs(
-            vault.previewWithdraw(assets), assets * (vault.totalSupply() + 1) / (vault.totalAssets() + 1), 1
+            vault.previewWithdraw(assets),
+            assets * (vault.totalSupply() + vault.virtualShares()) / (vault.totalAssets() + 1),
+            1
         );
     }
 
@@ -101,7 +114,9 @@ contract ViewFunctionsTest is BaseTest {
         writeTotalAssets(initialDeposit + interest);
 
         assertApproxEqAbs(
-            vault.previewRedeem(shares), shares * (vault.totalAssets() + 1) / (vault.totalSupply() + 1), 1
+            vault.previewRedeem(shares),
+            shares * (vault.totalAssets() + 1) / (vault.totalSupply() + vault.virtualShares()),
+            1
         );
     }
 }

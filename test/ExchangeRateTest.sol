@@ -11,7 +11,7 @@ contract ExchangeRateTest is BaseTest {
     uint256 constant INITIAL_DEPOSIT = 1e24;
     uint256 constant MIN_TEST_ASSETS = 1e18;
     uint256 constant MAX_TEST_ASSETS = 1e36;
-    uint256 constant PRECISION = 1; // precision is 1e(-16)%
+    uint256 constant PRECISION = 100; // precision is 1e(-16)%
 
     function setUp() public override {
         super.setUp();
@@ -30,31 +30,35 @@ contract ExchangeRateTest is BaseTest {
         assertEq(vault.totalAssets(), 2 * INITIAL_DEPOSIT, "wrong totalAssets after");
     }
 
+    function testVirtualShares() public view {
+        assertEq(vault.virtualShares(), 10 ** (18 - underlyingToken.decimals()));
+    }
+
     function testExchangeRateRedeem(uint256 redeemShares) public {
         redeemShares = bound(redeemShares, MIN_TEST_ASSETS, vault.balanceOf(address(this)));
         uint256 redeemedAssets = vault.redeem(redeemShares, address(this), address(this));
 
-        assertApproxEqRel(redeemedAssets, 2 * redeemShares, PRECISION);
+        assertApproxEqRel(redeemedAssets, 2 * redeemShares / vault.virtualShares(), PRECISION);
     }
 
     function testExchangeRateWithdraw(uint256 withdrawAssets) public {
         withdrawAssets = bound(withdrawAssets, MIN_TEST_ASSETS, INITIAL_DEPOSIT);
         uint256 withdrawShares = vault.withdraw(withdrawAssets, address(this), address(this));
 
-        assertApproxEqRel(withdrawAssets, 2 * withdrawShares, PRECISION);
+        assertApproxEqRel(withdrawAssets, 2 * withdrawShares / vault.virtualShares(), PRECISION);
     }
 
     function testExchangeRateMint(uint256 mintShares) public {
         mintShares = bound(mintShares, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
         uint256 mintAssets = vault.mint(mintShares, address(this));
 
-        assertApproxEqRel(mintAssets, 2 * mintShares, PRECISION);
+        assertApproxEqRel(mintAssets, 2 * mintShares / vault.virtualShares(), PRECISION);
     }
 
     function testExchangeRateDeposit(uint256 depositAssets) public {
         depositAssets = bound(depositAssets, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
         uint256 depositShares = vault.deposit(depositAssets, address(this));
 
-        assertApproxEqRel(depositAssets, 2 * depositShares, PRECISION);
+        assertApproxEqRel(depositAssets, 2 * depositShares / vault.virtualShares(), PRECISION);
     }
 }

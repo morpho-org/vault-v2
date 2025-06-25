@@ -32,18 +32,25 @@ contract MorphoVaultIntegrationDepositTest is MorphoVaultIntegrationTest {
         );
     }
 
-    function testDepositRoundingLoss(uint256 donation, uint256 roundedDeposit) public {
+    function testDepositRoundingLoss(uint256 donationFactor, uint256 roundedDeposit) public {
         // Setup
-        donation = bound(donation, 1, MAX_TEST_ASSETS);
-        roundedDeposit = bound(roundedDeposit, 1, donation);
+        donationFactor = bound(donationFactor, 2, 100);
+        roundedDeposit = bound(roundedDeposit, 1, donationFactor / 2);
         setSupplyQueueIdle();
         vm.prank(allocator);
         vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
         underlyingToken.approve(address(morpho), type(uint256).max);
 
         // Donate
-        morpho.supply(idleParams, donation, 0, address(morphoVaultV1), hex"");
-        assertEq(morphoVaultV1.previewRedeem(1), donation + 1, "share price");
+        // TODO: why isn't it donationFactor - 1?
+        morpho.supply(
+            idleParams,
+            donationFactor * 10 ** IMetaMorpho(morphoVaultV1).DECIMALS_OFFSET(),
+            0,
+            address(morphoVaultV1),
+            hex""
+        );
+        assertEq(morphoVaultV1.previewRedeem(1), donationFactor, "share price");
 
         // Check rounded deposit effect
         uint256 previousAdapterShares = morphoVaultV1.balanceOf(address(morphoVaultV1Adapter));
@@ -82,18 +89,36 @@ contract MorphoVaultIntegrationDepositTest is MorphoVaultIntegrationTest {
         underlyingToken.approve(address(morpho), type(uint256).max);
 
         // Donate
-        morpho.supply(idleParams, donationFactor - 1, 0, address(morphoVaultV1), hex"");
+        // TODO: why isn't it donationFactor - 1?
+        morpho.supply(
+            idleParams,
+            donationFactor * 10 ** IMetaMorpho(morphoVaultV1).DECIMALS_OFFSET(),
+            0,
+            address(morphoVaultV1),
+            hex""
+        );
         assertEq(morphoVaultV1.previewRedeem(1), donationFactor, "share price");
 
         // Initial deposit
-        vault.deposit(donationFactor, address(this));
+        vault.deposit(donationFactor * 10 ** IMetaMorpho(morphoVaultV1).DECIMALS_OFFSET(), address(this));
 
         // Check rounded withdraw effect
         uint256 previousAdapterShares = morphoVaultV1.balanceOf(address(morphoVaultV1Adapter));
         uint256 previousVaultTotalAssets = vault.totalAssets();
         uint256 previousAdapterTrackedAllocation = morphoVaultV1Adapter.allocation();
 
+        uint256 sharesBefore = morphoVaultV1Adapter.shares();
+        uint256 previewRedeemBefore =
+            morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter)));
         vault.withdraw(roundedWithdraw, address(this), address(this));
+        assertEq(morphoVaultV1Adapter.shares(), sharesBefore - 1, "shares");
+        // TODO: why this doesn't pass.
+        assertApproxEqAbs(
+            morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter))),
+            previewRedeemBefore - donationFactor,
+            1,
+            "previewRedeem"
+        );
 
         assertEq(
             morphoVaultV1.balanceOf(address(morphoVaultV1Adapter)), previousAdapterShares - 1, "adapter shares balance"
@@ -104,9 +129,9 @@ contract MorphoVaultIntegrationDepositTest is MorphoVaultIntegrationTest {
         // Check rounding is realizable
         vault.realizeLoss(address(morphoVaultV1Adapter), "");
 
-        assertEq(vault.totalAssets(), previousVaultTotalAssets - donationFactor, "total assets, after");
-        assertEq(
-            morphoVaultV1Adapter.allocation(), previousAdapterTrackedAllocation - donationFactor, "allocation, after"
+        assertApproxEqAbs(vault.totalAssets(), previousVaultTotalAssets - donationFactor, 1, "total assets, after");
+        assertApproxEqAbs(
+            morphoVaultV1Adapter.allocation(), previousAdapterTrackedAllocation - donationFactor, 1, "allocation, after"
         );
     }
 

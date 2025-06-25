@@ -62,6 +62,7 @@ contract ERC20Test is BaseTest {
     }
 
     function testCreateSharesZeroAddress(uint256 shares) public {
+        vm.assume(shares <= type(uint256).max / vault.virtualShares());
         vm.expectRevert(ErrorsLib.ZeroAddress.selector);
         vault.mint(shares, address(0));
     }
@@ -206,8 +207,15 @@ contract ERC20Test is BaseTest {
         }
     }
 
+    function testCreateTooManyAssetsReverts() public {
+        vault.deposit(type(uint192).max, address(this));
+        vm.expectRevert(stdError.arithmeticError);
+        vault.deposit(1, address(this));
+    }
+
     function testCreateTooManySharesReverts() public {
-        vault.mint(type(uint192).max, address(this));
+        if (vault.virtualShares() >= type(uint256).max / type(uint192).max) vm.skip(true);
+        vault.mint(type(uint192).max * vault.virtualShares(), address(this));
         vm.expectRevert(stdError.arithmeticError);
         vault.mint(1, address(this));
     }
