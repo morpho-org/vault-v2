@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.28;
 
+import "forge-std/console.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
@@ -52,10 +53,10 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     /// @dev This is useful to handle rewards that the adapter has earned.
     function skim(address token) external {
         require(msg.sender == skimRecipient, NotAuthorized());
-        require(token != morphoVaultV1, CannotSkimMorphoVaultV1Shares());
         uint256 balance = IERC20(token).balanceOf(address(this));
-        SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
-        emit Skim(token, balance);
+        uint256 toSkim = token == morphoVaultV1 ? balance - shares : balance;
+        SafeERC20Lib.safeTransfer(token, skimRecipient, toSkim);
+        emit Skim(token, toSkim);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.

@@ -152,7 +152,7 @@ contract MorphoVaultV1AdapterTest is Test {
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
     }
 
-    function testSkim(uint256 assets) public {
+    function testSkimNotVaultV1Shares(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
 
         ERC20Mock token = new ERC20Mock();
@@ -174,10 +174,34 @@ contract MorphoVaultV1AdapterTest is Test {
         // Access control
         vm.expectRevert(IMorphoVaultV1Adapter.NotAuthorized.selector);
         adapter.skim(address(token));
+    }
 
-        // Cant skim morphoVaultV1
-        vm.expectRevert(IMorphoVaultV1Adapter.CannotSkimMorphoVaultV1Shares.selector);
+    function testSkimVaultV1Shares(uint256 assets, uint256 donatedShares) public {
+        assets = bound(assets, 0, MAX_TEST_ASSETS);
+        donatedShares = bound(donatedShares, 0, MAX_TEST_ASSETS);
+
+        // Setup with a donation
+        vm.prank(owner);
+        adapter.setSkimRecipient(recipient);
+
+        deal(address(morphoVaultV1), address(adapter), donatedShares);
+        assertEq(morphoVaultV1.balanceOf(address(adapter)), donatedShares, "Token donated error");
+
+        deal(address(asset), address(adapter), assets);
+        parentVault.allocateMocked(address(adapter), hex"", assets);
+        uint256 shares = adapter.shares();
+        assertEq(morphoVaultV1.balanceOf(address(adapter)), shares + donatedShares, "Token allocation error");
+
+        // Normal path
+        vm.expectEmit();
+        emit IMorphoVaultV1Adapter.Skim(address(morphoVaultV1), donatedShares);
         vm.prank(recipient);
+        adapter.skim(address(morphoVaultV1));
+        assertEq(morphoVaultV1.balanceOf(address(adapter)), shares, "Incorrect skimmed amount");
+        assertEq(morphoVaultV1.balanceOf(recipient), donatedShares, "Recipient did not receive tokens");
+
+        // Access control
+        vm.expectRevert(IMorphoVaultV1Adapter.NotAuthorized.selector);
         adapter.skim(address(morphoVaultV1));
     }
 

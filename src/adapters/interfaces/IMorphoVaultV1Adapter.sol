@@ -13,7 +13,6 @@ interface IMorphoVaultV1Adapter is IAdapter {
     /* ERRORS */
 
     error AssetMismatch();
-    error CannotSkimMorphoVaultV1Shares();
     error InvalidData();
     error NotAuthorized();
 
