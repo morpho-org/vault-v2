@@ -19,7 +19,7 @@ jobs:
           - AbdicatedFunctions
           - Invariants
           - Liveness
-	  - MarketManipulation
+          - MarketManipulation
           - MorphoVaultV1AdapterFactory
           - MorphoMarketV1AdapterFactory
           - PreviewFunctions
