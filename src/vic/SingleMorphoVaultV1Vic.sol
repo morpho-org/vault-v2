@@ -6,6 +6,7 @@ import {ISingleMorphoVaultV1Vic} from "./interfaces/ISingleMorphoVaultV1Vic.sol"
 import {IMorphoVaultV1Adapter} from "../adapters/interfaces/IMorphoVaultV1Adapter.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
+import "../libraries/ConstantsLib.sol";
 
 import {MathLib} from "../libraries/MathLib.sol";
 
@@ -35,6 +36,8 @@ contract SingleMorphoVaultV1Vic is ISingleMorphoVaultV1Vic {
         uint256 realAssets = IERC4626(morphoVaultV1).previewRedeem(
             IERC4626(morphoVaultV1).balanceOf(morphoVaultV1Adapter)
         ) + IERC20(asset).balanceOf(parentVault);
-        return (realAssets.zeroFloorSub(totalAssets) / elapsed);
+        uint256 maxInterestPerSecond = uint256(totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD);
+        uint256 tentativeInterestPerSecond = realAssets.zeroFloorSub(totalAssets) / elapsed;
+        return tentativeInterestPerSecond <= maxInterestPerSecond ? tentativeInterestPerSecond : maxInterestPerSecond;
     }
 }
