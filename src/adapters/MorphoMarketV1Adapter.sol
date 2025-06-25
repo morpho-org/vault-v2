@@ -63,7 +63,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     /// @dev Skims as assets the adapter's balance of supply shares in the given market.
     /// @dev Will not leave the adapter with fewer than its tracked amount of shares for the market.
-    /// @dev The market may not have enough
+    /// @dev The market may not have enough liquidity.
     function skimMarketV1SharesAsAssets(MarketParams memory marketParams) external {
         require(msg.sender == skimRecipient, NotAuthorized());
         Id marketId = marketParams.id();
