@@ -2,7 +2,6 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.28;
 
-import "forge-std/console.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
