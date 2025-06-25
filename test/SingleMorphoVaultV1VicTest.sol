@@ -3,6 +3,8 @@
 pragma solidity ^0.8.0;
 
 import "../lib/forge-std/src/Test.sol";
+import "../src/libraries/ConstantsLib.sol";
+import {MathLib} from "../src/libraries/MathLib.sol";
 
 import {SingleMorphoVaultV1Vic} from "../src/vic/SingleMorphoVaultV1Vic.sol";
 import {SingleMorphoVaultV1VicFactory} from "../src/vic/SingleMorphoVaultV1VicFactory.sol";
@@ -23,6 +25,8 @@ contract MockMorphoVaultV1Adapter {
 }
 
 contract SingleMorphoVaultV1VicTest is Test {
+    using MathLib for uint256;
+
     ERC20Mock internal asset;
     ERC4626Mock internal morphoVaultV1;
     MockMorphoVaultV1Adapter internal adapter;
@@ -57,7 +61,8 @@ contract SingleMorphoVaultV1VicTest is Test {
         asset.transfer(address(morphoVaultV1), interest);
         uint256 realVaultInterest = interest * deposit / (deposit + 1); // account for the virtual share.
 
-        assertEq(vic.interestPerSecond(deposit, elapsed), realVaultInterest / elapsed, "interest per second");
+        uint256 expectedInterestPerSecond = boundInterestPerSecond(realVaultInterest, deposit, elapsed);
+        assertEq(vic.interestPerSecond(deposit, elapsed), expectedInterestPerSecond, "interest per second");
     }
 
     function testInterestPerSecondIdleOnly(uint256 deposit, uint256 idleInterest, uint256 elapsed) public {
@@ -68,7 +73,8 @@ contract SingleMorphoVaultV1VicTest is Test {
         morphoVaultV1.deposit(deposit, address(adapter));
         asset.transfer(address(parentVault), idleInterest);
 
-        assertEq(vic.interestPerSecond(deposit, elapsed), idleInterest / elapsed, "interest per second");
+        uint256 expectedInterestPerSecond = boundInterestPerSecond(idleInterest, deposit, elapsed);
+        assertEq(vic.interestPerSecond(deposit, elapsed), expectedInterestPerSecond, "interest per second");
     }
 
     function testInterestPerSecondVaultAndIdle(
@@ -87,9 +93,8 @@ contract SingleMorphoVaultV1VicTest is Test {
         asset.transfer(address(parentVault), idleInterest);
         uint256 realVaultInterest = vaultInterest * deposit / (deposit + 1); // account for the virtual share.
 
-        assertEq(
-            vic.interestPerSecond(deposit, elapsed), (realVaultInterest + idleInterest) / elapsed, "interest per second"
-        );
+        uint256 expectedInterestPerSecond = boundInterestPerSecond(realVaultInterest + idleInterest, deposit, elapsed);
+        assertEq(vic.interestPerSecond(deposit, elapsed), expectedInterestPerSecond, "interest per second");
     }
 
     function testInterestPerSecondZero(uint256 deposit, uint256 loss, uint256 elapsed) public {
@@ -125,5 +130,15 @@ contract SingleMorphoVaultV1VicTest is Test {
         assertEq(SingleMorphoVaultV1Vic(newVic).morphoVaultV1Adapter(), address(adapter), "Vic initialized incorrectly");
         assertEq(SingleMorphoVaultV1Vic(newVic).morphoVaultV1(), address(morphoVaultV1), "Vic initialized incorrectly");
         assertEq(SingleMorphoVaultV1Vic(newVic).parentVault(), parentVault, "Vic initialized incorrectly");
+    }
+
+    function boundInterestPerSecond(uint256 interest, uint256 totalAssets, uint256 elapsed)
+        internal
+        pure
+        returns (uint256)
+    {
+        uint256 tentativeInterestPerSecond = interest / elapsed;
+        uint256 maxInterestPerSecond = totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD);
+        return tentativeInterestPerSecond <= maxInterestPerSecond ? tentativeInterestPerSecond : maxInterestPerSecond;
     }
 }
