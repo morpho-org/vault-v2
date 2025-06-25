@@ -69,5 +69,5 @@ rule livenessDeallocate(env e, env f, address adapter, bytes data, uint256 asset
     require isAllocator(f.msg.sender) || isSentinel(f.msg.sender) || f.msg.sender == currentContract;
 
     deallocate@withrevert(f, adapter, data, assets);
-    assert !forceDeallocateReverted => !lastReverted;
+    assert !forceDeallocateReverted <=> !lastReverted;
 }
