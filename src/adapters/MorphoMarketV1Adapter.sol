@@ -13,6 +13,8 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 
 /// @dev Morpho Market v1 is also known as Morpho Blue.
+/// @dev This adapter must be used with Morpho Market v1 that are protected against inflation attacks with an initial
+/// supply. Following resource is relevant: See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MathLib for uint256;
     using SharesMathLib for uint256;
