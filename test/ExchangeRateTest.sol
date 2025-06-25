@@ -16,7 +16,7 @@ contract ExchangeRateTest is BaseTest {
     function setUp() public override {
         super.setUp();
 
-        MAX_TEST_ASSETS = 10 ** (18 + underlyingToken.decimals());
+        MAX_TEST_ASSETS = 10 ** min(18 + underlyingToken.decimals(), 36);
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);

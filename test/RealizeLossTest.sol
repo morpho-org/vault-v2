@@ -11,7 +11,7 @@ contract RealizeLossTest is BaseTest {
     function setUp() public override {
         super.setUp();
 
-        MAX_TEST_AMOUNT = 10 ** (18 + underlyingToken.decimals());
+        MAX_TEST_AMOUNT = 10 ** min(18 + underlyingToken.decimals(), 36);
 
         adapter = new AdapterMock(address(vault));
 
