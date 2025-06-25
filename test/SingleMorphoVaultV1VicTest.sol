@@ -52,6 +52,22 @@ contract SingleMorphoVaultV1VicTest is Test {
         assertEq(newVic.morphoVaultV1(), address(morphoVaultV1), "morphoVaultV1 not set correctly");
     }
 
+    function testInterestPerSecondVaultOnlyWithSmallInterest(uint256 deposit, uint256 interest, uint256 elapsed)
+        public
+    {
+        deposit = bound(deposit, 1e18, MAX_TEST_ASSETS);
+        // At most 1% APR
+        interest = bound(interest, 1, deposit / (100 * uint256(365 days)));
+        elapsed = bound(elapsed, 1, 2 ** 63);
+
+        morphoVaultV1.deposit(deposit, address(adapter));
+        asset.transfer(address(morphoVaultV1), interest);
+        uint256 realVaultInterest = interest * deposit / (deposit + 1); // account for the virtual share.
+
+        uint256 expectedInterestPerSecond = realVaultInterest / elapsed;
+        assertEq(vic.interestPerSecond(deposit, elapsed), expectedInterestPerSecond, "interest per second");
+    }
+
     function testInterestPerSecondVaultOnly(uint256 deposit, uint256 interest, uint256 elapsed) public {
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
         interest = bound(interest, 1, MAX_TEST_ASSETS);
@@ -63,6 +79,19 @@ contract SingleMorphoVaultV1VicTest is Test {
 
         uint256 expectedInterestPerSecond = boundInterestPerSecond(realVaultInterest, deposit, elapsed);
         assertEq(vic.interestPerSecond(deposit, elapsed), expectedInterestPerSecond, "interest per second");
+    }
+
+    function testInterestPerSecondVaultOnlyWithBigInterest(uint256 deposit, uint256 interest, uint256 elapsed) public {
+        elapsed = bound(elapsed, 1, 365 days);
+        deposit = bound(deposit, 1e18, MAX_TEST_ASSETS / (elapsed * 1000));
+        // At least 1000% APR
+        interest = bound(interest, 1000 * deposit * elapsed / uint256(365 days), MAX_TEST_ASSETS);
+
+        morphoVaultV1.deposit(deposit, address(adapter));
+        asset.transfer(address(morphoVaultV1), interest);
+        uint256 realVaultInterest = interest * deposit / (deposit + 1); // account for the virtual share.
+
+        assertLt(vic.interestPerSecond(deposit, elapsed), realVaultInterest / elapsed, "interest per second");
     }
 
     function testInterestPerSecondIdleOnly(uint256 deposit, uint256 idleInterest, uint256 elapsed) public {
