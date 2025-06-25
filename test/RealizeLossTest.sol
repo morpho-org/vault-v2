@@ -4,13 +4,14 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
-uint256 constant MAX_TEST_AMOUNT = 1e36;
-
 contract RealizeLossTest is BaseTest {
     AdapterMock internal adapter;
+    uint256 MAX_TEST_AMOUNT;
 
     function setUp() public override {
         super.setUp();
+
+        MAX_TEST_AMOUNT = 10 ** (36 - (18 - underlyingToken.decimals()));
 
         adapter = new AdapterMock(address(vault));
 

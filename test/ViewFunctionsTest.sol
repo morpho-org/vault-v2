@@ -5,12 +5,14 @@ pragma solidity ^0.8.0;
 import "./BaseTest.sol";
 
 contract ViewFunctionsTest is BaseTest {
-    uint256 constant MAX_TEST_ASSETS = 1e36;
-
+    uint256 MAX_TEST_ASSETS;
     address immutable receiver = makeAddr("receiver");
 
     function setUp() public override {
         super.setUp();
+
+        MAX_TEST_ASSETS = 10 ** (36 - (18 - underlyingToken.decimals()));
+
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
     }

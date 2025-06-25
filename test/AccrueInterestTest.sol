@@ -11,10 +11,12 @@ contract AccrueInterestTest is BaseTest {
 
     address performanceFeeRecipient = makeAddr("performanceFeeRecipient");
     address managementFeeRecipient = makeAddr("managementFeeRecipient");
-    uint256 constant MAX_TEST_ASSETS = 1e36;
+    uint256 MAX_TEST_ASSETS;
 
     function setUp() public override {
         super.setUp();
+
+        MAX_TEST_ASSETS = 10 ** (36 - (18 - underlyingToken.decimals()));
 
         vm.startPrank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (performanceFeeRecipient)));

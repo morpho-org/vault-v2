@@ -8,11 +8,14 @@ contract LiquidityMarketTest is BaseTest {
     using MathLib for uint256;
 
     AdapterMock public adapter;
-    uint256 internal constant MAX_TEST_ASSETS = 1e18 ether;
-    uint256 internal constant MAX_TEST_SHARES = 1e18 ether;
+    uint256 internal MAX_TEST_ASSETS;
+    uint256 internal MAX_TEST_SHARES;
 
     function setUp() public override {
         super.setUp();
+
+        MAX_TEST_ASSETS = 10 ** (36 - (18 - underlyingToken.decimals()));
+        MAX_TEST_SHARES = 10 ** (36 - (18 - underlyingToken.decimals()));
 
         adapter = new AdapterMock(address(vault));
 
