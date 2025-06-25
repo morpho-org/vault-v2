@@ -16,8 +16,10 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Zero checks are not systematically performed.
 /// @dev No-ops are allowed.
 /// @dev Natspec are specified only when it brings clarity.
-/// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals).
-/// See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
+/// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). Donations are possible but
+/// they do not directly increase the share price. Still, it is possible to inflate the share price through repeated
+/// deposits and withdrawals with roundings. In order to protect against that, vaults might need to be seeded with an
+/// initial deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 /// @dev Roles are not "two-step" so one must check if they really have this role.
 /// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension).
 /// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
@@ -459,7 +461,7 @@ contract VaultV2 is IVaultV2 {
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
-            _caps.allocation = _caps.allocation + assets + interest;
+            _caps.allocation = _caps.allocation + interest + assets;
 
             require(_caps.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
