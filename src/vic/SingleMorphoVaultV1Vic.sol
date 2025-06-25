@@ -9,6 +9,7 @@ import {IERC20} from "../interfaces/IERC20.sol";
 
 import {MathLib} from "../libraries/MathLib.sol";
 
+/// @dev To use with a Morpho Vault v2 that supplies exclusively to a single Morpho Vault v1.
 contract SingleMorphoVaultV1Vic is ISingleMorphoVaultV1Vic {
     using MathLib for uint256;
 
