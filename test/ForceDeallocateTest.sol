@@ -13,7 +13,7 @@ contract ForceDeallocateTest is BaseTest {
     function setUp() public override {
         super.setUp();
 
-        MAX_TEST_ASSETS = 10 ** (36 - (18 - underlyingToken.decimals()));
+        MAX_TEST_ASSETS = 10 ** (18 + underlyingToken.decimals());
 
         adapter = new AdapterMock(address(vault));
         vm.prank(curator);

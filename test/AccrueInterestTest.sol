@@ -16,7 +16,7 @@ contract AccrueInterestTest is BaseTest {
     function setUp() public override {
         super.setUp();
 
-        MAX_TEST_ASSETS = 10 ** (36 - (18 - underlyingToken.decimals()));
+        MAX_TEST_ASSETS = 10 ** (18 + underlyingToken.decimals());
 
         vm.startPrank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (performanceFeeRecipient)));
