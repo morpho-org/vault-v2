@@ -38,7 +38,13 @@ contract ExchangeRateTest is BaseTest {
     }
 
     function testVirtualShares() public view {
-        assertEq(vault.virtualShares(), 10 ** (18 - underlyingToken.decimals()));
+        uint256 underlyingDecimals = underlyingToken.decimals();
+        assertEq(vault.virtualShares(), 10 ** (underlyingDecimals <= 18 ? 18 - underlyingDecimals : 0));
+    }
+
+    function testDecimals() public view {
+        uint256 underlyingDecimals = underlyingToken.decimals();
+        assertEq(vault.decimals(), underlyingDecimals <= 18 ? 18 : underlyingDecimals);
     }
 
     function testExchangeRateRedeem(uint256 shares) public {
