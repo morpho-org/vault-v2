@@ -38,7 +38,7 @@ contract BaseTest is Test {
     function setUp() public virtual {
         vm.label(address(this), "testContract");
 
-        underlyingToken = new ERC20Mock(18);
+        underlyingToken = new ERC20Mock(6);
         vm.label(address(underlyingToken), "underlying");
 
         vaultFactory = IVaultV2Factory(address(new VaultV2Factory()));
