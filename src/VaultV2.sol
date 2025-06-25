@@ -33,8 +33,12 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
 /// - Returned ids do not repeat.
 /// - They ignore donations of shares in their respective markets.
-/// - Interest must not be above the actual interest.
-/// - Realizable loss must not be below the actual loss.
+/// - Given a method used by the adapter to estimate its assets in a market and a method to track its allocation to a
+/// market:
+///   - When calculating interest, it must be the positive change between the estimate and the tracked allocation, if
+/// any, since the last interaction.
+///   - When calculating loss, it must be the negative change between the estimate and the tracked allocation, if any,
+/// since the last interaction.
 /// @dev Ids being reused by multiple adapters are useful to do "cross-caps". Adapters can add "this" to an id to avoid
 /// it being reused.
 /// @dev Liquidity market:
@@ -66,6 +70,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// the allocation is zero.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
+    using MathLib for uint192;
 
     /* IMMUTABLE */
 
@@ -479,7 +484,7 @@ contract VaultV2 is IVaultV2 {
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
             require(_caps.allocation > 0, ErrorsLib.ZeroAllocation());
-            _caps.allocation = (_caps.allocation + interest).zeroFloorSub(assets);
+            _caps.allocation = _caps.allocation + interest - assets;
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
@@ -707,7 +712,8 @@ contract VaultV2 is IVaultV2 {
 
         uint256 incentiveShares;
         if (loss > 0) {
-            _totalAssets = uint256(_totalAssets).zeroFloorSub(loss).toUint192();
+            // Safe cast because the result is at most totalAssets.
+            _totalAssets = uint192(_totalAssets.zeroFloorSub(loss));
 
             if (canReceive(msg.sender)) {
                 uint256 incentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
@@ -717,8 +723,7 @@ contract VaultV2 is IVaultV2 {
             }
 
             for (uint256 i; i < ids.length; i++) {
-                Caps storage _caps = caps[ids[i]];
-                _caps.allocation = _caps.allocation.zeroFloorSub(loss);
+                caps[ids[i]].allocation -= loss;
             }
 
             enterBlocked = true;
