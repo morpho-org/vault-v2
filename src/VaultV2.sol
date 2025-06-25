@@ -461,7 +461,7 @@ contract VaultV2 is IVaultV2 {
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
-            _caps.allocation = _caps.allocation + assets + interest;
+            _caps.allocation = _caps.allocation + interest + assets;
 
             require(_caps.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
