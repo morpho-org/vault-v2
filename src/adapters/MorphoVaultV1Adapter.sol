@@ -13,6 +13,8 @@ import {MathLib} from "../libraries/MathLib.sol";
 /// with other vaults must be carefully assessed from a security standpoint.
 /// @dev Morpho Vaults v1.1 do not realize bad debt, so Morpho Vaults v2 supplying in them will not realize the
 /// corresponding bad debt.
+/// @dev This adapter must be used with Morpho Vaults v1 that are protected against inflation attacks with an initial
+/// deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
 contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     using MathLib for uint256;
 
