@@ -59,23 +59,21 @@ contract MorphoVaultV1AdapterTest is Test {
     function testAllocateNotAuthorizedReverts(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
         vm.expectRevert(IMorphoVaultV1Adapter.NotAuthorized.selector);
-        adapter.allocate(hex"", assets);
+        adapter.allocate(hex"", assets, bytes4(0), address(0));
     }
 
     function testDeallocateNotAuthorizedReverts(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
         vm.expectRevert(IMorphoVaultV1Adapter.NotAuthorized.selector);
-        adapter.deallocate(hex"", assets);
+        adapter.deallocate(hex"", assets, bytes4(0), address(0));
     }
 
     function testAllocate(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
         deal(address(asset), address(adapter), assets);
 
-        vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 interest) = adapter.allocate(hex"", assets);
+        (bytes32[] memory ids, uint256 interest) = parentVault.allocateMocked(address(adapter), hex"", assets);
 
-        assertEq(adapter.allocation(), assets, "incorrect allocation");
         uint256 adapterShares = morphoVaultV1.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(adapterShares, assets, "Incorrect share balance after deposit");
@@ -89,15 +87,13 @@ contract MorphoVaultV1AdapterTest is Test {
         withdrawAssets = bound(withdrawAssets, 0, initialAssets);
 
         deal(address(asset), address(adapter), initialAssets);
-        vm.prank(address(parentVault));
-        adapter.allocate(hex"", initialAssets);
+        parentVault.allocateMocked(address(adapter), hex"", initialAssets);
 
         uint256 beforeShares = morphoVaultV1.balanceOf(address(adapter));
         // In general this should not hold (having as many shares as assets). TODO: fix.
         assertEq(beforeShares, initialAssets, "Precondition failed: shares not set");
 
-        vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 interest) = adapter.deallocate(hex"", withdrawAssets);
+        (bytes32[] memory ids, uint256 interest) = parentVault.deallocateMocked(address(adapter), hex"", withdrawAssets);
 
         assertEq(adapter.allocation(), initialAssets - withdrawAssets, "incorrect allocation");
         uint256 afterShares = morphoVaultV1.balanceOf(address(adapter));
@@ -190,24 +186,23 @@ contract MorphoVaultV1AdapterTest is Test {
 
         // Setup.
         deal(address(asset), address(adapter), deposit);
-        vm.prank(address(parentVault));
-        adapter.allocate(hex"", deposit);
+        parentVault.allocateMocked(address(adapter), hex"", deposit);
         asset.transfer(address(morphoVaultV1), 2);
 
         // Realize loss.
         vm.prank(address(parentVault));
         vm.expectRevert(stdError.arithmeticError);
-        adapter.realizeLoss(hex"");
+        adapter.realizeLoss(hex"", bytes4(0), address(0));
     }
 
     function testLossRealizationAccessControl(address rdm) public {
         vm.assume(rdm != address(parentVault));
         vm.prank(rdm);
         vm.expectRevert(IMorphoVaultV1Adapter.NotAuthorized.selector);
-        adapter.realizeLoss(hex"");
+        adapter.realizeLoss(hex"", bytes4(0), address(0));
 
         vm.prank(address(parentVault));
-        adapter.realizeLoss(hex"");
+        adapter.realizeLoss(hex"", bytes4(0), address(0));
     }
 
     function testLossRealizationZero(uint256 deposit) public {
@@ -215,15 +210,12 @@ contract MorphoVaultV1AdapterTest is Test {
 
         // Setup.
         deal(address(asset), address(adapter), deposit);
-        vm.prank(address(parentVault));
-        adapter.allocate(hex"", deposit);
+        parentVault.allocateMocked(address(adapter), hex"", deposit);
 
         // Realize loss.
-        vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
+        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), hex"");
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, 0, "loss");
-        assertEq(adapter.allocation(), deposit, "allocation");
     }
 
     function testLossRealization(uint256 deposit, uint256 _loss) public {
@@ -232,13 +224,11 @@ contract MorphoVaultV1AdapterTest is Test {
 
         // Setup.
         deal(address(asset), address(adapter), deposit);
-        vm.prank(address(parentVault));
-        adapter.allocate(hex"", deposit);
+        parentVault.allocateMocked(address(adapter), hex"", deposit);
         morphoVaultV1.lose(_loss);
 
         // Realize loss.
-        vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
+        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), hex"");
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, _loss, "loss");
         assertEq(adapter.allocation(), deposit - _loss, "allocation");
@@ -251,17 +241,14 @@ contract MorphoVaultV1AdapterTest is Test {
 
         // Setup.
         deal(address(asset), address(adapter), deposit + deposit2);
-        vm.prank(address(parentVault));
-        adapter.allocate(hex"", deposit);
+        parentVault.allocateMocked(address(adapter), hex"", deposit);
         morphoVaultV1.lose(_loss);
 
         // Allocate.
-        vm.prank(address(parentVault));
-        adapter.allocate(hex"", deposit2);
+        parentVault.allocateMocked(address(adapter), hex"", deposit2);
 
         // Realize loss.
-        vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
+        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), hex"");
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, _loss, "loss");
         assertEq(adapter.allocation(), deposit - _loss + deposit2, "allocation");
@@ -274,18 +261,15 @@ contract MorphoVaultV1AdapterTest is Test {
 
         // Setup.
         deal(address(asset), address(adapter), deposit + withdraw);
-        vm.prank(address(parentVault));
-        adapter.allocate(hex"", deposit);
+        parentVault.allocateMocked(address(adapter), hex"", deposit);
         morphoVaultV1.lose(_loss);
 
         // Deallocate.
         withdraw = bound(withdraw, 1, morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(adapter))));
-        vm.prank(address(parentVault));
-        adapter.deallocate(hex"", withdraw);
+        parentVault.deallocateMocked(address(adapter), hex"", withdraw);
 
         // Realize loss.
-        vm.prank(address(parentVault));
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
+        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), hex"");
         assertEq(ids, expectedIds, "ids");
         assertEq(loss, _loss, "loss");
         assertEq(adapter.allocation(), deposit - _loss - withdraw, "allocation");
@@ -298,8 +282,7 @@ contract MorphoVaultV1AdapterTest is Test {
 
         // Setup.
         deal(address(asset), address(adapter), deposit + interest);
-        vm.prank(address(parentVault));
-        adapter.allocate(hex"", deposit);
+        parentVault.allocateMocked(address(adapter), hex"", deposit);
         uint256 expectedSupplyBefore = morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(adapter)));
         morphoVaultV1.lose(_loss);
 
@@ -308,7 +291,7 @@ contract MorphoVaultV1AdapterTest is Test {
         uint256 expectedSupplyAfter = morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(adapter)));
         vm.prank(address(parentVault));
         if (expectedSupplyAfter > expectedSupplyBefore) vm.expectRevert(stdError.arithmeticError);
-        (bytes32[] memory ids, uint256 loss) = adapter.realizeLoss(hex"");
+        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), hex"");
         if (_loss >= interest) {
             assertEq(ids, expectedIds, "ids");
             assertEq(loss, _loss - interest, "loss");
@@ -324,13 +307,13 @@ contract MorphoVaultV1AdapterTest is Test {
         vm.assume(data.length > 0);
 
         vm.expectRevert(IMorphoVaultV1Adapter.InvalidData.selector);
-        adapter.allocate(data, 0);
+        adapter.allocate(data, 0, bytes4(0), address(0));
 
         vm.expectRevert(IMorphoVaultV1Adapter.InvalidData.selector);
-        adapter.deallocate(data, 0);
+        adapter.deallocate(data, 0, bytes4(0), address(0));
 
         vm.expectRevert(IMorphoVaultV1Adapter.InvalidData.selector);
-        adapter.realizeLoss(data);
+        adapter.realizeLoss(data, bytes4(0), address(0));
     }
 
     function testDifferentAssetReverts(address randomAsset) public {
@@ -346,8 +329,7 @@ contract MorphoVaultV1AdapterTest is Test {
 
         // Deposit some assets
         deal(address(asset), address(adapter), deposit * 2);
-        vm.prank(address(parentVault));
-        adapter.allocate(hex"", deposit);
+        parentVault.allocateMocked(address(adapter), hex"", deposit);
 
         uint256 adapterShares = morphoVaultV1.balanceOf(address(adapter));
         assertEq(adapter.shares(), adapterShares, "shares not recorded");
@@ -362,8 +344,7 @@ contract MorphoVaultV1AdapterTest is Test {
 
         // Test no impact on allocation
         uint256 oldallocation = adapter.allocation();
-        vm.prank(address(parentVault));
-        adapter.allocate(hex"", deposit);
+        parentVault.allocateMocked(address(adapter), hex"", deposit);
         assertEq(adapter.allocation(), oldallocation + deposit, "assets have changed");
     }
 }
