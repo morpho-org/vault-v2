@@ -19,6 +19,7 @@ contract SingleMorphoVaultV1VicIntegrationTest is MorphoVaultV1IntegrationTest {
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(morphoVaultV1), type(uint256).max);
+        underlyingToken.approve(address(morpho), type(uint256).max);
 
         deal(address(collateralToken), address(this), type(uint256).max);
         collateralToken.approve(address(morpho), type(uint256).max);
@@ -54,5 +55,40 @@ contract SingleMorphoVaultV1VicIntegrationTest is MorphoVaultV1IntegrationTest {
             0.00001e18,
             "preview redeem"
         );
+    }
+
+    function testInterestPerSecondDonationIdle(uint256 deposit, uint256 interest, uint256 elapsed) public {
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
+        interest = bound(interest, 1, MAX_TEST_ASSETS);
+        elapsed = bound(elapsed, 1, 2 ** 63);
+
+        setSupplyQueueAllMarkets();
+        vm.prank(allocator);
+        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        setMorphoVaultV1Cap(allMarketParams[0], type(uint184).max);
+
+        vault.deposit(deposit, address(this));
+        underlyingToken.transfer(address(vault), interest);
+        skip(elapsed);
+        vm.assume(interest / elapsed <= deposit * MAX_RATE_PER_SECOND / WAD);
+
+        assertEq(vault.totalAssets(), deposit + interest / elapsed * elapsed, "wrong total assets");
+    }
+
+    function testInterestPerSecondDonationInKind(uint256 deposit, uint256 interest, uint256 elapsed) public {
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
+        interest = bound(interest, 1, MAX_TEST_ASSETS);
+        elapsed = bound(elapsed, 1, 2 ** 63);
+
+        setSupplyQueueAllMarkets();
+        vm.prank(allocator);
+        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        setMorphoVaultV1Cap(allMarketParams[0], type(uint184).max);
+
+        vault.deposit(deposit, address(this));
+        deal(address(morphoVaultV1), address(morphoVaultV1Adapter), interest);
+        skip(elapsed);
+
+        assertEq(vault.totalAssets(), deposit, "the donation is not ignored");
     }
 }

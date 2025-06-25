@@ -22,6 +22,10 @@ contract MockMorphoVaultV1Adapter {
     constructor(address _morphoVaultV1) {
         morphoVaultV1 = _morphoVaultV1;
     }
+
+    function shares() external view returns (uint256) {
+        return IERC4626(morphoVaultV1).balanceOf(address(this));
+    }
 }
 
 contract SingleMorphoVaultV1VicTest is Test {

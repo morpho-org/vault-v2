@@ -33,9 +33,8 @@ contract SingleMorphoVaultV1Vic is ISingleMorphoVaultV1Vic {
 
     /// @dev Returns the interest per second.
     function interestPerSecond(uint256 totalAssets, uint256 elapsed) external view returns (uint256) {
-        uint256 realAssets = IERC4626(morphoVaultV1).previewRedeem(
-            IERC4626(morphoVaultV1).balanceOf(morphoVaultV1Adapter)
-        ) + IERC20(asset).balanceOf(parentVault);
+        uint256 realAssets = IERC4626(morphoVaultV1).previewRedeem(IMorphoVaultV1Adapter(morphoVaultV1Adapter).shares())
+            + IERC20(asset).balanceOf(parentVault);
         uint256 maxInterestPerSecond = uint256(totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD);
         uint256 tentativeInterestPerSecond = realAssets.zeroFloorSub(totalAssets) / elapsed;
         return tentativeInterestPerSecond <= maxInterestPerSecond ? tentativeInterestPerSecond : maxInterestPerSecond;
