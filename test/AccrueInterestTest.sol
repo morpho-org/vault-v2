@@ -121,6 +121,11 @@ contract AccrueInterestTest is BaseTest {
         assertEq(vault.totalAssets(), totalAssets);
         assertEq(vault.balanceOf(performanceFeeRecipient), performanceFeeShares);
         assertEq(vault.balanceOf(managementFeeRecipient), managementFeeShares);
+
+        // Check no emit when reaccruing in same timestamp
+        vm.recordLogs();
+        vault.accrueInterest();
+        assertEq(vm.getRecordedLogs().length, 0, "should not log");
     }
 
     function testAccrueInterestTooHigh(
@@ -201,6 +206,9 @@ contract AccrueInterestTest is BaseTest {
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setVic, (address(42))));
         vault.setVic(address(42));
+
+        // Check lastUpdate updated
+        assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
     }
 
     function testAccrueInterestFees(
