@@ -34,7 +34,6 @@ contract AllocateTest is BaseTest {
         vault.allocate(adapter, hex"", 0);
     }
 
-    /// forge-config: default.isolate = true
     function testAllocate(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
         vm.assume(rdm != address(allocator));
         assets = bound(assets, 2, type(uint128).max);
