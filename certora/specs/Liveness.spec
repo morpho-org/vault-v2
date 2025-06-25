@@ -4,7 +4,7 @@
 import "Invariants.spec";
 
 methods {
-    function _.deallocate(bytes, uint256) external => CONSTANT;
+    function _.deallocate(bytes, uint256, bytes4, address) external => CONSTANT;
 }
 
 rule livenessSetVicIfDataIsTimelocked(env e, address newVic) {
@@ -66,7 +66,7 @@ rule livenessDeallocate(env e, env f, address adapter, bytes data, uint256 asset
     bool forceDeallocateReverted = lastReverted;
 
     // Safe require that ensure that f's message sender is allowed to dealocate.
-    require isAllocator(f.msg.sender) || isSentinel(f.msg.sender) || f.msg.sender == currentContract;
+    require isAllocator(f.msg.sender) || isSentinel(f.msg.sender);
 
     deallocate@withrevert(f, adapter, data, assets);
     assert !forceDeallocateReverted <=> !lastReverted;
