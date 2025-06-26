@@ -2,8 +2,8 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.28;
 
-import {MorphoMarketV1Adapter} from "./MorphoMarketV1Adapter.sol";
-import {IMorphoMarketV1AdapterFactory} from "./interfaces/IMorphoMarketV1AdapterFactory.sol";
+import {MorphoMarketV1Adapter} from "./MorphoBlueAdapter.sol";
+import {IMorphoMarketV1AdapterFactory} from "./interfaces/IMorphoBlueAdapterFactory.sol";
 
 contract MorphoMarketV1AdapterFactory is IMorphoMarketV1AdapterFactory {
     /* STORAGE */

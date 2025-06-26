@@ -3,8 +3,8 @@
 pragma solidity ^0.8.0;
 
 import "../lib/forge-std/src/Test.sol";
-import {MorphoMarketV1Adapter} from "../src/adapters/MorphoMarketV1Adapter.sol";
-import {MorphoMarketV1AdapterFactory} from "../src/adapters/MorphoMarketV1AdapterFactory.sol";
+import {MorphoMarketV1Adapter} from "../src/adapters/MorphoBlueAdapter.sol";
+import {MorphoMarketV1AdapterFactory} from "../src/adapters/MorphoBlueAdapterFactory.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
@@ -15,8 +15,8 @@ import {MorphoLib} from "../lib/morpho-blue/src/libraries/periphery/MorphoLib.so
 import {MarketParamsLib} from "../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
-import {IMorphoMarketV1Adapter} from "../src/adapters/interfaces/IMorphoMarketV1Adapter.sol";
-import {IMorphoMarketV1AdapterFactory} from "../src/adapters/interfaces/IMorphoMarketV1AdapterFactory.sol";
+import {IMorphoMarketV1Adapter} from "../src/adapters/interfaces/IMorphoBlueAdapter.sol";
+import {IMorphoMarketV1AdapterFactory} from "../src/adapters/interfaces/IMorphoBlueAdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
 
 contract MorphoMarketV1AdapterTest is Test {

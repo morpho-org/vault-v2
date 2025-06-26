@@ -5,7 +5,7 @@ pragma solidity 0.8.28;
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IMorphoVaultV1Adapter} from "./interfaces/IMorphoVaultV1Adapter.sol";
+import {IMorphoVaultV1Adapter} from "./interfaces/IMetaMorphoAdapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 

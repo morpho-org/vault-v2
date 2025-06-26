@@ -7,13 +7,13 @@ import "../lib/forge-std/src/Test.sol";
 import {IERC4626} from "../src/interfaces/IERC4626.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {ERC4626Mock} from "./mocks/ERC4626Mock.sol";
-import {IMorphoVaultV1Adapter} from "../src/adapters/interfaces/IMorphoVaultV1Adapter.sol";
-import {MorphoVaultV1Adapter} from "../src/adapters/MorphoVaultV1Adapter.sol";
-import {MorphoVaultV1AdapterFactory} from "../src/adapters/MorphoVaultV1AdapterFactory.sol";
+import {IMorphoVaultV1Adapter} from "../src/adapters/interfaces/IMetaMorphoAdapter.sol";
+import {MorphoVaultV1Adapter} from "../src/adapters/MetaMorphoAdapter.sol";
+import {MorphoVaultV1AdapterFactory} from "../src/adapters/MetaMorphoAdapterFactory.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
-import {IMorphoVaultV1AdapterFactory} from "../src/adapters/interfaces/IMorphoVaultV1AdapterFactory.sol";
+import {IMorphoVaultV1AdapterFactory} from "../src/adapters/interfaces/IMetaMorphoAdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
 
 contract MorphoVaultV1AdapterTest is Test {

@@ -23,8 +23,8 @@ import {IManualVicFactory} from "../../src/vic/interfaces/IManualVicFactory.sol"
 import {VaultV2Factory} from "../../src/VaultV2Factory.sol";
 import {ManualVic, ManualVicFactory} from "../../src/vic/ManualVicFactory.sol";
 import "../../src/VaultV2.sol";
-import {MorphoVaultV1Adapter} from "../../src/adapters/MorphoVaultV1Adapter.sol";
-import {MorphoVaultV1AdapterFactory} from "../../src/adapters/MorphoVaultV1AdapterFactory.sol";
+import {MorphoVaultV1Adapter} from "../../src/adapters/MetaMorphoAdapter.sol";
+import {MorphoVaultV1AdapterFactory} from "../../src/adapters/MetaMorphoAdapterFactory.sol";
 
 contract MorphoVaultIntegrationTest is BaseTest {
     using MarketParamsLib for MarketParams;

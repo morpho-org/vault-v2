@@ -8,7 +8,7 @@ import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.s
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IMorphoMarketV1Adapter} from "./interfaces/IMorphoMarketV1Adapter.sol";
+import {IMorphoMarketV1Adapter} from "./interfaces/IMorphoBlueAdapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 

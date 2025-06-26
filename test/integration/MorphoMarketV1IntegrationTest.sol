@@ -4,8 +4,8 @@ pragma solidity ^0.8.0;
 
 import "../BaseTest.sol";
 
-import {MorphoMarketV1Adapter} from "../../src/adapters/MorphoMarketV1Adapter.sol";
-import {MorphoMarketV1AdapterFactory} from "../../src/adapters/MorphoMarketV1AdapterFactory.sol";
+import {MorphoMarketV1Adapter} from "../../src/adapters/MorphoBlueAdapter.sol";
+import {MorphoMarketV1AdapterFactory} from "../../src/adapters/MorphoBlueAdapterFactory.sol";
 
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 import {OracleMock} from "../../lib/morpho-blue/src/mocks/OracleMock.sol";
