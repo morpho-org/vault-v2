@@ -17,11 +17,14 @@ jobs:
       matrix:
         conf:
           - AbdicatedFunctions
+          - Immutability
           - Invariants
           - Liveness
           - MorphoVaultV1AdapterFactory
           - MorphoMarketV1AdapterFactory
+          - OwnerSafety
           - PreviewFunctions
+          - Reentrancy
 
     steps:
       - uses: actions/checkout@v4

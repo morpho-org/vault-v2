@@ -1,0 +1,19 @@
+name: Verif Formatting
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  lint:
+    name: Configuration files lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Run Certora Config Linter
+        uses: sergeysova/jq-action@v2
+        run: for file in certora/confs/*.conf; do diff <(grep -v "//" "$file" | jq) <(grep -v "//" "$file"); done
