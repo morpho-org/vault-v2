@@ -12,7 +12,8 @@ contract SingleMorphoVaultV1VicIntegrationTest is MorphoVaultV1IntegrationTest {
     function setUp() public override {
         super.setUp();
 
-        singleMorphoVaultV1Vic = ISingleMorphoVaultV1Vic(address(new SingleMorphoVaultV1Vic(address(morphoVaultV1Adapter))));
+        singleMorphoVaultV1Vic =
+            ISingleMorphoVaultV1Vic(address(new SingleMorphoVaultV1Vic(address(morphoVaultV1Adapter))));
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setVic, (address(singleMorphoVaultV1Vic))));
