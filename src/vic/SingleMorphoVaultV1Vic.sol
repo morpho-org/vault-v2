@@ -23,8 +23,8 @@ contract SingleMorphoVaultV1Vic is ISingleMorphoVaultV1Vic {
 
     /* FUNCTIONS */
 
-    constructor(address _parentVault, address _morphoVaultV1Adapter) {
-        parentVault = _parentVault;
+    constructor(address _morphoVaultV1Adapter) {
+        parentVault = IMorphoVaultV1Adapter(_morphoVaultV1Adapter).parentVault();
         morphoVaultV1Adapter = _morphoVaultV1Adapter;
         address _morphoVaultV1 = IMorphoVaultV1Adapter(_morphoVaultV1Adapter).morphoVaultV1();
         morphoVaultV1 = _morphoVaultV1;
