@@ -8,6 +8,7 @@ import {MathLib} from "../src/libraries/MathLib.sol";
 
 import {SingleMorphoVaultV1Vic} from "../src/vic/SingleMorphoVaultV1Vic.sol";
 import {SingleMorphoVaultV1VicFactory} from "../src/vic/SingleMorphoVaultV1VicFactory.sol";
+import {ISingleMorphoVaultV1Vic} from "../src/vic/interfaces/ISingleMorphoVaultV1Vic.sol";
 import {ISingleMorphoVaultV1VicFactory} from "../src/vic/interfaces/ISingleMorphoVaultV1VicFactory.sol";
 import {IMorphoVaultV1Adapter} from "../src/adapters/interfaces/IMorphoVaultV1Adapter.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
@@ -36,8 +37,8 @@ contract SingleMorphoVaultV1VicTest is Test {
     ERC20Mock internal asset;
     ERC4626Mock internal morphoVaultV1;
     MockMorphoVaultV1Adapter internal adapter;
-    SingleMorphoVaultV1Vic internal vic;
-    SingleMorphoVaultV1VicFactory internal factory;
+    ISingleMorphoVaultV1Vic internal vic;
+    ISingleMorphoVaultV1VicFactory internal factory;
     address internal parentVault;
 
     function setUp() public {
@@ -45,8 +46,8 @@ contract SingleMorphoVaultV1VicTest is Test {
         morphoVaultV1 = new ERC4626Mock(address(asset));
         parentVault = makeAddr("parentVault");
         adapter = new MockMorphoVaultV1Adapter(parentVault, address(morphoVaultV1));
-        vic = new SingleMorphoVaultV1Vic(address(adapter));
-        factory = new SingleMorphoVaultV1VicFactory();
+        vic = ISingleMorphoVaultV1Vic(address(new SingleMorphoVaultV1Vic(address(adapter))));
+        factory = ISingleMorphoVaultV1VicFactory(address(new SingleMorphoVaultV1VicFactory()));
 
         deal(address(asset), address(this), type(uint256).max);
         asset.approve(address(morphoVaultV1), type(uint256).max);

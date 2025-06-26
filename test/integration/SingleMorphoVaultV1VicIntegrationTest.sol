@@ -4,14 +4,15 @@ pragma solidity ^0.8.0;
 
 import "./MorphoVaultV1IntegrationTest.sol";
 import {SingleMorphoVaultV1Vic} from "../../src/vic/SingleMorphoVaultV1Vic.sol";
+import {ISingleMorphoVaultV1Vic} from "../../src/vic/interfaces/ISingleMorphoVaultV1Vic.sol";
 
 contract SingleMorphoVaultV1VicIntegrationTest is MorphoVaultV1IntegrationTest {
-    SingleMorphoVaultV1Vic internal singleMorphoVaultV1Vic;
+    ISingleMorphoVaultV1Vic internal singleMorphoVaultV1Vic;
 
     function setUp() public override {
         super.setUp();
 
-        singleMorphoVaultV1Vic = new SingleMorphoVaultV1Vic(address(morphoVaultV1Adapter));
+        singleMorphoVaultV1Vic = ISingleMorphoVaultV1Vic(address(new SingleMorphoVaultV1Vic(address(morphoVaultV1Adapter))));
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setVic, (address(singleMorphoVaultV1Vic))));
