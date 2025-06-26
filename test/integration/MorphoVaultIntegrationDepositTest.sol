@@ -132,10 +132,8 @@ contract MorphoVaultIntegrationDepositTest is MorphoVaultIntegrationTest {
         // Check rounding is realizable
         vault.realizeLoss(address(morphoVaultV1Adapter), "");
 
-        assertApproxEqAbs(vault.totalAssets(), previousVaultTotalAssets - donationFactor, 1, "total assets, after");
-        assertApproxEqAbs(
-            morphoVaultV1Adapter.allocation(), previousAdapterTrackedAllocation - donationFactor, 1, "allocation, after"
-        );
+        assertEq(vault.totalAssets(), previousVaultTotalAssets - donationFactor, "total assets, after");
+        assertEq(morphoVaultV1Adapter.allocation(), previousAdapterTrackedAllocation - donationFactor, "allocation, after");
     }
 
     function testDepositLiquidityAdapterCanFail(uint256 assets) public {
