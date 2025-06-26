@@ -128,6 +128,6 @@ contract ViewFunctionsTest is BaseTest {
 
         shares = bound(shares, 0, MAX_TEST_ASSETS);
 
-        assertApproxEqAbs(vault.previewRedeem(shares), shares * (newTotalAssets + 1) / (newTotalSupply + 1), 1);
+        assertEq(vault.previewRedeem(shares), shares * (newTotalAssets + 1) / (newTotalSupply + 1));
     }
 }

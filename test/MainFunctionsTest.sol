@@ -122,14 +122,14 @@ contract MainFunctionsTest is BaseTest {
 
         assertEq(assets, expectedAssets, "assets != expectedAssets");
 
-        if (address(this) != spender) {
-            if (approveMax) {
-                assertEq(vault.allowance(address(this), spender), type(uint256).max, " approve max");
+        if (approveMax) {
+            assertEq(vault.allowance(address(this), spender), type(uint256).max, " approve max");
+        } else {
+            if (address(this) == spender) {
+                assertEq(vault.allowance(address(this), spender), sharesApproved, "self approved");
             } else {
                 assertEq(vault.allowance(address(this), spender), sharesApproved - shares, "approved-redeemed");
             }
-        } else {
-            assertEq(vault.allowance(address(this), spender), sharesApproved, "approved");
         }
 
         if (receiver == address(vault)) {
@@ -166,14 +166,14 @@ contract MainFunctionsTest is BaseTest {
 
         assertEq(shares, expectedShares, "shares != expectedShares");
 
-        if (address(this) != spender) {
-            if (approveMax) {
-                assertEq(vault.allowance(address(this), spender), type(uint256).max, " approve max");
+        if (approveMax) {
+            assertEq(vault.allowance(address(this), spender), type(uint256).max, " approve max");
+        } else {
+            if (address(this) == spender) {
+                assertEq(vault.allowance(address(this), spender), sharesApproved, "self approved");
             } else {
                 assertEq(vault.allowance(address(this), spender), sharesApproved - shares, "approved-redeemed");
             }
-        } else {
-            assertEq(vault.allowance(address(this), spender), sharesApproved, "approved");
         }
 
         if (receiver == address(vault)) {
