@@ -50,6 +50,7 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
     /// @dev This is useful to handle rewards that the adapter has earned.
+    /// @dev Can only skim shares of morphoVaultV1 up to the adapter's tracked shares.
     function skim(address token) external {
         require(msg.sender == skimRecipient, NotAuthorized());
         uint256 balance = IERC20(token).balanceOf(address(this));
