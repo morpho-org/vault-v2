@@ -10,6 +10,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
 
     event SetSkimRecipient(address indexed newSkimRecipient);
     event Skim(address indexed token, uint256 assets);
+    event SkimMarketV1SharesAsAssets(MarketParams indexed marketParams, uint256 shares);
 
     /* ERRORS */
 
@@ -24,6 +25,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function skimRecipient() external view returns (address);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
+    function skimMarketV1SharesAsAssets(MarketParams memory marketParams) external;
     function shares(Id marketId) external view returns (uint256);
     function allocation(MarketParams memory marketParams) external view returns (uint256);
 }

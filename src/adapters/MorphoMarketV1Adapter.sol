@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 
 import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {MorphoLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
 import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
@@ -58,6 +59,18 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         uint256 balance = IERC20(token).balanceOf(address(this));
         SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
         emit Skim(token, balance);
+    }
+
+    /// @dev Skims as assets the adapter's balance of supply shares in the given market.
+    /// @dev Will not leave the adapter with fewer than its tracked amount of shares for the market.
+    /// @dev The market may not have enough liquidity.
+    function skimMarketV1SharesAsAssets(MarketParams memory marketParams) external {
+        require(msg.sender == skimRecipient, NotAuthorized());
+        Id marketId = marketParams.id();
+        uint256 supplyShares = MorphoLib.supplyShares(IMorpho(morpho), marketId, address(this));
+        uint256 toSkim = supplyShares.zeroFloorSub(shares[marketId]);
+        if (toSkim > 0) IMorpho(morpho).withdraw(marketParams, 0, toSkim, address(this), skimRecipient);
+        emit SkimMarketV1SharesAsAssets(marketParams, toSkim);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
