@@ -54,7 +54,7 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     function skim(address token) external {
         require(msg.sender == skimRecipient, NotAuthorized());
         uint256 balance = IERC20(token).balanceOf(address(this));
-        uint256 toSkim = token == morphoVaultV1 ? balance - shares : balance;
+        uint256 toSkim = token == morphoVaultV1 ? balance.zeroFloorSub(shares) : balance;
         SafeERC20Lib.safeTransfer(token, skimRecipient, toSkim);
         emit Skim(token, toSkim);
     }
