@@ -14,8 +14,8 @@ methods {
         => nondetBoolSummary() expect bool;
     function _.deallocate(bytes, uint256, bytes4, address) external =>
          nondetAllocatorSummary() expect (bytes32[], uint256);
-    function _.interestPerSecond(uint256, uint256) external =>
-        nondetUintSummary() expect uint256;
+    // function _.interestPerSecond(uint256, uint256) external =>
+    //     nondetUintSummary() expect uint256;
 
     function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
 }
@@ -91,6 +91,8 @@ rule sentinelCanDeallocate(env e, address adapter, bytes data, uint256 assets){
     bool accrueInterestReverted = lastReverted;
 
     deallocate@withrevert(e, adapter, data, assets);
-    assert !accrueInterestReverted =>
-        (lastReverted <=> !isAdapter(adapter) || e.msg.value != 0);
+    assert lastReverted <=>
+        !isAdapter(adapter)
+        || e.msg.value != 0
+        || accrueInterestReverted;
 }
