@@ -20,9 +20,6 @@ methods {
     function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
 }
 
-function mulDivDownSummary(uint256 x, uint256 y, uint256 d) returns uint256 {
-    return require_uint256((x*y)/d);
-}
 
 function nondetAccrueInterestSummary() returns (uint256, uint256, uint256) {
     uint256[] interests;
@@ -47,7 +44,6 @@ function nondetBoolSummary() returns bool {
     bool value;
     return value;
 }
-
 
 rule sentinelCanRevoke(env e, bytes data){
     // Setup the caller to be a sentinel.
