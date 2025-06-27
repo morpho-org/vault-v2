@@ -1,0 +1,12 @@
+diff -ruN VaultV2.sol VaultV2.sol
+--- VaultV2.sol	2025-06-27 10:38:15.000000000 +0200
++++ VaultV2.sol	2025-06-27 10:38:05.000000000 +0200
+@@ -488,7 +488,7 @@
+         for (uint256 i; i < ids.length; i++) {
+             Caps storage _caps = caps[ids[i]];
+             require(_caps.allocation > 0, ErrorsLib.ZeroAllocation());
+-            _caps.allocation = _caps.allocation + interest - assets;
++            //_caps.allocation = _caps.allocation + interest - assets;
+         }
+ 
+         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);

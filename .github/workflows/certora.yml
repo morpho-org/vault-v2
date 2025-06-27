@@ -22,6 +22,7 @@ jobs:
           - MorphoVaultV1AdapterFactory
           - MorphoMarketV1AdapterFactory
           - PreviewFunctions
+          - SentinelSafety
 
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +42,9 @@ jobs:
           wget https://github.com/ethereum/solidity/releases/download/v0.8.28/solc-static-linux
           chmod +x solc-static-linux
           sudo mv solc-static-linux /usr/local/bin/solc-0.8.28
+
+      - name: Apply munging
+        run: make -C certora munged
 
       - name: Verify ${{ matrix.conf }}
         run: certoraRun certora/confs/${{ matrix.conf }}.conf
