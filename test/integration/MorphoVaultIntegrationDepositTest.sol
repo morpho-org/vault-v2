@@ -133,7 +133,9 @@ contract MorphoVaultIntegrationDepositTest is MorphoVaultIntegrationTest {
         vault.realizeLoss(address(morphoVaultV1Adapter), "");
 
         assertEq(vault.totalAssets(), previousVaultTotalAssets - donationFactor, "total assets, after");
-        assertEq(morphoVaultV1Adapter.allocation(), previousAdapterTrackedAllocation - donationFactor, "allocation, after");
+        assertEq(
+            morphoVaultV1Adapter.allocation(), previousAdapterTrackedAllocation - donationFactor, "allocation, after"
+        );
     }
 
     function testDepositLiquidityAdapterCanFail(uint256 assets) public {
