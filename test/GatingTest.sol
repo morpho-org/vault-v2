@@ -4,7 +4,11 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
+uint256 constant MAX_TEST_AMOUNT = 1e36;
+
 contract GatingTest is BaseTest {
+    using MathLib for uint256;
+
     address gate;
     address sharesReceiver;
     address assetsSender;
@@ -139,5 +143,50 @@ contract GatingTest is BaseTest {
 
         bool actualCan = vault.canReceive(sharesSender);
         assertEq(actualCan, !hasGate || can);
+    }
+
+    function testRealizeLossIncentiveGated(uint256 deposit, uint256 expectedLoss, bool canReceiveShares) public {
+        address realizer = makeAddr("realizer");
+        deposit = bound(deposit, 100, MAX_TEST_AMOUNT);
+        expectedLoss = bound(expectedLoss, 100, deposit);
+
+        AdapterMock adapter = new AdapterMock(address(vault));
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
+        vault.setIsAdapter(address(adapter), true);
+
+        deal(address(underlyingToken), address(this), type(uint256).max);
+        underlyingToken.approve(address(vault), type(uint256).max);
+
+        increaseAbsoluteCap(expectedIdData[0], type(uint128).max);
+        increaseAbsoluteCap(expectedIdData[1], type(uint128).max);
+        increaseRelativeCap(expectedIdData[0], WAD);
+        increaseRelativeCap(expectedIdData[1], WAD);
+
+        vault.deposit(deposit, address(this));
+        vm.prank(allocator);
+        vault.allocate(address(adapter), hex"", deposit);
+        adapter.setLoss(expectedLoss);
+
+        setGate();
+        vm.mockCall(gate, abi.encodeCall(ISharesGate.canReceiveShares, (realizer)), abi.encode(canReceiveShares));
+
+        // Get expected incentive shares
+        uint256 tentativeIncentive = expectedLoss * LOSS_REALIZATION_INCENTIVE_RATIO / WAD;
+        uint256 assetsWithoutIncentive =
+            vault.totalAssets().zeroFloorSub(expectedLoss).zeroFloorSub(tentativeIncentive) + 1;
+        uint256 incentiveShares = tentativeIncentive * (vault.totalSupply() + VaultV2(address(vault)).virtualShares())
+            / assetsWithoutIncentive;
+
+        // Realize the loss.
+        vm.prank(realizer);
+        vault.realizeLoss(address(adapter), hex"");
+
+        if (canReceiveShares) {
+            assertEq(vault.balanceOf(realizer), incentiveShares);
+        } else {
+            assertEq(vault.balanceOf(realizer), 0);
+        }
     }
 }
