@@ -7,12 +7,22 @@ import "./BaseTest.sol";
 contract ViewFunctionsTest is BaseTest {
     uint256 constant MAX_TEST_ASSETS = 1e36;
 
+    address performanceFeeRecipient = makeAddr("performanceFeeRecipient");
+    address managementFeeRecipient = makeAddr("managementFeeRecipient");
     address immutable receiver = makeAddr("receiver");
 
     function setUp() public override {
         super.setUp();
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
+
+        vm.startPrank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (performanceFeeRecipient)));
+        vault.submit(abi.encodeCall(IVaultV2.setManagementFeeRecipient, (managementFeeRecipient)));
+        vm.stopPrank();
+
+        vault.setPerformanceFeeRecipient(performanceFeeRecipient);
+        vault.setManagementFeeRecipient(managementFeeRecipient);
     }
 
     function testMaxDeposit() public view {
@@ -53,55 +63,71 @@ contract ViewFunctionsTest is BaseTest {
         assertEq(vault.convertToShares(assets), assets * (vault.totalSupply() + 1) / (vault.totalAssets() + 1));
     }
 
-    function testPreviewDeposit(uint256 initialDeposit, uint256 interest, uint256 assets) public {
-        initialDeposit = bound(initialDeposit, 0, MAX_TEST_ASSETS);
-        interest = bound(interest, 0, MAX_TEST_ASSETS);
+    struct TestData {
+        uint256 initialDeposit;
+        uint256 performanceFee;
+        uint256 managementFee;
+        uint256 interest;
+        uint256 assets;
+        uint256 elapsed;
+    }
+
+    function setupTest(TestData memory data) internal returns (uint256, uint256) {
+        data.initialDeposit = bound(data.initialDeposit, 0, MAX_TEST_ASSETS);
+        data.performanceFee = bound(data.performanceFee, 0, MAX_PERFORMANCE_FEE);
+        data.managementFee = bound(data.managementFee, 0, MAX_MANAGEMENT_FEE);
+        data.interest = bound(data.interest, 0, MAX_TEST_ASSETS);
+        data.elapsed = uint64(bound(data.elapsed, 0, 10 * 365 days));
+
+        vault.deposit(data.initialDeposit, address(this));
+
+        vm.startPrank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (data.performanceFee)));
+        vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (data.managementFee)));
+        vm.stopPrank();
+        vault.setPerformanceFee(data.performanceFee);
+        vault.setManagementFee(data.managementFee);
+
+        writeTotalAssets(data.initialDeposit + data.interest);
+
+        skip(data.elapsed);
+
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = vault.accrueInterestView();
+
+        return (newTotalAssets, vault.totalSupply() + performanceFeeShares + managementFeeShares);
+    }
+
+    function testPreviewDeposit(TestData memory data, uint256 assets) public {
+        (uint256 newTotalAssets, uint256 newTotalSupply) = setupTest(data);
+
         assets = bound(assets, 0, MAX_TEST_ASSETS);
 
-        vault.deposit(initialDeposit, address(this));
-        writeTotalAssets(initialDeposit + interest);
-
-        assertEq(
-            vault.previewDeposit(initialDeposit), initialDeposit * (vault.totalSupply() + 1) / (vault.totalAssets() + 1)
-        );
+        assertEq(vault.previewDeposit(assets), assets * (newTotalSupply + 1) / (newTotalAssets + 1));
     }
 
-    function testPreviewMint(uint256 initialDeposit, uint256 interest, uint256 shares) public {
-        initialDeposit = bound(initialDeposit, 0, MAX_TEST_ASSETS);
-        interest = bound(interest, 0, MAX_TEST_ASSETS);
+    function testPreviewMint(TestData memory data, uint256 shares) public {
+        (uint256 newTotalAssets, uint256 newTotalSupply) = setupTest(data);
+
         shares = bound(shares, 0, MAX_TEST_ASSETS);
 
-        vault.deposit(initialDeposit, address(this));
-        writeTotalAssets(initialDeposit + interest);
-
         // Precision 1 because rounded up.
-        assertApproxEqAbs(vault.previewMint(shares), shares * (vault.totalAssets() + 1) / (vault.totalSupply() + 1), 1);
+        assertApproxEqAbs(vault.previewMint(shares), shares * (newTotalAssets + 1) / (newTotalSupply + 1), 1);
     }
 
-    function testPreviewWithdraw(uint256 initialDeposit, uint256 interest, uint256 assets) public {
-        initialDeposit = bound(initialDeposit, 0, MAX_TEST_ASSETS);
-        interest = bound(interest, 0, MAX_TEST_ASSETS);
+    function testPreviewWithdraw(TestData memory data, uint256 assets) public {
+        (uint256 newTotalAssets, uint256 newTotalSupply) = setupTest(data);
+
         assets = bound(assets, 0, MAX_TEST_ASSETS);
 
-        vault.deposit(initialDeposit, address(this));
-        writeTotalAssets(initialDeposit + interest);
-
         // Precision 1 because rounded up.
-        assertApproxEqAbs(
-            vault.previewWithdraw(assets), assets * (vault.totalSupply() + 1) / (vault.totalAssets() + 1), 1
-        );
+        assertApproxEqAbs(vault.previewWithdraw(assets), assets * (newTotalSupply + 1) / (newTotalAssets + 1), 1);
     }
 
-    function testPreviewRedeem(uint256 initialDeposit, uint256 interest, uint256 shares) public {
-        initialDeposit = bound(initialDeposit, 0, MAX_TEST_ASSETS);
-        interest = bound(interest, 0, MAX_TEST_ASSETS);
+    function testPreviewRedeem(TestData memory data, uint256 shares) public {
+        (uint256 newTotalAssets, uint256 newTotalSupply) = setupTest(data);
+
         shares = bound(shares, 0, MAX_TEST_ASSETS);
 
-        vault.deposit(initialDeposit, address(this));
-        writeTotalAssets(initialDeposit + interest);
-
-        assertApproxEqAbs(
-            vault.previewRedeem(shares), shares * (vault.totalAssets() + 1) / (vault.totalSupply() + 1), 1
-        );
+        assertEq(vault.previewRedeem(shares), shares * (newTotalAssets + 1) / (newTotalSupply + 1));
     }
 }
