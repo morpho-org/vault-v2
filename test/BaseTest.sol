@@ -22,6 +22,8 @@ contract BaseTest is Test {
     address immutable allocator = makeAddr("allocator");
     address immutable sentinel = makeAddr("sentinel");
 
+    uint8 constant UNDERLYING_TOKEN_DECIMALS = 18;
+
     // The packed slot containing both _totalAssets and lastUpdate.
     bytes32 TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT = bytes32(uint256(13));
 
@@ -38,7 +40,7 @@ contract BaseTest is Test {
     function setUp() public virtual {
         vm.label(address(this), "testContract");
 
-        underlyingToken = new ERC20Mock(18);
+        underlyingToken = new ERC20Mock(UNDERLYING_TOKEN_DECIMALS);
         vm.label(address(underlyingToken), "underlying");
 
         vaultFactory = IVaultV2Factory(address(new VaultV2Factory()));

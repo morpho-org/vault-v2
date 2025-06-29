@@ -11,6 +11,8 @@ jobs:
   test:
     strategy:
       fail-fast: true
+      matrix:
+        decimals: [0, 6, 8, 18, 24]
 
     runs-on: ubuntu-latest
     steps:
@@ -24,5 +26,7 @@ jobs:
       - name: Run forge fmt
         run: forge fmt --check
 
-      - name: Run forge tests
-        run: forge test -vvv
+      - name: Run forge tests with ${{ matrix.decimals }} decimals
+        run: |
+          sed -i "s/uint8 constant UNDERLYING_TOKEN_DECIMALS = [0-9]*;/uint8 constant UNDERLYING_TOKEN_DECIMALS = ${{ matrix.decimals }};/" test/BaseTest.sol
+          forge test -vvv
