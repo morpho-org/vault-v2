@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2025 Morpho Association
 pragma solidity >=0.5.0;
 
 import {IVic} from "../../interfaces/IVic.sol";
@@ -6,22 +7,27 @@ import {IVic} from "../../interfaces/IVic.sol";
 interface IManualVic is IVic {
     /* EVENTS */
 
-    event SetInterestPerSecond(address indexed caller, uint256 newInterestPerSecond);
-    event IncreaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond);
-    event DecreaseMaxInterestPerSecond(address caller, uint256 newMaxInterestPerSecond);
+    event SetInterestPerSecondAndDeadline(address indexed caller, uint256 newInterestPerSecond, uint256 newDeadline);
+    event SetMaxInterestPerSecond(uint256 newMaxInterestPerSecond);
+    event ZeroInterestPerSecond(address indexed caller);
+    event ZeroMaxInterestPerSecond(address indexed caller);
 
     /* ERRORS */
 
-    error Unauthorized();
+    error CastOverflow();
+    error DeadlineAlreadyPassed();
     error InterestPerSecondTooHigh();
-    error NotIncreasing();
-    error NotDecreasing();
+    error InterestPerSecondTooLow();
+    error Unauthorized();
 
     /* FUNCTIONS */
 
-    function increaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond) external;
-    function decreaseMaxInterestPerSecond(uint256 newMaxInterestPerSecond) external;
-    function setInterestPerSecond(uint256 newInterestPerSecond) external;
     function vault() external view returns (address);
-    function maxInterestPerSecond() external view returns (uint256);
+    function storedInterestPerSecond() external view returns (uint96);
+    function maxInterestPerSecond() external view returns (uint96);
+    function deadline() external view returns (uint64);
+    function setInterestPerSecondAndDeadline(uint256 newInterestPerSecond, uint256 newDeadline) external;
+    function zeroInterestPerSecond() external;
+    function setMaxInterestPerSecond(uint256 newMaxInterestPerSecond) external;
+    function zeroMaxInterestPerSecond() external;
 }

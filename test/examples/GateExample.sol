@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
 import "../../src/interfaces/IGate.sol";
@@ -12,14 +13,15 @@ interface IBundlerAdapter {
 }
 
 /// Example VaultV2 Gate with the following characteristics:
-/// - It is an exit gate, i.e. it checks vault shares senders & vault asset receivers).
-/// - It is an enter gate, i.e. it checks vault shares receivers & vault asset senders).
+/// - It is a shares gate, i.e. it checks vault shares senders & receivers.
+/// - It a send assets gate, i.e. it checks users who receive assets from the vault.
+/// - It a receive assets gate, i.e. it checks users who deposit assets to the vault.
 /// - It has a single whitelist for all permissions.
 /// - It works with Bundler3.
 ///   To enable transfers to/from a Bundler3 adapter (on whitelisted users only), set isBundlerAdapter[bundlerAdapter]
 /// to true.
 ///   Only trusted Bundler3 adapters should be added.
-contract GateExample is IExitGate, IEnterGate {
+contract GateExample is ISharesGate, IReceiveAssetsGate, ISendAssetsGate {
     address public owner;
 
     mapping(address => bool) public isBundlerAdapter;

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
+
+contract Reverting {}
 
 contract AccrueInterestTest is BaseTest {
     using MathLib for uint256;
@@ -25,6 +28,20 @@ contract AccrueInterestTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
     }
 
+    function testAccrueInterestNoVic(uint256 elapsed) public {
+        elapsed = bound(elapsed, 1, 10 * 365 days);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(0))));
+        vault.setVic(address(0));
+
+        uint256 totalAssetsBefore = vault.totalAssets();
+        skip(elapsed);
+
+        vault.accrueInterest();
+        assertEq(vault.totalAssets(), totalAssetsBefore);
+    }
+
     function testAccrueInterestView(
         uint256 deposit,
         uint256 performanceFee,
@@ -36,11 +53,12 @@ contract AccrueInterestTest is BaseTest {
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        elapsed = bound(elapsed, 0, 20 * 365 days);
+        interestPerSecond = bound(interestPerSecond, 0, type(uint96).max);
+        elapsed = bound(elapsed, 0, 10 * 365 days);
 
         // Setup.
         vm.prank(allocator);
-        vic.setInterestPerSecond(interestPerSecond);
+        vic.setInterestPerSecondAndDeadline(interestPerSecond, type(uint64).max);
         vm.startPrank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));
         vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (managementFee)));
@@ -71,7 +89,8 @@ contract AccrueInterestTest is BaseTest {
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        elapsed = bound(elapsed, 1, 20 * 365 days);
+        interestPerSecond = bound(interestPerSecond, 0, type(uint96).max);
+        elapsed = bound(elapsed, 1, 10 * 365 days);
 
         // Setup.
         vault.deposit(deposit, address(this));
@@ -82,18 +101,19 @@ contract AccrueInterestTest is BaseTest {
         vault.setPerformanceFee(performanceFee);
         vault.setManagementFee(managementFee);
         vm.prank(allocator);
-        vic.setInterestPerSecond(interestPerSecond);
+        vic.setInterestPerSecondAndDeadline(interestPerSecond, type(uint64).max);
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
         // Normal path.
         uint256 interest = interestPerSecond * elapsed;
         uint256 totalAssets = deposit + interest;
         uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
-        uint256 performanceFeeShares =
-            performanceFeeAssets.mulDivDown(vault.totalSupply() + 1, totalAssets + 1 - performanceFeeAssets);
         uint256 managementFeeAssets = (totalAssets * elapsed).mulDivDown(managementFee, WAD);
+        uint256 performanceFeeShares = performanceFeeAssets.mulDivDown(
+            vault.totalSupply() + 1, totalAssets + 1 - performanceFeeAssets - managementFeeAssets
+        );
         uint256 managementFeeShares = managementFeeAssets.mulDivDown(
-            vault.totalSupply() + 1 + performanceFeeShares, totalAssets + 1 - managementFeeAssets
+            vault.totalSupply() + 1, totalAssets + 1 - managementFeeAssets - performanceFeeAssets
         );
         vm.expectEmit();
         emit EventsLib.AccrueInterest(deposit, totalAssets, performanceFeeShares, managementFeeShares);
@@ -113,7 +133,8 @@ contract AccrueInterestTest is BaseTest {
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
-        interestPerSecond = bound(interestPerSecond, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD), type(uint256).max);
+        vm.assume(deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD) <= type(uint96).max);
+        interestPerSecond = bound(interestPerSecond, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD), type(uint96).max);
         elapsed = bound(elapsed, 0, 20 * 365 days);
 
         // Setup.
@@ -128,29 +149,43 @@ contract AccrueInterestTest is BaseTest {
 
         // Rate too high.
         vm.prank(allocator);
-        vic.setInterestPerSecond(interestPerSecond);
+        vic.setInterestPerSecondAndDeadline(interestPerSecond, type(uint64).max);
         uint256 totalAssetsBefore = vault.totalAssets();
         vault.accrueInterest();
         assertEq(vault.totalAssets(), totalAssetsBefore);
     }
 
-    function testAccrueInterestVicNoCode(uint256 elapsed) public {
-        elapsed = bound(elapsed, 0, 1000 weeks);
+    function testAccrueInterestMaxRateValue() public {
+        uint256 deposit = 1e18;
+
+        vault.deposit(deposit, address(this));
+        vm.prank(allocator);
+        vic.setInterestPerSecondAndDeadline(deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD), type(uint64).max);
+        skip(365 days);
+
+        vault.accrueInterest();
+        assertApproxEqRel(vault.totalAssets(), deposit * 3, 0.00001e18);
+    }
+
+    function testSetVicWithNoCodeVic(uint256 elapsed) public {
+        elapsed = bound(elapsed, 1, 1000 weeks);
 
         // Setup.
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(42))));
-        vault.setVic(address(42));
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(1))));
+        vault.setVic(address(1));
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
-        // Vic reverts.
-        uint256 totalAssetsBefore = vault.totalAssets();
+        vm.expectRevert();
         vault.accrueInterest();
-        assertEq(vault.totalAssets(), totalAssetsBefore);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(42))));
+        vault.setVic(address(42));
     }
 
-    function testAccrueInterestVicReverting(uint256 elapsed) public {
-        elapsed = bound(elapsed, 0, 1000 weeks);
+    function testSetVicWithRevertingVic(uint256 elapsed) public {
+        elapsed = bound(elapsed, 1, 1000 weeks);
 
         address reverting = address(new Reverting());
 
@@ -160,77 +195,53 @@ contract AccrueInterestTest is BaseTest {
         vault.setVic(reverting);
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
-        // Vic reverts.
-        uint256 totalAssetsBefore = vault.totalAssets();
+        vm.expectRevert();
         vault.accrueInterest();
-        assertEq(vault.totalAssets(), totalAssetsBefore);
-    }
-
-    function testPerformanceFeeWithoutManagementFee(
-        uint256 performanceFee,
-        uint256 interestPerSecond,
-        uint256 deposit,
-        uint256 elapsed
-    ) public {
-        performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
-        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
-        interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        elapsed = bound(elapsed, 0, 20 * 365 days);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));
-        vault.setPerformanceFee(performanceFee);
-
-        vault.deposit(deposit, address(this));
-
-        vm.prank(allocator);
-        vic.setInterestPerSecond(interestPerSecond);
-
-        vm.warp(block.timestamp + elapsed);
-
-        uint256 interest = interestPerSecond * elapsed;
-        uint256 newTotalAssets = vault.totalAssets() + interest;
-        uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
-        uint256 expectedShares =
-            performanceFeeAssets.mulDivDown(vault.totalSupply() + 1, newTotalAssets + 1 - performanceFeeAssets);
-
-        vault.accrueInterest();
-
-        assertEq(vault.balanceOf(performanceFeeRecipient), expectedShares);
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(42))));
+        vault.setVic(address(42));
     }
 
-    function testManagementFeeWithoutPerformanceFee(
+    function testAccrueInterestFees(
+        uint256 performanceFee,
         uint256 managementFee,
         uint256 interestPerSecond,
         uint256 deposit,
         uint256 elapsed
     ) public {
+        performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        elapsed = bound(elapsed, 0, 20 * 365 days);
+        interestPerSecond = bound(interestPerSecond, 0, type(uint96).max);
+        elapsed = bound(elapsed, 0, 10 * 365 days);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));
+        vault.setPerformanceFee(performanceFee);
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (managementFee)));
         vault.setManagementFee(managementFee);
 
         vault.deposit(deposit, address(this));
+        uint256 totalAssetsBefore = vault.totalAssets();
 
         vm.prank(allocator);
-        vic.setInterestPerSecond(interestPerSecond);
+        vic.setInterestPerSecondAndDeadline(interestPerSecond, type(uint64).max);
 
         vm.warp(block.timestamp + elapsed);
 
         uint256 interest = interestPerSecond * elapsed;
-        uint256 newTotalAssets = vault.totalAssets() + interest;
+        uint256 newTotalAssets = totalAssetsBefore + interest;
+        uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
         uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);
-        uint256 expectedShares =
-            managementFeeAssets.mulDivDown(vault.totalSupply() + 1, newTotalAssets + 1 - managementFeeAssets);
 
         vault.accrueInterest();
 
-        assertEq(vault.balanceOf(managementFeeRecipient), expectedShares);
+        // Share price can be relatively high in the conditions of this test, making rounding errors more significant.
+        assertApproxEqAbs(vault.previewRedeem(vault.balanceOf(managementFeeRecipient)), managementFeeAssets, 100);
+        assertApproxEqAbs(vault.previewRedeem(vault.balanceOf(performanceFeeRecipient)), performanceFeeAssets, 100);
     }
 }
-
-contract Reverting {}

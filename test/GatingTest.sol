@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
@@ -23,11 +24,14 @@ contract GatingTest is BaseTest {
 
     function setGate() internal {
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setEnterGate, (gate)));
-        vault.setEnterGate(gate);
+        vault.submit(abi.encodeCall(IVaultV2.setSharesGate, (gate)));
+        vault.setSharesGate(gate);
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setExitGate, (gate)));
-        vault.setExitGate(gate);
+        vault.submit(abi.encodeCall(IVaultV2.setReceiveAssetsGate, (gate)));
+        vault.setReceiveAssetsGate(gate);
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setSendAssetsGate, (gate)));
+        vault.setSendAssetsGate(gate);
     }
 
     function testNoGate() public {
@@ -39,8 +43,8 @@ contract GatingTest is BaseTest {
 
     function testCannotReceiveShares() public {
         setGate();
-        vm.mockCall(gate, abi.encodeCall(IEnterGate.canReceiveShares, (sharesReceiver)), abi.encode(false));
-        vm.mockCall(gate, abi.encodeCall(IEnterGate.canSendAssets, (assetsSender)), abi.encode(true));
+        vm.mockCall(gate, abi.encodeCall(ISharesGate.canReceiveShares, (sharesReceiver)), abi.encode(false));
+        vm.mockCall(gate, abi.encodeCall(ISendAssetsGate.canSendAssets, (assetsSender)), abi.encode(true));
 
         vm.expectRevert(ErrorsLib.CannotReceive.selector);
         vm.prank(assetsSender);
@@ -49,8 +53,8 @@ contract GatingTest is BaseTest {
 
     function testCannotSendUnderlyingAssets() public {
         setGate();
-        vm.mockCall(gate, abi.encodeCall(IEnterGate.canReceiveShares, (sharesReceiver)), abi.encode(true));
-        vm.mockCall(gate, abi.encodeCall(IEnterGate.canSendAssets, (assetsSender)), abi.encode(false));
+        vm.mockCall(gate, abi.encodeCall(ISharesGate.canReceiveShares, (sharesReceiver)), abi.encode(true));
+        vm.mockCall(gate, abi.encodeCall(ISendAssetsGate.canSendAssets, (assetsSender)), abi.encode(false));
 
         vm.expectRevert(ErrorsLib.CannotSendUnderlyingAssets.selector);
         vm.prank(assetsSender);
@@ -59,8 +63,8 @@ contract GatingTest is BaseTest {
 
     function testCannotSendShares() public {
         setGate();
-        vm.mockCall(gate, abi.encodeCall(IExitGate.canSendShares, (sharesSender)), abi.encode(false));
-        vm.mockCall(gate, abi.encodeCall(IExitGate.canReceiveAssets, (assetsReceiver)), abi.encode(true));
+        vm.mockCall(gate, abi.encodeCall(ISharesGate.canSendShares, (sharesSender)), abi.encode(false));
+        vm.mockCall(gate, abi.encodeCall(IReceiveAssetsGate.canReceiveAssets, (assetsReceiver)), abi.encode(true));
 
         vm.expectRevert(ErrorsLib.CannotSend.selector);
         vm.prank(sharesSender);
@@ -69,8 +73,8 @@ contract GatingTest is BaseTest {
 
     function testCannotReceiveUnderlyingAssets() public {
         setGate();
-        vm.mockCall(gate, abi.encodeCall(IExitGate.canSendShares, (sharesSender)), abi.encode(true));
-        vm.mockCall(gate, abi.encodeCall(IExitGate.canReceiveAssets, (assetsReceiver)), abi.encode(false));
+        vm.mockCall(gate, abi.encodeCall(ISharesGate.canSendShares, (sharesSender)), abi.encode(true));
+        vm.mockCall(gate, abi.encodeCall(IReceiveAssetsGate.canReceiveAssets, (assetsReceiver)), abi.encode(false));
 
         vm.expectRevert(ErrorsLib.CannotReceiveUnderlyingAssets.selector);
         vm.prank(sharesSender);
@@ -79,8 +83,8 @@ contract GatingTest is BaseTest {
 
     function testCanSendSharesTransfer() public {
         setGate();
-        vm.mockCall(gate, abi.encodeCall(IExitGate.canSendShares, (sharesSender)), abi.encode(false));
-        vm.mockCall(gate, abi.encodeCall(IEnterGate.canReceiveShares, (sharesReceiver)), abi.encode(true));
+        vm.mockCall(gate, abi.encodeCall(ISharesGate.canSendShares, (sharesSender)), abi.encode(false));
+        vm.mockCall(gate, abi.encodeCall(ISharesGate.canReceiveShares, (sharesReceiver)), abi.encode(true));
 
         vm.expectRevert(ErrorsLib.CannotSend.selector);
         vm.prank(sharesSender);
@@ -89,8 +93,8 @@ contract GatingTest is BaseTest {
 
     function testCanReceiveSharesTransfer() public {
         setGate();
-        vm.mockCall(gate, abi.encodeCall(IExitGate.canSendShares, (sharesSender)), abi.encode(true));
-        vm.mockCall(gate, abi.encodeCall(IEnterGate.canReceiveShares, (sharesReceiver)), abi.encode(false));
+        vm.mockCall(gate, abi.encodeCall(ISharesGate.canSendShares, (sharesSender)), abi.encode(true));
+        vm.mockCall(gate, abi.encodeCall(ISharesGate.canReceiveShares, (sharesReceiver)), abi.encode(false));
 
         vm.expectRevert(ErrorsLib.CannotReceive.selector);
         vm.prank(sharesSender);
@@ -99,8 +103,8 @@ contract GatingTest is BaseTest {
 
     function testCanSendSharesTransferFrom() public {
         setGate();
-        vm.mockCall(gate, abi.encodeCall(IExitGate.canSendShares, (sharesSender)), abi.encode(false));
-        vm.mockCall(gate, abi.encodeCall(IEnterGate.canReceiveShares, (sharesReceiver)), abi.encode(true));
+        vm.mockCall(gate, abi.encodeCall(ISharesGate.canSendShares, (sharesSender)), abi.encode(false));
+        vm.mockCall(gate, abi.encodeCall(ISharesGate.canReceiveShares, (sharesReceiver)), abi.encode(true));
 
         vm.expectRevert(ErrorsLib.CannotSend.selector);
         vm.prank(sharesSender);
@@ -109,8 +113,8 @@ contract GatingTest is BaseTest {
 
     function testCanReceiveSharesTransferFrom() public {
         setGate();
-        vm.mockCall(gate, abi.encodeCall(IExitGate.canSendShares, (sharesSender)), abi.encode(true));
-        vm.mockCall(gate, abi.encodeCall(IEnterGate.canReceiveShares, (sharesReceiver)), abi.encode(false));
+        vm.mockCall(gate, abi.encodeCall(ISharesGate.canSendShares, (sharesSender)), abi.encode(true));
+        vm.mockCall(gate, abi.encodeCall(ISharesGate.canReceiveShares, (sharesReceiver)), abi.encode(false));
 
         vm.expectRevert(ErrorsLib.CannotReceive.selector);
         vm.prank(sharesReceiver);
@@ -120,40 +124,20 @@ contract GatingTest is BaseTest {
     function testCanSendPassthrough(bool hasGate, bool can) public {
         if (hasGate) {
             setGate();
-            vm.mockCall(gate, abi.encodeCall(IExitGate.canSendShares, (sharesSender)), abi.encode(can));
+            vm.mockCall(gate, abi.encodeCall(ISharesGate.canSendShares, (sharesSender)), abi.encode(can));
         }
 
         bool actualCan = vault.canSend(sharesSender);
         assertEq(actualCan, !hasGate || can);
     }
 
-    function testCanReceiveUnderlyingAssetsPassthrough(bool hasGate, bool can) public {
-        if (hasGate) {
-            setGate();
-            vm.mockCall(gate, abi.encodeCall(IExitGate.canReceiveAssets, (sharesSender)), abi.encode(can));
-        }
-
-        bool actualCan = vault.canReceiveUnderlyingAssets(sharesSender);
-        assertEq(actualCan, !hasGate || can);
-    }
-
     function testCanReceivePassthrough(bool hasGate, bool can) public {
         if (hasGate) {
             setGate();
-            vm.mockCall(gate, abi.encodeCall(IEnterGate.canReceiveShares, (sharesSender)), abi.encode(can));
+            vm.mockCall(gate, abi.encodeCall(ISharesGate.canReceiveShares, (sharesSender)), abi.encode(can));
         }
 
         bool actualCan = vault.canReceive(sharesSender);
-        assertEq(actualCan, !hasGate || can);
-    }
-
-    function testCanSendUnderlyingAssetsPassthrough(bool hasGate, bool can) public {
-        if (hasGate) {
-            setGate();
-            vm.mockCall(gate, abi.encodeCall(IEnterGate.canSendAssets, (sharesSender)), abi.encode(can));
-        }
-
-        bool actualCan = vault.canSendUnderlyingAssets(sharesSender);
         assertEq(actualCan, !hasGate || can);
     }
 }

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
 import {IVaultV2Factory} from "../src/interfaces/IVaultV2Factory.sol";
@@ -22,7 +23,7 @@ contract BaseTest is Test {
     address immutable sentinel = makeAddr("sentinel");
 
     // The packed slot containing both _totalAssets and lastUpdate.
-    bytes32 TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT = bytes32(uint256(10));
+    bytes32 TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT = bytes32(uint256(13));
 
     ERC20Mock underlyingToken;
     IVaultV2Factory vaultFactory;
@@ -31,6 +32,8 @@ contract BaseTest is Test {
     ManualVic vic;
 
     bytes[] bundle;
+    bytes32[] expectedIds;
+    bytes[] expectedIdData;
 
     function setUp() public virtual {
         vm.label(address(this), "testContract");
@@ -52,13 +55,21 @@ contract BaseTest is Test {
         vm.stopPrank();
 
         vm.startPrank(curator);
-        ManualVic(vic).increaseMaxInterestPerSecond(type(uint256).max);
+        ManualVic(vic).setMaxInterestPerSecond(type(uint96).max);
         vault.submit(abi.encodeCall(IVaultV2.setIsAllocator, (allocator, true)));
         vault.submit(abi.encodeCall(IVaultV2.setVic, (address(vic))));
         vm.stopPrank();
 
         vault.setIsAllocator(allocator, true);
         vault.setVic(address(vic));
+
+        expectedIds = new bytes32[](2);
+        expectedIds[0] = keccak256("id-0");
+        expectedIds[1] = keccak256("id-1");
+
+        expectedIdData = new bytes[](2);
+        expectedIdData[0] = "id-0";
+        expectedIdData[1] = "id-1";
     }
 
     function writeTotalAssets(uint256 newTotalAssets) internal {
@@ -68,30 +79,18 @@ contract BaseTest is Test {
         vm.store(address(vault), TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT, strippedValue | bytes32(newTotalAssets));
     }
 
-    function _setAbsoluteCap(bytes memory idData, uint256 absoluteCap) internal {
-        bytes32 id = keccak256(idData);
-        if (absoluteCap > vault.absoluteCap(id)) {
-            vm.prank(curator);
-            vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, absoluteCap)));
-            vault.increaseAbsoluteCap(idData, absoluteCap);
-        } else {
-            vm.prank(curator);
-            vault.decreaseAbsoluteCap(idData, absoluteCap);
-        }
-        assertEq(vault.absoluteCap(id), absoluteCap);
+    function increaseAbsoluteCap(bytes memory idData, uint256 absoluteCap) internal {
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, absoluteCap)));
+        vault.increaseAbsoluteCap(idData, absoluteCap);
+        assertEq(vault.absoluteCap(keccak256(idData)), absoluteCap);
     }
 
-    function _setRelativeCap(bytes memory idData, uint256 relativeCap) internal {
-        bytes32 id = keccak256(idData);
-        if (relativeCap > vault.relativeCap(id)) {
-            vm.prank(curator);
-            vault.submit(abi.encodeWithSelector(IVaultV2.increaseRelativeCap.selector, idData, relativeCap));
-            vault.increaseRelativeCap(idData, relativeCap);
-        } else {
-            vm.prank(curator);
-            vault.decreaseRelativeCap(idData, relativeCap);
-        }
-        assertEq(vault.relativeCap(id), relativeCap);
+    function increaseRelativeCap(bytes memory idData, uint256 relativeCap) internal {
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, relativeCap)));
+        vault.increaseRelativeCap(idData, relativeCap);
+        assertEq(vault.relativeCap(keccak256(idData)), relativeCap);
     }
 }
 

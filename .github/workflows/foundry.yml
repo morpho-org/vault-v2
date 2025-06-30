@@ -22,10 +22,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: Run forge fmt
-        run: find ./ -type f -name '*.sol' -exec perl -pi -e 's/transient //g' {} + && forge fmt --check
-
-      - name: Run forge build
-        run: forge build --sizes
+        run: forge fmt --check
 
       - name: Run forge tests
         run: forge test -vvv

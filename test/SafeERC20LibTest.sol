@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
@@ -118,7 +119,8 @@ contract SafeERC20LibTest is Test {
         assertEq(tokenNormal.recordedValue(), value);
     }
 
-    // helpers (needed for expect revert)
+    /* HELPERS */
+
     function safeTransfer(address token, address to, uint256 value) external {
         SafeERC20Lib.safeTransfer(token, to, value);
     }

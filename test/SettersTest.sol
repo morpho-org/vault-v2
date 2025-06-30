@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
@@ -69,6 +70,44 @@ contract SettersTest is BaseTest {
         emit EventsLib.SetIsSentinel(rdm, newIsSentinel);
         vault.setIsSentinel(rdm, newIsSentinel);
         assertEq(vault.isSentinel(rdm), newIsSentinel);
+    }
+
+    function testSetName(address rdm, string memory newName) public {
+        vm.assume(rdm != owner);
+
+        // Default value
+        assertEq(vault.name(), "");
+
+        // Access control
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.setName(newName);
+
+        // Normal path
+        vm.prank(owner);
+        vm.expectEmit();
+        emit EventsLib.SetName(newName);
+        vault.setName(newName);
+        assertEq(vault.name(), newName);
+    }
+
+    function testSetSymbol(address rdm, string memory newSymbol) public {
+        vm.assume(rdm != owner);
+
+        // Default value
+        assertEq(vault.symbol(), "");
+
+        // Access control
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        vm.prank(rdm);
+        vault.setSymbol(newSymbol);
+
+        // Normal path
+        vm.prank(owner);
+        vm.expectEmit();
+        emit EventsLib.SetSymbol(newSymbol);
+        vault.setSymbol(newSymbol);
+        assertEq(vault.symbol(), newSymbol);
     }
 
     /* CURATOR SETTERS */
@@ -223,17 +262,6 @@ contract SettersTest is BaseTest {
         emit EventsLib.SetIsAdapter(newAdapter, false);
         vault.setIsAdapter(newAdapter, false);
         assertFalse(vault.isAdapter(newAdapter));
-
-        // Liquidity adapter invariant
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (newAdapter, true)));
-        vault.setIsAdapter(newAdapter, true);
-        vm.prank(allocator);
-        vault.setLiquidityAdapter(newAdapter);
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (newAdapter, false)));
-        vm.expectRevert(ErrorsLib.LiquidityAdapterInvariantBroken.selector);
-        vault.setIsAdapter(newAdapter, false);
     }
 
     function testIncreaseTimelock(address rdm, bytes4 selector, uint256 newTimelock) public {
@@ -277,7 +305,7 @@ contract SettersTest is BaseTest {
 
         // Can abdicate submit
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.abdicateSubmit.selector, selector));
+        vault.submit(abi.encodeCall(IVaultV2.abdicateSubmit, (selector)));
         vm.expectEmit();
         emit EventsLib.AbdicateSubmit(selector);
         vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
@@ -289,10 +317,10 @@ contract SettersTest is BaseTest {
         if (selector == IVaultV2.decreaseTimelock.selector) {
             vm.expectRevert(stdError.arithmeticError);
             vm.prank(curator);
-            vault.submit(abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, selector, 1 weeks));
+            vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, 1 weeks)));
         } else {
             vm.prank(curator);
-            vault.submit(abi.encodeWithSelector(IVaultV2.decreaseTimelock.selector, selector, 1 weeks));
+            vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, 1 weeks)));
             vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
             vm.expectRevert(ErrorsLib.InfiniteTimelock.selector);
             vault.decreaseTimelock(selector, 1 weeks);
@@ -303,7 +331,7 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != curator);
         vm.assume(selector != IVaultV2.decreaseTimelock.selector);
         vm.assume(selector != IVaultV2.abdicateSubmit.selector);
-        oldTimelock = bound(oldTimelock, 1, 2 weeks);
+        oldTimelock = bound(oldTimelock, 1, TIMELOCK_CAP);
         newTimelock = bound(newTimelock, 0, oldTimelock);
 
         vm.prank(curator);
@@ -517,7 +545,7 @@ contract SettersTest is BaseTest {
 
     function testIncreaseAbsoluteCap(address rdm, bytes memory idData, uint256 newAbsoluteCap) public {
         vm.assume(rdm != curator);
-        vm.assume(newAbsoluteCap >= 0);
+        newAbsoluteCap = bound(newAbsoluteCap, 0, type(uint128).max);
         bytes32 id = keccak256(idData);
 
         // Nobody can set directly
@@ -542,14 +570,22 @@ contract SettersTest is BaseTest {
         }
     }
 
+    function testIncreaseAbsoluteCapOverflow(bytes memory idData, uint256 newAbsoluteCap) public {
+        newAbsoluteCap = bound(newAbsoluteCap, uint256(type(uint128).max) + 1, type(uint256).max);
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, newAbsoluteCap)));
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        vault.increaseAbsoluteCap(idData, newAbsoluteCap);
+    }
+
     function testDecreaseAbsoluteCap(address rdm, bytes memory idData, uint256 oldAbsoluteCap, uint256 newAbsoluteCap)
         public
     {
         vm.assume(rdm != curator && rdm != sentinel);
         vm.assume(newAbsoluteCap >= 0);
         vm.assume(idData.length > 0);
-        newAbsoluteCap = bound(newAbsoluteCap, 0, type(uint256).max - 1);
-        oldAbsoluteCap = bound(oldAbsoluteCap, newAbsoluteCap, type(uint256).max - 1);
+        newAbsoluteCap = bound(newAbsoluteCap, 0, type(uint128).max - 1);
+        oldAbsoluteCap = bound(oldAbsoluteCap, newAbsoluteCap, type(uint128).max - 1);
         bytes32 id = keccak256(idData);
 
         vm.prank(curator);
@@ -677,56 +713,71 @@ contract SettersTest is BaseTest {
         vault.setForceDeallocatePenalty(adapter, tooHighPenalty);
     }
 
-    function testSetEnterGate(address rdm) public {
+    function testSetSharesGate(address rdm) public {
         vm.assume(rdm != curator);
-        address newEnterGate = makeAddr("newEnterGate");
+        address newSharesGate = makeAddr("newSharesGate");
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
-        vault.setEnterGate(newEnterGate);
+        vault.setSharesGate(newSharesGate);
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setEnterGate.selector, newEnterGate));
+        vault.submit(abi.encodeCall(IVaultV2.setSharesGate, (newSharesGate)));
         vm.expectEmit();
-        emit EventsLib.SetEnterGate(newEnterGate);
-        vault.setEnterGate(newEnterGate);
-        assertEq(vault.enterGate(), newEnterGate);
+        emit EventsLib.SetSharesGate(newSharesGate);
+        vault.setSharesGate(newSharesGate);
+        assertEq(vault.sharesGate(), newSharesGate);
     }
 
-    function testSetExitGate(address rdm) public {
+    function testSetReceiveAssetsGate(address rdm) public {
         vm.assume(rdm != curator);
-        address newExitGate = makeAddr("newExitGate");
+        address newReceiveAssetsGate = makeAddr("newReceiveAssetsGate");
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
-        vault.setExitGate(newExitGate);
+        vault.setReceiveAssetsGate(newReceiveAssetsGate);
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeWithSelector(IVaultV2.setExitGate.selector, newExitGate));
+        vault.submit(abi.encodeCall(IVaultV2.setReceiveAssetsGate, (newReceiveAssetsGate)));
         vm.expectEmit();
-        emit EventsLib.SetExitGate(newExitGate);
-        vault.setExitGate(newExitGate);
-        assertEq(vault.exitGate(), newExitGate);
+        emit EventsLib.SetReceiveAssetsGate(newReceiveAssetsGate);
+        vault.setReceiveAssetsGate(newReceiveAssetsGate);
+        assertEq(vault.receiveAssetsGate(), newReceiveAssetsGate);
+    }
+
+    function testSetSendAssetsGate(address rdm) public {
+        vm.assume(rdm != curator);
+        address newSendAssetsGate = makeAddr("newSendAssetsGate");
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.setSendAssetsGate(newSendAssetsGate);
+
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setSendAssetsGate, (newSendAssetsGate)));
+        vm.expectEmit();
+        emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
+        vault.setSendAssetsGate(newSendAssetsGate);
+        assertEq(vault.sendAssetsGate(), newSendAssetsGate);
     }
 
     /* ALLOCATOR SETTERS */
 
-    function testSetLiquidityAdapter(address rdm, address liquidityAdapter) public {
+    function testSetLiquidityMarket(address rdm, address liquidityAdapter, bytes memory liquidityData) public {
         vm.assume(rdm != allocator);
         vm.assume(liquidityAdapter != address(0));
         vm.assume(rdm != allocator);
-        vm.prank(allocator);
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
-        vault.setLiquidityAdapter(liquidityAdapter);
 
         // Access control
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.setLiquidityAdapter(liquidityAdapter);
+        vault.setLiquidityMarket(liquidityAdapter, liquidityData);
 
         // Normal path
         vm.prank(curator);
@@ -734,31 +785,9 @@ contract SettersTest is BaseTest {
         vault.setIsAdapter(liquidityAdapter, true);
         vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.SetLiquidityAdapter(allocator, liquidityAdapter);
-        vault.setLiquidityAdapter(liquidityAdapter);
+        emit EventsLib.SetLiquidityMarket(allocator, liquidityAdapter, liquidityData);
+        vault.setLiquidityMarket(liquidityAdapter, liquidityData);
         assertEq(vault.liquidityAdapter(), liquidityAdapter);
-
-        // Liquidity adapter invariant
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (liquidityAdapter, false)));
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.LiquidityAdapterInvariantBroken.selector));
-        vault.setIsAdapter(liquidityAdapter, false);
-    }
-
-    function testSetLiquidityData(address rdm) public {
-        vm.assume(rdm != allocator);
-        bytes memory newData = abi.encode("newData");
-
-        // Access control
-        vm.expectRevert(ErrorsLib.Unauthorized.selector);
-        vm.prank(rdm);
-        vault.setLiquidityData(newData);
-
-        // Normal path
-        vm.prank(allocator);
-        vm.expectEmit();
-        emit EventsLib.SetLiquidityData(allocator, newData);
-        vault.setLiquidityData(newData);
-        assertEq(vault.liquidityData(), newData);
+        assertEq(vault.liquidityData(), liquidityData);
     }
 }

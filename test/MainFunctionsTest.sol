@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
@@ -29,7 +30,7 @@ contract MainFunctionsTest is BaseTest {
 
         // Accrue some interest to make sure there is a rounding error.
         vm.prank(allocator);
-        vic.setInterestPerSecond(uint256(2e18) / (365 days));
+        vic.setInterestPerSecondAndDeadline(uint256(2e18) / (365 days), type(uint64).max);
         skip(10);
         vault.accrueInterest();
         assertNotEq((vault.totalAssets() + 1) % (vault.totalSupply() + 1), 0);

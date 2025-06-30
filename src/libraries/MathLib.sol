@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
 import {ErrorsLib} from "./ErrorsLib.sol";
@@ -25,5 +26,11 @@ library MathLib {
     function toUint192(uint256 x) internal pure returns (uint192) {
         require(x <= type(uint192).max, ErrorsLib.CastOverflow());
         return uint192(x);
+    }
+
+    /// @dev Casts to uint128, reverting if input number is too large.
+    function toUint128(uint256 x) internal pure returns (uint128) {
+        require(x <= type(uint128).max, ErrorsLib.CastOverflow());
+        return uint128(x);
     }
 }
