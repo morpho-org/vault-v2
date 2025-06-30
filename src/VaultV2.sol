@@ -60,7 +60,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - The token should not revert on `transfer` and `transferFrom` if balances and approvals are right.
 /// - The token should not revert on `transfer` to self.
 /// - totalAssets and totalSupply must stay below ~10^35. When taking this into account, note that for assets with
-/// decimals =< 18, there are initially 10^18 shares per asset.
+/// `decimals <= 18` there are initially 10^(18-decimals) shares per asset.
 /// - The vault is pinged more than once every 10 years.
 /// - Adapters must not revert on `deallocate` if the underlying markets are liquid.
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
