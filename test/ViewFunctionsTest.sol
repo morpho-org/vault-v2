@@ -111,7 +111,7 @@ contract ViewFunctionsTest is BaseTest {
 
         assets = bound(assets, 0, MAX_TEST_ASSETS);
 
-        assertEq(vault.previewDeposit(assets), assets * (newTotalSupply + 1) / (newTotalAssets + 1));
+        assertEq(vault.previewDeposit(assets), assets * (newTotalSupply + vault.virtualShares()) / (newTotalAssets + 1));
     }
 
     function testPreviewMint(TestData memory data, uint256 shares) public {
@@ -120,7 +120,9 @@ contract ViewFunctionsTest is BaseTest {
         shares = bound(shares, 0, MAX_TEST_ASSETS);
 
         // Precision 1 because rounded up.
-        assertApproxEqAbs(vault.previewMint(shares), shares * (newTotalAssets + 1) / (newTotalSupply + 1), 1);
+        assertApproxEqAbs(
+            vault.previewMint(shares), shares * (newTotalAssets + 1) / (newTotalSupply + vault.virtualShares()), 1
+        );
     }
 
     function testPreviewWithdraw(TestData memory data, uint256 assets) public {
@@ -129,7 +131,9 @@ contract ViewFunctionsTest is BaseTest {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
 
         // Precision 1 because rounded up.
-        assertApproxEqAbs(vault.previewWithdraw(assets), assets * (newTotalSupply + 1) / (newTotalAssets + 1), 1);
+        assertApproxEqAbs(
+            vault.previewWithdraw(assets), assets * (newTotalSupply + vault.virtualShares()) / (newTotalAssets + 1), 1
+        );
     }
 
     function testPreviewRedeem(TestData memory data, uint256 shares) public {
@@ -137,6 +141,6 @@ contract ViewFunctionsTest is BaseTest {
 
         shares = bound(shares, 0, MAX_TEST_ASSETS);
 
-        assertEq(vault.previewRedeem(shares), shares * (newTotalAssets + 1) / (newTotalSupply + 1));
+        assertEq(vault.previewRedeem(shares), shares * (newTotalAssets + 1) / (newTotalSupply + vault.virtualShares()));
     }
 }
