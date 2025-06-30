@@ -35,8 +35,8 @@ contract MorphoVaultV1AdapterTest is Test {
         owner = makeAddr("owner");
         recipient = makeAddr("recipient");
 
-        asset = new ERC20Mock();
-        rewardToken = new ERC20Mock();
+        asset = new ERC20Mock(18);
+        rewardToken = new ERC20Mock(18);
         morphoVaultV1 = new ERC4626MockExtended(address(asset));
         parentVault = new VaultV2Mock(address(asset), owner, address(0), address(0), address(0));
 
@@ -155,7 +155,7 @@ contract MorphoVaultV1AdapterTest is Test {
     function testSkim(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
 
-        ERC20Mock token = new ERC20Mock();
+        ERC20Mock token = new ERC20Mock(18);
 
         // Setup
         vm.prank(owner);

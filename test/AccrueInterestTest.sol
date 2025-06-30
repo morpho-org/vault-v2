@@ -11,10 +11,12 @@ contract AccrueInterestTest is BaseTest {
 
     address performanceFeeRecipient = makeAddr("performanceFeeRecipient");
     address managementFeeRecipient = makeAddr("managementFeeRecipient");
-    uint256 constant MAX_TEST_ASSETS = 1e36;
+    uint256 MAX_TEST_ASSETS;
 
     function setUp() public override {
         super.setUp();
+
+        MAX_TEST_ASSETS = 10 ** min(18 + underlyingToken.decimals(), 36);
 
         vm.startPrank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (performanceFeeRecipient)));
@@ -110,10 +112,10 @@ contract AccrueInterestTest is BaseTest {
         uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
         uint256 managementFeeAssets = (totalAssets * elapsed).mulDivDown(managementFee, WAD);
         uint256 performanceFeeShares = performanceFeeAssets.mulDivDown(
-            vault.totalSupply() + 1, totalAssets + 1 - performanceFeeAssets - managementFeeAssets
+            vault.totalSupply() + vault.virtualShares(), totalAssets + 1 - performanceFeeAssets - managementFeeAssets
         );
         uint256 managementFeeShares = managementFeeAssets.mulDivDown(
-            vault.totalSupply() + 1, totalAssets + 1 - managementFeeAssets - performanceFeeAssets
+            vault.totalSupply() + vault.virtualShares(), totalAssets + 1 - managementFeeAssets - performanceFeeAssets
         );
         vm.expectEmit();
         emit EventsLib.AccrueInterest(deposit, totalAssets, performanceFeeShares, managementFeeShares);

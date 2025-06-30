@@ -5,7 +5,7 @@ pragma solidity ^0.8.0;
 import "./BaseTest.sol";
 
 contract ViewFunctionsTest is BaseTest {
-    uint256 constant MAX_TEST_ASSETS = 1e36;
+    uint256 MAX_TEST_ASSETS;
 
     address performanceFeeRecipient = makeAddr("performanceFeeRecipient");
     address managementFeeRecipient = makeAddr("managementFeeRecipient");
@@ -13,6 +13,9 @@ contract ViewFunctionsTest is BaseTest {
 
     function setUp() public override {
         super.setUp();
+
+        MAX_TEST_ASSETS = 10 ** min(18 + underlyingToken.decimals(), 36);
+
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
 
@@ -49,7 +52,10 @@ contract ViewFunctionsTest is BaseTest {
         vault.deposit(initialDeposit, address(this));
         writeTotalAssets(initialDeposit + interest);
 
-        assertEq(vault.convertToAssets(shares), shares * (vault.totalAssets() + 1) / (vault.totalSupply() + 1));
+        assertEq(
+            vault.convertToAssets(shares),
+            shares * (vault.totalAssets() + 1) / (vault.totalSupply() + vault.virtualShares())
+        );
     }
 
     function testConvertToShares(uint256 initialDeposit, uint256 interest, uint256 assets) public {
@@ -60,7 +66,10 @@ contract ViewFunctionsTest is BaseTest {
         vault.deposit(initialDeposit, address(this));
         writeTotalAssets(initialDeposit + interest);
 
-        assertEq(vault.convertToShares(assets), assets * (vault.totalSupply() + 1) / (vault.totalAssets() + 1));
+        assertEq(
+            vault.convertToShares(assets),
+            assets * (vault.totalSupply() + vault.virtualShares()) / (vault.totalAssets() + 1)
+        );
     }
 
     struct TestData {
@@ -102,7 +111,7 @@ contract ViewFunctionsTest is BaseTest {
 
         assets = bound(assets, 0, MAX_TEST_ASSETS);
 
-        assertEq(vault.previewDeposit(assets), assets * (newTotalSupply + 1) / (newTotalAssets + 1));
+        assertEq(vault.previewDeposit(assets), assets * (newTotalSupply + vault.virtualShares()) / (newTotalAssets + 1));
     }
 
     function testPreviewMint(TestData memory data, uint256 shares) public {
@@ -111,7 +120,9 @@ contract ViewFunctionsTest is BaseTest {
         shares = bound(shares, 0, MAX_TEST_ASSETS);
 
         // Precision 1 because rounded up.
-        assertApproxEqAbs(vault.previewMint(shares), shares * (newTotalAssets + 1) / (newTotalSupply + 1), 1);
+        assertApproxEqAbs(
+            vault.previewMint(shares), shares * (newTotalAssets + 1) / (newTotalSupply + vault.virtualShares()), 1
+        );
     }
 
     function testPreviewWithdraw(TestData memory data, uint256 assets) public {
@@ -120,7 +131,9 @@ contract ViewFunctionsTest is BaseTest {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
 
         // Precision 1 because rounded up.
-        assertApproxEqAbs(vault.previewWithdraw(assets), assets * (newTotalSupply + 1) / (newTotalAssets + 1), 1);
+        assertApproxEqAbs(
+            vault.previewWithdraw(assets), assets * (newTotalSupply + vault.virtualShares()) / (newTotalAssets + 1), 1
+        );
     }
 
     function testPreviewRedeem(TestData memory data, uint256 shares) public {
@@ -128,6 +141,6 @@ contract ViewFunctionsTest is BaseTest {
 
         shares = bound(shares, 0, MAX_TEST_ASSETS);
 
-        assertEq(vault.previewRedeem(shares), shares * (newTotalAssets + 1) / (newTotalSupply + 1));
+        assertEq(vault.previewRedeem(shares), shares * (newTotalAssets + 1) / (newTotalSupply + vault.virtualShares()));
     }
 }

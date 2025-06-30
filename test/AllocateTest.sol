@@ -108,7 +108,7 @@ contract AllocateTest is BaseTest {
 
     /// forge-config: default.isolate = true
     function testRelativeCapManipulationProtection(uint256 allocation) public {
-        allocation = bound(allocation, 1, type(uint128).max / 2);
+        allocation = bound(allocation, 1, type(uint128).max / 2 / vault.virtualShares());
         deal(address(underlyingToken), allocator, type(uint256).max);
         vm.prank(allocator);
         underlyingToken.approve(address(vault), type(uint256).max);

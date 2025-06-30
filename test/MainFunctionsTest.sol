@@ -33,7 +33,7 @@ contract MainFunctionsTest is BaseTest {
         vic.setInterestPerSecondAndDeadline(uint256(2e18) / (365 days), type(uint64).max);
         skip(10);
         vault.accrueInterest();
-        assertNotEq((vault.totalAssets() + 1) % (vault.totalSupply() + 1), 0);
+        assertNotEq((vault.totalAssets() + 1) % (vault.totalSupply() + vault.virtualShares()), 0);
 
         totalAssetsAfterInterest = vault.totalAssets();
         deal(address(underlyingToken), address(vault), totalAssetsAfterInterest);
@@ -59,7 +59,7 @@ contract MainFunctionsTest is BaseTest {
         vm.assume(receiver != address(0));
         shares = bound(shares, 0, MAX_TEST_SHARES);
 
-        uint256 expectedAssets = shares.mulDivUp(vault.totalAssets() + 1, vault.totalSupply() + 1);
+        uint256 expectedAssets = shares.mulDivUp(vault.totalAssets() + 1, vault.totalSupply() + vault.virtualShares());
         uint256 previewedAssets = vault.previewMint(shares);
         assertEq(previewedAssets, expectedAssets, "assets != expectedAssets");
 
@@ -82,7 +82,7 @@ contract MainFunctionsTest is BaseTest {
         vm.assume(receiver != address(0));
         assets = bound(assets, 0, MAX_TEST_ASSETS);
 
-        uint256 expectedShares = assets.mulDivDown(vault.totalSupply() + 1, vault.totalAssets() + 1);
+        uint256 expectedShares = assets.mulDivDown(vault.totalSupply() + vault.virtualShares(), vault.totalAssets() + 1);
         uint256 previewedShares = vault.previewDeposit(assets);
         assertEq(previewedShares, expectedShares, "previewedShares != expectedShares");
 
@@ -110,7 +110,7 @@ contract MainFunctionsTest is BaseTest {
         shares = bound(shares, 0, initialSharesDeposit);
         sharesApproved = bound(sharesApproved, shares, shares * 2);
 
-        uint256 expectedAssets = shares.mulDivDown(vault.totalAssets() + 1, vault.totalSupply() + 1);
+        uint256 expectedAssets = shares.mulDivDown(vault.totalAssets() + 1, vault.totalSupply() + vault.virtualShares());
         uint256 previewedAssets = vault.previewRedeem(shares);
         assertEq(previewedAssets, expectedAssets, "previewedAssets != expectedAssets");
 
@@ -152,7 +152,7 @@ contract MainFunctionsTest is BaseTest {
         vm.assume(receiver != address(0));
         assets = bound(assets, 0, INITIAL_DEPOSIT);
 
-        uint256 expectedShares = assets.mulDivUp(vault.totalSupply() + 1, vault.totalAssets() + 1);
+        uint256 expectedShares = assets.mulDivUp(vault.totalSupply() + vault.virtualShares(), vault.totalAssets() + 1);
         uint256 previewedShares = vault.previewWithdraw(assets);
         assertEq(previewedShares, expectedShares, "previewedShares != expectedShares");
 
