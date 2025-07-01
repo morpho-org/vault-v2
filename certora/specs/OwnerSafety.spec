@@ -7,6 +7,7 @@ rule ownerCanChangeOwner(env e, address newOwner) {
 
     setOwner@withrevert(e, newOwner);
     assert !lastReverted;
+    assert owner() == newOwner;
 }
 
 rule ownerCanChangeCurator(env e, address newCurator) {
@@ -15,7 +16,7 @@ rule ownerCanChangeCurator(env e, address newCurator) {
 
     setCurator@withrevert(e, newCurator);
     assert !lastReverted;
-
+    assert curator() == newCurator;
 }
 
 rule ownerCanUnsetSentinel(env e, address sentinel, bool newStatus) {
@@ -26,5 +27,5 @@ rule ownerCanUnsetSentinel(env e, address sentinel, bool newStatus) {
 
     setIsSentinel@withrevert(e, sentinel, newStatus);
     assert !lastReverted;
-    satisfy statusBefore != isSentinel(e, sentinel);
+    assert isSentinel(e, sentinel) == newStatus;
 }
