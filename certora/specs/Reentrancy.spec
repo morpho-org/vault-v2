@@ -40,13 +40,6 @@ function uintSummary() returns uint256 {
     return value;
 }
 
-function allocatorSummary() returns (bytes32[], uint256) {
-    ignoredCall = true;
-    bytes32[] ids;
-    uint256 interests;
-    return (ids, interests);
-}
-
 persistent ghost bool ignoredCall;
 persistent ghost bool hasCall;
 

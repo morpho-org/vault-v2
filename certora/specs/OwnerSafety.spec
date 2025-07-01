@@ -25,7 +25,7 @@ rule ownerCanChangeCurator(env e, address newCurator) {
     assert curator() == newCurator;
 }
 
-rule ownerCanUnsetSentinel(env e, address sentinel, bool newStatus) {
+rule ownerCanSetSentinel(env e, address sentinel, bool newStatus) {
     require (e.msg.sender == currentContract.owner, "setup the call to be performed by the owner of the contract");
     require (e.msg.value == 0, "setup the call to have no ETH value");
 
