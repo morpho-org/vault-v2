@@ -31,6 +31,12 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install Jq
+        uses: sergeysova/jq-action@v2
+
+      - name: Run Certora Config Linter
+        run: for file in certora/confs/*.conf; do diff <(grep -v "//" "$file" | jq) <(grep -v "//" "$file"); done
+
       - name: Install python
         uses: actions/setup-python@v5
         with:
