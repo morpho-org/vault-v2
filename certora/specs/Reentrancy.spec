@@ -7,6 +7,10 @@ using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
 methods {
     function multicall(bytes[]) external => NONDET DELETE;
 
+    function isAdapter(address) external returns bool envfree;
+
+    function _.accrueInterest(MorphoMarketV1Adapter.MarketParams) external => voidSummary() expect void;
+
     function _.allocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
     function _.deallocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
     function _.realizeLoss(bytes, bytes4, address) external => DISPATCHER(true);
@@ -16,10 +20,13 @@ methods {
     function _.deposit(uint256, address) external => uintSummary() expect uint256 ;
     function _.withdraw(uint256, address, address) external => uintSummary() expect uint256;
 
-
     function _.transfer(address, uint256) external => boolSummary() expect bool;
     function _.transferFrom(address, address, uint256) external => boolSummary() expect bool;
     function _.balanceOf(address) external => uintSummary() expect uint256;
+}
+
+function voidSummary() {
+    ignoredCall = true;
 }
 
 function boolSummary() returns bool {
@@ -44,8 +51,11 @@ persistent ghost bool ignoredCall;
 persistent ghost bool hasCall;
 
 hook CALL(uint g, address addr, uint value, uint argsOffset, uint argsLength, uint retOffset, uint retLength) uint rc {
-    if (ignoredCall || addr == MorphoMarketV1Adapter || addr == MorphoVaultV1Adapter || addr == currentContract) {
-        // Ignore calls to tokens and Morpho markets and Metamorpho as they are trusted to not reenter (they have gone through a timelock).
+    // Ignore calls to tokens and Morpho markets and Metamorpho as they are trusted to not reenter (they have gone through a timelock).
+    if (ignoredCall  || addr == currentContract) {
+        ignoredCall = false;
+    } else if (addr == MorphoMarketV1Adapter || addr == MorphoVaultV1Adapter) {
+        assert isAdapter(addr);
         ignoredCall = false;
     } else {
         hasCall = true;
