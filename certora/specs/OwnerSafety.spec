@@ -2,20 +2,16 @@
 // Copyright (c) 2025 Morpho Association
 
 rule ownerCanChangeOwner(env e, address newOwner) {
-    // Setup the caller to be the contract owner.
-    require e.msg.sender == currentContract.owner;
-
-    require e.msg.value == 0;
+    require (e.msg.sender == currentContract.owner, "setup the call to be performed by the owner of the contract");
+    require (e.msg.value == 0, "setup the call to have no ETH value");;
 
     setOwner@withrevert(e, newOwner);
     assert !lastReverted;
 }
 
 rule ownerCanChangeCurator(env e, address newCurator) {
-    // Setup the caller to be the contract owner.
-    require e.msg.sender == currentContract.owner;
-
-    require e.msg.value == 0;
+    require (e.msg.sender == currentContract.owner, "setup the call to be performed by the owner of the contract");
+    require (e.msg.value == 0, "setup the call to have no ETH value");;
 
     setCurator@withrevert(e, newCurator);
     assert !lastReverted;
@@ -23,10 +19,8 @@ rule ownerCanChangeCurator(env e, address newCurator) {
 }
 
 rule ownerCanUnsetSentinel(env e, address sentinel, bool newStatus) {
-    // Setup the caller to be the contract owner.
-    require e.msg.sender == currentContract.owner;
-
-    require e.msg.value == 0;
+    require (e.msg.sender == currentContract.owner, "setup the call to be performed by the owner of the contract");
+    require (e.msg.value == 0, "setup the call to have no ETH value");;
 
     bool statusBefore = isSentinel(e, sentinel);
 
