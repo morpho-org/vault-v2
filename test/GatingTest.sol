@@ -176,7 +176,6 @@ contract GatingTest is BaseTest {
 
         // Get expected incentive shares
         uint256 tentativeIncentive = expectedLoss * LOSS_REALIZATION_INCENTIVE_RATIO / WAD;
-        console.log("tentativeIncentive", tentativeIncentive);
         uint256 assetsWithoutIncentive =
             vault.totalAssets().zeroFloorSub(expectedLoss).zeroFloorSub(tentativeIncentive) + 1;
         uint256 incentiveShares = tentativeIncentive * (vault.totalSupply() + VaultV2(address(vault)).virtualShares())
