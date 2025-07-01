@@ -43,10 +43,10 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// since the last interaction.
 /// @dev Ids being reused by multiple adapters are useful to do "cross-caps". Adapters can add "this" to an id to avoid
 /// it being reused.
-/// @dev Liquidity market:
+/// @dev Liquidity adapter:
 /// - `liquidityAdapter` is allocated to on deposit/mint, and deallocated from on withdraw/redeem if idle assets don't
 /// cover the withdraw.
-/// - The liquidity market is mostly useful on exit, so that exit liquidity is available in addition to the idle assets.
+/// - The liquidity adapter is useful on exit, so that exit liquidity is available in addition to the idle assets.
 /// But the same adapter/data is used for both entry and exit to have the property that in the general case looping
 /// supply-withdraw or withdraw-supply should not change the allocation.
 /// @dev List of assumptions on the token that guarantees that the vault behaves as expected:
@@ -496,12 +496,12 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, interest);
     }
 
-    /// @dev Whether newLiquidityAdapter is an adapter is checked in allocate/deallocate.
-    function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external {
+    /// @dev Whether `newLiquidityAdapter` is an adapter is checked in allocate/deallocate.
+    function setLiquidityAdapter(address newLiquidityAdapter, bytes memory newLiquidityData) external {
         require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         liquidityAdapter = newLiquidityAdapter;
         liquidityData = newLiquidityData;
-        emit EventsLib.SetLiquidityMarket(msg.sender, newLiquidityAdapter, newLiquidityData);
+        emit EventsLib.SetLiquidityAdapter(msg.sender, newLiquidityAdapter, newLiquidityData);
     }
 
     /* EXCHANGE RATE FUNCTIONS */

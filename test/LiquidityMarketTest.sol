@@ -36,7 +36,7 @@ contract LiquidityMarketTest is BaseTest {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
 
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(adapter), data);
+        vault.setLiquidityAdapter(address(adapter), data);
 
         vault.deposit(assets, address(this));
 
@@ -49,7 +49,7 @@ contract LiquidityMarketTest is BaseTest {
         shares = bound(shares, 0, MAX_TEST_SHARES);
 
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(adapter), data);
+        vault.setLiquidityAdapter(address(adapter), data);
 
         uint256 assets = vault.mint(shares, address(this));
 
@@ -63,7 +63,7 @@ contract LiquidityMarketTest is BaseTest {
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
 
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(adapter), data);
+        vault.setLiquidityAdapter(address(adapter), data);
 
         vault.deposit(deposit, address(this));
         uint256 assets = vault.previewRedeem(vault.balanceOf(address(this)));
@@ -79,7 +79,7 @@ contract LiquidityMarketTest is BaseTest {
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
 
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(adapter), data);
+        vault.setLiquidityAdapter(address(adapter), data);
 
         vault.deposit(deposit, address(this));
         uint256 assets = vault.redeem(vault.balanceOf(address(this)), receiver, address(this));
