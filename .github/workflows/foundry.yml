@@ -15,6 +15,7 @@ jobs:
         decimals: [0, 6, 8, 18, 24]
 
     runs-on: ubuntu-latest
+    name: test (${{ matrix.decimals }} decimals)
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,5 +27,7 @@ jobs:
       - name: Run forge fmt
         run: forge fmt --check
 
-      - name: Run forge tests
-        run: DECIMALS=${{matrix.decimals}} forge test -vvv
+      - name: Run forge tests with a ${{ matrix.decimals }} decimals underlying token
+        run: forge test -vvv
+        env:
+          DECIMALS: ${{ matrix.decimals }}
