@@ -149,9 +149,8 @@ contract GatingTest is BaseTest {
 
     function testRealizeLossIncentiveGated(uint256 deposit, uint256 expectedLoss, bool canReceiveShares) public {
         address realizer = makeAddr("realizer");
-        deposit = bound(deposit, 200, MAX_TEST_ASSETS);
-        // To avoid incentive shares exploding.
-        expectedLoss = bound(expectedLoss, 100, deposit / 2);
+        deposit = bound(deposit, 100, MAX_TEST_ASSETS);
+        expectedLoss = bound(expectedLoss, 100, deposit);
 
         AdapterMock adapter = new AdapterMock(address(vault));
 
