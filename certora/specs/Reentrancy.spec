@@ -9,39 +9,39 @@ methods {
 
     function isAdapter(address) external returns bool envfree;
 
-    function _.accrueInterest(MorphoMarketV1Adapter.MarketParams) external => ignoredVoidSummary() expect void;
+    function _.accrueInterest(MorphoMarketV1Adapter.MarketParams) external => ignoredCallVoidSummary() expect void;
 
     function _.allocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
     function _.deallocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
     function _.realizeLoss(bytes, bytes4, address) external => DISPATCHER(true);
 
-    function _.supply(MorphoMarketV1Adapter.MarketParams, uint256, uint256, address, bytes) external => ignoredUintPairSummary() expect (uint256, uint256);
-    function _.withdraw(MorphoMarketV1Adapter.MarketParams, uint256, uint256, address, address) external => ignoredUintPairSummary() expect (uint256, uint256);
-    function _.deposit(uint256, address) external => ignoredUintSummary() expect uint256 ;
-    function _.withdraw(uint256, address, address) external => ignoredUintSummary() expect uint256;
+    function _.supply(MorphoMarketV1Adapter.MarketParams, uint256, uint256, address, bytes) external => ignoredCallUintPairSummary() expect (uint256, uint256);
+    function _.withdraw(MorphoMarketV1Adapter.MarketParams, uint256, uint256, address, address) external => ignoredCallUintPairSummary() expect (uint256, uint256);
+    function _.deposit(uint256, address) external => ignoredCallUintSummary() expect uint256 ;
+    function _.withdraw(uint256, address, address) external => ignoredCallUintSummary() expect uint256;
 
-    function _.transfer(address, uint256) external => ignoredBoolSummary() expect bool;
-    function _.transferFrom(address, address, uint256) external => ignoredBoolSummary() expect bool;
-    function _.balanceOf(address) external => ignoredUintSummary() expect uint256;
+    function _.transfer(address, uint256) external => ignoredCallBoolSummary() expect bool;
+    function _.transferFrom(address, address, uint256) external => hignoredCallBoolSummary() expect bool;
+    function _.balanceOf(address) external => ignoredCallUintSummary() expect uint256;
 }
 
-function ignoredVoidSummary() {
+function ignoredCallVoidSummary() {
     ignoredCall = true;
 }
 
-function ignoredBoolSummary() returns bool {
+function ignoredCallBoolSummary() returns bool {
     ignoredCall = true;
     bool value;
     return value;
 }
 
-function ignoredUintPairSummary() returns (uint256, uint256) {
+function ignoredCallUintPairSummary() returns (uint256, uint256) {
     ignoredCall = true;
     uint256[2] values;
     return (values[0], values[1]);
 }
 
-function ignoredUintSummary() returns uint256 {
+function ignoredCallUintSummary() returns uint256 {
     ignoredCall = true;
     uint256 value;
     return value;
