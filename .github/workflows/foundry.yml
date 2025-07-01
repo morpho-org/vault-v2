@@ -11,6 +11,8 @@ jobs:
   test:
     strategy:
       fail-fast: true
+      matrix:
+        decimals: [0, 6, 8, 18, 24]
 
     runs-on: ubuntu-latest
     steps:
@@ -25,4 +27,4 @@ jobs:
         run: forge fmt --check
 
       - name: Run forge tests
-        run: forge test -vvv
+        run: DECIMALS=${{matrix.decimals}} forge test -vvv
