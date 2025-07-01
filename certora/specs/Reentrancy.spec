@@ -52,7 +52,7 @@ persistent ghost bool hasCall;
 
 hook CALL(uint g, address addr, uint value, uint argsOffset, uint argsLength, uint retOffset, uint retLength) uint rc {
     if (ignoredCall || addr == MorphoMarketV1Adapter || addr == MorphoVaultV1Adapter || addr == currentContract) {
-        // Ignore calls to tokens and Morpho markets and Metamorpho as they are trusted (they have gone through a timelock).
+        // Ignore calls to tokens and Morpho markets and Metamorpho as they are trusted to not reenter (they have gone through a timelock).
         ignoredCall = false;
     } else {
         hasCall = true;
