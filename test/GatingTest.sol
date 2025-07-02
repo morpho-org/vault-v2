@@ -4,10 +4,10 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
-uint256 constant MAX_TEST_AMOUNT = 1e36;
-
 contract GatingTest is BaseTest {
     using MathLib for uint256;
+
+    uint256 internal MAX_TEST_ASSETS;
 
     address gate;
     address sharesReceiver;
@@ -17,6 +17,8 @@ contract GatingTest is BaseTest {
 
     function setUp() public override {
         super.setUp();
+
+        MAX_TEST_ASSETS = 10 ** min(18 + underlyingToken.decimals(), 36);
 
         gate = makeAddr("gate");
 
@@ -147,7 +149,7 @@ contract GatingTest is BaseTest {
 
     function testRealizeLossIncentiveGated(uint256 deposit, uint256 expectedLoss, bool canReceiveShares) public {
         address realizer = makeAddr("realizer");
-        deposit = bound(deposit, 100, MAX_TEST_AMOUNT);
+        deposit = bound(deposit, 100, MAX_TEST_ASSETS);
         expectedLoss = bound(expectedLoss, 100, deposit);
 
         AdapterMock adapter = new AdapterMock(address(vault));
