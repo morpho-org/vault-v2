@@ -27,7 +27,7 @@ jobs:
       - name: Run forge fmt
         run: forge fmt --check
 
-      - name: Run forge tests with a ${{ matrix.decimals }} decimals underlying token
+      - name: Run forge tests with a ${{ matrix.decimals }} decimals underlying asset
         run: forge test -vvv
         env:
           DECIMALS: ${{ matrix.decimals }}
