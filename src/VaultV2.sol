@@ -116,7 +116,8 @@ contract VaultV2 is IVaultV2 {
     uint192 internal _totalAssets;
     /// @dev Total assets after the first interest accrual of the transaction.
     /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
-    /// @dev This mechanism can make a big deposit revert if the liquidity market's relative cap is almost reached.
+    /// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
+    /// for big deposits that go through the liquidity adapter.
     uint256 public transient firstTotalAssets;
     uint64 public lastUpdate;
     /// @dev Set to 0 to disable the Vic (=> no interest accrual).

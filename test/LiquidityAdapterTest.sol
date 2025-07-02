@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
-contract LiquidityMarketTest is BaseTest {
+contract LiquidityAdapterTest is BaseTest {
     using MathLib for uint256;
 
     AdapterMock public adapter;
@@ -32,7 +32,7 @@ contract LiquidityMarketTest is BaseTest {
         increaseRelativeCap("id-1", WAD);
     }
 
-    function testLiquidityMarketDeposit(bytes memory data, uint256 assets) public {
+    function testLiquidityAdapterDeposit(bytes memory data, uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
 
         vm.prank(allocator);
@@ -45,7 +45,7 @@ contract LiquidityMarketTest is BaseTest {
         assertEq(underlyingToken.balanceOf(address(adapter)), assets);
     }
 
-    function testLiquidityMarketMint(bytes memory data, uint256 shares) public {
+    function testLiquidityAdapterMint(bytes memory data, uint256 shares) public {
         shares = bound(shares, 0, MAX_TEST_SHARES);
 
         vm.prank(allocator);
@@ -58,7 +58,7 @@ contract LiquidityMarketTest is BaseTest {
         assertEq(underlyingToken.balanceOf(address(adapter)), assets);
     }
 
-    function testLiquidityMarketWithdraw(bytes memory data, uint256 deposit) public {
+    function testLiquidityAdapterWithdraw(bytes memory data, uint256 deposit) public {
         address receiver = makeAddr("receiver");
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
 
@@ -74,7 +74,7 @@ contract LiquidityMarketTest is BaseTest {
         assertEq(underlyingToken.balanceOf(receiver), assets);
     }
 
-    function testLiquidityMarketRedeem(bytes memory data, uint256 deposit) public {
+    function testLiquidityAdapterRedeem(bytes memory data, uint256 deposit) public {
         address receiver = makeAddr("receiver");
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
 
