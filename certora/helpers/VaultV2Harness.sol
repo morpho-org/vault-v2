@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.28;
 
-import "../../munged/VaultV2.sol";
+import "../../src/VaultV2.sol";
 
 contract VaultV2Harness is VaultV2 {
     constructor(address owner, address asset) VaultV2(owner, asset) {}
