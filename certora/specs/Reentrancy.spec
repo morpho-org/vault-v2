@@ -21,7 +21,7 @@ methods {
     function _.withdraw(uint256, address, address) external => ignoredCallUintSummary() expect uint256;
 
     function _.transfer(address, uint256) external => ignoredCallBoolSummary() expect bool;
-    function _.transferFrom(address, address, uint256) external => hignoredCallBoolSummary() expect bool;
+    function _.transferFrom(address, address, uint256) external => ignoredCallBoolSummary() expect bool;
     function _.balanceOf(address) external => ignoredCallUintSummary() expect uint256;
 }
 
