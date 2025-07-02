@@ -14,7 +14,8 @@ struct Caps {
 }
 
 interface IVaultV2 is IERC4626, IPermissionedToken, IERC2612 {
-    // Storage variables
+    // State variables
+    function virtualShares() external view returns (uint256);
     function owner() external view returns (address);
     function curator() external view returns (address);
     function sharesGate() external view returns (address);
