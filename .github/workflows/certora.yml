@@ -17,17 +17,26 @@ jobs:
       matrix:
         conf:
           - AbdicatedFunctions
+          - Immutability
           - Invariants
           - Liveness
-          - MorphoVaultV1AdapterFactory
           - MorphoMarketV1AdapterFactory
+          - MorphoVaultV1AdapterFactory
+          - OwnerSafety
           - PreviewFunctions
           - ShareSafety
+          - Reentrancy
 
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Install Jq
+        uses: sergeysova/jq-action@v2
+
+      - name: Run Certora Config Linter
+        run: for file in certora/confs/*.conf; do diff <(grep -v "//" "$file" | jq) <(grep -v "//" "$file"); done
 
       - name: Install python
         uses: actions/setup-python@v5

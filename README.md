@@ -129,7 +129,7 @@ Implements [IReceiveAssetsGate](./src/interfaces/IGate.sol).
 
 - Upon `withdraw` and `redeem`, `receiver` must pass the `canReceiveAssets` check.
 
-**Send Assets Gate** (`receiveAssetsGate`): Controls permissions related to sending assets.
+**Send Assets Gate** (`sendAssetsGate`): Controls permissions related to sending assets.
 Implements [ISendAssetsGate](./src/interfaces/IGate.sol).
 
 - Upon `deposit` and `mint`, `msg.sender` must pass the `canSendAssets` check.

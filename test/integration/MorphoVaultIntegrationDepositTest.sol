@@ -32,18 +32,30 @@ contract MorphoVaultIntegrationDepositTest is MorphoVaultIntegrationTest {
         );
     }
 
-    function testDepositRoundingLoss(uint256 donation, uint256 roundedDeposit) public {
+    function testDepositRoundingLoss(uint256 donationFactor, uint256 roundedDeposit) public {
         // Setup
-        donation = bound(donation, 1, MAX_TEST_ASSETS);
-        roundedDeposit = bound(roundedDeposit, 1, donation);
+        donationFactor = bound(donationFactor, 2, 100);
+        roundedDeposit = bound(roundedDeposit, 1, donationFactor / 2);
         setSupplyQueueIdle();
         vm.prank(allocator);
         vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
         underlyingToken.approve(address(morpho), type(uint256).max);
 
         // Donate
-        morpho.supply(idleParams, donation, 0, address(morphoVaultV1), hex"");
-        assertEq(morphoVaultV1.previewRedeem(1), donation + 1, "share price");
+        morpho.supply(
+            idleParams,
+            donationFactor * 10 ** IMetaMorpho(morphoVaultV1).DECIMALS_OFFSET() - 1,
+            0,
+            address(morphoVaultV1),
+            hex""
+        );
+        assertEq(morphoVaultV1.totalSupply(), 0, "total supply");
+        assertEq(
+            morphoVaultV1.totalAssets(),
+            donationFactor * 10 ** IMetaMorpho(morphoVaultV1).DECIMALS_OFFSET() - 1,
+            "total assets"
+        );
+        assertEq(morphoVaultV1.previewRedeem(1), donationFactor, "share price");
 
         // Check rounded deposit effect
         uint256 previousAdapterShares = morphoVaultV1.balanceOf(address(morphoVaultV1Adapter));
@@ -82,11 +94,27 @@ contract MorphoVaultIntegrationDepositTest is MorphoVaultIntegrationTest {
         underlyingToken.approve(address(morpho), type(uint256).max);
 
         // Donate
-        morpho.supply(idleParams, donationFactor - 1, 0, address(morphoVaultV1), hex"");
+        morpho.supply(
+            idleParams,
+            donationFactor * 10 ** IMetaMorpho(morphoVaultV1).DECIMALS_OFFSET() - 1,
+            0,
+            address(morphoVaultV1),
+            hex""
+        );
+        assertEq(morphoVaultV1.totalSupply(), 0, "total supply");
+        assertEq(
+            morphoVaultV1.totalAssets(),
+            donationFactor * 10 ** IMetaMorpho(morphoVaultV1).DECIMALS_OFFSET() - 1,
+            "total assets"
+        );
         assertEq(morphoVaultV1.previewRedeem(1), donationFactor, "share price");
 
         // Initial deposit
+        // We mint exactly one share otherwise the loss is not exactly the donation factor because you are still in the
+        // vault so you profit from the share that has been burned for less than the share price on your other shares,
+        // making testing difficult.
         vault.deposit(donationFactor, address(this));
+        assertEq(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter)), 1, "shares");
 
         // Check rounded withdraw effect
         uint256 previousAdapterShares = morphoVaultV1.balanceOf(address(morphoVaultV1Adapter));
