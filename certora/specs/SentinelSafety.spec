@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-using SafeERC20Lib as SafeERC20Lib;
+using ERC20Mock as ERC20;
 
 methods {
     function isAdapter(address) external returns bool  envfree;
@@ -10,14 +10,9 @@ methods {
     function getAbsoluteCap(bytes) external returns uint256 envfree;
     function getRelativeCap(bytes) external returns uint256 envfree;
 
-    function _.interestPerSecond(uint256, uint256) external =>
-        nondetUintSummary() expect uint256;
-    function _.canReceiveShares(address) external =>
-        nondetBoolSummary() expect bool;
     function _.deallocate(bytes, uint256 assets, bytes4, address) external =>
         nondetAllocatorSummary(assets) expect (bytes32[], uint256);
-
-    function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
+    function ERC20.transferFrom(address, address, uint256) external returns bool => NONDET;
 }
 
 // Ghost copy of caps[*].allocation for quantification.
