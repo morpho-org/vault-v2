@@ -3,16 +3,6 @@
 
 import "Invariants.spec";
 
-methods {
-    function _.interestPerSecond(uint256, uint256) external =>
-        nondetUintSummary() expect uint256;
-}
-
-function nondetUintSummary() returns uint256 {
-    uint256 value;
-    return value;
-}
-
 // Check that the price of shares is at most one share down.
 rule sharePriceBoundOneShareDown(method f, env e, calldataarg a) {
     require e.block.timestamp == currentContract.lastUpdate;
