@@ -498,11 +498,11 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Whether `newLiquidityAdapter` is an adapter is checked in allocate/deallocate.
-    function setLiquidityAdapter(address newLiquidityAdapter, bytes memory newLiquidityData) external {
+    function setLiquidityAdapterAndData(address newLiquidityAdapter, bytes memory newLiquidityData) external {
         require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         liquidityAdapter = newLiquidityAdapter;
         liquidityData = newLiquidityData;
-        emit EventsLib.SetLiquidityAdapter(msg.sender, newLiquidityAdapter, newLiquidityData);
+        emit EventsLib.SetLiquidityAdapterAndData(msg.sender, newLiquidityAdapter, newLiquidityData);
     }
 
     /* EXCHANGE RATE FUNCTIONS */

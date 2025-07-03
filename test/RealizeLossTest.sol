@@ -152,7 +152,7 @@ contract RealizeLossTest is BaseTest {
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
         vault.setIsAdapter(address(adapter), true);
         vm.prank(allocator);
-        vault.setLiquidityAdapter(address(adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(adapter), hex"");
 
         vault.deposit(deposit, address(this));
         adapter.setLoss(expectedLoss);

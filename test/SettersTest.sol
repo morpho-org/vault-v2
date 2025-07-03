@@ -769,7 +769,7 @@ contract SettersTest is BaseTest {
 
     /* ALLOCATOR SETTERS */
 
-    function testsetLiquidityAdapter(address rdm, address liquidityAdapter, bytes memory liquidityData) public {
+    function testsetLiquidityAdapterAndData(address rdm, address liquidityAdapter, bytes memory liquidityData) public {
         vm.assume(rdm != allocator);
         vm.assume(liquidityAdapter != address(0));
         vm.assume(rdm != allocator);
@@ -777,7 +777,7 @@ contract SettersTest is BaseTest {
         // Access control
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.setLiquidityAdapter(liquidityAdapter, liquidityData);
+        vault.setLiquidityAdapterAndData(liquidityAdapter, liquidityData);
 
         // Normal path
         vm.prank(curator);
@@ -785,8 +785,8 @@ contract SettersTest is BaseTest {
         vault.setIsAdapter(liquidityAdapter, true);
         vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.SetLiquidityAdapter(allocator, liquidityAdapter, liquidityData);
-        vault.setLiquidityAdapter(liquidityAdapter, liquidityData);
+        emit EventsLib.SetLiquidityAdapterAndData(allocator, liquidityAdapter, liquidityData);
+        vault.setLiquidityAdapterAndData(liquidityAdapter, liquidityData);
         assertEq(vault.liquidityAdapter(), liquidityAdapter);
         assertEq(vault.liquidityData(), liquidityData);
     }
