@@ -28,16 +28,6 @@ hook Sstore caps[KEY bytes32 id].allocation uint256 newAllocation (uint256 oldAl
     ghostAllocation[id] = newAllocation;
 }
 
-function nondetUintSummary() returns uint256 {
-    uint256 value;
-    return value;
-}
-
-function nondetBoolSummary() returns bool {
-    bool value;
-    return value;
-}
-
 function nondetAllocatorSummary(uint256 assets) returns (bytes32[], uint256) {
     bytes32[] ids;
     uint256 interest;
