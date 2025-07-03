@@ -13,8 +13,8 @@ function nondetUintSummary() returns uint256 {
     return value;
 }
 
-rule sharePriceDoesntChange(method f, env e, calldataarg a) {
-
+// Check that the price of shares is at most one share down.
+rule sharePriceBoundOneShareDown(method f, env e, calldataarg a) {
     require e.block.timestamp == currentContract.lastUpdate;
     require currentContract.totalSupply > 0;
 
@@ -31,7 +31,6 @@ rule sharePriceDoesntChange(method f, env e, calldataarg a) {
     assert sharePriceBefore <= sharePriceAfter
         || f.selector == sig:realizeLoss(address, bytes).selector ;
 
-    assert (S + V > 0 =>
-            sharePriceAfter * (S + V) >= sharePriceBefore * (S + V - 1))
+    assert (sharePriceAfter * (S + V) >= sharePriceBefore * (S + V - 1))
         || f.selector == sig:realizeLoss(address, bytes).selector ;
 }
