@@ -32,8 +32,8 @@ function nondetAllocatorSummary(uint256 assets) returns (bytes32[], uint256) {
     bytes32[] ids;
     uint256 interest;
 
-    require (forall uint256 i. forall uint256 j. i < ids.length => i < j && j < ids.length => ids[j] != ids[i], "assume that all returned ids are unique");
-    require (forall uint256 i. i < ids.length => ghostAllocation[ids[i]] >= assets && ghostAllocation[ids[i]] > 0, "assume that all returned ids have realistic allocations");
+    require (forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "assume that all returned ids are unique");
+    require (forall uint256 i. i < ids.length => ghostAllocation[ids[i]] >= assets && ghostAllocation[ids[i]] > 0, "assume `assets` can be deallocated as the minimum of allocations from the adapter's returned ids");
     require (forall uint256 i. i < ids.length => (ghostAllocation[ids[i]] + interest) <= max_uint256, "assume that the allocated amount plus the interest can't overflow");
 
     return (ids, interest);
@@ -54,7 +54,7 @@ rule sentinelCanDecreaseAbsoluteCap(env e, bytes idData, uint256 newAbsoluteCap)
     require (isSentinel(e.msg.sender), "setup the call to be performed by a sentinel address");
     require (e.msg.value == 0, "setup the call to have no ETH value");
 
-    require (newAbsoluteCap <= getAbsoluteCap(idData), "assume the new absolute cap is valid");
+    require (newAbsoluteCap <= getAbsoluteCap(idData), "setup the call to decrease the absolute cap");
 
     decreaseAbsoluteCap@withrevert(e, idData, newAbsoluteCap);
     assert !lastReverted;
@@ -65,7 +65,7 @@ rule sentinelCanDecreaseRelativeCap(env e, bytes idData, uint256 newRelativeCap)
     require (isSentinel(e.msg.sender), "setup the call to be performed by a sentinel address");
     require (e.msg.value == 0, "setup the call to have no ETH value");
 
-    require (newRelativeCap <= getRelativeCap(idData), "assume the new relative cap is valid");
+    require (newRelativeCap <= getRelativeCap(idData), "setup the call to decrease the relative cap");
 
     decreaseRelativeCap@withrevert(e, idData, newRelativeCap);
     assert !lastReverted;
