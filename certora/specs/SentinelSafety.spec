@@ -4,8 +4,8 @@
 using ERC20Mock as ERC20;
 
 methods {
-    function isAdapter(address) external returns bool  envfree;
-    function isSentinel(address) external returns bool  envfree;
+    function isAdapter(address) external returns bool envfree;
+    function isSentinel(address) external returns bool envfree;
     function executableAt(bytes) external returns uint256 envfree;
     function getAbsoluteCap(bytes) external returns uint256 envfree;
     function getRelativeCap(bytes) external returns uint256 envfree;
@@ -33,8 +33,8 @@ function nondetAllocatorSummary(uint256 assets) returns (bytes32[], uint256) {
     uint256 interest;
 
     require (forall uint256 i. forall uint256 j. i < ids.length => i < j && j < ids.length => ids[j] != ids[i], "assume that all returned ids are unique");
-    require (forall uint256 i. i < ids.length && ghostAllocation[ids[i]] >= assets && ghostAllocation[ids[i]] > 0, "assume that all returned ids have realistic allocations");
-    require (forall uint256 i. i < ids.length && (ghostAllocation[ids[i]] + interest) <= max_uint256, "assume that the allocated amount plus the interest can't overflow");
+    require (forall uint256 i. i < ids.length => ghostAllocation[ids[i]] >= assets && ghostAllocation[ids[i]] > 0, "assume that all returned ids have realistic allocations");
+    require (forall uint256 i. i < ids.length => (ghostAllocation[ids[i]] + interest) <= max_uint256, "assume that the allocated amount plus the interest can't overflow");
 
     return (ids, interest);
 }
