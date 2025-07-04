@@ -43,7 +43,7 @@ rule sentinelCanRevoke(env e, bytes data){
     require (isSentinel(e.msg.sender), "setup the call to be performed by a sentinel address");
     require (e.msg.value == 0, "setup the call to have no ETH value");
 
-    require (executableAt(data) != 0, "setup the call so that the timelock is revokable");
+    require (executableAt(data) != 0, "assume `data` is pending");
 
     revoke@withrevert(e, data);
     assert !lastReverted;
