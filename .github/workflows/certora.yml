@@ -25,7 +25,7 @@ jobs:
           - OwnerSafety
           - PreviewFunctions
           - Reentrancy
-          - SentinelSafety
+          - SentinelLiveness
 
     steps:
       - uses: actions/checkout@v4

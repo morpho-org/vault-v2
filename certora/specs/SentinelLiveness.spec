@@ -91,7 +91,6 @@ rule ownerCanDeallocate(env e, address adapter, bytes data, uint256 assets){
     require (e.block.timestamp < 2^63, "bound the timestamp to a time very far in the future");
     require (e.block.timestamp >= currentContract.lastUpdate, "lastUpdate is growing and monotonic");
     require (currentContract.owner == e.msg.sender, "setup the call to be performed by the owner of the contract");
-    require (!isSentinel(currentContract.owner), "assume the owner is not a sentinel");
     require (e.msg.value == 0, "setup the call to have no ETH value");
 
     require (isAdapter(adapter), "assume the adapter is valid");
