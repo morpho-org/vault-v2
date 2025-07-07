@@ -20,11 +20,14 @@ jobs:
           - Immutability
           - Invariants
           - Liveness
+          - MorphoMarketV1AdapterInvariant
           - MorphoMarketV1AdapterFactory
           - MorphoVaultV1AdapterFactory
           - OwnerSafety
           - PreviewFunctions
           - Reentrancy
+          - TokensMorphoMarketV1Adapter
+          - TokensMorphoVaultV1Adapter
 
     steps:
       - uses: actions/checkout@v4
@@ -40,12 +43,27 @@ jobs:
       - name: Install python
         uses: actions/setup-python@v5
         with:
-          python-version: ">=3.9"
+          python-version: ">3.9"
+
+      - name: Apply MetaMorpho munging
+        run: make -C lib/metamorpho/certora munged
 
       - name: Install certora
         run: pip install certora-cli
 
-      - name: Install solc
+      - name: Install solc (0.8.19)
+        run: |
+          wget https://github.com/ethereum/solidity/releases/download/v0.8.19/solc-static-linux
+          chmod +x solc-static-linux
+          sudo mv solc-static-linux /usr/local/bin/solc-0.8.19
+
+      - name: Install solc (0.8.21)
+        run: |
+          wget https://github.com/ethereum/solidity/releases/download/v0.8.21/solc-static-linux
+          chmod +x solc-static-linux
+          sudo mv solc-static-linux /usr/local/bin/solc-0.8.21
+
+      - name: Install solc (0.8.28)
         run: |
           wget https://github.com/ethereum/solidity/releases/download/v0.8.28/solc-static-linux
           chmod +x solc-static-linux
