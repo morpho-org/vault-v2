@@ -65,9 +65,9 @@ library EventsLib {
         address indexed sender, address indexed newLiquidityAdapter, bytes indexed newLiquidityData
     );
     event SetPerformanceFee(uint256 newPerformanceFee);
-    event SetPerformanceFeeRecipient(address indexed);
+    event SetPerformanceFeeRecipient(address indexed newPerformanceFeeRecipient);
     event SetManagementFee(uint256 newManagementFee);
-    event SetManagementFeeRecipient(address indexed);
+    event SetManagementFeeRecipient(address indexed newManagementFeeRecipient);
     event DecreaseAbsoluteCap(bytes32 indexed id, bytes idData, uint256 newAbsoluteCap);
     event IncreaseAbsoluteCap(bytes32 indexed id, bytes idData, uint256 newAbsoluteCap);
     event DecreaseRelativeCap(bytes32 indexed id, bytes idData, uint256 newRelativeCap);

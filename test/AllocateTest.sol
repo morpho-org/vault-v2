@@ -34,10 +34,8 @@ contract AllocateTest is BaseTest {
         vault.allocate(adapter, hex"", 0);
     }
 
-    /// forge-config: default.isolate = true
     function testAllocate(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
         vm.assume(rdm != address(allocator));
-        vm.assume(rdm != address(vault));
         assets = bound(assets, 2, type(uint128).max);
         absoluteCap = bound(absoluteCap, assets, type(uint128).max);
 
@@ -64,8 +62,6 @@ contract AllocateTest is BaseTest {
         vm.prank(rdm);
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vault.allocate(adapter, data, assets);
-        vm.prank(address(vault));
-        vault.allocate(adapter, hex"", 0);
         vm.prank(allocator);
         vault.allocate(adapter, hex"", 0);
 
@@ -104,6 +100,10 @@ contract AllocateTest is BaseTest {
         assertEq(vault.allocation(keccak256("id-1")), assets, "Allocation incorrect after allocation");
         assertEq(AdapterMock(adapter).recordedAllocateData(), data, "Data incorrect after allocation");
         assertEq(AdapterMock(adapter).recordedAllocateAssets(), assets, "Assets incorrect after allocation");
+        assertEq(
+            AdapterMock(adapter).recordedSelector(), IVaultV2.allocate.selector, "Selector incorrect after allocation"
+        );
+        assertEq(AdapterMock(adapter).recordedSender(), allocator, "Sender incorrect after allocation");
     }
 
     /// forge-config: default.isolate = true
@@ -163,7 +163,6 @@ contract AllocateTest is BaseTest {
     {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(sentinel));
-        vm.assume(rdm != address(vault));
         assetsIn = bound(assetsIn, 1, type(uint128).max);
         assetsOut = bound(assetsOut, 1, assetsIn);
         absoluteCap = bound(absoluteCap, assetsIn, type(uint128).max);
@@ -185,8 +184,6 @@ contract AllocateTest is BaseTest {
         vault.deallocate(adapter, hex"", 0);
         vm.prank(sentinel);
         vault.deallocate(adapter, hex"", 0);
-        vm.prank(address(vault));
-        vault.deallocate(adapter, hex"", 0);
 
         // Can't deallocate if not adapter.
         vm.prank(allocator);
@@ -206,6 +203,12 @@ contract AllocateTest is BaseTest {
         assertEq(vault.allocation(keccak256("id-1")), assetsIn - assetsOut, "Allocation incorrect after deallocation");
         assertEq(AdapterMock(adapter).recordedDeallocateData(), data, "Data incorrect after deallocation");
         assertEq(AdapterMock(adapter).recordedDeallocateAssets(), assetsOut, "Assets incorrect after deallocation");
+        assertEq(
+            AdapterMock(adapter).recordedSelector(),
+            IVaultV2.deallocate.selector,
+            "Selector incorrect after deallocation"
+        );
+        assertEq(AdapterMock(adapter).recordedSender(), allocator, "Sender incorrect after deallocation");
     }
 
     function testAllocateWithInterest(
