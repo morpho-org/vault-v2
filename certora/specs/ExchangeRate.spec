@@ -22,7 +22,7 @@ rule sharePriceBoundOneShareDown(method f, env e, calldataarg a) {
     uint256 assetsAfter = currentContract._totalAssets;
     uint256 supplyAfter = currentContract.totalSupply;
 
-    assert  (assetsBefore + 1) * (supplyAfter + V) <= (assetsAfter + 1) * (supplyBefore + V - 1)  =>
+    assert  (assetsBefore + 1) * (supplyAfter + V) <= (assetsAfter + 1) * (supplyBefore + V - 1) ||
         f.selector == sig:realizeLoss(address, bytes).selector ;
 
     assert  (assetsAfter + 1) * (supplyBefore + V - 1) <=  (assetsBefore + 1) * (supplyAfter + V)
