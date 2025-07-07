@@ -10,7 +10,6 @@ rule sharePriceBoundOneShareDown(method f, env e, calldataarg a) {
 
     requireInvariant balanceOfZero();
     requireInvariant totalSupplyIsSumOfBalances();
-    requireInvariant virtualSharesNonNull();
 
     uint256 V = currentContract.virtualShares;
 
