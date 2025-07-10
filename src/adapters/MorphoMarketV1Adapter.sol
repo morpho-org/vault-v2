@@ -112,7 +112,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     function realizeLoss(bytes memory data, bytes4, address) external view returns (bytes32[] memory, uint256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        require(msg.sender == parentVault, NotAuthorized());
+        require(marketParams.loanToken == asset, LoanAssetMismatch());
 
         uint256 loss = allocation(marketParams) - expectedSupplyAssets(marketParams, shares[marketParams.id()]);
 
