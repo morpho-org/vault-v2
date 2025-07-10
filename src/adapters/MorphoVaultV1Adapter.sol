@@ -98,7 +98,6 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
 
     function realizeLoss(bytes memory data, bytes4, address) external view returns (bytes32[] memory, uint256) {
         require(data.length == 0, InvalidData());
-        require(msg.sender == parentVault, NotAuthorized());
 
         uint256 loss = allocation() - IERC4626(morphoVaultV1).previewRedeem(shares);
 

@@ -195,12 +195,7 @@ contract MorphoVaultV1AdapterTest is Test {
         adapter.realizeLoss(hex"", bytes4(0), address(0));
     }
 
-    function testLossRealizationAccessControl(address rdm) public {
-        vm.assume(rdm != address(parentVault));
-        vm.prank(rdm);
-        vm.expectRevert(IMorphoVaultV1Adapter.NotAuthorized.selector);
-        adapter.realizeLoss(hex"", bytes4(0), address(0));
-
+    function testLossRealizationNotMocked() public {
         vm.prank(address(parentVault));
         adapter.realizeLoss(hex"", bytes4(0), address(0));
     }
