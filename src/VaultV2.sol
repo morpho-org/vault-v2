@@ -94,7 +94,7 @@ contract VaultV2 is IVaultV2 {
     address public sharesGate;
     /// @dev Gates receiving assets from the vault.
     /// @dev Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
-    /// @dev Can prevent to force deallocate from the vault if the vault itself is blacklisted.
+    /// @dev Can prevent force deallocation from the vault if the vault itself is blacklisted.
     /// @dev Set to 0 to disable the gate.
     address public receiveAssetsGate;
     /// @dev Gates depositing assets to the vault.
