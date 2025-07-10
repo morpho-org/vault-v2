@@ -33,7 +33,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - They must return the right ids on allocate/deallocate.
 /// - After a call to deallocate, the vault must have an approval to transfer at least `assets` from the adapter.
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
-/// - Returned ids do not repeat.
+/// - Adapters' returned ids do not repeat.
 /// - They ignore donations of shares in their respective markets.
 /// - Given a method used by the adapter to estimate its assets in a market and a method to track its allocation to a
 /// market:
