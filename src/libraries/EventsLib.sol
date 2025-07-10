@@ -68,9 +68,9 @@ library EventsLib {
     event SetPerformanceFeeRecipient(address indexed newPerformanceFeeRecipient);
     event SetManagementFee(uint256 newManagementFee);
     event SetManagementFeeRecipient(address indexed newManagementFeeRecipient);
-    event DecreaseAbsoluteCap(bytes32 indexed id, bytes idData, uint256 newAbsoluteCap);
+    event DecreaseAbsoluteCap(address indexed sender, bytes32 indexed id, bytes idData, uint256 newAbsoluteCap);
     event IncreaseAbsoluteCap(bytes32 indexed id, bytes idData, uint256 newAbsoluteCap);
-    event DecreaseRelativeCap(bytes32 indexed id, bytes idData, uint256 newRelativeCap);
+    event DecreaseRelativeCap(address indexed sender, bytes32 indexed id, bytes idData, uint256 newRelativeCap);
     event IncreaseRelativeCap(bytes32 indexed id, bytes idData, uint256 newRelativeCap);
     event SetForceDeallocatePenalty(address indexed adapter, uint256 forceDeallocatePenalty);
 }
