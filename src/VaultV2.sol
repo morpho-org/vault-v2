@@ -708,7 +708,8 @@ contract VaultV2 is IVaultV2 {
         return shares;
     }
 
-    function realizeLoss(address adapter, bytes memory data) external {
+    /// @dev Returns incentiveShares, loss.
+    function realizeLoss(address adapter, bytes memory data) external returns (uint256, uint256) {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
@@ -736,6 +737,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         emit EventsLib.RealizeLoss(msg.sender, adapter, ids, loss, incentiveShares);
+        return (incentiveShares, loss);
     }
 
     /* ERC20 FUNCTIONS */

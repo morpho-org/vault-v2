@@ -93,5 +93,5 @@ interface IVaultV2 is IERC4626, IPermissionedToken, IERC2612 {
         returns (uint256 withdrawnShares);
 
     // Realize loss
-    function realizeLoss(address adapter, bytes memory data) external;
+    function realizeLoss(address adapter, bytes memory data) external returns (uint256 incentiveShares, uint256 loss);
 }
