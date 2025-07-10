@@ -16,10 +16,6 @@ contract AccruingFunctionsTest is BaseTest {
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
         vault.setIsAdapter(address(adapter), true);
 
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(vic))));
-        vault.setVic(address(vic));
-
         increaseAbsoluteCap("id-0", type(uint128).max);
         increaseAbsoluteCap("id-1", type(uint128).max);
         increaseRelativeCap("id-0", WAD);
@@ -136,5 +132,21 @@ contract AccruingFunctionsTest is BaseTest {
         vm.expectEmit(false, false, false, false);
         emit EventsLib.AccrueInterest(0, 0, 0, 0);
         vault.setManagementFeeRecipient(address(0));
+    }
+
+    function testSetInterestPerSecondAndDeadline() public {
+        skip(1);
+        vm.prank(allocator);
+        vm.expectEmit(false, false, false, false);
+        emit EventsLib.AccrueInterest(0, 0, 0, 0);
+        vic.setInterestPerSecondAndDeadline(0, type(uint64).max);
+    }
+
+    function testZeroInterestPerSecondAccruesInterest() public {
+        skip(1);
+        vm.prank(sentinel);
+        vm.expectEmit(false, false, false, false);
+        emit EventsLib.AccrueInterest(0, 0, 0, 0);
+        vic.zeroInterestPerSecond();
     }
 }
