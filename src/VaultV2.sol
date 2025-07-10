@@ -412,7 +412,7 @@ contract VaultV2 is IVaultV2 {
 
         // Safe by invariant: config.absoluteCap fits in 128 bits.
         caps[id].absoluteCap = uint128(newAbsoluteCap);
-        emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
+        emit EventsLib.DecreaseAbsoluteCap(msg.sender, id, idData, newAbsoluteCap);
     }
 
     function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external {
@@ -435,7 +435,7 @@ contract VaultV2 is IVaultV2 {
         // Safe since WAD fits in 128 bits.
         caps[id].relativeCap = uint128(newRelativeCap);
 
-        emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
+        emit EventsLib.DecreaseRelativeCap(msg.sender, id, idData, newRelativeCap);
     }
 
     function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external {

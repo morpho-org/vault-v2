@@ -604,7 +604,7 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.expectEmit();
-        emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
+        emit EventsLib.DecreaseAbsoluteCap(curator, id, idData, newAbsoluteCap);
         vm.prank(curator);
         vault.decreaseAbsoluteCap(idData, newAbsoluteCap);
         assertEq(vault.absoluteCap(id), newAbsoluteCap);
@@ -673,7 +673,7 @@ contract SettersTest is BaseTest {
         // Normal path
         vm.prank(curator);
         vm.expectEmit();
-        emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
+        emit EventsLib.DecreaseRelativeCap(curator, id, idData, newRelativeCap);
         vault.decreaseRelativeCap(idData, newRelativeCap);
         assertEq(vault.relativeCap(id), newRelativeCap);
 
