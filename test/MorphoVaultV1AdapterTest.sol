@@ -29,13 +29,24 @@ contract MorphoVaultV1AdapterTest is Test {
     address internal recipient;
     bytes32[] internal expectedIds;
 
-    uint256 internal constant MAX_TEST_ASSETS = 1e36;
+    uint256 internal MAX_TEST_ASSETS;
+
+    uint256 internal UNDERLYING_TOKEN_DECIMALS;
+    uint256 internal EXCHANGE_RATE;
 
     function setUp() public {
         owner = makeAddr("owner");
         recipient = makeAddr("recipient");
 
-        asset = new ERC20Mock(18);
+        UNDERLYING_TOKEN_DECIMALS = vm.envOr("DECIMALS", uint256(18));
+        require(UNDERLYING_TOKEN_DECIMALS <= 36, "decimals too high");
+        asset = new ERC20Mock(uint8(UNDERLYING_TOKEN_DECIMALS));
+        vm.label(address(asset), "asset");
+
+        EXCHANGE_RATE = 10 ** (uint256(18).zeroFloorSub(asset.decimals()));
+
+        MAX_TEST_ASSETS = 10 ** min(18 + asset.decimals(), 36);
+
         rewardToken = new ERC20Mock(18);
         morphoVaultV1 = new ERC4626MockExtended(address(asset));
         parentVault = new VaultV2Mock(address(asset), owner, address(0), address(0), address(0));
@@ -75,8 +86,7 @@ contract MorphoVaultV1AdapterTest is Test {
         (bytes32[] memory ids, uint256 interest) = parentVault.allocateMocked(address(adapter), hex"", assets);
 
         uint256 adapterShares = morphoVaultV1.balanceOf(address(adapter));
-        // In general this should not hold (having as many shares as assets). TODO: fix.
-        assertEq(adapterShares, assets, "Incorrect share balance after deposit");
+        assertEq(adapterShares, assets * EXCHANGE_RATE, "Incorrect share balance after deposit");
         assertEq(asset.balanceOf(address(adapter)), 0, "Underlying tokens not transferred to vault");
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(interest, 0, "Incorrect interest returned");
@@ -90,14 +100,13 @@ contract MorphoVaultV1AdapterTest is Test {
         parentVault.allocateMocked(address(adapter), hex"", initialAssets);
 
         uint256 beforeShares = morphoVaultV1.balanceOf(address(adapter));
-        // In general this should not hold (having as many shares as assets). TODO: fix.
-        assertEq(beforeShares, initialAssets, "Precondition failed: shares not set");
+        assertEq(beforeShares, initialAssets * EXCHANGE_RATE, "Precondition failed: shares not set");
 
         (bytes32[] memory ids, uint256 interest) = parentVault.deallocateMocked(address(adapter), hex"", withdrawAssets);
 
         assertEq(adapter.allocation(), initialAssets - withdrawAssets, "incorrect allocation");
         uint256 afterShares = morphoVaultV1.balanceOf(address(adapter));
-        assertEq(afterShares, initialAssets - withdrawAssets, "Share balance not decreased correctly");
+        assertEq(afterShares, (initialAssets - withdrawAssets) * EXCHANGE_RATE, "Share balance not decreased correctly");
 
         uint256 adapterBalance = asset.balanceOf(address(adapter));
         assertEq(adapterBalance, withdrawAssets, "Adapter did not receive withdrawn tokens");
@@ -357,7 +366,6 @@ contract ERC4626MockExtended is ERC4626Mock {
     }
 }
 
-function zeroFloorSub(uint256 a, uint256 b) pure returns (uint256) {
-    if (a < b) return 0;
-    return a - b;
+function min(uint256 a, uint256 b) pure returns (uint256) {
+    return a < b ? a : b;
 }
