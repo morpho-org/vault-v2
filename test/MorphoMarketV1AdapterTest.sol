@@ -221,11 +221,18 @@ contract MorphoMarketV1AdapterTest is Test {
         adapter.skim(address(token));
     }
 
-    function testLossRealizationAccessControl(address rdm) public {
+    function testLossRealizationAccessControl(address rdm, address rdmToken) public {
         vm.assume(rdm != address(parentVault));
         vm.prank(rdm);
         vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
         adapter.realizeLoss(abi.encode(marketParams), bytes4(0), address(0));
+
+        vm.assume(rdmToken != address(loanToken));
+        vm.expectRevert(IMorphoMarketV1Adapter.LoanAssetMismatch.selector);
+        MarketParams memory rdmMarketParams = marketParams;
+        rdmMarketParams.loanToken = rdmToken;
+        vm.prank(address(parentVault));
+        adapter.realizeLoss(abi.encode(rdmMarketParams), bytes4(0), rdmToken);
 
         vm.prank(address(parentVault));
         adapter.realizeLoss(abi.encode(marketParams), bytes4(0), address(0));
