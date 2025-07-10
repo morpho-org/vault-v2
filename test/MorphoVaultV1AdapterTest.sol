@@ -30,6 +30,7 @@ contract MorphoVaultV1AdapterTest is Test {
     bytes32[] internal expectedIds;
 
     uint256 internal constant MAX_TEST_ASSETS = 1e36;
+    uint256 internal constant EXCHANGE_RATE = 42;
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -45,6 +46,10 @@ contract MorphoVaultV1AdapterTest is Test {
 
         deal(address(asset), address(this), type(uint256).max);
         asset.approve(address(morphoVaultV1), type(uint256).max);
+
+        // Increase the exchange rate to make so 1 asset is worth EXCHANGE_RATE shares.
+        deal(address(morphoVaultV1), address(0), EXCHANGE_RATE - 1, true);
+        assertEq(morphoVaultV1.convertToShares(1), EXCHANGE_RATE, "exchange rate not set correctly");
 
         expectedIds = new bytes32[](1);
         expectedIds[0] = keccak256(abi.encode("this", address(adapter)));
@@ -75,8 +80,7 @@ contract MorphoVaultV1AdapterTest is Test {
         (bytes32[] memory ids, uint256 interest) = parentVault.allocateMocked(address(adapter), hex"", assets);
 
         uint256 adapterShares = morphoVaultV1.balanceOf(address(adapter));
-        // In general this should not hold (having as many shares as assets). TODO: fix.
-        assertEq(adapterShares, assets, "Incorrect share balance after deposit");
+        assertEq(adapterShares, assets * EXCHANGE_RATE, "Incorrect share balance after deposit");
         assertEq(asset.balanceOf(address(adapter)), 0, "Underlying tokens not transferred to vault");
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(interest, 0, "Incorrect interest returned");
@@ -90,14 +94,13 @@ contract MorphoVaultV1AdapterTest is Test {
         parentVault.allocateMocked(address(adapter), hex"", initialAssets);
 
         uint256 beforeShares = morphoVaultV1.balanceOf(address(adapter));
-        // In general this should not hold (having as many shares as assets). TODO: fix.
-        assertEq(beforeShares, initialAssets, "Precondition failed: shares not set");
+        assertEq(beforeShares, initialAssets * EXCHANGE_RATE, "Precondition failed: shares not set");
 
         (bytes32[] memory ids, uint256 interest) = parentVault.deallocateMocked(address(adapter), hex"", withdrawAssets);
 
         assertEq(adapter.allocation(), initialAssets - withdrawAssets, "incorrect allocation");
         uint256 afterShares = morphoVaultV1.balanceOf(address(adapter));
-        assertEq(afterShares, initialAssets - withdrawAssets, "Share balance not decreased correctly");
+        assertEq(afterShares, (initialAssets - withdrawAssets) * EXCHANGE_RATE, "Share balance not decreased correctly");
 
         uint256 adapterBalance = asset.balanceOf(address(adapter));
         assertEq(adapterBalance, withdrawAssets, "Adapter did not receive withdrawn tokens");
