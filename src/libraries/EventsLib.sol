@@ -61,7 +61,7 @@ library EventsLib {
     event AbdicateSubmit(bytes4 indexed selector);
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event IncreaseTimelock(bytes4 indexed selector, uint256 newDuration);
-    event SetLiquidityMarket(
+    event SetLiquidityAdapterAndData(
         address indexed sender, address indexed newLiquidityAdapter, bytes indexed newLiquidityData
     );
     event SetPerformanceFee(uint256 newPerformanceFee);
