@@ -482,8 +482,6 @@ contract VaultV2 is IVaultV2 {
     function deallocateInternal(address adapter, bytes memory data, uint256 assets) internal {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        accrueInterest();
-
         (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
