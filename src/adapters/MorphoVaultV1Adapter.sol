@@ -69,8 +69,6 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        // To accrue interest only one time.
-        IERC4626(morphoVaultV1).deposit(0, address(this));
         uint256 interest = IERC4626(morphoVaultV1).previewRedeem(shares).zeroFloorSub(allocation());
 
         if (assets > 0) shares += IERC4626(morphoVaultV1).deposit(assets, address(this));
@@ -87,8 +85,6 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        // To accrue interest only one time.
-        IERC4626(morphoVaultV1).deposit(0, address(this));
         uint256 interest = IERC4626(morphoVaultV1).previewRedeem(shares).zeroFloorSub(allocation());
 
         if (assets > 0) shares -= IERC4626(morphoVaultV1).withdraw(assets, address(this), address(this));

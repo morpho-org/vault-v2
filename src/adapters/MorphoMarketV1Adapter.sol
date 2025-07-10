@@ -73,9 +73,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
-        // To accrue interest only one time.
-        IMorpho(morpho).accrueInterest(marketParams);
-
         uint256 interest = expectedSupplyAssets(marketParams, shares[marketId]).zeroFloorSub(allocation(marketParams));
 
         if (assets > 0) {
@@ -96,9 +93,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
-
-        // To accrue interest only one time.
-        IMorpho(morpho).accrueInterest(marketParams);
 
         uint256 interest = expectedSupplyAssets(marketParams, shares[marketId]).zeroFloorSub(allocation(marketParams));
 
