@@ -33,7 +33,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - They must return the right ids on allocate/deallocate.
 /// - After a call to deallocate, the vault must have an approval to transfer at least `assets` from the adapter.
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
-/// - Returned ids do not repeat.
+/// - Adapters' returned ids do not repeat.
 /// - They ignore donations of shares in their respective markets.
 /// - Given a method used by the adapter to estimate its assets in a market and a method to track its allocation to a
 /// market:
@@ -43,10 +43,10 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// since the last interaction.
 /// @dev Ids being reused by multiple adapters are useful to do "cross-caps". Adapters can add "this" to an id to avoid
 /// it being reused.
-/// @dev Liquidity market:
+/// @dev Liquidity adapter:
 /// - `liquidityAdapter` is allocated to on deposit/mint, and deallocated from on withdraw/redeem if idle assets don't
 /// cover the withdraw.
-/// - The liquidity market is mostly useful on exit, so that exit liquidity is available in addition to the idle assets.
+/// - The liquidity adapter is useful on exit, so that exit liquidity is available in addition to the idle assets.
 /// But the same adapter/data is used for both entry and exit to have the property that in the general case looping
 /// supply-withdraw or withdraw-supply should not change the allocation.
 /// @dev List of assumptions on the token that guarantees that the vault behaves as expected:
@@ -86,13 +86,15 @@ contract VaultV2 is IVaultV2 {
     address public owner;
     address public curator;
     /// @dev Gates sending and receiving shares.
-    /// @dev canSendShares can lock users out of exiting the vault.
-    /// @dev canReceiveShares can prevent users from getting back their shares that they deposited on other protocols. If
-    /// it reverts or consumes a lot of gas, it can also make accrueInterest revert, thus freezing the vault.
+    /// @dev Can lock users out of exiting the vault.
+    /// @dev Can prevent users from getting back their shares that they deposited on other protocols. If it reverts or
+    /// consumes a lot of gas, it can also make accrueInterest revert, thus freezing the vault.
+    /// @dev Can prevent the loss realization incentive to be given out to the caller.
     /// @dev Set to 0 to disable the gate.
     address public sharesGate;
     /// @dev Gates receiving assets from the vault.
     /// @dev Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
+    /// @dev Can prevent force deallocation from the vault if the vault itself is blacklisted.
     /// @dev Set to 0 to disable the gate.
     address public receiveAssetsGate;
     /// @dev Gates depositing assets to the vault.
@@ -116,7 +118,8 @@ contract VaultV2 is IVaultV2 {
     uint192 internal _totalAssets;
     /// @dev Total assets after the first interest accrual of the transaction.
     /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
-    /// @dev This mechanism can make a big deposit revert if the liquidity market's relative cap is almost reached.
+    /// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
+    /// for big deposits that go through the liquidity adapter.
     uint256 public transient firstTotalAssets;
     uint64 public lastUpdate;
     /// @dev Set to 0 to disable the Vic (=> no interest accrual).
@@ -412,7 +415,7 @@ contract VaultV2 is IVaultV2 {
 
         // Safe by invariant: config.absoluteCap fits in 128 bits.
         caps[id].absoluteCap = uint128(newAbsoluteCap);
-        emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
+        emit EventsLib.DecreaseAbsoluteCap(msg.sender, id, idData, newAbsoluteCap);
     }
 
     function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external {
@@ -435,7 +438,7 @@ contract VaultV2 is IVaultV2 {
         // Safe since WAD fits in 128 bits.
         caps[id].relativeCap = uint128(newRelativeCap);
 
-        emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
+        emit EventsLib.DecreaseRelativeCap(msg.sender, id, idData, newRelativeCap);
     }
 
     function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external {
@@ -482,8 +485,6 @@ contract VaultV2 is IVaultV2 {
     function deallocateInternal(address adapter, bytes memory data, uint256 assets) internal {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        accrueInterest();
-
         (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
@@ -496,12 +497,12 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, interest);
     }
 
-    /// @dev Whether newLiquidityAdapter is an adapter is checked in allocate/deallocate.
-    function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external {
+    /// @dev Whether `newLiquidityAdapter` is an adapter is checked in allocate/deallocate.
+    function setLiquidityAdapterAndData(address newLiquidityAdapter, bytes memory newLiquidityData) external {
         require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         liquidityAdapter = newLiquidityAdapter;
         liquidityData = newLiquidityData;
-        emit EventsLib.SetLiquidityMarket(msg.sender, newLiquidityAdapter, newLiquidityData);
+        emit EventsLib.SetLiquidityAdapterAndData(msg.sender, newLiquidityAdapter, newLiquidityData);
     }
 
     /* EXCHANGE RATE FUNCTIONS */
@@ -710,7 +711,8 @@ contract VaultV2 is IVaultV2 {
         return shares;
     }
 
-    function realizeLoss(address adapter, bytes memory data) external {
+    /// @dev Returns incentiveShares, loss.
+    function realizeLoss(address adapter, bytes memory data) external returns (uint256, uint256) {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
@@ -738,6 +740,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         emit EventsLib.RealizeLoss(msg.sender, adapter, ids, loss, incentiveShares);
+        return (incentiveShares, loss);
     }
 
     /* ERC20 FUNCTIONS */

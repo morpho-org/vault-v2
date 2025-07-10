@@ -22,7 +22,7 @@ contract MorphoVaultIntegrationDepositTest is MorphoVaultIntegrationTest {
 
         setSupplyQueueIdle();
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
 
         vault.deposit(assets, address(this));
 
@@ -38,7 +38,7 @@ contract MorphoVaultIntegrationDepositTest is MorphoVaultIntegrationTest {
         roundedDeposit = bound(roundedDeposit, 1, donationFactor / 2);
         setSupplyQueueIdle();
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
         underlyingToken.approve(address(morpho), type(uint256).max);
 
         // Donate
@@ -90,7 +90,7 @@ contract MorphoVaultIntegrationDepositTest is MorphoVaultIntegrationTest {
         roundedWithdraw = bound(roundedWithdraw, 1, donationFactor / 2);
         setSupplyQueueIdle();
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
         underlyingToken.approve(address(morpho), type(uint256).max);
 
         // Donate
@@ -143,7 +143,7 @@ contract MorphoVaultIntegrationDepositTest is MorphoVaultIntegrationTest {
 
         setSupplyQueueAllMarkets();
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
 
         if (assets > MORPHO_VAULT_V1_NB_MARKETS * CAP) {
             vm.expectRevert();
