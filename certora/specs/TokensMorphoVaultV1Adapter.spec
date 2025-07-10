@@ -6,6 +6,8 @@ using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
 using MetaMorpho as MetaMorpho;
 
 methods {
+    function _.extSloads(bytes32[]) external => NONDET DELETE;
+
     function asset() external returns address envfree;
     function lastUpdate() external returns uint64 envfree;
     function liquidityData() external returns bytes envfree;
