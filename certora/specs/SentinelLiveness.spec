@@ -80,9 +80,6 @@ rule sentinelCanDeallocate(env e, address adapter, bytes data, uint256 assets){
 
     require (isAdapter(adapter), "assume the adapter is valid");
 
-    // Assume interest accrual doesn't fail during deallocation.
-    accrueInterest(e);
-
     deallocate@withrevert(e, adapter, data, assets);
     assert !lastReverted;
 }
