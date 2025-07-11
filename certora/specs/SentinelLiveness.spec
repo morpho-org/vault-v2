@@ -11,11 +11,11 @@ methods {
     function getRelativeCap(bytes) external returns uint256 envfree;
 
     function _.deallocate(bytes, uint256 assets, bytes4, address) external =>
-        nondetAllocatorSummary(assets) expect (bytes32[], uint256);
+        nondetDeallocateSummary(assets) expect (bytes32[], uint256);
     function ERC20.transferFrom(address, address, uint256) external returns bool => NONDET;
 }
 
-// Ghost copy of caps[*].allocation for quantification.
+// Ghost copy of caps[*].allocation to be able to use quantifiers.
 ghost mapping(bytes32 => uint256) ghostAllocation {
     init_state axiom forall bytes32 id. ghostAllocation[id] == 0;
 }
@@ -28,20 +28,20 @@ hook Sstore caps[KEY bytes32 id].allocation uint256 newAllocation (uint256 oldAl
     ghostAllocation[id] = newAllocation;
 }
 
-function nondetAllocatorSummary(uint256 assets) returns (bytes32[], uint256) {
+function nondetDeallocateSummary(uint256 assets) returns (bytes32[], uint256) {
     bytes32[] ids;
     uint256 interest;
 
     require (forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "assume that all returned ids are unique");
-    require (forall uint256 i. i < ids.length => ghostAllocation[ids[i]] >= assets && ghostAllocation[ids[i]] > 0, "assume `assets` can be deallocated as the minimum of allocations from the adapter's returned ids");
-    require (forall uint256 i. i < ids.length => (ghostAllocation[ids[i]] + interest) <= max_uint256, "assume that the allocated amount plus the interest can't overflow");
+    require (forall uint256 i. i < ids.length => ghostAllocation[ids[i]] >= assets && ghostAllocation[ids[i]] > 0, "assume that assets<=allocation for all returned ids and that the allocation is positive");
+    require (forall uint256 i. i < ids.length => (ghostAllocation[ids[i]] + interest) <= max_uint256, "assume that the allocated amount plus the interest do not overflow");
 
     return (ids, interest);
 }
 
 rule sentinelCanRevoke(env e, bytes data){
-    require (isSentinel(e.msg.sender), "setup the call to be performed by a sentinel address");
-    require (e.msg.value == 0, "setup the call to have no ETH value");
+    require (isSentinel(e.msg.sender), "ack");
+    require (e.msg.value == 0, "ack");
 
     require (executableAt(data) != 0, "assume `data` is pending");
 
@@ -51,10 +51,10 @@ rule sentinelCanRevoke(env e, bytes data){
 }
 
 rule sentinelCanDecreaseAbsoluteCap(env e, bytes idData, uint256 newAbsoluteCap) {
-    require (isSentinel(e.msg.sender), "setup the call to be performed by a sentinel address");
-    require (e.msg.value == 0, "setup the call to have no ETH value");
+    require (isSentinel(e.msg.sender), "ack");
+    require (e.msg.value == 0, "ack");
 
-    require (newAbsoluteCap <= getAbsoluteCap(idData), "setup the call to decrease the absolute cap");
+    require (newAbsoluteCap <= getAbsoluteCap(idData), "assume that newAbsoluteCap <= absoluteCap");
 
     decreaseAbsoluteCap@withrevert(e, idData, newAbsoluteCap);
     assert !lastReverted;
@@ -62,10 +62,10 @@ rule sentinelCanDecreaseAbsoluteCap(env e, bytes idData, uint256 newAbsoluteCap)
 }
 
 rule sentinelCanDecreaseRelativeCap(env e, bytes idData, uint256 newRelativeCap) {
-    require (isSentinel(e.msg.sender), "setup the call to be performed by a sentinel address");
-    require (e.msg.value == 0, "setup the call to have no ETH value");
+    require (isSentinel(e.msg.sender), "ack");
+    require (e.msg.value == 0, "ack");
 
-    require (newRelativeCap <= getRelativeCap(idData), "setup the call to decrease the relative cap");
+    require (newRelativeCap <= getRelativeCap(idData), "assume that newRelativeCap <= relativeCap");
 
     decreaseRelativeCap@withrevert(e, idData, newRelativeCap);
     assert !lastReverted;
@@ -73,10 +73,10 @@ rule sentinelCanDecreaseRelativeCap(env e, bytes idData, uint256 newRelativeCap)
 }
 
 rule sentinelCanDeallocate(env e, address adapter, bytes data, uint256 assets){
-    require (e.block.timestamp < 2^63, "bound the timestamp to a time very far in the future");
-    require (e.block.timestamp >= currentContract.lastUpdate, "lastUpdate is growing and monotonic");
-    require (isSentinel(e.msg.sender), "setup the call to be performed by a sentinel address");
-    require (e.msg.value == 0, "setup the call to have no ETH value");
+    require (isSentinel(e.msg.sender), "ack");
+    require (e.msg.value == 0, "ack");
+    require (e.block.timestamp < 2^63, "safe because it corresponds to a time very far in the future");
+    require (e.block.timestamp >= currentContract.lastUpdate, "safe because lastUpdate is growing and monotonic");
 
     require (isAdapter(adapter), "assume the adapter is valid");
 
