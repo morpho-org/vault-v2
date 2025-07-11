@@ -24,8 +24,6 @@ rule sharePriceBoundDeposit(env e, uint256 assets, address onBehalf){
     uint256 supplyAfter = currentContract.totalSupply;
 
     assert (assetsAfter + 1) * (supplyBefore + V - 1) <= (assetsBefore + 1) * (supplyAfter + V);
-
-    //assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V + 1);
 }
 
 rule sharePriceBoundWithdraw(env e, uint256 assets, address receiver, address onBehalf){
@@ -47,9 +45,7 @@ rule sharePriceBoundWithdraw(env e, uint256 assets, address receiver, address on
     uint256 assetsAfter = currentContract._totalAssets;
     uint256 supplyAfter = currentContract.totalSupply;
 
-    assert (assetsAfter + 1) * (supplyBefore + V - 1) <= (assetsBefore + 1) * (supplyAfter + V);
-
-    //assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V + 1);
+    assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + 1 + V);
 }
 
 
@@ -72,9 +68,7 @@ rule sharePriceBoundMint(env e, uint256 shares, address onBehalf){
     uint256 assetsAfter = currentContract._totalAssets;
     uint256 supplyAfter = currentContract.totalSupply;
 
-    assert assetsAfter * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V);
-
-    //assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V + 1);
+    assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V )  + (supplyBefore + V - 1);
 }
 
 rule sharePriceBoundRedeem(env e, uint256 shares, address receiver, address onBehalf){
@@ -96,12 +90,10 @@ rule sharePriceBoundRedeem(env e, uint256 shares, address receiver, address onBe
     uint256 assetsAfter = currentContract._totalAssets;
     uint256 supplyAfter = currentContract.totalSupply;
 
-    assert assetsAfter * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V);
-
-    //assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V + 1);
+    assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V) + (supplyBefore + V - 1);
 }
 
-rule sharePriceBoundOneShareDown(method f, env e, calldataarg a) filtered {
+rule sharePriceNeverDecreases(method f, env e, calldataarg a) filtered {
     f -> f.selector != sig:realizeLoss(address, bytes).selector
 } {
     require e.block.timestamp == currentContract.lastUpdate;
