@@ -85,7 +85,7 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
 
         if (assets > 0) shares -= IERC4626(morphoVaultV1).withdraw(assets, address(this), address(this));
-        uint256 interest = IERC4626(morphoVaultV1).previewRedeem(shares).zeroFloorSub(allocation() - assets);
+        uint256 interest = (IERC4626(morphoVaultV1).previewRedeem(shares) + assets).zeroFloorSub(allocation());
 
         return (ids(), interest);
     }

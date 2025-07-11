@@ -99,7 +99,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             shares[marketId] -= redeemedShares;
         }
         uint256 interest =
-            expectedSupplyAssets(marketParams, shares[marketId]).zeroFloorSub(allocation(marketParams) - assets);
+            (expectedSupplyAssets(marketParams, shares[marketId]) + assets).zeroFloorSub(allocation(marketParams));
 
         return (ids(marketParams), interest);
     }
