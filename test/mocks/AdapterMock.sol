@@ -10,6 +10,7 @@ contract AdapterMock is IAdapter {
     address public immutable vault;
 
     bytes32[] public _ids;
+    uint256 public interest;
     uint256 public loss;
 
     bytes public recordedAllocateData;
@@ -17,6 +18,9 @@ contract AdapterMock is IAdapter {
 
     bytes public recordedDeallocateData;
     uint256 public recordedDeallocateAssets;
+
+    bytes4 public recordedSelector;
+    address public recordedSender;
 
     constructor(address _vault) {
         vault = _vault;
@@ -28,27 +32,39 @@ contract AdapterMock is IAdapter {
         _ids.push(keccak256("id-1"));
     }
 
-    function setIds(bytes32[] memory newIds) external {
-        _ids = newIds;
+    function setInterest(uint256 _interest) external {
+        interest = _interest;
     }
 
     function setLoss(uint256 _loss) external {
         loss = _loss;
     }
 
-    function allocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    function allocate(bytes memory data, uint256 assets, bytes4 selector, address sender)
+        external
+        returns (bytes32[] memory, uint256)
+    {
         recordedAllocateData = data;
         recordedAllocateAssets = assets;
-        return (ids(), 0);
+        recordedSelector = selector;
+        recordedSender = sender;
+        return (ids(), interest);
     }
 
-    function deallocate(bytes memory data, uint256 assets) external returns (bytes32[] memory, uint256) {
+    function deallocate(bytes memory data, uint256 assets, bytes4 selector, address sender)
+        external
+        returns (bytes32[] memory, uint256)
+    {
         recordedDeallocateData = data;
         recordedDeallocateAssets = assets;
-        return (ids(), 0);
+        recordedSelector = selector;
+        recordedSender = sender;
+        return (ids(), interest);
     }
 
-    function realizeLoss(bytes memory) external view returns (bytes32[] memory, uint256) {
+    function realizeLoss(bytes memory, bytes4 selector, address sender) external returns (bytes32[] memory, uint256) {
+        recordedSelector = selector;
+        recordedSender = sender;
         return (ids(), loss);
     }
 
