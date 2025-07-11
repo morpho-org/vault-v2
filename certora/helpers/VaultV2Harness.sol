@@ -15,4 +15,14 @@ contract VaultV2Harness is VaultV2 {
         vic = newVic;
         emit EventsLib.SetVic(newVic);
     }
+
+    function getAbsoluteCap(bytes memory idData) external view returns (uint256) {
+        bytes32 id = keccak256(idData);
+        return caps[id].absoluteCap;
+    }
+
+    function getRelativeCap(bytes memory idData) external view returns (uint256) {
+        bytes32 id = keccak256(idData);
+        return caps[id].relativeCap;
+    }
 }

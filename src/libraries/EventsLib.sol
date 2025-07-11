@@ -50,8 +50,8 @@ library EventsLib {
     event SetOwner(address indexed newOwner);
     event SetCurator(address indexed newCurator);
     event SetIsSentinel(address indexed account, bool newIsSentinel);
-    event SetName(string indexed newName);
-    event SetSymbol(string indexed newSymbol);
+    event SetName(string newName);
+    event SetSymbol(string newSymbol);
     event SetIsAllocator(address indexed account, bool newIsAllocator);
     event SetSharesGate(address indexed newSharesGate);
     event SetReceiveAssetsGate(address indexed newReceiveAssetsGate);
