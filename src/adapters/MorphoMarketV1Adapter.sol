@@ -73,12 +73,12 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
-        uint256 interest = expectedSupplyAssets(marketParams, shares[marketId]).zeroFloorSub(allocation(marketParams));
-
         if (assets > 0) {
             (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
             shares[marketId] += mintedShares;
         }
+        uint256 interest =
+            expectedSupplyAssets(marketParams, shares[marketId]).zeroFloorSub(allocation(marketParams) + assets);
 
         return (ids(marketParams), interest);
     }
@@ -94,12 +94,12 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
-        uint256 interest = expectedSupplyAssets(marketParams, shares[marketId]).zeroFloorSub(allocation(marketParams));
-
         if (assets > 0) {
             (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
             shares[marketId] -= redeemedShares;
         }
+        uint256 interest =
+            expectedSupplyAssets(marketParams, shares[marketId]).zeroFloorSub(allocation(marketParams) - assets);
 
         return (ids(marketParams), interest);
     }
