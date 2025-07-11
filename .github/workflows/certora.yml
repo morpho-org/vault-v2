@@ -30,8 +30,6 @@ jobs:
           - TokensMorphoMarketV1Adapter
           - TokensMorphoVaultV1Adapter
 
->>>>>>> post-audit-dev
-
     steps:
       - uses: actions/checkout@v4
         with:
