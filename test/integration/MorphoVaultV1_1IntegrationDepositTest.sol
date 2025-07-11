@@ -22,7 +22,7 @@ contract MorphoVaultV1_1IntegrationDepositTest is MorphoVaultV1_1IntegrationTest
 
         setSupplyQueueIdle();
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
 
         vault.deposit(assets, address(this));
 
@@ -37,7 +37,7 @@ contract MorphoVaultV1_1IntegrationDepositTest is MorphoVaultV1_1IntegrationTest
 
         setSupplyQueueAllMarkets();
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
 
         if (assets > MORPHO_VAULT_V1_NB_MARKETS * CAP) {
             vm.expectRevert();

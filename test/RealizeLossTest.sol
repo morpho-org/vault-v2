@@ -52,7 +52,7 @@ contract RealizeLossTest is BaseTest {
         assertEq(AdapterMock(adapter).recordedSender(), address(this), "Sender incorrect after realizeLoss");
     }
 
-    function testRealizeLossDirectly(uint256 deposit, uint256 expectedLoss) public {
+    function testRealizeLoss(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
 
@@ -62,7 +62,11 @@ contract RealizeLossTest is BaseTest {
         adapter.setLoss(expectedLoss);
 
         // Realize the loss.
-        vault.realizeLoss(address(adapter), hex"");
+        uint256 sharesBefore = vault.balanceOf(address(this));
+        (uint256 incentiveShares, uint256 loss) = vault.realizeLoss(address(adapter), hex"");
+        uint256 expectedShares = vault.balanceOf(address(this)) - sharesBefore;
+        assertEq(incentiveShares, expectedShares, "incentive shares should be equal to expected shares");
+        assertEq(loss, expectedLoss, "loss should be equal to expected loss");
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
     }
 
@@ -152,7 +156,7 @@ contract RealizeLossTest is BaseTest {
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
         vault.setIsAdapter(address(adapter), true);
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(adapter), hex"");
 
         vault.deposit(deposit, address(this));
         adapter.setLoss(expectedLoss);

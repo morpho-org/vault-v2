@@ -70,7 +70,7 @@ contract MorphoMarketV1IntegrationIkrTest is MorphoMarketV1IntegrationTest {
 
         // Normal withdraw fails
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(adapter), abi.encode(marketParams1));
+        vault.setLiquidityAdapterAndData(address(adapter), abi.encode(marketParams1));
 
         vm.expectRevert();
         vault.withdraw(deallocatedAssets, address(this), address(this));
