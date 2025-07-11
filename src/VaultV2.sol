@@ -57,6 +57,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - The balance of the sender (resp. receiver) should decrease (resp. increase) by exactly the given amount on
 /// `transfer` and `transferFrom`. In particular, tokens with fees on transfer are not supported.
 /// @dev List of assumptions that guarantees the vault's liveness properties:
+/// - The VIC should not revert on `interestPerSecond`.
 /// - The token should not revert on `transfer` and `transferFrom` if balances and approvals are right.
 /// - The token should not revert on `transfer` to self.
 /// - totalAssets and totalSupply must stay below ~10^35. When taking this into account, note that for assets with
