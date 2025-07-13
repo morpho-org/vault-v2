@@ -134,11 +134,11 @@ contract AccruingFunctionsTest is BaseTest {
         vic.setInterestPerSecondAndDeadline(0, type(uint64).max);
     }
 
-    function testZeroInterestPerSecondAccruesInterest() public {
+    function testZeroInterestPerSecondAndDeadlineAccruesInterest() public {
         skip(1);
         vm.prank(sentinel);
         vm.expectEmit(false, false, false, false);
         emit EventsLib.AccrueInterest(0, 0, 0, 0);
-        vic.zeroInterestPerSecond();
+        vic.zeroInterestPerSecondAndDeadline();
     }
 }
