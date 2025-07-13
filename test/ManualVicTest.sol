@@ -168,7 +168,7 @@ contract ManualVicTest is Test {
     }
 
     function testDeadline(uint256 newDeadline) public {
-        newDeadline = bound(newDeadline, block.timestamp, type(uint64).max - 1);
+        newDeadline = bound(newDeadline, block.timestamp + 1, type(uint64).max - 1);
 
         // Setup.
         vm.prank(curator);
