@@ -535,12 +535,12 @@ contract VaultV2 is IVaultV2 {
         uint256 newTotalAssets = _totalAssets + interest;
 
         // The performance fee assets may be rounded down to 0 if `interest * fee < WAD`.
-        uint256 performanceFeeAssets = interest > 0 && performanceFee > 0 && canReceive(performanceFeeRecipient)
+        uint256 performanceFeeAssets = interest > 0 && performanceFee > 0 && canReceiveShares(performanceFeeRecipient)
             ? interest.mulDivDown(performanceFee, WAD)
             : 0;
         // The management fee is taken on `newTotalAssets` to make all approximations consistent (interacting less
         // increases fees).
-        uint256 managementFeeAssets = managementFee > 0 && canReceive(managementFeeRecipient)
+        uint256 managementFeeAssets = managementFee > 0 && canReceiveShares(managementFeeRecipient)
             ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD)
             : 0;
 
@@ -635,11 +635,8 @@ contract VaultV2 is IVaultV2 {
     /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
         require(!enterBlocked, ErrorsLib.EnterBlocked());
-        require(canReceive(onBehalf), ErrorsLib.CannotReceive());
-        require(
-            sendAssetsGate == address(0) || ISendAssetsGate(sendAssetsGate).canSendAssets(msg.sender),
-            ErrorsLib.CannotSendUnderlyingAssets()
-        );
+        require(canReceiveShares(onBehalf), ErrorsLib.CannotReceive());
+        require(canSendAssets(msg.sender), ErrorsLib.CannotSendUnderlyingAssets());
 
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
@@ -668,11 +665,8 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for withdraw and redeem.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
-        require(canSend(onBehalf), ErrorsLib.CannotSend());
-        require(
-            receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(receiver),
-            ErrorsLib.CannotReceiveUnderlyingAssets()
-        );
+        require(canSendShares(onBehalf), ErrorsLib.CannotSend());
+        require(canReceiveAssets(receiver), ErrorsLib.CannotReceiveUnderlyingAssets());
 
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
@@ -724,7 +718,7 @@ contract VaultV2 is IVaultV2 {
             // Safe cast because the result is at most totalAssets.
             _totalAssets = uint192(_totalAssets.zeroFloorSub(loss));
 
-            if (canReceive(msg.sender)) {
+            if (canReceiveShares(msg.sender)) {
                 uint256 tentativeIncentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
                 incentiveShares = tentativeIncentive.mulDivDown(
                     totalSupply + virtualShares, uint256(_totalAssets).zeroFloorSub(tentativeIncentive) + 1
@@ -749,8 +743,8 @@ contract VaultV2 is IVaultV2 {
     function transfer(address to, uint256 shares) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
 
-        require(canSend(msg.sender), ErrorsLib.CannotSend());
-        require(canReceive(to), ErrorsLib.CannotReceive());
+        require(canSendShares(msg.sender), ErrorsLib.CannotSend());
+        require(canReceiveShares(to), ErrorsLib.CannotReceive());
 
         balanceOf[msg.sender] -= shares;
         balanceOf[to] += shares;
@@ -763,8 +757,8 @@ contract VaultV2 is IVaultV2 {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
 
-        require(canSend(from), ErrorsLib.CannotSend());
-        require(canReceive(to), ErrorsLib.CannotReceive());
+        require(canSendShares(from), ErrorsLib.CannotSend());
+        require(canReceiveShares(to), ErrorsLib.CannotReceive());
 
         if (msg.sender != from) {
             uint256 _allowance = allowance[from][msg.sender];
@@ -820,11 +814,19 @@ contract VaultV2 is IVaultV2 {
 
     /* PERMISSIONED TOKEN FUNCTIONS */
 
-    function canSend(address account) public view returns (bool) {
+    function canSendShares(address account) public view returns (bool) {
         return sharesGate == address(0) || ISharesGate(sharesGate).canSendShares(account);
     }
 
-    function canReceive(address account) public view returns (bool) {
+    function canReceiveShares(address account) public view returns (bool) {
         return sharesGate == address(0) || ISharesGate(sharesGate).canReceiveShares(account);
+    }
+
+    function canSendAssets(address account) public view returns (bool) {
+        return sendAssetsGate == address(0) || ISendAssetsGate(sendAssetsGate).canSendAssets(account);
+    }
+
+    function canReceiveAssets(address account) public view returns (bool) {
+        return receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(account);
     }
 }
