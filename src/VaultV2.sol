@@ -712,6 +712,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns incentiveShares, loss.
+    /// @dev For small losses, no incentive can be given due to rounding down in division operations
     function realizeLoss(address adapter, bytes memory data) external returns (uint256, uint256) {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
