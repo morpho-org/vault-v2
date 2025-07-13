@@ -92,6 +92,7 @@ contract VaultV2 is IVaultV2 {
     address public sharesGate;
     /// @dev Gates receiving assets from the vault.
     /// @dev Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
+    /// @dev The vault itself (address(this)) is always allowed to receive assets, regardless of this gate configuration.
     /// @dev Set to 0 to disable the gate.
     address public receiveAssetsGate;
     /// @dev Gates depositing assets to the vault.
@@ -665,10 +666,11 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Internal function for withdraw and redeem.
+    /// @dev The vault itself (address(this)) is always allowed to receive assets, regardless of receiveAssetsGate configuration.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         require(canSend(onBehalf), ErrorsLib.CannotSend());
         require(
-            receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(receiver),
+            receiver == address(this) || receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(receiver),
             ErrorsLib.CannotReceiveUnderlyingAssets()
         );
 

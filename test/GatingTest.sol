@@ -140,4 +140,43 @@ contract GatingTest is BaseTest {
         bool actualCan = vault.canReceive(sharesSender);
         assertEq(actualCan, !hasGate || can);
     }
+
+    function testVaultCanAlwaysReceiveAssets() public {
+        setGate();
+        // Mock the gate to return false for all addresses
+        vm.mockCall(gate, abi.encodeCall(IReceiveAssetsGate.canReceiveAssets, (address(0x123))), abi.encode(false));
+        vm.mockCall(gate, abi.encodeCall(IReceiveAssetsGate.canReceiveAssets, (address(0x456))), abi.encode(false));
+        
+        // The vault should be able to receive assets even when the gate blocks other addresses
+        vm.mockCall(gate, abi.encodeCall(IReceiveAssetsGate.canReceiveAssets, (address(vault))), abi.encode(false));
+        
+        // This should not revert even though the gate returns false for the vault address
+        // because the vault itself is always allowed to receive assets
+        vault.deposit(100, address(this));
+        vault.withdraw(50, address(vault), address(this));
+    }
+
+    function testForceDeallocateWithBlockedVault() public {
+        setGate();
+        // Mock the gate to return false for the vault address
+        vm.mockCall(gate, abi.encodeCall(IReceiveAssetsGate.canReceiveAssets, (address(vault))), abi.encode(false));
+        
+        // Set up an adapter with a penalty
+        address adapter = makeAddr("adapter");
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (adapter, true)));
+        vault.setIsAdapter(adapter, true);
+        
+        uint256 penalty = 0.1e18; // 10% penalty
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (adapter, penalty)));
+        vault.setForceDeallocatePenalty(adapter, penalty);
+        
+        // Deposit some assets
+        vault.deposit(1000, address(this));
+        
+        // This should not revert even though the gate blocks the vault address
+        // because the vault itself is always allowed to receive assets in forceDeallocate
+        vault.forceDeallocate(adapter, hex"", 100, address(this));
+    }
 }
