@@ -51,14 +51,13 @@ This would ensure that the vault never have more than 15M exposure to markets wi
 ### Liquidity
 
 The allocator is responsible for ensuring that users can withdraw their assets at anytime.
-This is done by managing the available liquidity in `idle` and in an optional liquidity market $M$.
+This is done by managing the available idle liquidity and an optional liquidity adapter.
 
-As for other protocols, the liquidity market is defined using an adapter (`liquidityAdapter`).
-When users withdraw assets, the assets are taken in priority from the `idle` market.
-If the `idle` market does not have enough liquidity, liquidity is taken from the liquidity market $M$.
-When defined, the liquidity market $M$ is also used as the market users are depositing into when supplying to the vault.
+When users withdraw assets, the idle assets are taken in priority.
+If there is not enough idle liquidity, liquidity is taken from the liquidity adapter.
+When defined, the liquidity adapter is also used to forward deposited funds.
 
-The market $M$ would typically be a very liquid Market v1.
+A typical liquidity adapter would allow deposit/withdrawals to go through a very liquid Market v1.
 
 <a id="non-custodial"></a>
 
@@ -129,7 +128,7 @@ Implements [IReceiveAssetsGate](./src/interfaces/IGate.sol).
 
 - Upon `withdraw` and `redeem`, `receiver` must pass the `canReceiveAssets` check.
 
-**Send Assets Gate** (`receiveAssetsGate`): Controls permissions related to sending assets.
+**Send Assets Gate** (`sendAssetsGate`): Controls permissions related to sending assets.
 Implements [ISendAssetsGate](./src/interfaces/IGate.sol).
 
 - Upon `deposit` and `mint`, `msg.sender` must pass the `canSendAssets` check.

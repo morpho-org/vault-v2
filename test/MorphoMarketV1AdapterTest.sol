@@ -49,9 +49,9 @@ contract MorphoMarketV1AdapterTest is Test {
         address morphoOwner = makeAddr("MorphoOwner");
         morpho = IMorpho(deployCode("Morpho.sol", abi.encode(morphoOwner)));
 
-        loanToken = new ERC20Mock();
-        collateralToken = new ERC20Mock();
-        rewardToken = new ERC20Mock();
+        loanToken = new ERC20Mock(18);
+        collateralToken = new ERC20Mock(18);
+        rewardToken = new ERC20Mock(18);
         oracle = new OracleMock();
         irm = new IrmMock();
 
@@ -201,7 +201,7 @@ contract MorphoMarketV1AdapterTest is Test {
     function testSkim(uint256 assets) public {
         assets = _boundAssets(assets);
 
-        ERC20Mock token = new ERC20Mock();
+        ERC20Mock token = new ERC20Mock(18);
 
         vm.prank(owner);
         adapter.setSkimRecipient(recipient);
@@ -221,13 +221,13 @@ contract MorphoMarketV1AdapterTest is Test {
         adapter.skim(address(token));
     }
 
-    function testLossRealizationAccessControl(address rdm) public {
-        vm.assume(rdm != address(parentVault));
-        vm.prank(rdm);
-        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
-        adapter.realizeLoss(abi.encode(marketParams), bytes4(0), address(0));
+    function testLossRealizationNotMocked(address rdmToken) public {
+        vm.assume(rdmToken != address(loanToken));
+        vm.expectRevert(IMorphoMarketV1Adapter.LoanAssetMismatch.selector);
+        MarketParams memory rdmMarketParams = marketParams;
+        rdmMarketParams.loanToken = rdmToken;
+        adapter.realizeLoss(abi.encode(rdmMarketParams), bytes4(0), rdmToken);
 
-        vm.prank(address(parentVault));
         adapter.realizeLoss(abi.encode(marketParams), bytes4(0), address(0));
     }
 

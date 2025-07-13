@@ -7,11 +7,13 @@ import "./BaseTest.sol";
 contract ForceDeallocateTest is BaseTest {
     using MathLib for uint256;
 
-    uint256 constant MAX_TEST_ASSETS = 1e36;
+    uint256 MAX_TEST_ASSETS;
     AdapterMock adapter;
 
     function setUp() public override {
         super.setUp();
+
+        MAX_TEST_ASSETS = 10 ** min(18 + underlyingToken.decimals(), 36);
 
         adapter = new AdapterMock(address(vault));
         vm.prank(curator);

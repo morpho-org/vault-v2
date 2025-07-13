@@ -53,6 +53,9 @@ contract ManualVic is IManualVic {
 
     function zeroInterestPerSecond() external {
         require(IVaultV2(vault).isSentinel(msg.sender), Unauthorized());
+
+        IVaultV2(vault).accrueInterest();
+
         storedInterestPerSecond = 0;
         emit ZeroInterestPerSecond(msg.sender);
     }

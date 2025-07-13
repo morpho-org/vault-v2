@@ -24,7 +24,7 @@ contract MorphoMarketV1IntegrationDepositTest is MorphoMarketV1IntegrationTest {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
 
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(adapter), abi.encode(marketParams1));
+        vault.setLiquidityAdapterAndData(address(adapter), abi.encode(marketParams1));
 
         vault.deposit(assets, address(this));
 

@@ -14,7 +14,8 @@ struct Caps {
 }
 
 interface IVaultV2 is IERC4626, IPermissionedToken, IERC2612 {
-    // Storage variables
+    // State variables
+    function virtualShares() external view returns (uint256);
     function owner() external view returns (address);
     function curator() external view returns (address);
     function sharesGate() external view returns (address);
@@ -77,7 +78,7 @@ interface IVaultV2 is IERC4626, IPermissionedToken, IERC2612 {
     // Allocator functions
     function allocate(address adapter, bytes memory data, uint256 assets) external;
     function deallocate(address adapter, bytes memory data, uint256 assets) external;
-    function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external;
+    function setLiquidityAdapterAndData(address newLiquidityAdapter, bytes memory newLiquidityData) external;
 
     // Exchange rate
     function accrueInterest() external;
@@ -92,5 +93,5 @@ interface IVaultV2 is IERC4626, IPermissionedToken, IERC2612 {
         returns (uint256 withdrawnShares);
 
     // Realize loss
-    function realizeLoss(address adapter, bytes memory data) external;
+    function realizeLoss(address adapter, bytes memory data) external returns (uint256 incentiveShares, uint256 loss);
 }
