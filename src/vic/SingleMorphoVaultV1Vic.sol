@@ -5,10 +5,11 @@ pragma solidity 0.8.28;
 import {ISingleMorphoVaultV1Vic} from "./interfaces/ISingleMorphoVaultV1Vic.sol";
 import {IMorphoVaultV1Adapter} from "../adapters/interfaces/IMorphoVaultV1Adapter.sol";
 import {IERC4626} from "../interfaces/IERC4626.sol";
-import {IERC20} from "../interfaces/IERC20.sol";
+import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import "../libraries/ConstantsLib.sol";
 
 import {MathLib} from "../libraries/MathLib.sol";
+import {console2} from "forge-std/console2.sol";
 
 /// @dev To use with a Morpho Vault v2 that supplies exclusively to a single Morpho Vault v1.
 contract SingleMorphoVaultV1Vic is ISingleMorphoVaultV1Vic {
@@ -20,6 +21,7 @@ contract SingleMorphoVaultV1Vic is ISingleMorphoVaultV1Vic {
     address public immutable morphoVaultV1Adapter;
     address public immutable morphoVaultV1;
     address public immutable parentVault;
+    bytes32 public immutable adapterId;
 
     /* FUNCTIONS */
 
@@ -28,15 +30,20 @@ contract SingleMorphoVaultV1Vic is ISingleMorphoVaultV1Vic {
         morphoVaultV1Adapter = _morphoVaultV1Adapter;
         address _morphoVaultV1 = IMorphoVaultV1Adapter(_morphoVaultV1Adapter).morphoVaultV1();
         morphoVaultV1 = _morphoVaultV1;
-        asset = IERC4626(_morphoVaultV1).asset();
+        adapterId = keccak256(abi.encode("this", _morphoVaultV1Adapter));
     }
 
     /// @dev Returns the interest per second.
     function interestPerSecond(uint256 totalAssets, uint256 elapsed) external view returns (uint256) {
-        uint256 realAssets = IERC4626(morphoVaultV1).previewRedeem(IMorphoVaultV1Adapter(morphoVaultV1Adapter).shares())
-            + IERC20(asset).balanceOf(parentVault);
+        uint256 realAssetsInVaultV1 =
+            IERC4626(morphoVaultV1).previewRedeem(IMorphoVaultV1Adapter(morphoVaultV1Adapter).shares());
+        console2.log("1");
+        uint256 accountedAssetsInVaultV1 = IVaultV2(parentVault).allocation(adapterId);
+        console2.log("2");
         uint256 maxInterestPerSecond = uint256(totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD);
-        uint256 tentativeInterestPerSecond = realAssets.zeroFloorSub(totalAssets) / elapsed;
+        console2.log("3");
+        uint256 tentativeInterestPerSecond = realAssetsInVaultV1.zeroFloorSub(accountedAssetsInVaultV1) / elapsed;
+        console2.log("4");
         return tentativeInterestPerSecond <= maxInterestPerSecond ? tentativeInterestPerSecond : maxInterestPerSecond;
     }
 }

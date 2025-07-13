@@ -59,24 +59,6 @@ contract SingleMorphoVaultV1VicIntegrationTest is MorphoVaultV1IntegrationTest {
         );
     }
 
-    function testInterestPerSecondDonationIdle(uint256 deposit, uint256 interest, uint256 elapsed) public {
-        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
-        interest = bound(interest, 1, MAX_TEST_ASSETS);
-        elapsed = bound(elapsed, 1, 2 ** 63);
-
-        setSupplyQueueAllMarkets();
-        vm.prank(allocator);
-        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
-        setMorphoVaultV1Cap(allMarketParams[0], type(uint184).max);
-
-        vault.deposit(deposit, address(this));
-        underlyingToken.transfer(address(vault), interest);
-        skip(elapsed);
-        vm.assume(interest / elapsed <= deposit * MAX_RATE_PER_SECOND / WAD);
-
-        assertEq(vault.totalAssets(), deposit + interest / elapsed * elapsed, "wrong total assets");
-    }
-
     function testInterestPerSecondDonationInKind(uint256 deposit, uint256 interest, uint256 elapsed) public {
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
         interest = bound(interest, 1, MAX_TEST_ASSETS);

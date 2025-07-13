@@ -14,6 +14,7 @@ import {IMorphoVaultV1Adapter} from "../src/adapters/interfaces/IMorphoVaultV1Ad
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {ERC4626Mock} from "./mocks/ERC4626Mock.sol";
 import {IERC4626} from "../src/interfaces/IERC4626.sol";
+import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 
 uint256 constant MAX_TEST_ASSETS = 1e36;
 
@@ -59,13 +60,16 @@ contract SingleMorphoVaultV1VicTest is Test {
         assertEq(newVic.morphoVaultV1(), address(morphoVaultV1), "morphoVaultV1 not set correctly");
     }
 
-    function testInterestPerSecondVaultOnlyWithSmallInterest(uint256 deposit, uint256 interest, uint256 elapsed)
-        public
-    {
+    function testInterestPerSecondWithSmallInterest(uint256 deposit, uint256 interest, uint256 elapsed) public {
         deposit = bound(deposit, 1e18, MAX_TEST_ASSETS);
         // At most 1% APR
         interest = bound(interest, 1, deposit / (100 * uint256(365 days)));
         elapsed = bound(elapsed, 1, 2 ** 63);
+        vm.mockCall(
+            address(parentVault),
+            abi.encodeCall(IVaultV2.allocation, (keccak256(abi.encode("this", address(adapter))))),
+            abi.encode(deposit)
+        );
 
         morphoVaultV1.deposit(deposit, address(adapter));
         asset.transfer(address(morphoVaultV1), interest);
@@ -75,10 +79,15 @@ contract SingleMorphoVaultV1VicTest is Test {
         assertEq(vic.interestPerSecond(deposit, elapsed), expectedInterestPerSecond, "interest per second");
     }
 
-    function testInterestPerSecondVaultOnly(uint256 deposit, uint256 interest, uint256 elapsed) public {
+    function testInterestPerSecond(uint256 deposit, uint256 interest, uint256 elapsed) public {
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
         interest = bound(interest, 1, MAX_TEST_ASSETS);
         elapsed = bound(elapsed, 1, 2 ** 63);
+        vm.mockCall(
+            address(parentVault),
+            abi.encodeCall(IVaultV2.allocation, (keccak256(abi.encode("this", address(adapter))))),
+            abi.encode(deposit)
+        );
 
         morphoVaultV1.deposit(deposit, address(adapter));
         asset.transfer(address(morphoVaultV1), interest);
@@ -88,11 +97,16 @@ contract SingleMorphoVaultV1VicTest is Test {
         assertEq(vic.interestPerSecond(deposit, elapsed), expectedInterestPerSecond, "interest per second");
     }
 
-    function testInterestPerSecondVaultOnlyWithBigInterest(uint256 deposit, uint256 interest, uint256 elapsed) public {
+    function testInterestPerSecondWithBigInterest(uint256 deposit, uint256 interest, uint256 elapsed) public {
         elapsed = bound(elapsed, 1, 365 days);
         deposit = bound(deposit, 1e18, MAX_TEST_ASSETS / (elapsed * 1000));
         // At least 1000% APR
         interest = bound(interest, 1000 * deposit * elapsed / uint256(365 days), MAX_TEST_ASSETS);
+        vm.mockCall(
+            address(parentVault),
+            abi.encodeCall(IVaultV2.allocation, (keccak256(abi.encode("this", address(adapter))))),
+            abi.encode(deposit)
+        );
 
         morphoVaultV1.deposit(deposit, address(adapter));
         asset.transfer(address(morphoVaultV1), interest);
@@ -101,42 +115,15 @@ contract SingleMorphoVaultV1VicTest is Test {
         assertLt(vic.interestPerSecond(deposit, elapsed), realVaultInterest / elapsed, "interest per second");
     }
 
-    function testInterestPerSecondIdleOnly(uint256 deposit, uint256 idleInterest, uint256 elapsed) public {
-        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
-        idleInterest = bound(idleInterest, 1, MAX_TEST_ASSETS);
-        elapsed = bound(elapsed, 1, 2 ** 63);
-
-        morphoVaultV1.deposit(deposit, address(adapter));
-        asset.transfer(address(parentVault), idleInterest);
-
-        uint256 expectedInterestPerSecond = boundInterestPerSecond(idleInterest, deposit, elapsed);
-        assertEq(vic.interestPerSecond(deposit, elapsed), expectedInterestPerSecond, "interest per second");
-    }
-
-    function testInterestPerSecondVaultAndIdle(
-        uint256 deposit,
-        uint256 vaultInterest,
-        uint256 idleInterest,
-        uint256 elapsed
-    ) public {
-        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
-        vaultInterest = bound(vaultInterest, 1, MAX_TEST_ASSETS);
-        idleInterest = bound(idleInterest, 1, MAX_TEST_ASSETS);
-        elapsed = bound(elapsed, 1, 2 ** 63);
-
-        morphoVaultV1.deposit(deposit, address(adapter));
-        asset.transfer(address(morphoVaultV1), vaultInterest);
-        asset.transfer(address(parentVault), idleInterest);
-        uint256 realVaultInterest = vaultInterest * deposit / (deposit + 1); // account for the virtual share.
-
-        uint256 expectedInterestPerSecond = boundInterestPerSecond(realVaultInterest + idleInterest, deposit, elapsed);
-        assertEq(vic.interestPerSecond(deposit, elapsed), expectedInterestPerSecond, "interest per second");
-    }
-
     function testInterestPerSecondZero(uint256 deposit, uint256 loss, uint256 elapsed) public {
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
         loss = bound(loss, 1, deposit);
         elapsed = bound(elapsed, 1, 2 ** 63);
+        vm.mockCall(
+            address(parentVault),
+            abi.encodeCall(IVaultV2.allocation, (keccak256(abi.encode("this", address(adapter))))),
+            abi.encode(deposit)
+        );
 
         morphoVaultV1.deposit(deposit, address(adapter));
         vm.prank(address(morphoVaultV1));
