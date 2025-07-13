@@ -470,7 +470,7 @@ contract VaultV2 is IVaultV2 {
                 ErrorsLib.RelativeCapExceeded()
             );
         }
-        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, interest);
+        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, interest, data);
     }
 
     function deallocate(address adapter, bytes memory data, uint256 assets) external {
@@ -492,7 +492,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
-        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, interest);
+        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, interest, data);
     }
 
     /// @dev Whether newLiquidityAdapter is an adapter is checked in allocate/deallocate.
@@ -736,7 +736,7 @@ contract VaultV2 is IVaultV2 {
             enterBlocked = true;
         }
 
-        emit EventsLib.RealizeLoss(msg.sender, adapter, ids, loss, incentiveShares);
+        emit EventsLib.RealizeLoss(msg.sender, adapter, ids, loss, incentiveShares, data);
     }
 
     /* ERC20 FUNCTIONS */

@@ -21,8 +21,8 @@ library EventsLib {
     event Constructor(address indexed owner, address indexed asset);
 
     // Allocation events
-    event Allocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 interest);
-    event Deallocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 interest);
+    event Allocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 interest, bytes memory data);
+    event Deallocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 interest, bytes memory data);
     event ForceDeallocate(
         address indexed sender,
         address adapter,
@@ -34,7 +34,7 @@ library EventsLib {
 
     // Loss realization events
     event RealizeLoss(
-        address indexed sender, address indexed adapter, bytes32[] ids, uint256 loss, uint256 incentiveShares
+        address indexed sender, address indexed adapter, bytes32[] ids, uint256 loss, uint256 incentiveShares, bytes memory data
     );
 
     // Fee and interest events
