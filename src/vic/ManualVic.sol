@@ -40,7 +40,7 @@ contract ManualVic is IManualVic {
     function setInterestPerSecondAndDeadline(uint256 newInterestPerSecond, uint256 newDeadline) external {
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         require(newInterestPerSecond <= maxInterestPerSecond, InterestPerSecondTooHigh());
-        require(newDeadline >= block.timestamp, DeadlineAlreadyPassed());
+        require(newDeadline > block.timestamp, DeadlineAlreadyPassed());
         require(newDeadline <= type(uint64).max, CastOverflow());
 
         IVaultV2(vault).accrueInterest();

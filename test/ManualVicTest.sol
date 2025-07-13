@@ -103,7 +103,7 @@ contract ManualVicTest is Test {
     {
         vm.assume(rdm != allocator);
         newInterestPerSecond = bound(newInterestPerSecond, 1, type(uint96).max);
-        newDeadline = bound(newDeadline, block.timestamp, type(uint64).max);
+        newDeadline = bound(newDeadline, block.timestamp + 1, type(uint64).max);
 
         // Access control.
         vm.prank(rdm);
@@ -121,7 +121,7 @@ contract ManualVicTest is Test {
         // Deadline already passed.
         vm.prank(allocator);
         vm.expectRevert(IManualVic.DeadlineAlreadyPassed.selector);
-        manualVic.setInterestPerSecondAndDeadline(newInterestPerSecond, block.timestamp - 1);
+        manualVic.setInterestPerSecondAndDeadline(newInterestPerSecond, block.timestamp);
 
         // Deadline cast overflow.
         vm.prank(allocator);
