@@ -726,6 +726,7 @@ contract VaultV2 is IVaultV2 {
 
             if (canReceive(msg.sender)) {
                 uint256 tentativeIncentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
+                // @dev No incentive can be given for small losses due to rounding down in division operations
                 incentiveShares = tentativeIncentive.mulDivDown(
                     totalSupply + virtualShares, uint256(_totalAssets).zeroFloorSub(tentativeIncentive) + 1
                 );
