@@ -28,6 +28,7 @@ library EventsLib {
         address adapter,
         bytes data,
         uint256 assets,
+        uint256 shares,
         address indexed onBehalf,
         uint256 penaltyAssets
     );

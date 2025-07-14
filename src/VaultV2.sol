@@ -673,8 +673,7 @@ contract VaultV2 is IVaultV2 {
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         require(canSend(onBehalf), ErrorsLib.CannotSend());
         require(
-            receiver == address(this) || receiveAssetsGate == address(0)
-                || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(receiver),
+            receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(receiver),
             ErrorsLib.CannotReceiveUnderlyingAssets()
         );
 
@@ -698,7 +697,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Returns shares withdrawn as penalty.
     /// @dev When calling this function, a penalty is taken from `onBehalf`, in order to discourage allocation
     /// manipulations.
-    /// @dev The penalty is taken as a withdrawal for which assets are returned to the vault. In consequence,
+    /// @dev The penalty is left in the vault. In consequence,
     /// totalAssets is decreased normally along with totalSupply (the share price doesn't change except because of
     /// rounding errors), but the amount of assets actually controlled by the vault is not decreased.
     /// @dev If a user has A assets in the vault, and that the vault is already fully illiquid, the optimal amount to
@@ -708,10 +707,21 @@ contract VaultV2 is IVaultV2 {
         external
         returns (uint256)
     {
+        require(canSend(onBehalf), ErrorsLib.CannotSend());
         deallocateInternal(adapter, data, assets);
+        accrueInterest();
         uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
-        uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
-        emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf, penaltyAssets);
+        uint256 shares = previewWithdraw(penaltyAssets);
+
+        if (msg.sender != onBehalf) {
+            uint256 _allowance = allowance[onBehalf][msg.sender];
+            if (_allowance != type(uint256).max) allowance[onBehalf][msg.sender] = _allowance - shares;
+        }
+
+        deleteShares(onBehalf, shares);
+        _totalAssets -= penaltyAssets.toUint192();
+
+        emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, shares, onBehalf, penaltyAssets);
         return shares;
     }
 
