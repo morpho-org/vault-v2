@@ -25,13 +25,13 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
 /// that must be distributed on the period (since `lastUpdate`).
 /// @dev The Vic must never distribute more than what the vault is really earning.
-/// @dev The vault might not accrue enough interest notably when:
+/// @dev The vault might not accrue as much interest as planned when:
 /// - The VIC is not set.
 /// - The VIC reverted on `setVic`.
 /// - The VIC returned an interest per second that is too high (it is capped at a maxed rate).
+/// @dev The vault might accrue more interest than expected if:
 /// - A donation in underlying has been made to the vault.
 /// - There has been some calls to forceDeallocate, and the penalty is not zero.
-/// In these cases, the VIC can increase its output to cover the shortfall.
 /// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
 /// because flashloan based shorting is prevented.
 /// @dev Loose specification of adapters:
