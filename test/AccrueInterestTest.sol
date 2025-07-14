@@ -107,6 +107,7 @@ contract AccrueInterestTest is BaseTest {
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
         // Normal path.
+        assertEq(vault._totalAssets(), deposit);
         uint256 interest = interestPerSecond * elapsed;
         uint256 totalAssets = deposit + interest;
         uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);

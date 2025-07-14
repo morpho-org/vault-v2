@@ -25,6 +25,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
 /// that must be distributed on the period (since `lastUpdate`). The Vic must be chosen and managed carefully to not
 /// distribute more than what the vault's investments are earning.
+/// @dev The Vic must not call totalAssets() because it will try to accrue interest, but instead use the argument
+/// _totalAssets that is passed.
 /// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
 /// because flashloan based shorting is prevented.
 /// @dev Loose specification of adapters:
@@ -115,7 +117,8 @@ contract VaultV2 is IVaultV2 {
 
     /* INTEREST STORAGE */
 
-    uint192 internal _totalAssets;
+    /// @dev Not updated. Use totalAssets() for the updated total assets.
+    uint192 public _totalAssets;
     /// @dev Total assets after the first interest accrual of the transaction.
     /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
     /// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
