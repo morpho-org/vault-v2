@@ -116,13 +116,14 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// GATES
 /// @dev The sharesGate gates sending and receiving shares. The receiveAssetsGate gates receiving assets from the vault.
-/// The sendAssetsGate gates depositing assets to the vault.
 /// @dev The sharesGate can lock users out of exiting the vault buy gating who can send shares. By gating who can
 /// receive shares, it can prevent users from getting back their shares that they deposited on other protocols. If it
 /// reverts or consumes a lot of gas, it can also make accrueInterest revert, thus freezing the vault.
 /// By gating who can receive shares, it can also prevent the loss realization incentive to be given out to the caller.
 /// @dev The receiveAssetsGate can prevent users from receiving assets from the vault, potentially locking them out of
 /// exiting the vault. It can also prevent the use of forceDeallocate if the vault itself is blacklisted.
+/// @dev The sendAssetsGate Gates depositing assets to the vault.
+/// @dev This gate is not critical (cannot block users' funds), while still being able to gate supplies.
 /// @dev To disable a gate, set it to 0.
 ///
 /// FEES
