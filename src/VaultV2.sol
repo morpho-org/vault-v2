@@ -117,9 +117,9 @@ contract VaultV2 is IVaultV2 {
 
     /* INTEREST STORAGE */
 
-    /// @dev Not updated. Use totalAssets() for the updated total assets.
+    /// @dev Total assets after the last interest accrual. Use totalAssets() for the updated total assets.
     uint192 public _totalAssets;
-    /// @dev Total assets after the first interest accrual of the transaction.
+    /// @dev Total assets after the first interest accrual of the transaction, 0 until then.
     /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
     /// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
     /// for big deposits that go through the liquidity adapter.
