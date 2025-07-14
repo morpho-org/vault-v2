@@ -403,7 +403,8 @@ contract SettersTest is BaseTest {
         vm.expectEmit();
         emit EventsLib.SetPerformanceFee(newPerformanceFee);
         vault.setPerformanceFee(newPerformanceFee);
-        assertEq(vault.performanceFee(), newPerformanceFee);
+        (uint256 performanceFee,,,) = vault.fees();
+        assertEq(performanceFee, newPerformanceFee);
     }
 
     function testSetManagementFee(address rdm, uint256 newManagementFee) public {
@@ -440,7 +441,8 @@ contract SettersTest is BaseTest {
         vm.expectEmit();
         emit EventsLib.SetManagementFee(newManagementFee);
         vault.setManagementFee(newManagementFee);
-        assertEq(vault.managementFee(), newManagementFee);
+        (,, uint256 managementFee,) = vault.fees();
+        assertEq(managementFee, newManagementFee);
     }
 
     function testSetManagementFeeLastUpdateRefresh(uint256 newManagementFee, uint48 elapsed) public {
@@ -502,7 +504,8 @@ contract SettersTest is BaseTest {
         vm.expectEmit();
         emit EventsLib.SetPerformanceFeeRecipient(newPerformanceFeeRecipient);
         vault.setPerformanceFeeRecipient(newPerformanceFeeRecipient);
-        assertEq(vault.performanceFeeRecipient(), newPerformanceFeeRecipient);
+        (, address performanceFeeRecipient,,) = vault.fees();
+        assertEq(performanceFeeRecipient, newPerformanceFeeRecipient);
 
         // Fee invariant
         uint256 newPerformanceFee = 0.05 ether;
@@ -530,7 +533,8 @@ contract SettersTest is BaseTest {
         vm.expectEmit();
         emit EventsLib.SetManagementFeeRecipient(newManagementFeeRecipient);
         vault.setManagementFeeRecipient(newManagementFeeRecipient);
-        assertEq(vault.managementFeeRecipient(), newManagementFeeRecipient);
+        (,,, address managementFeeRecipient) = vault.fees();
+        assertEq(managementFeeRecipient, newManagementFeeRecipient);
 
         // Fee invariant
         uint256 newManagementFee = 0.01 ether / uint256(365 days);

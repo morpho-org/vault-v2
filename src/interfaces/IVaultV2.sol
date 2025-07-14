@@ -35,10 +35,15 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function liquidityData() external view returns (bytes memory);
     function timelock(bytes4 selector) external view returns (uint256);
     function executableAt(bytes memory data) external view returns (uint256);
-    function performanceFee() external view returns (uint96);
-    function performanceFeeRecipient() external view returns (address);
-    function managementFee() external view returns (uint96);
-    function managementFeeRecipient() external view returns (address);
+    function fees()
+        external
+        view
+        returns (
+            uint256 performanceFee,
+            address performanceFeeRecipient,
+            uint256 managementFee,
+            address managementFeeRecipient
+        );
 
     // Gating
     function canSendShares(address account) external view returns (bool);

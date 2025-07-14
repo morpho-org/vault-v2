@@ -169,12 +169,12 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Fees unit is WAD.
     /// @dev This invariant holds for both fees: fee != 0 => recipient != address(0).
-    uint96 public performanceFee;
-    address public performanceFeeRecipient;
+    uint96 performanceFee;
+    address performanceFeeRecipient;
     /// @dev Fees unit is WAD.
     /// @dev This invariant holds for both fees: fee != 0 => recipient != address(0).
-    uint96 public managementFee;
-    address public managementFeeRecipient;
+    uint96 managementFee;
+    address managementFeeRecipient;
 
     /* GETTERS */
 
@@ -197,6 +197,10 @@ contract VaultV2 is IVaultV2 {
 
     function allocation(bytes32 id) external view returns (uint256) {
         return caps[id].allocation;
+    }
+
+    function fees() external view returns (uint256, address, uint256, address) {
+        return (performanceFee, performanceFeeRecipient, managementFee, managementFeeRecipient);
     }
 
     /* MULTICALL */
