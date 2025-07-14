@@ -345,6 +345,28 @@ contract MorphoVaultV1AdapterTest is Test {
         parentVault.allocateMocked(address(adapter), hex"", deposit);
         assertEq(adapter.allocation(), oldallocation + deposit, "assets have changed");
     }
+
+    function testDeallocateAllAssets(uint256 initialAssets, uint256 interest) public {
+        initialAssets = bound(initialAssets, 0, MAX_TEST_ASSETS);
+        interest = bound(interest, 0, initialAssets);
+
+        // Setup
+        deal(address(asset), address(adapter), initialAssets);
+        parentVault.allocateMocked(address(adapter), hex"", initialAssets);
+        deal(address(asset), address(morphoVaultV1), initialAssets + interest);
+        assertEq(
+            asset.balanceOf(address(morphoVaultV1)),
+            initialAssets + interest,
+            "Adapter did not receive tokens for interest"
+        );
+
+        // Deallocate all assets
+        uint256 allAssets = morphoVaultV1.previewRedeem(adapter.shares());
+        parentVault.deallocateMocked(address(adapter), hex"", allAssets);
+
+        assertEq(adapter.allocation(), 0, "allocation");
+        assertEq(asset.balanceOf(address(adapter)), allAssets, "Adapter did not receive withdrawn tokens");
+    }
 }
 
 contract ERC4626MockExtended is ERC4626Mock {

@@ -11,6 +11,7 @@ import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {IrmMock} from "../lib/morpho-blue/src/mocks/IrmMock.sol";
 import {IMorpho, MarketParams, Id, Market} from "../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MorphoBalancesLib} from "../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {SharesMathLib} from "../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {MorphoLib} from "../lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
 import {MarketParamsLib} from "../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
@@ -20,6 +21,7 @@ import {IMorphoMarketV1AdapterFactory} from "../src/adapters/interfaces/IMorphoM
 import {MathLib} from "../src/libraries/MathLib.sol";
 
 contract MorphoMarketV1AdapterTest is Test {
+    using SharesMathLib for uint256;
     using MorphoBalancesLib for IMorpho;
     using MarketParamsLib for MarketParams;
     using MathLib for uint256;
@@ -400,5 +402,32 @@ contract MorphoMarketV1AdapterTest is Test {
         uint256 oldallocation = adapter.allocation(marketParams);
         parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
         assertEq(adapter.allocation(marketParams), oldallocation + deposit, "assets have changed");
+    }
+
+    function testDeallocateAllAssets(uint256 initialAssets, uint256 interest) public {
+        initialAssets = _boundAssets(initialAssets);
+        interest = bound(interest, 0, initialAssets);
+
+        // Setup
+        deal(address(loanToken), address(adapter), initialAssets);
+        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), initialAssets);
+        _overrideMarketTotalSupplyAssets(int256(interest));
+        deal(address(loanToken), address(morpho), type(uint256).max);
+
+        // Deallocate all assets
+        uint256 allAssets = _adapterSupplyAssets(marketParams);
+        parentVault.deallocateMocked(address(adapter), abi.encode(marketParams), allAssets);
+
+        assertEq(adapter.allocation(marketParams), 0, "allocation");
+        assertEq(loanToken.balanceOf(address(adapter)), allAssets, "Adapter did not receive withdrawn tokens");
+    }
+
+    function _adapterSupplyAssets(MarketParams memory mp) internal view returns (uint256) {
+        (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
+            MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), mp);
+
+        uint256 supplyShares = adapter.shares(mp.id());
+
+        return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }
 }
