@@ -8,10 +8,10 @@ library ErrorsLib {
     error AbsoluteCapNotIncreasing();
     error ApproveReturnedFalse();
     error ApproveReverted();
-    error CannotReceive();
-    error CannotReceiveUnderlyingAssets();
-    error CannotSend();
-    error CannotSendUnderlyingAssets();
+    error CannotReceiveShares();
+    error CannotReceiveAssets();
+    error CannotSendShares();
+    error CannotSendAssets();
     error CapExceeded();
     error CastOverflow();
     error DataAlreadyPending();
