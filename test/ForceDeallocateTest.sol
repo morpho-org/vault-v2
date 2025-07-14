@@ -46,20 +46,22 @@ contract ForceDeallocateTest is BaseTest {
         vault.setForceDeallocatePenalty(address(adapter), forceDeallocatePenalty);
 
         uint256 penaltyAssets = deallocated.mulDivUp(forceDeallocatePenalty, WAD);
-        uint256 expectedShares = shares - vault.previewWithdraw(penaltyAssets);
+
+        uint256 expectedWithdrawnShares = vault.previewWithdraw(penaltyAssets);
+
         vm.expectEmit();
         emit EventsLib.ForceDeallocate(
-            address(this), address(adapter), hex"", deallocated, address(this), penaltyAssets
+            address(this), address(adapter), hex"", deallocated, expectedWithdrawnShares, address(this), penaltyAssets
         );
         uint256 withdrawnShares = vault.forceDeallocate(address(adapter), hex"", deallocated, address(this));
         assertEq(adapter.recordedSelector(), IVaultV2.forceDeallocate.selector);
         assertEq(adapter.recordedSender(), address(this));
-        assertEq(shares - expectedShares, withdrawnShares);
+        assertEq(expectedWithdrawnShares, withdrawnShares);
         assertEq(underlyingToken.balanceOf(address(adapter)), supplied - deallocated);
         assertEq(underlyingToken.balanceOf(address(vault)), deallocated);
-        assertEq(vault.balanceOf(address(this)), expectedShares);
+        assertEq(vault.balanceOf(address(this)), shares - withdrawnShares);
 
-        vault.withdraw(min(deallocated, vault.previewRedeem(expectedShares)), address(this), address(this));
+        vault.withdraw(min(deallocated, vault.previewRedeem(shares - withdrawnShares)), address(this), address(this));
     }
 
     function testForceDeallocateWithBlockedVault() public {
