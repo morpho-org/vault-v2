@@ -701,7 +701,7 @@ contract VaultV2 is IVaultV2 {
         external
         returns (uint256)
     {
-        require(canSend(onBehalf), ErrorsLib.CannotSend());
+        require(canSendShares(onBehalf), ErrorsLib.CannotSendShares());
         deallocateInternal(adapter, data, assets);
         accrueInterest();
         uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
