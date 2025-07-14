@@ -22,7 +22,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// INTEREST / VIC
 /// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
-/// that must be distributed on the period (since `lastUpdate`). The Vic must be chosen and managed carefully to not
+/// that must be distributed on the period (since lastUpdate). The Vic must be chosen and managed carefully to not
 /// distribute more than what the vault's investments are earning.
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
 /// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
@@ -44,7 +44,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// corresponding markets, and losses are deducted only when realized for these markets.
 /// @dev The caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
 /// @dev Relative caps are "soft" in the sense that they are only checked on allocate.
-/// @dev The relative cap is relative to `totalAssets`.
+/// @dev The relative cap is relative to totalAssets, or more precisely to firstTotalAssets.
 /// @dev The relative cap unit is WAD.
 ///
 /// ADAPTERS
@@ -80,20 +80,20 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// TOKEN REQUIREMENTS
 /// @dev List of assumptions on the token that guarantees that the vault behaves as expected:
-/// - It should be ERC-20 compliant, except that it can omit return values on `transfer` and `transferFrom`.
-/// - The balance of the vault should only decrease on `transfer` and `transferFrom`. In particular, tokens with burn
+/// - It should be ERC-20 compliant, except that it can omit return values on transfer and transferFrom.
+/// - The balance of the vault should only decrease on transfer and transferFrom. In particular, tokens with burn
 /// functions are not supported.
-/// - It should not re-enter the vault on `transfer` nor `transferFrom`.
+/// - It should not re-enter the vault on transfer nor transferFrom.
 /// - The balance of the sender (resp. receiver) should decrease (resp. increase) by exactly the given amount on
-/// `transfer` and `transferFrom`. In particular, tokens with fees on transfer are not supported.
+/// transfer and transferFrom. In particular, tokens with fees on transfer are not supported.
 ///
 /// LIVENESS REQUIREMENTS
 /// @dev List of assumptions that guarantees the vault's liveness properties:
-/// - The VIC should not revert on `interestPerSecond`.
-/// - The token should not revert on `transfer` and `transferFrom` if balances and approvals are right.
-/// - The token should not revert on `transfer` to self.
+/// - The VIC should not revert on interestPerSecond.
+/// - The token should not revert on transfer and transferFrom if balances and approvals are right.
+/// - The token should not revert on transfer to self.
 /// - totalAssets and totalSupply must stay below ~10^35. When taking this into account, note that for assets with
-/// `decimals <= 18` there are initially 10^(18-decimals) shares per asset.
+/// decimals <= 18 there are initially 10^(18-decimals) shares per asset.
 /// - The vault is pinged more than once every 10 years.
 /// - Adapters must not revert on `deallocate` if the underlying markets are liquid.
 ///
@@ -516,7 +516,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, interest);
     }
 
-    /// @dev Whether `newLiquidityAdapter` is an adapter is checked in allocate/deallocate.
+    /// @dev Whether newLiquidityAdapter is an adapter is checked in allocate/deallocate.
     function setLiquidityAdapterAndData(address newLiquidityAdapter, bytes memory newLiquidityData) external {
         require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         liquidityAdapter = newLiquidityAdapter;
@@ -553,11 +553,11 @@ contract VaultV2 is IVaultV2 {
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = _totalAssets + interest;
 
-        // The performance fee assets may be rounded down to 0 if `interest * fee < WAD`.
+        // The performance fee assets may be rounded down to 0 if interest * fee < WAD.
         uint256 performanceFeeAssets = interest > 0 && performanceFee > 0 && canReceive(performanceFeeRecipient)
             ? interest.mulDivDown(performanceFee, WAD)
             : 0;
-        // The management fee is taken on `newTotalAssets` to make all approximations consistent (interacting less
+        // The management fee is taken on newTotalAssets to make all approximations consistent (interacting less
         // increases fees).
         uint256 managementFeeAssets = managementFee > 0 && canReceive(managementFeeRecipient)
             ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD)
@@ -711,7 +711,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns shares withdrawn as penalty.
-    /// @dev When calling this function, a penalty is taken from `onBehalf`, in order to discourage allocation
+    /// @dev When calling this function, a penalty is taken from onBehalf, in order to discourage allocation
     /// manipulations.
     /// @dev The penalty is taken as a withdrawal for which assets are returned to the vault. In consequence,
     /// totalAssets is decreased normally along with totalSupply (the share price doesn't change except because of
