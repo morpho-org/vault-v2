@@ -20,7 +20,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// conventional behaviour on max functions: they always return zero.
 /// @dev totalSupply is not updated to include shares minted to fee recipients. One can call accrueInterestView to
 /// compute the updated totalSupply.
-/// @dev Preview and convertTo functions might change their output even without interest accrual: after an interaction
+/// @dev preview and convertTo functions might change their output even without interest accrual: after an interaction
 /// with the vault (because of rounding errors) or a loss realization.
 /// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). Donations are possible but
 /// they do not directly increase the share price. Still, it is possible to inflate the share price through repeated
