@@ -17,7 +17,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev No-ops are allowed.
 /// @dev Natspec are specified only when it brings clarity.
 /// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension). Though the vault has a non
-/// conventional behaviour on max functions: they return always zero.
+/// conventional behaviour on max functions: they always return zero.
 /// @dev totalSupply is not updated to include shares minted to fee recipients. One can call accrueInterestView to
 /// compute the updated totalSupply.
 /// @dev Preview and convertTo functions might change their output even without interest accrual: after an interaction
