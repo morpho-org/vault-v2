@@ -32,7 +32,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Set the Vic to 0 to disable it (=> no interest accrual).
 ///
 /// FIRST TOTAL ASSETS
-/// @dev Total assets after the first interest accrual of the transaction.
+/// @dev The variable firstTotalAssets tracks the total assets after the first interest accrual of the transaction.
 /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
 /// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
 /// for big deposits that go through the liquidity adapter.
@@ -116,12 +116,11 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// GATES
 /// @dev The sharesGate gates sending and receiving shares. The receiveAssetsGate gates receiving assets from the vault.
-/// The sendAssetsGate gates sending assets to the vault.
+/// The sendAssetsGate gates depositing assets to the vault.
 /// @dev The sharesGate can lock users out of exiting the vault buy gating who can send shares. By gating who can
 /// receive shares, it can prevent users from getting back their shares that they deposited on other protocols. If it
 /// reverts or consumes a lot of gas, it can also make accrueInterest revert, thus freezing the vault.
-/// @dev The receiveAssetsGate can prevent users from receiving assets from the vault, potentially locking them out of
-/// exiting the vault.
+/// By gating who can receive shares, it can also prevent the loss realization incentive to be given out to the caller.
 /// @dev The receiveAssetsGate can prevent users from receiving assets from the vault, potentially locking them out of
 /// exiting the vault. It can also prevent the use of forceDeallocate if the vault itself is blacklisted.
 /// @dev To disable a gate, set it to 0.
