@@ -75,6 +75,7 @@ To guarantee exits even in the absence of assets immediately available for withd
 `forceDeallocate` provides a form of in-kind redemption: users can flashloan liquidity, supply it to an adapters' market, and withdraw the liquidity through `forceDeallocate` before repaying the flashloan.
 This reduces their position in the vault and increases their position in the underlying market.
 
+A penalty for using forceDeallocate can be set per adapter, of up to 2%.
 This disincentivizes the manipulation of allocations, in particular of relative caps which are not checked on withdraw. Note that the only friction to deallocating an adapter with a 0% penalty is the associated gas cost.
 
 [Gated vaults](Gates) can circumvent the in-kind redemption mechanism by configuring an `exitGate`.
