@@ -23,8 +23,15 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Roles are not "two-step" so one must check if they really have this role.
 /// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension).
 /// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
-/// that must be distributed on the period (since `lastUpdate`). The Vic must be chosen and managed carefully to not
-/// distribute more than what the vault's investments are earning.
+/// that must be distributed on the period (since `lastUpdate`).
+/// @dev The Vic must never distribute more than what the vault is really earning.
+/// @dev The vault might not accrue enough interest notably when:
+/// - The VIC is not set.
+/// - The VIC reverted on `setVic`.
+/// - The VIC returned an interest per second that is too high (it is capped at a maxed rate).
+/// - A donation in underlying has been made to the vault.
+/// - There has been some calls to forceDeallocate, and the penalty is not zero.
+/// In these cases, the VIC can increase its output to cover the shortfall.
 /// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
 /// because flashloan based shorting is prevented.
 /// @dev Loose specification of adapters:
