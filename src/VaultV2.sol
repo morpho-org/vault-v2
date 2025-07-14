@@ -125,7 +125,7 @@ contract VaultV2 is IVaultV2 {
     uint64 public lastUpdate;
     /// @dev Set to 0 to disable the Vic (=> no interest accrual).
     address public vic;
-    /// @dev Prevents floashloan-based shorting of vault shares during loss realizations.
+    /// @dev Prevents flashloan-based shorting of vault shares during loss realizations.
     bool public transient enterBlocked;
 
     /* CURATION STORAGE */
