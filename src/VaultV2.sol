@@ -18,6 +18,10 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Natspec are specified only when it brings clarity.
 /// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension). Though the vault has a non
 /// conventional behaviour on max functions: they return always zero.
+/// @dev totalSupply is not updated to include shares minted to fee recipients. One can call accrueInterestView to
+/// compute the updated totalSupply.
+/// @dev Preview and convertTo functions might change their output even without interest accrual: after an interaction
+/// with the vault (because of rounding errors) or a loss realization.
 /// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). Donations are possible but
 /// they do not directly increase the share price. Still, it is possible to inflate the share price through repeated
 /// deposits and withdrawals with roundings. In order to protect against that, vaults might need to be seeded with an
@@ -72,8 +76,6 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// the same ids.
 /// @dev If allocations underestimate the actual assets, some assets might be lost because deallocating is impossible if
 /// the allocation is zero.
-/// @dev Preview and convertTo functions might change their output even without interest accrual: after an interaction
-/// with the vault (because of rounding errors) or a loss realization.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
     using MathLib for uint192;
@@ -111,8 +113,6 @@ contract VaultV2 is IVaultV2 {
 
     string public name;
     string public symbol;
-    /// @dev totalSupply is not updated to include shares minted to fee recipients. One can call accrueInterestView to
-    /// compute the updated totalSupply.
     uint256 public totalSupply;
     mapping(address account => uint256) public balanceOf;
     mapping(address owner => mapping(address spender => uint256)) public allowance;
