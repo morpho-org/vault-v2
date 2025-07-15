@@ -65,11 +65,8 @@ contract ForceDeallocateTest is BaseTest {
     function testForceDeallocateWithBlockedVault() public {
         address gate = makeAddr("gate");
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setSharesGate, (gate)));
-        vault.setSharesGate(gate);
-        vm.mockCall(gate, abi.encodeCall(ISharesGate.canReceiveShares, (address(this))), abi.encode(true));
-        vm.mockCall(gate, abi.encodeCall(ISharesGate.canSendShares, (address(this))), abi.encode(true));
-        vm.mockCall(gate, abi.encodeCall(ISendAssetsGate.canSendAssets, (address(this))), abi.encode(true));
+        vault.submit(abi.encodeCall(IVaultV2.setReceiveAssetsGate, (gate)));
+        vault.setReceiveAssetsGate(gate);
         vm.mockCall(gate, abi.encodeCall(IReceiveAssetsGate.canReceiveAssets, (address(vault))), abi.encode(false));
 
         uint256 penalty = 0.01e18; // 1% penalty
