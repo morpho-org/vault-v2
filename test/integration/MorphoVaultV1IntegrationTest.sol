@@ -56,7 +56,7 @@ contract MorphoVaultV1IntegrationTest is BaseTest {
     function setUp() public virtual override {
         super.setUp();
 
-        MAX_TEST_ASSETS = 10 ** min(18 + underlyingToken.decimals(), 36);
+        MAX_TEST_ASSETS = 10 ** min(14 + underlyingToken.decimals(), 32);
 
         // Setup morpho.
         morpho = IMorpho(deployCode("Morpho.sol", abi.encode(morphoOwner)));
