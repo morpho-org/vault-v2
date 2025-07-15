@@ -25,8 +25,14 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// INTEREST / VIC
 /// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
-/// that must be distributed on the period (since lastUpdate). The Vic must be chosen and managed carefully to not
-/// distribute more than what the vault's investments are earning.
+/// that must be distributed on the period (since `lastUpdate`).
+/// @dev The Vic must never distribute more than what the vault is really earning.
+/// @dev The Vic might not distribute as much interest as planned if:
+/// - The Vic reverted on `setVic`.
+/// - The Vic returned an interest per second that is too high (it is capped at a maxed rate).
+/// @dev The vault might earn more interest than expected if:
+/// - A donation in underlying has been made to the vault.
+/// - There has been some calls to forceDeallocate, and the penalty is not zero.
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
 /// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
 /// @dev Set the Vic to 0 to disable it (=> no interest accrual).
