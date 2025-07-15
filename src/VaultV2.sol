@@ -75,6 +75,21 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// the same ids.
 /// @dev If allocations underestimate the actual assets, some assets might be lost because deallocating is impossible if
 /// the allocation is zero.
+///
+/// GATES
+/// @dev Set to 0 to disable a gate.
+/// @dev Gates must never revert, nor consume too much gas.
+/// @dev sharesGate:
+///     - Gates sending and receiving shares.
+///     - Can lock users out of exiting the vault.
+///     - Can prevent users from getting back their shares that they deposited on other protocols.
+///     - Can prevent the loss realization incentive to be given out to the caller.
+/// @dev receiveAssetsGate:
+///     - Gates receiving assets from the vault.
+///     - Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
+/// @dev sendAssetsGate:
+///     - Gates depositing assets to the vault.
+///     - This gate is not critical (cannot block users' funds), while still being able to gate supplies.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
     using MathLib for uint192;
@@ -89,21 +104,8 @@ contract VaultV2 is IVaultV2 {
 
     address public owner;
     address public curator;
-    /// @dev Gates sending and receiving shares.
-    /// @dev Can lock users out of exiting the vault.
-    /// @dev Can prevent users from getting back their shares that they deposited on other protocols. If it reverts or
-    /// consumes a lot of gas, it can also make accrueInterest revert, thus freezing the vault.
-    /// @dev Can prevent the loss realization incentive to be given out to the caller.
-    /// @dev Set to 0 to disable the gate.
     address public sharesGate;
-    /// @dev Gates receiving assets from the vault.
-    /// @dev Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
-    /// @dev Can prevent force deallocation from the vault if the vault itself is blacklisted.
-    /// @dev Set to 0 to disable the gate.
     address public receiveAssetsGate;
-    /// @dev Gates depositing assets to the vault.
-    /// @dev This gate is not critical (cannot block users' funds), while still being able to gate supplies.
-    /// @dev Set to 0 to disable the gate.
     address public sendAssetsGate;
     mapping(address account => bool) public isSentinel;
     mapping(address account => bool) public isAllocator;
@@ -698,13 +700,15 @@ contract VaultV2 is IVaultV2 {
     /// @dev If a user has A assets in the vault, and that the vault is already fully illiquid, the optimal amount to
     /// force deallocate in order to exit the vault is min(liquidity_of_market, A / (1 + penalty)).
     /// This ensures that either the market is empty or that it leaves no shares nor liquidity after exiting.
+    /// @dev If the vault is not authorized to receive assets, the penalty is not taken.
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256)
     {
         deallocateInternal(adapter, data, assets);
         uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
-        uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
+        bool vaultCanReceiveAssets = canReceiveAssets(address(this));
+        uint256 shares = vaultCanReceiveAssets ? withdraw(penaltyAssets, address(this), onBehalf) : 0;
         emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf, penaltyAssets);
         return shares;
     }
