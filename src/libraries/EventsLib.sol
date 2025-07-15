@@ -24,12 +24,7 @@ library EventsLib {
     event Allocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 interest);
     event Deallocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 interest);
     event ForceDeallocate(
-        address indexed sender,
-        address adapter,
-        bytes data,
-        uint256 assets,
-        address indexed onBehalf,
-        uint256 penaltyAssets
+        address indexed sender, address adapter, uint256 assets, address indexed onBehalf, uint256 penaltyAssets
     );
 
     // Loss realization events
