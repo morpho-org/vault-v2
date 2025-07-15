@@ -696,11 +696,9 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Internal function for withdraw and redeem.
-    /// @dev The vault itself (address(this)) is always allowed to receive assets, regardless of receiveAssetsGate
-    /// configuration.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
         require(canSendShares(onBehalf), ErrorsLib.CannotSendShares());
-        require(receiver == address(this) || canReceiveAssets(receiver), ErrorsLib.CannotReceiveAssets());
+        require(canReceiveAssets(receiver), ErrorsLib.CannotReceiveAssets());
 
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
@@ -863,6 +861,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function canReceiveAssets(address account) public view returns (bool) {
-        return receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(account);
+        return receiveAssetsGate == address(0) || account == address(this)
+            || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(account);
     }
 }
