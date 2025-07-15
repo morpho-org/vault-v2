@@ -51,13 +51,14 @@ contract ManualVic is IManualVic {
         emit SetInterestPerSecondAndDeadline(msg.sender, newInterestPerSecond, newDeadline);
     }
 
-    function zeroInterestPerSecond() external {
+    function zeroInterestPerSecondAndDeadline() external {
         require(IVaultV2(vault).isSentinel(msg.sender), Unauthorized());
 
         IVaultV2(vault).accrueInterest();
 
         storedInterestPerSecond = 0;
-        emit ZeroInterestPerSecond(msg.sender);
+        deadline = 0;
+        emit ZeroInterestPerSecondAndDeadline(msg.sender);
     }
 
     /// @dev Returns the interest per second.
