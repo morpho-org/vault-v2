@@ -16,15 +16,24 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Zero checks are not systematically performed.
 /// @dev No-ops are allowed.
 /// @dev Natspec are specified only when it brings clarity.
+/// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension). Though the vault has a non
+/// conventional behaviour on max functions: they always return zero.
+/// @dev totalSupply is not updated to include shares minted to fee recipients. One can call accrueInterestView to
+/// compute the updated totalSupply.
 /// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). Donations are possible but
 /// they do not directly increase the share price. Still, it is possible to inflate the share price through repeated
 /// deposits and withdrawals with roundings. In order to protect against that, vaults might need to be seeded with an
 /// initial deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 /// @dev Roles are not "two-step" so one must check if they really have this role.
-/// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension).
 /// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
-/// that must be distributed on the period (since `lastUpdate`). The Vic must be chosen and managed carefully to not
-/// distribute more than what the vault's investments are earning.
+/// that must be distributed on the period (since `lastUpdate`).
+/// @dev The Vic must never distribute more than what the vault is really earning.
+/// @dev The Vic might not distribute as much interest as planned if:
+/// - The Vic reverted on `setVic`.
+/// - The Vic returned an interest per second that is too high (it is capped at a maxed rate).
+/// @dev The vault might earn more interest than expected if:
+/// - A donation in underlying has been made to the vault.
+/// - There has been some calls to forceDeallocate, and the penalty is not zero.
 /// @dev The Vic must not call totalAssets() because it will try to accrue interest, but instead use the argument
 /// _totalAssets that is passed.
 /// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
@@ -59,6 +68,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - The balance of the sender (resp. receiver) should decrease (resp. increase) by exactly the given amount on
 /// `transfer` and `transferFrom`. In particular, tokens with fees on transfer are not supported.
 /// @dev List of assumptions that guarantees the vault's liveness properties:
+/// - The VIC should not revert on `interestPerSecond`.
 /// - The token should not revert on `transfer` and `transferFrom` if balances and approvals are right.
 /// - The token should not revert on `transfer` to self.
 /// - totalAssets and totalSupply must stay below ~10^35. When taking this into account, note that for assets with
@@ -127,7 +137,7 @@ contract VaultV2 is IVaultV2 {
     uint64 public lastUpdate;
     /// @dev Set to 0 to disable the Vic (=> no interest accrual).
     address public vic;
-    /// @dev Prevents floashloan-based shorting of vault shares during loss realizations.
+    /// @dev Prevents flashloan-based shorting of vault shares during loss realizations.
     bool public transient enterBlocked;
 
     /* CURATION STORAGE */
@@ -538,12 +548,12 @@ contract VaultV2 is IVaultV2 {
         uint256 newTotalAssets = _totalAssets + interest;
 
         // The performance fee assets may be rounded down to 0 if `interest * fee < WAD`.
-        uint256 performanceFeeAssets = interest > 0 && performanceFee > 0 && canReceive(performanceFeeRecipient)
+        uint256 performanceFeeAssets = interest > 0 && performanceFee > 0 && canReceiveShares(performanceFeeRecipient)
             ? interest.mulDivDown(performanceFee, WAD)
             : 0;
         // The management fee is taken on `newTotalAssets` to make all approximations consistent (interacting less
         // increases fees).
-        uint256 managementFeeAssets = managementFee > 0 && canReceive(managementFeeRecipient)
+        uint256 managementFeeAssets = managementFee > 0 && canReceiveShares(managementFeeRecipient)
             ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD)
             : 0;
 
@@ -638,11 +648,8 @@ contract VaultV2 is IVaultV2 {
     /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
         require(!enterBlocked, ErrorsLib.EnterBlocked());
-        require(canReceive(onBehalf), ErrorsLib.CannotReceive());
-        require(
-            sendAssetsGate == address(0) || ISendAssetsGate(sendAssetsGate).canSendAssets(msg.sender),
-            ErrorsLib.CannotSendUnderlyingAssets()
-        );
+        require(canReceiveShares(onBehalf), ErrorsLib.CannotReceiveShares());
+        require(canSendAssets(msg.sender), ErrorsLib.CannotSendAssets());
 
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
@@ -671,11 +678,8 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for withdraw and redeem.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
-        require(canSend(onBehalf), ErrorsLib.CannotSend());
-        require(
-            receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(receiver),
-            ErrorsLib.CannotReceiveUnderlyingAssets()
-        );
+        require(canSendShares(onBehalf), ErrorsLib.CannotSendShares());
+        require(canReceiveAssets(receiver), ErrorsLib.CannotReceiveAssets());
 
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
@@ -714,6 +718,8 @@ contract VaultV2 is IVaultV2 {
         return shares;
     }
 
+    /// @dev For small losses, the incentive could be null because of rounding.
+    /// @dev The incentive will be null if the msg.sender isn't allowed to receive shares.
     /// @dev Returns incentiveShares, loss.
     function realizeLoss(address adapter, bytes memory data) external returns (uint256, uint256) {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
@@ -727,7 +733,7 @@ contract VaultV2 is IVaultV2 {
             // Safe cast because the result is at most totalAssets.
             _totalAssets = uint192(_totalAssets.zeroFloorSub(loss));
 
-            if (canReceive(msg.sender)) {
+            if (canReceiveShares(msg.sender)) {
                 uint256 tentativeIncentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
                 incentiveShares = tentativeIncentive.mulDivDown(
                     totalSupply + virtualShares, uint256(_totalAssets).zeroFloorSub(tentativeIncentive) + 1
@@ -752,8 +758,8 @@ contract VaultV2 is IVaultV2 {
     function transfer(address to, uint256 shares) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
 
-        require(canSend(msg.sender), ErrorsLib.CannotSend());
-        require(canReceive(to), ErrorsLib.CannotReceive());
+        require(canSendShares(msg.sender), ErrorsLib.CannotSendShares());
+        require(canReceiveShares(to), ErrorsLib.CannotReceiveShares());
 
         balanceOf[msg.sender] -= shares;
         balanceOf[to] += shares;
@@ -766,8 +772,8 @@ contract VaultV2 is IVaultV2 {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
 
-        require(canSend(from), ErrorsLib.CannotSend());
-        require(canReceive(to), ErrorsLib.CannotReceive());
+        require(canSendShares(from), ErrorsLib.CannotSendShares());
+        require(canReceiveShares(to), ErrorsLib.CannotReceiveShares());
 
         if (msg.sender != from) {
             uint256 _allowance = allowance[from][msg.sender];
@@ -823,11 +829,19 @@ contract VaultV2 is IVaultV2 {
 
     /* PERMISSIONED TOKEN FUNCTIONS */
 
-    function canSend(address account) public view returns (bool) {
+    function canSendShares(address account) public view returns (bool) {
         return sharesGate == address(0) || ISharesGate(sharesGate).canSendShares(account);
     }
 
-    function canReceive(address account) public view returns (bool) {
+    function canReceiveShares(address account) public view returns (bool) {
         return sharesGate == address(0) || ISharesGate(sharesGate).canReceiveShares(account);
+    }
+
+    function canSendAssets(address account) public view returns (bool) {
+        return sendAssetsGate == address(0) || ISendAssetsGate(sendAssetsGate).canSendAssets(account);
+    }
+
+    function canReceiveAssets(address account) public view returns (bool) {
+        return receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(account);
     }
 }
