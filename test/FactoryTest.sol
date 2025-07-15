@@ -14,14 +14,10 @@ contract FactoryTest is BaseTest {
             uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), address(vaultFactory), salt, initCodeHash))))
         );
         vm.expectEmit();
-        emit EventsLib.Constructor(_owner, asset);
-        vm.expectEmit();
         emit IVaultV2Factory.CreateVaultV2(_owner, asset, expectedVaultAddress);
         IVaultV2 newVault = IVaultV2(vaultFactory.createVaultV2(_owner, asset, salt));
         assertEq(address(newVault), expectedVaultAddress);
         assertTrue(vaultFactory.isVaultV2(address(newVault)));
-        assertEq(newVault.owner(), _owner);
-        assertEq(newVault.asset(), asset);
     }
 
     function testVaultV2AddressLib(address _owner, address asset, bytes32 salt) public {

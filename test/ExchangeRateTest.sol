@@ -9,12 +9,15 @@ contract ExchangeRateTest is BaseTest {
     using stdStorage for StdStorage;
 
     uint256 constant INITIAL_DEPOSIT = 1e24;
-    uint256 constant MIN_TEST_ASSETS = 1e18;
-    uint256 constant MAX_TEST_ASSETS = 1e36;
-    uint256 constant PRECISION = 1; // precision is 1e(-16)%
+    uint256 MAX_TEST_ASSETS;
+    uint256 totalAssets;
+    uint256 totalSupply;
 
     function setUp() public override {
         super.setUp();
+
+        MAX_TEST_ASSETS = 10 ** min(18 + underlyingToken.decimals(), 36);
+
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
 
@@ -26,35 +29,49 @@ contract ExchangeRateTest is BaseTest {
         underlyingToken.transfer(address(vault), INITIAL_DEPOSIT);
         writeTotalAssets(2 * INITIAL_DEPOSIT);
 
+        totalAssets = vault.totalAssets();
+        totalSupply = vault.totalSupply();
+
         assertEq(underlyingToken.balanceOf(address(vault)), 2 * INITIAL_DEPOSIT, "wrong balance after");
         assertEq(vault.totalAssets(), 2 * INITIAL_DEPOSIT, "wrong totalAssets after");
+        assertEq(vault.totalSupply(), INITIAL_DEPOSIT * vault.virtualShares(), "wrong totalSupply");
     }
 
-    function testExchangeRateRedeem(uint256 redeemShares) public {
-        redeemShares = bound(redeemShares, MIN_TEST_ASSETS, vault.balanceOf(address(this)));
-        uint256 redeemedAssets = vault.redeem(redeemShares, address(this), address(this));
-
-        assertApproxEqRel(redeemedAssets, 2 * redeemShares, PRECISION);
+    function testVirtualShares() public view {
+        uint256 underlyingDecimals = underlyingToken.decimals();
+        assertEq(vault.virtualShares(), 10 ** (underlyingDecimals <= 18 ? 18 - underlyingDecimals : 0));
     }
 
-    function testExchangeRateWithdraw(uint256 withdrawAssets) public {
-        withdrawAssets = bound(withdrawAssets, MIN_TEST_ASSETS, INITIAL_DEPOSIT);
-        uint256 withdrawShares = vault.withdraw(withdrawAssets, address(this), address(this));
-
-        assertApproxEqRel(withdrawAssets, 2 * withdrawShares, PRECISION);
+    function testDecimals() public view {
+        uint256 underlyingDecimals = underlyingToken.decimals();
+        assertEq(vault.decimals(), underlyingDecimals <= 18 ? 18 : underlyingDecimals);
     }
 
-    function testExchangeRateMint(uint256 mintShares) public {
-        mintShares = bound(mintShares, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
-        uint256 mintAssets = vault.mint(mintShares, address(this));
+    function testExchangeRateRedeem(uint256 shares) public {
+        shares = bound(shares, 0, vault.balanceOf(address(this)));
+        uint256 assets = vault.redeem(shares, address(this), address(this));
 
-        assertApproxEqRel(mintAssets, 2 * mintShares, PRECISION);
+        assertEq(assets, shares * (totalAssets + 1) / (totalSupply + vault.virtualShares()));
     }
 
-    function testExchangeRateDeposit(uint256 depositAssets) public {
-        depositAssets = bound(depositAssets, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
-        uint256 depositShares = vault.deposit(depositAssets, address(this));
+    function testExchangeRateWithdraw(uint256 assets) public {
+        assets = bound(assets, 0, INITIAL_DEPOSIT);
+        uint256 shares = vault.withdraw(assets, address(this), address(this));
 
-        assertApproxEqRel(depositAssets, 2 * depositShares, PRECISION);
+        assertApproxEqAbs(shares, assets * (totalSupply + vault.virtualShares()) / (totalAssets + 1), 1);
+    }
+
+    function testExchangeRateMint(uint256 shares) public {
+        shares = bound(shares, 0, MAX_TEST_ASSETS);
+        uint256 assets = vault.mint(shares, address(this));
+
+        assertApproxEqAbs(assets, shares * (totalAssets + 1) / (totalSupply + vault.virtualShares()), 1);
+    }
+
+    function testExchangeRateDeposit(uint256 assets) public {
+        assets = bound(assets, 0, MAX_TEST_ASSETS);
+        uint256 shares = vault.deposit(assets, address(this));
+
+        assertEq(shares, assets * (totalSupply + vault.virtualShares()) / (totalAssets + 1));
     }
 }

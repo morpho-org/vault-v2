@@ -16,15 +16,24 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Zero checks are not systematically performed.
 /// @dev No-ops are allowed.
 /// @dev Natspec are specified only when it brings clarity.
+/// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension). Though the vault has a non
+/// conventional behaviour on max functions: they always return zero.
+/// @dev totalSupply is not updated to include shares minted to fee recipients. One can call accrueInterestView to
+/// compute the updated totalSupply.
 /// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). Donations are possible but
 /// they do not directly increase the share price. Still, it is possible to inflate the share price through repeated
 /// deposits and withdrawals with roundings. In order to protect against that, vaults might need to be seeded with an
 /// initial deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 /// @dev Roles are not "two-step" so one must check if they really have this role.
-/// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension).
 /// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
-/// that must be distributed on the period (since `lastUpdate`). The Vic must be chosen and managed carefully to not
-/// distribute more than what the vault's investments are earning.
+/// that must be distributed on the period (since `lastUpdate`).
+/// @dev The Vic must never distribute more than what the vault is really earning.
+/// @dev The Vic might not distribute as much interest as planned if:
+/// - The Vic reverted on `setVic`.
+/// - The Vic returned an interest per second that is too high (it is capped at a maxed rate).
+/// @dev The vault might earn more interest than expected if:
+/// - A donation in underlying has been made to the vault.
+/// - There has been some calls to forceDeallocate, and the penalty is not zero.
 /// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
 /// because flashloan based shorting is prevented.
 /// @dev Loose specification of adapters:
@@ -33,7 +42,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - They must return the right ids on allocate/deallocate.
 /// - After a call to deallocate, the vault must have an approval to transfer at least `assets` from the adapter.
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
-/// - Returned ids do not repeat.
+/// - Adapters' returned ids do not repeat.
 /// - They ignore donations of shares in their respective markets.
 /// - Given a method used by the adapter to estimate its assets in a market and a method to track its allocation to a
 /// market:
@@ -43,10 +52,10 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// since the last interaction.
 /// @dev Ids being reused by multiple adapters are useful to do "cross-caps". Adapters can add "this" to an id to avoid
 /// it being reused.
-/// @dev Liquidity market:
+/// @dev Liquidity adapter:
 /// - `liquidityAdapter` is allocated to on deposit/mint, and deallocated from on withdraw/redeem if idle assets don't
 /// cover the withdraw.
-/// - The liquidity market is mostly useful on exit, so that exit liquidity is available in addition to the idle assets.
+/// - The liquidity adapter is useful on exit, so that exit liquidity is available in addition to the idle assets.
 /// But the same adapter/data is used for both entry and exit to have the property that in the general case looping
 /// supply-withdraw or withdraw-supply should not change the allocation.
 /// @dev List of assumptions on the token that guarantees that the vault behaves as expected:
@@ -57,9 +66,11 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - The balance of the sender (resp. receiver) should decrease (resp. increase) by exactly the given amount on
 /// `transfer` and `transferFrom`. In particular, tokens with fees on transfer are not supported.
 /// @dev List of assumptions that guarantees the vault's liveness properties:
+/// - The VIC should not revert on `interestPerSecond`.
 /// - The token should not revert on `transfer` and `transferFrom` if balances and approvals are right.
 /// - The token should not revert on `transfer` to self.
-/// - totalAssets and totalSupply must stay below ~10^35.
+/// - totalAssets and totalSupply must stay below ~10^35. When taking this into account, note that for assets with
+/// `decimals <= 18` there are initially 10^(18-decimals) shares per asset.
 /// - The vault is pinged more than once every 10 years.
 /// - Adapters must not revert on `deallocate` if the underlying markets are liquid.
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
@@ -85,13 +96,15 @@ contract VaultV2 is IVaultV2 {
     address public owner;
     address public curator;
     /// @dev Gates sending and receiving shares.
-    /// @dev canSendShares can lock users out of exiting the vault.
-    /// @dev canReceiveShares can prevent users from getting back their shares that they deposited on other protocols. If
-    /// it reverts or consumes a lot of gas, it can also make accrueInterest revert, thus freezing the vault.
+    /// @dev Can lock users out of exiting the vault.
+    /// @dev Can prevent users from getting back their shares that they deposited on other protocols. If it reverts or
+    /// consumes a lot of gas, it can also make accrueInterest revert, thus freezing the vault.
+    /// @dev Can prevent the loss realization incentive to be given out to the caller.
     /// @dev Set to 0 to disable the gate.
     address public sharesGate;
     /// @dev Gates receiving assets from the vault.
     /// @dev Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
+    /// @dev Can prevent force deallocation from the vault if the vault itself is blacklisted.
     /// @dev Set to 0 to disable the gate.
     address public receiveAssetsGate;
     /// @dev Gates depositing assets to the vault.
@@ -115,12 +128,13 @@ contract VaultV2 is IVaultV2 {
     uint192 internal _totalAssets;
     /// @dev Total assets after the first interest accrual of the transaction.
     /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
-    /// @dev This mechanism can make a big deposit revert if the liquidity market's relative cap is almost reached.
+    /// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
+    /// for big deposits that go through the liquidity adapter.
     uint256 public transient firstTotalAssets;
     uint64 public lastUpdate;
     /// @dev Set to 0 to disable the Vic (=> no interest accrual).
     address public vic;
-    /// @dev Prevents floashloan-based shorting of vault shares during loss realizations.
+    /// @dev Prevents flashloan-based shorting of vault shares during loss realizations.
     bool public transient enterBlocked;
 
     /* CURATION STORAGE */
@@ -411,7 +425,7 @@ contract VaultV2 is IVaultV2 {
 
         // Safe by invariant: config.absoluteCap fits in 128 bits.
         caps[id].absoluteCap = uint128(newAbsoluteCap);
-        emit EventsLib.DecreaseAbsoluteCap(id, idData, newAbsoluteCap);
+        emit EventsLib.DecreaseAbsoluteCap(msg.sender, id, idData, newAbsoluteCap);
     }
 
     function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external {
@@ -434,7 +448,7 @@ contract VaultV2 is IVaultV2 {
         // Safe since WAD fits in 128 bits.
         caps[id].relativeCap = uint128(newRelativeCap);
 
-        emit EventsLib.DecreaseRelativeCap(id, idData, newRelativeCap);
+        emit EventsLib.DecreaseRelativeCap(msg.sender, id, idData, newRelativeCap);
     }
 
     function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external {
@@ -481,8 +495,6 @@ contract VaultV2 is IVaultV2 {
     function deallocateInternal(address adapter, bytes memory data, uint256 assets) internal {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        accrueInterest();
-
         (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
@@ -495,12 +507,12 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Deallocate(msg.sender, adapter, data, assets, ids, interest);
     }
 
-    /// @dev Whether newLiquidityAdapter is an adapter is checked in allocate/deallocate.
-    function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external {
+    /// @dev Whether `newLiquidityAdapter` is an adapter is checked in allocate/deallocate.
+    function setLiquidityAdapterAndData(address newLiquidityAdapter, bytes memory newLiquidityData) external {
         require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         liquidityAdapter = newLiquidityAdapter;
         liquidityData = newLiquidityData;
-        emit EventsLib.SetLiquidityMarket(msg.sender, newLiquidityAdapter, newLiquidityData);
+        emit EventsLib.SetLiquidityAdapterAndData(msg.sender, newLiquidityAdapter, newLiquidityData);
     }
 
     /* EXCHANGE RATE FUNCTIONS */
@@ -533,12 +545,12 @@ contract VaultV2 is IVaultV2 {
         uint256 newTotalAssets = _totalAssets + interest;
 
         // The performance fee assets may be rounded down to 0 if `interest * fee < WAD`.
-        uint256 performanceFeeAssets = interest > 0 && performanceFee > 0 && canReceive(performanceFeeRecipient)
+        uint256 performanceFeeAssets = interest > 0 && performanceFee > 0 && canReceiveShares(performanceFeeRecipient)
             ? interest.mulDivDown(performanceFee, WAD)
             : 0;
         // The management fee is taken on `newTotalAssets` to make all approximations consistent (interacting less
         // increases fees).
-        uint256 managementFeeAssets = managementFee > 0 && canReceive(managementFeeRecipient)
+        uint256 managementFeeAssets = managementFee > 0 && canReceiveShares(managementFeeRecipient)
             ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD)
             : 0;
 
@@ -633,11 +645,8 @@ contract VaultV2 is IVaultV2 {
     /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
         require(!enterBlocked, ErrorsLib.EnterBlocked());
-        require(canReceive(onBehalf), ErrorsLib.CannotReceive());
-        require(
-            sendAssetsGate == address(0) || ISendAssetsGate(sendAssetsGate).canSendAssets(msg.sender),
-            ErrorsLib.CannotSendUnderlyingAssets()
-        );
+        require(canReceiveShares(onBehalf), ErrorsLib.CannotReceiveShares());
+        require(canSendAssets(msg.sender), ErrorsLib.CannotSendAssets());
 
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
@@ -666,11 +675,8 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for withdraw and redeem.
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal {
-        require(canSend(onBehalf), ErrorsLib.CannotSend());
-        require(
-            receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(receiver),
-            ErrorsLib.CannotReceiveUnderlyingAssets()
-        );
+        require(canSendShares(onBehalf), ErrorsLib.CannotSendShares());
+        require(canReceiveAssets(receiver), ErrorsLib.CannotReceiveAssets());
 
         uint256 idleAssets = IERC20(asset).balanceOf(address(this));
         if (assets > idleAssets && liquidityAdapter != address(0)) {
@@ -709,7 +715,10 @@ contract VaultV2 is IVaultV2 {
         return shares;
     }
 
-    function realizeLoss(address adapter, bytes memory data) external {
+    /// @dev For small losses, the incentive could be null because of rounding.
+    /// @dev The incentive will be null if the msg.sender isn't allowed to receive shares.
+    /// @dev Returns incentiveShares, loss.
+    function realizeLoss(address adapter, bytes memory data) external returns (uint256, uint256) {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
@@ -721,7 +730,7 @@ contract VaultV2 is IVaultV2 {
             // Safe cast because the result is at most totalAssets.
             _totalAssets = uint192(_totalAssets.zeroFloorSub(loss));
 
-            if (canReceive(msg.sender)) {
+            if (canReceiveShares(msg.sender)) {
                 uint256 tentativeIncentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
                 incentiveShares = tentativeIncentive.mulDivDown(
                     totalSupply + virtualShares, uint256(_totalAssets).zeroFloorSub(tentativeIncentive) + 1
@@ -736,7 +745,8 @@ contract VaultV2 is IVaultV2 {
             enterBlocked = true;
         }
 
-        emit EventsLib.RealizeLoss(msg.sender, adapter, ids, loss, incentiveShares, data);
+        emit EventsLib.RealizeLoss(msg.sender, adapter, data, ids, loss, incentiveShares);
+        return (incentiveShares, loss);
     }
 
     /* ERC20 FUNCTIONS */
@@ -745,8 +755,8 @@ contract VaultV2 is IVaultV2 {
     function transfer(address to, uint256 shares) external returns (bool) {
         require(to != address(0), ErrorsLib.ZeroAddress());
 
-        require(canSend(msg.sender), ErrorsLib.CannotSend());
-        require(canReceive(to), ErrorsLib.CannotReceive());
+        require(canSendShares(msg.sender), ErrorsLib.CannotSendShares());
+        require(canReceiveShares(to), ErrorsLib.CannotReceiveShares());
 
         balanceOf[msg.sender] -= shares;
         balanceOf[to] += shares;
@@ -759,8 +769,8 @@ contract VaultV2 is IVaultV2 {
         require(from != address(0), ErrorsLib.ZeroAddress());
         require(to != address(0), ErrorsLib.ZeroAddress());
 
-        require(canSend(from), ErrorsLib.CannotSend());
-        require(canReceive(to), ErrorsLib.CannotReceive());
+        require(canSendShares(from), ErrorsLib.CannotSendShares());
+        require(canReceiveShares(to), ErrorsLib.CannotReceiveShares());
 
         if (msg.sender != from) {
             uint256 _allowance = allowance[from][msg.sender];
@@ -816,11 +826,19 @@ contract VaultV2 is IVaultV2 {
 
     /* PERMISSIONED TOKEN FUNCTIONS */
 
-    function canSend(address account) public view returns (bool) {
+    function canSendShares(address account) public view returns (bool) {
         return sharesGate == address(0) || ISharesGate(sharesGate).canSendShares(account);
     }
 
-    function canReceive(address account) public view returns (bool) {
+    function canReceiveShares(address account) public view returns (bool) {
         return sharesGate == address(0) || ISharesGate(sharesGate).canReceiveShares(account);
+    }
+
+    function canSendAssets(address account) public view returns (bool) {
+        return sendAssetsGate == address(0) || ISendAssetsGate(sendAssetsGate).canSendAssets(account);
+    }
+
+    function canReceiveAssets(address account) public view returns (bool) {
+        return receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(account);
     }
 }

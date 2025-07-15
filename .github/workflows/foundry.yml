@@ -11,8 +11,11 @@ jobs:
   test:
     strategy:
       fail-fast: true
+      matrix:
+        decimals: [0, 6, 8, 18, 24]
 
     runs-on: ubuntu-latest
+    name: test (${{ matrix.decimals }} decimals)
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,5 +27,7 @@ jobs:
       - name: Run forge fmt
         run: forge fmt --check
 
-      - name: Run forge tests
+      - name: Run forge tests with a ${{ matrix.decimals }} decimals underlying asset
         run: forge test -vvv
+        env:
+          DECIMALS: ${{ matrix.decimals }}
