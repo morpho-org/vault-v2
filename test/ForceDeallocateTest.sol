@@ -47,10 +47,11 @@ contract ForceDeallocateTest is BaseTest {
 
         uint256 penaltyAssets = deallocated.mulDivUp(forceDeallocatePenalty, WAD);
         uint256 expectedShares = shares - vault.previewWithdraw(penaltyAssets);
+        bytes32[] memory ids = new bytes32[](2);
+        ids[0] = keccak256("id-0");
+        ids[1] = keccak256("id-1");
         vm.expectEmit();
-        emit EventsLib.ForceDeallocate(
-            address(this), address(adapter), hex"", deallocated, address(this), penaltyAssets
-        );
+        emit EventsLib.ForceDeallocate(address(this), address(adapter), deallocated, address(this), ids, penaltyAssets);
         uint256 withdrawnShares = vault.forceDeallocate(address(adapter), hex"", deallocated, address(this));
         assertEq(adapter.recordedSelector(), IVaultV2.forceDeallocate.selector);
         assertEq(adapter.recordedSender(), address(this));

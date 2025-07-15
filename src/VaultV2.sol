@@ -514,7 +514,10 @@ contract VaultV2 is IVaultV2 {
         deallocateInternal(adapter, data, assets);
     }
 
-    function deallocateInternal(address adapter, bytes memory data, uint256 assets) internal {
+    function deallocateInternal(address adapter, bytes memory data, uint256 assets)
+        internal
+        returns (bytes32[] memory)
+    {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
@@ -527,6 +530,7 @@ contract VaultV2 is IVaultV2 {
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
         emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, interest);
+        return ids;
     }
 
     /// @dev Whether newLiquidityAdapter is an adapter is checked in allocate/deallocate.
@@ -730,11 +734,11 @@ contract VaultV2 is IVaultV2 {
         external
         returns (uint256)
     {
-        deallocateInternal(adapter, data, assets);
+        bytes32[] memory ids = deallocateInternal(adapter, data, assets);
         uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
-        uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
-        emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf, penaltyAssets);
-        return shares;
+        uint256 penaltyShares = withdraw(penaltyAssets, address(this), onBehalf);
+        emit EventsLib.ForceDeallocate(msg.sender, adapter, assets, onBehalf, ids, penaltyAssets);
+        return penaltyShares;
     }
 
     /// @dev For small losses, the incentive could be null because of rounding.
