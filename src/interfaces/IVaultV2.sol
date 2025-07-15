@@ -5,7 +5,6 @@ pragma solidity >=0.5.0;
 import {IERC20} from "./IERC20.sol";
 import {IERC4626} from "./IERC4626.sol";
 import {IERC2612} from "./IERC2612.sol";
-import {IPermissionedToken} from "./IPermissionedToken.sol";
 
 struct Caps {
     uint256 allocation;
@@ -13,8 +12,9 @@ struct Caps {
     uint128 relativeCap;
 }
 
-interface IVaultV2 is IERC4626, IPermissionedToken, IERC2612 {
-    // Storage variables
+interface IVaultV2 is IERC4626, IERC2612 {
+    // State variables
+    function virtualShares() external view returns (uint256);
     function owner() external view returns (address);
     function curator() external view returns (address);
     function sharesGate() external view returns (address);
@@ -22,6 +22,7 @@ interface IVaultV2 is IERC4626, IPermissionedToken, IERC2612 {
     function sendAssetsGate() external view returns (address);
     function isSentinel(address account) external view returns (bool);
     function isAllocator(address account) external view returns (bool);
+    function _totalAssets() external view returns (uint192);
     function firstTotalAssets() external view returns (uint256);
     function lastUpdate() external view returns (uint64);
     function vic() external view returns (address);
@@ -39,6 +40,12 @@ interface IVaultV2 is IERC4626, IPermissionedToken, IERC2612 {
     function performanceFeeRecipient() external view returns (address);
     function managementFee() external view returns (uint96);
     function managementFeeRecipient() external view returns (address);
+
+    // Gating
+    function canSendShares(address account) external view returns (bool);
+    function canReceiveShares(address account) external view returns (bool);
+    function canSendAssets(address account) external view returns (bool);
+    function canReceiveAssets(address account) external view returns (bool);
 
     // Multicall
     function multicall(bytes[] memory data) external;
@@ -77,7 +84,7 @@ interface IVaultV2 is IERC4626, IPermissionedToken, IERC2612 {
     // Allocator functions
     function allocate(address adapter, bytes memory data, uint256 assets) external;
     function deallocate(address adapter, bytes memory data, uint256 assets) external;
-    function setLiquidityMarket(address newLiquidityAdapter, bytes memory newLiquidityData) external;
+    function setLiquidityAdapterAndData(address newLiquidityAdapter, bytes memory newLiquidityData) external;
 
     // Exchange rate
     function accrueInterest() external;
@@ -89,8 +96,8 @@ interface IVaultV2 is IERC4626, IPermissionedToken, IERC2612 {
     // Force deallocate
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
-        returns (uint256 withdrawnShares);
+        returns (uint256 penaltyShares);
 
     // Realize loss
-    function realizeLoss(address adapter, bytes memory data) external;
+    function realizeLoss(address adapter, bytes memory data) external returns (uint256 incentiveShares, uint256 loss);
 }
