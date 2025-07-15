@@ -100,7 +100,7 @@ contract AllocateTest is BaseTest {
         assertEq(
             underlyingToken.balanceOf(address(vault)),
             assets - allocateAssets,
-            "Vault balance should be zero after allocation"
+            "Vault balance incorrect after allocation"
         );
         assertEq(underlyingToken.balanceOf(adapter), allocateAssets, "Adapter balance incorrect after allocation");
         assertEq(vault.allocation(keccak256("id-0")), allocateAssets, "Allocation incorrect after allocation");
