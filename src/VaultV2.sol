@@ -55,6 +55,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Relative caps are "soft" in the sense that they are only checked on allocate.
 /// @dev The relative cap is relative to totalAssets, or more precisely to firstTotalAssets.
 /// @dev The relative cap unit is WAD.
+/// @dev To track allocations using events, use the Allocate and Deallocate events only.
 ///
 /// ADAPTERS
 /// @dev Loose specification of adapters:
