@@ -42,7 +42,7 @@ contract SingleMorphoVaultV1VicTest is Test {
     address internal parentVault;
 
     function setUp() public {
-        asset = new ERC20Mock();
+        asset = new ERC20Mock(18);
         morphoVaultV1 = new ERC4626Mock(address(asset));
         parentVault = makeAddr("parentVault");
         adapter = new MockMorphoVaultV1Adapter(parentVault, address(morphoVaultV1));

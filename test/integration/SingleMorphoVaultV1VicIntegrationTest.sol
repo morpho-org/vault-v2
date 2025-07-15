@@ -33,7 +33,7 @@ contract SingleMorphoVaultV1VicIntegrationTest is MorphoVaultV1IntegrationTest {
 
         setSupplyQueueAllMarkets();
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
         setMorphoVaultV1Cap(allMarketParams[0], type(uint184).max);
 
         vault.deposit(assets, address(this));
@@ -66,7 +66,7 @@ contract SingleMorphoVaultV1VicIntegrationTest is MorphoVaultV1IntegrationTest {
 
         setSupplyQueueAllMarkets();
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
         setMorphoVaultV1Cap(allMarketParams[0], type(uint184).max);
 
         vault.deposit(deposit, address(this));
@@ -84,7 +84,7 @@ contract SingleMorphoVaultV1VicIntegrationTest is MorphoVaultV1IntegrationTest {
 
         setSupplyQueueAllMarkets();
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
         setMorphoVaultV1Cap(allMarketParams[0], type(uint184).max);
 
         vault.deposit(deposit, address(this));
