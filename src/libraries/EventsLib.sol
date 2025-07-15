@@ -26,9 +26,9 @@ library EventsLib {
     event ForceDeallocate(
         address indexed sender,
         address adapter,
-        bytes data,
         uint256 assets,
         address indexed onBehalf,
+        bytes32[] ids,
         uint256 penaltyAssets
     );
 

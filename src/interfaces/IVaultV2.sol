@@ -96,7 +96,7 @@ interface IVaultV2 is IERC4626, IERC2612 {
     // Force deallocate
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
-        returns (uint256 withdrawnShares);
+        returns (uint256 penaltyShares);
 
     // Realize loss
     function realizeLoss(address adapter, bytes memory data) external returns (uint256 incentiveShares, uint256 loss);
