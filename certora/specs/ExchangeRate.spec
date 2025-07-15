@@ -7,7 +7,7 @@ methods {
     function canReceive(address) internal returns bool => ALWAYS(true);
 }
 
-definition tenYears() return uint256 = 60 * 60 * 24 * 365 * 10;
+definition tenYears() returns uint256 = 60 * 60 * 24 * 365 * 10;
 
 // Check that the price of shares is rounded at most one share down.
 rule sharePriceBoundDeposit(env e, uint256 assets, address onBehalf){
