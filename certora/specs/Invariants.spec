@@ -16,9 +16,6 @@ methods {
     function managementFee() external returns uint96 envfree;
     function managementFeeRecipient() external returns address envfree;
     function forceDeallocatePenalty(address) external returns uint256 envfree;
-    function absoluteCap(bytes32 id) external returns uint256 envfree;
-    function relativeCap(bytes32 id) external returns uint256 envfree;
-    function allocation(bytes32 id) external returns uint256 envfree;
     function timelock(bytes4 selector) external returns uint256 envfree;
     function isAdapter(address adapter) external returns bool envfree;
     function balanceOf(address) external returns uint256 envfree;
