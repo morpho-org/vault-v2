@@ -39,7 +39,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// FIRST TOTAL ASSETS
 /// @dev The variable firstTotalAssets tracks the total assets after the first interest accrual of the transaction.
-/// @dev Used to implement a mechanism that prevents bypassing relative _caps with flashloans.
+/// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
 /// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
 /// for big deposits that go through the liquidity adapter.
 ///
@@ -51,8 +51,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
 /// @dev The allocation is not always up to date, because interest are added only when (de)allocating in the
 /// corresponding markets, and losses are deducted only when realized for these markets.
-/// @dev The _caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
-/// @dev Relative _caps are "soft" in the sense that they are only checked on allocate.
+/// @dev The caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
+/// @dev Relative caps are "soft" in the sense that they are only checked on allocate.
 /// @dev The relative cap is relative to totalAssets, or more precisely to firstTotalAssets.
 /// @dev The relative cap unit is WAD.
 ///
@@ -71,7 +71,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// any, since the last interaction.
 ///   - When calculating loss, it must be the negative change between the estimate and the tracked allocation, if any,
 /// since the last interaction.
-/// @dev Ids being reused by multiple adapters are useful to do "cross-_caps". Adapters can add "this" to an id to avoid
+/// @dev Ids being reused by multiple adapters are useful to do "cross-caps". Adapters can add "this" to an id to avoid
 /// it being reused.
 /// @dev Allocating is prevented if one of the ids' absolute cap is zero and deallocating is prevented if the id's
 /// allocation is zero. This prevents interactions with zero assets with unknown markets. For markets that share all
