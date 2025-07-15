@@ -36,6 +36,9 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
 /// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
 /// @dev Set the Vic to 0 to disable it (=> no interest accrual).
+/// @dev _totalAssets stores the last recorded total assets. Use totalAssets() for the updated total assets.
+/// @dev The Vic must not call totalAssets() because it will try to accrue interest, but instead use the argument
+/// _totalAssets that is passed.
 ///
 /// FIRST TOTAL ASSETS
 /// @dev The variable firstTotalAssets tracks the total assets after the first interest accrual of the transaction.
@@ -178,7 +181,7 @@ contract VaultV2 is IVaultV2 {
     /* INTEREST STORAGE */
 
     uint256 public transient firstTotalAssets;
-    uint192 internal _totalAssets;
+    uint192 public _totalAssets;
     uint64 public lastUpdate;
     address public vic;
     bool public transient enterBlocked;
