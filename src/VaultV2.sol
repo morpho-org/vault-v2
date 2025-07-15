@@ -26,8 +26,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// that must be distributed on the period (since `lastUpdate`).
 /// @dev The Vic must never distribute more than what the vault is really earning.
 /// @dev The Vic might not distribute as much interest as planned if:
-/// - The VIC reverted on `setVic`.
-/// - The VIC returned an interest per second that is too high (it is capped at a maxed rate).
+/// - The Vic reverted on `setVic`.
+/// - The Vic returned an interest per second that is too high (it is capped at a maxed rate).
 /// @dev The vault might earn more interest than expected if:
 /// - A donation in underlying has been made to the vault.
 /// - There has been some calls to forceDeallocate, and the penalty is not zero.
