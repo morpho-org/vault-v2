@@ -132,7 +132,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev receiveAssetsGate:
 ///     - Gates receiving assets from the vault.
 ///     - Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
-///     - The vault must be able to receive assets, otherwise forceDeallocate will revert.
+///     - The vault itself (address(this)) is always allowed to receive assets, regardless of the gate configuration.
 /// @dev sendAssetsGate:
 ///     - Gates depositing assets to the vault.
 ///     - This gate is not critical (cannot block users' funds), while still being able to gate supplies.
@@ -866,6 +866,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function canReceiveAssets(address account) public view returns (bool) {
-        return receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(account);
+        return account == address(this) || receiveAssetsGate == address(0)
+            || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(account);
     }
 }
