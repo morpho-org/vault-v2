@@ -15,6 +15,7 @@ import {AdapterMock} from "./mocks/AdapterMock.sol";
 
 import {Test, console} from "../lib/forge-std/src/Test.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
+import {TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT} from "./PackingTest.sol";
 
 contract BaseTest is Test {
     address immutable owner = makeAddr("owner");
@@ -23,9 +24,6 @@ contract BaseTest is Test {
     address immutable sentinel = makeAddr("sentinel");
 
     uint256 UNDERLYING_TOKEN_DECIMALS;
-
-    // The packed slot containing both _totalAssets and lastUpdate.
-    bytes32 TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT = bytes32(uint256(13));
 
     ERC20Mock underlyingToken;
     IVaultV2Factory vaultFactory;

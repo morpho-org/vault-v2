@@ -176,8 +176,8 @@ contract VaultV2 is IVaultV2 {
 
     /* INTEREST STORAGE */
 
-    uint192 internal _totalAssets;
     uint256 public transient firstTotalAssets;
+    uint192 internal _totalAssets;
     uint64 public lastUpdate;
     address public vic;
     bool public transient enterBlocked;
