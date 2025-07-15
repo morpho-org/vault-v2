@@ -25,7 +25,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// INTEREST / VIC
 /// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
-/// that must be distributed on the period (since `lastUpdate`).
+/// that must be distributed on the period (since lastUpdate).
 /// @dev The Vic must never distribute more than what the vault is really earning.
 /// @dev The Vic might not distribute as much interest as planned if:
 /// - The Vic reverted on `setVic`.
@@ -104,7 +104,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - totalAssets and totalSupply must stay below ~10^35. When taking this into account, note that for assets with
 /// decimals <= 18 there are initially 10^(18-decimals) shares per asset.
 /// - The vault is pinged more than once every 10 years.
-/// - Adapters must not revert on `deallocate` if the underlying markets are liquid.
+/// - Adapters must not revert on deallocate if the underlying markets are liquid.
 ///
 /// TIMELOCKS
 /// @dev The timelock of decreaseTimelock is initially set to TIMELOCK_CAP, and can only be changed to type(uint256).max
