@@ -39,7 +39,7 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
         address morphoOwner = makeAddr("MorphoOwner");
         morpho = IMorpho(deployCode("Morpho.sol", abi.encode(morphoOwner)));
 
-        collateralToken = new ERC20Mock();
+        collateralToken = new ERC20Mock(18);
         oracle = new OracleMock();
         irm = new IrmMock();
 

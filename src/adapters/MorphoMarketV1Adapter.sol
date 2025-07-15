@@ -73,9 +73,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
-        // To accrue interest only one time.
-        IMorpho(morpho).accrueInterest(marketParams);
-
         uint256 interest = expectedSupplyAssets(marketParams, shares[marketId]).zeroFloorSub(allocation(marketParams));
 
         if (assets > 0) {
@@ -97,9 +94,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
-        // To accrue interest only one time.
-        IMorpho(morpho).accrueInterest(marketParams);
-
         uint256 interest = expectedSupplyAssets(marketParams, shares[marketId]).zeroFloorSub(allocation(marketParams));
 
         if (assets > 0) {
@@ -112,7 +106,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     function realizeLoss(bytes memory data, bytes4, address) external view returns (bytes32[] memory, uint256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        require(msg.sender == parentVault, NotAuthorized());
+        require(marketParams.loanToken == asset, LoanAssetMismatch());
 
         uint256 loss = allocation(marketParams) - expectedSupplyAssets(marketParams, shares[marketParams.id()]);
 

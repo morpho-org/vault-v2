@@ -90,7 +90,7 @@ contract ManualVicTest is Test {
 
         // Normal path.
         vm.prank(sentinel);
-        manualVic.zeroInterestPerSecond(); // Show that the sentinel can do both.
+        manualVic.zeroInterestPerSecondAndDeadline(); // Show that the sentinel can do both.
         vm.prank(sentinel);
         vm.expectEmit();
         emit IManualVic.ZeroMaxInterestPerSecond(sentinel);
@@ -145,13 +145,13 @@ contract ManualVicTest is Test {
         assertEq(manualVic.deadline(), newDeadline);
     }
 
-    function testZeroInterestPerSecond(address rdm) public {
+    function testZeroInterestPerSecondAndDeadline(address rdm) public {
         vm.assume(rdm != sentinel);
 
         // Access control.
         vm.prank(rdm);
         vm.expectRevert(IManualVic.Unauthorized.selector);
-        manualVic.zeroInterestPerSecond();
+        manualVic.zeroInterestPerSecondAndDeadline();
 
         // Normal path.
         vm.prank(curator);
@@ -160,11 +160,11 @@ contract ManualVicTest is Test {
         manualVic.setInterestPerSecondAndDeadline(1, type(uint64).max);
         vm.prank(sentinel);
         vm.expectEmit();
-        emit IManualVic.ZeroInterestPerSecond(sentinel);
-        manualVic.zeroInterestPerSecond();
+        emit IManualVic.ZeroInterestPerSecondAndDeadline(sentinel);
+        manualVic.zeroInterestPerSecondAndDeadline();
         assertEq(manualVic.interestPerSecond(0, 0), 0);
         assertEq(manualVic.storedInterestPerSecond(), 0);
-        assertEq(manualVic.deadline(), type(uint64).max);
+        assertEq(manualVic.deadline(), 0);
     }
 
     function testDeadline(uint256 newDeadline) public {
