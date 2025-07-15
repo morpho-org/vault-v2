@@ -3,6 +3,7 @@
 pragma solidity ^0.8.0;
 
 import {IAdapter} from "../../src/interfaces/IAdapter.sol";
+import {Caps} from "../../src/interfaces/IVaultV2.sol";
 
 /// @notice Minimal stub contract used as the parent vault to test adapters.
 contract VaultV2Mock {
@@ -11,7 +12,11 @@ contract VaultV2Mock {
     address public curator;
     mapping(address => bool) public isAllocator;
     mapping(address => bool) public isSentinel;
-    mapping(bytes32 => uint256) public allocation;
+    mapping(bytes32 => uint256) internal allocation;
+
+    function caps(bytes32 id) external view returns (Caps memory) {
+        return Caps({allocation: allocation[id], absoluteCap: 0, relativeCap: 0});
+    }
 
     constructor(address _asset, address _owner, address _curator, address _allocator, address _sentinel) {
         asset = _asset;
