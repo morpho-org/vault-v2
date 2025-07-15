@@ -27,9 +27,7 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function vic() external view returns (address);
     function enterBlocked() external view returns (bool);
     function isAdapter(address account) external view returns (bool);
-    function allocation(bytes32 id) external view returns (uint256);
-    function absoluteCap(bytes32 id) external view returns (uint256);
-    function relativeCap(bytes32 id) external view returns (uint256);
+    function caps(bytes32 id) external view returns (Caps memory);
     function forceDeallocatePenalty(address adapter) external view returns (uint256);
     function liquidityAdapter() external view returns (address);
     function liquidityData() external view returns (bytes memory);

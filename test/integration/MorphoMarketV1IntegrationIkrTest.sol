@@ -80,10 +80,10 @@ contract MorphoMarketV1IntegrationIkrTest is MorphoMarketV1IntegrationTest {
         underlyingToken.approve(address(morpho), type(uint256).max);
         morpho.supply(marketParams1, deallocatedAssets, 0, address(this), hex"");
         vault.forceDeallocate(address(adapter), abi.encode(marketParams1), deallocatedAssets, address(this));
-        assertEq(vault.allocation(keccak256(expectedIdData1[2])), assets - deallocatedAssets);
+        assertEq(vault.caps(keccak256(expectedIdData1[2])).allocation, assets - deallocatedAssets);
 
         vault.withdraw(deallocatedAssets, address(this), address(this));
-        assertEq(vault.allocation(keccak256(expectedIdData1[2])), assets - deallocatedAssets);
+        assertEq(vault.caps(keccak256(expectedIdData1[2])).allocation, assets - deallocatedAssets);
 
         // No assets left after reimbursing the flashloan.
         assertEq(underlyingToken.balanceOf(address(this)), deallocatedAssets);

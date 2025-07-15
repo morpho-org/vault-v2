@@ -86,14 +86,14 @@ contract BaseTest is Test {
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, absoluteCap)));
         vault.increaseAbsoluteCap(idData, absoluteCap);
-        assertEq(vault.absoluteCap(keccak256(idData)), absoluteCap);
+        assertEq(vault.caps(keccak256(idData)).absoluteCap, absoluteCap);
     }
 
     function increaseRelativeCap(bytes memory idData, uint256 relativeCap) internal {
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, relativeCap)));
         vault.increaseRelativeCap(idData, relativeCap);
-        assertEq(vault.relativeCap(keccak256(idData)), relativeCap);
+        assertEq(vault.caps(keccak256(idData)).relativeCap, relativeCap);
     }
 }
 

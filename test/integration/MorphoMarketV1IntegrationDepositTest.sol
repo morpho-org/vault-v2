@@ -17,7 +17,7 @@ contract MorphoMarketV1IntegrationDepositTest is MorphoMarketV1IntegrationTest {
         assertEq(underlyingToken.balanceOf(address(morpho)), 0);
         assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), 0);
         assertEq(morpho.expectedSupplyAssets(marketParams2, address(adapter)), 0);
-        assertEq(vault.allocation(keccak256(expectedIdData1[0])), 0);
+        assertEq(vault.caps(keccak256(expectedIdData1[0])).allocation, 0);
     }
 
     function testDepositLiquidityAdapterSuccess(uint256 assets) public {
@@ -33,6 +33,6 @@ contract MorphoMarketV1IntegrationDepositTest is MorphoMarketV1IntegrationTest {
         assertEq(underlyingToken.balanceOf(address(morpho)), assets);
         assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), assets);
         assertEq(morpho.expectedSupplyAssets(marketParams2, address(adapter)), 0);
-        assertEq(vault.allocation(keccak256(expectedIdData1[0])), assets);
+        assertEq(vault.caps(keccak256(expectedIdData1[0])).allocation, assets);
     }
 }

@@ -108,6 +108,6 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     }
 
     function allocation() public view returns (uint256) {
-        return IVaultV2(parentVault).allocation(adapterId);
+        return IVaultV2(parentVault).caps(adapterId).allocation;
     }
 }

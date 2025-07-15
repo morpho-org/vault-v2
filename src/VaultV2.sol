@@ -39,7 +39,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// FIRST TOTAL ASSETS
 /// @dev The variable firstTotalAssets tracks the total assets after the first interest accrual of the transaction.
-/// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
+/// @dev Used to implement a mechanism that prevents bypassing relative _caps with flashloans.
 /// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
 /// for big deposits that go through the liquidity adapter.
 ///
@@ -51,8 +51,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
 /// @dev The allocation is not always up to date, because interest are added only when (de)allocating in the
 /// corresponding markets, and losses are deducted only when realized for these markets.
-/// @dev The caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
-/// @dev Relative caps are "soft" in the sense that they are only checked on allocate.
+/// @dev The _caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
+/// @dev Relative _caps are "soft" in the sense that they are only checked on allocate.
 /// @dev The relative cap is relative to totalAssets, or more precisely to firstTotalAssets.
 /// @dev The relative cap unit is WAD.
 ///
@@ -71,7 +71,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// any, since the last interaction.
 ///   - When calculating loss, it must be the negative change between the estimate and the tracked allocation, if any,
 /// since the last interaction.
-/// @dev Ids being reused by multiple adapters are useful to do "cross-caps". Adapters can add "this" to an id to avoid
+/// @dev Ids being reused by multiple adapters are useful to do "cross-_caps". Adapters can add "this" to an id to avoid
 /// it being reused.
 /// @dev Allocating is prevented if one of the ids' absolute cap is zero and deallocating is prevented if the id's
 /// allocation is zero. This prevents interactions with zero assets with unknown markets. For markets that share all
@@ -185,7 +185,7 @@ contract VaultV2 is IVaultV2 {
     /* CURATION STORAGE */
 
     mapping(address account => bool) public isAdapter;
-    mapping(bytes32 id => Caps) internal caps;
+    mapping(bytes32 id => Caps) internal _caps;
     mapping(address adapter => uint256) public forceDeallocatePenalty;
 
     /* LIQUIDITY ADAPTER STORAGE */
@@ -216,16 +216,8 @@ contract VaultV2 is IVaultV2 {
         return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
     }
 
-    function absoluteCap(bytes32 id) external view returns (uint256) {
-        return caps[id].absoluteCap;
-    }
-
-    function relativeCap(bytes32 id) external view returns (uint256) {
-        return caps[id].relativeCap;
-    }
-
-    function allocation(bytes32 id) external view returns (uint256) {
-        return caps[id].allocation;
+    function caps(bytes32 id) external view returns (Caps memory) {
+        return _caps[id];
     }
 
     /* MULTICALL */
@@ -434,19 +426,19 @@ contract VaultV2 is IVaultV2 {
     function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external {
         timelocked();
         bytes32 id = keccak256(idData);
-        require(newAbsoluteCap >= caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotIncreasing());
+        require(newAbsoluteCap >= _caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotIncreasing());
 
-        caps[id].absoluteCap = newAbsoluteCap.toUint128();
+        _caps[id].absoluteCap = newAbsoluteCap.toUint128();
         emit EventsLib.IncreaseAbsoluteCap(id, idData, newAbsoluteCap);
     }
 
     function decreaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external {
         bytes32 id = keccak256(idData);
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        require(newAbsoluteCap <= caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotDecreasing());
+        require(newAbsoluteCap <= _caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotDecreasing());
 
         // Safe by invariant: config.absoluteCap fits in 128 bits.
-        caps[id].absoluteCap = uint128(newAbsoluteCap);
+        _caps[id].absoluteCap = uint128(newAbsoluteCap);
         emit EventsLib.DecreaseAbsoluteCap(msg.sender, id, idData, newAbsoluteCap);
     }
 
@@ -454,10 +446,10 @@ contract VaultV2 is IVaultV2 {
         timelocked();
         bytes32 id = keccak256(idData);
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
-        require(newRelativeCap >= caps[id].relativeCap, ErrorsLib.RelativeCapNotIncreasing());
+        require(newRelativeCap >= _caps[id].relativeCap, ErrorsLib.RelativeCapNotIncreasing());
 
         // Safe since WAD fits in 128 bits.
-        caps[id].relativeCap = uint128(newRelativeCap);
+        _caps[id].relativeCap = uint128(newRelativeCap);
 
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
@@ -465,10 +457,10 @@ contract VaultV2 is IVaultV2 {
     function decreaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external {
         bytes32 id = keccak256(idData);
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        require(newRelativeCap <= caps[id].relativeCap, ErrorsLib.RelativeCapNotDecreasing());
+        require(newRelativeCap <= _caps[id].relativeCap, ErrorsLib.RelativeCapNotDecreasing());
 
         // Safe since WAD fits in 128 bits.
-        caps[id].relativeCap = uint128(newRelativeCap);
+        _caps[id].relativeCap = uint128(newRelativeCap);
 
         emit EventsLib.DecreaseRelativeCap(msg.sender, id, idData, newRelativeCap);
     }
@@ -496,13 +488,13 @@ contract VaultV2 is IVaultV2 {
         (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).allocate(data, assets, msg.sig, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
-            Caps storage _caps = caps[ids[i]];
-            _caps.allocation = _caps.allocation + interest + assets;
+            Caps storage cap = _caps[ids[i]];
+            cap.allocation = cap.allocation + interest + assets;
 
-            require(_caps.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
-            require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
+            require(cap.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
+            require(cap.allocation <= cap.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
             require(
-                _caps.relativeCap == WAD || _caps.allocation <= firstTotalAssets.mulDivDown(_caps.relativeCap, WAD),
+                cap.relativeCap == WAD || cap.allocation <= firstTotalAssets.mulDivDown(cap.relativeCap, WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
@@ -520,9 +512,9 @@ contract VaultV2 is IVaultV2 {
         (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
-            Caps storage _caps = caps[ids[i]];
-            require(_caps.allocation > 0, ErrorsLib.ZeroAllocation());
-            _caps.allocation = _caps.allocation + interest - assets;
+            Caps storage cap = _caps[ids[i]];
+            require(cap.allocation > 0, ErrorsLib.ZeroAllocation());
+            cap.allocation = cap.allocation + interest - assets;
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
@@ -761,7 +753,7 @@ contract VaultV2 is IVaultV2 {
             }
 
             for (uint256 i; i < ids.length; i++) {
-                caps[ids[i]].allocation -= loss;
+                _caps[ids[i]].allocation -= loss;
             }
 
             enterBlocked = true;

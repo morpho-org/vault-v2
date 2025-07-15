@@ -46,8 +46,8 @@ contract AllocateTest is BaseTest {
         vault.deposit(assets, address(this));
         assertEq(underlyingToken.balanceOf(address(vault)), assets, "Initial vault balance incorrect");
         assertEq(underlyingToken.balanceOf(adapter), 0, "Initial adapter balance incorrect");
-        assertEq(vault.allocation(keccak256("id-0")), 0, "Initial allocation incorrect");
-        assertEq(vault.allocation(keccak256("id-1")), 0, "Initial allocation incorrect");
+        assertEq(vault.caps(keccak256("id-0")).allocation, 0, "Initial allocation incorrect");
+        assertEq(vault.caps(keccak256("id-1")).allocation, 0, "Initial allocation incorrect");
 
         // Can't allocate if not adapter.
         vm.prank(allocator);
@@ -103,8 +103,8 @@ contract AllocateTest is BaseTest {
             "Vault balance should be zero after allocation"
         );
         assertEq(underlyingToken.balanceOf(adapter), allocateAssets, "Adapter balance incorrect after allocation");
-        assertEq(vault.allocation(keccak256("id-0")), allocateAssets, "Allocation incorrect after allocation");
-        assertEq(vault.allocation(keccak256("id-1")), allocateAssets, "Allocation incorrect after allocation");
+        assertEq(vault.caps(keccak256("id-0")).allocation, allocateAssets, "Allocation incorrect after allocation");
+        assertEq(vault.caps(keccak256("id-1")).allocation, allocateAssets, "Allocation incorrect after allocation");
         assertEq(AdapterMock(adapter).recordedAllocateData(), data, "Data incorrect after allocation");
         assertEq(AdapterMock(adapter).recordedAllocateAssets(), allocateAssets, "Assets incorrect after allocation");
         assertEq(
@@ -206,8 +206,12 @@ contract AllocateTest is BaseTest {
         assertEq(
             underlyingToken.balanceOf(adapter), assetsIn - assetsOut, "Adapter balance incorrect after deallocation"
         );
-        assertEq(vault.allocation(keccak256("id-0")), assetsIn - assetsOut, "Allocation incorrect after deallocation");
-        assertEq(vault.allocation(keccak256("id-1")), assetsIn - assetsOut, "Allocation incorrect after deallocation");
+        assertEq(
+            vault.caps(keccak256("id-0")).allocation, assetsIn - assetsOut, "Allocation incorrect after deallocation"
+        );
+        assertEq(
+            vault.caps(keccak256("id-1")).allocation, assetsIn - assetsOut, "Allocation incorrect after deallocation"
+        );
         assertEq(AdapterMock(adapter).recordedDeallocateData(), data, "Data incorrect after deallocation");
         assertEq(AdapterMock(adapter).recordedDeallocateAssets(), assetsOut, "Assets incorrect after deallocation");
         assertEq(
@@ -249,12 +253,12 @@ contract AllocateTest is BaseTest {
             emit EventsLib.Allocate(allocator, adapter, allocation2, ids, interest);
             vault.allocate(adapter, hex"", allocation2);
             assertEq(
-                vault.allocation(keccak256("id-0")),
+                vault.caps(keccak256("id-0")).allocation,
                 allocation1 + allocation2 + interest,
                 "Allocation incorrect after allocation"
             );
             assertEq(
-                vault.allocation(keccak256("id-1")),
+                vault.caps(keccak256("id-1")).allocation,
                 allocation1 + allocation2 + interest,
                 "Allocation incorrect after allocation"
             );
@@ -292,12 +296,12 @@ contract AllocateTest is BaseTest {
         vm.prank(allocator);
         vault.deallocate(adapter, hex"", deallocation);
         assertEq(
-            vault.allocation(keccak256("id-0")),
+            vault.caps(keccak256("id-0")).allocation,
             allocation - deallocation + interest,
             "Allocation incorrect after deallocation"
         );
         assertEq(
-            vault.allocation(keccak256("id-1")),
+            vault.caps(keccak256("id-1")).allocation,
             allocation - deallocation + interest,
             "Allocation incorrect after deallocation"
         );

@@ -559,7 +559,7 @@ contract SettersTest is BaseTest {
         vm.expectEmit();
         emit EventsLib.IncreaseAbsoluteCap(id, idData, newAbsoluteCap);
         vault.increaseAbsoluteCap(idData, newAbsoluteCap);
-        assertEq(vault.absoluteCap(id), newAbsoluteCap);
+        assertEq(vault.caps(id).absoluteCap, newAbsoluteCap);
 
         // Can't decrease absolute cap
         if (newAbsoluteCap > 0) {
@@ -607,7 +607,7 @@ contract SettersTest is BaseTest {
         emit EventsLib.DecreaseAbsoluteCap(curator, id, idData, newAbsoluteCap);
         vm.prank(curator);
         vault.decreaseAbsoluteCap(idData, newAbsoluteCap);
-        assertEq(vault.absoluteCap(id), newAbsoluteCap);
+        assertEq(vault.caps(id).absoluteCap, newAbsoluteCap);
     }
 
     function testIncreaseRelativeCap(address rdm, bytes memory idData, uint256 oldRelativeCap, uint256 newRelativeCap)
@@ -638,7 +638,7 @@ contract SettersTest is BaseTest {
         vm.expectEmit();
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
         vault.increaseRelativeCap(idData, newRelativeCap);
-        assertEq(vault.relativeCap(id), newRelativeCap);
+        assertEq(vault.caps(id).relativeCap, newRelativeCap);
 
         // Can't decrease relative cap
         if (newRelativeCap < WAD) {
@@ -675,7 +675,7 @@ contract SettersTest is BaseTest {
         vm.expectEmit();
         emit EventsLib.DecreaseRelativeCap(curator, id, idData, newRelativeCap);
         vault.decreaseRelativeCap(idData, newRelativeCap);
-        assertEq(vault.relativeCap(id), newRelativeCap);
+        assertEq(vault.caps(id).relativeCap, newRelativeCap);
 
         // Can't increase relative cap
         vm.prank(curator);

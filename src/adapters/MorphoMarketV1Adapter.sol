@@ -114,7 +114,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     }
 
     function allocation(MarketParams memory marketParams) public view returns (uint256) {
-        return IVaultV2(parentVault).allocation(keccak256(abi.encode("this/marketParams", address(this), marketParams)));
+        return IVaultV2(parentVault).caps(keccak256(abi.encode("this/marketParams", address(this), marketParams)))
+            .allocation;
     }
 
     /// @dev Returns adapter's ids.

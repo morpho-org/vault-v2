@@ -45,8 +45,8 @@ contract MorphoMarketV1IntegrationWithdrawTest is MorphoMarketV1IntegrationTest 
         assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket1 + initialInMarket2);
         assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), initialInMarket1);
         assertEq(morpho.expectedSupplyAssets(marketParams2, address(adapter)), initialInMarket2);
-        assertEq(vault.allocation(keccak256(expectedIdData1[2])), initialInMarket1);
-        assertEq(vault.allocation(keccak256(expectedIdData2[2])), initialInMarket2);
+        assertEq(vault.caps(keccak256(expectedIdData1[2])).allocation, initialInMarket1);
+        assertEq(vault.caps(keccak256(expectedIdData2[2])).allocation, initialInMarket2);
     }
 
     function testWithdrawMoreThanIdleNoLiquidityAdapter(uint256 assets) public {
@@ -71,8 +71,8 @@ contract MorphoMarketV1IntegrationWithdrawTest is MorphoMarketV1IntegrationTest 
             morpho.expectedSupplyAssets(marketParams1, address(adapter)), initialInMarket1 + initialInIdle - assets
         );
         assertEq(morpho.expectedSupplyAssets(marketParams2, address(adapter)), initialInMarket2);
-        assertEq(vault.allocation(keccak256(expectedIdData1[2])), initialInMarket1 - (assets - initialInIdle));
-        assertEq(vault.allocation(keccak256(expectedIdData2[2])), initialInMarket2);
+        assertEq(vault.caps(keccak256(expectedIdData1[2])).allocation, initialInMarket1 - (assets - initialInIdle));
+        assertEq(vault.caps(keccak256(expectedIdData2[2])).allocation, initialInMarket2);
     }
 
     function testWithdrawTooMuchEvenWithLiquidityAdapter(uint256 assets) public {
