@@ -707,8 +707,7 @@ contract VaultV2 is IVaultV2 {
     {
         deallocateInternal(adapter, data, assets);
         uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
-        bool vaultCanReceiveAssets = canReceiveAssets(address(this));
-        uint256 shares = vaultCanReceiveAssets ? withdraw(penaltyAssets, address(this), onBehalf) : 0;
+        uint256 shares = canReceiveAssets(address(this)) ? withdraw(penaltyAssets, address(this), onBehalf) : 0;
         emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf, penaltyAssets);
         return shares;
     }
