@@ -26,8 +26,14 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// initial deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 /// @dev Roles are not "two-step" so one must check if they really have this role.
 /// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
-/// that must be distributed on the period (since `lastUpdate`). The Vic must be chosen and managed carefully to not
-/// distribute more than what the vault's investments are earning.
+/// that must be distributed on the period (since `lastUpdate`).
+/// @dev The Vic must never distribute more than what the vault is really earning.
+/// @dev The Vic might not distribute as much interest as planned if:
+/// - The Vic reverted on `setVic`.
+/// - The Vic returned an interest per second that is too high (it is capped at a maxed rate).
+/// @dev The vault might earn more interest than expected if:
+/// - A donation in underlying has been made to the vault.
+/// - There has been some calls to forceDeallocate, and the penalty is not zero.
 /// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
 /// because flashloan based shorting is prevented.
 /// @dev Loose specification of adapters:
