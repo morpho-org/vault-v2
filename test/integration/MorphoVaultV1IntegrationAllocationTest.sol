@@ -56,7 +56,7 @@ contract MorphoVaultV1IntegrationAllocationTest is MorphoVaultV1IntegrationTest 
     function testDeallocateNoLiquidity(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialTotal);
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
 
         // Remove liquidity by borrowing.
         deal(address(collateralToken), borrower, type(uint256).max);

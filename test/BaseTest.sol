@@ -15,6 +15,7 @@ import {AdapterMock} from "./mocks/AdapterMock.sol";
 
 import {Test, console} from "../lib/forge-std/src/Test.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
+import {TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT} from "./PackingTest.sol";
 
 contract BaseTest is Test {
     address immutable owner = makeAddr("owner");
@@ -22,8 +23,7 @@ contract BaseTest is Test {
     address immutable allocator = makeAddr("allocator");
     address immutable sentinel = makeAddr("sentinel");
 
-    // The packed slot containing both _totalAssets and lastUpdate.
-    bytes32 TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT = bytes32(uint256(13));
+    uint256 UNDERLYING_TOKEN_DECIMALS;
 
     ERC20Mock underlyingToken;
     IVaultV2Factory vaultFactory;
@@ -38,7 +38,10 @@ contract BaseTest is Test {
     function setUp() public virtual {
         vm.label(address(this), "testContract");
 
-        underlyingToken = new ERC20Mock();
+        UNDERLYING_TOKEN_DECIMALS = vm.envOr("DECIMALS", uint256(18));
+        require(UNDERLYING_TOKEN_DECIMALS <= 36, "decimals too high");
+
+        underlyingToken = new ERC20Mock(uint8(UNDERLYING_TOKEN_DECIMALS));
         vm.label(address(underlyingToken), "underlying");
 
         vaultFactory = IVaultV2Factory(address(new VaultV2Factory()));

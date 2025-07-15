@@ -16,7 +16,7 @@ contract ManualVicFactory is IManualVicFactory {
 
     /// @dev Returns the address of the deployed ManualVic.
     function createManualVic(address vault) external returns (address) {
-        address vic = address(new ManualVic{salt: 0}(vault));
+        address vic = address(new ManualVic{salt: bytes32(0)}(vault));
 
         isManualVic[vic] = true;
         manualVic[vault] = vic;
