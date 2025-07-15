@@ -27,6 +27,10 @@ contract SingleMorphoVaultV1VicIntegrationTest is MorphoVaultV1IntegrationTest {
         collateralToken.approve(address(morpho), type(uint256).max);
     }
 
+    function testSimple() public {
+        testSingleMorphoVaultV1Vic(7348023461509361796797718391881936674620118918000177, 369822116077778772474097167);
+    }
+
     function testSingleMorphoVaultV1Vic(uint256 assets, uint256 elapsed) public {
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         elapsed = bound(elapsed, 1, 10 * 52 weeks);
