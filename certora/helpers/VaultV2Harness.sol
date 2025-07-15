@@ -18,11 +18,11 @@ contract VaultV2Harness is VaultV2 {
 
     function getAbsoluteCap(bytes memory idData) external view returns (uint256) {
         bytes32 id = keccak256(idData);
-        return caps[id].absoluteCap;
+        return _caps[id].absoluteCap;
     }
 
     function getRelativeCap(bytes memory idData) external view returns (uint256) {
         bytes32 id = keccak256(idData);
-        return caps[id].relativeCap;
+        return _caps[id].relativeCap;
     }
 }
