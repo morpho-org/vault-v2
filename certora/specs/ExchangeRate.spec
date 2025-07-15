@@ -3,11 +3,12 @@
 
 import "Invariants.spec";
 
+// Duration of 10 years in seconds with 3 leap days.
+definition tenYears() returns uint256 = 60 * 60 * 24 * (3 + 365 * 10);
+
 // Check that the value of shares is rounded at most one share down upon deposit.
 rule sharePriceBoundDeposit(env e, uint256 assets, address onBehalf){
-    require e.block.timestamp == currentContract.lastUpdate;
-    require currentContract.managementFee == 0;
-    require currentContract.performanceFee == 0;
+    require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
     require (currentContract.totalSupply > 0, "assume that the vault is seeded");
 
     requireInvariant balanceOfZero();
@@ -15,7 +16,7 @@ rule sharePriceBoundDeposit(env e, uint256 assets, address onBehalf){
     requireInvariant virtualSharesNotNull();
 
     uint256 V = currentContract.virtualShares;
-    require V <= 10^18;
+    require (V <= 10^18, "require virtual shares to be lesser than or equal to 10e18");
 
     uint256 assetsBefore = currentContract._totalAssets;
     uint256 supplyBefore = currentContract.totalSupply;
@@ -30,9 +31,7 @@ rule sharePriceBoundDeposit(env e, uint256 assets, address onBehalf){
 
 // Check that the value of shares is rounded at most one share up upon withdrawal.
 rule sharePriceBoundWithdraw(env e, uint256 assets, address receiver, address onBehalf){
-    require e.block.timestamp == currentContract.lastUpdate;
-    require currentContract.managementFee == 0;
-    require currentContract.performanceFee == 0;
+    require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
     require (currentContract.totalSupply > 0, "assume that the vault is seeded");
 
     requireInvariant balanceOfZero();
@@ -40,7 +39,7 @@ rule sharePriceBoundWithdraw(env e, uint256 assets, address receiver, address on
     requireInvariant virtualSharesNotNull();
 
     uint256 V = currentContract.virtualShares;
-    require V <= 10^18;
+    require (V <= 10^18, "require virtual shares to be lesser than or equal to 10e18");
 
     uint256 assetsBefore = currentContract._totalAssets;
     uint256 supplyBefore = currentContract.totalSupply;
@@ -55,9 +54,7 @@ rule sharePriceBoundWithdraw(env e, uint256 assets, address receiver, address on
 
 // Check that the user will deposit at most one extra asset.
 rule sharePriceBoundMint(env e, uint256 shares, address onBehalf){
-    require e.block.timestamp == currentContract.lastUpdate;
-    require currentContract.managementFee == 0;
-    require currentContract.performanceFee == 0;
+    require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
     require (currentContract.totalSupply > 0, "assume that the vault is seeded");
 
     requireInvariant balanceOfZero();
@@ -65,7 +62,7 @@ rule sharePriceBoundMint(env e, uint256 shares, address onBehalf){
     requireInvariant virtualSharesNotNull();
 
     uint256 V = currentContract.virtualShares;
-    require V <= 10^18;
+    require (V <= 10^18, "require virtual shares to be lesser than or equal to 10e18");
 
     uint256 assetsBefore = currentContract._totalAssets;
     uint256 supplyBefore = currentContract.totalSupply;
@@ -80,7 +77,7 @@ rule sharePriceBoundMint(env e, uint256 shares, address onBehalf){
 
 // Check that the user will be most one asset short upon redeeming.
 rule sharePriceBoundRedeem(env e, uint256 shares, address receiver, address onBehalf){
-    require e.block.timestamp == currentContract.lastUpdate;
+    require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
     require (currentContract.totalSupply > 0, "assume that the vault is seeded");
 
     requireInvariant balanceOfZero();
@@ -88,7 +85,7 @@ rule sharePriceBoundRedeem(env e, uint256 shares, address receiver, address onBe
     requireInvariant virtualSharesNotNull();
 
     uint256 V = currentContract.virtualShares;
-    require V <= 10^18;
+    require (V <= 10^18, "require virtual shares to be lesser than or equal to 10e18");
 
     uint256 assetsBefore = currentContract._totalAssets;
     uint256 supplyBefore = currentContract.totalSupply;
@@ -103,14 +100,14 @@ rule sharePriceBoundRedeem(env e, uint256 shares, address receiver, address onBe
 
 // Check that loss realization is monotonic.
 rule lossRealizationMonotonic(env e, address adapter, bytes data){
-    require e.block.timestamp == currentContract.lastUpdate;
+    require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
     requireInvariant balanceOfZero();
     requireInvariant totalSupplyIsSumOfBalances();
     requireInvariant virtualSharesNotNull();
 
     uint256 V = currentContract.virtualShares;
-    require V <= 10^18;
+    require (V <= 10^18, "require virtual shares to be lesser than or equal to 10e18");
 
     uint256 assetsBefore = currentContract._totalAssets;
     uint256 supplyBefore = currentContract.totalSupply;
@@ -128,9 +125,10 @@ rule lossRealizationMonotonic(env e, address adapter, bytes data){
 rule sharePriceMonotonic(method f, env e, calldataarg a) filtered {
     f -> f.selector != sig:realizeLoss(address, bytes).selector
 } {
-    require e.block.timestamp >= currentContract.lastUpdate;
-    require currentContract.managementFee == 0;
-    require currentContract.performanceFee <= Utils.maxPerformanceFee();
+    require (e.block.timestamp >= currentContract.lastUpdate, "safe requirement because `lastUpdate` is growing and monotonic") ;
+    require (e.block.timestamp - currentContract.lastUpdate < tenYears(), "assume the vault has been pinged less than 10 years ago");
+    require (currentContract.managementFee == 0, "assume management fee to be null");
+    require (currentContract.performanceFee <= Utils.maxPerformanceFee(), "safe requirement because performance fee is capped");
     require (currentContract.totalSupply > 0, "assume that the vault is seeded");
 
     requireInvariant balanceOfZero();
@@ -138,8 +136,7 @@ rule sharePriceMonotonic(method f, env e, calldataarg a) filtered {
     requireInvariant virtualSharesNotNull();
 
     uint256 V = currentContract.virtualShares;
-    require V == 10^18;
-    //require V == 1;
+    require (V <= 10^18, "require virtual shares to be lesser than or equal to 10e18");
 
     uint256 assetsBefore = currentContract._totalAssets;
     uint256 supplyBefore = currentContract.totalSupply;
