@@ -22,10 +22,10 @@ library EventsLib {
 
     // Allocation events
     event Allocate(
-        address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 interest, bytes data
+        address indexed sender, address indexed adapter, bytes data, uint256 assets, bytes32[] ids, uint256 interest
     );
     event Deallocate(
-        address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 interest, bytes data
+        address indexed sender, address indexed adapter, bytes data, uint256 assets, bytes32[] ids, uint256 interest
     );
     event ForceDeallocate(
         address indexed sender,
