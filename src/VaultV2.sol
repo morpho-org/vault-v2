@@ -861,7 +861,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function canReceiveAssets(address account) public view returns (bool) {
-        return receiveAssetsGate == address(0) || account == address(this)
+        return account == address(this) || receiveAssetsGate == address(0)
             || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(account);
     }
 }
