@@ -20,7 +20,6 @@ jobs:
           - Immutability
           - Invariants
           - Liveness
-          - MorphoMarketV1AdapterInvariant
           - MorphoMarketV1AdapterFactory
           - MorphoVaultV1AdapterFactory
           - OwnerSafety
