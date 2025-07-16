@@ -25,6 +25,7 @@ jobs:
           - OwnerSafety
           - PreviewFunctions
           - Reentrancy
+          - ReentrancyView
           - SentinelLiveness
 
     steps:
