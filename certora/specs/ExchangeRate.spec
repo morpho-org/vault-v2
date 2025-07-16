@@ -3,10 +3,10 @@
 
 import "Invariants.spec";
 
-// Duration of 10 years in seconds with 3 leap days.
-definition tenYears() returns uint256 = 60 * 60 * 24 * (3 + 365 * 10);
+// Duration of 10 years in seconds.
+definition tenYears() returns uint256 = 60 * 60 * 24 * 365 * 10;
 
-// Check that the value of shares is rounded at most one share down upon deposit.
+// Check that deposit increases share value by no more than burning a single share would.
 rule sharePriceBoundDeposit(env e, uint256 assets, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
     require (currentContract.totalSupply > 0, "assume that the vault is seeded");
