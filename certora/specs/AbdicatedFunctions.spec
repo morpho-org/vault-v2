@@ -15,16 +15,16 @@ methods {
 rule abidcatedFunctionHasInfiniteTimelock(env e, bytes4 selector) {
     abdicateSubmit(e, selector);
 
-    assert timelock(selector) == 2^256 - 1;
+    assert timelock(selector) == max_uint256;
 }
 
 // Check that infinite timelocks can't be changed.
 rule inifiniteTimelockCantBeChanged(env e, method f, calldataarg data, bytes4 selector) {
-    require timelock(selector) == 2^256 - 1;
+    require timelock(selector) == max_uint256;
 
     f(e, data);
 
-    assert timelock(selector) == 2^256 - 1;
+    assert timelock(selector) == max_uint256;
 }
 
 // Check that changes corresponding to functions that have been abdicated can't be submitted.
@@ -33,7 +33,7 @@ rule abdicatedFunctionsCantBeSubmitted(env e, bytes data) {
     require e.block.timestamp > 0;
 
     // Assume that the function has been abdicated.
-    require timelock(Utils.toBytes4(data)) == 2^256 - 1;
+    require timelock(Utils.toBytes4(data)) == max_uint256;
 
     submit@withrevert(e, data);
     assert lastReverted;

@@ -10,9 +10,9 @@ contract MorphoVaultV1_1IntegrationWithdrawTest is MorphoVaultV1_1IntegrationTes
     address internal immutable receiver = makeAddr("receiver");
     address internal immutable borrower = makeAddr("borrower");
 
-    uint256 internal initialInIdle = 0.3e18;
+    uint256 internal initialInIdle = 0.3e18 - 1;
     uint256 internal initialInMorphoVaultV1 = 0.7e18;
-    uint256 internal initialTotal = 1e18;
+    uint256 internal initialTotal = 1e18 - 1;
 
     function setUp() public virtual override {
         super.setUp();
