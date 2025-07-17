@@ -6,7 +6,7 @@ import "Invariants.spec";
 // Duration of 10 years in seconds.
 definition tenYears() returns uint256 = 60 * 60 * 24 * 365 * 10;
 
-// Check that deposit can raise the price-per-share by no more than burning one additional share would.
+// Check that if deposit adds one share less to the user than it does, then the share price would decrease following a deposit.
 rule sharePriceBoundDeposit(env e, uint256 assets, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
@@ -23,7 +23,7 @@ rule sharePriceBoundDeposit(env e, uint256 assets, address onBehalf){
     assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V + 1);
 }
 
-// Check that if withdraw removed one less share to the user than it does, then share price would decrease following a withdraw.
+// Check that if withdraw removed one share less to the user than it does, then the share price would decrease following a withdraw.
 rule sharePriceBoundWithdraw(env e, uint256 assets, address receiver, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
