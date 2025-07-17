@@ -10,9 +10,9 @@ contract MorphoVaultV1_1IntegrationWithdrawTest is MorphoVaultV1_1IntegrationTes
     address internal immutable receiver = makeAddr("receiver");
     address internal immutable borrower = makeAddr("borrower");
 
-    uint256 internal initialInIdle = 0.3e18;
+    uint256 internal initialInIdle = 0.3e18 - 1;
     uint256 internal initialInMorphoVaultV1 = 0.7e18;
-    uint256 internal initialTotal = 1e18;
+    uint256 internal initialTotal = 1e18 - 1;
 
     function setUp() public virtual override {
         super.setUp();
@@ -55,7 +55,7 @@ contract MorphoVaultV1_1IntegrationWithdrawTest is MorphoVaultV1_1IntegrationTes
     function testWithdrawThanksToLiquidityAdapter(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialTotal);
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
 
         vault.withdraw(assets, receiver, address(this));
         assertEq(underlyingToken.balanceOf(receiver), assets);
@@ -71,7 +71,7 @@ contract MorphoVaultV1_1IntegrationWithdrawTest is MorphoVaultV1_1IntegrationTes
     function testWithdrawTooMuchEvenWithLiquidityAdapter(uint256 assets) public {
         assets = bound(assets, initialTotal + 1, MAX_TEST_ASSETS);
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
 
         vm.expectRevert();
         vault.withdraw(assets, receiver, address(this));
@@ -80,7 +80,7 @@ contract MorphoVaultV1_1IntegrationWithdrawTest is MorphoVaultV1_1IntegrationTes
     function testWithdrawLiquidityAdapterNoLiquidity(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialTotal);
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
 
         // Remove liquidity by borrowing.
         deal(address(collateralToken), borrower, type(uint256).max);

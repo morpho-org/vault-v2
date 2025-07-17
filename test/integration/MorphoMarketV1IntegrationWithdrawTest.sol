@@ -10,10 +10,10 @@ contract MorphoMarketV1IntegrationWithdrawTest is MorphoMarketV1IntegrationTest 
     address internal immutable receiver = makeAddr("receiver");
     address internal immutable borrower = makeAddr("borrower");
 
-    uint256 internal initialInIdle = 0.2e18;
+    uint256 internal initialInIdle = 0.2e18 - 1;
     uint256 internal initialInMarket1 = 0.3e18;
     uint256 internal initialInMarket2 = 0.5e18;
-    uint256 internal initialTotal = 1e18;
+    uint256 internal initialTotal = 1e18 - 1;
 
     function setUp() public virtual override {
         super.setUp();
@@ -59,7 +59,7 @@ contract MorphoMarketV1IntegrationWithdrawTest is MorphoMarketV1IntegrationTest 
     function testWithdrawThanksToLiquidityAdapter(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialInIdle + initialInMarket1);
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(adapter), abi.encode(marketParams1));
+        vault.setLiquidityAdapterAndData(address(adapter), abi.encode(marketParams1));
 
         vault.withdraw(assets, receiver, address(this));
 
@@ -78,7 +78,7 @@ contract MorphoMarketV1IntegrationWithdrawTest is MorphoMarketV1IntegrationTest 
     function testWithdrawTooMuchEvenWithLiquidityAdapter(uint256 assets) public {
         assets = bound(assets, initialInIdle + initialInMarket1 + 1, MAX_TEST_ASSETS);
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(adapter), abi.encode(marketParams1));
+        vault.setLiquidityAdapterAndData(address(adapter), abi.encode(marketParams1));
 
         vm.expectRevert();
         vault.withdraw(assets, receiver, address(this));
@@ -87,7 +87,7 @@ contract MorphoMarketV1IntegrationWithdrawTest is MorphoMarketV1IntegrationTest 
     function testWithdrawLiquidityAdapterNoLiquidity(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialTotal);
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(adapter), abi.encode(marketParams1));
+        vault.setLiquidityAdapterAndData(address(adapter), abi.encode(marketParams1));
 
         // Remove liquidity by borrowing.
         deal(address(collateralToken), borrower, type(uint256).max);

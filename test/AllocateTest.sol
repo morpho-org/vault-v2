@@ -34,10 +34,12 @@ contract AllocateTest is BaseTest {
         vault.allocate(adapter, hex"", 0);
     }
 
-    /// forge-config: default.isolate = true
-    function testAllocate(bytes memory data, uint256 assets, address rdm, uint256 absoluteCap) public {
+    function testAllocate(bytes memory data, uint256 assets, uint256 allocateAssets, address rdm, uint256 absoluteCap)
+        public
+    {
         vm.assume(rdm != address(allocator));
         assets = bound(assets, 2, type(uint128).max);
+        allocateAssets = bound(allocateAssets, 0, assets);
         absoluteCap = bound(absoluteCap, assets, type(uint128).max);
 
         // Setup.
@@ -93,14 +95,18 @@ contract AllocateTest is BaseTest {
         increaseRelativeCap("id-1", WAD);
         vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.Allocate(allocator, adapter, assets, ids, 0);
-        vault.allocate(adapter, data, assets);
-        assertEq(underlyingToken.balanceOf(address(vault)), 0, "Vault balance should be zero after allocation");
-        assertEq(underlyingToken.balanceOf(adapter), assets, "Adapter balance incorrect after allocation");
-        assertEq(vault.allocation(keccak256("id-0")), assets, "Allocation incorrect after allocation");
-        assertEq(vault.allocation(keccak256("id-1")), assets, "Allocation incorrect after allocation");
+        emit EventsLib.Allocate(allocator, adapter, allocateAssets, ids, 0);
+        vault.allocate(adapter, data, allocateAssets);
+        assertEq(
+            underlyingToken.balanceOf(address(vault)),
+            assets - allocateAssets,
+            "Vault balance incorrect after allocation"
+        );
+        assertEq(underlyingToken.balanceOf(adapter), allocateAssets, "Adapter balance incorrect after allocation");
+        assertEq(vault.allocation(keccak256("id-0")), allocateAssets, "Allocation incorrect after allocation");
+        assertEq(vault.allocation(keccak256("id-1")), allocateAssets, "Allocation incorrect after allocation");
         assertEq(AdapterMock(adapter).recordedAllocateData(), data, "Data incorrect after allocation");
-        assertEq(AdapterMock(adapter).recordedAllocateAssets(), assets, "Assets incorrect after allocation");
+        assertEq(AdapterMock(adapter).recordedAllocateAssets(), allocateAssets, "Assets incorrect after allocation");
         assertEq(
             AdapterMock(adapter).recordedSelector(), IVaultV2.allocate.selector, "Selector incorrect after allocation"
         );
@@ -109,7 +115,7 @@ contract AllocateTest is BaseTest {
 
     /// forge-config: default.isolate = true
     function testRelativeCapManipulationProtection(uint256 allocation) public {
-        allocation = bound(allocation, 1, type(uint128).max / 2);
+        allocation = bound(allocation, 1, type(uint128).max / 2 / vault.virtualShares());
         deal(address(underlyingToken), allocator, type(uint256).max);
         vm.prank(allocator);
         underlyingToken.approve(address(vault), type(uint256).max);

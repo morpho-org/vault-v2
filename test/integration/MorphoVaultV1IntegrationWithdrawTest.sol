@@ -2,17 +2,17 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MorphoVaultIntegrationTest.sol";
+import "./MorphoVaultV1IntegrationTest.sol";
 
-contract MorphoVaultIntegrationWithdrawTest is MorphoVaultIntegrationTest {
+contract MorphoVaultV1IntegrationWithdrawTest is MorphoVaultV1IntegrationTest {
     using MorphoBalancesLib for IMorpho;
 
     address internal immutable receiver = makeAddr("receiver");
     address internal immutable borrower = makeAddr("borrower");
 
-    uint256 internal initialInIdle = 0.3e18;
+    uint256 internal initialInIdle = 0.3e18 - 1;
     uint256 internal initialInMorphoVaultV1 = 0.7e18;
-    uint256 internal initialTotal = 1e18;
+    uint256 internal initialTotal = 1e18 - 1;
 
     function setUp() public virtual override {
         super.setUp();
@@ -55,7 +55,7 @@ contract MorphoVaultIntegrationWithdrawTest is MorphoVaultIntegrationTest {
     function testWithdrawThanksToLiquidityAdapter(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialTotal);
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
 
         vault.withdraw(assets, receiver, address(this));
         assertEq(underlyingToken.balanceOf(receiver), assets);
@@ -71,7 +71,7 @@ contract MorphoVaultIntegrationWithdrawTest is MorphoVaultIntegrationTest {
     function testWithdrawTooMuchEvenWithLiquidityAdapter(uint256 assets) public {
         assets = bound(assets, initialTotal + 1, MAX_TEST_ASSETS);
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
 
         vm.expectRevert();
         vault.withdraw(assets, receiver, address(this));
@@ -80,7 +80,7 @@ contract MorphoVaultIntegrationWithdrawTest is MorphoVaultIntegrationTest {
     function testWithdrawLiquidityAdapterNoLiquidity(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialTotal);
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
 
         // Remove liquidity by borrowing.
         deal(address(collateralToken), borrower, type(uint256).max);

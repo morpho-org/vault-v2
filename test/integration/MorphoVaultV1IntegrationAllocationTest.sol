@@ -2,9 +2,9 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MorphoVaultIntegrationTest.sol";
+import "./MorphoVaultV1IntegrationTest.sol";
 
-contract MorphoVaultIntegrationAllocationTest is MorphoVaultIntegrationTest {
+contract MorphoVaultV1IntegrationAllocationTest is MorphoVaultV1IntegrationTest {
     using MorphoBalancesLib for IMorpho;
 
     address internal immutable borrower = makeAddr("borrower");
@@ -56,7 +56,7 @@ contract MorphoVaultIntegrationAllocationTest is MorphoVaultIntegrationTest {
     function testDeallocateNoLiquidity(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialTotal);
         vm.prank(allocator);
-        vault.setLiquidityMarket(address(morphoVaultV1Adapter), hex"");
+        vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
 
         // Remove liquidity by borrowing.
         deal(address(collateralToken), borrower, type(uint256).max);

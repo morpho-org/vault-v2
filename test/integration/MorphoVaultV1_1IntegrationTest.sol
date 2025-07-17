@@ -29,7 +29,7 @@ import {MorphoVaultV1AdapterFactory} from "../../src/adapters/MorphoVaultV1Adapt
 contract MorphoVaultV1_1IntegrationTest is BaseTest {
     using MarketParamsLib for MarketParams;
 
-    uint256 internal constant MAX_TEST_ASSETS = 1e32;
+    uint256 internal MAX_TEST_ASSETS;
 
     // Morpho.
     address internal immutable morphoOwner = makeAddr("MorphoOwner");
@@ -56,9 +56,11 @@ contract MorphoVaultV1_1IntegrationTest is BaseTest {
     function setUp() public virtual override {
         super.setUp();
 
+        MAX_TEST_ASSETS = 10 ** min(18 + underlyingToken.decimals(), 32);
+
         // Setup morpho.
         morpho = IMorpho(deployCode("Morpho.sol", abi.encode(morphoOwner)));
-        collateralToken = new ERC20Mock();
+        collateralToken = new ERC20Mock(18);
         oracle = new OracleMock();
         irm = new IrmMock();
 

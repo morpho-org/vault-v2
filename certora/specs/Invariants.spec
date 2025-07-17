@@ -24,7 +24,6 @@ methods {
     function isAdapter(address adapter) external returns bool envfree;
     function balanceOf(address) external returns uint256 envfree;
     function sharesGate() external returns address envfree;
-    function canReceive(address) external returns bool envfree;
 
     function Utils.wad() external returns uint256 envfree;
     function Utils.maxRatePerSecond() external returns uint256 envfree;
