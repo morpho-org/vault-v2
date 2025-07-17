@@ -27,7 +27,7 @@ rule sharePriceBoundDeposit(env e, uint256 assets, address onBehalf){
     assert (assetsAfter + 1) * (supplyBefore + V - 1) <= (assetsBefore + 1) * (supplyAfter + V);
 }
 
-// Check that withdraw can raise the price-per-share by no more than burning one additional share would.
+// Check that if withdraw removed one less share to the user than it does, then share price would decrease following a withdraw.
 rule sharePriceBoundWithdraw(env e, uint256 assets, address receiver, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
     require (currentContract.totalSupply > 0, "assume that the vault is seeded");
@@ -45,7 +45,7 @@ rule sharePriceBoundWithdraw(env e, uint256 assets, address receiver, address on
     uint256 assetsAfter = currentContract._totalAssets;
     uint256 supplyAfter = currentContract.totalSupply;
 
-    assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + 1 + V);
+    assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V + 1);
 }
 
 // Check that mint can raise the price-per-share by no more than depositing one extra asset would.
@@ -68,7 +68,7 @@ rule sharePriceBoundMint(env e, uint256 shares, address onBehalf){
     // Tight inequality
     assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V )  + (supplyBefore + V - 1);
 
-    assert (assetsAfter) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V);
+    assert (assetsAfter + 1 - 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V);
 }
 
 // Check that redeem can raise the price-per-share by no more than contributing one extra asset would.
@@ -88,13 +88,13 @@ rule sharePriceBoundRedeem(env e, uint256 shares, address receiver, address onBe
     uint256 assetsAfter = currentContract._totalAssets;
     uint256 supplyAfter = currentContract.totalSupply;
 
-    // Tight inequalty.
+    // Tight inequality.
     assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V) + (supplyBefore + V - 1);
 
     assert (assetsAfter) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V);
 }
 
-// Check that loss realization is monotonic.
+// Check that loss realization decreases the share price.
 rule lossRealizationMonotonic(env e, address adapter, bytes data){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
@@ -114,8 +114,8 @@ rule lossRealizationMonotonic(env e, address adapter, bytes data){
     assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V);
 }
 
-// Check that share price is monotonic.
-rule sharePriceMonotonic(method f, env e, calldataarg a) filtered {
+// Check that share price is increasing, except due to management fees or loss realization.
+rule sharePriceIncreasing(method f, env e, calldataarg a) filtered {
     f -> f.selector != sig:realizeLoss(address, bytes).selector
 } {
     require (e.block.timestamp >= currentContract.lastUpdate, "safe requirement because `lastUpdate` is growing and monotonic") ;

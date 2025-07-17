@@ -73,5 +73,5 @@ strong invariant decreaseTimelockTimelock()
 strong invariant totalSupplyIsSumOfBalances()
     totalSupply() == sumOfBalances;
 
-invariant virtualShares()
+invariant virtualSharesBounds()
     0 < currentContract.virtualShares && currentContract.virtualShares <= 10^18;
