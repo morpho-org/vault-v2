@@ -3,11 +3,14 @@
 
 using MorphoMarketV1Adapter as MorphoMarketV1Adapter;
 using MorphoHarness as MorphoMarketV1;
+using ERC20Helper as ERC20;
 
 methods {
     function asset() external returns address envfree;
     function lastUpdate() external returns uint64 envfree;
     function liquidityData() external returns bytes envfree;
+
+    function ERC20.balanceOf(address, address) external returns uint256 envfree;
 
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
@@ -36,17 +39,17 @@ rule depositTokenChange(env e, uint256 assets, address receiver) {
     require (asset == 0x13, "ack");
     require (e.msg.sender == 0x14, "ack");
 
-    uint256 balanceMorphoMarketV1AdapterBefore = asset.balanceOf(e, MorphoMarketV1Adapter);
-    uint256 balanceMorphoMarketV1Before = asset.balanceOf(e, MorphoMarketV1);
-    uint256 balanceSenderBefore = asset.balanceOf(e, e.msg.sender);
-    uint256 balanceVaultV2Before = asset.balanceOf(e, currentContract);
+    uint256 balanceMorphoMarketV1AdapterBefore = ERC20.balanceOf(asset, MorphoMarketV1Adapter);
+    uint256 balanceMorphoMarketV1Before = ERC20.balanceOf(asset, MorphoMarketV1);
+    uint256 balanceSenderBefore = ERC20.balanceOf(asset, e.msg.sender);
+    uint256 balanceVaultV2Before = ERC20.balanceOf(asset, currentContract);
 
     deposit(e, assets, receiver);
 
-    uint256 balanceMorphoMarketV1AdapterAfter = asset.balanceOf(e, MorphoMarketV1Adapter);
-    uint256 balanceMorphoMarketV1After = asset.balanceOf(e, MorphoMarketV1);
-    uint256 balanceSenderAfter = asset.balanceOf(e, e.msg.sender);
-    uint256 balanceVaultV2After = asset.balanceOf(e, currentContract);
+    uint256 balanceMorphoMarketV1AdapterAfter = ERC20.balanceOf(asset, MorphoMarketV1Adapter);
+    uint256 balanceMorphoMarketV1After = ERC20.balanceOf(asset, MorphoMarketV1);
+    uint256 balanceSenderAfter = ERC20.balanceOf(asset, e.msg.sender);
+    uint256 balanceVaultV2After = ERC20.balanceOf(asset, currentContract);
 
     assert balanceMorphoMarketV1AdapterAfter == balanceMorphoMarketV1AdapterBefore;
     assert assert_uint256(balanceMorphoMarketV1After - balanceMorphoMarketV1Before) == assets;
@@ -67,17 +70,17 @@ rule withdrawTokenChange(env e, uint256 assets, address receiver, address owner)
     require (asset == 0x13, "ack");
     require (receiver == 0x14, "ack");
 
-    uint256 balanceMorphoMarketV1AdapterBefore = asset.balanceOf(e, MorphoMarketV1Adapter);
-    uint256 balanceMorphoMarketV1Before = asset.balanceOf(e, MorphoMarketV1);
-    uint256 balanceReceiverBefore = asset.balanceOf(e, receiver);
-    uint256 balanceVaultV2Before = asset.balanceOf(e, currentContract);
+    uint256 balanceMorphoMarketV1AdapterBefore = ERC20.balanceOf(asset, MorphoMarketV1Adapter);
+    uint256 balanceMorphoMarketV1Before = ERC20.balanceOf(asset, MorphoMarketV1);
+    uint256 balanceReceiverBefore = ERC20.balanceOf(asset, receiver);
+    uint256 balanceVaultV2Before = ERC20.balanceOf(asset, currentContract);
 
     withdraw(e, assets, receiver, owner);
 
-    uint256 balanceMorphoMarketV1AdapterAfter = asset.balanceOf(e, MorphoMarketV1Adapter);
-    uint256 balanceMorphoMarketV1After = asset.balanceOf(e, MorphoMarketV1);
-    uint256 balanceReceiverAfter = asset.balanceOf(e, receiver);
-    uint256 balanceVaultV2After = asset.balanceOf(e, currentContract);
+    uint256 balanceMorphoMarketV1AdapterAfter = ERC20.balanceOf(asset, MorphoMarketV1Adapter);
+    uint256 balanceMorphoMarketV1After = ERC20.balanceOf(asset, MorphoMarketV1);
+    uint256 balanceReceiverAfter = ERC20.balanceOf(asset, receiver);
+    uint256 balanceVaultV2After = ERC20.balanceOf(asset, currentContract);
 
     assert balanceMorphoMarketV1AdapterAfter == balanceMorphoMarketV1AdapterBefore;
 
