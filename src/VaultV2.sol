@@ -36,6 +36,9 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
 /// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
 /// @dev Set the Vic to 0 to disable it (=> no interest accrual).
+/// @dev _totalAssets stores the last recorded total assets. Use totalAssets() for the updated total assets.
+/// @dev The Vic must not call totalAssets() because it will try to accrue interest, but instead use the argument
+/// _totalAssets that is passed.
 ///
 /// FIRST TOTAL ASSETS
 /// @dev The variable firstTotalAssets tracks the total assets after the first interest accrual of the transaction.
@@ -55,6 +58,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Relative caps are "soft" in the sense that they are only checked on allocate.
 /// @dev The relative cap is relative to totalAssets, or more precisely to firstTotalAssets.
 /// @dev The relative cap unit is WAD.
+/// @dev To track allocations using events, use the Allocate and Deallocate events only.
 ///
 /// ADAPTERS
 /// @dev Loose specification of adapters:
@@ -131,7 +135,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev receiveAssetsGate:
 ///     - Gates receiving assets from the vault.
 ///     - Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
-///     - The vault must be able to receive assets, otherwise forceDeallocate will revert.
+///     - The vault itself (address(this)) is always allowed to receive assets, regardless of the gate configuration.
 /// @dev sendAssetsGate:
 ///     - Gates depositing assets to the vault.
 ///     - This gate is not critical (cannot block users' funds), while still being able to gate supplies.
@@ -176,8 +180,8 @@ contract VaultV2 is IVaultV2 {
 
     /* INTEREST STORAGE */
 
-    uint192 internal _totalAssets;
     uint256 public transient firstTotalAssets;
+    uint192 public _totalAssets;
     uint64 public lastUpdate;
     address public vic;
     bool public transient enterBlocked;
@@ -514,7 +518,10 @@ contract VaultV2 is IVaultV2 {
         deallocateInternal(adapter, data, assets);
     }
 
-    function deallocateInternal(address adapter, bytes memory data, uint256 assets) internal {
+    function deallocateInternal(address adapter, bytes memory data, uint256 assets)
+        internal
+        returns (bytes32[] memory)
+    {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
@@ -527,6 +534,7 @@ contract VaultV2 is IVaultV2 {
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
         emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, interest);
+        return ids;
     }
 
     /// @dev Whether newLiquidityAdapter is an adapter is checked in allocate/deallocate.
@@ -730,11 +738,11 @@ contract VaultV2 is IVaultV2 {
         external
         returns (uint256)
     {
-        deallocateInternal(adapter, data, assets);
+        bytes32[] memory ids = deallocateInternal(adapter, data, assets);
         uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
-        uint256 shares = withdraw(penaltyAssets, address(this), onBehalf);
-        emit EventsLib.ForceDeallocate(msg.sender, adapter, data, assets, onBehalf, penaltyAssets);
-        return shares;
+        uint256 penaltyShares = withdraw(penaltyAssets, address(this), onBehalf);
+        emit EventsLib.ForceDeallocate(msg.sender, adapter, assets, onBehalf, ids, penaltyAssets);
+        return penaltyShares;
     }
 
     /// @dev For small losses, the incentive could be null because of rounding.
@@ -861,6 +869,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function canReceiveAssets(address account) public view returns (bool) {
-        return receiveAssetsGate == address(0) || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(account);
+        return account == address(this) || receiveAssetsGate == address(0)
+            || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(account);
     }
 }

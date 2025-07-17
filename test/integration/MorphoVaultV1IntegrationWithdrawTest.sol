@@ -2,17 +2,17 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MorphoVaultIntegrationTest.sol";
+import "./MorphoVaultV1IntegrationTest.sol";
 
-contract MorphoVaultIntegrationWithdrawTest is MorphoVaultIntegrationTest {
+contract MorphoVaultV1IntegrationWithdrawTest is MorphoVaultV1IntegrationTest {
     using MorphoBalancesLib for IMorpho;
 
     address internal immutable receiver = makeAddr("receiver");
     address internal immutable borrower = makeAddr("borrower");
 
-    uint256 internal initialInIdle = 0.3e18;
+    uint256 internal initialInIdle = 0.3e18 - 1;
     uint256 internal initialInMorphoVaultV1 = 0.7e18;
-    uint256 internal initialTotal = 1e18;
+    uint256 internal initialTotal = 1e18 - 1;
 
     function setUp() public virtual override {
         super.setUp();

@@ -22,6 +22,7 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function sendAssetsGate() external view returns (address);
     function isSentinel(address account) external view returns (bool);
     function isAllocator(address account) external view returns (bool);
+    function _totalAssets() external view returns (uint192);
     function firstTotalAssets() external view returns (uint256);
     function lastUpdate() external view returns (uint64);
     function vic() external view returns (address);
@@ -95,7 +96,7 @@ interface IVaultV2 is IERC4626, IERC2612 {
     // Force deallocate
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
-        returns (uint256 withdrawnShares);
+        returns (uint256 penaltyShares);
 
     // Realize loss
     function realizeLoss(address adapter, bytes memory data) external returns (uint256 incentiveShares, uint256 loss);

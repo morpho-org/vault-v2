@@ -63,6 +63,9 @@ contract RealizeLossTest is BaseTest {
 
         // Realize the loss.
         uint256 sharesBefore = vault.balanceOf(address(this));
+        bytes32[] memory emptyIds = new bytes32[](0);
+        vm.expectEmit(true, true, false, false);
+        emit EventsLib.RealizeLoss(address(this), address(adapter), emptyIds, 0, 0);
         (uint256 incentiveShares, uint256 loss) = vault.realizeLoss(address(adapter), hex"");
         uint256 expectedShares = vault.balanceOf(address(this)) - sharesBefore;
         assertEq(incentiveShares, expectedShares, "incentive shares should be equal to expected shares");
