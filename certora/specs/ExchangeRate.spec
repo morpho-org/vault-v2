@@ -9,10 +9,6 @@ definition tenYears() returns uint256 = 60 * 60 * 24 * 365 * 10;
 // Check that deposit can raise the price-per-share by no more than burning one additional share would.
 rule sharePriceBoundDeposit(env e, uint256 assets, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
-    require (currentContract.totalSupply > 0, "assume that the vault is seeded");
-
-    requireInvariant balanceOfZero();
-    requireInvariant totalSupplyIsSumOfBalances();
 
     uint256 V = currentContract.virtualShares;
 
@@ -24,16 +20,12 @@ rule sharePriceBoundDeposit(env e, uint256 assets, address onBehalf){
     uint256 assetsAfter = currentContract._totalAssets;
     uint256 supplyAfter = currentContract.totalSupply;
 
-    assert (assetsAfter + 1) * (supplyBefore + V - 1) <= (assetsBefore + 1) * (supplyAfter + V);
+    assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V + 1);
 }
 
 // Check that if withdraw removed one less share to the user than it does, then share price would decrease following a withdraw.
 rule sharePriceBoundWithdraw(env e, uint256 assets, address receiver, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
-    require (currentContract.totalSupply > 0, "assume that the vault is seeded");
-
-    requireInvariant balanceOfZero();
-    requireInvariant totalSupplyIsSumOfBalances();
 
     uint256 V = currentContract.virtualShares;
 
@@ -51,10 +43,6 @@ rule sharePriceBoundWithdraw(env e, uint256 assets, address receiver, address on
 // Check that mint can raise the price-per-share by no more than depositing one extra asset would.
 rule sharePriceBoundMint(env e, uint256 shares, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
-    require (currentContract.totalSupply > 0, "assume that the vault is seeded");
-
-    requireInvariant balanceOfZero();
-    requireInvariant totalSupplyIsSumOfBalances();
 
     uint256 V = currentContract.virtualShares;
     uint256 assetsBefore = currentContract._totalAssets;
@@ -74,10 +62,6 @@ rule sharePriceBoundMint(env e, uint256 shares, address onBehalf){
 // Check that redeem can raise the price-per-share by no more than contributing one extra asset would.
 rule sharePriceBoundRedeem(env e, uint256 shares, address receiver, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
-    require (currentContract.totalSupply > 0, "assume that the vault is seeded");
-
-    requireInvariant balanceOfZero();
-    requireInvariant totalSupplyIsSumOfBalances();
 
     uint256 V = currentContract.virtualShares;
     uint256 assetsBefore = currentContract._totalAssets;
@@ -97,9 +81,6 @@ rule sharePriceBoundRedeem(env e, uint256 shares, address receiver, address onBe
 // Check that loss realization decreases the share price.
 rule lossRealizationMonotonic(env e, address adapter, bytes data){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
-
-    requireInvariant balanceOfZero();
-    requireInvariant totalSupplyIsSumOfBalances();
 
     uint256 V = currentContract.virtualShares;
     uint256 assetsBefore = currentContract._totalAssets;
@@ -126,7 +107,7 @@ rule sharePriceIncreasing(method f, env e, calldataarg a) filtered {
 
     requireInvariant balanceOfZero();
     requireInvariant totalSupplyIsSumOfBalances();
-    requireInvariant virtualShares();
+    requireInvariant virtualSharesBounds();
 
     uint256 V = currentContract.virtualShares;
     require (V <= 10^18, "require virtual shares to be lesser than or equal to 10e18");
