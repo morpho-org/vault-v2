@@ -4,7 +4,26 @@
 import "Invariants.spec";
 
 methods {
-    function _.deallocate(bytes, uint256, bytes4, address) external => CONSTANT;
+    function _.deallocate(bytes, uint256, bytes4, address) external
+        => constantDeallocateSummary() expect (bytes32[], uint256);
+}
+
+persistent ghost mapping(uint256 => bytes32) idByIndex;
+persistent ghost uint idsLength;
+persistent ghost uint256 interest;
+
+function constantGhostIds() returns bytes32[] {
+    bytes32[] ids;
+    require ids.lenght == idsLength;
+    require forall uint i. i < ids.length => ids[i] == idByIndex[i];
+    return ids;
+}
+
+function constantDeallocateSummary() returns (bytes32[], uint256) {
+    bytes32[] ids = constantGhostIds();
+    require (forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "assume that all returned ids are unique");
+
+    return (ids, interest);
 }
 
 rule livenessSetVicIfDataIsTimelocked(env e, address newVic) {
@@ -49,25 +68,26 @@ rule livenessSetIsSentinel(env e, address account, bool isSentinel) {
     assert !lastReverted;
 }
 
-// Check authorized addresses can deallocate if forceDeallocate is possible.
+// Check that authorized addresses can deallocate if forceDeallocate is possible.
 rule livenessDeallocate(env e, env f, address adapter, bytes data, uint256 assets, address onBehalf) {
+    // Instantiate two environments that differ only by the message sender.
+    require (e.msg.value == f.msg.value, "ack");
+    require (e.block.number == f.block.number, "ack");
+    require (e.block.timestamp == f.block.timestamp, "ack");
+    require (e.block.basefee == f.block.basefee, "ack");
+    require (e.block.coinbase == f.block.coinbase, "ack");
+    require (e.block.difficulty == f.block.difficulty, "ack");
+    require (e.block.gaslimit == f.block.gaslimit, "ack");
+    require (e.tx.origin == f.tx.origin, "ack");
 
-    // Safe require statements to instantiate two environments that differ only by the message sender.
-    require e.msg.value == f.msg.value;
-    require e.block.number == f.block.number;
-    require e.block.timestamp == f.block.timestamp;
-    require e.block.basefee == f.block.basefee;
-    require e.block.coinbase == f.block.coinbase;
-    require e.block.difficulty == f.block.difficulty;
-    require e.block.gaslimit == f.block.gaslimit;
-    require e.tx.origin == f.tx.origin;
+    storage s = lastStorage;
 
-    forceDeallocate@withrevert(e, adapter, data, assets, onBehalf);
-    bool forceDeallocateReverted = lastReverted;
+    forceDeallocate@withrevert(e, adapter, data, assets, onBehalf) at s;
+    bool forceDeallocateDidntRevert = !lastReverted;
 
-    // Safe require that ensure that f's message sender is allowed to dealocate.
-    require isAllocator(f.msg.sender) || isSentinel(f.msg.sender);
+    require (isAllocator(f.msg.sender) || isSentinel(f.msg.sender), "assume the sender is authorized to deallocate");
+    deallocate@withrevert(f, adapter, data, assets) at s;
+    bool deallocateDidntRevert = !lastReverted;
 
-    deallocate@withrevert(f, adapter, data, assets);
-    assert !forceDeallocateReverted <=> !lastReverted;
+    assert  forceDeallocateDidntRevert => deallocateDidntRevert;
 }
