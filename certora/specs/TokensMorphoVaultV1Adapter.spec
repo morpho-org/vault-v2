@@ -76,6 +76,9 @@ rule depositTokenChange(env e, uint256 assets, address receiver) {
     uint256 balanceSenderBefore = ERC20.balanceOf(asset, e.msg.sender);
     uint256 balanceVaultV2Before = ERC20.balanceOf(asset, currentContract);
 
+    // Ensure the liquidity adapter is properly linked in the conf file.
+    assert currentContract.liquidityAdapter == MorphoVaultV1Adapter;
+
     deposit(e, assets, receiver);
 
     uint256 balanceMorphoVaultV1After = ERC20.balanceOf(asset, MorphoVaultV1);
@@ -112,6 +115,9 @@ rule withdrawTokenChange(env e, uint256 assets, address receiver, address owner)
     uint256 balanceMorphoMarketV1Before = ERC20.balanceOf(asset, MorphoMarketV1);
     uint256 balanceReceiverBefore = ERC20.balanceOf(asset, receiver);
     uint256 balanceVaultV2Before = ERC20.balanceOf(asset, currentContract);
+
+    // Ensure the liquidity adapter is properly linked in the conf file.
+    assert currentContract.liquidityAdapter == MorphoVaultV1Adapter;
 
     withdraw(e, assets, receiver, owner);
 
