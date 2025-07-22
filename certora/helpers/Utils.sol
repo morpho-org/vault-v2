@@ -12,7 +12,6 @@ interface IReturnFactory {
 
 contract Utils {
     using MarketParamsLib for MarketParams;
-    using SharesMathLib for uint256;
 
     function toBytes4(bytes memory data) public pure returns (bytes4) {
         return bytes4(data);
