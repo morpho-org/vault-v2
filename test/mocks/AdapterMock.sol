@@ -71,4 +71,8 @@ contract AdapterMock is IAdapter {
     function ids() internal view returns (bytes32[] memory) {
         return _ids;
     }
+
+    function totalAssetsNoLoss() external pure returns (uint256) {
+        return 0;
+    }
 }

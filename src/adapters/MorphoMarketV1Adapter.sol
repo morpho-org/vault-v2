@@ -34,6 +34,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     address public skimRecipient;
     /// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
     mapping(Id => uint256) public shares;
+    MarketParams[] public allMarketParams;
 
     /* FUNCTIONS */
 
@@ -74,6 +75,13 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
         uint256 interest = expectedSupplyAssets(marketParams, shares[marketId]).zeroFloorSub(allocation(marketParams));
+
+        if (shares[marketId] == 0) {
+            allMarketParams.push(marketParams);
+        } else {
+            allMarketParams[allMarketParams.length - 1] = marketParams;
+            allMarketParams.pop();
+        }
 
         if (assets > 0) {
             (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
@@ -135,5 +143,20 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
 
         return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
+    }
+
+    function totalAssetsNoLoss() external view returns (uint256) {
+        uint256 totalAssets = 0;
+        for (uint256 i = 0; i < allMarketParams.length; i++) {
+            totalAssets += max(
+                expectedSupplyAssets(allMarketParams[i], shares[allMarketParams[i].id()]),
+                allocation(allMarketParams[i])
+            );
+        }
+        return totalAssets;
+    }
+
+    function max(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a > b ? a : b;
     }
 }

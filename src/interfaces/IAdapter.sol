@@ -18,4 +18,6 @@ interface IAdapter {
     function realizeLoss(bytes memory data, bytes4 selector, address sender)
         external
         returns (bytes32[] memory ids, uint256 loss);
+
+    function totalAssetsNoLoss() external view returns (uint256 assets);
 }
