@@ -14,8 +14,8 @@ import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
 
 /// ERC4626
-/// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension). Though the vault has a non
-/// conventional behaviour on max functions: they always return zero.
+/// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension). Though the vault has a
+/// non-conventional behaviour on max functions: they always return zero.
 /// @dev totalSupply is not updated to include shares minted to fee recipients. One can call accrueInterestView to
 /// compute the updated totalSupply.
 /// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). Donations are possible but
@@ -25,14 +25,14 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// INTEREST / VIC
 /// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
-/// that must be distributed on the period (since lastUpdate).
+/// that must be distributed over the period (since lastUpdate).
 /// @dev The Vic must never distribute more than what the vault is really earning.
 /// @dev The Vic might not distribute as much interest as planned if:
 /// - The Vic reverted on `setVic`.
-/// - The Vic returned an interest per second that is too high (it is capped at a maxed rate).
+/// - The Vic returned an interest per second that is too high (it is capped at a max rate).
 /// @dev The vault might earn more interest than expected if:
 /// - A donation in underlying has been made to the vault.
-/// - There has been some calls to forceDeallocate, and the penalty is not zero.
+/// - There have been some calls to forceDeallocate, and the penalty is not zero.
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
 /// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
 /// @dev Set the Vic to 0 to disable it (=> no interest accrual).
@@ -48,7 +48,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// LOSS REALIZATION
 /// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
-/// because flashloan based shorting is prevented (see enterBlocked flag).
+/// because flashloan-based shorting is prevented (see enterBlocked flag).
 ///
 /// CAPS
 /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
@@ -85,8 +85,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// the allocation is zero.
 ///
 /// LIQUIDITY ADAPTER
-/// @dev liquidityAdapter is allocated to on deposit/mint, and deallocated from on withdraw/redeem if idle assets don't
-/// cover the withdraw.
+/// @dev Liquidity is allocated to the liquidityAdapter on deposit/mint, and deallocated from the liquidityAdapter on
+/// withdraw/redeem if idle assets don't cover the withdrawal.
 /// @dev The liquidity adapter is useful on exit, so that exit liquidity is available in addition to the idle assets. But
 /// the same adapter/data is used for both entry and exit to have the property that in the general case looping
 /// supply-withdraw or withdraw-supply should not change the allocation.
@@ -96,7 +96,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - It should be ERC-20 compliant, except that it can omit return values on transfer and transferFrom.
 /// - The balance of the vault should only decrease on transfer and transferFrom. In particular, tokens with burn
 /// functions are not supported.
-/// - It should not re-enter the vault on transfer nor transferFrom.
+/// - It should not re-enter the vault on transfer or transferFrom.
 /// - The balance of the sender (resp. receiver) should decrease (resp. increase) by exactly the given amount on
 /// transfer and transferFrom. In particular, tokens with fees on transfer are not supported.
 ///
@@ -112,7 +112,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// TIMELOCKS
 /// @dev The timelock of decreaseTimelock is initially set to TIMELOCK_CAP, and can only be changed to type(uint256).max
-/// through abdicateSubmit..
+/// through abdicateSubmit.
 /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
 /// timelocked data can potentially be changed shortly afterwards.
 /// @dev The minimum time in which a function can be called is the following:
@@ -131,7 +131,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///     - Gates sending and receiving shares.
 ///     - Can lock users out of exiting the vault.
 ///     - Can prevent users from getting back their shares that they deposited on other protocols.
-///     - Can prevent the loss realization incentive to be given out to the caller.
+///     - Can prevent the loss realization incentive from being given to the caller.
 /// @dev receiveAssetsGate:
 ///     - Gates receiving assets from the vault.
 ///     - Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
@@ -147,7 +147,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// MISC
 /// @dev Zero checks are not systematically performed.
 /// @dev No-ops are allowed.
-/// @dev Natspec are specified only when it brings clarity.
+/// @dev NatSpec comments are included only when they bring clarity.
 /// @dev Roles are not "two-step" so one must check if they really have this role.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;

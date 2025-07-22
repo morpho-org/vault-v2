@@ -178,7 +178,7 @@ contract MorphoVaultV1AdapterTest is Test {
         vm.expectRevert(IMorphoVaultV1Adapter.NotAuthorized.selector);
         adapter.skim(address(token));
 
-        // Cant skim morphoVaultV1
+        // Can't skim morphoVaultV1
         vm.expectRevert(IMorphoVaultV1Adapter.CannotSkimMorphoVaultV1Shares.selector);
         vm.prank(recipient);
         adapter.skim(address(morphoVaultV1));

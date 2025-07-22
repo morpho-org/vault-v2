@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity >=0.5.0;
 
-/// @dev See VaultV2 Natspec for more details on adapter's spec.
+/// @dev See VaultV2 NatSpec comments for more details on adapter's spec.
 interface IAdapter {
     /// @dev Returns the market' ids and the interest accrued on this market.
     function allocate(bytes memory data, uint256 assets, bytes4 selector, address sender)
