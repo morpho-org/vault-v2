@@ -3,8 +3,11 @@
 pragma solidity 0.8.28;
 
 import "../../src/libraries/ConstantsLib.sol";
-import {MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
+import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {MorphoLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
+import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 
 interface IReturnFactory {
     function factory() external view returns (address);
@@ -12,6 +15,9 @@ interface IReturnFactory {
 
 contract Utils {
     using MarketParamsLib for MarketParams;
+    using MorphoBalancesLib for IMorpho;
+    using MorphoLib for IMorpho;
+    using SharesMathLib for uint256;
 
     function toBytes4(bytes memory data) public pure returns (bytes4) {
         return bytes4(data);
@@ -49,5 +55,50 @@ contract Utils {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id id = marketParams.id();
         return (marketParams, id);
+    }
+
+    function expectedTotalSupplyAssets(address morpho, MarketParams memory marketParams)
+        external
+        view
+        returns (uint256)
+    {
+        (uint256 totalSupplyAssets,,,) = MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
+
+        return totalSupplyAssets;
+    }
+
+    function expectedTotalSupplyShares(address morpho, MarketParams memory marketParams)
+        external
+        view
+        returns (uint256)
+    {
+        (, uint256 totalSupplyShares,,) = MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
+
+        return totalSupplyShares;
+    }
+
+    function expectedSupplyAssets(address morpho, MarketParams memory marketParams, uint256 supplyShares)
+        external
+        view
+        returns (uint256)
+    {
+        (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
+            MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
+
+        return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
+    }
+
+    function expectedSupplyAssetsAlt(address morpho, MarketParams memory marketParams, address user)
+        external
+        view
+        returns (uint256)
+    {
+        Id id = marketParams.id();
+        uint256 supplyShares = IMorpho(morpho).supplyShares(id, user);
+
+        (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
+            MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
+
+        return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }
 }
