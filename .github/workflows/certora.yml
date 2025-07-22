@@ -17,6 +17,8 @@ jobs:
       matrix:
         conf:
           - AbdicatedFunctions
+          - AllocationMorphoMarketV1Adapter
+          - AllocationMorphoVaulttV1Adapter
           - Immutability
           - Invariants
           - Liveness
