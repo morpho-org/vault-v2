@@ -3,12 +3,17 @@
 pragma solidity 0.8.28;
 
 import "../../src/libraries/ConstantsLib.sol";
+import {MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 
 interface IReturnFactory {
     function factory() external view returns (address);
 }
 
 contract Utils {
+    using MarketParamsLib for MarketParams;
+    using SharesMathLib for uint256;
+
     function toBytes4(bytes memory data) public pure returns (bytes4) {
         return bytes4(data);
     }
@@ -39,5 +44,11 @@ contract Utils {
 
     function factory(address adapter) external view returns (address) {
         return IReturnFactory(adapter).factory();
+    }
+
+    function morphoMarketV1MarketParams(bytes memory data) external pure returns (MarketParams memory, Id) {
+        MarketParams memory marketParams = abi.decode(data, (MarketParams));
+        Id id = marketParams.id();
+        return (marketParams, id);
     }
 }
