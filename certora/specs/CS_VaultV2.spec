@@ -341,23 +341,6 @@ rule allocationCanOnlyBecomeNonZeroThroughAllocateWithoutLiquidityAdapter(env e,
       && f.selector != sig:deallocate(address,bytes,uint).selector // We can do this thanks to rule onlyDeallocationIfNoAllocation
 
 } {
-    checkAllocationCanOnlyBecomeNonZeroThroughAllocateWithoutLiquidityAdapter(e, f, args);
-}
-
-rule noDeallocationIfNoAllocation(env e, method f, calldataarg args) filtered {
-    f -> f.selector == sig:forceDeallocate(address,bytes,uint,address).selector
-      || f.selector == sig:deallocate(address,bytes,uint).selector
-}
-{
-    require(forall bytes32 id . vaultv2.caps[id].allocation == 0, "Start with all allocations to 0.");
-
-
-    vaultv2.f@withrevert(e, args);
-
-    assert lastReverted;
-}
-
-function checkAllocationCanOnlyBecomeNonZeroThroughAllocateWithoutLiquidityAdapter(env e, method f, calldataarg args) {
     require(e.msg.sender != currentContract, "Cannot happen.");
     require(vaultv2.vic == 0x0000000000000000000000000000000000000000, "We can do this thanks to rule accrueInterestDoesNotImpactAllocation.");
     require(vaultv2.sharesGate == 0x0000000000000000000000000000000000000000, "No need to make call resolution.");
@@ -382,6 +365,18 @@ function checkAllocationCanOnlyBecomeNonZeroThroughAllocateWithoutLiquidityAdapt
     assert !allocationWentUp => allocationStayedZero;
 }
 
+rule noDeallocationIfNoAllocation(env e, method f, calldataarg args) filtered {
+    f -> f.selector == sig:forceDeallocate(address,bytes,uint,address).selector
+      || f.selector == sig:deallocate(address,bytes,uint).selector
+}
+{
+    require(forall bytes32 id . vaultv2.caps[id].allocation == 0, "Start with all allocations to 0.");
+
+
+    vaultv2.f@withrevert(e, args);
+
+    assert lastReverted;
+}
 
 /*
     other ideas for wishlist:
