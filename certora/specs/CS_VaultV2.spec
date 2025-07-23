@@ -332,13 +332,32 @@ rule allocationCanOnlyBecomeNonZeroOnMintDepositWithLiquidityAdapter(method f) f
     NOTE: this rule is vacuous for deallocate() and forceDeallocate() as the prover cannot find a non-reverting scenario
             when all the allocations are 0. But this is fine as it is what we want (impossibility to deallocate()/forceDeallocate() if allocation == 0).
 */
-rule allocationCanOnlyBecomeNonZeroThroughAllocateWithoutLiquidityAdapter(method f) filtered {
+rule allocationCanOnlyBecomeNonZeroThroughAllocateWithoutLiquidityAdapter(env e, method f, calldataarg args) filtered {
      // View functions are not interesting
     f -> !f.isView
       // We don't want to set a new vic as it might distribute interest
       && f.selector != sig:setVic(address).selector // We can do this thanks to rule accrueInterestDoesNotImpactAllocation
+      && f.selector != sig:forceDeallocate(address,bytes,uint,address).selector // We can do this thanks to rule onlyDeallocationIfNoAllocation
+      && f.selector != sig:deallocate(address,bytes,uint).selector // We can do this thanks to rule onlyDeallocationIfNoAllocation
+
 } {
-    env e;
+    checkAllocationCanOnlyBecomeNonZeroThroughAllocateWithoutLiquidityAdapter(e, f, args);
+}
+
+rule noDeallocationIfNoAllocation(env e, method f, calldataarg args) filtered {
+    f -> f.selector == sig:forceDeallocate(address,bytes,uint,address).selector
+      || f.selector == sig:deallocate(address,bytes,uint).selector
+}
+{
+    require(forall bytes32 id . vaultv2.caps[id].allocation == 0, "Start with all allocations to 0.");
+
+
+    vaultv2.f@withrevert(e, args);
+
+    assert lastReverted;
+}
+
+function checkAllocationCanOnlyBecomeNonZeroThroughAllocateWithoutLiquidityAdapter(env e, method f, calldataarg args) {
     require(e.msg.sender != currentContract, "Cannot happen.");
     require(vaultv2.vic == 0x0000000000000000000000000000000000000000, "We can do this thanks to rule accrueInterestDoesNotImpactAllocation.");
     require(vaultv2.sharesGate == 0x0000000000000000000000000000000000000000, "No need to make call resolution.");
@@ -351,7 +370,6 @@ rule allocationCanOnlyBecomeNonZeroThroughAllocateWithoutLiquidityAdapter(method
     bytes32 id;
     uint allocationPre = vaultv2.allocation(id);
 
-    calldataarg args;
     vaultv2.f(e, args);
 
     uint allocationPost = vaultv2.allocation(id);
