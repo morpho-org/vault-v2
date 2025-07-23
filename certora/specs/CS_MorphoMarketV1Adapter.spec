@@ -79,6 +79,7 @@ rule adapterAlwaysReturnsTheSameIDsForSameData(method f) filtered {
   f -> !f.isView
 } {
   env e;
+  require(vaultv2.sharesGate == 0x0000000000000000000000000000000000000000, "to avoid the canSendShares dispatch loop");
 
   Morpho.MarketParams marketParams;
   bytes32[] idsPre = adapter.ids(e, marketParams);
