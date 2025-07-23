@@ -3,7 +3,6 @@
 pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
-import {VaultV2AddressLib} from "../src/libraries/periphery/VaultV2AddressLib.sol";
 
 contract FactoryTest is BaseTest {
     function testCreateVaultV2(address _owner, address asset, bytes32 salt) public {
@@ -15,18 +14,9 @@ contract FactoryTest is BaseTest {
         );
         vm.expectEmit();
         emit IVaultV2Factory.CreateVaultV2(_owner, asset, expectedVaultAddress);
-        IVaultV2 newVault = IVaultV2(vaultFactory.createVaultV2(_owner, asset, salt));
-        assertEq(address(newVault), expectedVaultAddress);
-        assertTrue(vaultFactory.isVaultV2(address(newVault)));
-    }
-
-    function testVaultV2AddressLib(address _owner, address asset, bytes32 salt) public {
-        vm.assume(asset != address(vm));
-        if (keccak256(vm.getCode("VaultV2")) != keccak256(type(VaultV2).creationCode)) vm.skip(true);
-        vm.mockCall(asset, IERC20.decimals.selector, abi.encode(uint8(18)));
-        assertEq(
-            VaultV2AddressLib.computeVaultV2Address(address(vaultFactory), _owner, asset, salt),
-            vaultFactory.createVaultV2(_owner, asset, salt)
-        );
+        address newVault = address(IVaultV2(vaultFactory.createVaultV2(_owner, asset, salt)));
+        assertEq(newVault, expectedVaultAddress);
+        assertTrue(vaultFactory.isVaultV2(newVault));
+        assertEq(vaultFactory.vaultV2(_owner, asset, salt), newVault);
     }
 }
