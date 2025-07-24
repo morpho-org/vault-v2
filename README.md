@@ -1,6 +1,6 @@
 # Vault v2
 
-Morpho Vault v2 enables anyone to create [non-custodial](#non-custodial) vaults that allocate assets to any protocols, including but not limited to Morpho Market v1, Morpho Market v2, and Morpho Vaults v1.
+Morpho Vault v2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including but not limited to Morpho Market v1, Morpho Market v2, and Morpho Vaults v1.
 Depositors of Morpho Vault v2 earn from the underlying protocols without having to actively manage the risk of their position.
 Management of deposited assets is the responsibility of a set of different roles (owner, curator and allocators).
 The active management of invested positions involves enabling and allocating liquidity to protocols.
@@ -19,7 +19,7 @@ Because adapters hold positions in protocols where assets are allocated, they ar
 To ensure that those rewards can be retrieved, each adapter has a skim function that can be called by the vault's owner.
 Adapters for the following protocols are currently available:
 
-- [Morpho Market v1](./src/adapters/MorphoMarketV1Adapter.sol);
+- [Morpho Market v1](./src/adapters/MorphoMarketV1Adapter.sol).
   This adapter allocates to any Morpho Market v1, constrained by the allocation caps (see [Id system](#id-system) below).
   The adapter holds a position on each respective market, on behalf of the vault v2.
 - [Morpho Vault v1](./src/adapters/MorphoVaultV1Adapter.sol).
@@ -39,47 +39,43 @@ The curator ensures the consistency of the id system by:
 - setting caps for the ids according to an estimation of risk;
 - setting adapters that return consistent ids.
 
-The ids of Morpho v1 lending markets could be for example the tuple `(CollateralToken, LLTV, Oracle)` and `CollateralToken` alone.
-A vault could be setup to enforce the following caps:
+The ids of Morpho v1 lending markets could be for example the market parameters `(LoanToken, CollateralToken, Oracle, IRM, LLTV)` and `CollateralToken` alone.
+A vault could be set up to enforce the following caps:
 
-- `(stETH, 86%, Chainlink)`: 10M
-- `(stETH, 86%, Redstone)`: 10M
-- `(stETH)`: 15M
+- `(loanToken, stEth, chainlink, irm, 86%)`: 10M
+- `(loanToken, stETH, redstone, irm, 86%)`: 10M
+- `stETH`: 15M
 
 This would ensure that the vault never has more than 15M exposure to markets with stETH as collateral, and never more than 10M exposure to an individual market.
 
 ### Liquidity
 
-The allocator is responsible for ensuring that users can withdraw their assets at anytime.
+The allocator is responsible for ensuring that users can withdraw their assets at any time.
 This is done by managing the available idle liquidity and an optional liquidity adapter.
 
 When users withdraw assets, the idle assets are taken in priority.
 If there is not enough idle liquidity, liquidity is taken from the liquidity adapter.
 When defined, the liquidity adapter is also used to forward deposited funds.
 
-A typical liquidity adapter would allow deposit/withdrawals to go through a very liquid Market v1.
-
-<a id="non-custodial"></a>
+A typical liquidity adapter would allow deposits/withdrawals to go through a very liquid Market v1.
 
 ### Non-custodial guarantees
 
-Non-custodial guarantees come from [in-kind redemptions](#in-kind-redemptions) and [timelocks](#curator-timelocks).
+Non-custodial guarantees come from [in-kind redemptions](#in-kind-redemptions-with-forcedeallocate) and [timelocks](#curator-timelocks).
 These mechanisms allow users to withdraw their assets before any critical configuration change takes effect.
-
-<a id="in-kind-redemptions"></a>
 
 ### In-kind redemptions with `forceDeallocate`
 
 To guarantee exits even in the absence of assets immediately available for withdrawal, the permissionless `forceDeallocate` function allows anyone to move assets from an adapter to the vault's idle assets.
 
-`forceDeallocate` provides a form of in-kind redemption: users can flashloan liquidity, supply it to an adapters' market, and withdraw the liquidity through `forceDeallocate` before repaying the flashloan.
+Users can redeem in-kind thanks to the `forceDeallocate` function: flashloan liquidity, supply it to an adapter's market, and withdraw the liquidity through `forceDeallocate` before repaying the flashloan.
 This reduces their position in the vault and increases their position in the underlying market.
 
 A penalty for using forceDeallocate can be set per adapter, of up to 2%.
-This disincentivizes the manipulation of allocations, in particular of relative caps which are not checked on withdraw.
+This disincentivizes the manipulation of allocations, in particular of relative caps which are not checked on withdrawals.
 Note that the only friction to deallocating an adapter with a 0% penalty is the associated gas cost.
 
-[Gated vaults](Gates) can circumvent the in-kind redemption mechanism by configuring an `exitGate`.
+[Gated vaults](#gates) can circumvent the in-kind redemption mechanism.
 
 ### Vault Interest Controller (Vic)
 
@@ -101,7 +97,7 @@ For now only a Vic of this type is provided, the [ManualVic](./src/vic/ManualVic
 
 In contrast to Morpho Vaults v1.0, bad debt realization is not autonomously realized on the vault when it is realized on the underlying market.
 It can be realized on the vault by anyone for an incentive (1% of the loss).
-To prevent flashloan based manipulations, when a loss is realized on the vault, deposits are blocked for the rest of the transaction.
+To prevent flashloan-based manipulations, when a loss is realized on the vault, deposits are blocked for the rest of the transaction.
 
 ### Gates
 
@@ -138,7 +134,7 @@ An example gate is defined in [test/examples/GateExample.sol](./test/examples/Ga
 
 ### Roles
 
-**Owner**
+#### Owner
 
 Only one address can have this role.
 
@@ -148,12 +144,12 @@ It can:
 - Set the curator.
 - Set sentinels.
 
-**Curator**
+#### Curator
 
 Only one address can have this role.
 
 Some actions of the curator are timelockable (between 0 and 3 weeks, or infinite if the action has been frozen).
-Once the timelock passed, the action can be executed by anyone.
+Once the timelock has passed, the action can be executed by anyone.
 
 It can:
 
@@ -177,7 +173,7 @@ It can:
 - [Timelockable] Abdicate submitting of an action.
   The timelock on abdicate should be set to a high value (e.g. 3 weeks) after the vault has been created and initial abdications have been done, if any.
 
-**Allocator**
+#### Allocator
 
 Multiple addresses can have this role.
 
@@ -188,7 +184,7 @@ It can:
 - Set the `liquidityAdapter`.
 - Set the `liquidityData`.
 
-**Sentinel**
+#### Sentinel
 
 Multiple addresses can have this role.
 
