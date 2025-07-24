@@ -39,11 +39,11 @@ The curator ensures the consistency of the id system by:
 - setting caps for the ids according to an estimation of risk;
 - setting adapters that return consistent ids.
 
-The ids of Morpho v1 lending markets could be for example the market parameters `(CollateralToken, LoanToken, IRM, LLTV, Oracle)` and `CollateralToken` alone.
+The ids of Morpho v1 lending markets could be for example the market parameters `(LoanToken, CollateralToken, Oracle, IRM, LLTV)` and `CollateralToken` alone.
 A vault could be set up to enforce the following caps:
 
-- `(stETH, loanToken, Irm, 86%, Chainlink)`: 10M
-- `(stETH, loanToken, Irm, 86%, Redstone)`: 10M
+- `(loanToken, stEth, chainlink, irm, 86%)`: 10M
+- `(loanToken, stETH, redstone, irm, 86%)`: 10M
 - `stETH`: 15M
 
 This would ensure that the vault never has more than 15M exposure to markets with stETH as collateral, and never more than 10M exposure to an individual market.
