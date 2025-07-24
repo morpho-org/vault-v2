@@ -7,14 +7,16 @@ import {IVaultV2Factory} from "./interfaces/IVaultV2Factory.sol";
 
 contract VaultV2Factory is IVaultV2Factory {
     mapping(address account => bool) public isVaultV2;
+    mapping(address owner => mapping(address asset => mapping(bytes32 salt => address))) public vaultV2;
 
     /// @dev Returns the address of the deployed VaultV2.
     function createVaultV2(address owner, address asset, bytes32 salt) external returns (address) {
-        address vaultV2 = address(new VaultV2{salt: salt}(owner, asset));
+        address newVaultV2 = address(new VaultV2{salt: salt}(owner, asset));
 
-        isVaultV2[vaultV2] = true;
-        emit CreateVaultV2(owner, asset, vaultV2);
+        isVaultV2[newVaultV2] = true;
+        vaultV2[owner][asset][salt] = newVaultV2;
+        emit CreateVaultV2(owner, asset, newVaultV2);
 
-        return vaultV2;
+        return newVaultV2;
     }
 }
