@@ -142,7 +142,7 @@ rule giftingUnderlyingToVaultHasNoEffect(method f) filtered {
         bytes data;
         uint256 incentiveShares; uint256 loss;
         (incentiveShares, loss) = vaultv2.realizeLoss(e3, adapter, data);
-        require(removedAssets == (loss > vaultv2.totalAssets(e1) ? vaultv2.totalAssets(e1) : loss), "We expect the decrease of total assests to be min between loss on the vault and the current total asset.");
+        require(removedAssets == (loss > totalAssetsPre ? totalAssetsPre : loss), "We expect the decrease of total assests to be min between loss on the vault and the previous total asset.");
     } else {
         require(addedAssets == 0);
         require(removedAssets == 0);
