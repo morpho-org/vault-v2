@@ -189,6 +189,7 @@ contract VaultV2 is IVaultV2 {
     /* CURATION STORAGE */
 
     mapping(address account => bool) public isAdapter;
+    address[] public adapters;
     mapping(bytes32 id => Caps) internal caps;
     mapping(address adapter => uint256) public forceDeallocatePenalty;
 
@@ -210,6 +211,10 @@ contract VaultV2 is IVaultV2 {
     address public managementFeeRecipient;
 
     /* GETTERS */
+
+    function adaptersLength() external view returns (uint256) {
+        return adapters.length;
+    }
 
     function totalAssets() external view returns (uint256) {
         (uint256 newTotalAssets,,) = accrueInterestView();
@@ -358,7 +363,22 @@ contract VaultV2 is IVaultV2 {
 
     function setIsAdapter(address account, bool newIsAdapter) external {
         timelocked();
-        isAdapter[account] = newIsAdapter;
+
+        if (isAdapter[account] != newIsAdapter) {
+            if (newIsAdapter) {
+                adapters.push(account);
+            } else {
+                for (uint256 i = 0; i < adapters.length; i++) {
+                    if (adapters[i] == account) {
+                        adapters[i] = adapters[adapters.length - 1];
+                        adapters.pop();
+                        break;
+                    }
+                }
+            }
+            isAdapter[account] = newIsAdapter;
+        }
+
         emit EventsLib.SetIsAdapter(account, newIsAdapter);
     }
 

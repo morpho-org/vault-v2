@@ -110,4 +110,12 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     function allocation() public view returns (uint256) {
         return IVaultV2(parentVault).allocation(adapterId);
     }
+
+    function totalAssetsNoLoss() external view returns (uint256) {
+        return max(IERC4626(morphoVaultV1).previewRedeem(shares), allocation());
+    }
+
+    function max(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a > b ? a : b;
+    }
 }

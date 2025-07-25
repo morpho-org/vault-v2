@@ -3,21 +3,19 @@
 pragma solidity ^0.8.0;
 
 import "./MorphoVaultV1IntegrationTest.sol";
-import {SingleMorphoVaultV1Vic} from "../../src/vic/SingleMorphoVaultV1Vic.sol";
-import {ISingleMorphoVaultV1Vic} from "../../src/vic/interfaces/ISingleMorphoVaultV1Vic.sol";
+import {OnchainVic} from "../../src/vic/OnchainVic.sol";
 
-contract SingleMorphoVaultV1VicIntegrationTest is MorphoVaultV1IntegrationTest {
-    ISingleMorphoVaultV1Vic internal singleMorphoVaultV1Vic;
+contract OnchainVicIntegrationTest is MorphoVaultV1IntegrationTest {
+    address internal onchainVic;
 
     function setUp() public override {
         super.setUp();
 
-        singleMorphoVaultV1Vic =
-            ISingleMorphoVaultV1Vic(address(new SingleMorphoVaultV1Vic(address(morphoVaultV1Adapter))));
+        onchainVic = address(new OnchainVic(address(vault)));
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(singleMorphoVaultV1Vic))));
-        vault.setVic(address(singleMorphoVaultV1Vic));
+        vault.submit(abi.encodeCall(IVaultV2.setVic, (onchainVic)));
+        vault.setVic(onchainVic);
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(morphoVaultV1), type(uint256).max);
@@ -27,7 +25,7 @@ contract SingleMorphoVaultV1VicIntegrationTest is MorphoVaultV1IntegrationTest {
         collateralToken.approve(address(morpho), type(uint256).max);
     }
 
-    function testSingleMorphoVaultV1Vic(uint256 assets, uint256 elapsed) public {
+    function testOnchainVic(uint256 assets, uint256 elapsed) public {
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         elapsed = bound(elapsed, 1, 10 * 52 weeks);
 

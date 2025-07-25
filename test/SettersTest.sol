@@ -254,6 +254,8 @@ contract SettersTest is BaseTest {
         emit EventsLib.SetIsAdapter(newAdapter, true);
         vault.setIsAdapter(newAdapter, true);
         assertTrue(vault.isAdapter(newAdapter));
+        assertEq(vault.adaptersLength(), 1);
+        assertEq(vault.adapters(0), newAdapter);
 
         // Removal
         vm.prank(curator);
@@ -262,6 +264,7 @@ contract SettersTest is BaseTest {
         emit EventsLib.SetIsAdapter(newAdapter, false);
         vault.setIsAdapter(newAdapter, false);
         assertFalse(vault.isAdapter(newAdapter));
+        assertEq(vault.adaptersLength(), 0);
     }
 
     function testIncreaseTimelock(address rdm, bytes4 selector, uint256 newTimelock) public {
