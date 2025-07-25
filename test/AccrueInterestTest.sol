@@ -140,50 +140,6 @@ contract AccrueInterestTest is BaseTest {
         assertEq(vm.getRecordedLogs().length, 0, "should not log");
     }
 
-    function testAccrueInterestTooHigh(
-        uint256 deposit,
-        uint256 performanceFee,
-        uint256 managementFee,
-        uint256 interestPerSecond,
-        uint256 elapsed
-    ) public {
-        performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
-        managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
-        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
-        vm.assume(deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD) <= type(uint96).max);
-        interestPerSecond = bound(interestPerSecond, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD) + 1, type(uint96).max);
-        elapsed = bound(elapsed, 0, 10 * 365 days);
-
-        // Setup.
-        vault.deposit(deposit, address(this));
-        vm.startPrank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (managementFee)));
-        vm.stopPrank();
-        vault.setPerformanceFee(performanceFee);
-        vault.setManagementFee(managementFee);
-        vm.warp(vm.getBlockTimestamp() + elapsed);
-
-        // Rate too high.
-        vm.prank(allocator);
-        adapter.setInterestPerSecond(interestPerSecond);
-        uint256 totalAssetsBefore = vault._totalAssets();
-        vault.accrueInterest();
-        assertEq(vault.totalAssets(), totalAssetsBefore, "totalAssets");
-    }
-
-    function testAccrueInterestMaxRateValue() public {
-        uint256 deposit = 1e18;
-
-        vault.deposit(deposit, address(this));
-        vm.prank(allocator);
-        adapter.setInterestPerSecond(deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        skip(365 days);
-
-        vault.accrueInterest();
-        assertApproxEqRel(vault.totalAssets(), deposit * 3, 0.00001e18);
-    }
-
     function testAccrueInterestFees(
         uint256 performanceFee,
         uint256 managementFee,

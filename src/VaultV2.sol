@@ -22,22 +22,10 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// deposits and withdrawals with roundings. In order to protect against that, vaults might need to be seeded with an
 /// initial deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 ///
-/// INTEREST / VIC
-/// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
-/// that must be distributed on the period (since lastUpdate).
-/// @dev The Vic must never distribute more than what the vault is really earning.
-/// @dev The Vic might not distribute as much interest as planned if:
-/// - The Vic reverted on `setVic`.
-/// - The Vic returned an interest per second that is too high (it is capped at a maxed rate).
-/// @dev The vault might earn more interest than expected if:
-/// - A donation in underlying has been made to the vault.
-/// - There has been some calls to forceDeallocate, and the penalty is not zero.
-/// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
-/// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
-/// @dev Set the Vic to 0 to disable it (=> no interest accrual).
+/// INTEREST
+/// @dev Adapters are responsible for reporting to the vault how much their investments are worth at any time, so that
+/// the vault can accrue interest.
 /// @dev _totalAssets stores the last recorded total assets. Use totalAssets() for the updated total assets.
-/// @dev The Vic must not call totalAssets() because it will try to accrue interest, but instead use the argument
-/// _totalAssets that is passed.
 ///
 /// FIRST TOTAL ASSETS
 /// @dev The variable firstTotalAssets tracks the total assets after the first interest accrual of the transaction.
@@ -566,7 +554,6 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
-    /// @dev Reverts if the call to the Vic reverts.
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     /// @dev The performance and management fees are taken even if the vault incurs some losses.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
@@ -577,10 +564,9 @@ contract VaultV2 is IVaultV2 {
         for (uint256 i = 0; i < adapters.length; i++) {
             realAssets += IAdapter(adapters[i]).totalAssetsNoLoss();
         }
-        uint256 tentativeInterestPerSecond = (realAssets - _totalAssets) / elapsed;
-        uint256 maxInterestPerSecond = uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD);
-        uint256 interestPerSecond = tentativeInterestPerSecond <= maxInterestPerSecond ? tentativeInterestPerSecond : 0;
-        uint256 interest = interestPerSecond * elapsed;
+        uint256 tentativeInterest = (realAssets - _totalAssets);
+        uint256 maxInterest = uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) * elapsed;
+        uint256 interest = tentativeInterest <= maxInterest ? tentativeInterest : 0;
         uint256 newTotalAssets = _totalAssets + interest;
 
         // The performance fee assets may be rounded down to 0 if interest * fee < WAD.
