@@ -60,7 +60,6 @@ Todo: do a Revert.conf
 Todo:
 
 - can remove adapter
-- can change VIC
 - can IKR
 
 ## Protection against common attack vectors
