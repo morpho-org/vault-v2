@@ -13,13 +13,13 @@ using CSMockAdapter as simpleAdapter;
 
 persistent ghost bytes32 idTracker;
 
-hook Sstore VaultV2.caps[KEY bytes32 id].allocation uint a {
+hook Sstore VaultV2.caps[KEY bytes32 id].allocation uint256 a {
     idTracker = id;
 }
 
-definition YEAR() returns uint = 365 * 24 * 60 * 60;
-definition WAD() returns uint = 10^18;
-definition mulDivUp(uint x, uint y, uint z) returns mathint = (x * y + (z-1)) / z;
+definition YEAR() returns uint256 = 365 * 24 * 60 * 60;
+definition WAD() returns uint256 = 10^18;
+definition mulDivUp(uint256 x, uint256 y, uint256 z) returns mathint = (x * y + (z-1)) / z;
 
 /*
     - donating the underlying to the vault has no effect on interest accrual when no VIC is set
@@ -34,7 +34,7 @@ rule giftingUnderlyingToVaultHasNoEffectOnInterestAccrualWithoutVic() {
 
     mathint totalAssetsPre = vaultv2._totalAssets;
 
-    uint amount;
+    uint256 amount;
     underlying.transfer(e1, vaultv2, amount);
 
     mathint totalAssetsPost = vaultv2.totalAssets(e2);
@@ -58,11 +58,11 @@ rule giftingUnderlyingToVaultHasNoEffectOnInterestAccrualWithManualVic() {
     vaultv2.accrueInterest(e1);
     mathint totalAssetsPre = vaultv2.totalAssets(e1);
 
-    uint amount;
+    uint256 amount;
     underlying.transfer(e2, vaultv2, amount);
 
     mathint elapsed = e3.block.timestamp > vaultv2.lastUpdate ? e3.block.timestamp - vaultv2.lastUpdate : 0;
-    uint tentativeInterestPerSecond = manualVic.interestPerSecond(e3, 0, 0);// OK for the manual vic because it ignores the params, need to change for new VICs
+    uint256 tentativeInterestPerSecond = manualVic.interestPerSecond(e3, 0, 0);// OK for the manual vic because it ignores the params, need to change for new VICs
     mathint interestPerSecond = tentativeInterestPerSecond <= vaultv2._totalAssets * Utils.maxRatePerSecond() / WAD() ? tentativeInterestPerSecond : 0; // 200% apr limit
     mathint interest = interestPerSecond * elapsed;
 
@@ -111,9 +111,9 @@ rule giftingUnderlyingToVaultHasNoEffect(method f) filtered {
 
     mathint totalAssetsPre = vaultv2.totalAssets(e1);
 
-    uint donationAmount;
-    uint addedAssets;
-    uint removedAssets;
+    uint256 donationAmount;
+    uint256 addedAssets;
+    uint256 removedAssets;
 
     if (f.selector == sig:deposit(uint,address).selector) {
         require(removedAssets == 0,  "We only add assets.");
@@ -121,7 +121,7 @@ rule giftingUnderlyingToVaultHasNoEffect(method f) filtered {
         vaultv2.deposit(e3, addedAssets, e3.msg.sender);
     } else if (f.selector == sig:mint(uint,address).selector) {
         require(removedAssets == 0, "We only add assets.");
-        uint shares;
+        uint256 shares;
         require(addedAssets == vaultv2.previewMint(e1, shares), "Added assets should be the result of previewMint before the donation.");
         underlying.transfer(e2, vaultv2, donationAmount);
         vaultv2.mint(e3, shares, e3.msg.sender);
@@ -131,7 +131,7 @@ rule giftingUnderlyingToVaultHasNoEffect(method f) filtered {
         vaultv2.withdraw(e3, removedAssets, e3.msg.sender, e3.msg.sender);
     } else if (f.selector == sig:redeem(uint,address,address).selector) {
         require(addedAssets == 0, "We only remove assets.");
-        uint shares;
+        uint256 shares;
         require(removedAssets == vaultv2.previewRedeem(e1, shares), "Redeemed assets should be the result of previewRedeem before the donation.");
         underlying.transfer(e2, vaultv2, donationAmount);
         vaultv2.redeem(e3, shares, e3.msg.sender, e3.msg.sender);
@@ -139,14 +139,14 @@ rule giftingUnderlyingToVaultHasNoEffect(method f) filtered {
         require(addedAssets == 0, "We only remove assets (penalty).");
         address adapter;
         bytes data;
-        uint deallocationAmount;
+        uint256 deallocationAmount;
         require(removedAssets == mulDivUp(deallocationAmount, vaultv2.forceDeallocatePenalty[adapter], WAD()), "This replicates what should happen on the contract level.");
         underlying.transfer(e2, vaultv2, donationAmount);
         vaultv2.forceDeallocate(e3, adapter, data, deallocationAmount, e3.msg.sender);
     } else if (f.selector == sig:realizeLoss(address,bytes).selector) {
         // We need information about the loss, so let's use the CSMockAdapter because we know the loss.
         require(addedAssets == 0, "We only remove assets (penalty).");
-        uint adapterAllocation = vaultv2.allocation(simpleAdapter.adapterId);
+        uint256 adapterAllocation = vaultv2.allocation(simpleAdapter.adapterId);
         require(removedAssets == (adapterAllocation > vaultv2.totalAssets(e1) ? vaultv2.totalAssets(e1) : adapterAllocation), "We expect the loss to be min between the whole registered allocation on the vault and the current total asset.");
         underlying.transfer(e2, vaultv2, donationAmount);
         bytes data;
@@ -187,10 +187,10 @@ rule onlyAllocatedCanBeDeallocated() {
     require(vaultv2.vic == 0x0000000000000000000000000000000000000000, "Needed for deallocate to not revert because of a reverting VIC.");
 
     bytes32 targetId = simpleAdapter.adapterId;
-    uint targetAllocation = vaultv2.allocation(targetId);
+    uint256 targetAllocation = vaultv2.allocation(targetId);
     assert(simpleAdapter.allocation() == targetAllocation);
 
-    uint amount;
+    uint256 amount;
     require(amount > 0, "We want to force deallocate to revert with underflow on allocation that are zero.");
     require(forall bytes32 id . vaultv2.caps[id].allocation == (id == targetId ? amount : 0), "Only the targetId has some allocation");
 
@@ -224,9 +224,9 @@ rule onlyAllocatedCanBeDeallocated() {
 rule accrueInterestDoesNotImpactAllocation() {
     env e;
     bytes32 id;
-    uint allocationPre = vaultv2.allocation(id);
+    uint256 allocationPre = vaultv2.allocation(id);
     vaultv2.accrueInterest(e);
-    uint allocationPost = vaultv2.allocation(id);
+    uint256 allocationPost = vaultv2.allocation(id);
     assert allocationPre == allocationPost;
 }
 
@@ -261,12 +261,12 @@ rule allocationMovements(method f) filtered {
     require(vaultv2.vic == 0x0000000000000000000000000000000000000000, "We can do this thanks to rule accrueInterestDoesNotImpactAllocation.");
 
     bytes32 id;
-    uint allocationPre = vaultv2.allocation(id);
+    uint256 allocationPre = vaultv2.allocation(id);
 
     calldataarg args;
     vaultv2.f(e, args);
 
-    uint allocationPost = vaultv2.allocation(id);
+    uint256 allocationPost = vaultv2.allocation(id);
 
     if (f.selector == sig:vaultv2.allocate(address,bytes,uint).selector) {
         // Allocation go up
@@ -312,12 +312,12 @@ rule allocationCanOnlyBecomeNonZeroOnMintDepositWithLiquidityAdapter(method f) f
     require(forall bytes32 id . vaultv2.caps[id].allocation == 0, "Start with all allocations to 0.");
 
     bytes32 id;
-    uint allocationPre = vaultv2.allocation(id);
+    uint256 allocationPre = vaultv2.allocation(id);
 
     calldataarg args;
     vaultv2.f(e, args);
 
-    uint allocationPost = vaultv2.allocation(id);
+    uint256 allocationPost = vaultv2.allocation(id);
 
     bool allocationWentUp = (allocationPre < allocationPost);
     bool allocationStayedZero = (allocationPre == allocationPost) && (allocationPre == 0);
@@ -351,11 +351,11 @@ rule allocationCanOnlyBecomeNonZeroThroughAllocateWithoutLiquidityAdapter(env e,
     require(forall bytes32 id . vaultv2.caps[id].allocation == 0, "Start with all allocations to 0.");
 
     bytes32 id;
-    uint allocationPre = vaultv2.allocation(id);
+    uint256 allocationPre = vaultv2.allocation(id);
 
     vaultv2.f(e, args);
 
-    uint allocationPost = vaultv2.allocation(id);
+    uint256 allocationPost = vaultv2.allocation(id);
 
     // Non reverting calls must come from allocate, deposit or mint (last two only if there is a liquidity adapter which is not the case here)
     bool allocationWentUp = allocationPre < allocationPost;

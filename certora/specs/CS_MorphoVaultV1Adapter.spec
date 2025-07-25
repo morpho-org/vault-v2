@@ -12,23 +12,23 @@ using Morpho as morpho;
 
 ghost bool queried_external;
 
-hook CALL(uint g, address addr, uint value, uint argsOffset, uint argsLength, uint retOffset, uint retLength) uint rc {
+hook CALL(uint256 g, address addr, uint256 value, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
     queried_external = true;
 }
 
-hook CALLCODE(uint g, address addr, uint value, uint argsOffset, uint argsLength, uint retOffset, uint retLength) uint rc {
+hook CALLCODE(uint256 g, address addr, uint256 value, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
     queried_external = true;
 }
 
-hook STATICCALL(uint g, address addr, uint argsOffset, uint argsLength, uint retOffset, uint retLength) uint rc {
+hook STATICCALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
     queried_external = true;
 }
 
-hook DELEGATECALL(uint g, address addr, uint argsOffset, uint argsLength, uint retOffset, uint retLength) uint rc {
+hook DELEGATECALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
     queried_external = true;
 }
 
-hook EXTCODECOPY(address addr, uint retOffset, uint codesOffset, uint codeSize) {
+hook EXTCODECOPY(address addr, uint256 retOffset, uint256 codesOffset, uint256 codeSize) {
     queried_external = true;
 }
 
@@ -96,10 +96,10 @@ rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate() {
   address addr;
   require(addr == 0x0000000000000000000000000000000000000000, "Speed up prover.");
 
-  bytes32[] idsAllocate; uint interestAllocate;
+  bytes32[] idsAllocate; uint256 interestAllocate;
   idsAllocate, interestAllocate = adapter.allocate(e, data, 0, b4, addr) at initialState;
 
-  bytes32[] idsDeallocate; uint interestDeallocate;
+  bytes32[] idsDeallocate; uint256 interestDeallocate;
   idsDeallocate, interestDeallocate = adapter.deallocate(e, data, 0, b4, addr) at initialState;
 
   assert interestAllocate == interestDeallocate;
@@ -142,10 +142,10 @@ rule adapterCannotHaveInterestAndLossAtTheSameTime() {
 
   storage initial = lastStorage;
 
-  bytes32[] idsAllocate; uint interest;
+  bytes32[] idsAllocate; uint256 interest;
   idsAllocate, interest = adapter.allocate(e, data, 0, b4, addr) at initial;
 
-  bytes32[] idsRealizeLoss; uint loss;
+  bytes32[] idsRealizeLoss; uint256 loss;
   idsRealizeLoss, loss = adapter.realizeLoss(e, data, b4, addr) at initial;
 
   // If we have a loss, there must be 0 interest
@@ -188,7 +188,7 @@ rule lossIsBoundedByAllocation() {
   mathint allocation = vaultv2.caps[ids[0]].allocation;
   assert(allocation == adapter.allocation(e));
 
-  bytes32[] returnedIds; uint loss;
+  bytes32[] returnedIds; uint256 loss;
   returnedIds, loss = adapter.realizeLoss(e, data, b4, addr);
 
   assert loss <= allocation;
@@ -209,21 +209,21 @@ rule donatingPositionsHasNoEffectOnInterestFromAllocate() {
   bytes4 b4; require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address addr; require(addr == 0x0000000000000000000000000000000000000000, "Speed up prover. The adapter ignores this param.");
 
-  uint donation;
+  uint256 donation;
 
   storage initial = lastStorage;
 
-  uint positionPre = metamorpho.balanceOf(adapter) at initial;
+  uint256 positionPre = metamorpho.balanceOf(adapter) at initial;
   require(metamorpho.balanceOf(adapter) == positionPre + donation); // Donate to the adapter, we don't use deposit as the prover times out
   storage initalWithDonation = lastStorage;
-  uint positionPost = metamorpho.balanceOf(adapter) at initalWithDonation;
+  uint256 positionPost = metamorpho.balanceOf(adapter) at initalWithDonation;
   assert(positionPost == positionPre + donation);
 
-  uint interestNoGift;
+  uint256 interestNoGift;
   _, interestNoGift = adapter.allocate(e1, data, 0, b4, addr) at initial;
 
 
-  uint interestWithGift;
+  uint256 interestWithGift;
   _, interestWithGift = adapter.allocate(e1, data, 0, b4, addr) at initalWithDonation;
 
   assert interestNoGift == interestWithGift;
@@ -244,21 +244,21 @@ rule donatingPositionsHasNoEffectOnInterestFromDeallocate() {
   bytes4 b4; require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address addr; require(addr == 0x0000000000000000000000000000000000000000, "Speed up prover. The adapter ignores this param.");
 
-  uint donation;
+  uint256 donation;
 
   storage initial = lastStorage;
 
-  uint positionPre = metamorpho.balanceOf(adapter) at initial;
+  uint256 positionPre = metamorpho.balanceOf(adapter) at initial;
   require(metamorpho.balanceOf(adapter) == positionPre + donation); // Donate to the adapter, we don't use deposit as the prover times out
   storage initalWithDonation = lastStorage;
-  uint positionPost = metamorpho.balanceOf(adapter) at initalWithDonation;
+  uint256 positionPost = metamorpho.balanceOf(adapter) at initalWithDonation;
   assert(positionPost == positionPre + donation);
 
-  uint interestNoGift;
+  uint256 interestNoGift;
   _, interestNoGift = adapter.deallocate(e1, data, 0, b4, addr) at initial;
 
 
-  uint interestWithGift;
+  uint256 interestWithGift;
   _, interestWithGift = adapter.deallocate(e1, data, 0, b4, addr) at initalWithDonation;
 
   assert interestNoGift == interestWithGift;
@@ -279,21 +279,21 @@ rule donatingPositionsHasNoEffectOnLoss() {
   bytes4 b4; require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address addr; require(addr == 0x0000000000000000000000000000000000000000, "Speed up prover. The adapter ignores this param.");
 
-  uint donation;
+  uint256 donation;
 
   storage initial = lastStorage;
 
-  uint positionPre = metamorpho.balanceOf(adapter) at initial;
+  uint256 positionPre = metamorpho.balanceOf(adapter) at initial;
   require(metamorpho.balanceOf(adapter) == positionPre + donation); // Donate to the adapter, we don't use deposit as the prover times out
   storage initalWithDonation = lastStorage;
-  uint positionPost = metamorpho.balanceOf(adapter) at initalWithDonation;
+  uint256 positionPost = metamorpho.balanceOf(adapter) at initalWithDonation;
   assert(positionPost == positionPre + donation);
 
-  uint interestNoGift;
+  uint256 interestNoGift;
   _, interestNoGift = adapter.allocate(e1, data, 0, b4, addr) at initial;
 
 
-  uint interestWithGift;
+  uint256 interestWithGift;
   _, interestWithGift = adapter.allocate(e1, data, 0, b4, addr) at initalWithDonation;
 
   assert interestNoGift == interestWithGift;

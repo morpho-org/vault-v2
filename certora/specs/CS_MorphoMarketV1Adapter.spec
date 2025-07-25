@@ -9,48 +9,32 @@ using MorphoBlueUtils as MorphoBlueUtils;
 using VaultV2 as vaultv2;
 using CSMockMorpho as mockMorpho;
 
+methods {
+    function MorphoMarketV1Adapter.ids(MorphoMarketV1Adapter.MarketParams) external returns (bytes32[]) envfree;
+    function MorphoBlueUtils.marketParamsToBytes(MorphoMarketV1Adapter.MarketParams) external returns (bytes) envfree;
+}
+
+
 ghost bool queried_external;
 
-hook CALL(uint g, address addr, uint value, uint argsOffset, uint argsLength, uint retOffset, uint retLength) uint rc {
+hook CALL(uint256 g, address addr, uint256 value, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
     queried_external = true;
 }
 
-hook CALLCODE(uint g, address addr, uint value, uint argsOffset, uint argsLength, uint retOffset, uint retLength) uint rc {
+hook CALLCODE(uint256 g, address addr, uint256 value, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
     queried_external = true;
 }
 
-hook STATICCALL(uint g, address addr, uint argsOffset, uint argsLength, uint retOffset, uint retLength) uint rc {
+hook STATICCALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
     queried_external = true;
 }
 
-hook DELEGATECALL(uint g, address addr, uint argsOffset, uint argsLength, uint retOffset, uint retLength) uint rc {
+hook DELEGATECALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
     queried_external = true;
 }
 
-hook EXTCODECOPY(address addr, uint retOffset, uint codesOffset, uint codeSize) {
+hook EXTCODECOPY(address addr, uint256 retOffset, uint256 codesOffset, uint256 codeSize) {
     queried_external = true;
-}
-
-/*
-  - the result of ids() does not depend on the environment
-
-  Special rule for MorphoMarketV1Adapter, as Certora doesn't manage to link the "ids()" method summary to the code for some reason.
-  This is why "ids()" need the environment, but here we show env does not influence "ids()".
-*/
-rule idsDoNotRelyOnEnvironment {
-  env e1;
-  env e2;
-
-  bytes32[] idsE1; bytes32[] idsE2;
-  Morpho.MarketParams marketParams;
-  idsE1 = adapter.ids(e1, marketParams);
-  idsE2 = adapter.ids(e2, marketParams);
-
-  assert idsE1.length == idsE2.length;
-  assert idsE1.length == 3;
-  assert idsE1[0] == idsE2[0];
-  assert idsE1[1] == idsE2[1];
-  assert idsE1[2] == idsE2[2];
 }
 
 /*
@@ -60,10 +44,9 @@ rule idsDoNotRelyOnEnvironment {
   instead of calls over "_". We are guaranteed ids() only consumes local data.
 */
 rule idsDoNoteRelyOnExternalCode {
-  env e;
   require(!queried_external);
   Morpho.MarketParams marketParams;
-  adapter.ids(e, marketParams);
+  adapter.ids(marketParams);
   /*
     If this fails, it means the contract is using external code to compute the ids,
     and thus calling f on the adapter only in adapterAlwaysReturnsTheSameIDsForSameData
@@ -82,12 +65,12 @@ rule adapterAlwaysReturnsTheSameIDsForSameData(method f) filtered {
   require(vaultv2.sharesGate == 0x0000000000000000000000000000000000000000, "to avoid the canSendShares dispatch loop");
 
   Morpho.MarketParams marketParams;
-  bytes32[] idsPre = adapter.ids(e, marketParams);
+  bytes32[] idsPre = adapter.ids(marketParams);
 
   calldataarg args;
   adapter.f(e, args);
 
-  bytes32[] idsPost = adapter.ids(e, marketParams);
+  bytes32[] idsPost = adapter.ids(marketParams);
 
   assert idsPre.length == idsPost.length;
   assert idsPre.length == 3;
@@ -101,13 +84,14 @@ rule adapterAlwaysReturnsTheSameIDsForSameData(method f) filtered {
   - ids match on allocate and deallocate
   - ids returned by allocate/deallocate are the same as the ids returned by ids()
 */
+// Todo: do not assume 0 amount, and same environment for allocate and deallocate
 rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate() {
   env e;
   require(e.msg.sender == adapter.parentVault, "Speed up prover.");
   require(adapter.morpho == morpho, "Fix morpho address.");
 
   Morpho.MarketParams marketParams;
-  bytes data = MorphoBlueUtils.marketParamsToBytes(e, marketParams);
+  bytes data = MorphoBlueUtils.marketParamsToBytes(marketParams);
   bytes4 b4;
   require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address addr;
@@ -115,22 +99,22 @@ rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate() {
 
   storage initialState = lastStorage;
 
-  bytes32[] idsAllocate; uint interestAllocate;
+  bytes32[] idsAllocate; uint256 interestAllocate;
   idsAllocate, interestAllocate = adapter.allocate(e, data, 0, b4, addr) at initialState;
 
-  bytes32[] idsDeallocate; uint interestDeallocate;
+  bytes32[] idsDeallocate; uint256 interestDeallocate;
   idsDeallocate, interestDeallocate = adapter.deallocate(e, data, 0, b4, addr) at initialState;
 
   assert interestAllocate == interestDeallocate;
 
   // IDs match on allocate and deallocate
-  bytes32[] ids = adapter.ids(e, marketParams);
+  bytes32[] ids = adapter.ids(marketParams);
+  assert ids.length == 3;
 
-  assert idsAllocate.length == idsDeallocate.length;
-  assert idsAllocate.length == 3;
-  assert idsAllocate[0] == idsDeallocate[0];
-  assert idsAllocate[1] == idsDeallocate[1];
-  assert idsAllocate[2] == idsDeallocate[2];
+  assert idsDeallocate.length == ids.length;
+  assert idsDeallocate[0] == ids[0];
+  assert idsDeallocate[1] == ids[1];
+  assert idsDeallocate[2] == ids[2];
 
   assert idsAllocate.length == ids.length;
   assert idsAllocate[0] == ids[0];
@@ -154,16 +138,16 @@ rule adapterCannotHaveInterestAndLossAtTheSameTime() {
   require(adapter.morpho == morpho, "Fix morpho address.");
 
   Morpho.MarketParams marketParams;
-  bytes data = MorphoBlueUtils.marketParamsToBytes(e, marketParams);
+  bytes data = MorphoBlueUtils.marketParamsToBytes(marketParams);
   bytes4 b4;
   require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address addr;
   require(addr == 0x0000000000000000000000000000000000000000, "Speed up prover. The adapter ignores this param.");
 
-  bytes32[] idsAllocate; uint interest;
+  bytes32[] idsAllocate; uint256 interest;
   idsAllocate, interest = adapter.allocate(e, data, 0, b4, addr) at initial;
 
-  bytes32[] idsRealizeLoss; uint loss;
+  bytes32[] idsRealizeLoss; uint256 loss;
   idsRealizeLoss, loss = adapter.realizeLoss(e, data, b4, addr) at initial;
 
   // If we have a loss, there must be 0 interest
@@ -172,7 +156,7 @@ rule adapterCannotHaveInterestAndLossAtTheSameTime() {
   assert interest != 0 => loss == 0;
 
   // IDs match on allocate and realizeLoss (and deallocate thanks to rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
-  bytes32[] ids = adapter.ids(e, marketParams);
+  bytes32[] ids = adapter.ids(marketParams);
 
   assert idsAllocate.length == idsRealizeLoss.length;
   assert idsAllocate.length == 3;
@@ -196,18 +180,18 @@ rule lossIsBoundedByAllocation() {
   require(adapter.morpho == morpho, "Fix morpho address.");
 
   Morpho.MarketParams marketParams;
-  bytes data = MorphoBlueUtils.marketParamsToBytes(e, marketParams);
+  bytes data = MorphoBlueUtils.marketParamsToBytes(marketParams);
   bytes4 b4;
   require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address addr;
   require(addr == 0x0000000000000000000000000000000000000000, "Speed up prover. The adapter ignores this param.");
 
-  bytes32[] ids = adapter.ids(e, marketParams);
+  bytes32[] ids = adapter.ids(marketParams);
 
   mathint allocation = vaultv2.caps[ids[2]].allocation;
   assert(allocation == adapter.allocation(e, marketParams));
 
-  bytes32[] returnedIds; uint loss;
+  bytes32[] returnedIds; uint256 loss;
   returnedIds, loss = adapter.realizeLoss(e, data, b4, addr);
 
   assert loss <= allocation;
@@ -227,7 +211,7 @@ rule donatingPositionsHasNoEffectOnInterestFromAllocate() {
 
   Morpho.MarketParams marketParams;
   bytes data = MorphoBlueUtils.marketParamsToBytes(e1, marketParams);
-  uint amount;
+  uint256 amount;
   bytes4 b4;
   require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address addr;
@@ -235,13 +219,13 @@ rule donatingPositionsHasNoEffectOnInterestFromAllocate() {
 
   storage initial = lastStorage;
 
-  uint interestNoGift;
+  uint256 interestNoGift;
   _, interestNoGift = adapter.allocate(e1, data, amount, b4, addr) at initial;
 
-  uint donationAmount;
+  uint256 donationAmount;
   bytes supplyData; require(supplyData.length == 0, "No callback for simplicity.");
   morpho.supply(e2, marketParams, donationAmount, 0, adapter, supplyData) at initial;// Donate to the adapter
-  uint interestWithGift;
+  uint256 interestWithGift;
   _, interestWithGift = adapter.allocate(e1, data, amount, b4, addr);
 
   assert interestNoGift == interestWithGift;
@@ -260,8 +244,8 @@ rule donatingPositionsHasNoEffectOnInterestFromDeallocate() {
   require(adapter.morpho == mockMorpho, "Fix morpho address. Use mock for simplicity.");
 
   Morpho.MarketParams marketParams;
-  bytes data = MorphoBlueUtils.marketParamsToBytes(e1, marketParams);
-  uint amount;
+  bytes data = MorphoBlueUtils.marketParamsToBytes(marketParams);
+  uint256 amount;
   bytes4 b4;
   require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address addr;
@@ -269,13 +253,13 @@ rule donatingPositionsHasNoEffectOnInterestFromDeallocate() {
 
   storage initial = lastStorage;
 
-  uint interestNoGift;
+  uint256 interestNoGift;
   _, interestNoGift = adapter.deallocate(e1, data, amount, b4, addr) at initial;
 
-  uint donationAmount;
+  uint256 donationAmount;
   bytes supplyData; require(supplyData.length == 0, "No callback for simplicity.");
   morpho.supply(e2, marketParams, donationAmount, 0, adapter, supplyData) at initial;// Donate to the adapter
-  uint interestWithGift;
+  uint256 interestWithGift;
   _, interestWithGift = adapter.deallocate(e1, data, amount, b4, addr);
 
   assert interestNoGift == interestWithGift;
@@ -302,13 +286,13 @@ rule donatingPositionsHasNoEffectOnLoss() {
 
   storage initial = lastStorage;
 
-  uint lossNoGift;
+  uint256 lossNoGift;
   _, lossNoGift = adapter.realizeLoss(e1, data, b4, addr) at initial;
 
-  uint donationAmount;
+  uint256 donationAmount;
   bytes supplyData; require(supplyData.length == 0, "No callback for simplicity.");
   morpho.supply(e2, marketParams, donationAmount, 0, adapter, supplyData) at initial;// Donate to the adapter
-  uint lossWithGift;
+  uint256 lossWithGift;
   _, lossWithGift = adapter.realizeLoss(e1, data, b4, addr);
 
   assert lossNoGift == lossWithGift;
