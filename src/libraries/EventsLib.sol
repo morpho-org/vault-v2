@@ -56,7 +56,6 @@ library EventsLib {
     event SetSharesGate(address indexed newSharesGate);
     event SetReceiveAssetsGate(address indexed newReceiveAssetsGate);
     event SetSendAssetsGate(address indexed newSendAssetsGate);
-    event SetVic(address indexed newVic);
     event SetIsAdapter(address indexed account, bool newIsAdapter);
     event AbdicateSubmit(bytes4 indexed selector);
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);

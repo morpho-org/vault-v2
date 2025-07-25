@@ -18,10 +18,8 @@ import {
 
 import {IVaultV2Factory} from "../../src/interfaces/IVaultV2Factory.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
-import {IManualVicFactory} from "../../src/vic/interfaces/IManualVicFactory.sol";
 
 import {VaultV2Factory} from "../../src/VaultV2Factory.sol";
-import {ManualVic, ManualVicFactory} from "../../src/vic/ManualVicFactory.sol";
 import "../../src/VaultV2.sol";
 import {MorphoVaultV1Adapter} from "../../src/adapters/MorphoVaultV1Adapter.sol";
 import {MorphoVaultV1AdapterFactory} from "../../src/adapters/MorphoVaultV1AdapterFactory.sol";

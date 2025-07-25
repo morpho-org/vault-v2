@@ -81,15 +81,6 @@ contract AccruingFunctionsTest is BaseTest {
         vault.redeem(0, address(this), address(this));
     }
 
-    function testSetVicAccruesInterest() public {
-        skip(1);
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(vic))));
-        vm.expectEmit(false, false, false, false);
-        emit EventsLib.AccrueInterest(0, 0, 0, 0);
-        vault.setVic(address(vic));
-    }
-
     function testSetPerformanceFeeAccruesInterest() public {
         skip(1);
         vm.prank(curator);
@@ -124,21 +115,5 @@ contract AccruingFunctionsTest is BaseTest {
         vm.expectEmit(false, false, false, false);
         emit EventsLib.AccrueInterest(0, 0, 0, 0);
         vault.setManagementFeeRecipient(address(0));
-    }
-
-    function testSetInterestPerSecondAndDeadline() public {
-        skip(1);
-        vm.prank(allocator);
-        vm.expectEmit(false, false, false, false);
-        emit EventsLib.AccrueInterest(0, 0, 0, 0);
-        vic.setInterestPerSecondAndDeadline(0, type(uint64).max);
-    }
-
-    function testZeroInterestPerSecondAndDeadlineAccruesInterest() public {
-        skip(1);
-        vm.prank(sentinel);
-        vm.expectEmit(false, false, false, false);
-        emit EventsLib.AccrueInterest(0, 0, 0, 0);
-        vic.zeroInterestPerSecondAndDeadline();
     }
 }

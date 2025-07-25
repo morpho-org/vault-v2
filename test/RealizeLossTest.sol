@@ -52,7 +52,7 @@ contract RealizeLossTest is BaseTest {
         assertEq(AdapterMock(adapter).recordedSender(), address(this), "Sender incorrect after realizeLoss");
     }
 
-    function testRealizeLoss(uint256 deposit, uint256 expectedLoss) public {
+    function testRealizeLoss1(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
 

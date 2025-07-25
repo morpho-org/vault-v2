@@ -25,7 +25,6 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function _totalAssets() external view returns (uint192);
     function firstTotalAssets() external view returns (uint256);
     function lastUpdate() external view returns (uint64);
-    function vic() external view returns (address);
     function enterBlocked() external view returns (bool);
     function adapters(uint256 index) external view returns (address);
     function adaptersLength() external view returns (uint256);
@@ -68,7 +67,6 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function setSharesGate(address newSharesGate) external;
     function setReceiveAssetsGate(address newReceiveAssetsGate) external;
     function setSendAssetsGate(address newSendAssetsGate) external;
-    function setVic(address newVic) external;
     function setIsAdapter(address account, bool newIsAdapter) external;
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicateSubmit(bytes4 selector) external;

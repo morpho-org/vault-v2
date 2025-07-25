@@ -5,8 +5,11 @@ pragma solidity ^0.8.0;
 import {IAdapter} from "../../src/interfaces/IAdapter.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
 import {IERC20} from "../../src/interfaces/IERC20.sol";
+import {MathLib} from "../../src/libraries/MathLib.sol";
 
 contract AdapterMock is IAdapter {
+    using MathLib for uint256;
+
     address public immutable vault;
 
     bytes32[] public _ids;
@@ -21,6 +24,10 @@ contract AdapterMock is IAdapter {
 
     bytes4 public recordedSelector;
     address public recordedSender;
+
+    uint256 public interestPerSecond;
+
+    uint256 public recordedDeposit;
 
     constructor(address _vault) {
         vault = _vault;
@@ -40,6 +47,10 @@ contract AdapterMock is IAdapter {
         loss = _loss;
     }
 
+    function setInterestPerSecond(uint256 _interestPerSecond) external {
+        interestPerSecond = _interestPerSecond;
+    }
+
     function allocate(bytes memory data, uint256 assets, bytes4 selector, address sender)
         external
         returns (bytes32[] memory, uint256)
@@ -48,6 +59,7 @@ contract AdapterMock is IAdapter {
         recordedAllocateAssets = assets;
         recordedSelector = selector;
         recordedSender = sender;
+        recordedDeposit += assets;
         return (ids(), interest);
     }
 
@@ -59,6 +71,7 @@ contract AdapterMock is IAdapter {
         recordedDeallocateAssets = assets;
         recordedSelector = selector;
         recordedSender = sender;
+        recordedDeposit -= assets;
         return (ids(), interest);
     }
 
@@ -72,7 +85,7 @@ contract AdapterMock is IAdapter {
         return _ids;
     }
 
-    function totalAssetsNoLoss() external pure returns (uint256) {
-        return 0;
+    function totalAssetsNoLoss() external view returns (uint256) {
+        return recordedDeposit + (block.timestamp - IVaultV2(vault).lastUpdate()) * interestPerSecond;
     }
 }
