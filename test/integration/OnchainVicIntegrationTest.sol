@@ -5,7 +5,7 @@ pragma solidity ^0.8.0;
 import "./MorphoVaultV1IntegrationTest.sol";
 import {OnchainVic} from "../../src/vic/OnchainVic.sol";
 
-contract SingleMorphoVaultV1VicIntegrationTest is MorphoVaultV1IntegrationTest {
+contract OnchainVicIntegrationTest is MorphoVaultV1IntegrationTest {
     address internal onchainVic;
 
     function setUp() public override {
@@ -25,7 +25,7 @@ contract SingleMorphoVaultV1VicIntegrationTest is MorphoVaultV1IntegrationTest {
         collateralToken.approve(address(morpho), type(uint256).max);
     }
 
-    function testSingleMorphoVaultV1Vic(uint256 assets, uint256 elapsed) public {
+    function testOnchainVic(uint256 assets, uint256 elapsed) public {
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         elapsed = bound(elapsed, 1, 10 * 52 weeks);
 

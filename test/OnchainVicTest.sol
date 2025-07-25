@@ -19,7 +19,7 @@ import {IERC4626} from "../src/interfaces/IERC4626.sol";
 
 uint256 constant MAX_TEST_ASSETS = 1e36;
 
-contract SingleMorphoVaultV1VicTest is BaseTest {
+contract OnchainVicTest is BaseTest {
     using MathLib for uint256;
 
     ERC20Mock internal asset;
@@ -150,7 +150,7 @@ contract SingleMorphoVaultV1VicTest is BaseTest {
         assertEq(onchainVic.interestPerSecond(deposit, elapsed), 0, "interest per second");
     }
 
-    function testCreateSingleMorphoVaultV1Vic() public {
+    function testCreateOnchainVic() public {
         bytes32 initCodeHash = keccak256(abi.encodePacked(type(OnchainVic).creationCode, abi.encode(address(vault))));
         address expectedVic = address(
             uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), address(factory), bytes32(0), initCodeHash))))
