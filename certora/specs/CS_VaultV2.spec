@@ -73,11 +73,7 @@ rule giftingUnderlyingToVaultHasNoEffectOnInterestAccrualWithManualVic() {
 
 /*
     - donating the underlying to the vault has no effect
-        - more specifically: donating the underlying to the vault has no effect when there is no VIC
-                            but it boils down to having no effect in general (with ManualVic) because giftingUnderlyingToVaultHasNoEffectOnInterestAccrualWithoutVic
-                            showed a donation has no effect on interest distribution, which is the only thing a VIC does. Also
-                            giftingUnderlyingToVaultHasNoEffectOnInterestAccrualWithManualVic showed that donating to the vault when the ManualVic is set
-                            has no effect on interest distribution.
+      More specifically: donating the underlying to the vault has no effect when there is no VIC but it boils down to having no effect in general (with ManualVic) because giftingUnderlyingToVaultHasNoEffectOnInterestAccrualWithoutVic showed a donation has no effect on interest distribution, which is the only thing a VIC does. Also giftingUnderlyingToVaultHasNoEffectOnInterestAccrualWithManualVic showed that donating to the vault when the ManualVic is set has no effect on interest distribution.
 */
 rule giftingUnderlyingToVaultHasNoEffect(method f) filtered {
          // View functions are not interesting
@@ -112,49 +108,44 @@ rule giftingUnderlyingToVaultHasNoEffect(method f) filtered {
     mathint totalAssetsPre = vaultv2.totalAssets(e1);
 
     uint256 donationAmount;
+    underlying.transfer(e2, vaultv2, donationAmount);
+
     uint256 addedAssets;
     uint256 removedAssets;
 
     if (f.selector == sig:deposit(uint,address).selector) {
         require(removedAssets == 0,  "We only add assets.");
-        underlying.transfer(e2, vaultv2, donationAmount);
         vaultv2.deposit(e3, addedAssets, e3.msg.sender);
     } else if (f.selector == sig:mint(uint,address).selector) {
         require(removedAssets == 0, "We only add assets.");
         uint256 shares;
         require(addedAssets == vaultv2.previewMint(e1, shares), "Added assets should be the result of previewMint before the donation.");
-        underlying.transfer(e2, vaultv2, donationAmount);
         vaultv2.mint(e3, shares, e3.msg.sender);
     } else if (f.selector == sig:withdraw(uint,address,address).selector) {
         require(addedAssets == 0, "We only remove assets.");
-        underlying.transfer(e2, vaultv2, donationAmount);
         vaultv2.withdraw(e3, removedAssets, e3.msg.sender, e3.msg.sender);
     } else if (f.selector == sig:redeem(uint,address,address).selector) {
         require(addedAssets == 0, "We only remove assets.");
         uint256 shares;
         require(removedAssets == vaultv2.previewRedeem(e1, shares), "Redeemed assets should be the result of previewRedeem before the donation.");
-        underlying.transfer(e2, vaultv2, donationAmount);
         vaultv2.redeem(e3, shares, e3.msg.sender, e3.msg.sender);
     } else if (f.selector == sig:forceDeallocate(address,bytes,uint,address).selector) {
-        require(addedAssets == 0, "We only remove assets (penalty).");
+        require(addedAssets == 0, "We only remove assets.");
         address adapter;
         bytes data;
         uint256 deallocationAmount;
         require(removedAssets == mulDivUp(deallocationAmount, vaultv2.forceDeallocatePenalty[adapter], WAD()), "This replicates what should happen on the contract level.");
-        underlying.transfer(e2, vaultv2, donationAmount);
         vaultv2.forceDeallocate(e3, adapter, data, deallocationAmount, e3.msg.sender);
     } else if (f.selector == sig:realizeLoss(address,bytes).selector) {
-        // We need information about the loss, so let's use the CSMockAdapter because we know the loss.
-        require(addedAssets == 0, "We only remove assets (penalty).");
-        uint256 adapterAllocation = vaultv2.allocation(simpleAdapter.adapterId);
-        require(removedAssets == (adapterAllocation > vaultv2.totalAssets(e1) ? vaultv2.totalAssets(e1) : adapterAllocation), "We expect the loss to be min between the whole registered allocation on the vault and the current total asset.");
-        underlying.transfer(e2, vaultv2, donationAmount);
+        require(addedAssets == 0, "We only remove assets.");
+        address adapter;
         bytes data;
-        vaultv2.realizeLoss(e3, simpleAdapter, data);
+        uint256 incentiveShares; uint256 loss;
+        (incentiveShares, loss) = vaultv2.realizeLoss(e3, adapter, data);
+        require(removedAssets == (loss > vaultv2.totalAssets(e1) ? vaultv2.totalAssets(e1) : loss), "We expect the decrease of total assests to be min between loss on the vault and the current total asset.");
     } else {
         require(addedAssets == 0);
         require(removedAssets == 0);
-        underlying.transfer(e2, vaultv2, donationAmount);
         calldataarg args;
         vaultv2.f(e3, args);
     }
