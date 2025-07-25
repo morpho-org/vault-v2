@@ -4,7 +4,6 @@ pragma solidity 0.8.28;
 
 import {IVaultV2, IERC20, Caps} from "./interfaces/IVaultV2.sol";
 import {IAdapter} from "./interfaces/IAdapter.sol";
-import {IVic} from "./interfaces/IVic.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
@@ -183,7 +182,6 @@ contract VaultV2 is IVaultV2 {
     uint256 public transient firstTotalAssets;
     uint192 public _totalAssets;
     uint64 public lastUpdate;
-    address public vic;
     bool public transient enterBlocked;
 
     /* CURATION STORAGE */
@@ -347,18 +345,6 @@ contract VaultV2 is IVaultV2 {
         timelocked();
         sendAssetsGate = newSendAssetsGate;
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
-    }
-
-    /// @dev This function never reverts, assuming that the corresponding data is timelocked.
-    /// @dev Users cannot access their funds if the Vic reverts, so this function might better be under a long timelock.
-    function setVic(address newVic) external {
-        timelocked();
-        try this.accrueInterest() {}
-        catch {
-            lastUpdate = uint64(block.timestamp);
-        }
-        vic = newVic;
-        emit EventsLib.SetVic(newVic);
     }
 
     function setIsAdapter(address account, bool newIsAdapter) external {
@@ -587,10 +573,13 @@ contract VaultV2 is IVaultV2 {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
-        uint256 tentativeInterestPerSecond = vic != address(0) ? IVic(vic).interestPerSecond(_totalAssets, elapsed) : 0;
-
-        uint256 interestPerSecond = tentativeInterestPerSecond
-            <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
+        uint256 realAssets = IERC20(asset).balanceOf(address(this));
+        for (uint256 i = 0; i < adapters.length; i++) {
+            realAssets += IAdapter(adapters[i]).totalAssetsNoLoss();
+        }
+        uint256 tentativeInterestPerSecond = (realAssets - _totalAssets) / elapsed;
+        uint256 maxInterestPerSecond = uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD);
+        uint256 interestPerSecond = tentativeInterestPerSecond <= maxInterestPerSecond ? tentativeInterestPerSecond : 0;
         uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = _totalAssets + interest;
 
