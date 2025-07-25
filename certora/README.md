@@ -95,3 +95,7 @@ Install `certora-cli` package with `pip install certora-cli`.
 To verify specification files, pass to `certoraRun` the corresponding configuration file in the [`certora/confs`](confs) folder.
 It requires having set the `CERTORAKEY` environment variable to a valid Certora key.
 You can also pass additional arguments, notably to verify a specific rule.
+
+# Acknowledgments
+
+Some rules and invariants are derived from those written by the Chainsecurity team during their audit of this repository.
