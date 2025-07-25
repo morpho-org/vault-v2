@@ -123,12 +123,8 @@ rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate() {
 }
 
 /*
-  - from the same starting state, if realizeLoss() returns a non-zero value then allocate()/deallocate() must return 0
-    the rule is done with allocate() but holds for deallocate() as well because we know they return the same interest
-    for a given starting state (see adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
-  - from the same starting state, if allocate()/deallocate() returns a non-zero value then realizeLoss() must return 0
-    the rule is done with allocate() but holds for deallocate() as well because we know they return the same interest
-    for a given starting state (see adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
+  - from the same starting state, either realizeLoss() or allocate()/deallocate() return 0.
+    The rule is done with allocate() but holds for deallocate() as well because we know they return the same interest for a given starting state (see adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
   - ids returned by realizeLoss are the same as the ids returned by ids() (and allocate()/deallocate())
 */
 rule adapterCannotHaveInterestAndLossAtTheSameTime() {
@@ -150,24 +146,15 @@ rule adapterCannotHaveInterestAndLossAtTheSameTime() {
   bytes32[] idsRealizeLoss; uint256 loss;
   idsRealizeLoss, loss = adapter.realizeLoss(e, data, b4, addr) at initial;
 
-  // If we have a loss, there must be 0 interest
-  assert loss != 0 => interest == 0;
-  // If we have some interest, there must be no loss
-  assert interest != 0 => loss == 0;
+  assert loss == 0 || interest == 0;
 
   // IDs match on allocate and realizeLoss (and deallocate thanks to rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
   bytes32[] ids = adapter.ids(marketParams);
 
-  assert idsAllocate.length == idsRealizeLoss.length;
-  assert idsAllocate.length == 3;
-  assert idsAllocate[0] == idsRealizeLoss[0];
-  assert idsAllocate[1] == idsRealizeLoss[1];
-  assert idsAllocate[2] == idsRealizeLoss[2];
-
-  assert idsAllocate.length == ids.length;
-  assert idsAllocate[0] == ids[0];
-  assert idsAllocate[1] == ids[1];
-  assert idsAllocate[2] == ids[2];
+  assert idsRealizeLoss.length == 3;
+  assert idsRealizeLoss[0] == ids[0];
+  assert idsRealizeLoss[1] == ids[1];
+  assert idsRealizeLoss[2] == ids[2];
 }
 
 /*
@@ -198,9 +185,10 @@ rule lossIsBoundedByAllocation() {
 }
 
 /*
-  - donating some underlying position to the adapter has no effect on the interest returned by allocate()
+  - donating some underlying position to the adapter has no effect on the interest returned.
+    The rule is done with allocate() but holds for deallocate() as well because we know they return the same interest for a given starting state (see adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
 */
-rule donatingPositionsHasNoEffectOnInterestFromAllocate() {
+rule donatingPositionsHasNoEffectOnInterest() {
   env e1;
   env e2;
   require(e1.msg.sender == adapter.parentVault, "Speed up prover.");
@@ -227,40 +215,6 @@ rule donatingPositionsHasNoEffectOnInterestFromAllocate() {
   morpho.supply(e2, marketParams, donationAmount, 0, adapter, supplyData) at initial;// Donate to the adapter
   uint256 interestWithGift;
   _, interestWithGift = adapter.allocate(e1, data, amount, b4, addr);
-
-  assert interestNoGift == interestWithGift;
-}
-
-/*
-  - donating some underlying position to the adapter has no effect on the interest returned by deallocate()
-*/
-rule donatingPositionsHasNoEffectOnInterestFromDeallocate() {
-  env e1;
-  env e2;
-  require(e1.msg.sender == adapter.parentVault, "Speed up prover.");
-  require(e2.block.timestamp <= e1.block.timestamp, "We first donate, then look for the interest");
-  require(adapter.parentVault == vaultv2);
-  require(vaultv2.sharesGate == 0x0000000000000000000000000000000000000000);
-  require(adapter.morpho == mockMorpho, "Fix morpho address. Use mock for simplicity.");
-
-  Morpho.MarketParams marketParams;
-  bytes data = MorphoBlueUtils.marketParamsToBytes(marketParams);
-  uint256 amount;
-  bytes4 b4;
-  require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
-  address addr;
-  require(addr == 0x0000000000000000000000000000000000000000, "Speed up prover. The adapter ignores this param.");
-
-  storage initial = lastStorage;
-
-  uint256 interestNoGift;
-  _, interestNoGift = adapter.deallocate(e1, data, amount, b4, addr) at initial;
-
-  uint256 donationAmount;
-  bytes supplyData; require(supplyData.length == 0, "No callback for simplicity.");
-  morpho.supply(e2, marketParams, donationAmount, 0, adapter, supplyData) at initial;// Donate to the adapter
-  uint256 interestWithGift;
-  _, interestWithGift = adapter.deallocate(e1, data, amount, b4, addr);
 
   assert interestNoGift == interestWithGift;
 }
