@@ -125,7 +125,7 @@ rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate() {
 /*
   - from the same starting state, either realizeLoss() or allocate()/deallocate() return 0.
     The rule is done with allocate() but holds for deallocate() as well because we know they return the same interest for a given starting state (see adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
-  - ids returned by realizeLoss are the same as the ids returned by ids() (and allocate()/deallocate())
+  - ids returned by realizeLoss are the same as the ids returned by ids()
 */
 rule adapterCannotHaveInterestAndLossAtTheSameTime() {
   storage initial = lastStorage;

@@ -80,6 +80,7 @@ rule adapterAlwaysReturnsTheSameIDsForSameData(method f) filtered {
   - ids match on allocate and deallocate
   - ids returned by allocate/deallocate are the same as the ids returned by ids()
 */
+// Todo: do not assume 0 amount, and same environment for allocate and deallocate
 rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate() {
   storage initialState = lastStorage;
   env e;
@@ -116,13 +117,10 @@ rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate() {
 }
 
 /*
-  - from the same starting state, if realizeLoss() returns a non-zero value then allocate()/deallocate() must return 0
-    the rule is done with allocate() but holds for deallocate() as well because we know they return the same interest
-    for a given starting state (see adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
-  - from the same starting state, if allocate()/deallocate() returns a non-zero value then realizeLoss() must return 0
-    the rule is done with allocate() but holds for deallocate() as well because we know they return the same interest
-    for a given starting state (see adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
+  - from the same starting state, either realizeLoss() or allocate()/deallocate() return 0.
+    The rule is done with allocate() but holds for deallocate() as well because we know they return the same interest for a given starting state (see adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
   - ids returned by realizeLoss are the same as the ids returned by ids() (and allocate()/deallocate())
+  - ids returned by realizeLoss are the same as the ids returned by ids()
 */
 rule adapterCannotHaveInterestAndLossAtTheSameTime() {
   env e;
@@ -148,20 +146,13 @@ rule adapterCannotHaveInterestAndLossAtTheSameTime() {
   bytes32[] idsRealizeLoss; uint256 loss;
   idsRealizeLoss, loss = adapter.realizeLoss(e, data, b4, addr) at initial;
 
-  // If we have a loss, there must be 0 interest
-  assert loss != 0 => interest == 0;
-  // If we have some interest, there must be no loss
-  assert interest != 0 => loss == 0;
+  assert loss == 0 || interest == 0;
 
   // IDs match on allocate and realizeLoss (and deallocate thanks to rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
   bytes32[] ids = adapter.ids();
 
-  assert idsAllocate.length == idsRealizeLoss.length;
-  assert idsAllocate.length == 1;
-  assert idsAllocate[0] == idsRealizeLoss[0];
-
-  assert idsAllocate.length == ids.length;
-  assert idsAllocate[0] == ids[0];
+  assert idsRealizeLoss.length == 1;
+  assert idsRealizeLoss[0] == ids[0];
 }
 
 /*
@@ -195,71 +186,34 @@ rule lossIsBoundedByAllocation() {
 }
 
 /*
-  - donating some underlying position to the adapter has no effect on the interest returned by allocate()
+  - donating some underlying position to the adapter has no effect on the interest returned.
+    The rule is done with allocate() but holds for deallocate() as well because we know they return the same interest for a given starting state (see adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
 */
-rule donatingPositionsHasNoEffectOnInterestFromAllocate() {
+// Todo: show that amount don't change the interest.
+rule donatingPositionsHasNoEffectOnInterest() {
   env e1;
+  env e2;
   require(e1.msg.sender == adapter.parentVault, "Speed up prover.");
+  require(e2.block.timestamp <= e1.block.timestamp, "We first donate, then look for the interest");
   require(adapter.parentVault == vaultv2);
   require(vaultv2.sharesGate == 0x0000000000000000000000000000000000000000);
-  require(adapter.morphoVaultV1 == metamorpho, "Speed up prover.");
-  require(vaultv2.asset == metamorpho._asset, "Speed up prover.");
+  require(adapter.morphoVaultV1 == metamorpho, "Fix metamorpho address.");
 
   bytes data; require(data.length == 0, "Speed up prover. The adapter ignores this param.");
-  bytes4 b4; require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
-  address addr; require(addr == 0x0000000000000000000000000000000000000000, "Speed up prover. The adapter ignores this param.");
-
-  uint256 donation;
+  bytes4 b4;
+  require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
+  address addr;
+  require(addr == 0x0000000000000000000000000000000000000000, "Speed up prover. The adapter ignores this param.");
 
   storage initial = lastStorage;
-
-  uint256 positionPre = metamorpho.balanceOf(adapter) at initial;
-  require(metamorpho.balanceOf(adapter) == positionPre + donation); // Donate to the adapter, we don't use deposit as the prover times out
-  storage initalWithDonation = lastStorage;
-  uint256 positionPost = metamorpho.balanceOf(adapter) at initalWithDonation;
-  assert(positionPost == positionPre + donation);
 
   uint256 interestNoGift;
   _, interestNoGift = adapter.allocate(e1, data, 0, b4, addr) at initial;
 
-
+  uint256 donationAmount;
+  metamorpho.transfer(e2, adapter, donationAmount) at initial;
   uint256 interestWithGift;
-  _, interestWithGift = adapter.allocate(e1, data, 0, b4, addr) at initalWithDonation;
-
-  assert interestNoGift == interestWithGift;
-}
-
-/*
-  - donating some underlying position to the adapter has no effect on the interest returned by deallocate()
-*/
-rule donatingPositionsHasNoEffectOnInterestFromDeallocate() {
-  env e1;
-  require(e1.msg.sender == adapter.parentVault, "Speed up prover.");
-  require(adapter.parentVault == vaultv2);
-  require(vaultv2.sharesGate == 0x0000000000000000000000000000000000000000);
-  require(adapter.morphoVaultV1 == metamorpho, "Speed up prover.");
-  require(vaultv2.asset == metamorpho._asset, "Speed up prover.");
-
-  bytes data; require(data.length == 0, "Speed up prover. The adapter ignores this param.");
-  bytes4 b4; require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
-  address addr; require(addr == 0x0000000000000000000000000000000000000000, "Speed up prover. The adapter ignores this param.");
-
-  uint256 donation;
-
-  storage initial = lastStorage;
-
-  uint256 positionPre = metamorpho.balanceOf(adapter) at initial;
-  require(metamorpho.balanceOf(adapter) == positionPre + donation); // Donate to the adapter, we don't use deposit as the prover times out
-  storage initalWithDonation = lastStorage;
-  uint256 positionPost = metamorpho.balanceOf(adapter) at initalWithDonation;
-  assert(positionPost == positionPre + donation);
-
-  uint256 interestNoGift;
-  _, interestNoGift = adapter.deallocate(e1, data, 0, b4, addr) at initial;
-
-
-  uint256 interestWithGift;
-  _, interestWithGift = adapter.deallocate(e1, data, 0, b4, addr) at initalWithDonation;
+  _, interestWithGift = adapter.allocate(e1, data, 0, b4, addr);
 
   assert interestNoGift == interestWithGift;
 }
