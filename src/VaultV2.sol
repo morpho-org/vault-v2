@@ -179,7 +179,8 @@ contract VaultV2 is IVaultV2 {
     mapping(address account => uint256) public nonces;
 
     /* INTEREST STORAGE */
-
+    /// @dev This vault relies on Solidity's `transient` storage (EIP-1153). Deployment must target a
+    ///      chain that supports the TSTORE and TLOAD opcodes.
     uint256 public transient firstTotalAssets;
     uint192 public _totalAssets;
     uint64 public lastUpdate;
