@@ -171,7 +171,7 @@ contract ManualVicTest is Test {
         interestPerSecond = bound(interestPerSecond, 0, type(uint96).max);
         deadline = bound(deadline, block.timestamp, type(uint64).max / 2);
         elapsed = bound(elapsed, 0, block.timestamp);
-        time = bound(time, 0, deadline);
+        time = bound(time, block.timestamp, deadline);
 
         // Setup.
         vm.prank(curator);
@@ -179,7 +179,7 @@ contract ManualVicTest is Test {
         vm.prank(allocator);
         manualVic.setInterestPerSecondAndDeadline(interestPerSecond, deadline);
 
-        vm.warp(time);
+        skip(time - block.timestamp);
         assertEq(manualVic.interest(0, elapsed), interestPerSecond * elapsed);
     }
 
@@ -200,7 +200,7 @@ contract ManualVicTest is Test {
         vm.prank(allocator);
         manualVic.setInterestPerSecondAndDeadline(interestPerSecond, deadline);
 
-        vm.warp(time);
+        skip(time - block.timestamp);
         assertEq(manualVic.interest(0, elapsed), interestPerSecond * (deadline - (time - elapsed)));
     }
 
@@ -221,7 +221,7 @@ contract ManualVicTest is Test {
         vm.prank(allocator);
         manualVic.setInterestPerSecondAndDeadline(interestPerSecond, deadline);
 
-        vm.warp(time);
+        skip(time - block.timestamp);
         assertEq(manualVic.interest(0, elapsed), 0);
     }
 
