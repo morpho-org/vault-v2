@@ -75,8 +75,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// any, since the last interaction.
 ///   - When calculating loss, it must be the negative change between the estimate and the tracked allocation, if any,
 /// since the last interaction.
-/// @dev Ids being reused by multiple adapters are useful to do "cross-caps". Adapters can add "this" to an id to avoid
-/// it being reused.
+/// @dev Ids being reused are useful to cap multiple investments that have a common property.
 /// @dev Allocating is prevented if one of the ids' absolute cap is zero and deallocating is prevented if the id's
 /// allocation is zero. This prevents interactions with zero assets with unknown markets. For markets that share all
 /// their ids, it will be impossible to "disable" them (preventing any interaction) without disabling the others using
