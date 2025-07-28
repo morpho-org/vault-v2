@@ -149,6 +149,13 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev No-ops are allowed.
 /// @dev NatSpec comments are included only when they bring clarity.
 /// @dev Roles are not "two-step" so one must check if they really have this role.
+///
+/// TRANSIENT STORAGE
+/// @dev This vault uses transient storage (EIP-1153) for the `firstTotalAssets` and `enterBlocked` state variables.
+/// @dev The chain must support the TSTORE and TLOAD opcodes for the vault to function correctly.
+/// @dev Transient storage is used to:
+/// - Track the first total assets in a transaction (firstTotalAssets) to prevent flashloan attacks on relative caps
+/// - Implement reentrancy protection (enterBlocked) that automatically resets after each transaction
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
     using MathLib for uint192;
