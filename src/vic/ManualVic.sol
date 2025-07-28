@@ -63,10 +63,11 @@ contract ManualVic is IManualVic {
 
     /// @dev Returns the interest per second.
     function interest(uint256, uint256 elapsed) external view returns (uint256) {
+        uint256 lastUpdate = block.timestamp - elapsed;
         if (block.timestamp <= deadline) {
             return storedInterestPerSecond * elapsed;
-        } else if (block.timestamp > deadline && block.timestamp - elapsed <= deadline) {
-            return storedInterestPerSecond * (deadline - (block.timestamp - elapsed));
+        } else if (lastUpdate <= deadline) {
+            return storedInterestPerSecond * (deadline - lastUpdate);
         } else {
             return 0;
         }
