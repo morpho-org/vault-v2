@@ -30,6 +30,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev The Vic might not distribute as much interest as planned if:
 /// - The Vic reverted on `setVic`.
 /// - The Vic returned an interest per second that is too high (it is capped at a max rate).
+/// - The interest is set to zero if the returned rate is more than the max rate.
 /// @dev The vault might earn more interest than expected if:
 /// - A donation in underlying has been made to the vault.
 /// - There have been some calls to forceDeallocate, and the penalty is not zero.
