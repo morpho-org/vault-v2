@@ -149,7 +149,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev No-ops are allowed.
 /// @dev NatSpec comments are included only when they bring clarity.
 /// @dev Roles are not "two-step" so one must check if they really have this role.
-/// @dev This contract uses transient storage, so the chain needs to have TSTORE and TLOAD opcodes.
+/// @dev The contract uses transient storage.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
     using MathLib for uint192;
