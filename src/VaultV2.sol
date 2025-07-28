@@ -157,6 +157,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Zero checks are not systematically performed.
 /// @dev No-ops are allowed.
 /// @dev NatSpec comments are included only when they bring clarity.
+/// @dev The contract uses transient storage.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
     using MathLib for uint192;
@@ -317,6 +318,7 @@ contract VaultV2 is IVaultV2 {
         require(executableAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
         require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
         executableAt[msg.data] = 0;
+        emit EventsLib.Accept(bytes4(msg.data), msg.data);
     }
 
     function revoke(bytes calldata data) external {
@@ -571,6 +573,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Reverts if the call to the Vic reverts.
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     /// @dev The performance and management fees are taken even if the vault incurs some losses.
+    /// @dev Both fees are rounded down, so fee recipients could receive less than expected.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
