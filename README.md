@@ -93,7 +93,7 @@ For now only a Vic of this type is provided, the [ManualVic](./src/vic/ManualVic
 - the Vic has an additional internal notion of max interest per second, to ensure that the role of allocator can be given more safely.
   The curator controls this internal notion of max interest per second, while the sentinels are only able to decrease it to reduce the risk of having a rate too high.
 
-The impact of rounding should be kept in mind and the interest per second should be adapter accordingly.
+The impact of rounding should be kept in mind and the interest per second should be adapted accordingly.
 The impact of rounding on the interest is higher for tokens with a high per-unit value, for smaller vaults, and for lower interest rates.
 For instance, 2% APR on 10e3 USDC is ~6.34 USDC / second. The round down to 6 reduces the APR by 5%.
 
