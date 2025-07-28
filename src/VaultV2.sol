@@ -761,10 +761,10 @@ contract VaultV2 is IVaultV2 {
             _totalAssets = uint192(_totalAssets.zeroFloorSub(loss));
 
             if (canReceiveShares(msg.sender)) {
-                uint256 tentativeIncentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
-                incentiveShares = tentativeIncentive.mulDivDown(
-                    totalSupply + virtualShares, uint256(_totalAssets).zeroFloorSub(tentativeIncentive) + 1
-                );
+                uint256 incentive =
+                    MathLib.min(loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD), _totalAssets / 2);
+                incentiveShares =
+                    incentive.mulDivDown(totalSupply + virtualShares, uint256(_totalAssets).zeroFloorSub(incentive) + 1);
                 createShares(msg.sender, incentiveShares);
             }
 
