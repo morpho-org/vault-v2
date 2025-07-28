@@ -91,7 +91,7 @@ contract ViewFunctionsTest is BaseTest {
         uint256 initialDeposit;
         uint256 performanceFee;
         uint256 managementFee;
-        uint256 interestPerSecond;
+        uint256 interest;
         uint256 assets;
         uint256 elapsed;
     }
@@ -102,7 +102,7 @@ contract ViewFunctionsTest is BaseTest {
         data.managementFee = bound(data.managementFee, 0, MAX_MANAGEMENT_FEE);
         data.elapsed = uint64(bound(data.elapsed, 0, 10 * 365 days));
         if (data.elapsed != 0) {
-            data.interestPerSecond = bound(data.interestPerSecond, 0, MAX_TEST_ASSETS / data.elapsed);
+            data.interest = bound(data.interest, 0, MAX_TEST_ASSETS / data.elapsed);
         }
 
         vault.deposit(data.initialDeposit, address(this));
@@ -114,7 +114,7 @@ contract ViewFunctionsTest is BaseTest {
         vault.setPerformanceFee(data.performanceFee);
         vault.setManagementFee(data.managementFee);
 
-        adapter.setInterestPerSecond(data.interestPerSecond);
+        adapter.setInterest(data.interest);
 
         skip(data.elapsed);
 

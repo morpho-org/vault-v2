@@ -560,13 +560,12 @@ contract VaultV2 is IVaultV2 {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
-        uint256 realAssets = IERC20(asset).balanceOf(address(this));
+        uint256 realAssets;
+        realAssets += IERC20(asset).balanceOf(address(this));
         for (uint256 i = 0; i < adapters.length; i++) {
             realAssets += IAdapter(adapters[i]).totalAssetsNoLoss();
         }
-        uint256 tentativeInterest = (realAssets - _totalAssets);
-        uint256 maxInterest = uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) * elapsed;
-        uint256 interest = tentativeInterest <= maxInterest ? tentativeInterest : 0;
+        uint256 interest = realAssets - _totalAssets;
         uint256 newTotalAssets = _totalAssets + interest;
 
         // The performance fee assets may be rounded down to 0 if interest * fee < WAD.

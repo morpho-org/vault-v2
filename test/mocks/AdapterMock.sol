@@ -25,8 +25,6 @@ contract AdapterMock is IAdapter {
     bytes4 public recordedSelector;
     address public recordedSender;
 
-    uint256 public interestPerSecond;
-
     uint256 public recordedDeposit;
 
     constructor(address _vault) {
@@ -45,10 +43,6 @@ contract AdapterMock is IAdapter {
 
     function setLoss(uint256 _loss) external {
         loss = _loss;
-    }
-
-    function setInterestPerSecond(uint256 _interestPerSecond) external {
-        interestPerSecond = _interestPerSecond;
     }
 
     function allocate(bytes memory data, uint256 assets, bytes4 selector, address sender)
@@ -86,6 +80,6 @@ contract AdapterMock is IAdapter {
     }
 
     function totalAssetsNoLoss() external view returns (uint256) {
-        return recordedDeposit + (block.timestamp - IVaultV2(vault).lastUpdate()) * interestPerSecond;
+        return recordedDeposit + interest;
     }
 }
