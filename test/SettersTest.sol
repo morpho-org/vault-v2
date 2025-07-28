@@ -186,6 +186,8 @@ contract SettersTest is BaseTest {
 
         // Normal path.
         vm.warp(vm.getBlockTimestamp() + 1);
+        vm.expectEmit();
+        emit EventsLib.Accept(IVaultV2.setVic.selector, data);
         vault.setVic(address(1));
 
         // Data not timelocked.
