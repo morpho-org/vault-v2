@@ -745,7 +745,8 @@ contract VaultV2 is IVaultV2 {
         return penaltyShares;
     }
 
-    /// @dev For small losses, the incentive could be null because of rounding.
+    /// @dev For small losses, the incentive might be small, or even null because of rounding. This is ok as small
+    /// losses do not cause issues.
     /// @dev The incentive will be null if the msg.sender isn't allowed to receive shares.
     /// @dev Returns incentiveShares, loss.
     function realizeLoss(address adapter, bytes memory data) external returns (uint256, uint256) {
