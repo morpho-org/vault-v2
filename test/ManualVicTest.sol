@@ -133,14 +133,14 @@ contract ManualVicTest is Test {
         vm.expectEmit();
         emit IManualVic.SetInterestPerSecondAndDeadline(allocator, newInterestPerSecond, newDeadline);
         manualVic.setInterestPerSecondAndDeadline(newInterestPerSecond, newDeadline);
-        assertEq(manualVic.interestPerSecond(0, 0), newInterestPerSecond);
+        assertEq(manualVic.interest(0, 1), newInterestPerSecond);
         assertEq(manualVic.storedInterestPerSecond(), newInterestPerSecond);
         assertEq(manualVic.deadline(), newDeadline);
 
         // Normal path, decreasing.
         vm.prank(allocator);
         manualVic.setInterestPerSecondAndDeadline(newInterestPerSecond - 1, newDeadline);
-        assertEq(manualVic.interestPerSecond(0, 0), newInterestPerSecond - 1);
+        assertEq(manualVic.interest(0, 1), newInterestPerSecond - 1);
         assertEq(manualVic.storedInterestPerSecond(), newInterestPerSecond - 1);
         assertEq(manualVic.deadline(), newDeadline);
     }
@@ -162,7 +162,7 @@ contract ManualVicTest is Test {
         vm.expectEmit();
         emit IManualVic.ZeroInterestPerSecondAndDeadline(sentinel);
         manualVic.zeroInterestPerSecondAndDeadline();
-        assertEq(manualVic.interestPerSecond(0, 0), 0);
+        assertEq(manualVic.interest(0, 1), 0);
         assertEq(manualVic.storedInterestPerSecond(), 0);
         assertEq(manualVic.deadline(), 0);
     }
@@ -178,11 +178,11 @@ contract ManualVicTest is Test {
 
         // Before deadline.
         vm.warp(newDeadline - 1);
-        assertEq(manualVic.interestPerSecond(0, 0), 1);
+        assertEq(manualVic.interest(0, 1), 1);
 
         // Past deadline.
         vm.warp(newDeadline + 1);
-        assertEq(manualVic.interestPerSecond(0, 0), 0);
+        assertEq(manualVic.interest(0, 1), 0);
     }
 
     function testCreateManualVic(address _vault) public {

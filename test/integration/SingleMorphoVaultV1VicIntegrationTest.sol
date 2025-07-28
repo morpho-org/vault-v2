@@ -7,6 +7,8 @@ import {SingleMorphoVaultV1Vic} from "../../src/vic/SingleMorphoVaultV1Vic.sol";
 import {ISingleMorphoVaultV1Vic} from "../../src/vic/interfaces/ISingleMorphoVaultV1Vic.sol";
 
 contract SingleMorphoVaultV1VicIntegrationTest is MorphoVaultV1IntegrationTest {
+    using MathLib for uint256;
+
     ISingleMorphoVaultV1Vic internal singleMorphoVaultV1Vic;
 
     function setUp() public override {
@@ -47,15 +49,12 @@ contract SingleMorphoVaultV1VicIntegrationTest is MorphoVaultV1IntegrationTest {
         morpho.borrow(allMarketParams[0], assets, 0, address(this), address(1));
         skip(elapsed);
         uint256 newAssets = morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter)));
-        uint256 interestPerSecond = (newAssets - assets) / elapsed;
-        vm.assume(interestPerSecond <= assets * MAX_RATE_PER_SECOND / WAD);
+        uint256 interest = newAssets - assets;
+        vm.assume(interest <= assets.mulDivDown(MAX_RATE_PER_SECOND, WAD) * elapsed);
 
-        assertEq(vault.totalAssets(), assets + interestPerSecond * elapsed, "total assets");
+        assertEq(vault.totalAssets(), assets + interest, "total assets");
         assertApproxEqRel(
-            vault.previewRedeem(vault.balanceOf(address(this))),
-            assets + interestPerSecond * elapsed,
-            0.00001e18,
-            "preview redeem"
+            vault.previewRedeem(vault.balanceOf(address(this))), assets + interest, 0.00001e18, "preview redeem"
         );
     }
 
@@ -72,9 +71,9 @@ contract SingleMorphoVaultV1VicIntegrationTest is MorphoVaultV1IntegrationTest {
         vault.deposit(deposit, address(this));
         underlyingToken.transfer(address(vault), interest);
         skip(elapsed);
-        vm.assume(interest / elapsed <= deposit * MAX_RATE_PER_SECOND / WAD);
+        vm.assume(interest <= deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD) * elapsed);
 
-        assertEq(vault.totalAssets(), deposit + interest / elapsed * elapsed, "wrong total assets");
+        assertEq(vault.totalAssets(), deposit + interest, "wrong total assets");
     }
 
     function testInterestPerSecondDonationInKind(uint256 deposit, uint256 interest, uint256 elapsed) public {

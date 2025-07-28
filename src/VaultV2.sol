@@ -102,7 +102,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// LIVENESS REQUIREMENTS
 /// @dev List of assumptions that guarantees the vault's liveness properties:
-/// - The VIC should not revert on interestPerSecond.
+/// - The VIC should not revert on interest.
 /// - The token should not revert on transfer and transferFrom if balances and approvals are right.
 /// - The token should not revert on transfer to self.
 /// - totalAssets and totalSupply must stay below ~10^35. When taking this into account, note that for assets with
@@ -567,11 +567,10 @@ contract VaultV2 is IVaultV2 {
         uint256 elapsed = block.timestamp - lastUpdate;
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
-        uint256 tentativeInterestPerSecond = vic != address(0) ? IVic(vic).interestPerSecond(_totalAssets, elapsed) : 0;
-
-        uint256 interestPerSecond = tentativeInterestPerSecond
-            <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
-        uint256 interest = interestPerSecond * elapsed;
+        uint256 tentativeInterest = vic != address(0) ? IVic(vic).interest(_totalAssets, elapsed) : 0;
+        uint256 interest = tentativeInterest <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) * elapsed
+            ? tentativeInterest
+            : 0;
         uint256 newTotalAssets = _totalAssets + interest;
 
         // The performance fee assets may be rounded down to 0 if interest * fee < WAD.
