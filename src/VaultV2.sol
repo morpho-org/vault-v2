@@ -824,6 +824,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Signature malleability is not explicitly prevented but it is not a problem thanks to the nonce.
+    /// @dev Once the signature is public, anybody can submit it, potentially making the intended permit call revert.
     function permit(address _owner, address spender, uint256 shares, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         external
     {
