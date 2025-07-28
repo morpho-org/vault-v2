@@ -143,6 +143,8 @@ It can:
 - Set the owner.
 - Set the curator.
 - Set sentinels.
+- Set the name.
+- Set the symbol.
 
 #### Curator
 
