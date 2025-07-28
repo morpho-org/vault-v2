@@ -817,7 +817,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns success (always true because reverts on failure).
-    /// @dev Vulnerable to the allowance increase front-running flaw.
+    /// @dev Vulnerable to the approval front-running flaw documented in ERC-20.
     function approve(address spender, uint256 shares) external returns (bool) {
         allowance[msg.sender][spender] = shares;
         emit EventsLib.Approval(msg.sender, spender, shares);
