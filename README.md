@@ -86,7 +86,7 @@ As a result, in Vault v2, curators are responsible for monitoring the vault’s 
 The interest rate is set through the Vic, a contract responsible for returning the `interest` used to accrue interest.
 The rate returned by the Vic must be below `200% APR`.
 
-The vault interest controller can typically be simple smart contract storing the `interestPerSecond`, whose value is regularly set by the curator.
+The vault interest controller can typically be simple smart contract storing the interest per second, whose value is regularly set by an allocator.
 For now only a Vic of this type is provided, the [ManualVic](./src/vic/ManualVic.sol), with the following added features:
 
 - the interest per second can be set by the allocators and sentinels of the vault;

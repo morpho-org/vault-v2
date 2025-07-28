@@ -170,7 +170,7 @@ contract SingleMorphoVaultV1VicTest is Test {
     }
 
     function boundInterest(uint256 interest, uint256 totalAssets, uint256 elapsed) internal pure returns (uint256) {
-        uint256 maxInterest = totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD) * elapsed;
+        uint256 maxInterest = (totalAssets * elapsed).mulDivDown(MAX_RATE_PER_SECOND, WAD);
         return interest <= maxInterest ? interest : maxInterest;
     }
 }
