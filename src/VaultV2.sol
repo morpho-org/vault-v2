@@ -144,6 +144,11 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Fees unit is WAD.
 /// @dev This invariant holds for both fees: fee != 0 => recipient != address(0).
 ///
+/// TRANSIENT STORAGE
+/// @dev This vault uses transient storage (EIP-1153) for temporary state management during transactions.
+/// @dev The chain must support the TSTORE and TLOAD opcodes for the vault to function properly.
+/// @dev Transient variables include firstTotalAssets and enterBlocked, which are reset at the end of each transaction.
+///
 /// MISC
 /// @dev Zero checks are not systematically performed.
 /// @dev No-ops are allowed.
