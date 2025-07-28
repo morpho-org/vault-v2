@@ -15,7 +15,7 @@ contract VaultV2Factory is IVaultV2Factory {
 
         isVaultV2[newVaultV2] = true;
         vaultV2[owner][asset][salt] = newVaultV2;
-        emit CreateVaultV2(owner, asset, newVaultV2, salt);
+        emit CreateVaultV2(owner, asset, salt, newVaultV2);
 
         return newVaultV2;
     }

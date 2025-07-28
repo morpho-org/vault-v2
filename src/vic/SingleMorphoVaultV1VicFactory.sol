@@ -21,7 +21,7 @@ contract SingleMorphoVaultV1VicFactory is ISingleMorphoVaultV1VicFactory {
 
         isSingleMorphoVaultV1Vic[vic] = true;
         singleMorphoVaultV1Vic[morphoVaultV1Adapter] = vic;
-        emit CreateSingleMorphoVaultV1Vic(vic, morphoVaultV1Adapter);
+        emit CreateSingleMorphoVaultV1Vic(morphoVaultV1Adapter, vic);
 
         return vic;
     }

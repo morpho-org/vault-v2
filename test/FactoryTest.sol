@@ -13,7 +13,7 @@ contract FactoryTest is BaseTest {
             uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), address(vaultFactory), salt, initCodeHash))))
         );
         vm.expectEmit();
-        emit IVaultV2Factory.CreateVaultV2(_owner, asset, expectedVaultAddress, salt);
+        emit IVaultV2Factory.CreateVaultV2(_owner, asset, salt, expectedVaultAddress);
         address newVault = address(IVaultV2(vaultFactory.createVaultV2(_owner, asset, salt)));
         assertEq(newVault, expectedVaultAddress);
         assertTrue(vaultFactory.isVaultV2(newVault));
