@@ -309,6 +309,7 @@ contract VaultV2 is IVaultV2 {
         require(executableAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
         require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
         executableAt[msg.data] = 0;
+        emit EventsLib.Accept(bytes4(msg.data), msg.data);
     }
 
     function revoke(bytes calldata data) external {
