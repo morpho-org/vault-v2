@@ -15,17 +15,14 @@ contract AdapterMock is IAdapter {
     bytes32[] public _ids;
     uint256 public interest;
     uint256 public loss;
+    uint256 public deposit;
 
     bytes public recordedAllocateData;
     uint256 public recordedAllocateAssets;
-
     bytes public recordedDeallocateData;
     uint256 public recordedDeallocateAssets;
-
     bytes4 public recordedSelector;
     address public recordedSender;
-
-    uint256 public recordedDeposit;
 
     constructor(address _vault) {
         vault = _vault;
@@ -53,7 +50,7 @@ contract AdapterMock is IAdapter {
         recordedAllocateAssets = assets;
         recordedSelector = selector;
         recordedSender = sender;
-        recordedDeposit += assets;
+        deposit += assets;
         return (ids(), interest);
     }
 
@@ -65,14 +62,16 @@ contract AdapterMock is IAdapter {
         recordedDeallocateAssets = assets;
         recordedSelector = selector;
         recordedSender = sender;
-        recordedDeposit -= assets;
+        deposit -= assets;
         return (ids(), interest);
     }
 
     function realizeLoss(bytes memory, bytes4 selector, address sender) external returns (bytes32[] memory, uint256) {
         recordedSelector = selector;
         recordedSender = sender;
-        return (ids(), loss);
+        uint256 finalLoss = loss - interest;
+        deposit -= finalLoss;
+        return (ids(), finalLoss);
     }
 
     function ids() internal view returns (bytes32[] memory) {
@@ -80,6 +79,7 @@ contract AdapterMock is IAdapter {
     }
 
     function totalAssetsNoLoss() external view returns (uint256) {
-        return recordedDeposit + interest;
+        if (loss < interest) return deposit + interest - loss;
+        else return deposit;
     }
 }
