@@ -5,7 +5,7 @@ pragma solidity >=0.5.0;
 interface IVaultV2Factory {
     /* EVENTS */
 
-    event CreateVaultV2(address indexed owner, address indexed asset, address indexed newVaultV2);
+    event CreateVaultV2(address indexed owner, address indexed asset, address indexed newVaultV2, bytes32 salt);
 
     /* FUNCTIONS */
 
