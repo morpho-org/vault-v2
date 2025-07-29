@@ -41,7 +41,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// _totalAssets that is passed.
 ///
 /// UNDERESTIMATED TOTAL ASSETS
-/// @dev The variable underestimatedTotalAssets is an underestimation of the total assets.
+/// @dev The variable underestimatedTotalAssets is an underestimation of the current value of `_totalAssets`..
 /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
 /// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
 /// for big deposits that go through the liquidity adapter.
