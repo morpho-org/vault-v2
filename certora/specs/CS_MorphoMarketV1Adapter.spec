@@ -66,7 +66,7 @@ rule idsDoNoteRelyOnExternalCode {
 rule adapterAlwaysReturnsTheSameIDsForSameData(env e, method f, calldataarg args) filtered {
   f -> !f.isView
 } {
-  require(vaultv2.sharesGate == 0x0000000000000000000000000000000000000000, "to avoid the canSendShares dispatch loop");
+  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
 
   Morpho.MarketParams marketParams;
   bytes32[] idsPre = adapter.ids(marketParams);
@@ -98,7 +98,7 @@ rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate() {
   bytes4 b4;
   require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address addr;
-  require(addr == 0x0000000000000000000000000000000000000000, "Speed up prover. The adapter ignores this param.");
+  require(addr == 0, "Speed up prover. The adapter ignores this param.");
 
   storage initialState = lastStorage;
 
@@ -141,7 +141,7 @@ rule adapterCannotHaveInterestAndLossAtTheSameTime() {
   bytes4 b4;
   require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address addr;
-  require(addr == 0x0000000000000000000000000000000000000000, "Speed up prover. The adapter ignores this param.");
+  require(addr == 0, "Speed up prover. The adapter ignores this param.");
 
   bytes32[] idsAllocate; uint256 interest;
   idsAllocate, interest = adapter.allocate(e, data, 0, b4, addr) at initial;
@@ -174,7 +174,7 @@ rule lossIsBoundedByAllocation() {
   bytes4 b4;
   require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address addr;
-  require(addr == 0x0000000000000000000000000000000000000000, "Speed up prover. The adapter ignores this param.");
+  require(addr == 0, "Speed up prover. The adapter ignores this param.");
 
   bytes32[] ids = adapter.ids(marketParams);
 
@@ -197,7 +197,7 @@ rule donatingPositionsHasNoEffectOnInterest() {
   require(e1.msg.sender == adapter.parentVault, "Speed up prover.");
   require(e2.block.timestamp <= e1.block.timestamp, "We first donate, then look for the interest");
   require(adapter.parentVault == vaultv2);
-  require(vaultv2.sharesGate == 0x0000000000000000000000000000000000000000);
+  require(vaultv2.sharesGate == 0);
   require(adapter.morpho == mockMorpho, "Fix morpho address. Use mock for simplicity.");
 
   Morpho.MarketParams marketParams;
@@ -206,7 +206,7 @@ rule donatingPositionsHasNoEffectOnInterest() {
   bytes4 b4;
   require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address addr;
-  require(addr == 0x0000000000000000000000000000000000000000, "Speed up prover. The adapter ignores this param.");
+  require(addr == 0, "Speed up prover. The adapter ignores this param.");
 
   storage initial = lastStorage;
 
@@ -231,7 +231,7 @@ rule donatingPositionsHasNoEffectOnLoss() {
   require(e1.msg.sender == adapter.parentVault, "Speed up prover.");
   require(e2.block.timestamp <= e1.block.timestamp, "We first donate, then look for the interest");
   require(adapter.parentVault == vaultv2);
-  require(vaultv2.sharesGate == 0x0000000000000000000000000000000000000000);
+  require(vaultv2.sharesGate == 0);
   require(adapter.morpho == mockMorpho, "Fix morpho address. Use mock for simplicity.");
 
   Morpho.MarketParams marketParams;
@@ -239,7 +239,7 @@ rule donatingPositionsHasNoEffectOnLoss() {
   bytes4 b4;
   require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address addr;
-  require(addr == 0x0000000000000000000000000000000000000000, "Speed up prover. The adapter ignores this param.");
+  require(addr == 0, "Speed up prover. The adapter ignores this param.");
 
   storage initial = lastStorage;
 

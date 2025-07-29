@@ -47,7 +47,7 @@ rule giftingUnderlyingToVaultHasNoEffectOnInterestAccrualWithoutVic() {
     require(e1.block.timestamp <= e2.block.timestamp, "e2 must happen after e1.");
     require(vaultv2.lastUpdate <= e2.block.timestamp, "We don't want last update to be in the future.");
     require(vaultv2.asset == underlying, "Make sure we gift the vault's underlying.");
-    require(vaultv2.vic == 0x0000000000000000000000000000000000000000, "No vic.");
+    require(vaultv2.vic == 0, "No vic.");
 
     mathint totalAssetsPre = vaultv2._totalAssets;
 
@@ -112,12 +112,12 @@ rule giftingUnderlyingToVaultHasNoEffect(method f) filtered {
     require(e2.msg.sender != currentContract, "Cannot happen.");
     require(e3.msg.sender != currentContract, "Cannot happen.");
     require(e4.msg.sender != currentContract, "Cannot happen.");
-    require(vaultv2.sharesGate == 0x0000000000000000000000000000000000000000, "No need to make call resolution.");
-    require(vaultv2.receiveAssetsGate == 0x0000000000000000000000000000000000000000, "No need to make call resolution.");
-    require(vaultv2.sendAssetsGate == 0x0000000000000000000000000000000000000000, "No need to make call resolution.");
+    require(vaultv2.sharesGate == 0, "No need to make call resolution.");
+    require(vaultv2.receiveAssetsGate == 0, "No need to make call resolution.");
+    require(vaultv2.sendAssetsGate == 0, "No need to make call resolution.");
 
     // No interest
-    require(vaultv2.vic == 0x0000000000000000000000000000000000000000, "We don't want interest to be distributed as it will increase the total asset. We can do that thanks to giftingUnderlyingToVaultHasNoEffectOnInterestAccrualWithManualVic");
+    require(vaultv2.vic == 0, "We don't want interest to be distributed as it will increase the total asset. We can do that thanks to giftingUnderlyingToVaultHasNoEffectOnInterestAccrualWithManualVic");
     // No fees for simplicity
     require(vaultv2.performanceFee == 0);
     require(vaultv2.managementFee == 0);
@@ -192,7 +192,7 @@ rule onlyAllocatedCanBeDeallocated() {
     require(vaultv2.lastUpdate <= e.block.timestamp, "Make sure last update is in the past.");
     require(e.msg.value == 0, "Make sure we don't send ETH along, this would make the call revert.");
     require(vaultv2.isAllocator[e.msg.sender], "We need the caller to be whitelisted (allcator or sentinel).");
-    require(vaultv2.vic == 0x0000000000000000000000000000000000000000, "Needed for deallocate to not revert because of a reverting VIC.");
+    require(vaultv2.vic == 0, "Needed for deallocate to not revert because of a reverting VIC.");
 
     bytes32 targetId = simpleAdapter.adapterId;
     uint256 targetAllocation = vaultv2.allocation(targetId);
@@ -266,7 +266,7 @@ rule allocationMovements(method f) filtered {
 } {
     env e;
     require(e.msg.sender != currentContract, "Cannot happen.");
-    require(vaultv2.vic == 0x0000000000000000000000000000000000000000, "We can do this thanks to rule accrueInterestDoesNotImpactAllocation.");
+    require(vaultv2.vic == 0, "We can do this thanks to rule accrueInterestDoesNotImpactAllocation.");
 
     bytes32 id;
     uint256 allocationPre = vaultv2.allocation(id);
@@ -279,14 +279,14 @@ rule allocationMovements(method f) filtered {
     if (f.selector == sig:vaultv2.allocate(address,bytes,uint).selector) {
         // Allocation go up
         assert allocationPre <= allocationPost;
-    } else if (vaultv2.liquidityAdapter != 0x0000000000000000000000000000000000000000 && (f.selector == sig:vaultv2.deposit(uint,address).selector || f.selector == sig:vaultv2.mint(uint,address).selector)) {
+    } else if (vaultv2.liquidityAdapter != 0 && (f.selector == sig:vaultv2.deposit(uint,address).selector || f.selector == sig:vaultv2.mint(uint,address).selector)) {
         // Allocation go up
         assert allocationPre <= allocationPost;
     } else if (f.selector == sig:vaultv2.deallocate(address,bytes,uint).selector || f.selector == sig:vaultv2.forceDeallocate(address,bytes,uint,address).selector) {
         // Hard to test as it depends on the interest
         // Allocation can go up or down. This is a tautology and another rule should check the actual direction of allocation based on the deallocated assets and interest returned by the adapter
         assert (allocationPre <= allocationPost) || (allocationPre >= allocationPost);
-    } else if (vaultv2.liquidityAdapter != 0x0000000000000000000000000000000000000000 && (f.selector == sig:vaultv2.withdraw(uint,address,address).selector || f.selector == sig:vaultv2.redeem(uint,address,address).selector)) {
+    } else if (vaultv2.liquidityAdapter != 0 && (f.selector == sig:vaultv2.withdraw(uint,address,address).selector || f.selector == sig:vaultv2.redeem(uint,address,address).selector)) {
         // Hard to test as it call deallocate and thus depends on the interest
         // Allocation can go up or down. This is a tautology and another rule should check the actual direction of allocation based on the deallocated assets and interest returned by the adapter
         assert (allocationPre <= allocationPost) || (allocationPre >= allocationPost);
@@ -312,10 +312,10 @@ rule allocationCanOnlyBecomeNonZeroOnMintDepositWithLiquidityAdapter(method f) f
     env e;
     require(e.msg.sender != currentContract, "Cannot happen.");
     require(e.msg.value == 0, "No function is payable.");
-    require(vaultv2.vic == 0x0000000000000000000000000000000000000000, "We can do this thanks to rule accrueInterestDoesNotImpactAllocation.");
-    require(vaultv2.sharesGate == 0x0000000000000000000000000000000000000000, "No need to make call resolution.");
-    require(vaultv2.receiveAssetsGate == 0x0000000000000000000000000000000000000000, "No need to make call resolution.");
-    require(vaultv2.sendAssetsGate == 0x0000000000000000000000000000000000000000, "No need to make call resolution.");
+    require(vaultv2.vic == 0, "We can do this thanks to rule accrueInterestDoesNotImpactAllocation.");
+    require(vaultv2.sharesGate == 0, "No need to make call resolution.");
+    require(vaultv2.receiveAssetsGate == 0, "No need to make call resolution.");
+    require(vaultv2.sendAssetsGate == 0, "No need to make call resolution.");
 
     require(forall bytes32 id . vaultv2.caps[id].allocation == 0, "Start with all allocations to 0.");
 
@@ -330,7 +330,7 @@ rule allocationCanOnlyBecomeNonZeroOnMintDepositWithLiquidityAdapter(method f) f
     bool allocationWentUp = (allocationPre < allocationPost);
     bool allocationStayedZero = (allocationPre == allocationPost) && (allocationPre == 0);
 
-    assert allocationWentUp => vaultv2.liquidityAdapter != 0x0000000000000000000000000000000000000000;
+    assert allocationWentUp => vaultv2.liquidityAdapter != 0;
     assert (allocationWentUp && !allocationStayedZero) || (!allocationWentUp && allocationStayedZero); // Only one can be true at a time (xor keyword seems to be only for int/uint/bytesK...)
 }
 
@@ -350,11 +350,11 @@ rule allocationCanOnlyBecomeNonZeroThroughAllocateWithoutLiquidityAdapter(env e,
 
 } {
     require(e.msg.sender != currentContract, "Cannot happen.");
-    require(vaultv2.vic == 0x0000000000000000000000000000000000000000, "We can do this thanks to rule accrueInterestDoesNotImpactAllocation.");
-    require(vaultv2.sharesGate == 0x0000000000000000000000000000000000000000, "No need to make call resolution.");
-    require(vaultv2.receiveAssetsGate == 0x0000000000000000000000000000000000000000, "No need to make call resolution.");
-    require(vaultv2.sendAssetsGate == 0x0000000000000000000000000000000000000000, "No need to make call resolution.");
-    require(vaultv2.liquidityAdapter == 0x0000000000000000000000000000000000000000, "We can do this thanks to rule allocationCanOnlyIncreaseOnMintDepositWithLiquidityAdapter.");
+    require(vaultv2.vic == 0, "We can do this thanks to rule accrueInterestDoesNotImpactAllocation.");
+    require(vaultv2.sharesGate == 0, "No need to make call resolution.");
+    require(vaultv2.receiveAssetsGate == 0, "No need to make call resolution.");
+    require(vaultv2.sendAssetsGate == 0, "No need to make call resolution.");
+    require(vaultv2.liquidityAdapter == 0, "We can do this thanks to rule allocationCanOnlyIncreaseOnMintDepositWithLiquidityAdapter.");
 
     require(forall bytes32 id . vaultv2.caps[id].allocation == 0, "Start with all allocations to 0.");
 
