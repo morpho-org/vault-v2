@@ -11,7 +11,6 @@ import {IERC20} from "../interfaces/IERC20.sol";
 import {IMorphoMarketV1Adapter} from "./interfaces/IMorphoMarketV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
-import "forge-std/console.sol";
 
 /// @dev Morpho Market v1 is also known as Morpho Blue.
 /// @dev This adapter must be used with Morpho Market v1 that are protected against inflation attacks with an initial
@@ -84,11 +83,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         marketAssets[marketId] = marketAssetsNoLoss + assets;
         uint256 interest = marketAssetsNoLoss.zeroFloorSub(allocation(marketParams));
 
-        console.log("allocate: marketAssets", marketAssets[marketParams.id()]);
-        console.log("allocate: ID");
-        console.logBytes32(Id.unwrap(marketParams.id()));
-        console.log("allocate: interest", interest);
-
         if (assets > 0) {
             (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
             shares[marketId] += mintedShares;
@@ -137,12 +131,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
         uint256 realAssets = expectedSupplyAssets(marketParams, shares[marketParams.id()]);
-        console.log("a");
         uint256 allocationLoss = allocation(marketParams) - realAssets;
-        console.log("realizeLoss: allocation", allocation(marketParams));
-        console.log("realizeLoss: marketAssets", marketAssets[marketParams.id()]);
-        console.log("realizeLoss: ID");
-        console.logBytes32(Id.unwrap(marketParams.id()));
         uint256 assetLoss = marketAssets[marketParams.id()] - realAssets;
 
         marketAssets[marketParams.id()] = realAssets;
