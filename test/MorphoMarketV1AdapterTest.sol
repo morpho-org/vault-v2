@@ -232,7 +232,7 @@ contract MorphoMarketV1AdapterTest is Test {
     }
 
     function _overrideMarketTotalSupplyAssets(int256 change) internal {
-        bytes32 marketSlot0 = keccak256(abi.encode(marketId, 3)); // 3 is the slot of the market mappping.
+        bytes32 marketSlot0 = keccak256(abi.encode(marketId, 3)); // 3 is the slot of the market mapping.
         bytes32 currentSlot0Value = vm.load(address(morpho), marketSlot0);
         uint256 currentTotalSupplyShares = uint256(currentSlot0Value) >> 128;
         uint256 currentTotalSupplyAssets = uint256(currentSlot0Value) & type(uint256).max;

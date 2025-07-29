@@ -157,7 +157,7 @@ contract MorphoVaultV1IntegrationTest is BaseTest {
     function setMorphoVaultV1Cap(MarketParams memory marketParams, uint256 newCap) internal {
         vm.prank(mmCurator);
         morphoVaultV1.submitCap(marketParams, newCap);
-        vm.warp(block.timestamp + morphoVaultV1.timelock());
+        skip(morphoVaultV1.timelock());
         morphoVaultV1.acceptCap(marketParams);
     }
 }

@@ -15,6 +15,7 @@ import {MathLib} from "../libraries/MathLib.sol";
 /// @dev Morpho Market v1 is also known as Morpho Blue.
 /// @dev This adapter must be used with Morpho Market v1 that are protected against inflation attacks with an initial
 /// supply. Following resource is relevant: https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
+/// @dev Must not be used with a Morpho Market v1 with an Irm that can re-enter the parent vault.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MathLib for uint256;
     using SharesMathLib for uint256;

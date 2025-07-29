@@ -63,7 +63,7 @@ contract SafeERC20LibTest is Test {
         vm.expectRevert(ErrorsLib.NoCode.selector);
         this.safeTransfer(address(1), to, value);
 
-        // Call unsuccessfull.
+        // Call unsuccessful.
         vm.expectRevert(ErrorsLib.TransferReverted.selector);
         this.safeTransfer(address(this), to, value);
 
@@ -83,7 +83,7 @@ contract SafeERC20LibTest is Test {
         vm.expectRevert(ErrorsLib.NoCode.selector);
         this.safeTransferFrom(address(1), from, to, value);
 
-        // Call unsuccessfull.
+        // Call unsuccessful.
         vm.expectRevert(ErrorsLib.TransferFromReverted.selector);
         this.safeTransferFrom(address(this), from, to, value);
 
@@ -104,7 +104,7 @@ contract SafeERC20LibTest is Test {
         vm.expectRevert(ErrorsLib.NoCode.selector);
         this.safeApprove(address(1), spender, value);
 
-        // Call unsuccessfull.
+        // Call unsuccessful.
         vm.expectRevert(ErrorsLib.ApproveReverted.selector);
         this.safeApprove(address(this), spender, value);
 

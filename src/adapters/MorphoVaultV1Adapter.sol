@@ -9,12 +9,14 @@ import {IMorphoVaultV1Adapter} from "./interfaces/IMorphoVaultV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 
-/// @dev Designed, developped and audited for Morpho Vaults v1 (v1.0 and v1.1) (also known as MetaMorpho). Integration
+/// @dev Designed, developed and audited for Morpho Vaults v1 (v1.0 and v1.1) (also known as MetaMorpho). Integration
 /// with other vaults must be carefully assessed from a security standpoint.
 /// @dev Morpho Vaults v1.1 do not realize bad debt, so Morpho Vaults v2 supplying in them will not realize the
 /// corresponding bad debt.
 /// @dev This adapter must be used with Morpho Vaults v1 that are protected against inflation attacks with an initial
 /// deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
+/// @dev Must not be used with a Morpho Vault v1 which has a market with an Irm that can re-enter the parent vault.
+/// @dev Shares of the Morpho Vault v1 cannot be skimmed (unlike any other token).
 contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     using MathLib for uint256;
 

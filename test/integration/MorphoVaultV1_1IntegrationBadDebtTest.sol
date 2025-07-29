@@ -45,7 +45,7 @@ contract MorphoVaultV1_1IntegrationBadDebtTest is MorphoVaultV1_1IntegrationTest
         vm.startPrank(mmCurator);
         morphoVaultV1.submitCap(allMarketParams[1], 0);
         morphoVaultV1.submitMarketRemoval(allMarketParams[1]);
-        vm.warp(block.timestamp + morphoVaultV1.timelock());
+        skip(morphoVaultV1.timelock());
         uint256[] memory indexes = new uint256[](4);
         indexes[0] = 0;
         indexes[1] = 2;
