@@ -578,9 +578,6 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterest() public {
         if (lastUpdate != block.timestamp) {
-            // (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) =
-            // accrueInterestView();
-
             (uint256 elapsed, uint256 tentativeInterest) = vicInterest();
             (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) =
                 _accrueInterestView(elapsed, tentativeInterest);
@@ -600,9 +597,6 @@ contract VaultV2 is IVaultV2 {
     /// @dev The performance and management fees are taken even if the vault incurs some losses.
     /// @dev Both fees are rounded down, so fee recipients could receive less than expected.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
-        // uint256 elapsed = block.timestamp - lastUpdate;
-        // if (elapsed == 0) return (_totalAssets, 0, 0);
-
         (uint256 elapsed, uint256 tentativeInterest) = vicInterestView();
         return _accrueInterestView(elapsed, tentativeInterest);
     }
