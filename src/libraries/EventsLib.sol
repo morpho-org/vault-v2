@@ -45,6 +45,7 @@ library EventsLib {
     // Timelock events
     event Revoke(address indexed sender, bytes4 indexed selector, bytes data);
     event Submit(bytes4 indexed selector, bytes data, uint256 executableAt);
+    event Accept(bytes4 indexed selector, bytes data);
 
     // Configuration events
     event SetOwner(address indexed newOwner);
