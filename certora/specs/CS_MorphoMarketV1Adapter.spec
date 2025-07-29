@@ -63,7 +63,7 @@ rule idsDoNoteRelyOnExternalCode {
 /*
   - ids() always return the same result for the same input data (market params)
 */
-rule adapterAlwaysReturnsTheSameIDsForSameData(env e, method f, calldata args) filtered {
+rule adapterAlwaysReturnsTheSameIDsForSameData(env e, method f, calldataarg args) filtered {
   f -> !f.isView
 } {
   require(vaultv2.sharesGate == 0x0000000000000000000000000000000000000000, "to avoid the canSendShares dispatch loop");
