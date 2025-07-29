@@ -69,6 +69,7 @@ rule giftingUnderlyingToVaultHasNoEffectOnInterestAccrualWithManualVic() {
     require(e1.block.timestamp <= e2.block.timestamp, "e2 must happen after e1.");
     require(e2.block.timestamp <= e3.block.timestamp, "e3 must happen after e2.");
     require(vaultv2.lastUpdate <= e3.block.timestamp, "We don't want last update to be in the future.");
+    require(e3.block.timestamp < 2^63, "This corresponds to some time very far into the future");
     require(vaultv2.asset == underlying, "Make sure we gift the vault's underlying.");
     require(vaultv2.vic == manualVic, "Know your vic (ManualVic).");
 
@@ -80,7 +81,7 @@ rule giftingUnderlyingToVaultHasNoEffectOnInterestAccrualWithManualVic() {
 
     uint256 elapsed = e3.block.timestamp > vaultv2.lastUpdate ? assert_uint256(e3.block.timestamp - vaultv2.lastUpdate) : 0;
     uint256 tentativeInterest = manualVic.interest(e3, 0, elapsed);// OK for the manual vic because it ignores the param, need to change for new VICs
-    mathint interest = tentativeInterest <= vaultv2._totalAssets * Utils.maxRatePerSecond() / WAD() * elapsed ? tentativeInterest : 0; // 200% apr limit
+    mathint interest = tentativeInterest <= (elapsed * vaultv2._totalAssets * Utils.maxRatePerSecond()) / WAD() ? tentativeInterest : 0; // 200% apr limit
 
     mathint totalAssetsPost = vaultv2.totalAssets(e3);
 
