@@ -41,7 +41,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// _totalAssets that is passed.
 ///
 /// FIRST TOTAL ASSETS
-/// @dev The variable firstTotalAssets tracks the total assets after the first interest accrual of the transaction.
+/// @dev The variable underestimatedTotalAssets tracks the total assets after the first interest accrual of the
+/// transaction.
 /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
 /// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
 /// for big deposits that go through the liquidity adapter.
@@ -56,7 +57,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// corresponding markets, and losses are deducted only when realized for these markets.
 /// @dev The caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
 /// @dev Relative caps are "soft" in the sense that they are only checked on allocate.
-/// @dev The relative cap is relative to totalAssets, or more precisely to firstTotalAssets.
+/// @dev The relative cap is relative to totalAssets, or more precisely to underestimatedTotalAssets.
 /// @dev The relative cap unit is WAD.
 /// @dev To track allocations using events, use the Allocate and Deallocate events only.
 ///
@@ -182,7 +183,7 @@ contract VaultV2 is IVaultV2 {
 
     /* INTEREST STORAGE */
 
-    uint256 public transient firstTotalAssets;
+    uint256 public transient underestimatedTotalAssets;
     uint192 public _totalAssets;
     uint64 public lastUpdate;
     address public vic;
@@ -509,7 +510,8 @@ contract VaultV2 is IVaultV2 {
             require(_caps.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
             require(
-                _caps.relativeCap == WAD || _caps.allocation <= firstTotalAssets.mulDivDown(_caps.relativeCap, WAD),
+                _caps.relativeCap == WAD
+                    || _caps.allocation <= underestimatedTotalAssets.mulDivDown(_caps.relativeCap, WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
@@ -559,7 +561,7 @@ contract VaultV2 is IVaultV2 {
             if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
             lastUpdate = uint64(block.timestamp);
         }
-        if (firstTotalAssets == 0) firstTotalAssets = _totalAssets;
+        if (underestimatedTotalAssets == 0) underestimatedTotalAssets = _totalAssets;
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
@@ -722,6 +724,7 @@ contract VaultV2 is IVaultV2 {
 
         deleteShares(onBehalf, shares);
         _totalAssets -= assets.toUint192();
+        underestimatedTotalAssets = underestimatedTotalAssets.zeroFloorSub(assets);
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
@@ -762,6 +765,7 @@ contract VaultV2 is IVaultV2 {
         if (loss > 0) {
             // Safe cast because the result is at most totalAssets.
             _totalAssets = uint192(_totalAssets.zeroFloorSub(loss));
+            underestimatedTotalAssets = underestimatedTotalAssets.zeroFloorSub(loss);
 
             if (canReceiveShares(msg.sender)) {
                 uint256 tentativeIncentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);

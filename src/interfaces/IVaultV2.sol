@@ -23,7 +23,7 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function isSentinel(address account) external view returns (bool);
     function isAllocator(address account) external view returns (bool);
     function _totalAssets() external view returns (uint192);
-    function firstTotalAssets() external view returns (uint256);
+    function underestimatedTotalAssets() external view returns (uint256);
     function lastUpdate() external view returns (uint64);
     function vic() external view returns (address);
     function enterBlocked() external view returns (bool);
