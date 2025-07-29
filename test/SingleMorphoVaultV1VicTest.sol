@@ -71,8 +71,7 @@ contract SingleMorphoVaultV1VicTest is Test {
         asset.transfer(address(morphoVaultV1), interest);
         uint256 realVaultInterest = interest * deposit / (deposit + 1); // account for the virtual share.
 
-        uint256 expectedInterestPerSecond = realVaultInterest / elapsed;
-        assertEq(vic.interestPerSecond(deposit, elapsed), expectedInterestPerSecond, "interest per second");
+        assertEq(vic.interest(deposit, elapsed), realVaultInterest, "interest per second");
     }
 
     function testInterestPerSecondVaultOnly(uint256 deposit, uint256 interest, uint256 elapsed) public {
@@ -84,8 +83,9 @@ contract SingleMorphoVaultV1VicTest is Test {
         asset.transfer(address(morphoVaultV1), interest);
         uint256 realVaultInterest = interest * deposit / (deposit + 1); // account for the virtual share.
 
-        uint256 expectedInterestPerSecond = boundInterestPerSecond(realVaultInterest, deposit, elapsed);
-        assertEq(vic.interestPerSecond(deposit, elapsed), expectedInterestPerSecond, "interest per second");
+        assertEq(
+            vic.interest(deposit, elapsed), boundInterest(realVaultInterest, deposit, elapsed), "interest per second"
+        );
     }
 
     function testInterestPerSecondVaultOnlyWithBigInterest(uint256 deposit, uint256 interest, uint256 elapsed) public {
@@ -98,7 +98,7 @@ contract SingleMorphoVaultV1VicTest is Test {
         asset.transfer(address(morphoVaultV1), interest);
         uint256 realVaultInterest = interest * deposit / (deposit + 1); // account for the virtual share.
 
-        assertLt(vic.interestPerSecond(deposit, elapsed), realVaultInterest / elapsed, "interest per second");
+        assertLt(vic.interest(deposit, elapsed), realVaultInterest, "interest per second");
     }
 
     function testInterestPerSecondIdleOnly(uint256 deposit, uint256 idleInterest, uint256 elapsed) public {
@@ -109,8 +109,7 @@ contract SingleMorphoVaultV1VicTest is Test {
         morphoVaultV1.deposit(deposit, address(adapter));
         asset.transfer(address(parentVault), idleInterest);
 
-        uint256 expectedInterestPerSecond = boundInterestPerSecond(idleInterest, deposit, elapsed);
-        assertEq(vic.interestPerSecond(deposit, elapsed), expectedInterestPerSecond, "interest per second");
+        assertEq(vic.interest(deposit, elapsed), boundInterest(idleInterest, deposit, elapsed), "interest per second");
     }
 
     function testInterestPerSecondVaultAndIdle(
@@ -129,8 +128,11 @@ contract SingleMorphoVaultV1VicTest is Test {
         asset.transfer(address(parentVault), idleInterest);
         uint256 realVaultInterest = vaultInterest * deposit / (deposit + 1); // account for the virtual share.
 
-        uint256 expectedInterestPerSecond = boundInterestPerSecond(realVaultInterest + idleInterest, deposit, elapsed);
-        assertEq(vic.interestPerSecond(deposit, elapsed), expectedInterestPerSecond, "interest per second");
+        assertEq(
+            vic.interest(deposit, elapsed),
+            boundInterest(realVaultInterest + idleInterest, deposit, elapsed),
+            "interest per second"
+        );
     }
 
     function testInterestPerSecondZero(uint256 deposit, uint256 loss, uint256 elapsed) public {
@@ -142,7 +144,7 @@ contract SingleMorphoVaultV1VicTest is Test {
         vm.prank(address(morphoVaultV1));
         asset.transfer(address(0xdead), loss);
 
-        assertEq(vic.interestPerSecond(deposit, elapsed), 0, "interest per second");
+        assertEq(vic.interest(deposit, elapsed), 0, "interest per second");
     }
 
     function testCreateSingleMorphoVaultV1Vic() public {
@@ -156,7 +158,7 @@ contract SingleMorphoVaultV1VicTest is Test {
             address(adapter), abi.encodeCall(IMorphoVaultV1Adapter.morphoVaultV1, ()), abi.encode(morphoVaultV1)
         );
         vm.expectEmit();
-        emit ISingleMorphoVaultV1VicFactory.CreateSingleMorphoVaultV1Vic(expectedVic, address(adapter));
+        emit ISingleMorphoVaultV1VicFactory.CreateSingleMorphoVaultV1Vic(address(adapter), expectedVic);
         address newVic = factory.createSingleMorphoVaultV1Vic(address(adapter));
 
         assertEq(newVic, expectedVic, "createSingleMorphoVaultV1Vic returned wrong address");
@@ -167,13 +169,8 @@ contract SingleMorphoVaultV1VicTest is Test {
         assertEq(SingleMorphoVaultV1Vic(newVic).parentVault(), parentVault, "Vic initialized incorrectly");
     }
 
-    function boundInterestPerSecond(uint256 interest, uint256 totalAssets, uint256 elapsed)
-        internal
-        pure
-        returns (uint256)
-    {
-        uint256 tentativeInterestPerSecond = interest / elapsed;
-        uint256 maxInterestPerSecond = totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD);
-        return tentativeInterestPerSecond <= maxInterestPerSecond ? tentativeInterestPerSecond : maxInterestPerSecond;
+    function boundInterest(uint256 interest, uint256 totalAssets, uint256 elapsed) internal pure returns (uint256) {
+        uint256 maxInterest = (totalAssets * elapsed).mulDivDown(MAX_RATE_PER_SECOND, WAD);
+        return interest <= maxInterest ? interest : maxInterest;
     }
 }

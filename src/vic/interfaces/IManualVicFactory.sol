@@ -5,7 +5,7 @@ pragma solidity >=0.5.0;
 interface IManualVicFactory {
     /* EVENTS */
 
-    event CreateManualVic(address indexed vic, address indexed vault);
+    event CreateManualVic(address indexed vault, address indexed vic);
 
     /* FUNCTIONS */
 
