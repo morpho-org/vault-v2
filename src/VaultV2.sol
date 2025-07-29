@@ -91,7 +91,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// the same adapter/data is used for both entry and exit to have the property that in the general case looping
 /// supply-withdraw or withdraw-supply should not change the allocation.
 /// @dev If a cap (absolute or relative) associated with the ids returned by the liquidity adapter on the liquidity data
-/// is reached, deposit/mint will revert. So typically their caps should be high.
+/// is reached, deposit/mint will revert.
 ///
 /// TOKEN REQUIREMENTS
 /// @dev List of assumptions on the token that guarantees that the vault behaves as expected:
