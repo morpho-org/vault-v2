@@ -81,7 +81,7 @@ contract AccrueInterestTest is BaseTest {
         assertEq(performanceFeeShares, vault.balanceOf(performanceFeeRecipient));
         assertEq(managementFeeShares, vault.balanceOf(managementFeeRecipient));
     }
-    
+
     function testTotalAssets(
         uint256 deposit,
         uint256 performanceFee,
