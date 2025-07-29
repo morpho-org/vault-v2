@@ -40,9 +40,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev The Vic must not call totalAssets() because it will try to accrue interest, but instead use the argument
 /// _totalAssets that is passed.
 ///
-/// FIRST TOTAL ASSETS
-/// @dev The variable underestimatedTotalAssets tracks the total assets after the first interest accrual of the
-/// transaction.
+/// UNDERESTIMATED TOTAL ASSETS
+/// @dev The variable underestimatedTotalAssets is an under-estimation of  the total assets.
 /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
 /// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
 /// for big deposits that go through the liquidity adapter.
