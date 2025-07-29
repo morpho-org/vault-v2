@@ -2,8 +2,7 @@ metamorpho-munged: ../lib/metamorpho/munged
 
 ../lib/metamorpho/munged: $(wildcard ../src/*.sol) applyMetaMorphoMunging.patch
 	@rm -rf ../lib/metamorpho/munged
-	@mkdir -p ../lib/metamorpho/munged
-	@cp -r ../lib/metamorpho/src/* ../lib/metamorpho/munged
+	@cp -r ../lib/metamorpho/src ../lib/metamorpho/munged
 	@patch -p0 -d ../lib/metamorpho/munged < applyMetaMorphoMunging.patch
 
 metamorpho-record:

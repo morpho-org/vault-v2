@@ -16,8 +16,8 @@ diff -ruN MetaMorpho.sol MetaMorpho.sol
  import {SharesMathLib} from "../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 -import {MorphoLib} from "../lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
  import {MarketParamsLib} from "../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
- import {MorphoBalancesLib} from "../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
  import {IERC20Metadata} from "../lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+ import {MorphoBalancesLib} from "../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 @@ -45,9 +44,7 @@
      using UtilsLib for uint256;
      using SafeCast for uint256;
@@ -37,14 +37,7 @@ diff -ruN MetaMorpho.sol MetaMorpho.sol
  
      /// @inheritdoc IMetaMorphoBase
      uint8 public immutable DECIMALS_OFFSET;
-@@ -99,12 +96,25 @@
-     /// @inheritdoc IMetaMorphoBase
-     Id[] public supplyQueue;
- 
--    /// @inheritdoc IMetaMorphoBas
-+    /// @inheritdoc IMetaMorphoBase
-     Id[] public withdrawQueue;
- 
+@@ -105,6 +102,19 @@
      /// @inheritdoc IMetaMorphoBase
      uint256 public lastTotalAssets;
  
