@@ -87,18 +87,4 @@ contract Utils {
 
         return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }
-
-    function expectedSupplyAssetsAlt(address morpho, MarketParams memory marketParams, address user)
-        external
-        view
-        returns (uint256)
-    {
-        Id id = marketParams.id();
-        uint256 supplyShares = IMorpho(morpho).supplyShares(id, user);
-
-        (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
-            MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
-
-        return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
-    }
 }

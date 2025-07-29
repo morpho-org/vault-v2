@@ -6,37 +6,34 @@ using MorphoHarness as MorphoMarketV1;
 using Utils as Utils;
 
 methods {
-    function _.extSloads(bytes32[]) external => NONDET DELETE;
-
     function MorphoMarketV1.totalSupplyAssets(MorphoHarness.Id) external returns uint256 envfree;
     function MorphoMarketV1.totalSupplyShares(MorphoHarness.Id) external returns uint256 envfree;
     function MorphoMarketV1Adapter.ids(MorphoHarness.MarketParams) external returns bytes32[] envfree;
-    function MorphoMarketV1Adapter.allocation(MorphoHarness.MarketParams) external returns uint256 envfree;
     function MorphoMarketV1Adapter.shares(MorphoHarness.Id) external returns uint256 envfree;
+    function MorphoMarketV1Adapter.allocation(MorphoHarness.MarketParams) external returns uint256 envfree;
     function Utils.morphoMarketV1MarketParams(bytes) external returns (MorphoHarness.MarketParams, MorphoHarness.Id) envfree;
 
-    function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect uint256;
-    function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect uint256;
+    function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => NONDET;
 
     function _.allocate(bytes data, uint256 assets, bytes4, address) external with (env e)
-        => morphoMarketV1AdapterWrapperSummary(e, true, data, assets) expect (bytes32[], uint256) ;
+        => morphoMarketV1AdapterWrapperSummary(e, true, data, assets) expect (bytes32[], uint256);
     function _.deallocate(bytes data, uint256 assets, bytes4, address) external with (env e)
-        => morphoMarketV1AdapterWrapperSummary(e, false, data, assets) expect (bytes32[], uint256) ;
+        => morphoMarketV1AdapterWrapperSummary(e, false, data, assets) expect (bytes32[], uint256);
 
+    function _.realizeLoss(bytes, bytes4, address) external => DISPATCHER(true);
     function _.market(MorphoHarness.Id) external => DISPATCHER(true);
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
 }
 
-persistent ghost uint256 constantBorrowRate;
-
 persistent ghost uint256 ghostInterest;
 
-function morphoMarketV1AdapterWrapperSummary(env e, bool allocate, bytes data, uint256 assets) returns (bytes32[], uint256) {
+// Wrapper to record interest value returned by the adapter and ensure returned ids are unique.
+function morphoMarketV1AdapterWrapperSummary(env e, bool isAllocateCall, bytes data, uint256 assets) returns (bytes32[], uint256) {
     bytes32[] ids;
     uint256 interest;
 
-    if (allocate) {
+    if (isAllocateCall) {
         (ids, interest) = MorphoMarketV1Adapter.allocate(e, data, assets, _, _);
     } else {
         (ids, interest) = MorphoMarketV1Adapter.deallocate(e, data, assets, _, _);
@@ -75,8 +72,7 @@ rule allocateMorphoMarketV1Adapter(env e, bytes data, uint256 assets) {
     require (forall bytes32 id . ghostAllocationBefore[id] == ghostAllocationAfter[id], "setup allocation before to be equal to allocation after");
 
     MorphoHarness.MarketParams marketParams;
-    MorphoHarness.Id marketId;
-    (marketParams, marketId) = Utils.morphoMarketV1MarketParams(data);
+    (marketParams, _) = Utils.morphoMarketV1MarketParams(data);
 
     // Ensure the VaultV2 and Morpho contracts are properly linked to the adapter in the conf file.
     assert MorphoMarketV1Adapter.parentVault == currentContract;
@@ -86,10 +82,31 @@ rule allocateMorphoMarketV1Adapter(env e, bytes data, uint256 assets) {
 
     allocate(e, MorphoMarketV1Adapter, data, assets);
 
-    assert forall uint i. i < adapterIds.length =>
-        ghostAllocationAfter[adapterIds[i]] == ghostAllocationBefore[adapterIds[i]] + ghostInterest + assets;
-    assert forall bytes32 id.
-        !(exists uint i . i < adapterIds.length && id == adapterIds[i]) => ghostAllocationAfter[id] == ghostAllocationBefore[id];
+    assert forall uint i. i < adapterIds.length => ghostAllocationAfter[adapterIds[i]] == ghostAllocationBefore[adapterIds[i]] + ghostInterest + assets;
+    assert forall bytes32 id. !(exists uint i . i < adapterIds.length && id == adapterIds[i]) => ghostAllocationAfter[id] == ghostAllocationBefore[id];
+}
+
+rule allocateMorphoMarketV1AdapterAllocationVsExpectedAssets(env e, bytes data, uint256 assets) {
+    // Trick to require that all the following addresses are different.
+    require (MorphoMarketV1 == 0x10, "ack");
+    require (MorphoMarketV1Adapter == 0x11, "ack");
+    require (currentContract == 0x12, "ack");
+
+    MorphoHarness.MarketParams marketParams;
+    MorphoHarness.Id marketId;
+    (marketParams, marketId) = Utils.morphoMarketV1MarketParams(data);
+
+    require (MorphoMarketV1Adapter.allocation(marketParams) <= MorphoMarketV1.totalSupplyAssets(marketId), "assume the adapter's allocation are less than or equal to the total assets");
+    require (MorphoMarketV1Adapter.shares(marketId) <= MorphoMarketV1.totalSupplyShares(marketId), "assume the adapter's shares are less than or equal to the total shares");
+
+    // Ensure the VaultV2 and Morpho contracts are properly linked to the adapter in the conf file.
+    assert MorphoMarketV1Adapter.parentVault == currentContract;
+    assert MorphoMarketV1Adapter.morpho == MorphoMarketV1;
+
+    allocate(e, MorphoMarketV1Adapter, data, assets);
+    realizeLoss(e, MorphoMarketV1Adapter, data);
+
+    assert MorphoMarketV1Adapter.allocation(marketParams) == Utils.expectedSupplyAssets(e, MorphoMarketV1, marketParams, MorphoMarketV1Adapter.shares(marketId));
 }
 
 rule deallocateMorphoMarketV1Adapter(env e, bytes data, uint256 assets) {
@@ -101,12 +118,7 @@ rule deallocateMorphoMarketV1Adapter(env e, bytes data, uint256 assets) {
     require (forall bytes32 id . ghostAllocationBefore[id] == ghostAllocationAfter[id], "setup allocation before to be equal to allocation after");
 
     MorphoHarness.MarketParams marketParams;
-    MorphoHarness.Id marketId;
-    (marketParams, marketId) = Utils.morphoMarketV1MarketParams(data);
-
-    require MorphoMarketV1Adapter.allocation(marketParams) <= MorphoMarketV1.totalSupplyAssets(marketId);
-    require MorphoMarketV1Adapter.shares(marketId) <= MorphoMarketV1.totalSupplyShares(marketId);
-    require MorphoMarketV1Adapter.allocation(marketParams) == Utils.expectedSupplyAssets(e, MorphoMarketV1, marketParams, MorphoMarketV1Adapter.shares(marketId));
+    (marketParams, _) = Utils.morphoMarketV1MarketParams(data);
 
     // Ensure the VaultV2 and Morpho contracts are properly linked to the adapter in the conf file.
     assert MorphoMarketV1Adapter.parentVault == currentContract;
@@ -116,14 +128,29 @@ rule deallocateMorphoMarketV1Adapter(env e, bytes data, uint256 assets) {
 
     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
-    uint256 shares = require_uint256(MorphoMarketV1Adapter.shares(marketId) + 1);
-    uint256 totalSupplyAssets = require_uint256(Utils.expectedTotalSupplyAssets(e, MorphoMarketV1, marketParams)+1);
-    uint256 totalSupplyShares = require_uint256(Utils.expectedTotalSupplyShares(e, MorphoMarketV1, marketParams)+1 + 10^6);
+    assert forall uint i. i < adapterIds.length => ghostAllocationAfter[adapterIds[i]] == ghostAllocationBefore[adapterIds[i]] + ghostInterest - assets;
+    assert forall bytes32 id. (forall uint i . i >= adapterIds.length || id != adapterIds[i]) => ghostAllocationAfter[id] == ghostAllocationBefore[id];
+}
 
-    assert MorphoMarketV1Adapter.allocation(marketParams) * totalSupplyShares <= shares * totalSupplyAssets;
+rule deallocateMorphoMarketV1AdapterAllocationVsExpectedAssets(env e, bytes data, uint256 assets) {
+    // Trick to require that all the following addresses are different.
+    require (MorphoMarketV1 == 0x10, "ack");
+    require (MorphoMarketV1Adapter == 0x11, "ack");
+    require (currentContract == 0x12, "ack");
 
-    assert forall uint i. i < adapterIds.length =>
-        ghostAllocationAfter[adapterIds[i]] == ghostAllocationBefore[adapterIds[i]] + ghostInterest - assets;
-    assert forall bytes32 id.
-        !(exists uint i . i < adapterIds.length && id == adapterIds[i]) => ghostAllocationAfter[id] == ghostAllocationBefore[id];
+    MorphoHarness.MarketParams marketParams;
+    MorphoHarness.Id marketId;
+    (marketParams, marketId) = Utils.morphoMarketV1MarketParams(data);
+
+    require (MorphoMarketV1Adapter.allocation(marketParams) <= MorphoMarketV1.totalSupplyAssets(marketId), "assume the adapter's allocation is less than or equal to the total assets");
+    require (MorphoMarketV1Adapter.shares(marketId) <= MorphoMarketV1.totalSupplyShares(marketId), "assume the adapter's shares are less than or equal to the total shares");
+
+    // Ensure the VaultV2 and Morpho contracts are properly linked to the adapter in the conf file.
+    assert MorphoMarketV1Adapter.parentVault == currentContract;
+    assert MorphoMarketV1Adapter.morpho == MorphoMarketV1;
+
+    deallocate(e, MorphoMarketV1Adapter, data, assets);
+    realizeLoss(e, MorphoMarketV1Adapter, data);
+
+    assert MorphoMarketV1Adapter.allocation(marketParams) == Utils.expectedSupplyAssets(e, MorphoMarketV1, marketParams, MorphoMarketV1Adapter.shares(marketId));
 }
