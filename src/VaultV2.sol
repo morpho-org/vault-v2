@@ -69,6 +69,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
 /// - Adapters' returned ids do not repeat.
 /// - They ignore donations of shares in their respective markets.
+/// - They must not re-enter (directly or indirectly) the vault. They might not statically prevent it, but the curator
+/// must not interact with markets that can re-enter the vault.
 /// - Given a method used by the adapter to estimate its assets in a market and a method to track its allocation to a
 /// market:
 ///   - When calculating interest, it must be the positive change between the estimate and the tracked allocation, if
