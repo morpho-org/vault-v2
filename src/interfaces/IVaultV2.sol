@@ -83,7 +83,7 @@ interface IVaultV2 is IERC4626, IERC2612 {
 
     // Allocator functions
     function allocate(address adapter, bytes memory data, uint256 assets) external;
-    function deallocate(address adapter, bytes memory data, uint256 assets) external;
+    function deallocate(address adapter, bytes memory data, uint256 assets) external returns (bytes32[] memory);
     function setLiquidityAdapterAndData(address newLiquidityAdapter, bytes memory newLiquidityData) external;
 
     // Exchange rate

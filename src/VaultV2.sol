@@ -522,9 +522,9 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.Allocate(msg.sender, adapter, assets, ids, interest);
     }
 
-    function deallocate(address adapter, bytes memory data, uint256 assets) external {
+    function deallocate(address adapter, bytes memory data, uint256 assets) external returns (bytes32[] memory) {
         require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.Unauthorized());
-        deallocateInternal(adapter, data, assets);
+        return deallocateInternal(adapter, data, assets);
     }
 
     function deallocateInternal(address adapter, bytes memory data, uint256 assets)
