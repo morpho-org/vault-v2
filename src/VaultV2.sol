@@ -34,7 +34,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - A donation in underlying has been made to the vault.
 /// - There have been some calls to forceDeallocate, and the penalty is not zero.
 /// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
-/// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
+/// small vaults or small rates might not be able to accrue interest consistently and must be considered carefully.
 /// Also, for assets with very high value per unit, one interest per second might already be above the max rate.
 /// @dev Set the Vic to 0 to disable it (=> no interest accrual).
 /// @dev _totalAssets stores the last recorded total assets. Use totalAssets() for the updated total assets.
