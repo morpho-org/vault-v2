@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
+using Utils as Utils;
+
 using MorphoVaultV1Adapter as adapter;
 using MetaMorphoV1_1 as metamorpho;
 using VaultV2 as vaultv2;
@@ -15,65 +17,21 @@ methods {
     function MetaMorphoV1_1._accruedFeeAndAssets() internal returns (uint, uint, uint) => CONSTANT;// Summarize this so we limit the complexity and don't need to go in Morpho
     function MetaMorphoV1_1._accrueInterest() internal => CONSTANT;// Summarize this so we limit the complexity and don't need to go in Morpho
 
+    function Utils.havocAll() external envfree => HAVOC_ALL;
+
     function ids() external returns (bytes32[]) envfree;
-}
-
-ghost bool queried_external;
-
-hook CALL(uint256 g, address addr, uint256 value, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
-    queried_external = true;
-}
-
-hook CALLCODE(uint256 g, address addr, uint256 value, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
-    queried_external = true;
-}
-
-hook STATICCALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
-    queried_external = true;
-}
-
-hook DELEGATECALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
-    queried_external = true;
-}
-
-hook EXTCODECOPY(address addr, uint256 retOffset, uint256 codesOffset, uint256 codeSize) {
-    queried_external = true;
-}
-
-/*
-  - the result of ids() cannot be changed by another contract
-
-  This allows us to limit the calls to methods of the adapters in rule adapterAlwaysReturnsTheSameIDsForSameData
-  instead of calls over "_". We are guaranteed ids() only consumes local data.
-*/
-rule idsDoNotRelyOnExternalCode {
-  require(!queried_external);
-  adapter.ids();
-  /*
-    If this fails, it means the contract is using external code to compute the ids,
-    and thus calling f on the adapter only in adapterAlwaysReturnsTheSameIDsForSameData
-    is not sufficient to be sure ids won't change.
-  */
-  assert !queried_external;
 }
 
 /*
   - ids() always return the same result for the same input data (in this case, input data is empty)
 */
-rule adapterAlwaysReturnsTheSameIDsForSameData(env e, method f, calldataarg args) filtered {
-  f -> !f.isView
-} {
-  require(!queried_external);
-  require(adapter.morphoVaultV1 == metamorpho, "Very important otherwise the same tokens might be accounted for twice.");
-  require(metamorpho.MORPHO == morpho, "Fix morpho address.");
-  require(adapter.parentVault == vaultv2, "We know the parent vault.");
-  require(vaultv2.asset == metamorpho._asset, "We know the asset.");
-  require(vaultv2.sharesGate == 0);
-
+rule adapterAlwaysReturnsTheSameIDsForSameData() {
+  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
   bytes32[] idsPre = adapter.ids();
 
-  adapter.f(e, args);
+  Utils.havocAll();
 
+  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
   bytes32[] idsPost = adapter.ids();
 
   assert idsPre.length == idsPost.length;
@@ -113,13 +71,13 @@ rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate() {
 
   // IDs match on allocate and deallocate
   bytes32[] ids = adapter.ids();
+  assert ids.length == 1;
 
-  assert idsAllocate.length == idsDeallocate.length;
   assert idsAllocate.length == 1;
-  assert idsAllocate[0] == idsDeallocate[0];
-
-  assert idsAllocate.length == ids.length;
   assert idsAllocate[0] == ids[0];
+
+  assert idsDeallocate.length == 1;
+  assert idsDeallocate[0] == ids[0];
 }
 
 /*
@@ -156,6 +114,7 @@ rule adapterCannotHaveInterestAndLossAtTheSameTime() {
 
   // IDs match on allocate and realizeLoss (and deallocate thanks to rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
   bytes32[] ids = adapter.ids();
+  assert ids.length == 1;
 
   assert idsRealizeLoss.length == 1;
   assert idsRealizeLoss[0] == ids[0];

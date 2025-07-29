@@ -49,4 +49,8 @@ contract Utils {
     function id(MarketParams memory marketParams) external pure returns (Id) {
         return MarketParamsLib.id(marketParams);
     }
+
+    function havocAll() external {
+        this.havocAll();
+    }
 }

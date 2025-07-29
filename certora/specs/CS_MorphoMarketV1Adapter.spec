@@ -17,62 +17,20 @@ methods {
     function MorphoMarketV1Adapter.ids(MorphoMarketV1Adapter.MarketParams) external returns (bytes32[]) envfree;
 
     function Utils.marketParamsToBytes(MorphoMarketV1Adapter.MarketParams) external returns (bytes) envfree;
-}
-
-
-ghost bool queried_external;
-
-hook CALL(uint256 g, address addr, uint256 value, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
-    queried_external = true;
-}
-
-hook CALLCODE(uint256 g, address addr, uint256 value, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
-    queried_external = true;
-}
-
-hook STATICCALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
-    queried_external = true;
-}
-
-hook DELEGATECALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
-    queried_external = true;
-}
-
-hook EXTCODECOPY(address addr, uint256 retOffset, uint256 codesOffset, uint256 codeSize) {
-    queried_external = true;
-}
-
-/*
-  - the result of ids() cannot be changed by another contract
-
-  This allows us to limit the calls to methods of the adapters in rule adapterAlwaysReturnsTheSameIDsForSameData
-  instead of calls over "_". We are guaranteed ids() only consumes local data.
-*/
-rule idsDoNoteRelyOnExternalCode {
-  require(!queried_external);
-  Morpho.MarketParams marketParams;
-  adapter.ids(marketParams);
-  /*
-    If this fails, it means the contract is using external code to compute the ids,
-    and thus calling f on the adapter only in adapterAlwaysReturnsTheSameIDsForSameData
-    is not sufficient to be sure ids won't change.
-  */
-  assert !queried_external;
+    function Utils.havocAll() external envfree => HAVOC_ALL;
 }
 
 /*
   - ids() always return the same result for the same input data (market params)
 */
-rule adapterAlwaysReturnsTheSameIDsForSameData(env e, method f, calldataarg args) filtered {
-  f -> !f.isView
-} {
+rule adapterAlwaysReturnsTheSameIDsForSameData(Morpho.MarketParams marketParams) {
   require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
 
-  Morpho.MarketParams marketParams;
   bytes32[] idsPre = adapter.ids(marketParams);
 
-  adapter.f(e, args);
+  Utils.havocAll();
 
+  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
   bytes32[] idsPost = adapter.ids(marketParams);
 
   assert idsPre.length == idsPost.length;
@@ -114,15 +72,15 @@ rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate() {
   bytes32[] ids = adapter.ids(marketParams);
   assert ids.length == 3;
 
-  assert idsDeallocate.length == ids.length;
-  assert idsDeallocate[0] == ids[0];
-  assert idsDeallocate[1] == ids[1];
-  assert idsDeallocate[2] == ids[2];
-
-  assert idsAllocate.length == ids.length;
+  assert idsAllocate.length == 3;
   assert idsAllocate[0] == ids[0];
   assert idsAllocate[1] == ids[1];
   assert idsAllocate[2] == ids[2];
+
+  assert idsDeallocate.length == 3;
+  assert idsDeallocate[0] == ids[0];
+  assert idsDeallocate[1] == ids[1];
+  assert idsDeallocate[2] == ids[2];
 }
 
 /*
@@ -153,6 +111,7 @@ rule adapterCannotHaveInterestAndLossAtTheSameTime() {
 
   // IDs match on allocate and realizeLoss (and deallocate thanks to rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
   bytes32[] ids = adapter.ids(marketParams);
+  assert ids.length == 3;
 
   assert idsRealizeLoss.length == 3;
   assert idsRealizeLoss[0] == ids[0];
