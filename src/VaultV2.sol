@@ -154,6 +154,9 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev NatSpec comments are included only when they bring clarity.
 /// @dev Roles are not "two-step" so one must check if they really have this role.
 /// @dev The contract uses transient storage.
+/// @dev At creation, all settings are set to their default values. Notably, timelocks are zero (except the
+/// decreaseTimelock timelock) which is useful to set up the vault quickly. Also, there are no gates so anybody can
+/// interact with the vault. To prevent that, the gates configuration can be batched with the vault creation.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
     using MathLib for uint192;
