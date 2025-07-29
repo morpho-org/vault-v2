@@ -60,10 +60,9 @@ rule idsDoNotRelyOnExternalCode {
 /*
   - ids() always return the same result for the same input data (in this case, input data is empty)
 */
-rule adapterAlwaysReturnsTheSameIDsForSameData(method f) filtered {
+rule adapterAlwaysReturnsTheSameIDsForSameData(env e, method f, calldataarg args) filtered {
   f -> !f.isView
 } {
-  env e;
   require(!queried_external);
   require(adapter.morphoVaultV1 == metamorpho, "Very important otherwise the same tokens might be accounted for twice.");
   require(metamorpho.MORPHO == morpho, "Fix morpho address.");
@@ -73,7 +72,6 @@ rule adapterAlwaysReturnsTheSameIDsForSameData(method f) filtered {
 
   bytes32[] idsPre = adapter.ids();
 
-  calldataarg args;
   adapter.f(e, args);
 
   bytes32[] idsPost = adapter.ids();
