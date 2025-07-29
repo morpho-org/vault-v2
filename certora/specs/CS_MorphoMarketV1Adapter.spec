@@ -1,17 +1,22 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-import "../summaries/IMorpho.spec";
+using Utils as Utils;
 
 using MorphoMarketV1Adapter as adapter;
 using Morpho as morpho;
-using MorphoBlueUtils as MorphoBlueUtils;
 using VaultV2 as vaultv2;
 using CSMockMorpho as mockMorpho;
 
 methods {
+    // We need borrowRate and borrowRateView to return the same value
+    function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => ALWAYS(95129375);// We don't know which IRM will be used, just assume 3% borrow rate for simplicity
+    function _.borrowRateView(Morpho.MarketParams, Morpho.Market) external => ALWAYS(95129375);// We don't know which IRM will be used, just assume 3% borrow rate for simplicity
+    function _.onMorphoSupply(uint, bytes) external => NONDET DELETE;
+
     function MorphoMarketV1Adapter.ids(MorphoMarketV1Adapter.MarketParams) external returns (bytes32[]) envfree;
-    function MorphoBlueUtils.marketParamsToBytes(MorphoMarketV1Adapter.MarketParams) external returns (bytes) envfree;
+
+    function Utils.marketParamsToBytes(MorphoMarketV1Adapter.MarketParams) external returns (bytes) envfree;
 }
 
 
@@ -91,7 +96,7 @@ rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate() {
   require(adapter.morpho == morpho, "Fix morpho address.");
 
   Morpho.MarketParams marketParams;
-  bytes data = MorphoBlueUtils.marketParamsToBytes(marketParams);
+  bytes data = Utils.marketParamsToBytes(marketParams);
   bytes4 b4;
   require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address addr;
@@ -134,7 +139,7 @@ rule adapterCannotHaveInterestAndLossAtTheSameTime() {
   require(adapter.morpho == morpho, "Fix morpho address.");
 
   Morpho.MarketParams marketParams;
-  bytes data = MorphoBlueUtils.marketParamsToBytes(marketParams);
+  bytes data = Utils.marketParamsToBytes(marketParams);
   bytes4 b4;
   require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address addr;
@@ -167,7 +172,7 @@ rule lossIsBoundedByAllocation() {
   require(adapter.morpho == morpho, "Fix morpho address.");
 
   Morpho.MarketParams marketParams;
-  bytes data = MorphoBlueUtils.marketParamsToBytes(marketParams);
+  bytes data = Utils.marketParamsToBytes(marketParams);
   bytes4 b4;
   require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address addr;
@@ -198,7 +203,7 @@ rule donatingPositionsHasNoEffectOnInterest() {
   require(adapter.morpho == mockMorpho, "Fix morpho address. Use mock for simplicity.");
 
   Morpho.MarketParams marketParams;
-  bytes data = MorphoBlueUtils.marketParamsToBytes(e1, marketParams);
+  bytes data = Utils.marketParamsToBytes(e1, marketParams);
   uint256 amount;
   bytes4 b4;
   require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
@@ -232,7 +237,7 @@ rule donatingPositionsHasNoEffectOnLoss() {
   require(adapter.morpho == mockMorpho, "Fix morpho address. Use mock for simplicity.");
 
   Morpho.MarketParams marketParams;
-  bytes data = MorphoBlueUtils.marketParamsToBytes(e1, marketParams);
+  bytes data = Utils.marketParamsToBytes(e1, marketParams);
   bytes4 b4;
   require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address addr;

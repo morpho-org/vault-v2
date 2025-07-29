@@ -1,14 +1,22 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-import "../summaries/IMorphoVaultV1Adapter.spec";
-import "../summaries/IMetamorphoV1_1.spec";
-import "../summaries/IMorpho.spec";
-
 using MorphoVaultV1Adapter as adapter;
 using MetaMorphoV1_1 as metamorpho;
 using VaultV2 as vaultv2;
 using Morpho as morpho;
+
+methods {
+    // We need borrowRate and borrowRateView to return the same value
+    function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => ALWAYS(95129375);// We don't know which IRM will be used, just assume 3% borrow rate for simplicity
+    function _.borrowRateView(Morpho.MarketParams, Morpho.Market) external => ALWAYS(95129375);// We don't know which IRM will be used, just assume 3% borrow rate for simplicity
+
+    function MetaMorphoV1_1.balanceOf(address) external returns (uint) envfree;
+    function MetaMorphoV1_1._accruedFeeAndAssets() internal returns (uint, uint, uint) => CONSTANT;// Summarize this so we limit the complexity and don't need to go in Morpho
+    function MetaMorphoV1_1._accrueInterest() internal => CONSTANT;// Summarize this so we limit the complexity and don't need to go in Morpho
+
+    function ids() external returns (bytes32[]) envfree;
+}
 
 ghost bool queried_external;
 

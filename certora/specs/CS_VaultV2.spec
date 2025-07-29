@@ -1,15 +1,32 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-import "../summaries/IVaultV2.spec";
-import "../summaries/ICSMockAdapter.spec";
-import "../summaries/IERC20Mock.spec";
-import "../summaries/IGates.spec";
+using Utils as Utils;
 
 using VaultV2 as vaultv2;
 using ManualVic as manualVic;
 using ERC20Mock as underlying;
 using CSMockAdapter as simpleAdapter;
+
+methods {
+    function multicall(bytes[]) external => NONDET DELETE;
+    function allocation(bytes32) external returns uint256 envfree;
+
+    function Utils.maxRatePerSecond() external returns (uint) envfree;
+
+    function CSMockAdapter.adapterId() external returns (bytes32) envfree;
+    function CSMockAdapter.allocation() external returns (uint256) envfree;
+    function CSMockAdapter.deallocate(bytes, uint, bytes4, address) external returns (bytes32[], uint) envfree;
+    function CSMockAdapter.realizeLoss(bytes, bytes4, address) external returns (bytes32[], uint) envfree;
+
+    function ERC20Mock.balanceOf(address) external returns (uint) envfree;
+    function ERC20Mock.allowance(address,address) external returns (uint) envfree;
+
+    function _.canReceiveShares(address) external => NONDET;
+    function _.canSendShares(address) external => NONDET;
+    function _.canReceiveAssets(address) external => NONDET;
+    function _.canSendAssets(address) external => NONDET;
+}
 
 persistent ghost bytes32 idTracker;
 
