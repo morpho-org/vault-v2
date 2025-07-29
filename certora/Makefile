@@ -2,8 +2,9 @@ metamorpho-munged: ../lib/metamorpho/munged
 
 ../lib/metamorpho/munged: $(wildcard ../src/*.sol) applyMetaMorphoMunging.patch
 	@rm -rf ../lib/metamorpho/munged
-	@cp -r ../lib/metamorpho/src ../lib/metamorpho/munged
-	@patch -p1 -d ../lib/metamorpho/munged < applyMetaMorphoMunging.patch
+	@mkdir -p ../lib/metamorpho/munged
+	@cp -r ../lib/metamorpho/src/* ../lib/metamorpho/munged
+	@patch -p0 -d ../lib/metamorpho/munged < applyMetaMorphoMunging.patch
 
 metamorpho-record:
 	diff -ruN ../lib/metamorpho/src ../lib/metamorpho/munged | sed -E 's,\.\./lib/metamorpho/src/|\.\./lib/metamorpho/munged/,,g' | sed -E 's,((\-\-\-|\+\+\+) [^[:space:]]*).*,\1,' > applyMetaMorphoMunging.patch
