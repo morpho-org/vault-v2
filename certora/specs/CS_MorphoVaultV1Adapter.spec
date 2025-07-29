@@ -39,13 +39,41 @@ rule adapterAlwaysReturnsTheSameIDsForSameData() {
   assert idsPre[0] == idsPost[0];
 }
 
+rule matchingIdsOnAllocate(env e, bytes data, uint256 amount, bytes4 selector, address sender) {
+  bytes32[] idsAllocate; uint256 interestAllocate;
+  idsAllocate, interestAllocate = adapter.allocate(e, data, amount, selector, sender);
+
+  bytes32[] ids = adapter.ids();
+  assert ids.length == 1;
+  assert idsAllocate.length == 1;
+  assert idsAllocate[0] == ids[0];
+}
+
+rule matchingIdsOnDeallocate(env e, bytes data, uint256 amount, bytes4 selector, address sender) {
+  bytes32[] idsDeallocate; uint256 interestDeallocate;
+  idsDeallocate, interestDeallocate = adapter.deallocate(e, data, amount, selector, sender);
+
+  bytes32[] ids = adapter.ids();
+  assert ids.length == 1;
+  assert idsDeallocate.length == 1;
+  assert idsDeallocate[0] == ids[0];
+}
+
+rule matchingIdsOnRealizeLoss(env e, bytes data, bytes4 selector, address sender) {
+  bytes32[] idsRealizeLoss; uint256 interestRealizeLoss;
+  idsRealizeLoss, interestRealizeLoss = adapter.realizeLoss(e, data, selector, sender);
+
+  bytes32[] ids = adapter.ids();
+  assert ids.length == 1;
+  assert idsRealizeLoss.length == 1;
+  assert idsRealizeLoss[0] == ids[0];
+}
+
 /*
   - from some starting state, calling allocate or deallocate yield the same interest
-  - ids match on allocate and deallocate
-  - ids returned by allocate/deallocate are the same as the ids returned by ids()
 */
 // Todo: do not assume 0 amount, and same environment for allocate and deallocate
-rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate() {
+rule adapterReturnsTheSameInterestForAllocateAndDeallocate() {
   storage initialState = lastStorage;
   env e;
   require(e.msg.sender == adapter.parentVault, "Speed up prover.");
@@ -68,23 +96,11 @@ rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate() {
   idsDeallocate, interestDeallocate = adapter.deallocate(e, data, 0, b4, addr) at initialState;
 
   assert interestAllocate == interestDeallocate;
-
-  // IDs match on allocate and deallocate
-  bytes32[] ids = adapter.ids();
-  assert ids.length == 1;
-
-  assert idsAllocate.length == 1;
-  assert idsAllocate[0] == ids[0];
-
-  assert idsDeallocate.length == 1;
-  assert idsDeallocate[0] == ids[0];
 }
 
 /*
   - from the same starting state, either realizeLoss() or allocate()/deallocate() return 0.
-    The rule is done with allocate() but holds for deallocate() as well because we know they return the same interest for a given starting state (see adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
-  - ids returned by realizeLoss are the same as the ids returned by ids() (and allocate()/deallocate())
-  - ids returned by realizeLoss are the same as the ids returned by ids()
+    The rule is done with allocate() but holds for deallocate() as well because we know they return the same interest for a given starting state (see adapterReturnsTheSameInterestForAllocateAndDeallocate)
 */
 rule adapterCannotHaveInterestAndLossAtTheSameTime() {
   env e;
@@ -111,13 +127,6 @@ rule adapterCannotHaveInterestAndLossAtTheSameTime() {
   idsRealizeLoss, loss = adapter.realizeLoss(e, data, b4, addr) at initial;
 
   assert loss == 0 || interest == 0;
-
-  // IDs match on allocate and realizeLoss (and deallocate thanks to rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
-  bytes32[] ids = adapter.ids();
-  assert ids.length == 1;
-
-  assert idsRealizeLoss.length == 1;
-  assert idsRealizeLoss[0] == ids[0];
 }
 
 /*
@@ -152,7 +161,7 @@ rule lossIsBoundedByAllocation() {
 
 /*
   - donating some underlying position to the adapter has no effect on the interest returned.
-    The rule is done with allocate() but holds for deallocate() as well because we know they return the same interest for a given starting state (see adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
+    The rule is done with allocate() but holds for deallocate() as well because we know they return the same interest for a given starting state (see adapterReturnsTheSameInterestForAllocateAndDeallocate)
 */
 // Todo: show that amount don't change the interest.
 rule donatingPositionsHasNoEffectOnInterest() {

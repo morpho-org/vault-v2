@@ -40,13 +40,53 @@ rule adapterAlwaysReturnsTheSameIDsForSameData(Morpho.MarketParams marketParams)
   assert idsPre[2] == idsPost[2];
 }
 
+rule matchingIdsOnAllocate(env e, uint256 amount, bytes4 selector, address sender) {
+  Morpho.MarketParams marketParams;
+  bytes data = Utils.marketParamsToBytes(marketParams);
+  bytes32[] idsAllocate; uint256 interestAllocate;
+  idsAllocate, interestAllocate = adapter.allocate(e, data, amount, selector, sender);
+
+  bytes32[] ids = adapter.ids(marketParams);
+  assert ids.length == 3;
+  assert idsAllocate.length == 3;
+  assert idsAllocate[0] == ids[0];
+  assert idsAllocate[1] == ids[1];
+  assert idsAllocate[2] == ids[2];
+}
+
+rule matchingIdsOnDeallocate(env e, uint256 amount, bytes4 selector, address sender) {
+  Morpho.MarketParams marketParams;
+  bytes data = Utils.marketParamsToBytes(marketParams);
+  bytes32[] idsDeallocate; uint256 interestDeallocate;
+  idsDeallocate, interestDeallocate = adapter.deallocate(e, data, amount, selector, sender);
+
+  bytes32[] ids = adapter.ids(marketParams);
+  assert ids.length == 3;
+  assert idsDeallocate.length == 3;
+  assert idsDeallocate[0] == ids[0];
+  assert idsDeallocate[1] == ids[1];
+  assert idsDeallocate[2] == ids[2];
+}
+
+rule matchingIdsOnRealizeLoss(env e, bytes4 selector, address sender) {
+  Morpho.MarketParams marketParams;
+  bytes data = Utils.marketParamsToBytes(marketParams);
+  bytes32[] idsRealizeLoss; uint256 interestRealizeLoss;
+  idsRealizeLoss, interestRealizeLoss = adapter.realizeLoss(e, data, selector, sender);
+
+  bytes32[] ids = adapter.ids(marketParams);
+  assert ids.length == 3;
+  assert idsRealizeLoss.length == 3;
+  assert idsRealizeLoss[0] == ids[0];
+  assert idsRealizeLoss[1] == ids[1];
+  assert idsRealizeLoss[2] == ids[2];
+}
+
 /*
   - from some starting state, calling allocate or deallocate yield the same interest
-  - ids match on allocate and deallocate
-  - ids returned by allocate/deallocate are the same as the ids returned by ids()
 */
 // Todo: do not assume 0 amount, and same environment for allocate and deallocate
-rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate() {
+rule adapterReturnsTheSameInterestForAllocateAndDeallocate() {
   env e;
   require(e.msg.sender == adapter.parentVault, "Speed up prover.");
   require(adapter.morpho == morpho, "Fix morpho address.");
@@ -67,26 +107,11 @@ rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate() {
   idsDeallocate, interestDeallocate = adapter.deallocate(e, data, 0, b4, addr) at initialState;
 
   assert interestAllocate == interestDeallocate;
-
-  // IDs match on allocate and deallocate
-  bytes32[] ids = adapter.ids(marketParams);
-  assert ids.length == 3;
-
-  assert idsAllocate.length == 3;
-  assert idsAllocate[0] == ids[0];
-  assert idsAllocate[1] == ids[1];
-  assert idsAllocate[2] == ids[2];
-
-  assert idsDeallocate.length == 3;
-  assert idsDeallocate[0] == ids[0];
-  assert idsDeallocate[1] == ids[1];
-  assert idsDeallocate[2] == ids[2];
 }
 
 /*
   - from the same starting state, either realizeLoss() or allocate()/deallocate() return 0.
-    The rule is done with allocate() but holds for deallocate() as well because we know they return the same interest for a given starting state (see adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
-  - ids returned by realizeLoss are the same as the ids returned by ids()
+    The rule is done with allocate() but holds for deallocate() as well because we know they return the same interest for a given starting state (see adapterReturnsTheSameInterestForAllocateAndDeallocate)
 */
 rule adapterCannotHaveInterestAndLossAtTheSameTime() {
   storage initial = lastStorage;
@@ -108,15 +133,6 @@ rule adapterCannotHaveInterestAndLossAtTheSameTime() {
   idsRealizeLoss, loss = adapter.realizeLoss(e, data, b4, addr) at initial;
 
   assert loss == 0 || interest == 0;
-
-  // IDs match on allocate and realizeLoss (and deallocate thanks to rule adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
-  bytes32[] ids = adapter.ids(marketParams);
-  assert ids.length == 3;
-
-  assert idsRealizeLoss.length == 3;
-  assert idsRealizeLoss[0] == ids[0];
-  assert idsRealizeLoss[1] == ids[1];
-  assert idsRealizeLoss[2] == ids[2];
 }
 
 /*
