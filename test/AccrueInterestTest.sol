@@ -178,9 +178,9 @@ contract AccrueInterestTest is BaseTest {
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         elapsed = bound(elapsed, 1, 20 * 365 days);
-        vm.assume(interestPerSecond <= type(uint256).max / elapsed);
+        interestPerSecond = bound(interestPerSecond, 0, type(uint256).max / elapsed);
         vm.assume(interestPerSecond * elapsed > (deposit * elapsed).mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        vm.assume(interestPerSecond <= type(uint96).max);
+        interestPerSecond = bound(interestPerSecond, 0, type(uint96).max);
 
         // Setup.
         vault.deposit(deposit, address(this));
