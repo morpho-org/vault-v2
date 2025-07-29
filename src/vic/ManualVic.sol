@@ -22,6 +22,9 @@ contract ManualVic is IManualVic {
         vault = _vault;
     }
 
+    /// @dev Sets the maximum interest per second.
+    /// @dev The maximum interest per second must be at least the stored interest per second.
+    /// @dev This remains true after the deadline has passed.
     function setMaxInterestPerSecond(uint256 newMaxInterestPerSecond) external {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
         require(newMaxInterestPerSecond >= storedInterestPerSecond, InterestPerSecondTooHigh());
