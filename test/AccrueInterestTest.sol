@@ -180,7 +180,7 @@ contract AccrueInterestTest is BaseTest {
         elapsed = bound(elapsed, 1, 20 * 365 days);
         interestPerSecond = bound(interestPerSecond, 0, type(uint256).max / elapsed);
         vm.assume(interestPerSecond * elapsed > (deposit * elapsed).mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        interestPerSecond = bound(interestPerSecond, 0, type(uint96).max);
+        vm.assume(interestPerSecond <= type(uint96).max);
 
         // Setup.
         vault.deposit(deposit, address(this));
