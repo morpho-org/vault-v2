@@ -579,7 +579,7 @@ contract VaultV2 is IVaultV2 {
 
         uint256 tentativeInterest = vic != address(0) ? IVic(vic).interest(_totalAssets, elapsed) : 0;
         uint256 interest =
-            MathLib.min(tentativeInterest, uint256(_totalAssets * elapsed).mulDivDown(MAX_RATE_PER_SECOND, WAD));
+            MathLib.min(tentativeInterest, (_totalAssets * elapsed).mulDivDown(MAX_RATE_PER_SECOND, WAD));
         uint256 newTotalAssets = _totalAssets + interest;
 
         // The performance fee assets may be rounded down to 0 if interest * fee < WAD.
