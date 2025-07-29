@@ -87,16 +87,20 @@ diff -ruN MetaMorpho.sol MetaMorpho.sol
                  delete config[id];
              }
          }
-@@ -585,7 +602,7 @@
+@@ -585,7 +602,11 @@
      /// @inheritdoc IERC4626
      function totalAssets() public view override returns (uint256 assets) {
          for (uint256 i; i < withdrawQueue.length; ++i) {
 -            assets += MORPHO.expectedSupplyAssets(_marketParams(withdrawQueue[i]), address(this));
-+            assets += MorphoBalancesLib.expectedSupplyAssets(MORPHO, _marketParams(withdrawQueue[i]), address(this));
++            uint256 supplyShares =
++                IMorphoHarness(MORPHO).position(_marketParams(withdrawQueue[i]).id(), address(this)).supplyShares;
++            (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
++                MorphoBalancesLib.expectedMarketBalances(MORPHO, _marketParams(withdrawQueue[i]));
++            assets += supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
          }
      }
  
-@@ -744,6 +761,9 @@
+@@ -744,6 +765,9 @@
  
          if (supplyCap > 0) {
              if (!marketConfig.enabled) {
@@ -106,7 +110,7 @@ diff -ruN MetaMorpho.sol MetaMorpho.sol
                  withdrawQueue.push(id);
  
                  if (withdrawQueue.length > ConstantsLib.MAX_QUEUE_LENGTH) revert ErrorsLib.MaxQueueLengthExceeded();
-@@ -803,6 +823,9 @@
+@@ -803,6 +827,9 @@
      /// @dev Withdraws `assets` from Morpho.
      function _withdrawMorpho(uint256 assets) internal {
          for (uint256 i; i < withdrawQueue.length; ++i) {

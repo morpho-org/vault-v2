@@ -7,6 +7,8 @@ using MorphoHarness as MorphoMarketV1;
 using Utils as Utils;
 
 methods {
+    function _.extSloads(bytes32[]) external => NONDET DELETE;
+
     function MorphoVaultV1.totalSupply() external returns uint256 envfree;
     function MorphoVaultV1Adapter.ids() external returns bytes32[] envfree;
     function MorphoVaultV1Adapter.shares() external returns uint256 envfree;
@@ -18,7 +20,10 @@ methods {
         => morphoVaultV1AdapterWrapperSummary(e, false, data, assets) expect (bytes32[], uint256) ;
     function _.realizeLoss(bytes, bytes4, address) external => DISPATCHER(true);
 
-    function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => NONDET;
+    function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect uint256;
+    function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect uint256;
+
+    function Math.mulDiv(uint256 x, uint256 y, uint256 denominator) internal returns (uint256) => mulDivSummary(x,y,denominator);
 
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
@@ -33,6 +38,16 @@ methods {
     function _.supply(MorphoHarness.MarketParams, uint256, uint256, address, bytes) external => DISPATCHER(true);
     function _.withdraw(MorphoHarness.MarketParams, uint256, uint256, address, address) external => DISPATCHER(true);
 }
+
+function mulDivSummary(uint256 x, uint256 y, uint256 denominator) returns uint256 {
+    mathint result;
+    if (denominator == 0) revert();
+    result = x * y / denominator;
+    if (result >= 2^256) revert();
+    return assert_uint256(result);
+}
+
+persistent ghost uint256 constantBorrowRate;
 
 persistent ghost uint256 ghostInterest;
 

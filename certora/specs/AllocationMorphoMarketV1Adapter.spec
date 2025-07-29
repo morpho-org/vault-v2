@@ -13,7 +13,8 @@ methods {
     function MorphoMarketV1Adapter.allocation(MorphoHarness.MarketParams) external returns uint256 envfree;
     function Utils.morphoMarketV1MarketParams(bytes) external returns (MorphoHarness.MarketParams, MorphoHarness.Id) envfree;
 
-    function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => NONDET;
+    function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect uint256;
+    function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect uint256;
 
     function _.allocate(bytes data, uint256 assets, bytes4, address) external with (env e)
         => morphoMarketV1AdapterWrapperSummary(e, true, data, assets) expect (bytes32[], uint256);
@@ -25,6 +26,8 @@ methods {
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
 }
+
+persistent ghost uint256 constantBorrowRate;
 
 persistent ghost uint256 ghostInterest;
 
