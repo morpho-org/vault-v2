@@ -63,16 +63,14 @@ rule idsDoNoteRelyOnExternalCode {
 /*
   - ids() always return the same result for the same input data (market params)
 */
-rule adapterAlwaysReturnsTheSameIDsForSameData(method f) filtered {
+rule adapterAlwaysReturnsTheSameIDsForSameData(env e, method f, calldata args) filtered {
   f -> !f.isView
 } {
-  env e;
   require(vaultv2.sharesGate == 0x0000000000000000000000000000000000000000, "to avoid the canSendShares dispatch loop");
 
   Morpho.MarketParams marketParams;
   bytes32[] idsPre = adapter.ids(marketParams);
 
-  calldataarg args;
   adapter.f(e, args);
 
   bytes32[] idsPost = adapter.ids(marketParams);
