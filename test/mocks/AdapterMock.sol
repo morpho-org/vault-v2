@@ -62,10 +62,13 @@ contract AdapterMock is IAdapter {
         return (ids(), interest);
     }
 
-    function realizeLoss(bytes memory, bytes4 selector, address sender) external returns (bytes32[] memory, uint256) {
+    function realizeLoss(bytes memory, bytes4 selector, address sender)
+        external
+        returns (bytes32[] memory, uint256, uint256)
+    {
         recordedSelector = selector;
         recordedSender = sender;
-        return (ids(), loss);
+        return (ids(), loss, loss);
     }
 
     function ids() internal view returns (bytes32[] memory) {
@@ -73,6 +76,10 @@ contract AdapterMock is IAdapter {
     }
 
     function totalAssetsNoLoss() external pure returns (uint256) {
+        return 0;
+    }
+
+    function totalAssetsNoLossView() external pure returns (uint256) {
         return 0;
     }
 }

@@ -3,5 +3,6 @@
 pragma solidity >=0.5.0;
 
 interface IVic {
-    function interest(uint256 totalAssets, uint256 elapsed) external view returns (uint256);
+    function interest(uint256 totalAssets, uint256 elapsed) external returns (uint256);
+    function interestView(uint256 totalAssets, uint256 elapsed) external view returns (uint256);
 }

@@ -25,10 +25,19 @@ contract OnchainVic is IOnchainVic {
     }
 
     /// @dev Returns the interest per second.
-    function interest(uint256 totalAssets, uint256) external view returns (uint256) {
+    function interest(uint256 totalAssets, uint256) external returns (uint256) {
         uint256 realAssets = IERC20(asset).balanceOf(parentVault);
         for (uint256 i = 0; i < IVaultV2(parentVault).adaptersLength(); i++) {
             realAssets += IAdapter(IVaultV2(parentVault).adapters(i)).totalAssetsNoLoss();
+        }
+        return realAssets - totalAssets;
+    }
+
+    /// @dev Returns the interest per second.
+    function interestView(uint256 totalAssets, uint256) external view returns (uint256) {
+        uint256 realAssets = IERC20(asset).balanceOf(parentVault);
+        for (uint256 i = 0; i < IVaultV2(parentVault).adaptersLength(); i++) {
+            realAssets += IAdapter(IVaultV2(parentVault).adapters(i)).totalAssetsNoLossView();
         }
         return realAssets - totalAssets;
     }

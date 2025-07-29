@@ -32,6 +32,7 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     address public skimRecipient;
     /// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
     uint256 public shares;
+    uint256 vaultAssets;
 
     /* FUNCTIONS */
 
@@ -71,7 +72,10 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 interest = IERC4626(morphoVaultV1).previewRedeem(shares).zeroFloorSub(allocation());
+        uint256 vaultAssetsNoLoss = max(vaultAssets, IERC4626(morphoVaultV1).previewRedeem(shares));
+        vaultAssets = vaultAssetsNoLoss + assets;
+
+        uint256 interest = vaultAssetsNoLoss.zeroFloorSub(allocation());
 
         if (assets > 0) shares += IERC4626(morphoVaultV1).deposit(assets, address(this));
 
@@ -87,19 +91,27 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 interest = IERC4626(morphoVaultV1).previewRedeem(shares).zeroFloorSub(allocation());
+        uint256 vaultAssetsNoLoss = max(vaultAssets, IERC4626(morphoVaultV1).previewRedeem(shares));
+        vaultAssets = vaultAssetsNoLoss - assets;
+
+        uint256 interest = vaultAssetsNoLoss.zeroFloorSub(allocation());
 
         if (assets > 0) shares -= IERC4626(morphoVaultV1).withdraw(assets, address(this), address(this));
 
         return (ids(), interest);
     }
 
-    function realizeLoss(bytes memory data, bytes4, address) external view returns (bytes32[] memory, uint256) {
+    function realizeLoss(bytes memory data, bytes4, address) external returns (bytes32[] memory, uint256, uint256) {
+        require(msg.sender == parentVault, NotAuthorized());
         require(data.length == 0, InvalidData());
 
-        uint256 loss = allocation() - IERC4626(morphoVaultV1).previewRedeem(shares);
+        uint256 realAssets = IERC4626(morphoVaultV1).previewRedeem(shares);
+        uint256 allocationLoss = allocation() - realAssets;
+        uint256 assetLoss = totalAssetsNoLossView() - realAssets;
 
-        return (ids(), loss);
+        vaultAssets = realAssets;
+
+        return (ids(), allocationLoss, assetLoss);
     }
 
     /// @dev Returns adapter's ids.
@@ -113,7 +125,12 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         return IVaultV2(parentVault).allocation(adapterId);
     }
 
-    function totalAssetsNoLoss() external view returns (uint256) {
+    function totalAssetsNoLoss() public returns (uint256) {
+        vaultAssets = max(IERC4626(morphoVaultV1).previewRedeem(shares), allocation());
+        return vaultAssets;
+    }
+
+    function totalAssetsNoLossView() public view returns (uint256) {
         return max(IERC4626(morphoVaultV1).previewRedeem(shares), allocation());
     }
 

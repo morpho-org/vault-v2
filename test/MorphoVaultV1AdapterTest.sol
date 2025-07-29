@@ -211,9 +211,11 @@ contract MorphoVaultV1AdapterTest is Test {
         parentVault.allocateMocked(address(adapter), hex"", deposit);
 
         // Realize loss.
-        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), hex"");
+        (bytes32[] memory ids, uint256 allocationLoss, uint256 assetLoss) =
+            parentVault.realizeLossMocked(address(adapter), hex"");
         assertEq(ids, expectedIds, "ids");
-        assertEq(loss, 0, "loss");
+        assertEq(allocationLoss, 0, "allocationLoss");
+        assertEq(assetLoss, 0, "assetLoss");
     }
 
     function testLossRealization(uint256 deposit, uint256 _loss) public {
@@ -226,9 +228,11 @@ contract MorphoVaultV1AdapterTest is Test {
         morphoVaultV1.lose(_loss);
 
         // Realize loss.
-        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), hex"");
+        (bytes32[] memory ids, uint256 allocationLoss, uint256 assetLoss) =
+            parentVault.realizeLossMocked(address(adapter), hex"");
         assertEq(ids, expectedIds, "ids");
-        assertEq(loss, _loss, "loss");
+        assertEq(allocationLoss, _loss, "allocationLoss");
+        assertEq(assetLoss, _loss, "assetLoss");
         assertEq(adapter.allocation(), deposit - _loss, "allocation");
     }
 
@@ -246,9 +250,11 @@ contract MorphoVaultV1AdapterTest is Test {
         parentVault.allocateMocked(address(adapter), hex"", deposit2);
 
         // Realize loss.
-        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), hex"");
+        (bytes32[] memory ids, uint256 allocationLoss, uint256 assetLoss) =
+            parentVault.realizeLossMocked(address(adapter), hex"");
         assertEq(ids, expectedIds, "ids");
-        assertEq(loss, _loss, "loss");
+        assertEq(allocationLoss, _loss, "allocationLoss");
+        assertEq(assetLoss, _loss, "assetLoss");
         assertEq(adapter.allocation(), deposit - _loss + deposit2, "allocation");
     }
 
@@ -267,9 +273,11 @@ contract MorphoVaultV1AdapterTest is Test {
         parentVault.deallocateMocked(address(adapter), hex"", withdraw);
 
         // Realize loss.
-        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), hex"");
+        (bytes32[] memory ids, uint256 allocationLoss, uint256 assetLoss) =
+            parentVault.realizeLossMocked(address(adapter), hex"");
         assertEq(ids, expectedIds, "ids");
-        assertEq(loss, _loss, "loss");
+        assertEq(allocationLoss, _loss, "allocationLoss");
+        assertEq(assetLoss, _loss, "assetLoss");
         assertEq(adapter.allocation(), deposit - _loss - withdraw, "allocation");
     }
 
@@ -289,10 +297,12 @@ contract MorphoVaultV1AdapterTest is Test {
         uint256 expectedSupplyAfter = morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(adapter)));
         vm.prank(address(parentVault));
         if (expectedSupplyAfter > expectedSupplyBefore) vm.expectRevert(stdError.arithmeticError);
-        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), hex"");
+        (bytes32[] memory ids, uint256 allocationLoss, uint256 assetLoss) =
+            parentVault.realizeLossMocked(address(adapter), hex"");
         if (_loss >= interest) {
             assertEq(ids, expectedIds, "ids");
-            assertEq(loss, _loss - interest, "loss");
+            assertEq(allocationLoss, _loss - interest, "allocationLoss");
+            assertEq(assetLoss, _loss - interest, "assetLoss");
             assertApproxEqAbs(adapter.allocation(), deposit - _loss + interest, 1, "allocation");
         }
     }
@@ -305,12 +315,16 @@ contract MorphoVaultV1AdapterTest is Test {
         vm.assume(data.length > 0);
 
         vm.expectRevert(IMorphoVaultV1Adapter.InvalidData.selector);
+
+        vm.prank(address(parentVault));
         adapter.allocate(data, 0, bytes4(0), address(0));
 
         vm.expectRevert(IMorphoVaultV1Adapter.InvalidData.selector);
+        vm.prank(address(parentVault));
         adapter.deallocate(data, 0, bytes4(0), address(0));
 
         vm.expectRevert(IMorphoVaultV1Adapter.InvalidData.selector);
+        vm.prank(address(parentVault));
         adapter.realizeLoss(data, bytes4(0), address(0));
     }
 

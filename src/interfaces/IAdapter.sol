@@ -17,7 +17,8 @@ interface IAdapter {
     /// @dev Returns the market' ids and the loss occurred on this market.
     function realizeLoss(bytes memory data, bytes4 selector, address sender)
         external
-        returns (bytes32[] memory ids, uint256 loss);
+        returns (bytes32[] memory ids, uint256 allocationLoss, uint256 assetLoss);
 
-    function totalAssetsNoLoss() external view returns (uint256 assets);
+    function totalAssetsNoLoss() external returns (uint256 assets);
+    function totalAssetsNoLossView() external view returns (uint256 assets);
 }

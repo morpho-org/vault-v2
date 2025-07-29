@@ -226,8 +226,10 @@ contract MorphoMarketV1AdapterTest is Test {
         vm.expectRevert(IMorphoMarketV1Adapter.LoanAssetMismatch.selector);
         MarketParams memory rdmMarketParams = marketParams;
         rdmMarketParams.loanToken = rdmToken;
+        vm.prank(address(parentVault));
         adapter.realizeLoss(abi.encode(rdmMarketParams), bytes4(0), rdmToken);
 
+        vm.prank(address(parentVault));
         adapter.realizeLoss(abi.encode(marketParams), bytes4(0), address(0));
     }
 
@@ -252,9 +254,11 @@ contract MorphoMarketV1AdapterTest is Test {
         parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
 
         // Realize loss.
-        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), abi.encode(marketParams));
+        (bytes32[] memory ids, uint256 allocationLoss, uint256 assetLoss) =
+            parentVault.realizeLossMocked(address(adapter), abi.encode(marketParams));
         assertEq(ids, expectedIds, "ids");
-        assertEq(loss, 0, "loss");
+        assertEq(allocationLoss, 0, "allocationLoss");
+        assertEq(assetLoss, 0, "assetLoss");
         assertEq(adapter.allocation(marketParams), deposit, "allocation");
     }
 
@@ -268,9 +272,11 @@ contract MorphoMarketV1AdapterTest is Test {
         _overrideMarketTotalSupplyAssets(-int256(_loss));
 
         // Realize loss.
-        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), abi.encode(marketParams));
+        (bytes32[] memory ids, uint256 allocationLoss, uint256 assetLoss) =
+            parentVault.realizeLossMocked(address(adapter), abi.encode(marketParams));
         assertEq(ids, expectedIds, "ids");
-        assertEq(loss, _loss, "loss");
+        assertEq(allocationLoss, _loss, "allocationLoss");
+        assertEq(assetLoss, _loss, "assetLoss");
         assertEq(adapter.allocation(marketParams), deposit - _loss, "allocation");
     }
 
@@ -288,9 +294,11 @@ contract MorphoMarketV1AdapterTest is Test {
         parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit2);
 
         // Realize loss.
-        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), abi.encode(marketParams));
+        (bytes32[] memory ids, uint256 allocationLoss, uint256 assetLoss) =
+            parentVault.realizeLossMocked(address(adapter), abi.encode(marketParams));
         assertEq(ids, expectedIds, "ids");
-        assertEq(loss, _loss, "loss");
+        assertEq(allocationLoss, _loss, "allocationLoss");
+        assertEq(assetLoss, _loss, "assetLoss");
         assertEq(adapter.allocation(marketParams), deposit1 - _loss + deposit2, "allocation");
     }
 
@@ -308,9 +316,11 @@ contract MorphoMarketV1AdapterTest is Test {
         parentVault.deallocateMocked(address(adapter), abi.encode(marketParams), withdraw);
 
         // Realize loss.
-        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), abi.encode(marketParams));
+        (bytes32[] memory ids, uint256 allocationLoss, uint256 assetLoss) =
+            parentVault.realizeLossMocked(address(adapter), abi.encode(marketParams));
         assertEq(ids, expectedIds, "ids");
-        assertEq(loss, _loss, "loss");
+        assertEq(allocationLoss, _loss, "allocationLoss");
+        assertEq(assetLoss, _loss, "assetLoss");
         assertEq(adapter.allocation(marketParams), initial - _loss - withdraw, "allocation");
     }
 
@@ -329,10 +339,12 @@ contract MorphoMarketV1AdapterTest is Test {
         _overrideMarketTotalSupplyAssets(int256(interest));
         uint256 expectedSupplyAfter = morpho.expectedSupplyAssets(marketParams, address(adapter));
         if (expectedSupplyAfter > expectedSupplyBefore) vm.expectRevert(stdError.arithmeticError);
-        (bytes32[] memory ids, uint256 loss) = parentVault.realizeLossMocked(address(adapter), abi.encode(marketParams));
+        (bytes32[] memory ids, uint256 allocationLoss, uint256 assetLoss) =
+            parentVault.realizeLossMocked(address(adapter), abi.encode(marketParams));
         if (_loss >= interest) {
             assertEq(ids, expectedIds, "ids");
-            assertEq(loss, _loss - interest, "loss");
+            assertEq(allocationLoss, _loss - interest, "allocationLoss");
+            assertEq(assetLoss, _loss - interest, "assetLoss");
             assertApproxEqAbs(adapter.allocation(marketParams), deposit - _loss + interest, 1, "allocation");
         }
     }

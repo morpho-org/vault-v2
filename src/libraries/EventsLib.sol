@@ -34,7 +34,12 @@ library EventsLib {
 
     // Loss realization events
     event RealizeLoss(
-        address indexed sender, address indexed adapter, bytes32[] ids, uint256 loss, uint256 incentiveShares
+        address indexed sender,
+        address indexed adapter,
+        bytes32[] ids,
+        uint256 allocationLoss,
+        uint256 assetLoss,
+        uint256 incentiveShares
     );
 
     // Fee and interest events
