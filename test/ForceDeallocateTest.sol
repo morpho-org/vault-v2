@@ -57,32 +57,11 @@ contract ForceDeallocateTest is BaseTest {
         assertEq(adapter.recordedSender(), address(this));
         assertEq(shares - expectedShares, withdrawnShares);
         assertEq(underlyingToken.balanceOf(address(adapter)), supplied - deallocated);
-        assertEq(underlyingToken.balanceOf(address(vault)), deallocated);
+        assertEq(underlyingToken.balanceOf(address(vault)), deallocated - penaltyAssets);
         assertEq(vault.balanceOf(address(this)), expectedShares);
 
-        vault.withdraw(min(deallocated, vault.previewRedeem(expectedShares)), address(this), address(this));
-    }
-
-    function testForceDeallocateWithBlockedVault() public {
-        address gate = makeAddr("gate");
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setReceiveAssetsGate, (gate)));
-        vault.setReceiveAssetsGate(gate);
-        vm.mockCall(gate, abi.encodeCall(IReceiveAssetsGate.canReceiveAssets, (address(vault))), abi.encode(false));
-
-        uint256 penalty = 0.01e18; // 1% penalty
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(adapter), penalty)));
-        vault.setForceDeallocatePenalty(address(adapter), penalty);
-
-        // Deposit some assets
-        deal(address(underlyingToken), address(this), 1000);
-        underlyingToken.approve(address(vault), 1000);
-        vault.deposit(1000, address(this));
-        vm.prank(allocator);
-        vault.allocate(address(adapter), hex"", 1000);
-
-        // Force deallocate goes through even though the gate returns false for the vault address
-        vault.forceDeallocate(address(adapter), hex"", 100, address(this));
+        vault.withdraw(
+            min(deallocated - penaltyAssets, vault.previewRedeem(expectedShares)), address(this), address(this)
+        );
     }
 }

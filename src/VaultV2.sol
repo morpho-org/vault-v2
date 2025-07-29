@@ -12,6 +12,8 @@ import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
 
+import {console} from "forge-std/console.sol";
+
 /// ERC4626
 /// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension). Though the vault has a non
 /// conventional behaviour on max functions: they always return zero.
@@ -203,7 +205,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function totalAssets() external view returns (uint256) {
-        (uint256 newTotalAssets,,) = accrueInterestView();
+        (uint256 newTotalAssets,,,) = accrueInterestView();
         return newTotalAssets;
     }
 
@@ -542,32 +544,27 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE FUNCTIONS */
 
     function accrueInterest() public {
-        if (lastUpdate != block.timestamp) {
-            (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
-            emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
-            _totalAssets = newTotalAssets.toUint192();
-            if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
-            if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
-            lastUpdate = uint64(block.timestamp);
-        }
+        (uint256 newTotalAssets, uint256 loss, uint256 performanceFeeShares, uint256 managementFeeShares) =
+            accrueInterestView();
+        emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
+        _totalAssets = newTotalAssets.toUint192();
+        if (loss > 0) enterBlocked = true;
+        if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
+        if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
+        lastUpdate = uint64(block.timestamp);
         if (firstTotalAssets == 0) firstTotalAssets = _totalAssets;
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     /// @dev The performance and management fees are taken even if the vault incurs some losses.
-    function accrueInterestView() public view returns (uint256, uint256, uint256) {
-        uint256 elapsed = block.timestamp - lastUpdate;
-        if (elapsed == 0) return (_totalAssets, 0, 0);
-
-        uint256 realAssets = IERC20(asset).balanceOf(address(this));
+    function accrueInterestView() public view returns (uint256, uint256, uint256, uint256) {
+        uint256 newTotalAssets = IERC20(asset).balanceOf(address(this));
         for (uint256 i = 0; i < adapters.length; i++) {
-            realAssets += IAdapter(adapters[i]).totalAssetsNoLoss();
+            newTotalAssets += IAdapter(adapters[i]).totalAssets();
         }
-        uint256 tentativeInterest = (realAssets - _totalAssets);
-        uint256 maxInterest = uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) * elapsed;
-        uint256 interest = tentativeInterest <= maxInterest ? tentativeInterest : 0;
-        uint256 newTotalAssets = _totalAssets + interest;
+        uint256 loss = _totalAssets.zeroFloorSub(newTotalAssets);
+        uint256 interest = newTotalAssets.zeroFloorSub(_totalAssets);
 
         // The performance fee assets may be rounded down to 0 if interest * fee < WAD.
         uint256 performanceFeeAssets = interest > 0 && performanceFee > 0 && canReceiveShares(performanceFeeRecipient)
@@ -576,7 +573,7 @@ contract VaultV2 is IVaultV2 {
         // The management fee is taken on newTotalAssets to make all approximations consistent (interacting less
         // increases fees).
         uint256 managementFeeAssets = managementFee > 0 && canReceiveShares(managementFeeRecipient)
-            ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD)
+            ? (newTotalAssets * (block.timestamp - lastUpdate)).mulDivDown(managementFee, WAD)
             : 0;
 
         // Interest should be accrued at least every 10 years to avoid fees exceeding total assets.
@@ -586,33 +583,33 @@ contract VaultV2 is IVaultV2 {
         uint256 managementFeeShares =
             managementFeeAssets.mulDivDown(totalSupply + virtualShares, newTotalAssetsWithoutFees + 1);
 
-        return (newTotalAssets, performanceFeeShares, managementFeeShares);
+        return (newTotalAssets, loss, performanceFeeShares, managementFeeShares);
     }
 
     /// @dev Returns previewed minted shares.
     function previewDeposit(uint256 assets) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets,, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return assets.mulDivDown(newTotalSupply + virtualShares, newTotalAssets + 1);
     }
 
     /// @dev Returns previewed deposited assets.
     function previewMint(uint256 shares) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets,, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivUp(newTotalAssets + 1, newTotalSupply + virtualShares);
     }
 
     /// @dev Returns previewed redeemed shares.
     function previewWithdraw(uint256 assets) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets,, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return assets.mulDivUp(newTotalSupply + virtualShares, newTotalAssets + 1);
     }
 
     /// @dev Returns previewed withdrawn assets.
     function previewRedeem(uint256 shares) public view returns (uint256) {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets,, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + virtualShares);
     }
@@ -735,43 +732,9 @@ contract VaultV2 is IVaultV2 {
     {
         bytes32[] memory ids = deallocateInternal(adapter, data, assets);
         uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
-        uint256 penaltyShares = withdraw(penaltyAssets, address(this), onBehalf);
+        uint256 penaltyShares = withdraw(penaltyAssets, owner, onBehalf); // temporary solution
         emit EventsLib.ForceDeallocate(msg.sender, adapter, assets, onBehalf, ids, penaltyAssets);
         return penaltyShares;
-    }
-
-    /// @dev For small losses, the incentive could be null because of rounding.
-    /// @dev The incentive will be null if the msg.sender isn't allowed to receive shares.
-    /// @dev Returns incentiveShares, loss.
-    function realizeLoss(address adapter, bytes memory data) external returns (uint256, uint256) {
-        require(isAdapter[adapter], ErrorsLib.NotAdapter());
-
-        accrueInterest();
-
-        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).realizeLoss(data, msg.sig, msg.sender);
-
-        uint256 incentiveShares;
-        if (loss > 0) {
-            // Safe cast because the result is at most totalAssets.
-            _totalAssets = uint192(_totalAssets.zeroFloorSub(loss));
-
-            if (canReceiveShares(msg.sender)) {
-                uint256 tentativeIncentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
-                incentiveShares = tentativeIncentive.mulDivDown(
-                    totalSupply + virtualShares, uint256(_totalAssets).zeroFloorSub(tentativeIncentive) + 1
-                );
-                createShares(msg.sender, incentiveShares);
-            }
-
-            for (uint256 i; i < ids.length; i++) {
-                caps[ids[i]].allocation -= loss;
-            }
-
-            enterBlocked = true;
-        }
-
-        emit EventsLib.RealizeLoss(msg.sender, adapter, ids, loss, incentiveShares);
-        return (incentiveShares, loss);
     }
 
     /* ERC20 FUNCTIONS */

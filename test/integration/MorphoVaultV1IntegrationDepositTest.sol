@@ -67,21 +67,11 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
         assertEq(
             morphoVaultV1.balanceOf(address(morphoVaultV1Adapter)), previousAdapterShares, "adapter shares balance"
         );
-        assertEq(vault.totalAssets(), previousVaultTotalAssets + roundedDeposit, "vault total assets");
+        assertEq(vault.totalAssets(), previousVaultTotalAssets, "vault total assets");
         assertEq(
             morphoVaultV1Adapter.allocation(),
             previousAdapterTrackedAllocation + roundedDeposit,
             "Morpho Vault v1 Adapter tracked allocation"
-        );
-
-        // Check rounding is realizable
-        vault.realizeLoss(address(morphoVaultV1Adapter), "");
-
-        assertEq(vault.totalAssets(), previousVaultTotalAssets, "vault total assets, after");
-        assertEq(
-            morphoVaultV1Adapter.allocation(),
-            previousAdapterTrackedAllocation,
-            "Morpho Vault v1 Adapter tracked allocation, after"
         );
     }
 
@@ -126,16 +116,8 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
         assertEq(
             morphoVaultV1.balanceOf(address(morphoVaultV1Adapter)), previousAdapterShares - 1, "adapter shares balance"
         );
-        assertEq(vault.totalAssets(), previousVaultTotalAssets - roundedWithdraw, "total assets");
+        assertEq(vault.totalAssets(), previousVaultTotalAssets - donationFactor, "total assets");
         assertEq(morphoVaultV1Adapter.allocation(), previousAdapterTrackedAllocation - roundedWithdraw, "allocation");
-
-        // Check rounding is realizable
-        vault.realizeLoss(address(morphoVaultV1Adapter), "");
-
-        assertEq(vault.totalAssets(), previousVaultTotalAssets - donationFactor, "total assets, after");
-        assertEq(
-            morphoVaultV1Adapter.allocation(), previousAdapterTrackedAllocation - donationFactor, "allocation, after"
-        );
     }
 
     function testDepositLiquidityAdapterCanFail(uint256 assets) public {

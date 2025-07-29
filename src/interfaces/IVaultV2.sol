@@ -91,13 +91,10 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function accrueInterestView()
         external
         view
-        returns (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares);
+        returns (uint256 newTotalAssets, uint256 loss, uint256 performanceFeeShares, uint256 managementFeeShares);
 
     // Force deallocate
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256 penaltyShares);
-
-    // Realize loss
-    function realizeLoss(address adapter, bytes memory data) external returns (uint256 incentiveShares, uint256 loss);
 }

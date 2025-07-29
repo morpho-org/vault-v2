@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Morpho Association
 
 methods {
-    function _.totalAssetNoLoss(uint256, uint256) external => CONSTANT;
+    function _.totalAsset(uint256, uint256) external => CONSTANT;
     function _.canReceiveShares(address) external => CONSTANT;
 }
 

@@ -5,6 +5,8 @@ pragma solidity ^0.8.0;
 import "./BaseTest.sol";
 
 contract ViewFunctionsTest is BaseTest {
+    using MathLib for uint256;
+
     uint256 MAX_TEST_ASSETS;
 
     address performanceFeeRecipient = makeAddr("performanceFeeRecipient");
@@ -91,7 +93,7 @@ contract ViewFunctionsTest is BaseTest {
         uint256 initialDeposit;
         uint256 performanceFee;
         uint256 managementFee;
-        uint256 interestPerSecond;
+        uint256 interest;
         uint256 assets;
         uint256 elapsed;
     }
@@ -101,9 +103,8 @@ contract ViewFunctionsTest is BaseTest {
         data.performanceFee = bound(data.performanceFee, 0, MAX_PERFORMANCE_FEE);
         data.managementFee = bound(data.managementFee, 0, MAX_MANAGEMENT_FEE);
         data.elapsed = uint64(bound(data.elapsed, 0, 10 * 365 days));
-        if (data.elapsed != 0) {
-            data.interestPerSecond = bound(data.interestPerSecond, 0, MAX_TEST_ASSETS / data.elapsed);
-        }
+        data.interest =
+            bound(data.interest, 0, (data.initialDeposit * data.elapsed).mulDivDown(MAX_RATE_PER_SECOND, WAD));
 
         vault.deposit(data.initialDeposit, address(this));
 
@@ -114,11 +115,12 @@ contract ViewFunctionsTest is BaseTest {
         vault.setPerformanceFee(data.performanceFee);
         vault.setManagementFee(data.managementFee);
 
-        adapter.setInterestPerSecond(data.interestPerSecond);
+        adapter.setInterest(data.interest);
 
         skip(data.elapsed);
 
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = vault.accrueInterestView();
+        (uint256 newTotalAssets,, uint256 performanceFeeShares, uint256 managementFeeShares) =
+            vault.accrueInterestView();
 
         return (newTotalAssets, vault.totalSupply() + performanceFeeShares + managementFeeShares);
     }

@@ -55,19 +55,18 @@ contract AccrueInterestTest is BaseTest {
         uint256 deposit,
         uint256 performanceFee,
         uint256 managementFee,
-        uint256 interestPerSecond,
+        uint256 interest,
         uint256 elapsed
     ) public {
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
-        interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        interestPerSecond = bound(interestPerSecond, 0, type(uint96).max);
         elapsed = bound(elapsed, 0, 10 * 365 days);
+        interest = bound(interest, 0, (deposit * elapsed).mulDivDown(MAX_RATE_PER_SECOND, WAD));
 
         // Setup.
         vm.prank(allocator);
-        adapter.setInterestPerSecond(interestPerSecond);
+        adapter.setInterest(interest);
         vm.startPrank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));
         vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (managementFee)));
@@ -80,7 +79,8 @@ contract AccrueInterestTest is BaseTest {
         vm.warp(vm.getBlockTimestamp() + elapsed);
 
         // Normal path.
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = vault.accrueInterestView();
+        (uint256 newTotalAssets,, uint256 performanceFeeShares, uint256 managementFeeShares) =
+            vault.accrueInterestView();
         vault.accrueInterest();
         assertEq(newTotalAssets, vault.totalAssets());
         assertEq(performanceFeeShares, vault.balanceOf(performanceFeeRecipient));
@@ -91,15 +91,14 @@ contract AccrueInterestTest is BaseTest {
         uint256 deposit,
         uint256 performanceFee,
         uint256 managementFee,
-        uint256 interestPerSecond,
+        uint256 interest,
         uint256 elapsed
     ) public {
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
-        interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        interestPerSecond = bound(interestPerSecond, 0, type(uint96).max);
         elapsed = bound(elapsed, 1, 10 * 365 days);
+        interest = bound(interest, 0, (deposit * elapsed).mulDivDown(MAX_RATE_PER_SECOND, WAD));
 
         // Setup.
         vault.deposit(deposit, address(this));
@@ -109,15 +108,13 @@ contract AccrueInterestTest is BaseTest {
         vm.stopPrank();
         vault.setPerformanceFee(performanceFee);
         vault.setManagementFee(managementFee);
-        assertEq(adapter.totalAssetsNoLoss(), deposit, "totalAssetsNoLossBefore");
+        assertEq(adapter.totalAssets(), deposit, "totalAssetsBefore");
         vm.prank(allocator);
-        adapter.setInterestPerSecond(interestPerSecond);
+        adapter.setInterest(interest);
         vm.warp(vm.getBlockTimestamp() + elapsed);
-        assertEq(adapter.totalAssetsNoLoss(), deposit + interestPerSecond * elapsed, "totalAssetsNoLossAfter");
+        assertEq(adapter.totalAssets(), deposit + interest, "totalAssetsAfter");
 
         // Normal path.
-        assertEq(vault._totalAssets(), deposit);
-        uint256 interest = interestPerSecond * elapsed;
         uint256 totalAssets = deposit + interest;
         uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
         uint256 managementFeeAssets = (totalAssets * elapsed).mulDivDown(managementFee, WAD);
@@ -133,26 +130,20 @@ contract AccrueInterestTest is BaseTest {
         assertEq(vault.totalAssets(), totalAssets, "totalAssets");
         assertEq(vault.balanceOf(performanceFeeRecipient), performanceFeeShares, "performanceFeeShares");
         assertEq(vault.balanceOf(managementFeeRecipient), managementFeeShares, "managementFeeShares");
-
-        // Check no emit when reaccruing in same timestamp
-        vm.recordLogs();
-        vault.accrueInterest();
-        assertEq(vm.getRecordedLogs().length, 0, "should not log");
     }
 
     function testAccrueInterestFees(
         uint256 performanceFee,
         uint256 managementFee,
-        uint256 interestPerSecond,
+        uint256 interest,
         uint256 deposit,
         uint256 elapsed
     ) public {
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
-        interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        interestPerSecond = bound(interestPerSecond, 0, type(uint96).max);
         elapsed = bound(elapsed, 0, 10 * 365 days);
+        interest = bound(interest, 0, (deposit * elapsed).mulDivDown(MAX_RATE_PER_SECOND, WAD));
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));
@@ -166,11 +157,10 @@ contract AccrueInterestTest is BaseTest {
         uint256 totalAssetsBefore = vault.totalAssets();
 
         vm.prank(allocator);
-        adapter.setInterestPerSecond(interestPerSecond);
+        adapter.setInterest(interest);
 
         vm.warp(block.timestamp + elapsed);
 
-        uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = totalAssetsBefore + interest;
         uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
         uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);

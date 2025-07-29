@@ -41,18 +41,6 @@ contract AccruingFunctionsTest is BaseTest {
         vault.forceDeallocate(address(adapter), hex"", 0, address(this));
     }
 
-    function testRealizeAccruesInterest() public {
-        skip(1);
-        bytes32[] memory ids = new bytes32[](0);
-        vm.mockCall(
-            address(adapter), abi.encodeCall(IAdapter.realizeLoss, (hex"", bytes4(0), address(0))), abi.encode(ids, 1)
-        );
-
-        vm.expectEmit(false, false, false, false);
-        emit EventsLib.AccrueInterest(0, 0, 0, 0);
-        vault.realizeLoss(address(adapter), hex"");
-    }
-
     function testDepositAccruesInterest() public {
         skip(1);
         vm.expectEmit(false, false, false, false);

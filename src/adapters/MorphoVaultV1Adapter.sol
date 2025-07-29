@@ -92,14 +92,6 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         return (ids(), interest);
     }
 
-    function realizeLoss(bytes memory data, bytes4, address) external view returns (bytes32[] memory, uint256) {
-        require(data.length == 0, InvalidData());
-
-        uint256 loss = allocation() - IERC4626(morphoVaultV1).previewRedeem(shares);
-
-        return (ids(), loss);
-    }
-
     /// @dev Returns adapter's ids.
     function ids() public view returns (bytes32[] memory) {
         bytes32[] memory ids_ = new bytes32[](1);
@@ -111,11 +103,7 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         return IVaultV2(parentVault).allocation(adapterId);
     }
 
-    function totalAssetsNoLoss() external view returns (uint256) {
-        return max(IERC4626(morphoVaultV1).previewRedeem(shares), allocation());
-    }
-
-    function max(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a > b ? a : b;
+    function totalAssets() external view returns (uint256) {
+        return IERC4626(morphoVaultV1).previewRedeem(shares);
     }
 }

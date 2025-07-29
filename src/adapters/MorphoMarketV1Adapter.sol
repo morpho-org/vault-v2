@@ -150,18 +150,12 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }
 
-    function totalAssetsNoLoss() external view returns (uint256) {
-        uint256 totalAssets = 0;
+    function totalAssets() external view returns (uint256) {
+        uint256 res = 0;
         for (uint256 i = 0; i < allMarketParams.length; i++) {
-            totalAssets += max(
-                expectedSupplyAssets(allMarketParams[i], shares[allMarketParams[i].id()]),
-                allocation(allMarketParams[i])
-            );
+            res += expectedSupplyAssets(allMarketParams[i], shares[allMarketParams[i].id()]);
         }
-        return totalAssets;
-    }
 
-    function max(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a > b ? a : b;
+        return res;
     }
 }

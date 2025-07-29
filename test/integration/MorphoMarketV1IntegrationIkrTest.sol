@@ -48,11 +48,6 @@ contract MorphoMarketV1IntegrationIkrTest is MorphoMarketV1IntegrationTest {
         assertEq(vault.previewRedeem(vault.balanceOf(address(this))), assets);
     }
 
-    // The optimal number of assets to deallocate in order to IKR max.
-    function optimalDeallocateAssets(uint256 assets) internal pure returns (uint256) {
-        return assets.mulDivDown(WAD, WAD + penalty);
-    }
-
     function testCantWithdraw(uint256 assets) public {
         assets = bound(assets, MIN_IKR_TEST_ASSETS, MAX_IKR_TEST_ASSETS);
         setUpAssets(assets);
@@ -65,35 +60,33 @@ contract MorphoMarketV1IntegrationIkrTest is MorphoMarketV1IntegrationTest {
         assets = bound(assets, MIN_IKR_TEST_ASSETS, MAX_IKR_TEST_ASSETS);
         setUpAssets(assets);
 
-        uint256 deallocatedAssets = optimalDeallocateAssets(assets);
-        vm.assume(deallocatedAssets > 0);
+        uint256 penaltyAssets = assets.mulDivUp(penalty, WAD);
 
         // Normal withdraw fails
         vm.prank(allocator);
         vault.setLiquidityAdapterAndData(address(adapter), abi.encode(marketParams1));
 
         vm.expectRevert();
-        vault.withdraw(deallocatedAssets, address(this), address(this));
+        vault.withdraw(assets, address(this), address(this));
 
         // Simulate a flashloan.
-        deal(address(underlyingToken), address(this), deallocatedAssets);
+        deal(address(underlyingToken), address(this), assets);
         underlyingToken.approve(address(morpho), type(uint256).max);
-        morpho.supply(marketParams1, deallocatedAssets, 0, address(this), hex"");
-        vault.forceDeallocate(address(adapter), abi.encode(marketParams1), deallocatedAssets, address(this));
-        assertEq(vault.allocation(keccak256(expectedIdData1[2])), assets - deallocatedAssets);
+        morpho.supply(marketParams1, assets, 0, address(this), hex"");
+        vault.forceDeallocate(address(adapter), abi.encode(marketParams1), assets, address(this));
+        assertEq(vault.allocation(keccak256(expectedIdData1[2])), 0, "allocation(2)");
 
-        vault.withdraw(deallocatedAssets, address(this), address(this));
-        assertEq(vault.allocation(keccak256(expectedIdData1[2])), assets - deallocatedAssets);
+        vault.withdraw(assets - penaltyAssets, address(this), address(this));
 
         // No assets left after reimbursing the flashloan.
-        assertEq(underlyingToken.balanceOf(address(this)), deallocatedAssets);
+        assertEq(underlyingToken.balanceOf(address(this)), assets - penaltyAssets, "balanceOf(this)");
         // No assets left in the vault
         assertApproxEqAbs(underlyingToken.balanceOf(address(vault)), 0, 1);
         // No assets left as shares in the vault.
         uint256 assetsLeftInVault = vault.previewRedeem(vault.balanceOf(address(this)));
-        assertApproxEqAbs(assetsLeftInVault, 0, 1);
+        assertApproxEqAbs(assetsLeftInVault, 0, 1, "assetsLeftInVault");
         // Equivalent position in the market.
         uint256 expectedAssets = morpho.expectedSupplyAssets(marketParams1, address(this));
-        assertEq(expectedAssets, deallocatedAssets);
+        assertEq(expectedAssets, assets, "expectedAssets");
     }
 }
