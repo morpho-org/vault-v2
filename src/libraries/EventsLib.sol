@@ -7,7 +7,7 @@ library EventsLib {
     event Approval(address indexed owner, address indexed spender, uint256 shares);
     event Transfer(address indexed from, address indexed to, uint256 shares);
     /// @dev Emitted when the allowance is updated by transferFrom (not when it is updated by permit, approve, withdraw,
-    /// redeem because their respective events allow to track the allowance.
+    /// redeem because their respective events allow to track the allowance).
     event AllowanceUpdatedByTransferFrom(address indexed owner, address indexed spender, uint256 shares);
     event Permit(address indexed owner, address indexed spender, uint256 shares, uint256 nonce, uint256 deadline);
 
@@ -45,6 +45,7 @@ library EventsLib {
     // Timelock events
     event Revoke(address indexed sender, bytes4 indexed selector, bytes data);
     event Submit(bytes4 indexed selector, bytes data, uint256 executableAt);
+    event Accept(bytes4 indexed selector, bytes data);
 
     // Configuration events
     event SetOwner(address indexed newOwner);
