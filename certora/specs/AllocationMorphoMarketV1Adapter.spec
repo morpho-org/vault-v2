@@ -56,7 +56,7 @@ persistent ghost mapping(bytes32 => uint256) ghostAllocationAfter {
 }
 
 hook Sload uint256 alloc caps[KEY bytes32 id].allocation {
-    require ghostAllocationAfter[id] == alloc;
+    require (ghostAllocationAfter[id] == alloc, "require the ghost copy to be equal to the concrete value");
  }
 
 hook Sstore caps[KEY bytes32 id].allocation uint256 newAllocation (uint256 _) {
