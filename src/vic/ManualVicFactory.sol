@@ -20,7 +20,7 @@ contract ManualVicFactory is IManualVicFactory {
 
         isManualVic[vic] = true;
         manualVic[vault] = vic;
-        emit CreateManualVic(vic, vault);
+        emit CreateManualVic(vault, vic);
 
         return vic;
     }

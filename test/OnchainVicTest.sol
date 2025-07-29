@@ -76,8 +76,7 @@ contract OnchainVicTest is BaseTest {
         asset.transfer(address(morphoVaultV1), interest);
         uint256 realVaultInterest = interest * deposit / (deposit + 1); // account for the virtual share.
 
-        uint256 expectedInterestPerSecond = realVaultInterest / elapsed;
-        assertEq(onchainVic.interestPerSecond(deposit, elapsed), expectedInterestPerSecond, "interest per second");
+        assertEq(onchainVic.interest(deposit, elapsed), realVaultInterest, "interest per second");
     }
 
     function testInterestPerSecondVaultOnly(uint256 deposit, uint256 interest, uint256 elapsed) public {
@@ -89,8 +88,7 @@ contract OnchainVicTest is BaseTest {
         asset.transfer(address(morphoVaultV1), interest);
         uint256 realVaultInterest = interest * deposit / (deposit + 1); // account for the virtual share.
 
-        uint256 expectedInterestPerSecond = boundInterestPerSecond(realVaultInterest, deposit, elapsed);
-        assertEq(onchainVic.interestPerSecond(deposit, elapsed), expectedInterestPerSecond, "interest per second");
+        assertEq(onchainVic.interest(deposit, elapsed), realVaultInterest, "interest per second");
     }
 
     function testInterestPerSecondVaultOnlyWithBigInterest(uint256 deposit, uint256 interest, uint256 elapsed) public {
@@ -103,7 +101,7 @@ contract OnchainVicTest is BaseTest {
         asset.transfer(address(morphoVaultV1), interest);
         uint256 realVaultInterest = interest * deposit / (deposit + 1); // account for the virtual share.
 
-        assertLt(onchainVic.interestPerSecond(deposit, elapsed), realVaultInterest / elapsed, "interest per second");
+        assertEq(onchainVic.interest(deposit, elapsed), realVaultInterest, "interest per second");
     }
 
     function testInterestPerSecondIdleOnly(uint256 deposit, uint256 idleInterest, uint256 elapsed) public {
@@ -114,8 +112,7 @@ contract OnchainVicTest is BaseTest {
         vault.deposit(deposit, address(adapter));
         asset.transfer(address(vault), idleInterest);
 
-        uint256 expectedInterestPerSecond = boundInterestPerSecond(idleInterest, deposit, elapsed);
-        assertEq(onchainVic.interestPerSecond(deposit, elapsed), expectedInterestPerSecond, "interest per second");
+        assertEq(onchainVic.interest(deposit, elapsed), idleInterest, "interest per second");
     }
 
     function testInterestPerSecondVaultAndIdle(
@@ -134,8 +131,7 @@ contract OnchainVicTest is BaseTest {
         asset.transfer(address(vault), idleInterest);
         uint256 realVaultInterest = vaultInterest * deposit / (deposit + 1); // account for the virtual share.
 
-        uint256 expectedInterestPerSecond = boundInterestPerSecond(realVaultInterest + idleInterest, deposit, elapsed);
-        assertEq(onchainVic.interestPerSecond(deposit, elapsed), expectedInterestPerSecond, "interest per second");
+        assertEq(onchainVic.interest(deposit, elapsed), realVaultInterest + idleInterest, "interest per second");
     }
 
     function testInterestPerSecondZero(uint256 deposit, uint256 loss, uint256 elapsed) public {
@@ -147,7 +143,7 @@ contract OnchainVicTest is BaseTest {
         vm.prank(address(morphoVaultV1));
         asset.transfer(address(0xdead), loss);
 
-        assertEq(onchainVic.interestPerSecond(deposit, elapsed), 0, "interest per second");
+        assertEq(onchainVic.interest(deposit, elapsed), 0, "interest per second");
     }
 
     function testCreateOnchainVic() public {
@@ -168,15 +164,5 @@ contract OnchainVicTest is BaseTest {
         assertEq(factory.onchainVic(address(vault)), newVic, "Mapping not updated");
         assertEq(OnchainVic(newVic).parentVault(), address(vault), "Vic initialized incorrectly");
         assertEq(OnchainVic(newVic).asset(), address(asset), "Vic initialized incorrectly");
-    }
-
-    function boundInterestPerSecond(uint256 interest, uint256 totalAssets, uint256 elapsed)
-        internal
-        pure
-        returns (uint256)
-    {
-        uint256 tentativeInterestPerSecond = interest / elapsed;
-        uint256 maxInterestPerSecond = totalAssets.mulDivDown(MAX_RATE_PER_SECOND, WAD);
-        return tentativeInterestPerSecond <= maxInterestPerSecond ? tentativeInterestPerSecond : maxInterestPerSecond;
     }
 }

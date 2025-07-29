@@ -25,13 +25,11 @@ contract OnchainVic is IOnchainVic {
     }
 
     /// @dev Returns the interest per second.
-    function interestPerSecond(uint256 totalAssets, uint256 elapsed) external view returns (uint256) {
+    function interest(uint256 totalAssets, uint256) external view returns (uint256) {
         uint256 realAssets = IERC20(asset).balanceOf(parentVault);
         for (uint256 i = 0; i < IVaultV2(parentVault).adaptersLength(); i++) {
             realAssets += IAdapter(IVaultV2(parentVault).adapters(i)).totalAssetsNoLoss();
         }
-        uint256 tentativeInterestPerSecond = (realAssets - totalAssets) / elapsed;
-        uint256 maxInterestPerSecond = uint256(totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD);
-        return tentativeInterestPerSecond <= maxInterestPerSecond ? tentativeInterestPerSecond : maxInterestPerSecond;
+        return realAssets - totalAssets;
     }
 }

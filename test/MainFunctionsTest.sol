@@ -41,18 +41,17 @@ contract MainFunctionsTest is BaseTest {
         assertEq(underlyingToken.balanceOf(address(vault)), totalAssetsAfterInterest, "balanceOf(vault)");
     }
 
-    function testPostConstruction(address _owner, uint64 timestamp, address asset) public {
+    function testPostConstruction(address _owner, address asset) public {
         vm.assume(asset != address(vm));
         vm.assume(asset != CONSOLE);
         vm.mockCall(asset, IERC20.decimals.selector, abi.encode(uint8(18)));
-        vm.warp(timestamp);
 
         vm.expectEmit();
         emit EventsLib.Constructor(_owner, asset);
         VaultV2 _vault = new VaultV2(_owner, asset);
         assertEq(_vault.owner(), _owner);
         assertEq(_vault.asset(), asset);
-        assertEq(_vault.lastUpdate(), timestamp);
+        assertEq(_vault.lastUpdate(), block.timestamp);
     }
 
     function testMint(uint256 shares, address receiver) public {
