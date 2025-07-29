@@ -158,7 +158,7 @@ contract SingleMorphoVaultV1VicTest is Test {
             address(adapter), abi.encodeCall(IMorphoVaultV1Adapter.morphoVaultV1, ()), abi.encode(morphoVaultV1)
         );
         vm.expectEmit();
-        emit ISingleMorphoVaultV1VicFactory.CreateSingleMorphoVaultV1Vic(expectedVic, address(adapter));
+        emit ISingleMorphoVaultV1VicFactory.CreateSingleMorphoVaultV1Vic(address(adapter), expectedVic);
         address newVic = factory.createSingleMorphoVaultV1Vic(address(adapter));
 
         assertEq(newVic, expectedVic, "createSingleMorphoVaultV1Vic returned wrong address");

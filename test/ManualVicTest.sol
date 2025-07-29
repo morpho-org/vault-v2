@@ -232,7 +232,7 @@ contract ManualVicTest is Test {
             uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), address(vicFactory), bytes32(0), initCodeHash))))
         );
         vm.expectEmit();
-        emit IManualVicFactory.CreateManualVic(expectedManualVicAddress, _vault);
+        emit IManualVicFactory.CreateManualVic(_vault, expectedManualVicAddress);
         address newVic = vicFactory.createManualVic(_vault);
         assertEq(newVic, expectedManualVicAddress);
         assertTrue(vicFactory.isManualVic(newVic));
