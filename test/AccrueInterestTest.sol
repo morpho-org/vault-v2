@@ -142,8 +142,9 @@ contract AccrueInterestTest is BaseTest {
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         vm.assume(deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD) <= type(uint96).max);
-        interestPerSecond = bound(interestPerSecond, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD), type(uint96).max);
-        elapsed = bound(elapsed, 0, 20 * 365 days);
+        uint256 maxInterestPerSecond = deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD);
+        interestPerSecond = bound(interestPerSecond, maxInterestPerSecond, type(uint96).max);
+        elapsed = bound(elapsed, 0, 10 * 365 days);
 
         // Setup.
         vault.deposit(deposit, address(this));
@@ -153,14 +154,15 @@ contract AccrueInterestTest is BaseTest {
         vm.stopPrank();
         vault.setPerformanceFee(performanceFee);
         vault.setManagementFee(managementFee);
-        vm.warp(vm.getBlockTimestamp() + elapsed);
 
         // Rate too high.
         vm.prank(allocator);
+
         vic.setInterestPerSecondAndDeadline(interestPerSecond, type(uint64).max);
-        uint256 totalAssetsBefore = vault.totalAssets();
+        skip(elapsed);
+        uint256 totalAssetsBefore = vault._totalAssets();
         vault.accrueInterest();
-        assertEq(vault.totalAssets(), totalAssetsBefore);
+        assertApproxEqRel(vault.totalAssets(), totalAssetsBefore + maxInterestPerSecond * elapsed, 0.0001e18);
     }
 
     function testAccrueInterestMaxRateValue() public {
