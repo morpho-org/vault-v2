@@ -95,7 +95,7 @@ contract AllocateTest is BaseTest {
         increaseRelativeCap("id-1", WAD);
         vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.Allocate(allocator, adapter, allocateAssets, ids, 0);
+        emit EventsLib.Allocate(allocator, adapter, allocateAssets, ids, int256(allocateAssets));
         vault.allocate(adapter, data, allocateAssets);
         assertEq(
             underlyingToken.balanceOf(address(vault)),
@@ -200,7 +200,7 @@ contract AllocateTest is BaseTest {
         // Normal path.
         vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.Deallocate(allocator, adapter, assetsOut, ids, 0);
+        emit EventsLib.Deallocate(allocator, adapter, assetsOut, ids, -int256(assetsOut));
         vault.deallocate(adapter, data, assetsOut);
         assertEq(underlyingToken.balanceOf(address(vault)), assetsOut, "Vault balance incorrect after deallocation");
         assertEq(
@@ -246,7 +246,7 @@ contract AllocateTest is BaseTest {
         vm.prank(allocator);
         if (cap >= allocation1 + allocation2 + interest) {
             vm.expectEmit();
-            emit EventsLib.Allocate(allocator, adapter, allocation2, ids, interest);
+            emit EventsLib.Allocate(allocator, adapter, allocation2, ids, int256(allocation2) + int256(interest));
             vault.allocate(adapter, hex"", allocation2);
             assertEq(
                 vault.allocation(keccak256("id-0")),

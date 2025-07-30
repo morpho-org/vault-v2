@@ -46,32 +46,26 @@ contract AdapterMock is IAdapter {
 
     function allocate(bytes memory data, uint256 assets, bytes4 selector, address sender)
         external
-        returns (bytes32[] memory, uint256)
+        returns (bytes32[] memory, int256)
     {
         recordedAllocateData = data;
         recordedAllocateAssets = assets;
         recordedSelector = selector;
         recordedSender = sender;
         deposit += assets;
-        return (ids(), interest);
+        return (ids(), int256(assets) + int256(interest) - int256(loss));
     }
 
     function deallocate(bytes memory data, uint256 assets, bytes4 selector, address sender)
         external
-        returns (bytes32[] memory, uint256)
+        returns (bytes32[] memory, int256)
     {
         recordedDeallocateData = data;
         recordedDeallocateAssets = assets;
         recordedSelector = selector;
         recordedSender = sender;
         deposit -= assets;
-        return (ids(), interest);
-    }
-
-    function realizeLoss(bytes memory, bytes4 selector, address sender) external returns (bytes32[] memory, uint256) {
-        recordedSelector = selector;
-        recordedSender = sender;
-        return (ids(), loss);
+        return (ids(), -int256(assets) + int256(interest) - int256(loss));
     }
 
     function ids() internal view returns (bytes32[] memory) {

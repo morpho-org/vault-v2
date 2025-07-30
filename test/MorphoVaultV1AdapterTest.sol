@@ -77,13 +77,13 @@ contract MorphoVaultV1AdapterTest is Test {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
         deal(address(asset), address(adapter), assets);
 
-        (bytes32[] memory ids, uint256 interest) = parentVault.allocateMocked(address(adapter), hex"", assets);
+        (bytes32[] memory ids, int256 change) = parentVault.allocateMocked(address(adapter), hex"", assets);
 
         uint256 adapterShares = morphoVaultV1.balanceOf(address(adapter));
         assertEq(adapterShares, assets * EXCHANGE_RATE, "Incorrect share balance after deposit");
         assertEq(asset.balanceOf(address(adapter)), 0, "Underlying tokens not transferred to vault");
         assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(interest, 0, "Incorrect interest returned");
+        assertEq(change, int256(assets), "Incorrect change returned");
     }
 
     function testDeallocate(uint256 initialAssets, uint256 withdrawAssets) public {
@@ -96,7 +96,7 @@ contract MorphoVaultV1AdapterTest is Test {
         uint256 beforeShares = morphoVaultV1.balanceOf(address(adapter));
         assertEq(beforeShares, initialAssets * EXCHANGE_RATE, "Precondition failed: shares not set");
 
-        (bytes32[] memory ids, uint256 interest) = parentVault.deallocateMocked(address(adapter), hex"", withdrawAssets);
+        (bytes32[] memory ids, int256 change) = parentVault.deallocateMocked(address(adapter), hex"", withdrawAssets);
 
         assertEq(adapter.allocation(), initialAssets - withdrawAssets, "incorrect allocation");
         uint256 afterShares = morphoVaultV1.balanceOf(address(adapter));
@@ -105,7 +105,7 @@ contract MorphoVaultV1AdapterTest is Test {
         uint256 adapterBalance = asset.balanceOf(address(adapter));
         assertEq(adapterBalance, withdrawAssets, "Adapter did not receive withdrawn tokens");
         assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(interest, 0, "Incorrect interest returned");
+        assertEq(change, -int256(withdrawAssets), "Incorrect change returned");
     }
 
     function testFactoryCreateAdapter() public {
