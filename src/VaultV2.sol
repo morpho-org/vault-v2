@@ -150,7 +150,6 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Allocators can move funds between markets in the boundaries set by caps without going through timelocks. They
 /// can also set the liquidity adapter and data, which can prevent deposits and/or withdrawals (it cannot prevent
 /// "in-kind redemptions" with forceDeallocate though).
-/// @dev The owner can, at any time, swap the curator and revoke pending hurting changes via sentinels.
 /// @dev Roles are not "two-step", so anyone can give a role to anyone, but it does not mean that they will exercise it.
 ///
 /// MISC
