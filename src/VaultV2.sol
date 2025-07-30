@@ -564,7 +564,8 @@ contract VaultV2 is IVaultV2 {
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     /// @dev The performance and management fees are taken even if the vault incurs some losses.
-    function accrueInterestView() public view returns (uint256, uint256, uint256, uint256) {
+    /// @dev Both fees are rounded down, so fee recipients could receive less than expected.    
+function accrueInterestView() public view returns (uint256, uint256, uint256, uint256) {
         uint256 newTotalAssets = IERC20(asset).balanceOf(address(this));
         for (uint256 i = 0; i < adapters.length; i++) {
             newTotalAssets += IAdapter(adapters[i]).totalAssets();
@@ -725,7 +726,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns shares withdrawn as penalty.
     /// @dev When calling this function, a penalty is taken from onBehalf, in order to discourage allocation
-    /// manipulations.
+    /// manipulations. This penalty can then be distributed via the Vic.
     /// @dev The penalty is taken as a withdrawal for which assets are returned to the vault. In consequence,
     /// totalAssets is decreased normally along with totalSupply (the share price doesn't change except because of
     /// rounding errors), but the amount of assets actually controlled by the vault is not decreased.
