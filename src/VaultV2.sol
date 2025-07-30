@@ -790,7 +790,7 @@ contract VaultV2 is IVaultV2 {
         if (realAssets < _totalAssets) {
             loss = _totalAssets - realAssets;
             // Safe cast because the result is at most totalAssets.
-            _totalAssets = uint192(_totalAssets - loss);
+            _totalAssets = uint192(realAssets);
 
             if (canReceiveShares(msg.sender)) {
                 uint256 tentativeIncentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
