@@ -25,7 +25,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// INTEREST / VIC
 /// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest that must
-/// be distributed over the period (since lastUpdate).
+/// be distributed.
 /// @dev The Vic must never distribute more than what the vault is really earning.
 /// @dev The Vic might not distribute as much interest as planned if:
 /// - The Vic reverted on `setVic`.
