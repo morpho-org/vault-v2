@@ -189,4 +189,18 @@ contract OnchainVicTest is BaseTest {
         assertEq(OnchainVic(newVic).parentVault(), address(vault), "Vic initialized incorrectly");
         assertEq(OnchainVic(newVic).asset(), address(asset), "Vic initialized incorrectly");
     }
+
+    function testSetMaxRatePerSecond(uint256 maxRatePerSecond) public {
+        maxRatePerSecond = bound(maxRatePerSecond, 1, 200e16 / uint256(365 days));
+        vm.prank(curator);
+        onchainVic.setMaxRatePerSecond(maxRatePerSecond);
+        assertEq(onchainVic.maxRatePerSecond(), maxRatePerSecond, "maxRatePerSecond not set correctly");
+    }
+
+    function testSetMaxRatePerSecondLimit(uint256 maxRatePerSecond) public {
+        maxRatePerSecond = bound(maxRatePerSecond, 200e16 / uint256(365 days) + 1, type(uint).max);
+        vm.expectRevert(OnchainVic.MaxRatePerSecondLimitExceeded.selector);
+        vm.prank(curator);
+        onchainVic.setMaxRatePerSecond(maxRatePerSecond);
+    }
 }
