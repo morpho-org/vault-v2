@@ -145,7 +145,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev This invariant holds for both fees: fee != 0 => recipient != address(0).
 ///
 /// ROLES
-/// @dev The owner cannot do actions that can directly hurt depositors.
+/// @dev The owner cannot do actions that can directly hurt depositors. Though it can set the curator and sentinels.
 /// @dev The curator cannot do actions that can directly hurt depositors without going through a timelock.
 /// @dev Allocators can move funds between markets in the boundaries set by caps without going through timelocks. They
 /// can also set the liquidity adapter and data, which can prevent deposits and/or withdrawals (it cannot prevent
