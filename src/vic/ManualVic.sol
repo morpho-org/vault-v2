@@ -63,7 +63,8 @@ contract ManualVic is IManualVic {
         emit ZeroInterestPerSecondAndDeadline(msg.sender);
     }
 
-    /// @dev Returns the interest per second.
+    /// @dev Returns the interest.
+    /// @dev One asset per second might already be above the max rate for assets with high value per unit.
     function interest(uint256, uint256 elapsed) external view returns (uint256) {
         uint256 lastUpdate = block.timestamp - elapsed;
         if (block.timestamp <= deadline) {
