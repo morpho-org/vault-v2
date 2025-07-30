@@ -41,7 +41,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// _totalAssets that is passed.
 ///
 /// UNDERESTIMATED TOTAL ASSETS
-/// @dev The variable underestimatedTotalAssets is an underestimation of the current value of `_totalAssets`..
+/// @dev The variable underestimatedTotalAssets is an underestimation of the current value of _totalAssets.
+/// @dev It transiently stored to _totalAssets after accrual, and decreased similarly to _totalAssets afterwards.
 /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
 /// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
 /// for big deposits that go through the liquidity adapter.
@@ -56,7 +57,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// corresponding markets, and losses are deducted only when realized for these markets.
 /// @dev The caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
 /// @dev Relative caps are "soft" in the sense that they are only checked on allocate.
-/// @dev The relative cap is relative to totalAssets, or more precisely to underestimatedTotalAssets.
+/// @dev The relative cap is relative to underestimatedTotalAssets.
 /// @dev The relative cap unit is WAD.
 /// @dev To track allocations using events, use the Allocate and Deallocate events only.
 ///
