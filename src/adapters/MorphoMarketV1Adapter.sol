@@ -35,7 +35,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     address public skimRecipient;
     /// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
     mapping(Id => uint256) public shares;
-    MarketParams[] public allMarketParams;
+    Id[] public marketArray;
+    mapping(Id => uint256) public marketMapping;
 
     /* FUNCTIONS */
 
@@ -72,11 +73,17 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
-        if (shares[marketId] == 0 && assets > 0) allMarketParams.push(marketParams);
+        uint256 sharesBefore = shares[marketId];
+        uint256 mintedShares;
 
         if (assets > 0) {
-            (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+            (, mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
             shares[marketId] += mintedShares;
+        }
+
+        if (sharesBefore == 0 && mintedShares > 0) {
+            marketArray.push(marketId);
+            marketMapping[marketId] = marketArray.length - 1;
         }
 
         int256 change = int256(expectedSupplyAssets(marketParams, shares[marketId])) - int256(allocation(marketParams));
@@ -95,21 +102,22 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
+        uint256 sharesBefore = shares[marketId];
+        uint256 redeemedShares;
+
         if (assets > 0) {
-            (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+            (, redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
             shares[marketId] -= redeemedShares;
         }
 
         int256 change = int256(expectedSupplyAssets(marketParams, shares[marketId])) - int256(allocation(marketParams));
 
-        if (shares[marketId] == 0 && assets > 0) {
-            for (uint256 i = 0; i < allMarketParams.length; i++) {
-                if (Id.unwrap(allMarketParams[i].id()) == Id.unwrap(marketId)) {
-                    allMarketParams[i] = allMarketParams[allMarketParams.length - 1];
-                    allMarketParams.pop();
-                    break;
-                }
-            }
+        if (sharesBefore > 0 && redeemedShares == sharesBefore) {
+            uint256 position = marketMapping[marketId];
+            Id lastId = marketArray[marketArray.length - 1];
+            marketArray[position] = lastId;
+            marketMapping[lastId] = position;
+            marketArray.pop();
         }
 
         return (ids(marketParams), change);
@@ -141,8 +149,9 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     function totalAssets() external view returns (uint256) {
         uint256 _totalAssets = 0;
-        for (uint256 i = 0; i < allMarketParams.length; i++) {
-            _totalAssets += expectedSupplyAssets(allMarketParams[i], shares[allMarketParams[i].id()]);
+        for (uint256 i = 0; i < marketArray.length; i++) {
+            _totalAssets +=
+                expectedSupplyAssets(IMorpho(morpho).idToMarketParams(marketArray[i]), shares[marketArray[i]]);
         }
         return _totalAssets;
     }
