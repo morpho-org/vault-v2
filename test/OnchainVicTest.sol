@@ -88,7 +88,13 @@ contract OnchainVicTest is BaseTest {
         asset.transfer(address(morphoVaultV1), interest);
         uint256 realVaultInterest = interest * deposit / (deposit + 1); // account for the virtual share.
 
-        assertEq(onchainVic.interest(deposit, elapsed), realVaultInterest, "interest per second");
+        uint256 _interest = realVaultInterest;
+        uint256 maxInterest = (deposit * elapsed).mulDivDown(onchainVic.maxRatePerSecond(), WAD);
+        if (_interest > maxInterest) {
+            _interest = maxInterest;
+        }
+
+        assertEq(onchainVic.interest(deposit, elapsed), _interest, "interest per second");
     }
 
     function testInterestPerSecondVaultOnlyWithBigInterest(uint256 deposit, uint256 interest, uint256 elapsed) public {
@@ -101,7 +107,13 @@ contract OnchainVicTest is BaseTest {
         asset.transfer(address(morphoVaultV1), interest);
         uint256 realVaultInterest = interest * deposit / (deposit + 1); // account for the virtual share.
 
-        assertEq(onchainVic.interest(deposit, elapsed), realVaultInterest, "interest per second");
+        uint256 _interest = realVaultInterest;
+        uint256 maxInterest = (deposit * elapsed).mulDivDown(onchainVic.maxRatePerSecond(), WAD);
+        if (_interest > maxInterest) {
+            _interest = maxInterest;
+        }
+
+        assertEq(onchainVic.interest(deposit, elapsed), _interest, "interest per second");
     }
 
     function testInterestPerSecondIdleOnly(uint256 deposit, uint256 idleInterest, uint256 elapsed) public {
@@ -112,7 +124,13 @@ contract OnchainVicTest is BaseTest {
         vault.deposit(deposit, address(adapter));
         asset.transfer(address(vault), idleInterest);
 
-        assertEq(onchainVic.interest(deposit, elapsed), idleInterest, "interest per second");
+        uint256 interest = idleInterest;
+        uint256 maxInterest = (deposit * elapsed).mulDivDown(onchainVic.maxRatePerSecond(), WAD);
+        if (interest > maxInterest) {
+            interest = maxInterest;
+        }
+
+        assertEq(onchainVic.interest(deposit, elapsed), interest, "interest per second");
     }
 
     function testInterestPerSecondVaultAndIdle(
@@ -131,7 +149,13 @@ contract OnchainVicTest is BaseTest {
         asset.transfer(address(vault), idleInterest);
         uint256 realVaultInterest = vaultInterest * deposit / (deposit + 1); // account for the virtual share.
 
-        assertEq(onchainVic.interest(deposit, elapsed), realVaultInterest + idleInterest, "interest per second");
+        uint256 interest = realVaultInterest + idleInterest;
+        uint256 maxInterest = (deposit * elapsed).mulDivDown(onchainVic.maxRatePerSecond(), WAD);
+        if (interest > maxInterest) {
+            interest = maxInterest;
+        }
+
+        assertEq(onchainVic.interest(deposit, elapsed), interest, "interest per second");
     }
 
     function testInterestPerSecondZero(uint256 deposit, uint256 loss, uint256 elapsed) public {
