@@ -5,7 +5,6 @@ pragma solidity ^0.8.0;
 import {IAdapter} from "../../src/interfaces/IAdapter.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
 import {IERC20} from "../../src/interfaces/IERC20.sol";
-import "forge-std/console.sol";
 
 contract AdapterMock is IAdapter {
     address public immutable vault;
@@ -45,7 +44,6 @@ contract AdapterMock is IAdapter {
         recordedAllocateAssets = assets;
         recordedSelector = selector;
         recordedSender = sender;
-        console.log("ALLOCATE", assets, interest);
         return (ids(), int256(assets + interest));
     }
 
