@@ -11,11 +11,9 @@ jobs:
   test:
     strategy:
       fail-fast: true
-      matrix:
-        decimals: [0, 6, 8, 18, 24]
 
     runs-on: ubuntu-latest
-    name: test (${{ matrix.decimals }} decimals)
+    name: fmt
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,7 +22,5 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Run forge tests with a ${{ matrix.decimals }} decimals underlying asset
-        run: forge test -vvv
-        env:
-          DECIMALS: ${{ matrix.decimals }}
+      - name: Run forge fmt
+        run: forge fmt --check
