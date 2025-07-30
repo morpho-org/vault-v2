@@ -24,18 +24,17 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// initial deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 ///
 /// INTEREST / VIC
-/// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
-/// that must be distributed over the period (since lastUpdate).
+/// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest that must
+/// be distributed over the period (since lastUpdate).
 /// @dev The Vic must never distribute more than what the vault is really earning.
 /// @dev The Vic might not distribute as much interest as planned if:
 /// - The Vic reverted on `setVic`.
-/// - The Vic returned an interest per second that is too high (it is capped at a max rate).
+/// - The Vic returned an interest is too high (it is capped by the max rate).
 /// @dev The vault might earn more interest than expected if:
 /// - A donation in underlying has been made to the vault.
 /// - There have been some calls to forceDeallocate, and the penalty is not zero.
-/// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
-/// small vaults or small rates might not be able to accrue interest consistently and must be considered carefully.
-/// Also, for assets with very high value per unit, one interest per second might already be above the max rate.
+/// @dev Assets with high value per unit (typically low decimals), small vaults or small rates might not be able to
+/// accrue interest consistently and must be considered carefully.
 /// @dev Set the Vic to 0 to disable it (=> no interest accrual).
 /// @dev _totalAssets stores the last recorded total assets. Use totalAssets() for the updated total assets.
 /// @dev The Vic must not call totalAssets() because it will try to accrue interest, but instead use the argument

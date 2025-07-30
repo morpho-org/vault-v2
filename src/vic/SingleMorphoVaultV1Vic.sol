@@ -31,7 +31,7 @@ contract SingleMorphoVaultV1Vic is ISingleMorphoVaultV1Vic {
         asset = IERC4626(_morphoVaultV1).asset();
     }
 
-    /// @dev Returns the interest per second.
+    /// @dev Returns the interest.
     function interest(uint256 totalAssets, uint256 elapsed) external view returns (uint256) {
         uint256 realAssets = IERC4626(morphoVaultV1).previewRedeem(IMorphoVaultV1Adapter(morphoVaultV1Adapter).shares())
             + IERC20(asset).balanceOf(parentVault);
