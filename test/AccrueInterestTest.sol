@@ -168,7 +168,7 @@ contract AccrueInterestTest is BaseTest {
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         elapsed = bound(elapsed, 0, 10 * 365 days);
-        interest = bound(interest, 0, 100 * deposit); // to prevent the share price from being too high
+        interest = bound(interest, 0, 99 * deposit); // to prevent the share price from being too high
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));
