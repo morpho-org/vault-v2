@@ -14,10 +14,10 @@ contract MorphoMarketV1AdapterFactory is IMorphoMarketV1AdapterFactory {
     /* FUNCTIONS */
 
     function createMorphoMarketV1Adapter(address parentVault, address morpho) external returns (address) {
-        address _MorphoMarketV1Adapter = address(new MorphoMarketV1Adapter{salt: bytes32(0)}(parentVault, morpho));
-        morphoMarketV1Adapter[parentVault][morpho] = _MorphoMarketV1Adapter;
-        isMorphoMarketV1Adapter[_MorphoMarketV1Adapter] = true;
-        emit CreateMorphoMarketV1Adapter(parentVault, _MorphoMarketV1Adapter);
-        return _MorphoMarketV1Adapter;
+        address _morphoMarketV1Adapter = address(new MorphoMarketV1Adapter{salt: bytes32(0)}(parentVault, morpho));
+        morphoMarketV1Adapter[parentVault][morpho] = _morphoMarketV1Adapter;
+        isMorphoMarketV1Adapter[_morphoMarketV1Adapter] = true;
+        emit CreateMorphoMarketV1Adapter(parentVault, _morphoMarketV1Adapter);
+        return _morphoMarketV1Adapter;
     }
 }
