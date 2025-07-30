@@ -68,14 +68,10 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
             morphoVaultV1.balanceOf(address(morphoVaultV1Adapter)), previousAdapterShares, "adapter shares balance"
         );
         assertEq(vault.totalAssets(), previousVaultTotalAssets + roundedDeposit, "vault total assets");
-        assertEq(
-            morphoVaultV1Adapter.allocation(),
-            previousAdapterTrackedAllocation + roundedDeposit,
-            "Morpho Vault v1 Adapter tracked allocation"
-        );
+        assertEq(morphoVaultV1Adapter.allocation(), 0, "Morpho Vault v1 Adapter tracked allocation");
 
         // Check rounding is realizable
-        vault.realizeLoss(address(morphoVaultV1Adapter), "");
+        vault.resync();
 
         assertEq(vault.totalAssets(), previousVaultTotalAssets, "vault total assets, after");
         assertEq(
@@ -127,10 +123,10 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
             morphoVaultV1.balanceOf(address(morphoVaultV1Adapter)), previousAdapterShares - 1, "adapter shares balance"
         );
         assertEq(vault.totalAssets(), previousVaultTotalAssets - roundedWithdraw, "total assets");
-        assertEq(morphoVaultV1Adapter.allocation(), previousAdapterTrackedAllocation - roundedWithdraw, "allocation");
+        assertEq(morphoVaultV1Adapter.allocation(), 0, "allocation");
 
         // Check rounding is realizable
-        vault.realizeLoss(address(morphoVaultV1Adapter), "");
+        vault.resync();
 
         assertEq(vault.totalAssets(), previousVaultTotalAssets - donationFactor, "total assets, after");
         assertEq(

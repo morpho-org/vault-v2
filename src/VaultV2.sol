@@ -12,6 +12,7 @@ import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
+import "forge-std/console.sol";
 
 /// ERC4626
 /// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension). Though the vault has a
@@ -524,22 +525,24 @@ contract VaultV2 is IVaultV2 {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
+        console.log("allocating", assets);
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
-        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).allocate(data, assets, msg.sig, msg.sender);
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets, msg.sig, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
-            _caps.allocation = _caps.allocation + interest + assets;
+            _caps.allocation = _caps.allocation.zeroFloorAddInt(change);
 
             require(_caps.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
+            console.log("new allocation", _caps.allocation);
             require(
                 _caps.relativeCap == WAD || _caps.allocation <= firstTotalAssets.mulDivDown(_caps.relativeCap, WAD),
                 ErrorsLib.RelativeCapExceeded()
             );
         }
-        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, interest);
+        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, change);
     }
 
     function deallocate(address adapter, bytes memory data, uint256 assets) external {
@@ -553,16 +556,16 @@ contract VaultV2 is IVaultV2 {
     {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
             require(_caps.allocation > 0, ErrorsLib.ZeroAllocation());
-            _caps.allocation = _caps.allocation + interest - assets;
+            _caps.allocation = _caps.allocation.zeroFloorAddInt(change);
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
-        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, interest);
+        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, change);
         return ids;
     }
 
@@ -777,17 +780,21 @@ contract VaultV2 is IVaultV2 {
     /// losses do not cause issues.
     /// @dev The incentive will be null if the msg.sender isn't allowed to receive shares.
     /// @dev Returns incentiveShares, loss.
-    function realizeLoss(address adapter, bytes memory data) external returns (uint256, uint256) {
-        require(isAdapter[adapter], ErrorsLib.NotAdapter());
-
+    function resync() external returns (uint256, uint256) {
         accrueInterest();
 
-        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).realizeLoss(data, msg.sig, msg.sender);
+        uint256 realAssets = IERC20(asset).balanceOf(address(this));
+        for (uint256 i = 0; i < adapters.length; i++) {
+            realAssets += IAdapter(adapters[i]).totalAssets();
+        }
 
         uint256 incentiveShares;
-        if (loss > 0) {
+        uint256 loss;
+        if (realAssets < _totalAssets) {
+            loss = _totalAssets - realAssets;
+            console.log("vaultv2: loss", loss);
             // Safe cast because the result is at most totalAssets.
-            _totalAssets = uint192(_totalAssets.zeroFloorSub(loss));
+            _totalAssets = uint192(_totalAssets - loss);
 
             if (canReceiveShares(msg.sender)) {
                 uint256 tentativeIncentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
@@ -796,15 +803,10 @@ contract VaultV2 is IVaultV2 {
                 );
                 createShares(msg.sender, incentiveShares);
             }
-
-            for (uint256 i; i < ids.length; i++) {
-                caps[ids[i]].allocation -= loss;
-            }
-
             enterBlocked = true;
         }
 
-        emit EventsLib.RealizeLoss(msg.sender, adapter, ids, loss, incentiveShares);
+        emit EventsLib.Resync(msg.sender, loss, incentiveShares);
         return (incentiveShares, loss);
     }
 

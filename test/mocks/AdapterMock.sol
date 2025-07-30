@@ -5,13 +5,14 @@ pragma solidity ^0.8.0;
 import {IAdapter} from "../../src/interfaces/IAdapter.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
 import {IERC20} from "../../src/interfaces/IERC20.sol";
+import "forge-std/console.sol";
 
 contract AdapterMock is IAdapter {
     address public immutable vault;
 
     bytes32[] public _ids;
     uint256 public interest;
-    uint256 public loss;
+    uint256 public totalAssets;
 
     bytes public recordedAllocateData;
     uint256 public recordedAllocateAssets;
@@ -36,36 +37,27 @@ contract AdapterMock is IAdapter {
         interest = _interest;
     }
 
-    function setLoss(uint256 _loss) external {
-        loss = _loss;
-    }
-
     function allocate(bytes memory data, uint256 assets, bytes4 selector, address sender)
         external
-        returns (bytes32[] memory, uint256)
+        returns (bytes32[] memory, int256)
     {
         recordedAllocateData = data;
         recordedAllocateAssets = assets;
         recordedSelector = selector;
         recordedSender = sender;
-        return (ids(), interest);
+        console.log("ALLOCATE", assets, interest);
+        return (ids(), int256(assets + interest));
     }
 
     function deallocate(bytes memory data, uint256 assets, bytes4 selector, address sender)
         external
-        returns (bytes32[] memory, uint256)
+        returns (bytes32[] memory, int256)
     {
         recordedDeallocateData = data;
         recordedDeallocateAssets = assets;
         recordedSelector = selector;
         recordedSender = sender;
-        return (ids(), interest);
-    }
-
-    function realizeLoss(bytes memory, bytes4 selector, address sender) external returns (bytes32[] memory, uint256) {
-        recordedSelector = selector;
-        recordedSender = sender;
-        return (ids(), loss);
+        return (ids(), -int256(assets) + int256(interest));
     }
 
     function ids() internal view returns (bytes32[] memory) {
@@ -74,5 +66,9 @@ contract AdapterMock is IAdapter {
 
     function totalAssetsNoLoss() external pure returns (uint256) {
         return 0;
+    }
+
+    function setTotalAssets(uint256 _totalAssets) external {
+        totalAssets = _totalAssets;
     }
 }

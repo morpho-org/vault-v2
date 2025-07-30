@@ -189,7 +189,7 @@ contract GatingTest is BaseTest {
         vault.deposit(deposit, address(this));
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", deposit);
-        adapter.setLoss(expectedLoss);
+        adapter.setTotalAssets(deposit - expectedLoss);
 
         setGate();
         vm.mockCall(gate, abi.encodeCall(ISharesGate.canReceiveShares, (realizer)), abi.encode(canReceiveShares));
@@ -203,7 +203,10 @@ contract GatingTest is BaseTest {
 
         // Realize the loss.
         vm.prank(realizer);
-        vault.realizeLoss(address(adapter), hex"");
+        vault.resync();
+
+        console.log("vault.balance()", underlyingToken.balanceOf(address(vault)));
+        console.log("expected loss", expectedLoss);
 
         if (canReceiveShares) {
             assertEq(vault.balanceOf(realizer), incentiveShares);

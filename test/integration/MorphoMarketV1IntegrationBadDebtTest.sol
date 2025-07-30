@@ -61,8 +61,10 @@ contract MorphoMarketV1IntegrationBadDebtTest is MorphoMarketV1IntegrationTest {
         );
         morpho.liquidate(marketParams2, borrower, collateralOfBorrower, 0, hex"");
 
+        uint256 allocation2Before = vault.allocation(keccak256(expectedIdData2[2]));
+
         vm.prank(address(0x123));
-        vault.realizeLoss(address(adapter), abi.encode(marketParams2));
+        vault.resync();
 
         assertEq(vault.totalAssets(), initialInMarket1, "totalAssets() != initialInMarket1");
         assertApproxEqAbs(
@@ -77,7 +79,12 @@ contract MorphoMarketV1IntegrationBadDebtTest is MorphoMarketV1IntegrationTest {
             1,
             "previewRedeem(0x123) != initialInMarket2 / 100"
         );
+        // Allocation did not change in either market
         assertEq(vault.allocation(keccak256(expectedIdData1[2])), initialInMarket1, "allocation(1) != initialInMarket1");
-        assertEq(vault.allocation(keccak256(expectedIdData2[2])), 0, "allocation(2) != 0");
+        assertEq(
+            vault.allocation(keccak256(expectedIdData2[2])),
+            allocation2Before,
+            "allocation(2) after != allocation(2) before"
+        );
     }
 }

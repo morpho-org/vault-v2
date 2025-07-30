@@ -64,42 +64,31 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the interest accrued.
-    function allocate(bytes memory data, uint256 assets, bytes4, address)
-        external
-        returns (bytes32[] memory, uint256)
-    {
+    function allocate(bytes memory data, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 interest = IERC4626(morphoVaultV1).previewRedeem(shares).zeroFloorSub(allocation());
-
         if (assets > 0) shares += IERC4626(morphoVaultV1).deposit(assets, address(this));
 
-        return (ids(), interest);
+        int256 change = int256(IERC4626(morphoVaultV1).previewRedeem(shares)) - int256(allocation());
+
+        return (ids(), change);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the interest accrued.
     function deallocate(bytes memory data, uint256 assets, bytes4, address)
         external
-        returns (bytes32[] memory, uint256)
+        returns (bytes32[] memory, int256)
     {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 interest = IERC4626(morphoVaultV1).previewRedeem(shares).zeroFloorSub(allocation());
-
         if (assets > 0) shares -= IERC4626(morphoVaultV1).withdraw(assets, address(this), address(this));
 
-        return (ids(), interest);
-    }
+        int256 change = int256(IERC4626(morphoVaultV1).previewRedeem(shares)) - int256(allocation());
 
-    function realizeLoss(bytes memory data, bytes4, address) external view returns (bytes32[] memory, uint256) {
-        require(data.length == 0, InvalidData());
-
-        uint256 loss = allocation() - IERC4626(morphoVaultV1).previewRedeem(shares);
-
-        return (ids(), loss);
+        return (ids(), change);
     }
 
     /// @dev Returns adapter's ids.
@@ -113,8 +102,8 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         return IVaultV2(parentVault).allocation(adapterId);
     }
 
-    function totalAssetsNoLoss() external view returns (uint256) {
-        return max(IERC4626(morphoVaultV1).previewRedeem(shares), allocation());
+    function totalAssets() external view returns (uint256) {
+        return IERC4626(morphoVaultV1).previewRedeem(shares);
     }
 
     function max(uint256 a, uint256 b) internal pure returns (uint256) {
