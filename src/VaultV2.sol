@@ -12,7 +12,6 @@ import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
-import "forge-std/console.sol";
 
 /// ERC4626
 /// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension). Though the vault has a
@@ -525,7 +524,6 @@ contract VaultV2 is IVaultV2 {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
         accrueInterest();
-        console.log("allocating", assets);
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets, msg.sig, msg.sender);
@@ -536,7 +534,6 @@ contract VaultV2 is IVaultV2 {
 
             require(_caps.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
-            console.log("new allocation", _caps.allocation);
             require(
                 _caps.relativeCap == WAD || _caps.allocation <= firstTotalAssets.mulDivDown(_caps.relativeCap, WAD),
                 ErrorsLib.RelativeCapExceeded()
@@ -792,7 +789,6 @@ contract VaultV2 is IVaultV2 {
         uint256 loss;
         if (realAssets < _totalAssets) {
             loss = _totalAssets - realAssets;
-            console.log("vaultv2: loss", loss);
             // Safe cast because the result is at most totalAssets.
             _totalAssets = uint192(_totalAssets - loss);
 
