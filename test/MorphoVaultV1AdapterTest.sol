@@ -184,19 +184,19 @@ contract MorphoVaultV1AdapterTest is Test {
         adapter.skim(address(morphoVaultV1));
     }
 
-    function testTotalAssets(uint256 allocated) public {
+    function testRealAssets(uint256 allocated) public {
         allocated = bound(allocated, 1, MAX_TEST_ASSETS);
 
         deal(address(asset), address(adapter), allocated);
         vm.prank(address(parentVault));
         adapter.allocate("", allocated, bytes4(0), address(0));
 
-        assertEq(adapter.totalAssets(), allocated, "Total assets not set correctly");
+        assertEq(adapter.realAssets(), allocated, "Total assets not set correctly");
 
         vm.prank(address(parentVault));
         adapter.deallocate("", allocated, bytes4(0), address(0));
 
-        assertEq(adapter.totalAssets(), 0, "Total assets not reduced correctly");
+        assertEq(adapter.realAssets(), 0, "Total assets not reduced correctly");
     }
 
     function testIds() public view {

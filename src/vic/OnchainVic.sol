@@ -13,16 +13,13 @@ contract OnchainVic is IOnchainVic {
     using MathLib for uint256;
 
     /* EVENTS */
-    event SetMaxRatePerSecond(uint256 maxRatePerSecond);
 
-    /* ERRORS */
-    error MaxRatePerSecondLimitExceeded();
+    event SetMaxRatePerSecond(uint256 maxRatePerSecond);
 
     /* IMMUTABLES */
 
     address public immutable parentVault;
     address public immutable asset;
-    uint256 public maxRatePerSecondLimit;
 
     /* STATE VARIABLES */
 
@@ -33,25 +30,19 @@ contract OnchainVic is IOnchainVic {
     constructor(address _parentVault) {
         parentVault = _parentVault;
         asset = IVaultV2(parentVault).asset();
-        maxRatePerSecondLimit = 200e16 / uint256(365 days); // 200% APR
         maxRatePerSecond = 200e16 / uint256(365 days); // 200% APR
     }
 
     /// @dev Returns the interest per second.
     function interest(uint256 totalAssets, uint256 elapsed) external view returns (uint256) {
-        uint256 realAssets = IERC20(asset).balanceOf(parentVault);
-        for (uint256 i = 0; i < IVaultV2(parentVault).adaptersLength(); i++) {
-            realAssets += IAdapter(IVaultV2(parentVault).adapters(i)).totalAssets();
-        }
+        uint256 realAssets = IVaultV2(parentVault).realAssets();
         uint256 _interest = realAssets.zeroFloorSub(totalAssets);
         uint256 maxInterest = (totalAssets * elapsed).mulDivDown(maxRatePerSecond, WAD);
-        if (_interest > maxInterest) _interest = maxInterest;
-        return _interest;
+        return MathLib.min(_interest, maxInterest);
     }
 
     function setMaxRatePerSecond(uint256 _maxRatePerSecond) external {
         require(msg.sender == IVaultV2(parentVault).curator());
-        require(_maxRatePerSecond <= maxRatePerSecondLimit, MaxRatePerSecondLimitExceeded());
         maxRatePerSecond = _maxRatePerSecond;
         emit SetMaxRatePerSecond(_maxRatePerSecond);
     }

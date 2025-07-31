@@ -11,7 +11,7 @@ contract AdapterMock is IAdapter {
 
     bytes32[] public _ids;
     uint256 public interest;
-    uint256 public totalAssets;
+    uint256 public realAssets;
 
     bytes public recordedAllocateData;
     uint256 public recordedAllocateAssets;
@@ -62,11 +62,7 @@ contract AdapterMock is IAdapter {
         return _ids;
     }
 
-    function totalAssetsNoLoss() external pure returns (uint256) {
-        return 0;
-    }
-
-    function setTotalAssets(uint256 _totalAssets) external {
-        totalAssets = _totalAssets;
+    function setRealAssets(uint256 _realAssets) external {
+        realAssets = _realAssets;
     }
 }

@@ -46,7 +46,7 @@ contract ResyncTest is BaseTest {
         vault.deposit(deposit, address(this));
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", deposit);
-        adapter.setTotalAssets(deposit - expectedLoss);
+        adapter.setRealAssets(deposit - expectedLoss);
 
         // Realize the loss.
         uint256 sharesBefore = vault.balanceOf(address(this));
@@ -66,7 +66,7 @@ contract ResyncTest is BaseTest {
         vault.deposit(deposit, address(this));
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", deposit);
-        adapter.setTotalAssets(deposit - expectedLoss);
+        adapter.setRealAssets(deposit - expectedLoss);
 
         // Account the loss.
         vm.prank(allocator);
@@ -92,7 +92,7 @@ contract ResyncTest is BaseTest {
         vault.deposit(deposit, address(this));
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", deposit);
-        adapter.setTotalAssets(deposit - expectedLoss);
+        adapter.setRealAssets(deposit - expectedLoss);
 
         // Account the loss.
         vm.prank(allocator);
@@ -118,7 +118,7 @@ contract ResyncTest is BaseTest {
         vault.deposit(deposit, address(this));
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", deposit);
-        adapter.setTotalAssets(deposit - expectedLoss);
+        adapter.setRealAssets(deposit - expectedLoss);
 
         // Account the loss.
         vm.prank(allocator);
@@ -148,7 +148,7 @@ contract ResyncTest is BaseTest {
         vault.setLiquidityAdapterAndData(address(adapter), hex"");
 
         vault.deposit(deposit, address(this));
-        adapter.setTotalAssets(deposit - expectedLoss);
+        adapter.setRealAssets(deposit - expectedLoss);
 
         // Realize the loss.
         vm.prank(allocator);
@@ -178,12 +178,12 @@ contract ResyncTest is BaseTest {
         vault.deposit(deposit1, address(this));
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", deposit1);
-        adapter.setTotalAssets(deposit1 - expectedLoss1);
+        adapter.setRealAssets(deposit1 - expectedLoss1);
 
         vault.deposit(deposit2, address(this));
         vm.prank(allocator);
         vault.allocate(address(adapter2), hex"", deposit2);
-        adapter2.setTotalAssets(deposit2 - expectedLoss2);
+        adapter2.setRealAssets(deposit2 - expectedLoss2);
 
         deal(address(underlyingToken), address(vault), discoveredBalance);
 
