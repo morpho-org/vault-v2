@@ -41,6 +41,7 @@ rule adapterAlwaysReturnsTheSameIDsForSameData(Morpho.MarketParams marketParams)
 }
 
 rule matchingIdsOnAllocate(env e, uint256 amount, bytes4 selector, address sender) {
+  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
   Morpho.MarketParams marketParams;
   bytes data = Utils.marketParamsToBytes(marketParams);
   bytes32[] idsAllocate; uint256 interestAllocate;
@@ -55,6 +56,7 @@ rule matchingIdsOnAllocate(env e, uint256 amount, bytes4 selector, address sende
 }
 
 rule matchingIdsOnDeallocate(env e, uint256 amount, bytes4 selector, address sender) {
+  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
   Morpho.MarketParams marketParams;
   bytes data = Utils.marketParamsToBytes(marketParams);
   bytes32[] idsDeallocate; uint256 interestDeallocate;

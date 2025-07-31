@@ -40,6 +40,7 @@ rule adapterAlwaysReturnsTheSameIDsForSameData() {
 }
 
 rule matchingIdsOnAllocate(env e, bytes data, uint256 amount, bytes4 selector, address sender) {
+  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
   bytes32[] idsAllocate; uint256 interestAllocate;
   idsAllocate, interestAllocate = adapter.allocate(e, data, amount, selector, sender);
 
@@ -50,6 +51,7 @@ rule matchingIdsOnAllocate(env e, bytes data, uint256 amount, bytes4 selector, a
 }
 
 rule matchingIdsOnDeallocate(env e, bytes data, uint256 amount, bytes4 selector, address sender) {
+  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
   bytes32[] idsDeallocate; uint256 interestDeallocate;
   idsDeallocate, interestDeallocate = adapter.deallocate(e, data, amount, selector, sender);
 
