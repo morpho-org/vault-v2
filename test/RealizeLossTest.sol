@@ -5,6 +5,8 @@ pragma solidity ^0.8.0;
 import "./BaseTest.sol";
 
 contract RealizeLossTest is BaseTest {
+    using MathLib for uint256;
+
     AdapterMock internal adapter;
     uint256 MAX_TEST_AMOUNT;
 
@@ -61,14 +63,26 @@ contract RealizeLossTest is BaseTest {
         vault.allocate(address(adapter), hex"", deposit);
         adapter.setLoss(expectedLoss);
 
+        uint256 incentive = expectedLoss * LOSS_REALIZATION_INCENTIVE_RATIO / WAD;
+
+        if (incentive > (vault.totalAssets() - expectedLoss) / 2) {
+            incentive = (vault.totalAssets() - expectedLoss) / 2;
+        }
+
+        uint256 assetsWithoutIncentive = vault.totalAssets().zeroFloorSub(expectedLoss).zeroFloorSub(incentive) + 1;
+        uint256 expectedShares =
+            incentive * (vault.totalSupply() + VaultV2(address(vault)).virtualShares()) / assetsWithoutIncentive;
+
         // Realize the loss.
         uint256 sharesBefore = vault.balanceOf(address(this));
         bytes32[] memory emptyIds = new bytes32[](0);
         vm.expectEmit(true, true, false, false);
         emit EventsLib.RealizeLoss(address(this), address(adapter), emptyIds, 0, 0);
         (uint256 incentiveShares, uint256 loss) = vault.realizeLoss(address(adapter), hex"");
-        uint256 expectedShares = vault.balanceOf(address(this)) - sharesBefore;
-        assertEq(incentiveShares, expectedShares, "incentive shares should be equal to expected shares");
+        uint256 mintedShares = vault.balanceOf(address(this)) - sharesBefore;
+
+        assertEq(incentiveShares, mintedShares, "incentive shares should be equal to minted shares");
+        assertEq(incentiveShares, expectedShares, "incentive shares should be equal to expected incentive shares");
         assertEq(loss, expectedLoss, "loss should be equal to expected loss");
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
     }

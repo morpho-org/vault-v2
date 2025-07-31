@@ -196,6 +196,10 @@ contract GatingTest is BaseTest {
 
         // Get expected incentive shares
         uint256 tentativeIncentive = expectedLoss * LOSS_REALIZATION_INCENTIVE_RATIO / WAD;
+
+        if (tentativeIncentive > (vault.totalAssets() - expectedLoss) / 2) {
+            tentativeIncentive = (vault.totalAssets() - expectedLoss) / 2;
+        }
         uint256 assetsWithoutIncentive =
             vault.totalAssets().zeroFloorSub(expectedLoss).zeroFloorSub(tentativeIncentive) + 1;
         uint256 incentiveShares = tentativeIncentive * (vault.totalSupply() + VaultV2(address(vault)).virtualShares())
