@@ -22,6 +22,8 @@ contract ManualVic is IManualVic {
         vault = _vault;
     }
 
+    /// @dev The maximum interest per second must be at least the stored interest per second. This remains true after
+    /// the deadline has passed.
     function setMaxInterestPerSecond(uint256 newMaxInterestPerSecond) external {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
         require(newMaxInterestPerSecond >= storedInterestPerSecond, InterestPerSecondTooHigh());
@@ -61,7 +63,8 @@ contract ManualVic is IManualVic {
         emit ZeroInterestPerSecondAndDeadline(msg.sender);
     }
 
-    /// @dev Returns the interest per second.
+    /// @dev Returns the interest.
+    /// @dev One asset per second might already be above the max rate for assets with high value per unit.
     function interest(uint256, uint256 elapsed) external view returns (uint256) {
         uint256 lastUpdate = block.timestamp - elapsed;
         if (block.timestamp <= deadline) {

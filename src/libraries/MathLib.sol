@@ -45,4 +45,11 @@ library MathLib {
         require(x <= type(uint128).max, ErrorsLib.CastOverflow());
         return uint128(x);
     }
+
+    /// @dev Returns min(x, y).
+    function min(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        assembly {
+            z := xor(x, mul(xor(x, y), lt(y, x)))
+        }
+    }
 }

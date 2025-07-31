@@ -69,5 +69,7 @@ contract MathTest is Test {
 
     function zeroFloorAddInt(uint256 x, int256 y) external pure returns (uint256) {
         return MathLib.zeroFloorAddInt(x, y);
+    function testMin(uint256 x, uint256 y) public pure {
+        assertEq(MathLib.min(x, y), x < y ? x : y);
     }
 }
