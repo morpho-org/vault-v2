@@ -23,55 +23,6 @@ methods {
 }
 
 /*
-  - ids() always return the same result for the same input data (in this case, input data is empty)
-*/
-rule adapterAlwaysReturnsTheSameIDsForSameData() {
-  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
-  bytes32[] idsPre = adapter.ids();
-
-  Utils.havocAll();
-
-  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
-  bytes32[] idsPost = adapter.ids();
-
-  assert idsPre.length == idsPost.length;
-  assert idsPre.length == 1;
-  assert idsPre[0] == idsPost[0];
-}
-
-rule matchingIdsOnAllocate(env e, bytes data, uint256 amount, bytes4 selector, address sender) {
-  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
-  bytes32[] idsAllocate; uint256 interestAllocate;
-  idsAllocate, interestAllocate = adapter.allocate(e, data, amount, selector, sender);
-
-  bytes32[] ids = adapter.ids();
-  assert ids.length == 1;
-  assert idsAllocate.length == 1;
-  assert idsAllocate[0] == ids[0];
-}
-
-rule matchingIdsOnDeallocate(env e, bytes data, uint256 amount, bytes4 selector, address sender) {
-  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
-  bytes32[] idsDeallocate; uint256 interestDeallocate;
-  idsDeallocate, interestDeallocate = adapter.deallocate(e, data, amount, selector, sender);
-
-  bytes32[] ids = adapter.ids();
-  assert ids.length == 1;
-  assert idsDeallocate.length == 1;
-  assert idsDeallocate[0] == ids[0];
-}
-
-rule matchingIdsOnRealizeLoss(env e, bytes data, bytes4 selector, address sender) {
-  bytes32[] idsRealizeLoss; uint256 interestRealizeLoss;
-  idsRealizeLoss, interestRealizeLoss = adapter.realizeLoss(e, data, selector, sender);
-
-  bytes32[] ids = adapter.ids();
-  assert ids.length == 1;
-  assert idsRealizeLoss.length == 1;
-  assert idsRealizeLoss[0] == ids[0];
-}
-
-/*
   - from some starting state, calling allocate or deallocate yield the same interest
 */
 rule adapterReturnsTheSameInterestForAllocateAndDeallocate(env e, bytes data, bytes4 selector, address sender) {

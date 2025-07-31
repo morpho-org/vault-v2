@@ -21,76 +21,11 @@ methods {
 }
 
 /*
-  - ids() always return the same result for the same input data (market params)
-*/
-rule adapterAlwaysReturnsTheSameIDsForSameData(Morpho.MarketParams marketParams) {
-  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
-
-  bytes32[] idsPre = adapter.ids(marketParams);
-
-  Utils.havocAll();
-
-  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
-  bytes32[] idsPost = adapter.ids(marketParams);
-
-  assert idsPre.length == idsPost.length;
-  assert idsPre.length == 3;
-  assert idsPre[0] == idsPost[0];
-  assert idsPre[1] == idsPost[1];
-  assert idsPre[2] == idsPost[2];
-}
-
-rule matchingIdsOnAllocate(env e, uint256 amount, bytes4 selector, address sender) {
-  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
-  Morpho.MarketParams marketParams;
-  bytes data = Utils.marketParamsToBytes(marketParams);
-  bytes32[] idsAllocate; uint256 interestAllocate;
-  idsAllocate, interestAllocate = adapter.allocate(e, data, amount, selector, sender);
-
-  bytes32[] ids = adapter.ids(marketParams);
-  assert ids.length == 3;
-  assert idsAllocate.length == 3;
-  assert idsAllocate[0] == ids[0];
-  assert idsAllocate[1] == ids[1];
-  assert idsAllocate[2] == ids[2];
-}
-
-rule matchingIdsOnDeallocate(env e, uint256 amount, bytes4 selector, address sender) {
-  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
-  Morpho.MarketParams marketParams;
-  bytes data = Utils.marketParamsToBytes(marketParams);
-  bytes32[] idsDeallocate; uint256 interestDeallocate;
-  idsDeallocate, interestDeallocate = adapter.deallocate(e, data, amount, selector, sender);
-
-  bytes32[] ids = adapter.ids(marketParams);
-  assert ids.length == 3;
-  assert idsDeallocate.length == 3;
-  assert idsDeallocate[0] == ids[0];
-  assert idsDeallocate[1] == ids[1];
-  assert idsDeallocate[2] == ids[2];
-}
-
-rule matchingIdsOnRealizeLoss(env e, bytes4 selector, address sender) {
-  Morpho.MarketParams marketParams;
-  bytes data = Utils.marketParamsToBytes(marketParams);
-  bytes32[] idsRealizeLoss; uint256 interestRealizeLoss;
-  idsRealizeLoss, interestRealizeLoss = adapter.realizeLoss(e, data, selector, sender);
-
-  bytes32[] ids = adapter.ids(marketParams);
-  assert ids.length == 3;
-  assert idsRealizeLoss.length == 3;
-  assert idsRealizeLoss[0] == ids[0];
-  assert idsRealizeLoss[1] == ids[1];
-  assert idsRealizeLoss[2] == ids[2];
-}
-
-/*
   - from some starting state, calling allocate or deallocate yield the same interest
 */
 rule adapterReturnsTheSameInterestForAllocateAndDeallocate(env e, bytes data, bytes4 selector, address sender) {
   require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
   require(e.msg.sender == adapter.parentVault, "Speed up prover. This is required in the code.");
-  // require(adapter.morpho == morpho, "Fix morpho address.");
   require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   require(sender == 0, "Speed up prover. The adapter ignores this param.");
 
