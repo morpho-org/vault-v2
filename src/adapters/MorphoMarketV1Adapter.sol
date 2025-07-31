@@ -73,20 +73,19 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
-        uint256 sharesBefore = shares[marketId];
-        uint256 mintedShares;
-
         if (assets > 0) {
+            uint256 mintedShares;
             (, mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
             shares[marketId] += mintedShares;
         }
 
-        if (sharesBefore == 0 && mintedShares > 0) {
+        uint256 currentAllocation = allocation(marketParams);
+        int256 change = int256(expectedSupplyAssets(marketParams, shares[marketId])) - int256(currentAllocation);
+
+        if (currentAllocation == 0 && change > 0) {
             marketArray.push(marketId);
             marketMapping[marketId] = marketArray.length - 1;
         }
-
-        int256 change = int256(expectedSupplyAssets(marketParams, shares[marketId])) - int256(allocation(marketParams));
 
         return (ids(marketParams), change);
     }
@@ -102,17 +101,16 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
-        uint256 sharesBefore = shares[marketId];
-        uint256 redeemedShares;
-
         if (assets > 0) {
+            uint256 redeemedShares;
             (, redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
             shares[marketId] -= redeemedShares;
         }
 
-        int256 change = int256(expectedSupplyAssets(marketParams, shares[marketId])) - int256(allocation(marketParams));
+        uint256 currentSupply = expectedSupplyAssets(marketParams, shares[marketId]);
+        uint256 currentAllocation = allocation(marketParams);
 
-        if (sharesBefore > 0 && redeemedShares == sharesBefore) {
+        if (currentAllocation > 0 && currentSupply == 0) {
             uint256 position = marketMapping[marketId];
             Id lastId = marketArray[marketArray.length - 1];
             marketArray[position] = lastId;
@@ -120,6 +118,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             marketArray.pop();
         }
 
+        int256 change = int256(currentSupply) - int256(currentAllocation);
         return (ids(marketParams), change);
     }
 

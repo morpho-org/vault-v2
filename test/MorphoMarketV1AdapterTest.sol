@@ -221,6 +221,36 @@ contract MorphoMarketV1AdapterTest is Test {
         adapter.skim(address(token));
     }
 
+    function testTotalAssets(uint256 allocated1, uint256 allocated2) public {
+        allocated1 = bound(allocated1, 1, MAX_TEST_ASSETS);
+        allocated2 = bound(allocated2, 1, MAX_TEST_ASSETS);
+
+        OracleMock oracle2 = new OracleMock();
+
+        MarketParams memory marketParams2 = MarketParams({
+            loanToken: address(loanToken),
+            collateralToken: address(collateralToken),
+            irm: address(irm),
+            oracle: address(oracle2),
+            lltv: 0.8 ether
+        });
+
+        morpho.createMarket(marketParams2);
+
+        deal(address(loanToken), address(adapter), allocated1 + allocated2);
+        vm.startPrank(address(parentVault));
+        adapter.allocate(abi.encode(marketParams), allocated1, bytes4(0), address(0));
+        adapter.allocate(abi.encode(marketParams2), allocated2, bytes4(0), address(0));
+        vm.stopPrank();
+
+        assertEq(adapter.totalAssets(), allocated1 + allocated2, "Total assets not set correctly");
+
+        vm.prank(address(parentVault));
+        adapter.deallocate(abi.encode(marketParams), allocated1, bytes4(0), address(0));
+
+        assertEq(adapter.totalAssets(), allocated2, "Total assets not reduced correctly");
+    }
+
     function _overrideMarketTotalSupplyAssets(int256 change) internal {
         bytes32 marketSlot0 = keccak256(abi.encode(marketId, 3)); // 3 is the slot of the market mapping.
         bytes32 currentSlot0Value = vm.load(address(morpho), marketSlot0);
