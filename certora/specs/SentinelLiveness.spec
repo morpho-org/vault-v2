@@ -3,6 +3,8 @@
 
 using ERC20Mock as ERC20;
 
+definition max_int256() returns int256 = (2 ^ 255) - 1;
+
 methods {
     function isAdapter(address) external returns bool envfree;
     function isSentinel(address) external returns bool envfree;
@@ -11,7 +13,7 @@ methods {
     function getRelativeCap(bytes) external returns uint256 envfree;
 
     function _.deallocate(bytes, uint256 assets, bytes4, address) external =>
-        nondetDeallocateSummary(assets) expect (bytes32[], uint256);
+        nondetDeallocateSummary(assets) expect (bytes32[], int256);
     function ERC20.transferFrom(address, address, uint256) external returns bool => NONDET;
 }
 
@@ -28,15 +30,17 @@ hook Sstore caps[KEY bytes32 id].allocation uint256 newAllocation (uint256 oldAl
     ghostAllocation[id] = newAllocation;
 }
 
-function nondetDeallocateSummary(uint256 assets) returns (bytes32[], uint256) {
+function nondetDeallocateSummary(uint256 assets) returns (bytes32[], int256) {
     bytes32[] ids;
-    uint256 interest;
+    int256 change;
 
     require (forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "assume that all returned ids are unique");
-    require (forall uint256 i. i < ids.length => ghostAllocation[ids[i]] >= assets && ghostAllocation[ids[i]] > 0, "assume that assets<=allocation for all returned ids and that the allocation is positive");
-    require (forall uint256 i. i < ids.length => (ghostAllocation[ids[i]] + interest) <= max_uint256, "assume that the allocated amount plus the interest do not overflow");
+    require (forall uint256 i. i < ids.length => ghostAllocation[ids[i]] <= max_int256(), "no overflow before");
+    require (forall uint256 i. i < ids.length => ghostAllocation[ids[i]] > 0,"positive");
+    require (forall uint256 i. i < ids.length => change < 0 || ghostAllocation[ids[i]] + change <= max_uint256, "no overflow after");
+    require (forall uint256 i. i < ids.length => change >= 0 || ghostAllocation[ids[i]] >= -change, "no underflow after");
 
-    return (ids, interest);
+    return (ids, change);
 }
 
 rule sentinelCanRevoke(env e, bytes data){
