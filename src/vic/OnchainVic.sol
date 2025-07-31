@@ -30,7 +30,7 @@ contract OnchainVic is IOnchainVic {
     constructor(address _parentVault) {
         parentVault = _parentVault;
         asset = IVaultV2(parentVault).asset();
-        maxRatePerSecond = IVaultV2(parentVault).maxRatePerSecond();
+        maxRatePerSecond = MAX_RATE_PER_SECOND;
     }
 
     /// @dev Returns the interest per second.
