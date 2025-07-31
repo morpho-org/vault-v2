@@ -196,7 +196,4 @@ contract ResyncTest is BaseTest {
             "incorrect total assets"
         );
     }
-    // To test:
-    // - resync across 2 adapters
-    // - resync with donation in balance not yet accounting in total assets
 }
