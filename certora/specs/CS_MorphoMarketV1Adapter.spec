@@ -90,23 +90,23 @@ rule matchingIdsOnRealizeLoss(env e, bytes4 selector, address sender) {
 // Todo: do not assume 0 amount, and same environment for allocate and deallocate
 rule adapterReturnsTheSameInterestForAllocateAndDeallocate() {
   env e;
-  require(e.msg.sender == adapter.parentVault, "Speed up prover.");
+  require(e.msg.sender == adapter.parentVault, "Speed up prover. This is required in the code.");
   require(adapter.morpho == morpho, "Fix morpho address.");
 
   Morpho.MarketParams marketParams;
   bytes data = Utils.marketParamsToBytes(marketParams);
-  bytes4 b4;
-  require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
-  address addr;
-  require(addr == 0, "Speed up prover. The adapter ignores this param.");
+  bytes4 selector;
+  require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
+  address sender;
+  require(sender == 0, "Speed up prover. The adapter ignores this param.");
 
   storage initialState = lastStorage;
 
   bytes32[] idsAllocate; uint256 interestAllocate;
-  idsAllocate, interestAllocate = adapter.allocate(e, data, 0, b4, addr) at initialState;
+  idsAllocate, interestAllocate = adapter.allocate(e, data, 0, selector, sender) at initialState;
 
   bytes32[] idsDeallocate; uint256 interestDeallocate;
-  idsDeallocate, interestDeallocate = adapter.deallocate(e, data, 0, b4, addr) at initialState;
+  idsDeallocate, interestDeallocate = adapter.deallocate(e, data, 0, selector, sender) at initialState;
 
   assert interestAllocate == interestDeallocate;
 }
@@ -123,16 +123,16 @@ rule adapterCannotHaveInterestAndLossAtTheSameTime() {
 
   Morpho.MarketParams marketParams;
   bytes data = Utils.marketParamsToBytes(marketParams);
-  bytes4 b4;
-  require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
-  address addr;
-  require(addr == 0, "Speed up prover. The adapter ignores this param.");
+  bytes4 selector;
+  require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
+  address sender;
+  require(sender == 0, "Speed up prover. The adapter ignores this param.");
 
   bytes32[] idsAllocate; uint256 interest;
-  idsAllocate, interest = adapter.allocate(e, data, 0, b4, addr) at initial;
+  idsAllocate, interest = adapter.allocate(e, data, 0, selector, sender) at initial;
 
   bytes32[] idsRealizeLoss; uint256 loss;
-  idsRealizeLoss, loss = adapter.realizeLoss(e, data, b4, addr) at initial;
+  idsRealizeLoss, loss = adapter.realizeLoss(e, data, selector, sender) at initial;
 
   assert loss == 0 || interest == 0;
 }
@@ -148,10 +148,10 @@ rule lossIsBoundedByAllocation() {
 
   Morpho.MarketParams marketParams;
   bytes data = Utils.marketParamsToBytes(marketParams);
-  bytes4 b4;
-  require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
-  address addr;
-  require(addr == 0, "Speed up prover. The adapter ignores this param.");
+  bytes4 selector;
+  require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
+  address sender;
+  require(sender == 0, "Speed up prover. The adapter ignores this param.");
 
   bytes32[] ids = adapter.ids(marketParams);
 
@@ -159,7 +159,7 @@ rule lossIsBoundedByAllocation() {
   assert(allocation == adapter.allocation(e, marketParams));
 
   bytes32[] returnedIds; uint256 loss;
-  returnedIds, loss = adapter.realizeLoss(e, data, b4, addr);
+  returnedIds, loss = adapter.realizeLoss(e, data, selector, sender);
 
   assert loss <= allocation;
 }
@@ -180,21 +180,21 @@ rule donatingPositionsHasNoEffectOnInterest() {
   Morpho.MarketParams marketParams;
   bytes data = Utils.marketParamsToBytes(e1, marketParams);
   uint256 amount;
-  bytes4 b4;
-  require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
-  address addr;
-  require(addr == 0, "Speed up prover. The adapter ignores this param.");
+  bytes4 selector;
+  require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
+  address sender;
+  require(sender == 0, "Speed up prover. The adapter ignores this param.");
 
   storage initial = lastStorage;
 
   uint256 interestNoGift;
-  _, interestNoGift = adapter.allocate(e1, data, amount, b4, addr) at initial;
+  _, interestNoGift = adapter.allocate(e1, data, amount, selector, sender) at initial;
 
   uint256 donationAmount;
   bytes supplyData; require(supplyData.length == 0, "No callback for simplicity.");
   morpho.supply(e2, marketParams, donationAmount, 0, adapter, supplyData) at initial;// Donate to the adapter
   uint256 interestWithGift;
-  _, interestWithGift = adapter.allocate(e1, data, amount, b4, addr);
+  _, interestWithGift = adapter.allocate(e1, data, amount, selector, sender);
 
   assert interestNoGift == interestWithGift;
 }
@@ -213,21 +213,21 @@ rule donatingPositionsHasNoEffectOnLoss() {
 
   Morpho.MarketParams marketParams;
   bytes data = Utils.marketParamsToBytes(e1, marketParams);
-  bytes4 b4;
-  require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
-  address addr;
-  require(addr == 0, "Speed up prover. The adapter ignores this param.");
+  bytes4 selector;
+  require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
+  address sender;
+  require(sender == 0, "Speed up prover. The adapter ignores this param.");
 
   storage initial = lastStorage;
 
   uint256 lossNoGift;
-  _, lossNoGift = adapter.realizeLoss(e1, data, b4, addr) at initial;
+  _, lossNoGift = adapter.realizeLoss(e1, data, selector, sender) at initial;
 
   uint256 donationAmount;
   bytes supplyData; require(supplyData.length == 0, "No callback for simplicity.");
   morpho.supply(e2, marketParams, donationAmount, 0, adapter, supplyData) at initial;// Donate to the adapter
   uint256 lossWithGift;
-  _, lossWithGift = adapter.realizeLoss(e1, data, b4, addr);
+  _, lossWithGift = adapter.realizeLoss(e1, data, selector, sender);
 
   assert lossNoGift == lossWithGift;
 }

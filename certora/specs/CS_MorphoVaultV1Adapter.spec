@@ -86,16 +86,16 @@ rule adapterReturnsTheSameInterestForAllocateAndDeallocate() {
 
   bytes data;
   require(data.length == 0, "Speed up prover.");
-  bytes4 b4;
-  require(b4 == to_bytes4(0x00000000), "Speed up prover.");
-  address addr;
-  require(addr == 0, "Speed up prover.");
+  bytes4 selector;
+  require(selector == to_bytes4(0x00000000), "Speed up prover.");
+  address sender;
+  require(sender == 0, "Speed up prover.");
 
   bytes32[] idsAllocate; uint256 interestAllocate;
-  idsAllocate, interestAllocate = adapter.allocate(e, data, 0, b4, addr) at initialState;
+  idsAllocate, interestAllocate = adapter.allocate(e, data, 0, selector, sender) at initialState;
 
   bytes32[] idsDeallocate; uint256 interestDeallocate;
-  idsDeallocate, interestDeallocate = adapter.deallocate(e, data, 0, b4, addr) at initialState;
+  idsDeallocate, interestDeallocate = adapter.deallocate(e, data, 0, selector, sender) at initialState;
 
   assert interestAllocate == interestDeallocate;
 }
@@ -115,18 +115,18 @@ rule adapterCannotHaveInterestAndLossAtTheSameTime() {
 
   bytes data;
   require(data.length == 0, "Speed up prover. The adapter requires empty data.");
-  bytes4 b4;
-  require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
-  address addr;
-  require(addr == 0, "Speed up prover. The adapter ignores this param.");
+  bytes4 selector;
+  require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
+  address sender;
+  require(sender == 0, "Speed up prover. The adapter ignores this param.");
 
   storage initial = lastStorage;
 
   bytes32[] idsAllocate; uint256 interest;
-  idsAllocate, interest = adapter.allocate(e, data, 0, b4, addr) at initial;
+  idsAllocate, interest = adapter.allocate(e, data, 0, selector, sender) at initial;
 
   bytes32[] idsRealizeLoss; uint256 loss;
-  idsRealizeLoss, loss = adapter.realizeLoss(e, data, b4, addr) at initial;
+  idsRealizeLoss, loss = adapter.realizeLoss(e, data, selector, sender) at initial;
 
   assert loss == 0 || interest == 0;
 }
@@ -145,10 +145,10 @@ rule lossIsBoundedByAllocation() {
 
   bytes data;
   require(data.length == 0, "Speed up prover. The adapter requires empty data.");
-  bytes4 b4;
-  require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
-  address addr;
-  require(addr == 0, "Speed up prover. The adapter ignores this param.");
+  bytes4 selector;
+  require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
+  address sender;
+  require(sender == 0, "Speed up prover. The adapter ignores this param.");
 
   bytes32[] ids = adapter.ids();
 
@@ -156,7 +156,7 @@ rule lossIsBoundedByAllocation() {
   assert(allocation == adapter.allocation(e));
 
   bytes32[] returnedIds; uint256 loss;
-  returnedIds, loss = adapter.realizeLoss(e, data, b4, addr);
+  returnedIds, loss = adapter.realizeLoss(e, data, selector, sender);
 
   assert loss <= allocation;
 }
@@ -176,20 +176,20 @@ rule donatingPositionsHasNoEffectOnInterest() {
   require(adapter.morphoVaultV1 == metamorpho, "Fix metamorpho address.");
 
   bytes data; require(data.length == 0, "Speed up prover. The adapter ignores this param.");
-  bytes4 b4;
-  require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
-  address addr;
-  require(addr == 0, "Speed up prover. The adapter ignores this param.");
+  bytes4 selector;
+  require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
+  address sender;
+  require(sender == 0, "Speed up prover. The adapter ignores this param.");
 
   storage initial = lastStorage;
 
   uint256 interestNoGift;
-  _, interestNoGift = adapter.allocate(e1, data, 0, b4, addr) at initial;
+  _, interestNoGift = adapter.allocate(e1, data, 0, selector, sender) at initial;
 
   uint256 donationAmount;
   metamorpho.transfer(e2, adapter, donationAmount) at initial;
   uint256 interestWithGift;
-  _, interestWithGift = adapter.allocate(e1, data, 0, b4, addr);
+  _, interestWithGift = adapter.allocate(e1, data, 0, selector, sender);
 
   assert interestNoGift == interestWithGift;
 }
@@ -206,8 +206,8 @@ rule donatingPositionsHasNoEffectOnLoss() {
   require(vaultv2.asset == metamorpho._asset, "Speed up prover.");
 
   bytes data; require(data.length == 0, "Speed up prover. The adapter ignores this param.");
-  bytes4 b4; require(b4 == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
-  address addr; require(addr == 0, "Speed up prover. The adapter ignores this param.");
+  bytes4 selector; require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
+  address sender; require(sender == 0, "Speed up prover. The adapter ignores this param.");
 
   uint256 donation;
 
@@ -220,11 +220,11 @@ rule donatingPositionsHasNoEffectOnLoss() {
   assert(positionPost == positionPre + donation);
 
   uint256 interestNoGift;
-  _, interestNoGift = adapter.allocate(e1, data, 0, b4, addr) at initial;
+  _, interestNoGift = adapter.allocate(e1, data, 0, selector, sender) at initial;
 
 
   uint256 interestWithGift;
-  _, interestWithGift = adapter.allocate(e1, data, 0, b4, addr) at initalWithDonation;
+  _, interestWithGift = adapter.allocate(e1, data, 0, selector, sender) at initalWithDonation;
 
   assert interestNoGift == interestWithGift;
 }
