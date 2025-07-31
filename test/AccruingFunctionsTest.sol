@@ -104,4 +104,12 @@ contract AccruingFunctionsTest is BaseTest {
         emit EventsLib.AccrueInterest(0, 0, 0, 0);
         vault.setManagementFeeRecipient(address(0));
     }
+
+    function testSetMaxRateAccruesInterest() public {
+        skip(1);
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (MAX_MAX_RATE)));
+        vault.setMaxRate(MAX_MAX_RATE);
+        assertEq(vault.lastUpdate(), block.timestamp);
+    }
 }

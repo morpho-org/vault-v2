@@ -17,6 +17,10 @@ contract MainFunctionsTest is BaseTest {
     function setUp() public override {
         super.setUp();
 
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (MAX_MAX_RATE)));
+        vault.setMaxRate(MAX_MAX_RATE);
+
         deal(address(underlyingToken), address(this), INITIAL_DEPOSIT, true);
         underlyingToken.approve(address(vault), type(uint256).max);
 
@@ -29,6 +33,7 @@ contract MainFunctionsTest is BaseTest {
         assertEq(vault.totalSupply(), initialSharesDeposit, "totalSupply vault");
 
         // Make sure there is a rounding error.
+        skip(1); // needed since the max rate.
         deal(address(underlyingToken), address(this), 123456789);
         underlyingToken.transfer(address(vault), 123456789);
         assertNotEq((vault.totalAssets() + 1) % (vault.totalSupply() + vault.virtualShares()), 0);

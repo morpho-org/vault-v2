@@ -21,6 +21,7 @@ library ErrorsLib {
     error FeeTooHigh();
     error InfiniteTimelock();
     error InvalidSigner();
+    error MaxRateTooHigh();
     error NoCode();
     error NotAdapter();
     error PenaltyTooHigh();
