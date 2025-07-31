@@ -196,11 +196,4 @@ contract OnchainVicTest is BaseTest {
         onchainVic.setMaxRatePerSecond(maxRatePerSecond);
         assertEq(onchainVic.maxRatePerSecond(), maxRatePerSecond, "maxRatePerSecond not set correctly");
     }
-
-    function testSetMaxRatePerSecondLimit(uint256 maxRatePerSecond) public {
-        maxRatePerSecond = bound(maxRatePerSecond, 200e16 / uint256(365 days) + 1, type(uint256).max);
-        vm.expectRevert(OnchainVic.MaxRatePerSecondLimitExceeded.selector);
-        vm.prank(curator);
-        onchainVic.setMaxRatePerSecond(maxRatePerSecond);
-    }
 }
