@@ -24,18 +24,17 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// initial deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 ///
 /// INTEREST / VIC
-/// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
-/// that must be distributed over the period (since lastUpdate).
+/// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest that must
+/// be distributed.
 /// @dev The Vic must never distribute more than what the vault is really earning.
 /// @dev The Vic might not distribute as much interest as planned if:
 /// - The Vic reverted on `setVic`.
-/// - The Vic returned an interest per second that is too high (it is capped at a max rate).
+/// - The Vic returned an interest is too high (it is capped by the max rate).
 /// @dev The vault might earn more interest than expected if:
 /// - A donation in underlying has been made to the vault.
 /// - There have been some calls to forceDeallocate, and the penalty is not zero.
-/// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
-/// small vaults or small rates might not be able to accrue interest consistently and must be considered carefully.
-/// Also, for assets with very high value per unit, one interest per second might already be above the max rate.
+/// @dev Assets with high value per unit (typically low decimals), small vaults or small rates might not be able to
+/// accrue interest consistently and must be considered carefully.
 /// @dev Set the Vic to 0 to disable it (=> no interest accrual).
 /// @dev _totalAssets stores the last recorded total assets. Use totalAssets() for the updated total assets.
 /// @dev The Vic must not call totalAssets() because it will try to accrue interest, but instead use the argument
@@ -148,11 +147,18 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Fees unit is WAD.
 /// @dev This invariant holds for both fees: fee != 0 => recipient != address(0).
 ///
+/// ROLES
+/// @dev The owner cannot do actions that can directly hurt depositors. Though it can set the curator and sentinels.
+/// @dev The curator cannot do actions that can directly hurt depositors without going through a timelock.
+/// @dev Allocators can move funds between markets in the boundaries set by caps without going through timelocks. They
+/// can also set the liquidity adapter and data, which can prevent deposits and/or withdrawals (it cannot prevent
+/// "in-kind redemptions" with forceDeallocate though).
+/// @dev Roles are not "two-step", so anyone can give a role to anyone, but it does not mean that they will exercise it.
+///
 /// MISC
 /// @dev Zero checks are not systematically performed.
 /// @dev No-ops are allowed.
 /// @dev NatSpec comments are included only when they bring clarity.
-/// @dev Roles are not "two-step" so one must check if they really have this role.
 /// @dev The contract uses transient storage.
 /// @dev At creation, all settings are set to their default values. Notably, timelocks are zero (except the
 /// decreaseTimelock timelock) which is useful to set up the vault quickly. Also, there are no gates so anybody can
@@ -598,8 +604,8 @@ contract VaultV2 is IVaultV2 {
         if (elapsed == 0) return (_totalAssets, 0, 0);
 
         uint256 tentativeInterest = vic != address(0) ? IVic(vic).interest(_totalAssets, elapsed) : 0;
-        uint256 interest =
-            tentativeInterest <= (_totalAssets * elapsed).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterest : 0;
+        uint256 maxInterest = (_totalAssets * elapsed).mulDivDown(MAX_RATE_PER_SECOND, WAD);
+        uint256 interest = MathLib.min(tentativeInterest, maxInterest);
         uint256 newTotalAssets = _totalAssets + interest;
 
         // The performance fee assets may be rounded down to 0 if interest * fee < WAD.
@@ -755,7 +761,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns shares withdrawn as penalty.
     /// @dev When calling this function, a penalty is taken from onBehalf, in order to discourage allocation
-    /// manipulations.
+    /// manipulations. This penalty can then be distributed via the Vic.
     /// @dev The penalty is taken as a withdrawal for which assets are returned to the vault. In consequence,
     /// totalAssets is decreased normally along with totalSupply (the share price doesn't change except because of
     /// rounding errors), but the amount of assets actually controlled by the vault is not decreased.
