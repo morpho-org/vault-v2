@@ -21,8 +21,8 @@ library MathLib {
             z := mul(gt(x, y), sub(x, y))
         }
     }
-    /// @dev Returns max(0, x + y).
 
+    /// @dev Returns max(0, x + y).
     function zeroFloorAddInt(uint256 x, int256 y) internal pure returns (uint256 z) {
         if (y < 0) {
             assembly {

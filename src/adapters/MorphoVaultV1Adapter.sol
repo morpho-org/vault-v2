@@ -105,8 +105,4 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     function totalAssets() external view returns (uint256) {
         return IERC4626(morphoVaultV1).previewRedeem(shares);
     }
-
-    function max(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a > b ? a : b;
-    }
 }

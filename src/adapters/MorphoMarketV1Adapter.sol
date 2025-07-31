@@ -155,8 +155,4 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         }
         return _totalAssets;
     }
-
-    function max(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a > b ? a : b;
-    }
 }
