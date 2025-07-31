@@ -81,7 +81,8 @@ rule giftingUnderlyingToVaultHasNoEffectOnInterestAccrualWithManualVic() {
 
     uint256 elapsed = e3.block.timestamp > vaultv2.lastUpdate ? assert_uint256(e3.block.timestamp - vaultv2.lastUpdate) : 0;
     uint256 tentativeInterest = manualVic.interest(e3, 0, elapsed);// OK for the manual vic because it ignores the param, need to change for new VICs
-    mathint interest = tentativeInterest <= (elapsed * vaultv2._totalAssets * Utils.maxRatePerSecond()) / WAD() ? tentativeInterest : 0; // 200% apr limit
+    mathint maxInterest = (elapsed * vaultv2._totalAssets * Utils.maxRatePerSecond()) / WAD();
+    mathint interest = tentativeInterest <= maxInterest ? tentativeInterest : maxInterest; // 200% apr limit
 
     mathint totalAssetsPost = vaultv2.totalAssets(e3);
 
