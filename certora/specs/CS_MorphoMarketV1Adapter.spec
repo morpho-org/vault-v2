@@ -87,26 +87,20 @@ rule matchingIdsOnRealizeLoss(env e, bytes4 selector, address sender) {
 /*
   - from some starting state, calling allocate or deallocate yield the same interest
 */
-// Todo: do not assume 0 amount, and same environment for allocate and deallocate
-rule adapterReturnsTheSameInterestForAllocateAndDeallocate() {
-  env e;
+rule adapterReturnsTheSameInterestForAllocateAndDeallocate(env e, bytes data, bytes4 selector, address sender) {
+  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
   require(e.msg.sender == adapter.parentVault, "Speed up prover. This is required in the code.");
-  require(adapter.morpho == morpho, "Fix morpho address.");
-
-  Morpho.MarketParams marketParams;
-  bytes data = Utils.marketParamsToBytes(marketParams);
-  bytes4 selector;
+  // require(adapter.morpho == morpho, "Fix morpho address.");
   require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
-  address sender;
   require(sender == 0, "Speed up prover. The adapter ignores this param.");
 
   storage initialState = lastStorage;
 
-  bytes32[] idsAllocate; uint256 interestAllocate;
-  idsAllocate, interestAllocate = adapter.allocate(e, data, 0, selector, sender) at initialState;
+  uint256 amountAllocate; bytes32[] idsAllocate; uint256 interestAllocate;
+  idsAllocate, interestAllocate = adapter.allocate(e, data, amountAllocate, selector, sender) at initialState;
 
-  bytes32[] idsDeallocate; uint256 interestDeallocate;
-  idsDeallocate, interestDeallocate = adapter.deallocate(e, data, 0, selector, sender) at initialState;
+  uint256 amountDeallocate; bytes32[] idsDeallocate; uint256 interestDeallocate;
+  idsDeallocate, interestDeallocate = adapter.deallocate(e, data, amountDeallocate, selector, sender) at initialState;
 
   assert interestAllocate == interestDeallocate;
 }

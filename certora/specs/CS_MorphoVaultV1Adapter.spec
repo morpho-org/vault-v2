@@ -74,28 +74,20 @@ rule matchingIdsOnRealizeLoss(env e, bytes data, bytes4 selector, address sender
 /*
   - from some starting state, calling allocate or deallocate yield the same interest
 */
-// Todo: do not assume 0 amount, and same environment for allocate and deallocate
-rule adapterReturnsTheSameInterestForAllocateAndDeallocate() {
+rule adapterReturnsTheSameInterestForAllocateAndDeallocate(env e, bytes data, bytes4 selector, address sender) {
+  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
+  require(e.msg.sender == adapter.parentVault, "Speed up prover. This is required in the code.");
+  require(data.length == 0, "Speed up prover. This is required in the code.");
+  require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
+  require(sender == 0, "Speed up prover. The adapter ignores this param.");
+
   storage initialState = lastStorage;
-  env e;
-  require(e.msg.sender == adapter.parentVault, "Speed up prover.");
-  require(adapter.parentVault == vaultv2, "Speed up prover.");
-  require(adapter.morphoVaultV1 == metamorpho, "Speed up prover.");
-  require(metamorpho.MORPHO == morpho, "Fix morpho address.");
-  require(vaultv2.asset == metamorpho._asset, "Speed up prover.");
 
-  bytes data;
-  require(data.length == 0, "Speed up prover.");
-  bytes4 selector;
-  require(selector == to_bytes4(0x00000000), "Speed up prover.");
-  address sender;
-  require(sender == 0, "Speed up prover.");
+  uint256 amountAllocate; bytes32[] idsAllocate; uint256 interestAllocate;
+  idsAllocate, interestAllocate = adapter.allocate(e, data, amountAllocate, selector, sender) at initialState;
 
-  bytes32[] idsAllocate; uint256 interestAllocate;
-  idsAllocate, interestAllocate = adapter.allocate(e, data, 0, selector, sender) at initialState;
-
-  bytes32[] idsDeallocate; uint256 interestDeallocate;
-  idsDeallocate, interestDeallocate = adapter.deallocate(e, data, 0, selector, sender) at initialState;
+  uint256 amountDeallocate; bytes32[] idsDeallocate; uint256 interestDeallocate;
+  idsDeallocate, interestDeallocate = adapter.deallocate(e, data, amountDeallocate, selector, sender) at initialState;
 
   assert interestAllocate == interestDeallocate;
 }
