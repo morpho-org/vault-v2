@@ -203,7 +203,7 @@ contract GatingTest is BaseTest {
 
         // Realize the loss.
         vm.prank(realizer);
-        vault.resync();
+        vault.realizeLosses();
 
         console.log("vault.balance()", underlyingToken.balanceOf(address(vault)));
         console.log("expected loss", expectedLoss);

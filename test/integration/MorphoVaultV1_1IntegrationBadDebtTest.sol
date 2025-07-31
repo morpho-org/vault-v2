@@ -55,7 +55,7 @@ contract MorphoVaultV1_1IntegrationBadDebtTest is MorphoVaultV1_1IntegrationTest
         vm.stopPrank();
 
         vm.prank(address(0x123));
-        vault.resync();
+        vault.realizeLosses();
         assertEq(vault.totalAssets(), initialDeposit);
     }
 
@@ -86,7 +86,7 @@ contract MorphoVaultV1_1IntegrationBadDebtTest is MorphoVaultV1_1IntegrationTest
         morpho.liquidate(allMarketParams[1], borrower, collateralOfBorrower, 0, hex"");
 
         vm.prank(address(0x123));
-        vault.resync();
+        vault.realizeLosses();
         assertEq(vault.totalAssets(), initialDeposit);
     }
 }

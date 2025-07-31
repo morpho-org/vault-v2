@@ -782,8 +782,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev For small losses, the incentive might be small, or even null because of rounding. This is ok as small
     /// losses do not cause issues.
     /// @dev The incentive will be null if the msg.sender isn't allowed to receive shares.
-    /// @dev Returns incentiveShares, loss.
-    function resync() external returns (uint256, uint256) {
+    function realizeLosses() external returns (uint256, uint256) {
         accrueInterest();
 
         uint256 _realAssets = realAssets();
@@ -805,7 +804,7 @@ contract VaultV2 is IVaultV2 {
             enterBlocked = true;
         }
 
-        emit EventsLib.Resync(msg.sender, loss, incentiveShares);
+        emit EventsLib.RealizeLosses(msg.sender, loss, incentiveShares);
         return (incentiveShares, loss);
     }
 

@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
-contract ResyncTest is BaseTest {
+contract RealizeLossesTest is BaseTest {
     AdapterMock internal adapter;
     uint256 MAX_TEST_AMOUNT;
 
@@ -28,18 +28,18 @@ contract ResyncTest is BaseTest {
         increaseRelativeCap(expectedIdData[1], WAD);
     }
 
-    function testResyncZero(uint256 deposit) public {
+    function testRealizeLossesZero(uint256 deposit) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
 
         vault.deposit(deposit, address(this));
 
         // Realize the loss.
-        vault.resync();
+        vault.realizeLosses();
         assertEq(vault.totalAssets(), deposit, "total assets should not have changed");
         assertEq(vault.enterBlocked(), false, "enter should not be blocked");
     }
 
-    function testResync(uint256 deposit, uint256 expectedLoss) public {
+    function testRealizeLosses(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
 
@@ -51,15 +51,15 @@ contract ResyncTest is BaseTest {
         // Realize the loss.
         uint256 sharesBefore = vault.balanceOf(address(this));
         vm.expectEmit(true, true, false, false);
-        emit EventsLib.Resync(address(this), 0, 0);
-        (uint256 incentiveShares, uint256 loss) = vault.resync();
+        emit EventsLib.RealizeLosses(address(this), 0, 0);
+        (uint256 incentiveShares, uint256 loss) = vault.realizeLosses();
         uint256 expectedShares = vault.balanceOf(address(this)) - sharesBefore;
         assertEq(incentiveShares, expectedShares, "incentive shares should be equal to expected shares");
         assertEq(loss, expectedLoss, "loss should be equal to expected loss");
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
     }
 
-    function testResyncAllocate(uint256 deposit, uint256 expectedLoss) public {
+    function testRealizeLossesAllocate(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
 
@@ -73,7 +73,7 @@ contract ResyncTest is BaseTest {
         vault.allocate(address(adapter), hex"", 0);
 
         // Realize the loss.
-        vault.resync();
+        vault.realizeLosses();
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
 
         if (expectedLoss > 0) {
@@ -85,7 +85,7 @@ contract ResyncTest is BaseTest {
         }
     }
 
-    function testResyncDeallocate(uint256 deposit, uint256 expectedLoss) public {
+    function testRealizeLossesDeallocate(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
 
@@ -99,7 +99,7 @@ contract ResyncTest is BaseTest {
         vault.deallocate(address(adapter), hex"", 0);
 
         // Realize the loss.
-        vault.resync();
+        vault.realizeLosses();
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
 
         if (expectedLoss > 0) {
@@ -111,7 +111,7 @@ contract ResyncTest is BaseTest {
         }
     }
 
-    function testResyncForceDeallocate(uint256 deposit, uint256 expectedLoss) public {
+    function testRealizeLossesForceDeallocate(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
 
@@ -125,7 +125,7 @@ contract ResyncTest is BaseTest {
         vault.forceDeallocate(address(adapter), hex"", 0, address(this));
 
         // Realize the loss.
-        vault.resync();
+        vault.realizeLosses();
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
 
         if (expectedLoss > 0) {
@@ -137,7 +137,7 @@ contract ResyncTest is BaseTest {
         }
     }
 
-    function testResyncAllocationUpdate(uint256 deposit, uint256 expectedLoss) public {
+    function testRealizeLossesAllocationUpdate(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
 
@@ -152,11 +152,11 @@ contract ResyncTest is BaseTest {
 
         // Realize the loss.
         vm.prank(allocator);
-        vault.resync();
+        vault.realizeLosses();
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
     }
 
-    function testResyncAcrossAdaptersAndDiscoverBalance(
+    function testRealizeLossesAcrossAdaptersAndDiscoverBalance(
         uint256 deposit1,
         uint256 expectedLoss1,
         uint256 deposit2,
@@ -189,7 +189,7 @@ contract ResyncTest is BaseTest {
 
         // Realize the loss.
         vm.prank(allocator);
-        vault.resync();
+        vault.realizeLosses();
         assertEq(
             vault.totalAssets(),
             deposit1 - expectedLoss1 + deposit2 - expectedLoss2 + discoveredBalance,

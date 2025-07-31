@@ -33,7 +33,7 @@ library EventsLib {
     );
 
     // Loss realization events
-    event Resync(address indexed sender, uint256 loss, uint256 incentiveShares);
+    event RealizeLosses(address indexed sender, uint256 loss, uint256 incentiveShares);
 
     // Fee and interest events
     event AccrueInterest(

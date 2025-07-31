@@ -45,7 +45,7 @@ contract AccruingFunctionsTest is BaseTest {
         skip(1);
         vm.expectEmit(false, false, false, false);
         emit EventsLib.AccrueInterest(0, 0, 0, 0);
-        vault.resync();
+        vault.realizeLosses();
     }
 
     function testDepositAccruesInterest() public {

@@ -48,7 +48,7 @@ contract VaultV2Mock {
         return (ids, change);
     }
 
-    function resyncMocked() external returns (bytes32[] memory, uint256) {
+    function realizeLossesMocked() external returns (bytes32[] memory, uint256) {
         // TODO
     }
 }
