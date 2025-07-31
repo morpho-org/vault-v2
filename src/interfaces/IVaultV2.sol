@@ -101,6 +101,6 @@ interface IVaultV2 is IERC4626, IERC2612 {
         external
         returns (uint256 penaltyShares);
 
-    // Realize loss
+    // Realize losses
     function realizeLosses() external returns (uint256 incentiveShares, uint256 loss);
 }
