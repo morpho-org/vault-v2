@@ -147,11 +147,18 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Fees unit is WAD.
 /// @dev This invariant holds for both fees: fee != 0 => recipient != address(0).
 ///
+/// ROLES
+/// @dev The owner cannot do actions that can directly hurt depositors. Though it can set the curator and sentinels.
+/// @dev The curator cannot do actions that can directly hurt depositors without going through a timelock.
+/// @dev Allocators can move funds between markets in the boundaries set by caps without going through timelocks. They
+/// can also set the liquidity adapter and data, which can prevent deposits and/or withdrawals (it cannot prevent
+/// "in-kind redemptions" with forceDeallocate though).
+/// @dev Roles are not "two-step", so anyone can give a role to anyone, but it does not mean that they will exercise it.
+///
 /// MISC
 /// @dev Zero checks are not systematically performed.
 /// @dev No-ops are allowed.
 /// @dev NatSpec comments are included only when they bring clarity.
-/// @dev Roles are not "two-step" so one must check if they really have this role.
 /// @dev The contract uses transient storage.
 /// @dev At creation, all settings are set to their default values. Notably, timelocks are zero (except the
 /// decreaseTimelock timelock) which is useful to set up the vault quickly. Also, there are no gates so anybody can
