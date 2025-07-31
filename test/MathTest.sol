@@ -44,8 +44,8 @@ contract MathTest is Test {
 
     function testZeroFloorAddInt(uint256 x, int256 y) public {
         if (y < 0) {
-            uint actual = MathLib.zeroFloorAddInt(x, y);
-            uint expected = 0;
+            uint256 actual = MathLib.zeroFloorAddInt(x, y);
+            uint256 expected = 0;
             if (x > abs(y)) expected = x - abs(y);
             assertEq(actual, expected, "down");
         } else {
@@ -57,7 +57,7 @@ contract MathTest is Test {
                 vm.expectRevert();
                 this.zeroFloorAddInt(x, y);
             } else {
-                uint actual = MathLib.zeroFloorAddInt(x, y);
+                uint256 actual = MathLib.zeroFloorAddInt(x, y);
                 assertEq(actual, expectedUnchecked, "up");
             }
         }

@@ -156,8 +156,13 @@ contract ResyncTest is BaseTest {
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
     }
 
-    function testResyncAcrossAdaptersAndDiscoverBalance(uint256 deposit1, uint256 expectedLoss1, uint256 deposit2, uint256 expectedLoss2, uint256 discoveredBalance) public {
-
+    function testResyncAcrossAdaptersAndDiscoverBalance(
+        uint256 deposit1,
+        uint256 expectedLoss1,
+        uint256 deposit2,
+        uint256 expectedLoss2,
+        uint256 discoveredBalance
+    ) public {
         deposit1 = bound(deposit1, 1, MAX_TEST_AMOUNT);
         expectedLoss1 = bound(expectedLoss1, 1, deposit1);
         deposit2 = bound(deposit2, 1, MAX_TEST_AMOUNT);
@@ -185,7 +190,11 @@ contract ResyncTest is BaseTest {
         // Realize the loss.
         vm.prank(allocator);
         vault.resync();
-        assertEq(vault.totalAssets(), deposit1 - expectedLoss1 + deposit2 - expectedLoss2 + discoveredBalance, "incorrect total assets");
+        assertEq(
+            vault.totalAssets(),
+            deposit1 - expectedLoss1 + deposit2 - expectedLoss2 + discoveredBalance,
+            "incorrect total assets"
+        );
     }
     // To test:
     // - resync across 2 adapters
