@@ -499,11 +499,11 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
-        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).allocate(data, assets, msg.sig, msg.sender);
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets, msg.sig, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
-            _caps.allocation = _caps.allocation + interest + assets;
+            _caps.allocation = uint256(int256(_caps.allocation) + change);
 
             require(_caps.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
@@ -512,7 +512,7 @@ contract VaultV2 is IVaultV2 {
                 ErrorsLib.RelativeCapExceeded()
             );
         }
-        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, interest);
+        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, change);
     }
 
     function deallocate(address adapter, bytes memory data, uint256 assets) external {
@@ -526,16 +526,16 @@ contract VaultV2 is IVaultV2 {
     {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
             require(_caps.allocation > 0, ErrorsLib.ZeroAllocation());
-            _caps.allocation = _caps.allocation + interest - assets;
+            _caps.allocation = uint256(int256(_caps.allocation) + change);
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
-        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, interest);
+        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, change);
         return ids;
     }
 

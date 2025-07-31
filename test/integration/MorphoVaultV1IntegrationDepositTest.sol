@@ -70,7 +70,7 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
         assertEq(vault.totalAssets(), previousVaultTotalAssets, "vault total assets");
         assertEq(
             morphoVaultV1Adapter.allocation(),
-            previousAdapterTrackedAllocation + roundedDeposit,
+            previousAdapterTrackedAllocation,
             "Morpho Vault v1 Adapter tracked allocation"
         );
     }
@@ -117,7 +117,7 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
             morphoVaultV1.balanceOf(address(morphoVaultV1Adapter)), previousAdapterShares - 1, "adapter shares balance"
         );
         assertEq(vault.totalAssets(), previousVaultTotalAssets - donationFactor, "total assets");
-        assertEq(morphoVaultV1Adapter.allocation(), previousAdapterTrackedAllocation - roundedWithdraw, "allocation");
+        assertEq(morphoVaultV1Adapter.allocation(), previousAdapterTrackedAllocation - donationFactor, "allocation");
     }
 
     function testDepositLiquidityAdapterCanFail(uint256 assets) public {

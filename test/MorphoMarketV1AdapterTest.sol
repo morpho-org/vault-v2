@@ -124,14 +124,14 @@ contract MorphoMarketV1AdapterTest is Test {
         assets = _boundAssets(assets);
         deal(address(loanToken), address(adapter), assets);
 
-        (bytes32[] memory ids, uint256 interest) =
+        (bytes32[] memory ids, int256 change) =
             parentVault.allocateMocked(address(adapter), abi.encode(marketParams), assets);
 
         assertEq(adapter.allocation(marketParams), assets, "Incorrect allocation");
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), assets, "Incorrect assets in Morpho");
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
         assertEq(ids, expectedIds, "Incorrect ids returned");
-        assertEq(interest, 0, "Interest should be zero");
+        assertEq(change, int256(assets), "Incorrect change returned");
     }
 
     function testDeallocate(uint256 initialAssets, uint256 withdrawAssets) public {
@@ -144,10 +144,10 @@ contract MorphoMarketV1AdapterTest is Test {
         uint256 beforeSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(beforeSupply, initialAssets, "Precondition failed: supply not set");
 
-        (bytes32[] memory ids, uint256 interest) =
+        (bytes32[] memory ids, int256 change) =
             parentVault.deallocateMocked(address(adapter), abi.encode(marketParams), withdrawAssets);
 
-        assertEq(interest, 0, "Interest should be zero");
+        assertEq(change, -int256(withdrawAssets), "Incorrect change returned");
         assertEq(adapter.allocation(marketParams), initialAssets - withdrawAssets, "Incorrect allocation");
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
@@ -219,16 +219,6 @@ contract MorphoMarketV1AdapterTest is Test {
 
         vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
         adapter.skim(address(token));
-    }
-
-    function testLossRealizationNotMocked(address rdmToken) public {
-        vm.assume(rdmToken != address(loanToken));
-        vm.expectRevert(IMorphoMarketV1Adapter.LoanAssetMismatch.selector);
-        MarketParams memory rdmMarketParams = marketParams;
-        rdmMarketParams.loanToken = rdmToken;
-        adapter.realizeLoss(abi.encode(rdmMarketParams), bytes4(0), rdmToken);
-
-        adapter.realizeLoss(abi.encode(marketParams), bytes4(0), address(0));
     }
 
     function _overrideMarketTotalSupplyAssets(int256 change) internal {

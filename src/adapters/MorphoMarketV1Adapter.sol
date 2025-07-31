@@ -66,10 +66,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the potential loss.
-    function allocate(bytes memory data, uint256 assets, bytes4, address)
-        external
-        returns (bytes32[] memory, uint256)
-    {
+    function allocate(bytes memory data, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
@@ -77,26 +74,33 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
         if (shares[marketId] == 0 && assets > 0) allMarketParams.push(marketParams);
 
-        uint256 interest = expectedSupplyAssets(marketParams, shares[marketId]).zeroFloorSub(allocation(marketParams));
-
         if (assets > 0) {
             (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
             shares[marketId] += mintedShares;
         }
+        // TODO
+        int256 change = int256(expectedSupplyAssets(marketParams, shares[marketId])) - int256(allocation(marketParams));
 
-        return (ids(marketParams), interest);
+        return (ids(marketParams), change);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the potential loss.
     function deallocate(bytes memory data, uint256 assets, bytes4, address)
         external
-        returns (bytes32[] memory, uint256)
+        returns (bytes32[] memory, int256)
     {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
+
+        if (assets > 0) {
+            (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+            shares[marketId] -= redeemedShares;
+        }
+        // TODO
+        int256 change = int256(expectedSupplyAssets(marketParams, shares[marketId])) - int256(allocation(marketParams));
 
         if (shares[marketId] == 0 && assets > 0) {
             for (uint256 i = 0; i < allMarketParams.length; i++) {
@@ -108,23 +112,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             }
         }
 
-        uint256 interest = expectedSupplyAssets(marketParams, shares[marketId]).zeroFloorSub(allocation(marketParams));
-
-        if (assets > 0) {
-            (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-            shares[marketId] -= redeemedShares;
-        }
-
-        return (ids(marketParams), interest);
-    }
-
-    function realizeLoss(bytes memory data, bytes4, address) external view returns (bytes32[] memory, uint256) {
-        MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        require(marketParams.loanToken == asset, LoanAssetMismatch());
-
-        uint256 loss = allocation(marketParams) - expectedSupplyAssets(marketParams, shares[marketParams.id()]);
-
-        return (ids(marketParams), loss);
+        return (ids(marketParams), change);
     }
 
     function allocation(MarketParams memory marketParams) public view returns (uint256) {
