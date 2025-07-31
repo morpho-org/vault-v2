@@ -14,9 +14,9 @@ methods {
     function _.borrowRateView(Morpho.MarketParams, Morpho.Market) external => ALWAYS(95129375);// We don't know which IRM will be used, just assume 3% borrow rate for simplicity
     function _.onMorphoSupply(uint, bytes) external => NONDET DELETE;
 
-    function MorphoMarketV1Adapter.ids(MorphoMarketV1Adapter.MarketParams) external returns (bytes32[]) envfree;
+    function MorphoMarketV1Adapter.ids(Morpho.MarketParams) external returns (bytes32[]) envfree;
 
-    function Utils.marketParamsToBytes(MorphoMarketV1Adapter.MarketParams) external returns (bytes) envfree;
+    function Utils.marketParamsToBytes(Morpho.MarketParams) external returns (bytes) envfree;
     function Utils.havocAll() external envfree => HAVOC_ALL;
 }
 
@@ -24,7 +24,6 @@ methods {
   - from some starting state, calling allocate or deallocate yield the same interest
 */
 rule adapterReturnsTheSameInterestForAllocateAndDeallocate(env e, bytes data, bytes4 selector, address sender) {
-  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
   require(e.msg.sender == adapter.parentVault, "Speed up prover. This is required in the code.");
   require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   require(sender == 0, "Speed up prover. The adapter ignores this param.");
@@ -103,7 +102,6 @@ rule donatingPositionsHasNoEffectOnInterest() {
   require(e1.msg.sender == adapter.parentVault, "Speed up prover.");
   require(e2.block.timestamp <= e1.block.timestamp, "We first donate, then look for the interest");
   require(adapter.parentVault == vaultv2);
-  require(vaultv2.sharesGate == 0);
   require(adapter.morpho == mockMorpho, "Fix morpho address. Use mock for simplicity.");
 
   Morpho.MarketParams marketParams;
@@ -137,7 +135,6 @@ rule donatingPositionsHasNoEffectOnLoss() {
   require(e1.msg.sender == adapter.parentVault, "Speed up prover.");
   require(e2.block.timestamp <= e1.block.timestamp, "We first donate, then look for the interest");
   require(adapter.parentVault == vaultv2);
-  require(vaultv2.sharesGate == 0);
   require(adapter.morpho == mockMorpho, "Fix morpho address. Use mock for simplicity.");
 
   Morpho.MarketParams marketParams;

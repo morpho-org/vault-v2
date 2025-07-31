@@ -26,7 +26,6 @@ methods {
   - from some starting state, calling allocate or deallocate yield the same interest
 */
 rule adapterReturnsTheSameInterestForAllocateAndDeallocate(env e, bytes data, bytes4 selector, address sender) {
-  require(vaultv2.sharesGate == 0, "to avoid the canSendShares dispatch loop");
   require(e.msg.sender == adapter.parentVault, "Speed up prover. This is required in the code.");
   require(data.length == 0, "Speed up prover. This is required in the code.");
   require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
@@ -54,7 +53,6 @@ rule adapterCannotHaveInterestAndLossAtTheSameTime() {
   require(adapter.morphoVaultV1 == metamorpho, "Speed up prover.");
   require(metamorpho.MORPHO == morpho, "Fix morpho address.");
   require(vaultv2.asset == metamorpho._asset, "Speed up prover.");
-  require(vaultv2.sharesGate == 0);
 
   bytes data;
   require(data.length == 0, "Speed up prover. The adapter requires empty data.");
@@ -115,7 +113,6 @@ rule donatingPositionsHasNoEffectOnInterest() {
   require(e1.msg.sender == adapter.parentVault, "Speed up prover.");
   require(e2.block.timestamp <= e1.block.timestamp, "We first donate, then look for the interest");
   require(adapter.parentVault == vaultv2);
-  require(vaultv2.sharesGate == 0);
   require(adapter.morphoVaultV1 == metamorpho, "Fix metamorpho address.");
 
   bytes data; require(data.length == 0, "Speed up prover. The adapter ignores this param.");
@@ -144,7 +141,6 @@ rule donatingPositionsHasNoEffectOnLoss() {
   env e1;
   require(e1.msg.sender == adapter.parentVault, "Speed up prover.");
   require(adapter.parentVault == vaultv2);
-  require(vaultv2.sharesGate == 0);
   require(adapter.morphoVaultV1 == metamorpho, "Speed up prover.");
   require(vaultv2.asset == metamorpho._asset, "Speed up prover.");
 
