@@ -35,6 +35,10 @@ contract AccrueInterestTest is BaseTest {
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
         vault.setIsAdapter(address(adapter), true);
 
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (MAX_MAX_RATE)));
+        vault.setMaxRate(MAX_MAX_RATE);
+
         increaseAbsoluteCap("id-0", type(uint128).max);
         increaseAbsoluteCap("id-1", type(uint128).max);
         increaseRelativeCap("id-0", WAD);
@@ -124,7 +128,7 @@ contract AccrueInterestTest is BaseTest {
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         elapsed = bound(elapsed, 1, 10 * 365 days);
-        interest = bound(interest, 0, MAX_TEST_ASSETS);
+        interest = bound(interest, 0, (deposit * MAX_MAX_RATE).mulDivDown(elapsed, WAD));
 
         // Setup.
         vault.deposit(deposit, address(this));
@@ -157,6 +161,26 @@ contract AccrueInterestTest is BaseTest {
         assertEq(vault.balanceOf(managementFeeRecipient), managementFeeShares, "managementFeeShares");
     }
 
+    function testAccrueInterestMaxRate(uint256 deposit, uint256 interest, uint256 elapsed) public {
+        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        interest = bound(interest, 0, MAX_MAX_RATE);
+        elapsed = bound(elapsed, 0, 10 * 365 days);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (MAX_MAX_RATE)));
+        vault.setMaxRate(MAX_MAX_RATE);
+
+        vault.deposit(deposit, address(this));
+
+        vm.prank(allocator);
+        adapter.setInterest(interest);
+        skip(elapsed);
+
+        vault.accrueInterest();
+
+        assertLe(vault.totalAssets(), deposit + (deposit * elapsed).mulDivDown(MAX_MAX_RATE, WAD));
+    }
+
     function testAccrueInterestFees(
         uint256 performanceFee,
         uint256 managementFee,
@@ -168,7 +192,7 @@ contract AccrueInterestTest is BaseTest {
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         elapsed = bound(elapsed, 0, 10 * 365 days);
-        interest = bound(interest, 0, 99 * deposit); // to prevent the share price from being too high
+        interest = bound(interest, 0, (deposit * MAX_MAX_RATE).mulDivDown(elapsed, WAD));
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));

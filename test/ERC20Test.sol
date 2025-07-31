@@ -208,14 +208,14 @@ contract ERC20Test is BaseTest {
     }
 
     function testCreateTooManyAssetsReverts() public {
-        vault.deposit(type(uint192).max, address(this));
+        vault.deposit(type(uint128).max, address(this));
         vm.expectRevert(stdError.arithmeticError);
         vault.deposit(1, address(this));
     }
 
     function testCreateTooManySharesReverts() public {
-        vm.assume(vault.virtualShares() < type(uint256).max / type(uint192).max);
-        vault.mint(type(uint192).max * vault.virtualShares(), address(this));
+        vm.assume(vault.virtualShares() < type(uint256).max / type(uint128).max);
+        vault.mint(type(uint128).max * vault.virtualShares(), address(this));
         vm.expectRevert(stdError.arithmeticError);
         vault.mint(1, address(this));
     }

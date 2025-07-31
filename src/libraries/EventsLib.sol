@@ -67,5 +67,6 @@ library EventsLib {
     event IncreaseAbsoluteCap(bytes32 indexed id, bytes idData, uint256 newAbsoluteCap);
     event DecreaseRelativeCap(address indexed sender, bytes32 indexed id, bytes idData, uint256 newRelativeCap);
     event IncreaseRelativeCap(bytes32 indexed id, bytes idData, uint256 newRelativeCap);
+    event SetMaxRate(uint256 newMaxRate);
     event SetForceDeallocatePenalty(address indexed adapter, uint256 forceDeallocatePenalty);
 }

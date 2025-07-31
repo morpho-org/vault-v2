@@ -36,6 +36,10 @@ contract ViewFunctionsTest is BaseTest {
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
         vault.setIsAdapter(address(adapter), true);
 
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (MAX_MAX_RATE)));
+        vault.setMaxRate(MAX_MAX_RATE);
+
         vm.prank(allocator);
         vault.setLiquidityAdapterAndData(address(adapter), hex"");
 
@@ -103,8 +107,7 @@ contract ViewFunctionsTest is BaseTest {
         data.performanceFee = bound(data.performanceFee, 0, MAX_PERFORMANCE_FEE);
         data.managementFee = bound(data.managementFee, 0, MAX_MANAGEMENT_FEE);
         data.elapsed = uint64(bound(data.elapsed, 0, 10 * 365 days));
-        data.interest =
-            bound(data.interest, 0, (data.initialDeposit * data.elapsed).mulDivDown(MAX_RATE_PER_SECOND, WAD));
+        data.interest = bound(data.interest, 0, (data.initialDeposit * data.elapsed).mulDivDown(MAX_MAX_RATE, WAD));
 
         vault.deposit(data.initialDeposit, address(this));
 

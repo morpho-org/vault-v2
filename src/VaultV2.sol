@@ -145,7 +145,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// interact with the vault. To prevent that, the gates configuration can be batched with the vault creation.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
-    using MathLib for uint192;
+    using MathLib for uint128;
 
     /* IMMUTABLE */
 
@@ -175,8 +175,9 @@ contract VaultV2 is IVaultV2 {
     /* INTEREST STORAGE */
 
     uint256 public transient firstTotalAssets;
-    uint192 public _totalAssets;
+    uint128 public _totalAssets;
     uint64 public lastUpdate;
+    uint64 public maxRate;
     bool public transient enterBlocked;
 
     /* CURATION STORAGE */
@@ -464,7 +465,6 @@ contract VaultV2 is IVaultV2 {
 
         // Safe since WAD fits in 128 bits.
         caps[id].relativeCap = uint128(newRelativeCap);
-
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
 
@@ -475,8 +475,18 @@ contract VaultV2 is IVaultV2 {
 
         // Safe since WAD fits in 128 bits.
         caps[id].relativeCap = uint128(newRelativeCap);
-
         emit EventsLib.DecreaseRelativeCap(msg.sender, id, idData, newRelativeCap);
+    }
+
+    function setMaxRate(uint256 newMaxRate) external {
+        timelocked();
+        require(newMaxRate <= MAX_MAX_RATE, ErrorsLib.MaxRateTooHigh());
+
+        accrueInterest();
+
+        // Safe because newMaxRate <= MAX_MAX_RATE < 2**64-1.
+        maxRate = uint64(newMaxRate);
+        emit EventsLib.SetMaxRate(newMaxRate);
     }
 
     function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external {
@@ -553,7 +563,7 @@ contract VaultV2 is IVaultV2 {
         (uint256 newTotalAssets, uint256 loss, uint256 performanceFeeShares, uint256 managementFeeShares) =
             accrueInterestView();
         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
-        _totalAssets = newTotalAssets.toUint192();
+        _totalAssets = newTotalAssets.toUint128();
         if (loss > 0) enterBlocked = true;
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
@@ -566,12 +576,14 @@ contract VaultV2 is IVaultV2 {
     /// @dev The performance and management fees are taken even if the vault incurs some losses.
     /// @dev Both fees are rounded down, so fee recipients could receive less than expected.
     function accrueInterestView() public view returns (uint256, uint256, uint256, uint256) {
-        uint256 newTotalAssets = IERC20(asset).balanceOf(address(this));
+        uint256 realAssets = IERC20(asset).balanceOf(address(this));
         for (uint256 i = 0; i < adapters.length; i++) {
-            newTotalAssets += IAdapter(adapters[i]).totalAssets();
+            realAssets += IAdapter(adapters[i]).totalAssets();
         }
-        uint256 loss = _totalAssets.zeroFloorSub(newTotalAssets);
-        uint256 interest = newTotalAssets.zeroFloorSub(_totalAssets);
+        uint256 loss = _totalAssets.zeroFloorSub(realAssets);
+        uint256 maxInterest = (_totalAssets * (block.timestamp - lastUpdate)).mulDivDown(maxRate, WAD);
+        uint256 interest = MathLib.min(realAssets.zeroFloorSub(_totalAssets), maxInterest);
+        uint256 newTotalAssets = _totalAssets + interest - loss;
 
         // The performance fee assets may be rounded down to 0 if interest * fee < WAD.
         uint256 performanceFeeAssets = interest > 0 && performanceFee > 0 && canReceiveShares(performanceFeeRecipient)
@@ -679,7 +691,7 @@ contract VaultV2 is IVaultV2 {
 
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
-        _totalAssets += assets.toUint192();
+        _totalAssets += assets.toUint128();
         if (liquidityAdapter != address(0)) {
             allocateInternal(liquidityAdapter, liquidityData, assets);
         }
@@ -718,7 +730,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         deleteShares(onBehalf, shares);
-        _totalAssets -= assets.toUint192();
+        _totalAssets -= assets.toUint128();
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
