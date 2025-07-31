@@ -189,7 +189,7 @@ contract GatingTest is BaseTest {
         vault.deposit(deposit, address(this));
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", deposit);
-        adapter.setTotalAssets(deposit - expectedLoss);
+        adapter.setRealAssets(deposit - expectedLoss);
 
         setGate();
         vm.mockCall(gate, abi.encodeCall(ISharesGate.canReceiveShares, (realizer)), abi.encode(canReceiveShares));

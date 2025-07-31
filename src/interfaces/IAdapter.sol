@@ -14,5 +14,5 @@ interface IAdapter {
         external
         returns (bytes32[] memory ids, int256 change);
 
-    function totalAssets() external view returns (uint256 assets);
+    function realAssets() external view returns (uint256 assets);
 }

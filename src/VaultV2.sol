@@ -786,17 +786,14 @@ contract VaultV2 is IVaultV2 {
     function resync() external returns (uint256, uint256) {
         accrueInterest();
 
-        uint256 realAssets = IERC20(asset).balanceOf(address(this));
-        for (uint256 i = 0; i < adapters.length; i++) {
-            realAssets += IAdapter(adapters[i]).totalAssets();
-        }
+        uint256 _realAssets = realAssets();
 
         uint256 incentiveShares;
         uint256 loss;
-        if (realAssets < _totalAssets) {
-            loss = _totalAssets - realAssets;
+        if (_realAssets < _totalAssets) {
+            loss = _totalAssets - _realAssets;
             // Safe cast because the result is at most totalAssets.
-            _totalAssets = uint192(realAssets);
+            _totalAssets = uint192(_realAssets);
 
             if (canReceiveShares(msg.sender)) {
                 uint256 tentativeIncentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
@@ -810,6 +807,14 @@ contract VaultV2 is IVaultV2 {
 
         emit EventsLib.Resync(msg.sender, loss, incentiveShares);
         return (incentiveShares, loss);
+    }
+
+    function realAssets() public view returns (uint256) {
+        uint256 _realAssets = IERC20(asset).balanceOf(address(this));
+        for (uint256 i = 0; i < adapters.length; i++) {
+            _realAssets += IAdapter(adapters[i]).realAssets();
+        }
+        return _realAssets;
     }
 
     /* ERC20 FUNCTIONS */
