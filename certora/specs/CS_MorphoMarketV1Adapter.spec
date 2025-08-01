@@ -94,7 +94,7 @@ rule lossIsBoundedByAllocation() {
 
 /*
   - donating some underlying position to the adapter has no effect on the interest returned.
-    The rule is done with allocate() but holds for deallocate() as well because we know they return the same interest for a given starting state (see adapterReturnsTheSameInterestAndIdsForAllocateAndDeallocate)
+    The rule is done with allocate() but holds for deallocate() as well because we know they return the same interest for a given starting state (see adapterReturnsTheSameInterestAndForAllocateAndDeallocate)
 */
 rule donatingPositionsHasNoEffectOnInterest() {
   env e1;
@@ -105,7 +105,7 @@ rule donatingPositionsHasNoEffectOnInterest() {
   require(adapter.morpho == mockMorpho, "Fix morpho address. Use mock for simplicity.");
 
   Morpho.MarketParams marketParams;
-  bytes data = Utils.marketParamsToBytes(e1, marketParams);
+  bytes data = Utils.marketParamsToBytes(marketParams);
   uint256 amount;
   bytes4 selector;
   require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
@@ -138,7 +138,7 @@ rule donatingPositionsHasNoEffectOnLoss() {
   require(adapter.morpho == mockMorpho, "Fix morpho address. Use mock for simplicity.");
 
   Morpho.MarketParams marketParams;
-  bytes data = Utils.marketParamsToBytes(e1, marketParams);
+  bytes data = Utils.marketParamsToBytes(marketParams);
   bytes4 selector;
   require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address sender;

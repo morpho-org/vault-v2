@@ -139,7 +139,9 @@ rule donatingPositionsHasNoEffectOnInterest() {
 */
 rule donatingPositionsHasNoEffectOnLoss() {
   env e1;
+  env e2;
   require(e1.msg.sender == adapter.parentVault, "Speed up prover.");
+  require(e2.block.timestamp <= e1.block.timestamp, "We first donate, then look for the interest");
   require(adapter.parentVault == vaultv2);
   require(adapter.morphoVaultV1 == metamorpho, "Speed up prover.");
   require(vaultv2.asset == metamorpho._asset, "Speed up prover.");
@@ -148,22 +150,17 @@ rule donatingPositionsHasNoEffectOnLoss() {
   bytes4 selector; require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
   address sender; require(sender == 0, "Speed up prover. The adapter ignores this param.");
 
-  uint256 donation;
-
   storage initial = lastStorage;
-
-  uint256 positionPre = metamorpho.balanceOf(adapter) at initial;
-  require(metamorpho.balanceOf(adapter) == positionPre + donation); // Donate to the adapter, we don't use deposit as the prover times out
-  storage initalWithDonation = lastStorage;
-  uint256 positionPost = metamorpho.balanceOf(adapter) at initalWithDonation;
-  assert(positionPost == positionPre + donation);
 
   uint256 interestNoGift;
   _, interestNoGift = adapter.allocate(e1, data, 0, selector, sender) at initial;
 
-
+  uint256 donationAmount;
+  uint256 positionPre = metamorpho.balanceOf(adapter) at initial;
+  metamorpho.transfer(e2, adapter, donationAmount) at initial;
+  assert(metamorpho.balanceOf(adapter) == positionPre + donationAmount);
   uint256 interestWithGift;
-  _, interestWithGift = adapter.allocate(e1, data, 0, selector, sender) at initalWithDonation;
+  _, interestWithGift = adapter.allocate(e1, data, 0, selector, sender) at initial;
 
   assert interestNoGift == interestWithGift;
 }
