@@ -576,24 +576,25 @@ contract VaultV2 is IVaultV2 {
     /// @dev The performance and management fees are taken even if the vault incurs some losses.
     /// @dev Both fees are rounded down, so fee recipients could receive less than expected.
     function accrueInterestView() public view returns (uint256, uint256, uint256, uint256) {
+        uint elapsed = block.timestamp - lastUpdate;
         uint256 realAssets = IERC20(asset).balanceOf(address(this));
         for (uint256 i = 0; i < adapters.length; i++) {
             realAssets += IAdapter(adapters[i]).totalAssets();
         }
-        uint256 loss = _totalAssets.zeroFloorSub(realAssets);
-        uint256 maxInterest = (_totalAssets * (block.timestamp - lastUpdate)).mulDivDown(maxRate, WAD);
-        uint256 interest = MathLib.min(realAssets.zeroFloorSub(_totalAssets), maxInterest);
-        uint256 newTotalAssets = _totalAssets + interest - loss;
+        int256 change = int256(_totalAssets) - int256(realAssets);
+        uint256 maxInterest = (_totalAssets * elapsed).mulDivDown(maxRate, WAD);
+        uint256 newTotalAssets = MathLib.min(uint256(int256(_totalAssets) + change),_totalAssets + maxInterest);
 
         // The performance fee assets may be rounded down to 0 if interest * fee < WAD.
-        uint256 performanceFeeAssets = interest > 0 && performanceFee > 0 && canReceiveShares(performanceFeeRecipient)
-            ? interest.mulDivDown(performanceFee, WAD)
-            : 0;
+        uint256 performanceFeeAssets;
+        if(change > 0 && performanceFee > 0 && canReceiveShares(performanceFeeRecipient))
+            performanceFeeAssets = change.mulDivDown(performanceFee, WAD);
+
         // The management fee is taken on newTotalAssets to make all approximations consistent (interacting less
         // increases fees).
-        uint256 managementFeeAssets = managementFee > 0 && canReceiveShares(managementFeeRecipient)
-            ? (newTotalAssets * (block.timestamp - lastUpdate)).mulDivDown(managementFee, WAD)
-            : 0;
+        uint256 managementFeeAssets;
+        if(managementFee > 0 && canReceiveShares(managementFeeRecipient))
+            managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD)
 
         // Interest should be accrued at least every 10 years to avoid fees exceeding total assets.
         uint256 newTotalAssetsWithoutFees = newTotalAssets - performanceFeeAssets - managementFeeAssets;
