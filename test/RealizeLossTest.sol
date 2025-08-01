@@ -38,8 +38,8 @@ contract RealizeLossTest is BaseTest {
         adapter.setLoss(expectedLoss);
 
         // Realize the loss.
-        // vm.expectEmit();
-        // emit EventsLib.AccrueInterest(deposit, deposit - expectedLoss, 0, 0);
+        vm.expectEmit();
+        emit EventsLib.AccrueInterest(deposit, deposit - expectedLoss, 0, 0);
         vault.accrueInterest();
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
         assertEq(vault.enterBlocked(), true, "enterBlocked should be true");
@@ -51,6 +51,50 @@ contract RealizeLossTest is BaseTest {
         // Try to mint.
         vm.expectRevert(abi.encodeWithSelector(ErrorsLib.EnterBlocked.selector));
         vault.mint(deposit, address(this));
+    }
+
+    function testRealizeLossWithDepositNotFirstInteractionLossBefore(uint256 deposit, uint256 expectedLoss) public {
+        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+        expectedLoss = bound(expectedLoss, 1, deposit);
+
+        vault.deposit(deposit, address(this));
+        vm.prank(allocator);
+        vault.allocate(address(adapter), hex"", deposit);
+
+        adapter.setLoss(expectedLoss);
+        vault.accrueInterest();
+
+        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.EnterBlocked.selector));
+        vault.deposit(deposit, address(this));
+    }
+
+    function testRealizeLossWithDepositNotFirstInteractionLossBetween(uint256 deposit, uint256 expectedLoss) public {
+        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+        expectedLoss = bound(expectedLoss, 1, deposit);
+
+        vault.deposit(deposit, address(this));
+        vm.prank(allocator);
+        vault.allocate(address(adapter), hex"", deposit);
+
+        vault.accrueInterest();
+        adapter.setLoss(expectedLoss);
+
+        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.EnterBlocked.selector));
+        vault.deposit(deposit, address(this));
+    }
+
+    /// forge-config: default.isolate = true
+    function testRealizeLossWithDepositFirstInteraction(uint256 deposit, uint256 expectedLoss) public {
+        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+        expectedLoss = bound(expectedLoss, 1, deposit);
+
+        vault.deposit(deposit, address(this));
+        vm.prank(allocator);
+        vault.allocate(address(adapter), hex"", deposit);
+        adapter.setLoss(expectedLoss);
+
+        vault.deposit(deposit, address(this));
+        assertEq(vault.totalAssets(), 2 * deposit - expectedLoss, "total assets should have decreased by the loss");
     }
 
     function testAllocationLossAllocate(uint256 deposit, uint256 expectedLoss) public {

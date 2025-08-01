@@ -569,7 +569,7 @@ contract VaultV2 is IVaultV2 {
     function accrueInterest() public {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
-        if (newTotalAssets < _totalAssets) enterBlocked = true;
+        if (newTotalAssets < _totalAssets && firstTotalAssets != 0) enterBlocked = true;
         _totalAssets = newTotalAssets.toUint128();
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
