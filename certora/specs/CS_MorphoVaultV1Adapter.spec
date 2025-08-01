@@ -28,7 +28,7 @@ methods {
 rule adapterReturnsTheSameInterestForAllocateAndDeallocate(env e, bytes data, bytes4 selector, address sender) {
   require(e.msg.sender == adapter.parentVault, "Speed up prover. This is required in the code.");
   require(data.length == 0, "Speed up prover. This is required in the code.");
-  require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
+  require(selector == to_bytes4(0), "Speed up prover. The adapter ignores this param.");
   require(sender == 0, "Speed up prover. The adapter ignores this param.");
 
   storage initialState = lastStorage;
@@ -57,7 +57,7 @@ rule adapterCannotHaveInterestAndLossAtTheSameTime() {
   bytes data;
   require(data.length == 0, "Speed up prover. The adapter requires empty data.");
   bytes4 selector;
-  require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
+  require(selector == to_bytes4(0), "Speed up prover. The adapter ignores this param.");
   address sender;
   require(sender == 0, "Speed up prover. The adapter ignores this param.");
 
@@ -87,7 +87,7 @@ rule lossIsBoundedByAllocation() {
   bytes data;
   require(data.length == 0, "Speed up prover. The adapter requires empty data.");
   bytes4 selector;
-  require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
+  require(selector == to_bytes4(0), "Speed up prover. The adapter ignores this param.");
   address sender;
   require(sender == 0, "Speed up prover. The adapter ignores this param.");
 
@@ -116,20 +116,21 @@ rule donatingPositionsHasNoEffectOnInterest() {
   require(adapter.morphoVaultV1 == metamorpho, "Fix metamorpho address.");
 
   bytes data; require(data.length == 0, "Speed up prover. The adapter ignores this param.");
+  uint256 amount;
   bytes4 selector;
-  require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
+  require(selector == to_bytes4(0), "Speed up prover. The adapter ignores this param.");
   address sender;
   require(sender == 0, "Speed up prover. The adapter ignores this param.");
 
   storage initial = lastStorage;
 
   uint256 interestNoGift;
-  _, interestNoGift = adapter.allocate(e1, data, 0, selector, sender) at initial;
+  _, interestNoGift = adapter.allocate(e1, data, amount, selector, sender) at initial;
 
   uint256 donationAmount;
   metamorpho.transfer(e2, adapter, donationAmount) at initial;
   uint256 interestWithGift;
-  _, interestWithGift = adapter.allocate(e1, data, 0, selector, sender);
+  _, interestWithGift = adapter.allocate(e1, data, amount, selector, sender);
 
   assert interestNoGift == interestWithGift;
 }
@@ -147,20 +148,20 @@ rule donatingPositionsHasNoEffectOnLoss() {
   require(vaultv2.asset == metamorpho._asset, "Speed up prover.");
 
   bytes data; require(data.length == 0, "Speed up prover. The adapter ignores this param.");
-  bytes4 selector; require(selector == to_bytes4(0x00000000), "Speed up prover. The adapter ignores this param.");
+  bytes4 selector; require(selector == to_bytes4(0), "Speed up prover. The adapter ignores this param.");
   address sender; require(sender == 0, "Speed up prover. The adapter ignores this param.");
 
   storage initial = lastStorage;
 
-  uint256 interestNoGift;
-  _, interestNoGift = adapter.allocate(e1, data, 0, selector, sender) at initial;
+  uint256 lossNoGift;
+  _, lossNoGift = adapter.realizeLoss(e1, data, selector, sender) at initial;
 
   uint256 donationAmount;
   uint256 positionPre = metamorpho.balanceOf(adapter) at initial;
   metamorpho.transfer(e2, adapter, donationAmount) at initial;
   assert(metamorpho.balanceOf(adapter) == positionPre + donationAmount);
-  uint256 interestWithGift;
-  _, interestWithGift = adapter.allocate(e1, data, 0, selector, sender) at initial;
+  uint256 lossWithGift;
+  _, lossWithGift = adapter.realizeLoss(e1, data, selector, sender) at initial;
 
-  assert interestNoGift == interestWithGift;
+  assert lossNoGift == lossWithGift;
 }
