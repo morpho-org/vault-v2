@@ -211,7 +211,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function totalAssets() external view returns (uint256) {
-        (uint256 newTotalAssets,,,) = accrueInterestView();
+        (uint256 newTotalAssets,,) = accrueInterestView();
         return newTotalAssets;
     }
 
@@ -560,11 +560,10 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE FUNCTIONS */
 
     function accrueInterest() public {
-        (uint256 newTotalAssets, uint256 loss, uint256 performanceFeeShares, uint256 managementFeeShares) =
-            accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
+        if (newTotalAssets < _totalAssets) enterBlocked = true;
         _totalAssets = newTotalAssets.toUint128();
-        if (loss > 0) enterBlocked = true;
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
         lastUpdate = uint64(block.timestamp);
@@ -575,15 +574,15 @@ contract VaultV2 is IVaultV2 {
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     /// @dev The performance and management fees are taken even if the vault incurs some losses.
     /// @dev Both fees are rounded down, so fee recipients could receive less than expected.
-    function accrueInterestView() public view returns (uint256, uint256, uint256, uint256) {
+    function accrueInterestView() public view returns (uint256, uint256, uint256) {
+        uint256 elapsed = block.timestamp - lastUpdate;
         uint256 realAssets = IERC20(asset).balanceOf(address(this));
         for (uint256 i = 0; i < adapters.length; i++) {
             realAssets += IAdapter(adapters[i]).totalAssets();
         }
-        uint256 loss = _totalAssets.zeroFloorSub(realAssets);
-        uint256 maxInterest = (_totalAssets * (block.timestamp - lastUpdate)).mulDivDown(maxRate, WAD);
-        uint256 interest = MathLib.min(realAssets.zeroFloorSub(_totalAssets), maxInterest);
-        uint256 newTotalAssets = _totalAssets + interest - loss;
+        uint256 maxTotalAssets = _totalAssets + (_totalAssets * elapsed).mulDivDown(maxRate, WAD);
+        uint256 newTotalAssets = MathLib.min(realAssets, maxTotalAssets);
+        uint256 interest = newTotalAssets.zeroFloorSub(_totalAssets);
 
         // The performance fee assets may be rounded down to 0 if interest * fee < WAD.
         uint256 performanceFeeAssets = interest > 0 && performanceFee > 0 && canReceiveShares(performanceFeeRecipient)
@@ -591,8 +590,8 @@ contract VaultV2 is IVaultV2 {
             : 0;
         // The management fee is taken on newTotalAssets to make all approximations consistent (interacting less
         // increases fees).
-        uint256 managementFeeAssets = managementFee > 0 && canReceiveShares(managementFeeRecipient)
-            ? (newTotalAssets * (block.timestamp - lastUpdate)).mulDivDown(managementFee, WAD)
+        uint256 managementFeeAssets = elapsed > 0 && managementFee > 0 && canReceiveShares(managementFeeRecipient)
+            ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD)
             : 0;
 
         // Interest should be accrued at least every 10 years to avoid fees exceeding total assets.
@@ -602,33 +601,33 @@ contract VaultV2 is IVaultV2 {
         uint256 managementFeeShares =
             managementFeeAssets.mulDivDown(totalSupply + virtualShares, newTotalAssetsWithoutFees + 1);
 
-        return (newTotalAssets, loss, performanceFeeShares, managementFeeShares);
+        return (newTotalAssets, performanceFeeShares, managementFeeShares);
     }
 
     /// @dev Returns previewed minted shares.
     function previewDeposit(uint256 assets) public view returns (uint256) {
-        (uint256 newTotalAssets,, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return assets.mulDivDown(newTotalSupply + virtualShares, newTotalAssets + 1);
     }
 
     /// @dev Returns previewed deposited assets.
     function previewMint(uint256 shares) public view returns (uint256) {
-        (uint256 newTotalAssets,, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivUp(newTotalAssets + 1, newTotalSupply + virtualShares);
     }
 
     /// @dev Returns previewed redeemed shares.
     function previewWithdraw(uint256 assets) public view returns (uint256) {
-        (uint256 newTotalAssets,, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return assets.mulDivUp(newTotalSupply + virtualShares, newTotalAssets + 1);
     }
 
     /// @dev Returns previewed withdrawn assets.
     function previewRedeem(uint256 shares) public view returns (uint256) {
-        (uint256 newTotalAssets,, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
         uint256 newTotalSupply = totalSupply + performanceFeeShares + managementFeeShares;
         return shares.mulDivDown(newTotalAssets + 1, newTotalSupply + virtualShares);
     }

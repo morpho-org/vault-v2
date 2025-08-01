@@ -76,8 +76,7 @@ contract AccrueInterestTest is BaseTest {
         skip(elapsed);
 
         // Normal path.
-        (uint256 newTotalAssets,, uint256 performanceFeeShares, uint256 managementFeeShares) =
-            vault.accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = vault.accrueInterestView();
         vault.accrueInterest();
         assertEq(newTotalAssets, vault._totalAssets());
         assertEq(performanceFeeShares, vault.balanceOf(performanceFeeRecipient));

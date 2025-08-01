@@ -122,8 +122,7 @@ contract ViewFunctionsTest is BaseTest {
 
         skip(data.elapsed);
 
-        (uint256 newTotalAssets,, uint256 performanceFeeShares, uint256 managementFeeShares) =
-            vault.accrueInterestView();
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = vault.accrueInterestView();
 
         return (newTotalAssets, vault.totalSupply() + performanceFeeShares + managementFeeShares);
     }
