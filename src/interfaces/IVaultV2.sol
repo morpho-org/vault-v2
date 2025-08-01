@@ -26,7 +26,6 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function _totalAssets() external view returns (uint128);
     function lastUpdate() external view returns (uint64);
     function maxRate() external view returns (uint64);
-    function enterBlocked() external view returns (bool);
     function adapters(uint256 index) external view returns (address);
     function adaptersLength() external view returns (uint256);
     function isAdapter(address account) external view returns (bool);

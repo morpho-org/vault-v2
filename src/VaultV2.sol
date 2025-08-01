@@ -185,7 +185,6 @@ contract VaultV2 is IVaultV2 {
     uint128 public _totalAssets;
     uint64 public lastUpdate;
     uint64 public maxRate;
-    bool public transient enterBlocked;
 
     /* CURATION STORAGE */
 
@@ -567,14 +566,15 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE FUNCTIONS */
 
     function accrueInterest() public {
-        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
-        emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
-        if (newTotalAssets < _totalAssets && firstTotalAssets != 0) enterBlocked = true;
-        _totalAssets = newTotalAssets.toUint128();
-        if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
-        if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
-        lastUpdate = uint64(block.timestamp);
-        if (firstTotalAssets == 0) firstTotalAssets = _totalAssets;
+        if (firstTotalAssets == 0) {
+            (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+            emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
+            _totalAssets = newTotalAssets.toUint128();
+            firstTotalAssets = newTotalAssets;
+            if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
+            if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
+            lastUpdate = uint64(block.timestamp);
+        }
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
@@ -691,7 +691,6 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
-        require(!enterBlocked, ErrorsLib.EnterBlocked());
         require(canReceiveShares(onBehalf), ErrorsLib.CannotReceiveShares());
         require(canSendAssets(msg.sender), ErrorsLib.CannotSendAssets());
 

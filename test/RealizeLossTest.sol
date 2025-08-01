@@ -28,6 +28,7 @@ contract RealizeLossTest is BaseTest {
         increaseRelativeCap(expectedIdData[1], WAD);
     }
 
+    /// forge-config: default.isolate = true
     function testRealizeLoss(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
@@ -42,45 +43,6 @@ contract RealizeLossTest is BaseTest {
         emit EventsLib.AccrueInterest(deposit, deposit - expectedLoss, 0, 0);
         vault.accrueInterest();
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
-        assertEq(vault.enterBlocked(), true, "enterBlocked should be true");
-
-        // Try to deposit.
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.EnterBlocked.selector));
-        vault.deposit(deposit, address(this));
-
-        // Try to mint.
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.EnterBlocked.selector));
-        vault.mint(deposit, address(this));
-    }
-
-    function testRealizeLossWithDepositNotFirstInteractionLossBefore(uint256 deposit, uint256 expectedLoss) public {
-        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
-        expectedLoss = bound(expectedLoss, 1, deposit);
-
-        vault.deposit(deposit, address(this));
-        vm.prank(allocator);
-        vault.allocate(address(adapter), hex"", deposit);
-
-        adapter.setLoss(expectedLoss);
-        vault.accrueInterest();
-
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.EnterBlocked.selector));
-        vault.deposit(deposit, address(this));
-    }
-
-    function testRealizeLossWithDepositNotFirstInteractionLossBetween(uint256 deposit, uint256 expectedLoss) public {
-        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
-        expectedLoss = bound(expectedLoss, 1, deposit);
-
-        vault.deposit(deposit, address(this));
-        vm.prank(allocator);
-        vault.allocate(address(adapter), hex"", deposit);
-
-        vault.accrueInterest();
-        adapter.setLoss(expectedLoss);
-
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.EnterBlocked.selector));
-        vault.deposit(deposit, address(this));
     }
 
     /// forge-config: default.isolate = true

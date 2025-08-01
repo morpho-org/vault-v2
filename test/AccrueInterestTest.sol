@@ -48,6 +48,7 @@ contract AccrueInterestTest is BaseTest {
         vault.setLiquidityAdapterAndData(address(adapter), hex"");
     }
 
+    /// forge-config: default.isolate = true
     function testAccrueInterestView(
         uint256 deposit,
         uint256 performanceFee,
@@ -83,6 +84,7 @@ contract AccrueInterestTest is BaseTest {
         assertEq(managementFeeShares, vault.balanceOf(managementFeeRecipient));
     }
 
+    /// forge-config: default.isolate = true
     function testTotalAssets(
         uint256 deposit,
         uint256 performanceFee,
@@ -116,6 +118,7 @@ contract AccrueInterestTest is BaseTest {
         assertEq(newTotalAssets, vault._totalAssets());
     }
 
+    /// forge-config: default.isolate = true
     function testAccrueInterest(
         uint256 deposit,
         uint256 performanceFee,
@@ -160,6 +163,7 @@ contract AccrueInterestTest is BaseTest {
         assertEq(vault.balanceOf(managementFeeRecipient), managementFeeShares, "managementFeeShares");
     }
 
+    /// forge-config: default.isolate = true
     function testAccrueInterestMaxRate(uint256 deposit, uint256 interest, uint256 elapsed) public {
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         interest = bound(interest, 0, MAX_MAX_RATE);
@@ -180,6 +184,7 @@ contract AccrueInterestTest is BaseTest {
         assertLe(vault.totalAssets(), deposit + (deposit * elapsed).mulDivDown(MAX_MAX_RATE, WAD));
     }
 
+    /// forge-config: default.isolate = true
     function testAccrueInterestFees(
         uint256 performanceFee,
         uint256 managementFee,
