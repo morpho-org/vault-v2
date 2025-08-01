@@ -122,6 +122,7 @@ An example gate is defined in [test/examples/GateExample.sol](./test/examples/Ga
 
 #### Owner
 
+The owner's role is to set the curator and sentinels.
 Only one address can have this role.
 
 It can:
@@ -134,6 +135,7 @@ It can:
 
 #### Curator
 
+The curator's role is to curate the vault, meaning setting risk limits, gates, allocators, fees.
 Only one address can have this role.
 
 Some actions of the curator are timelockable (between 0 and 3 weeks, or infinite if the action has been frozen).
@@ -162,6 +164,8 @@ It can:
 
 #### Allocator
 
+The allocators' role is to handle the allocation of the liquidity (inside the caps set by the curator).
+They are notably responsible for the vault's liquidity.
 Multiple addresses can have this role.
 
 It can:
