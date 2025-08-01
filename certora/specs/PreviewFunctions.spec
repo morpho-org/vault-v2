@@ -2,8 +2,8 @@
 // Copyright (c) 2025 Morpho Association
 
 methods {
-    function _.totalAssets() external => CONSTANT;
-    function _.canReceiveShares(address) external => CONSTANT;
+    function _.totalAssets() external => PER_CALLEE_CONSTANT;
+    function _.canReceiveShares(address) external => PER_CALLEE_CONSTANT;
 }
 
 rule previewDepositValue(env e, uint256 assets, address onBehalf) {
