@@ -757,7 +757,7 @@ contract VaultV2 is IVaultV2 {
     {
         bytes32[] memory ids = deallocateInternal(adapter, data, assets);
         uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
-        uint256 penaltyShares = withdraw(penaltyAssets, owner, onBehalf); // temporary solution
+        uint256 penaltyShares = withdraw(penaltyAssets, address(this), onBehalf);
         emit EventsLib.ForceDeallocate(msg.sender, adapter, assets, onBehalf, ids, penaltyAssets);
         return penaltyShares;
     }

@@ -81,7 +81,7 @@ contract MorphoMarketV1IntegrationIkrTest is MorphoMarketV1IntegrationTest {
         // No assets left after reimbursing the flashloan.
         assertEq(underlyingToken.balanceOf(address(this)), assets - penaltyAssets, "balanceOf(this)");
         // No assets left in the vault
-        assertApproxEqAbs(underlyingToken.balanceOf(address(vault)), 0, 1);
+        assertApproxEqAbs(underlyingToken.balanceOf(address(vault)), penaltyAssets, 1);
         // No assets left as shares in the vault.
         uint256 assetsLeftInVault = vault.previewRedeem(vault.balanceOf(address(this)));
         assertApproxEqAbs(assetsLeftInVault, 0, 1, "assetsLeftInVault");
