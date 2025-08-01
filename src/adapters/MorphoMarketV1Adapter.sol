@@ -65,7 +65,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the allocation and the potential loss.
+    /// @dev Returns the ids of the allocation and the change in allocation.
     function allocate(bytes memory data, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
@@ -85,7 +85,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the deallocation and the potential loss.
+    /// @dev Returns the ids of the deallocation and the change in allocation.
     function deallocate(bytes memory data, uint256 assets, bytes4, address)
         external
         returns (bytes32[] memory, int256)
