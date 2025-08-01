@@ -48,7 +48,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// LOSS REALIZATION
 /// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
-/// because flashloan-based shorting is prevented (see enterBlocked flag).
+/// because flashloan-based shorting is prevented (see firstTotalAssets use in realizeLosses).
 ///
 /// CAPS
 /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
@@ -198,7 +198,6 @@ contract VaultV2 is IVaultV2 {
     uint192 public _totalAssets;
     uint64 public lastUpdate;
     address public vic;
-    bool public transient enterBlocked;
 
     /* CURATION STORAGE */
 
@@ -708,7 +707,6 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
-        require(!enterBlocked, ErrorsLib.EnterBlocked());
         require(canReceiveShares(onBehalf), ErrorsLib.CannotReceiveShares());
         require(canSendAssets(msg.sender), ErrorsLib.CannotSendAssets());
 
@@ -783,6 +781,7 @@ contract VaultV2 is IVaultV2 {
     /// losses do not cause issues.
     /// @dev The incentive will be null if the msg.sender isn't allowed to receive shares.
     function realizeLosses() external returns (uint256, uint256) {
+        require(firstTotalAssets == 0, ErrorsLib.RealizeAfterAccrual());
         accrueInterest();
 
         uint256 _realAssets = realAssets();
@@ -801,7 +800,6 @@ contract VaultV2 is IVaultV2 {
                 );
                 createShares(msg.sender, incentiveShares);
             }
-            enterBlocked = true;
         }
 
         emit EventsLib.RealizeLosses(msg.sender, loss, incentiveShares);

@@ -16,7 +16,6 @@ library ErrorsLib {
     error CastOverflow();
     error DataAlreadyPending();
     error DataNotTimelocked();
-    error EnterBlocked();
     error FeeInvariantBroken();
     error FeeTooHigh();
     error InfiniteTimelock();
@@ -25,6 +24,7 @@ library ErrorsLib {
     error NotAdapter();
     error PenaltyTooHigh();
     error PermitDeadlineExpired();
+    error RealizeAfterAccrual();
     error RelativeCapAboveOne();
     error RelativeCapExceeded();
     error RelativeCapNotDecreasing();
