@@ -50,7 +50,7 @@ function ignoredCallUintSummary() returns uint256 {
 persistent ghost bool ignoredCall;
 persistent ghost bool hasCall;
 
-hook CALL(uint g, address addr, uint value, uint argsOffset, uint argsLength, uint retOffset, uint retLength) uint rc {
+hook CALL(uint256 g, address addr, uint256 value, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
     // Ignore calls to tokens and Morpho markets and Metamorpho as they are trusted to not reenter (they have gone through a timelock).
     if (ignoredCall  || addr == currentContract) {
         ignoredCall = false;
