@@ -35,7 +35,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// LOSS REALIZATION
 /// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
-/// because flashloan-based shorting is prevented (see enterBlocked flag).
+/// because flashloan-based shorting is prevented, because interest are accrued only once per transaction.
 ///
 /// CAPS
 /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
@@ -582,6 +582,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev The performance and management fees are taken even if the vault incurs some losses.
     /// @dev Both fees are rounded down, so fee recipients could receive less than expected.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
+        if (firstTotalAssets != 0) return (_totalAssets, 0, 0);
         uint256 elapsed = block.timestamp - lastUpdate;
         uint256 realAssets = IERC20(asset).balanceOf(address(this));
         for (uint256 i = 0; i < adapters.length; i++) {

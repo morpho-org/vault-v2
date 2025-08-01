@@ -16,7 +16,6 @@ library ErrorsLib {
     error CastOverflow();
     error DataAlreadyPending();
     error DataNotTimelocked();
-    error EnterBlocked();
     error FeeInvariantBroken();
     error FeeTooHigh();
     error InfiniteTimelock();
