@@ -32,6 +32,7 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
         );
     }
 
+    /// forge-config: default.isolate = true
     function testDepositRoundingLoss(uint256 donationFactor, uint256 roundedDeposit) public {
         // Setup
         donationFactor = bound(donationFactor, 2, 100);
@@ -81,6 +82,7 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
         );
     }
 
+    /// forge-config: default.isolate = true
     function testWithdrawRoundingLoss(uint256 donationFactor, uint256 roundedWithdraw) public {
         donationFactor = bound(donationFactor, 2, 100);
         roundedWithdraw = bound(roundedWithdraw, 1, donationFactor / 2);

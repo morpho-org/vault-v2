@@ -28,6 +28,7 @@ contract RealizeLossesTest is BaseTest {
         increaseRelativeCap(expectedIdData[1], WAD);
     }
 
+    /// forge-config: default.isolate = true
     function testRealizeLossesZero(uint256 deposit) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
 
@@ -36,9 +37,9 @@ contract RealizeLossesTest is BaseTest {
         // Realize the loss.
         vault.realizeLosses();
         assertEq(vault.totalAssets(), deposit, "total assets should not have changed");
-        assertEq(vault.enterBlocked(), false, "enter should not be blocked");
     }
 
+    /// forge-config: default.isolate = true
     function testRealizeLosses(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
@@ -59,6 +60,7 @@ contract RealizeLossesTest is BaseTest {
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
     }
 
+    /// forge-config: default.isolate = true
     function testRealizeLossesAllocate(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
@@ -75,16 +77,9 @@ contract RealizeLossesTest is BaseTest {
         // Realize the loss.
         vault.realizeLosses();
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
-
-        if (expectedLoss > 0) {
-            assertTrue(vault.enterBlocked(), "enter should be blocked");
-
-            // Cannot enter
-            vm.expectRevert(ErrorsLib.EnterBlocked.selector);
-            vault.deposit(0, address(this));
-        }
     }
 
+    /// forge-config: default.isolate = true
     function testRealizeLossesDeallocate(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
@@ -101,16 +96,9 @@ contract RealizeLossesTest is BaseTest {
         // Realize the loss.
         vault.realizeLosses();
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
-
-        if (expectedLoss > 0) {
-            assertTrue(vault.enterBlocked(), "enter should be blocked");
-
-            // Cannot enter
-            vm.expectRevert(ErrorsLib.EnterBlocked.selector);
-            vault.deposit(0, address(this));
-        }
     }
 
+    /// forge-config: default.isolate = true
     function testRealizeLossesForceDeallocate(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
@@ -127,16 +115,9 @@ contract RealizeLossesTest is BaseTest {
         // Realize the loss.
         vault.realizeLosses();
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
-
-        if (expectedLoss > 0) {
-            assertTrue(vault.enterBlocked(), "enter should be blocked");
-
-            // Cannot enter
-            vm.expectRevert(ErrorsLib.EnterBlocked.selector);
-            vault.deposit(0, address(this));
-        }
     }
 
+    /// forge-config: default.isolate = true
     function testRealizeLossesAllocationUpdate(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
@@ -156,6 +137,7 @@ contract RealizeLossesTest is BaseTest {
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
     }
 
+    /// forge-config: default.isolate = true
     function testRealizeLossesAcrossAdaptersAndDiscoverBalance(
         uint256 deposit1,
         uint256 expectedLoss1,
@@ -195,5 +177,19 @@ contract RealizeLossesTest is BaseTest {
             deposit1 - expectedLoss1 + deposit2 - expectedLoss2 + discoveredBalance,
             "incorrect total assets"
         );
+    }
+
+    function testRealizeLossesAfterAccrual(uint256 deposit) public {
+        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+
+        vault.deposit(deposit, address(this));
+
+        vault.accrueInterest();
+        console.log("firstTotalAssets", vault.firstTotalAssets());
+
+        // Realize the loss.
+        vm.expectRevert(ErrorsLib.RealizeAfterAccrual.selector);
+        vault.realizeLosses();
+        assertEq(vault.totalAssets(), deposit, "total assets should not have changed");
     }
 }

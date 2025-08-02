@@ -167,6 +167,7 @@ contract GatingTest is BaseTest {
         assertEq(actualCan, !hasGate || can);
     }
 
+    /// forge-config: default.isolate = true
     function testRealizeLossIncentiveGated(uint256 deposit, uint256 expectedLoss, bool canReceiveShares) public {
         address realizer = makeAddr("realizer");
         deposit = bound(deposit, 100, MAX_TEST_ASSETS);
