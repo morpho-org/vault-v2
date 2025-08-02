@@ -265,24 +265,26 @@ contract MorphoMarketV1AdapterTest is Test {
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         donation = bound(donation, 1, MAX_TEST_ASSETS);
 
+        MarketParams memory otherMarketParams = marketParams;
+        otherMarketParams.collateralToken = address(0);
+        morpho.createMarket(otherMarketParams);
+
         // Deposit some assets
         deal(address(loanToken), address(adapter), deposit * 2);
         parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
 
-        uint256 sharesInMarket = MorphoLib.supplyShares(morpho, marketId, address(adapter));
-        assertEq(adapter.shares(marketId), sharesInMarket, "shares not recorded");
+        uint256 totalAssets = adapter.totalAssets();
+        assertEq(totalAssets, deposit, "totalAssets not set correctly");
 
         // Donate to adapter
         address donor = makeAddr("donor");
         deal(address(loanToken), donor, donation);
         vm.startPrank(donor);
         loanToken.approve(address(morpho), type(uint256).max);
-        morpho.supply(marketParams, donation, 0, address(adapter), "");
+        morpho.supply(otherMarketParams, donation, 0, address(adapter), "");
         vm.stopPrank();
 
-        // Test no impact on allocation
-        uint256 oldallocation = adapter.allocation(marketParams);
-        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
-        assertEq(adapter.allocation(marketParams), oldallocation + deposit, "assets have changed");
+        uint256 totalAssetsAfter = adapter.totalAssets();
+        assertEq(totalAssetsAfter, totalAssets, "totalAssets should not change");
     }
 }

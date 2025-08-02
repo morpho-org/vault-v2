@@ -3,7 +3,7 @@
 pragma solidity 0.8.28;
 
 import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
-import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {MorphoBalancesLib, MorphoLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
@@ -18,7 +18,7 @@ import {MathLib} from "../libraries/MathLib.sol";
 /// @dev Must not be used with a Morpho Market v1 with an Irm that can re-enter the parent vault.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MathLib for uint256;
-    using SharesMathLib for uint256;
+    using MorphoLib for IMorpho;
     using MorphoBalancesLib for IMorpho;
     using MarketParamsLib for MarketParams;
 
@@ -33,9 +33,12 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     /* STORAGE */
 
     address public skimRecipient;
-    /// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
-    mapping(Id => uint256) public shares;
+    mapping(Id => uint256) public indexInListCtz;
     MarketParams[] public allMarketParams;
+
+    function allMarketParamsLength() external view returns (uint256) {
+        return allMarketParams.length;
+    }
 
     /* FUNCTIONS */
 
@@ -72,14 +75,15 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
-        if (shares[marketId] == 0 && assets > 0) allMarketParams.push(marketParams);
+        if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+        // TODO: justify safe casting
+        int256 change =
+            int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(allocation(marketParams));
 
-        if (assets > 0) {
-            (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-            shares[marketId] += mintedShares;
+        if (indexInListCtz[marketId] == 0 && IMorpho(morpho).supplyShares(marketId, address(this)) > 0) {
+            indexInListCtz[marketId] = 1 << allMarketParams.length;
+            allMarketParams.push(marketParams);
         }
-        // TODO
-        int256 change = int256(expectedSupplyAssets(marketParams, shares[marketId])) - int256(allocation(marketParams));
 
         return (ids(marketParams), change);
     }
@@ -95,21 +99,15 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
-        if (assets > 0) {
-            (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-            shares[marketId] -= redeemedShares;
-        }
-        // TODO
-        int256 change = int256(expectedSupplyAssets(marketParams, shares[marketId])) - int256(allocation(marketParams));
+        if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+        // TODO: justify safe casting
+        int256 change =
+            int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(allocation(marketParams));
 
-        if (shares[marketId] == 0 && assets > 0) {
-            for (uint256 i = 0; i < allMarketParams.length; i++) {
-                if (Id.unwrap(allMarketParams[i].id()) == Id.unwrap(marketId)) {
-                    allMarketParams[i] = allMarketParams[allMarketParams.length - 1];
-                    allMarketParams.pop();
-                    break;
-                }
-            }
+        if (indexInListCtz[marketId] != 0 && IMorpho(morpho).supplyShares(marketId, address(this)) == 0) {
+            allMarketParams[ctz(indexInListCtz[marketId])] = allMarketParams[allMarketParams.length - 1];
+            indexInListCtz[marketId] = 0;
+            allMarketParams.pop();
         }
 
         return (ids(marketParams), change);
@@ -128,23 +126,21 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         return ids_;
     }
 
-    function expectedSupplyAssets(MarketParams memory marketParams, uint256 supplyShares)
-        internal
-        view
-        returns (uint256)
-    {
-        (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
-            MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
-
-        return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
-    }
-
     function totalAssets() external view returns (uint256) {
         uint256 res = 0;
         for (uint256 i = 0; i < allMarketParams.length; i++) {
-            res += expectedSupplyAssets(allMarketParams[i], shares[allMarketParams[i].id()]);
+            res += IMorpho(morpho).expectedSupplyAssets(allMarketParams[i], address(this));
         }
-
         return res;
+    }
+
+    // Returns the number of trailing zeros in `x`.
+    function ctz(uint256 x) internal pure returns (uint256) {
+        uint256 tz = 0;
+        while (x & 1 == 0) {
+            x >>= 1;
+            tz++;
+        }
+        return tz;
     }
 }

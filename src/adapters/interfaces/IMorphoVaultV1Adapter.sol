@@ -23,8 +23,6 @@ interface IMorphoVaultV1Adapter is IAdapter {
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
     function parentVault() external view returns (address);
-    function morphoVaultV1() external view returns (address);
     function skimRecipient() external view returns (address);
     function allocation() external view returns (uint256);
-    function shares() external view returns (uint256);
 }
