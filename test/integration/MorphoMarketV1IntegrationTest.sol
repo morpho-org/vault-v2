@@ -4,12 +4,13 @@ pragma solidity ^0.8.0;
 
 import "../BaseTest.sol";
 
-import {MorphoMarketV1Adapter} from "../../src/adapters/MorphoMarketV1Adapter.sol";
-import {MorphoMarketV1AdapterFactory} from "../../src/adapters/MorphoMarketV1AdapterFactory.sol";
+import {MorphoMarketV1AdaptiveCurveIrmAdapter} from "../../src/adapters/MorphoMarketV1AdaptiveCurveIrmAdapter.sol";
+import {MorphoMarketV1AdaptiveCurveIrmAdapterFactory} from
+    "../../src/adapters/MorphoMarketV1AdaptiveCurveIrmAdapterFactory.sol";
 
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 import {OracleMock} from "../../lib/morpho-blue/src/mocks/OracleMock.sol";
-import {IrmMock} from "../../lib/morpho-blue/src/mocks/IrmMock.sol";
+import {AdaptiveCurveIrmMock} from "../mocks/AdaptiveCurveIrmMock.sol";
 import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
@@ -18,12 +19,12 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
     IMorpho internal morpho;
     ERC20Mock internal collateralToken;
     OracleMock internal oracle;
-    IrmMock internal irm;
+    AdaptiveCurveIrmMock internal irm;
     MarketParams internal marketParams1;
     MarketParams internal marketParams2;
 
-    MorphoMarketV1AdapterFactory internal factory;
-    MorphoMarketV1Adapter internal adapter;
+    MorphoMarketV1AdaptiveCurveIrmAdapterFactory internal factory;
+    MorphoMarketV1AdaptiveCurveIrmAdapter internal adapter;
 
     bytes[] internal expectedIdData1;
     bytes[] internal expectedIdData2;
@@ -41,7 +42,7 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
 
         collateralToken = new ERC20Mock(18);
         oracle = new OracleMock();
-        irm = new IrmMock();
+        irm = new AdaptiveCurveIrmMock();
 
         oracle.setPrice(ORACLE_PRICE_SCALE);
 
@@ -72,8 +73,10 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
 
         /* VAULT SETUP */
 
-        factory = new MorphoMarketV1AdapterFactory();
-        adapter = MorphoMarketV1Adapter(factory.createMorphoMarketV1Adapter(address(vault), address(morpho)));
+        factory = new MorphoMarketV1AdaptiveCurveIrmAdapterFactory();
+        adapter = MorphoMarketV1AdaptiveCurveIrmAdapter(
+            factory.createMorphoMarketV1AdaptiveCurveIrmAdapter(address(vault), address(morpho), address(irm))
+        );
 
         expectedIdData1 = new bytes[](3);
         expectedIdData1[0] = abi.encode("this", address(adapter));

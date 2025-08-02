@@ -13,3 +13,6 @@
 [submodule "lib/metamorpho-v1.1"]
 	path = lib/metamorpho-v1.1
 	url = git@github.com:morpho-org/metamorpho-v1.1.git
+[submodule "lib/morpho-blue-irm"]
+	path = lib/morpho-blue-irm
+	url = https://github.com/morpho-org/morpho-blue-irm

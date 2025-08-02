@@ -5,7 +5,7 @@ pragma solidity >=0.5.0;
 import {IAdapter} from "../../interfaces/IAdapter.sol";
 import {Id, MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
-interface IMorphoMarketV1Adapter is IAdapter {
+interface IMorphoMarketV1AdaptiveCurveIrmAdapter is IAdapter {
     /* EVENTS */
 
     event SetSkimRecipient(address indexed newSkimRecipient);
@@ -14,6 +14,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
     /* ERRORS */
 
     error LoanAssetMismatch();
+    error IrmMismatch();
     error NotAuthorized();
 
     /* FUNCTIONS */
