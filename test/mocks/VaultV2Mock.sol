@@ -25,31 +25,23 @@ contract VaultV2Mock {
 
     function allocateMocked(address adapter, bytes memory data, uint256 assets)
         external
-        returns (bytes32[] memory, uint256)
+        returns (bytes32[] memory, int256)
     {
-        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).allocate(data, assets, msg.sig, msg.sender);
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets, msg.sig, msg.sender);
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]] + interest + assets;
+            allocation[ids[i]] = uint256(int256(allocation[ids[i]]) + change);
         }
-        return (ids, interest);
+        return (ids, change);
     }
 
     function deallocateMocked(address adapter, bytes memory data, uint256 assets)
         external
-        returns (bytes32[] memory, uint256)
+        returns (bytes32[] memory, int256)
     {
-        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
         for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] = allocation[ids[i]] + interest - assets;
+            allocation[ids[i]] = uint256(int256(allocation[ids[i]]) + change);
         }
-        return (ids, interest);
-    }
-
-    function realizeLossMocked(address adapter, bytes memory data) external returns (bytes32[] memory, uint256) {
-        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).realizeLoss(data, msg.sig, msg.sender);
-        for (uint256 i; i < ids.length; i++) {
-            allocation[ids[i]] -= loss;
-        }
-        return (ids, loss);
+        return (ids, change);
     }
 }

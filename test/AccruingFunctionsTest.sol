@@ -41,18 +41,6 @@ contract AccruingFunctionsTest is BaseTest {
         vault.forceDeallocate(address(adapter), hex"", 0, address(this));
     }
 
-    function testRealizeAccruesInterest() public {
-        skip(1);
-        bytes32[] memory ids = new bytes32[](0);
-        vm.mockCall(
-            address(adapter), abi.encodeCall(IAdapter.realizeLoss, (hex"", bytes4(0), address(0))), abi.encode(ids, 1)
-        );
-
-        vm.expectEmit(false, false, false, false);
-        emit EventsLib.AccrueInterest(0, 0, 0, 0);
-        vault.realizeLoss(address(adapter), hex"");
-    }
-
     function testDepositAccruesInterest() public {
         skip(1);
         vm.expectEmit(false, false, false, false);
@@ -79,15 +67,6 @@ contract AccruingFunctionsTest is BaseTest {
         vm.expectEmit(false, false, false, false);
         emit EventsLib.AccrueInterest(0, 0, 0, 0);
         vault.redeem(0, address(this), address(this));
-    }
-
-    function testSetVicAccruesInterest() public {
-        skip(1);
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(vic))));
-        vm.expectEmit(false, false, false, false);
-        emit EventsLib.AccrueInterest(0, 0, 0, 0);
-        vault.setVic(address(vic));
     }
 
     function testSetPerformanceFeeAccruesInterest() public {
@@ -126,19 +105,11 @@ contract AccruingFunctionsTest is BaseTest {
         vault.setManagementFeeRecipient(address(0));
     }
 
-    function testSetInterestPerSecondAndDeadline() public {
+    function testSetMaxRateAccruesInterest() public {
         skip(1);
-        vm.prank(allocator);
-        vm.expectEmit(false, false, false, false);
-        emit EventsLib.AccrueInterest(0, 0, 0, 0);
-        vic.setInterestPerSecondAndDeadline(0, type(uint64).max);
-    }
-
-    function testZeroInterestPerSecondAndDeadlineAccruesInterest() public {
-        skip(1);
-        vm.prank(sentinel);
-        vm.expectEmit(false, false, false, false);
-        emit EventsLib.AccrueInterest(0, 0, 0, 0);
-        vic.zeroInterestPerSecondAndDeadline();
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (MAX_MAX_RATE)));
+        vault.setMaxRate(MAX_MAX_RATE);
+        assertEq(vault.lastUpdate(), block.timestamp);
     }
 }

@@ -5,11 +5,14 @@ pragma solidity ^0.8.0;
 import "./BaseTest.sol";
 
 contract ViewFunctionsTest is BaseTest {
+    using MathLib for uint256;
+
     uint256 MAX_TEST_ASSETS;
 
     address performanceFeeRecipient = makeAddr("performanceFeeRecipient");
     address managementFeeRecipient = makeAddr("managementFeeRecipient");
     address immutable receiver = makeAddr("receiver");
+    AdapterMock adapter;
 
     function setUp() public override {
         super.setUp();
@@ -26,6 +29,24 @@ contract ViewFunctionsTest is BaseTest {
 
         vault.setPerformanceFeeRecipient(performanceFeeRecipient);
         vault.setManagementFeeRecipient(managementFeeRecipient);
+
+        adapter = new AdapterMock(address(vault));
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
+        vault.setIsAdapter(address(adapter), true);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (MAX_MAX_RATE)));
+        vault.setMaxRate(MAX_MAX_RATE);
+
+        vm.prank(allocator);
+        vault.setLiquidityAdapterAndData(address(adapter), hex"");
+
+        increaseAbsoluteCap("id-0", type(uint128).max);
+        increaseAbsoluteCap("id-1", type(uint128).max);
+        increaseRelativeCap("id-0", WAD);
+        increaseRelativeCap("id-1", WAD);
     }
 
     function testMaxDeposit() public view {
@@ -85,8 +106,8 @@ contract ViewFunctionsTest is BaseTest {
         data.initialDeposit = bound(data.initialDeposit, 0, MAX_TEST_ASSETS);
         data.performanceFee = bound(data.performanceFee, 0, MAX_PERFORMANCE_FEE);
         data.managementFee = bound(data.managementFee, 0, MAX_MANAGEMENT_FEE);
-        data.interest = bound(data.interest, 0, MAX_TEST_ASSETS);
         data.elapsed = uint64(bound(data.elapsed, 0, 10 * 365 days));
+        data.interest = bound(data.interest, 0, (data.initialDeposit * data.elapsed).mulDivDown(MAX_MAX_RATE, WAD));
 
         vault.deposit(data.initialDeposit, address(this));
 
@@ -97,7 +118,7 @@ contract ViewFunctionsTest is BaseTest {
         vault.setPerformanceFee(data.performanceFee);
         vault.setManagementFee(data.managementFee);
 
-        writeTotalAssets(data.initialDeposit + data.interest);
+        adapter.setInterest(data.interest);
 
         skip(data.elapsed);
 

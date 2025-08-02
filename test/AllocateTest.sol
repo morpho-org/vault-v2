@@ -11,6 +11,8 @@ contract AllocateTest is BaseTest {
     address adapter;
     bytes32[] public ids;
 
+    uint256 MAX_TEST_ASSETS;
+
     function setUp() public override {
         super.setUp();
 
@@ -26,6 +28,8 @@ contract AllocateTest is BaseTest {
         ids = new bytes32[](2);
         ids[0] = keccak256("id-0");
         ids[1] = keccak256("id-1");
+
+        MAX_TEST_ASSETS = 10 ** min(18 + underlyingToken.decimals(), 36);
     }
 
     function testAllocateZeroAbsoluteCap() public {
@@ -95,7 +99,7 @@ contract AllocateTest is BaseTest {
         increaseRelativeCap("id-1", WAD);
         vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.Allocate(allocator, adapter, allocateAssets, ids, 0);
+        emit EventsLib.Allocate(allocator, adapter, allocateAssets, ids, int256(allocateAssets));
         vault.allocate(adapter, data, allocateAssets);
         assertEq(
             underlyingToken.balanceOf(address(vault)),
@@ -170,7 +174,7 @@ contract AllocateTest is BaseTest {
     {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(sentinel));
-        assetsIn = bound(assetsIn, 1, type(uint128).max);
+        assetsIn = bound(assetsIn, 1, MAX_TEST_ASSETS);
         assetsOut = bound(assetsOut, 1, assetsIn);
         absoluteCap = bound(absoluteCap, assetsIn, type(uint128).max);
 
@@ -200,7 +204,7 @@ contract AllocateTest is BaseTest {
         // Normal path.
         vm.prank(allocator);
         vm.expectEmit();
-        emit EventsLib.Deallocate(allocator, adapter, assetsOut, ids, 0);
+        emit EventsLib.Deallocate(allocator, adapter, assetsOut, ids, -int256(assetsOut));
         vault.deallocate(adapter, data, assetsOut);
         assertEq(underlyingToken.balanceOf(address(vault)), assetsOut, "Vault balance incorrect after deallocation");
         assertEq(
@@ -225,10 +229,10 @@ contract AllocateTest is BaseTest {
         uint256 interest,
         uint256 cap
     ) public {
-        deposit = bound(deposit, 1, type(uint128).max);
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
         allocation1 = bound(allocation1, 0, deposit);
         allocation2 = bound(allocation2, 0, deposit - allocation1);
-        interest = bound(interest, 1, type(uint128).max);
+        interest = bound(interest, 1, MAX_TEST_ASSETS);
         cap = bound(cap, allocation1, type(uint128).max);
         cap = bound(cap, 1, type(uint128).max); // to avoid zero cap.
 
@@ -246,7 +250,7 @@ contract AllocateTest is BaseTest {
         vm.prank(allocator);
         if (cap >= allocation1 + allocation2 + interest) {
             vm.expectEmit();
-            emit EventsLib.Allocate(allocator, adapter, allocation2, ids, interest);
+            emit EventsLib.Allocate(allocator, adapter, allocation2, ids, int256(allocation2) + int256(interest));
             vault.allocate(adapter, hex"", allocation2);
             assertEq(
                 vault.allocation(keccak256("id-0")),

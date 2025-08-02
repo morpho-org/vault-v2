@@ -13,7 +13,6 @@ methods {
 
     function _.allocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
     function _.deallocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
-    function _.realizeLoss(bytes, bytes4, address) external => DISPATCHER(true);
 
     function _.supply(MorphoMarketV1Adapter.MarketParams, uint256, uint256, address, bytes) external => ignoredCallUintPairSummary() expect (uint256, uint256);
     function _.withdraw(MorphoMarketV1Adapter.MarketParams, uint256, uint256, address, address) external => ignoredCallUintPairSummary() expect (uint256, uint256);

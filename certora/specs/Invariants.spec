@@ -25,7 +25,6 @@ methods {
     function sharesGate() external returns address envfree;
 
     function Utils.wad() external returns uint256 envfree;
-    function Utils.maxRatePerSecond() external returns uint256 envfree;
     function Utils.timelockCap() external returns uint256 envfree;
     function Utils.maxPerformanceFee() external returns uint256 envfree;
     function Utils.maxManagementFee() external returns uint256 envfree;

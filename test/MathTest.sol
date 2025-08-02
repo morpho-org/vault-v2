@@ -29,19 +29,6 @@ contract MathTest is Test {
         assertEq(MathLib.zeroFloorSub(x, y), x < y ? 0 : x - y);
     }
 
-    function testToUint192(uint256 x) public {
-        if (x > type(uint192).max) {
-            vm.expectRevert(ErrorsLib.CastOverflow.selector);
-            this.toUint192(x);
-        } else {
-            assertEq(this.toUint192(x), uint192(x));
-        }
-    }
-
-    function toUint192(uint256 x) external pure returns (uint192) {
-        return MathLib.toUint192(x);
-    }
-
     function testMin(uint256 x, uint256 y) public pure {
         assertEq(MathLib.min(x, y), x < y ? x : y);
     }
