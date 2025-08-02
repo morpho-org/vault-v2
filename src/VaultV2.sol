@@ -48,12 +48,12 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// LOSS REALIZATION
 /// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
-/// because flashloan-based shorting is prevented (see enterBlocked flag).
+/// because flashloan-based shorting is prevented (see firstTotalAssets use in realizeLosses).
 ///
 /// CAPS
 /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
-/// @dev The allocation is not always up to date, because interest are added only when (de)allocating in the
-/// corresponding markets, and losses are deducted only when realized for these markets.
+/// @dev The allocation is not always up to date, because changes are accounted only when (de)allocating in the
+/// corresponding markets.
 /// @dev The caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
 /// @dev Relative caps are "soft" in the sense that they are only checked on allocate.
 /// @dev The relative cap is relative to totalAssets, or more precisely to firstTotalAssets.
@@ -198,11 +198,11 @@ contract VaultV2 is IVaultV2 {
     uint192 public _totalAssets;
     uint64 public lastUpdate;
     address public vic;
-    bool public transient enterBlocked;
 
     /* CURATION STORAGE */
 
     mapping(address account => bool) public isAdapter;
+    address[] public adapters;
     mapping(bytes32 id => Caps) internal caps;
     mapping(address adapter => uint256) public forceDeallocatePenalty;
 
@@ -224,6 +224,10 @@ contract VaultV2 is IVaultV2 {
     address public managementFeeRecipient;
 
     /* GETTERS */
+
+    function adaptersLength() external view returns (uint256) {
+        return adapters.length;
+    }
 
     function totalAssets() external view returns (uint256) {
         (uint256 newTotalAssets,,) = accrueInterestView();
@@ -373,7 +377,22 @@ contract VaultV2 is IVaultV2 {
 
     function setIsAdapter(address account, bool newIsAdapter) external {
         timelocked();
-        isAdapter[account] = newIsAdapter;
+
+        if (isAdapter[account] != newIsAdapter) {
+            if (newIsAdapter) {
+                adapters.push(account);
+            } else {
+                for (uint256 i = 0; i < adapters.length; i++) {
+                    if (adapters[i] == account) {
+                        adapters[i] = adapters[adapters.length - 1];
+                        adapters.pop();
+                        break;
+                    }
+                }
+            }
+            isAdapter[account] = newIsAdapter;
+        }
+
         emit EventsLib.SetIsAdapter(account, newIsAdapter);
     }
 
@@ -512,11 +531,11 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
-        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).allocate(data, assets, msg.sig, msg.sender);
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets, msg.sig, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
-            _caps.allocation = _caps.allocation + interest + assets;
+            _caps.allocation = _caps.allocation.zeroFloorAddInt(change);
 
             require(_caps.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
@@ -525,7 +544,7 @@ contract VaultV2 is IVaultV2 {
                 ErrorsLib.RelativeCapExceeded()
             );
         }
-        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, interest);
+        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, change);
     }
 
     function deallocate(address adapter, bytes memory data, uint256 assets) external {
@@ -539,16 +558,16 @@ contract VaultV2 is IVaultV2 {
     {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
             require(_caps.allocation > 0, ErrorsLib.ZeroAllocation());
-            _caps.allocation = _caps.allocation + interest - assets;
+            _caps.allocation = _caps.allocation.zeroFloorAddInt(change);
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
-        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, interest);
+        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, change);
         return ids;
     }
 
@@ -688,7 +707,6 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
-        require(!enterBlocked, ErrorsLib.EnterBlocked());
         require(canReceiveShares(onBehalf), ErrorsLib.CannotReceiveShares());
         require(canSendAssets(msg.sender), ErrorsLib.CannotSendAssets());
 
@@ -762,18 +780,18 @@ contract VaultV2 is IVaultV2 {
     /// @dev For small losses, the incentive might be small, or even null because of rounding. This is ok as small
     /// losses do not cause issues.
     /// @dev The incentive will be null if the msg.sender isn't allowed to receive shares.
-    /// @dev Returns incentiveShares, loss.
-    function realizeLoss(address adapter, bytes memory data) external returns (uint256, uint256) {
-        require(isAdapter[adapter], ErrorsLib.NotAdapter());
-
+    function realizeLosses() external returns (uint256, uint256) {
+        require(firstTotalAssets == 0, ErrorsLib.RealizeAfterAccrual());
         accrueInterest();
 
-        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).realizeLoss(data, msg.sig, msg.sender);
+        uint256 _realAssets = realAssets();
 
         uint256 incentiveShares;
-        if (loss > 0) {
+        uint256 loss;
+        if (_realAssets < _totalAssets) {
+            loss = _totalAssets - _realAssets;
             // Safe cast because the result is at most totalAssets.
-            _totalAssets = uint192(_totalAssets.zeroFloorSub(loss));
+            _totalAssets = uint192(_realAssets);
 
             if (canReceiveShares(msg.sender)) {
                 uint256 tentativeIncentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
@@ -782,16 +800,18 @@ contract VaultV2 is IVaultV2 {
                 );
                 createShares(msg.sender, incentiveShares);
             }
-
-            for (uint256 i; i < ids.length; i++) {
-                caps[ids[i]].allocation -= loss;
-            }
-
-            enterBlocked = true;
         }
 
-        emit EventsLib.RealizeLoss(msg.sender, adapter, ids, loss, incentiveShares);
+        emit EventsLib.RealizeLosses(msg.sender, loss, incentiveShares);
         return (incentiveShares, loss);
+    }
+
+    function realAssets() public view returns (uint256) {
+        uint256 _realAssets = IERC20(asset).balanceOf(address(this));
+        for (uint256 i = 0; i < adapters.length; i++) {
+            _realAssets += IAdapter(adapters[i]).realAssets();
+        }
+        return _realAssets;
     }
 
     /* ERC20 FUNCTIONS */

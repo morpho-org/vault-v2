@@ -167,6 +167,7 @@ contract GatingTest is BaseTest {
         assertEq(actualCan, !hasGate || can);
     }
 
+    /// forge-config: default.isolate = true
     function testRealizeLossIncentiveGated(uint256 deposit, uint256 expectedLoss, bool canReceiveShares) public {
         address realizer = makeAddr("realizer");
         deposit = bound(deposit, 100, MAX_TEST_ASSETS);
@@ -189,7 +190,7 @@ contract GatingTest is BaseTest {
         vault.deposit(deposit, address(this));
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", deposit);
-        adapter.setLoss(expectedLoss);
+        adapter.setRealAssets(deposit - expectedLoss);
 
         setGate();
         vm.mockCall(gate, abi.encodeCall(ISharesGate.canReceiveShares, (realizer)), abi.encode(canReceiveShares));
@@ -203,7 +204,10 @@ contract GatingTest is BaseTest {
 
         // Realize the loss.
         vm.prank(realizer);
-        vault.realizeLoss(address(adapter), hex"");
+        vault.realizeLosses();
+
+        console.log("vault.balance()", underlyingToken.balanceOf(address(vault)));
+        console.log("expected loss", expectedLoss);
 
         if (canReceiveShares) {
             assertEq(vault.balanceOf(realizer), incentiveShares);

@@ -35,6 +35,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     address public skimRecipient;
     /// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
     mapping(Id => uint256) public shares;
+    Id[] public marketArray;
+    mapping(Id => uint256) public marketMapping;
 
     /* FUNCTIONS */
 
@@ -65,53 +67,59 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the potential loss.
-    function allocate(bytes memory data, uint256 assets, bytes4, address)
-        external
-        returns (bytes32[] memory, uint256)
-    {
+    function allocate(bytes memory data, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
-        uint256 interest = expectedSupplyAssets(marketParams, shares[marketId]).zeroFloorSub(allocation(marketParams));
-
         if (assets > 0) {
-            (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+            uint256 mintedShares;
+            (, mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
             shares[marketId] += mintedShares;
         }
 
-        return (ids(marketParams), interest);
+        uint256 currentAllocation = allocation(marketParams);
+        int256 change = int256(expectedSupplyAssets(marketParams, shares[marketId])) - int256(currentAllocation);
+
+        if (currentAllocation == 0 && change > 0) {
+            marketArray.push(marketId);
+            marketMapping[marketId] = marketArray.length - 1;
+        }
+
+        return (ids(marketParams), change);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the potential loss.
     function deallocate(bytes memory data, uint256 assets, bytes4, address)
         external
-        returns (bytes32[] memory, uint256)
+        returns (bytes32[] memory, int256)
     {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
-        uint256 interest = expectedSupplyAssets(marketParams, shares[marketId]).zeroFloorSub(allocation(marketParams));
-
         if (assets > 0) {
-            (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+            uint256 redeemedShares;
+            (, redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
             shares[marketId] -= redeemedShares;
         }
 
-        return (ids(marketParams), interest);
-    }
+        uint256 currentSupply = expectedSupplyAssets(marketParams, shares[marketId]);
+        uint256 currentAllocation = allocation(marketParams);
 
-    function realizeLoss(bytes memory data, bytes4, address) external view returns (bytes32[] memory, uint256) {
-        MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        require(marketParams.loanToken == asset, LoanAssetMismatch());
+        if (currentAllocation > 0 && currentSupply == 0) {
+            uint256 position = marketMapping[marketId];
+            Id lastId = marketArray[marketArray.length - 1];
+            marketArray[position] = lastId;
+            marketMapping[lastId] = position;
+            marketArray.pop();
+        }
 
-        uint256 loss = allocation(marketParams) - expectedSupplyAssets(marketParams, shares[marketParams.id()]);
-
-        return (ids(marketParams), loss);
+        int256 change = int256(currentSupply) - int256(currentAllocation);
+        return (ids(marketParams), change);
     }
 
     function allocation(MarketParams memory marketParams) public view returns (uint256) {
@@ -136,5 +144,14 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
 
         return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
+    }
+
+    function realAssets() external view returns (uint256) {
+        uint256 _realAssets = 0;
+        for (uint256 i = 0; i < marketArray.length; i++) {
+            _realAssets +=
+                expectedSupplyAssets(IMorpho(morpho).idToMarketParams(marketArray[i]), shares[marketArray[i]]);
+        }
+        return _realAssets;
     }
 }

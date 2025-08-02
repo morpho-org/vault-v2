@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
-contract RealizeLossTest is BaseTest {
+contract RealizeLossesTest is BaseTest {
     AdapterMock internal adapter;
     uint256 MAX_TEST_AMOUNT;
 
@@ -28,130 +28,97 @@ contract RealizeLossTest is BaseTest {
         increaseRelativeCap(expectedIdData[1], WAD);
     }
 
-    function testRealizeLossNotAdapter(address notAdapter) public {
-        vm.assume(notAdapter != address(adapter));
-        vm.prank(allocator);
-        vm.expectRevert(ErrorsLib.NotAdapter.selector);
-        vault.realizeLoss(notAdapter, hex"");
-    }
-
-    function testRealizeLossZero(uint256 deposit) public {
+    /// forge-config: default.isolate = true
+    function testRealizeLossesZero(uint256 deposit) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
 
         vault.deposit(deposit, address(this));
 
         // Realize the loss.
-        vault.realizeLoss(address(adapter), hex"");
+        vault.realizeLosses();
         assertEq(vault.totalAssets(), deposit, "total assets should not have changed");
-        assertEq(vault.enterBlocked(), false, "enter should not be blocked");
-        assertEq(
-            AdapterMock(adapter).recordedSelector(),
-            IVaultV2.realizeLoss.selector,
-            "Selector incorrect after realizeLoss"
-        );
-        assertEq(AdapterMock(adapter).recordedSender(), address(this), "Sender incorrect after realizeLoss");
     }
 
-    function testRealizeLoss(uint256 deposit, uint256 expectedLoss) public {
+    /// forge-config: default.isolate = true
+    function testRealizeLosses(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
 
         vault.deposit(deposit, address(this));
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", deposit);
-        adapter.setLoss(expectedLoss);
+        adapter.setRealAssets(deposit - expectedLoss);
 
         // Realize the loss.
         uint256 sharesBefore = vault.balanceOf(address(this));
-        bytes32[] memory emptyIds = new bytes32[](0);
         vm.expectEmit(true, true, false, false);
-        emit EventsLib.RealizeLoss(address(this), address(adapter), emptyIds, 0, 0);
-        (uint256 incentiveShares, uint256 loss) = vault.realizeLoss(address(adapter), hex"");
+        emit EventsLib.RealizeLosses(address(this), 0, 0);
+        (uint256 incentiveShares, uint256 loss) = vault.realizeLosses();
         uint256 expectedShares = vault.balanceOf(address(this)) - sharesBefore;
         assertEq(incentiveShares, expectedShares, "incentive shares should be equal to expected shares");
         assertEq(loss, expectedLoss, "loss should be equal to expected loss");
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
     }
 
-    function testRealizeLossAllocate(uint256 deposit, uint256 expectedLoss) public {
+    /// forge-config: default.isolate = true
+    function testRealizeLossesAllocate(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
 
         vault.deposit(deposit, address(this));
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", deposit);
-        adapter.setLoss(expectedLoss);
+        adapter.setRealAssets(deposit - expectedLoss);
 
         // Account the loss.
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", 0);
 
         // Realize the loss.
-        vault.realizeLoss(address(adapter), hex"");
+        vault.realizeLosses();
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
-
-        if (expectedLoss > 0) {
-            assertTrue(vault.enterBlocked(), "enter should be blocked");
-
-            // Cannot enter
-            vm.expectRevert(ErrorsLib.EnterBlocked.selector);
-            vault.deposit(0, address(this));
-        }
     }
 
-    function testRealizeLossDeallocate(uint256 deposit, uint256 expectedLoss) public {
+    /// forge-config: default.isolate = true
+    function testRealizeLossesDeallocate(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
 
         vault.deposit(deposit, address(this));
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", deposit);
-        adapter.setLoss(expectedLoss);
+        adapter.setRealAssets(deposit - expectedLoss);
 
         // Account the loss.
         vm.prank(allocator);
         vault.deallocate(address(adapter), hex"", 0);
 
         // Realize the loss.
-        vault.realizeLoss(address(adapter), hex"");
+        vault.realizeLosses();
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
-
-        if (expectedLoss > 0) {
-            assertTrue(vault.enterBlocked(), "enter should be blocked");
-
-            // Cannot enter
-            vm.expectRevert(ErrorsLib.EnterBlocked.selector);
-            vault.deposit(0, address(this));
-        }
     }
 
-    function testRealizeLossForceDeallocate(uint256 deposit, uint256 expectedLoss) public {
+    /// forge-config: default.isolate = true
+    function testRealizeLossesForceDeallocate(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
 
         vault.deposit(deposit, address(this));
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", deposit);
-        adapter.setLoss(expectedLoss);
+        adapter.setRealAssets(deposit - expectedLoss);
 
         // Account the loss.
         vm.prank(allocator);
         vault.forceDeallocate(address(adapter), hex"", 0, address(this));
 
         // Realize the loss.
-        vault.realizeLoss(address(adapter), hex"");
+        vault.realizeLosses();
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
-
-        if (expectedLoss > 0) {
-            assertTrue(vault.enterBlocked(), "enter should be blocked");
-
-            // Cannot enter
-            vm.expectRevert(ErrorsLib.EnterBlocked.selector);
-            vault.deposit(0, address(this));
-        }
     }
 
-    function testRealizeLossAllocationUpdate(uint256 deposit, uint256 expectedLoss) public {
+    /// forge-config: default.isolate = true
+    function testRealizeLossesAllocationUpdate(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
 
@@ -162,31 +129,67 @@ contract RealizeLossTest is BaseTest {
         vault.setLiquidityAdapterAndData(address(adapter), hex"");
 
         vault.deposit(deposit, address(this));
-        adapter.setLoss(expectedLoss);
+        adapter.setRealAssets(deposit - expectedLoss);
 
         // Realize the loss.
         vm.prank(allocator);
-        vault.realizeLoss(address(adapter), hex"");
+        vault.realizeLosses();
+        assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
+    }
+
+    /// forge-config: default.isolate = true
+    function testRealizeLossesAcrossAdaptersAndDiscoverBalance(
+        uint256 deposit1,
+        uint256 expectedLoss1,
+        uint256 deposit2,
+        uint256 expectedLoss2,
+        uint256 discoveredBalance
+    ) public {
+        deposit1 = bound(deposit1, 1, MAX_TEST_AMOUNT);
+        expectedLoss1 = bound(expectedLoss1, 1, deposit1);
+        deposit2 = bound(deposit2, 1, MAX_TEST_AMOUNT);
+        expectedLoss2 = bound(expectedLoss2, 1, deposit2);
+        discoveredBalance = bound(discoveredBalance, 0, expectedLoss1 + expectedLoss2);
+
+        AdapterMock adapter2 = new AdapterMock(address(vault));
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter2), true)));
+        vault.setIsAdapter(address(adapter2), true);
+
+        vault.deposit(deposit1, address(this));
+        vm.prank(allocator);
+        vault.allocate(address(adapter), hex"", deposit1);
+        adapter.setRealAssets(deposit1 - expectedLoss1);
+
+        vault.deposit(deposit2, address(this));
+        vm.prank(allocator);
+        vault.allocate(address(adapter2), hex"", deposit2);
+        adapter2.setRealAssets(deposit2 - expectedLoss2);
+
+        deal(address(underlyingToken), address(vault), discoveredBalance);
+
+        // Realize the loss.
+        vm.prank(allocator);
+        vault.realizeLosses();
         assertEq(
-            vault.allocation(expectedIds[0]), deposit - expectedLoss, "allocation should have decreased by the loss"
+            vault.totalAssets(),
+            deposit1 - expectedLoss1 + deposit2 - expectedLoss2 + discoveredBalance,
+            "incorrect total assets"
         );
     }
 
-    function testRealizeMoreThanTotalAssets(uint256 deposit, uint256 expectedLoss) public {
+    function testRealizeLossesAfterAccrual(uint256 deposit) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
-        expectedLoss = bound(expectedLoss, deposit + 1, (deposit + 1) * 2);
 
         vault.deposit(deposit, address(this));
-        vm.prank(allocator);
-        vault.allocate(address(adapter), hex"", deposit);
-        adapter.setInterest(expectedLoss - deposit);
-        vm.prank(allocator);
-        vault.allocate(address(adapter), hex"", 0);
-        adapter.setLoss(expectedLoss);
+
+        vault.accrueInterest();
+        console.log("firstTotalAssets", vault.firstTotalAssets());
 
         // Realize the loss.
-        vm.prank(allocator);
-        vault.realizeLoss(address(adapter), hex"");
-        assertEq(vault.totalAssets(), 0, "total assets should be 0");
+        vm.expectRevert(ErrorsLib.RealizeAfterAccrual.selector);
+        vault.realizeLosses();
+        assertEq(vault.totalAssets(), deposit, "total assets should not have changed");
     }
 }
