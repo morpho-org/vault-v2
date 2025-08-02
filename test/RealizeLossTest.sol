@@ -4,6 +4,11 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
+struct Call {
+    address target;
+    bytes data;
+}
+
 contract RealizeLossTest is BaseTest {
     AdapterMock internal adapter;
     uint256 MAX_TEST_AMOUNT;
@@ -28,6 +33,7 @@ contract RealizeLossTest is BaseTest {
         increaseRelativeCap(expectedIdData[1], WAD);
     }
 
+    /// forge-config: default.isolate = true
     function testRealizeLoss(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
@@ -42,59 +48,41 @@ contract RealizeLossTest is BaseTest {
         emit EventsLib.AccrueInterest(deposit, deposit - expectedLoss, 0, 0);
         vault.accrueInterest();
         assertEq(vault.totalAssets(), deposit - expectedLoss, "total assets should have decreased by the loss");
-        assertEq(vault.enterBlocked(), true, "enterBlocked should be true");
-
-        // Try to deposit.
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.EnterBlocked.selector));
-        vault.deposit(deposit, address(this));
-
-        // Try to mint.
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.EnterBlocked.selector));
-        vault.mint(deposit, address(this));
-    }
-
-    function testRealizeLossWithDepositNotFirstInteractionLossBefore(uint256 deposit, uint256 expectedLoss) public {
-        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
-        expectedLoss = bound(expectedLoss, 1, deposit);
-
-        vault.deposit(deposit, address(this));
-        vm.prank(allocator);
-        vault.allocate(address(adapter), hex"", deposit);
-
-        adapter.setLoss(expectedLoss);
-        vault.accrueInterest();
-
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.EnterBlocked.selector));
-        vault.deposit(deposit, address(this));
-    }
-
-    function testRealizeLossWithDepositNotFirstInteractionLossBetween(uint256 deposit, uint256 expectedLoss) public {
-        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
-        expectedLoss = bound(expectedLoss, 1, deposit);
-
-        vault.deposit(deposit, address(this));
-        vm.prank(allocator);
-        vault.allocate(address(adapter), hex"", deposit);
-
-        vault.accrueInterest();
-        adapter.setLoss(expectedLoss);
-
-        vm.expectRevert(abi.encodeWithSelector(ErrorsLib.EnterBlocked.selector));
-        vault.deposit(deposit, address(this));
     }
 
     /// forge-config: default.isolate = true
-    function testRealizeLossWithDepositFirstInteraction(uint256 deposit, uint256 expectedLoss) public {
+    function testTouchThenLoss(uint256 deposit, uint256 expectedLoss) public {
         deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
         expectedLoss = bound(expectedLoss, 1, deposit);
 
         vault.deposit(deposit, address(this));
         vm.prank(allocator);
         vault.allocate(address(adapter), hex"", deposit);
-        adapter.setLoss(expectedLoss);
+
+        Call[] memory calls = new Call[](3);
+        calls[0] = Call(address(vault), abi.encodeCall(IVaultV2.accrueInterest, ()));
+        calls[1] = Call(address(adapter), abi.encodeCall(AdapterMock.setLoss, (expectedLoss)));
+        calls[2] = Call(address(vault), abi.encodeCall(IERC4626.totalAssets, ()));
+        bytes[] memory results = this.multicall(calls);
+        uint256 totalAssets = abi.decode(results[2], (uint256));
+        assertEq(totalAssets, deposit, "total assets should not have changed");
+    }
+
+    /// forge-config: default.isolate = true
+    function testLossThenTouch(uint256 deposit, uint256 expectedLoss) public {
+        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+        expectedLoss = bound(expectedLoss, 1, deposit);
 
         vault.deposit(deposit, address(this));
-        assertEq(vault.totalAssets(), 2 * deposit - expectedLoss, "total assets should have decreased by the loss");
+        vm.prank(allocator);
+        vault.allocate(address(adapter), hex"", deposit);
+
+        Call[] memory calls = new Call[](2);
+        calls[0] = Call(address(adapter), abi.encodeCall(AdapterMock.setLoss, (expectedLoss)));
+        calls[1] = Call(address(vault), abi.encodeCall(IERC4626.totalAssets, ()));
+        bytes[] memory results = this.multicall(calls);
+        uint256 totalAssets = abi.decode(results[1], (uint256));
+        assertEq(totalAssets, deposit - expectedLoss, "total assets should have decreased by the loss");
     }
 
     function testAllocationLossAllocate(uint256 deposit, uint256 expectedLoss) public {
@@ -157,5 +145,17 @@ contract RealizeLossTest is BaseTest {
         assertEq(
             vault.allocation(expectedIds[0]), deposit - expectedLoss, "allocation should have decreased by the loss"
         );
+    }
+
+    function multicall(Call[] calldata calls) external returns (bytes[] memory results) {
+        results = new bytes[](calls.length);
+        for (uint256 i = 0; i < calls.length; i++) {
+            (bool success, bytes memory result) = calls[i].target.call(calls[i].data);
+            if (!success) {
+                revert(string(result));
+            }
+            results[i] = result;
+        }
+        return results;
     }
 }
