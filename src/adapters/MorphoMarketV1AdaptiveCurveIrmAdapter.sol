@@ -6,17 +6,20 @@ import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IM
 import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
+import {Market} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IMorphoMarketV1Adapter} from "./interfaces/IMorphoMarketV1Adapter.sol";
+import {IMorphoMarketV1AdaptiveCurveIrmAdapter} from "./interfaces/IMorphoMarketV1AdaptiveCurveIrmAdapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
+import {AdaptiveCurveIrmLib} from "../libraries/AdaptiveCurveIrmLib.sol";
+import {IAdaptiveCurveIrm} from "./interfaces/IAdaptiveCurveIrm.sol";
 
 /// @dev Morpho Market v1 is also known as Morpho Blue.
 /// @dev This adapter must be used with Morpho Market v1 that are protected against inflation attacks with an initial
 /// supply. Following resource is relevant: https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
-/// @dev Must not be used with a Morpho Market v1 with an Irm that can re-enter the parent vault.
-contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
+/// @dev Must not be used with a Morpho Market v1 with the adaptive curve Irm.
+contract MorphoMarketV1AdaptiveCurveIrmAdapter is IMorphoMarketV1AdaptiveCurveIrmAdapter {
     using MathLib for uint256;
     using SharesMathLib for uint256;
     using MorphoBalancesLib for IMorpho;
@@ -29,6 +32,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     address public immutable asset;
     address public immutable morpho;
     bytes32 public immutable adapterId;
+    // Must be the adaptive curve irm.
+    address public immutable irm;
 
     /* STORAGE */
 
@@ -40,7 +45,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     /* FUNCTIONS */
 
-    constructor(address _parentVault, address _morpho) {
+    constructor(address _parentVault, address _morpho, address _irm) {
         factory = msg.sender;
         parentVault = _parentVault;
         morpho = _morpho;
@@ -48,6 +53,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         adapterId = keccak256(abi.encode("this", address(this)));
         SafeERC20Lib.safeApprove(asset, _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
+        irm = _irm;
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -72,6 +78,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
+        require(marketParams.irm == irm, IrmMismatch());
 
         if (assets > 0) {
             uint256 mintedShares;
@@ -80,7 +87,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         }
 
         uint256 currentAllocation = allocation(marketParams);
-        int256 change = int256(expectedSupplyAssets(marketParams, shares[marketId])) - int256(currentAllocation);
+        int256 change = int256(expectedSupplyAssets(marketId, shares[marketId])) - int256(currentAllocation);
 
         if (currentAllocation == 0 && change > 0) {
             marketArray.push(marketId);
@@ -100,6 +107,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
+        require(marketParams.irm == irm, IrmMismatch());
 
         if (assets > 0) {
             uint256 redeemedShares;
@@ -107,7 +115,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             shares[marketId] -= redeemedShares;
         }
 
-        uint256 currentSupply = expectedSupplyAssets(marketParams, shares[marketId]);
+        uint256 currentSupply = expectedSupplyAssets(marketId, shares[marketId]);
         uint256 currentAllocation = allocation(marketParams);
 
         if (currentAllocation > 0 && currentSupply == 0) {
@@ -135,13 +143,11 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         return ids_;
     }
 
-    function expectedSupplyAssets(MarketParams memory marketParams, uint256 supplyShares)
-        internal
-        view
-        returns (uint256)
-    {
+    function expectedSupplyAssets(Id marketId, uint256 supplyShares) internal view returns (uint256) {
+        Market memory market = IMorpho(morpho).market(marketId);
+        int256 startRateAtTarget = IAdaptiveCurveIrm(irm).rateAtTarget(marketId);
         (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
-            MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
+            AdaptiveCurveIrmLib.expectedMarketBalances(market, startRateAtTarget);
 
         return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }
@@ -149,8 +155,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     function realAssets() external view returns (uint256) {
         uint256 _realAssets = 0;
         for (uint256 i = 0; i < marketArray.length; i++) {
-            _realAssets +=
-                expectedSupplyAssets(IMorpho(morpho).idToMarketParams(marketArray[i]), shares[marketArray[i]]);
+            _realAssets += expectedSupplyAssets(marketArray[i], shares[marketArray[i]]);
         }
         return _realAssets;
     }

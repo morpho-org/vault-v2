@@ -6,7 +6,6 @@ import "../BaseTest.sol";
 
 import {
     OracleMock,
-    IrmMock,
     IMorpho,
     IMetaMorphoV1_1,
     ORACLE_PRICE_SCALE,
@@ -15,6 +14,8 @@ import {
     Id,
     MorphoBalancesLib
 } from "../../lib/metamorpho-v1.1/test/forge/helpers/IntegrationTest.sol";
+
+import {AdaptiveCurveIrmMock} from "../mocks/AdaptiveCurveIrmMock.sol";
 
 import {IVaultV2Factory} from "../../src/interfaces/IVaultV2Factory.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
@@ -36,7 +37,7 @@ contract MorphoVaultV1_1IntegrationTest is BaseTest {
     IMorpho internal morpho;
     ERC20Mock internal collateralToken;
     OracleMock internal oracle;
-    IrmMock internal irm;
+    AdaptiveCurveIrmMock internal irm;
 
     // Morpho Vault v1.
     IMetaMorphoV1_1 internal morphoVaultV1;
@@ -62,7 +63,7 @@ contract MorphoVaultV1_1IntegrationTest is BaseTest {
         morpho = IMorpho(deployCode("Morpho.sol", abi.encode(morphoOwner)));
         collateralToken = new ERC20Mock(18);
         oracle = new OracleMock();
-        irm = new IrmMock();
+        irm = new AdaptiveCurveIrmMock();
 
         oracle.setPrice(ORACLE_PRICE_SCALE);
 

@@ -20,13 +20,13 @@ jobs:
           - Immutability
           - Invariants
           - Liveness
-          - MorphoMarketV1AdapterFactory
+          - MorphoMarketV1AdaptiveCurveIrmAdapterFactory
           - MorphoVaultV1AdapterFactory
           - OwnerSafety
           - PreviewFunctions
           - Reentrancy
           - SentinelLiveness
-          - TokensMorphoMarketV1Adapter
+          - TokensMorphoMarketV1AdaptiveCurveIrmAdapter
           - TokensMorphoVaultV1Adapter
 
     steps:
