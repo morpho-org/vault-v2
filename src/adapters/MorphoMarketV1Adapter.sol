@@ -33,7 +33,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     /* STORAGE */
 
     address public skimRecipient;
-    mapping(Id => uint256) public indexInListCtz;
+    /// @dev Stores the index in the list plus one, such that zero means that it is not in the list.
+    mapping(Id => uint256) public indexInListPlusOne;
     MarketParams[] public allMarketParams;
 
     function allMarketParamsLength() external view returns (uint256) {
@@ -80,8 +81,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         int256 change =
             int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(allocation(marketParams));
 
-        if (indexInListCtz[marketId] == 0 && IMorpho(morpho).supplyShares(marketId, address(this)) > 0) {
-            indexInListCtz[marketId] = 1 << allMarketParams.length;
+        if (indexInListPlusOne[marketId] == 0 && IMorpho(morpho).supplyShares(marketId, address(this)) > 0) {
+            indexInListPlusOne[marketId] = allMarketParams.length + 1;
             allMarketParams.push(marketParams);
         }
 
@@ -104,10 +105,12 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         int256 change =
             int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(allocation(marketParams));
 
-        if (indexInListCtz[marketId] != 0 && IMorpho(morpho).supplyShares(marketId, address(this)) == 0) {
-            allMarketParams[ctz(indexInListCtz[marketId])] = allMarketParams[allMarketParams.length - 1];
-            indexInListCtz[marketId] = 0;
+        if (indexInListPlusOne[marketId] != 0 && IMorpho(morpho).supplyShares(marketId, address(this)) == 0) {
+            MarketParams memory lastMarketParams = allMarketParams[allMarketParams.length - 1];
+            allMarketParams[indexInListPlusOne[marketId] - 1] = lastMarketParams;
             allMarketParams.pop();
+            indexInListPlusOne[lastMarketParams.id()] = indexInListPlusOne[marketId];
+            indexInListPlusOne[marketId] = 0;
         }
 
         return (ids(marketParams), change);
@@ -132,15 +135,5 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             res += IMorpho(morpho).expectedSupplyAssets(allMarketParams[i], address(this));
         }
         return res;
-    }
-
-    // Returns the number of trailing zeros in `x`.
-    function ctz(uint256 x) internal pure returns (uint256) {
-        uint256 tz = 0;
-        while (x & 1 == 0) {
-            x >>= 1;
-            tz++;
-        }
-        return tz;
     }
 }
