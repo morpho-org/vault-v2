@@ -132,6 +132,15 @@ contract MorphoMarketV1AdapterTest is Test {
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(change, int256(assets), "Incorrect change returned");
+        assertEq(adapter.allMarketParamsLength(), 1, "Incorrect number of market params");
+        assertEq(adapter.indexInListPlusOne(marketId), 1, "Incorrect index in list plus one");
+        (address _loanToken, address _collateralToken, address _oracle, address _irm, uint256 _lltv) =
+            adapter.allMarketParams(0);
+        assertEq(_loanToken, marketParams.loanToken, "Incorrect loan token");
+        assertEq(_collateralToken, marketParams.collateralToken, "Incorrect collateral token");
+        assertEq(_irm, marketParams.irm, "Incorrect irm");
+        assertEq(_oracle, marketParams.oracle, "Incorrect oracle");
+        assertEq(_lltv, marketParams.lltv, "Incorrect lltv");
     }
 
     function testDeallocate(uint256 initialAssets, uint256 withdrawAssets) public {
@@ -154,6 +163,21 @@ contract MorphoMarketV1AdapterTest is Test {
         assertEq(loanToken.balanceOf(address(adapter)), withdrawAssets, "Adapter did not receive withdrawn tokens");
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
         assertEq(ids, expectedIds, "Incorrect ids returned");
+    }
+
+    function testDeallocateAll(uint256 initialAssets) public {
+        initialAssets = _boundAssets(initialAssets);
+
+        deal(address(loanToken), address(adapter), initialAssets);
+        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), initialAssets);
+
+        uint256 beforeSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
+        assertEq(beforeSupply, initialAssets, "Precondition failed: supply not set");
+
+        parentVault.deallocateMocked(address(adapter), abi.encode(marketParams), initialAssets);
+
+        assertEq(adapter.allMarketParamsLength(), 0, "Incorrect number of market params");
+        assertEq(adapter.indexInListPlusOne(marketId), 0, "Incorrect index in list plus one");
     }
 
     function testFactoryCreateMorphoMarketV1Adapter() public {
