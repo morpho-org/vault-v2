@@ -104,7 +104,7 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         return IVaultV2(parentVault).allocation(adapterId);
     }
 
-    function totalAssets() external view returns (uint256) {
+    function realAssets() external view returns (uint256) {
         return IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)));
     }
 }

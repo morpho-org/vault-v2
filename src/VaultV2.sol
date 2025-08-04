@@ -584,7 +584,7 @@ contract VaultV2 is IVaultV2 {
         uint256 elapsed = block.timestamp - lastUpdate;
         uint256 realAssets = IERC20(asset).balanceOf(address(this));
         for (uint256 i = 0; i < adapters.length; i++) {
-            realAssets += IAdapter(adapters[i]).totalAssets();
+            realAssets += IAdapter(adapters[i]).realAssets();
         }
         uint256 maxTotalAssets = _totalAssets + (_totalAssets * elapsed).mulDivDown(maxRate, WAD);
         uint256 newTotalAssets = MathLib.min(realAssets, maxTotalAssets);
