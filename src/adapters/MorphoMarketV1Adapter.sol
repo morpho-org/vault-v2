@@ -101,7 +101,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
         if (_allocation > 0 && int256(_allocation) + change == 0) {
             for (uint256 i = 0; i < marketParamsList.length; i++) {
-                if (keccak256(abi.encode(marketParamsList[i].id())) == keccak256(abi.encode(marketId))) {
+                if (Id.unwrap(marketParamsList[i].id()) == Id.unwrap(marketId)) {
                     marketParamsList[i] = marketParamsList[marketParamsList.length - 1];
                     marketParamsList.pop();
                     break;
