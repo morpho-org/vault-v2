@@ -66,7 +66,7 @@ contract AdapterMock is IAdapter {
         return (_ids, -int256(assets) + int256(interest) - int256(loss));
     }
 
-    function totalAssets() external view returns (uint256) {
+    function realAssets() external view returns (uint256) {
         return deposit + interest - loss;
     }
 }

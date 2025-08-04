@@ -140,7 +140,7 @@ contract AccrueInterestTest is BaseTest {
         vm.stopPrank();
         vault.setPerformanceFee(performanceFee);
         vault.setManagementFee(managementFee);
-        assertEq(adapter.totalAssets(), deposit, "totalAssetsBefore");
+        assertEq(adapter.realAssets(), deposit, "realAssetsBefore");
         vm.prank(allocator);
         adapter.setInterest(interest);
         skip(elapsed);

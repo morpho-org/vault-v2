@@ -14,5 +14,6 @@ interface IAdapter {
         external
         returns (bytes32[] memory ids, int256 change);
 
-    function totalAssets() external view returns (uint256 assets);
+    /// @dev Returns the current value of the investments of the adapter (in underlying asset).
+    function realAssets() external view returns (uint256 assets);
 }
