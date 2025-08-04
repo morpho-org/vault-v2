@@ -132,10 +132,10 @@ contract MorphoMarketV1AdapterTest is Test {
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(change, int256(assets), "Incorrect change returned");
-        assertEq(adapter.allMarketParamsLength(), 1, "Incorrect number of market params");
-        assertEq(adapter.indexInListPlusOne(marketId), 1, "Incorrect index in list plus one");
+        assertEq(adapter.marketParamsListLength(), 1, "Incorrect number of market params");
+        assertEq(adapter.rankInList(marketId), 1, "Incorrect rank in list");
         (address _loanToken, address _collateralToken, address _oracle, address _irm, uint256 _lltv) =
-            adapter.allMarketParams(0);
+            adapter.marketParamsList(0);
         assertEq(_loanToken, marketParams.loanToken, "Incorrect loan token");
         assertEq(_collateralToken, marketParams.collateralToken, "Incorrect collateral token");
         assertEq(_irm, marketParams.irm, "Incorrect irm");
@@ -176,8 +176,8 @@ contract MorphoMarketV1AdapterTest is Test {
 
         parentVault.deallocateMocked(address(adapter), abi.encode(marketParams), initialAssets);
 
-        assertEq(adapter.allMarketParamsLength(), 0, "Incorrect number of market params");
-        assertEq(adapter.indexInListPlusOne(marketId), 0, "Incorrect index in list plus one");
+        assertEq(adapter.marketParamsListLength(), 0, "Incorrect number of market params");
+        assertEq(adapter.rankInList(marketId), 0, "Incorrect rank in list");
     }
 
     function testFactoryCreateMorphoMarketV1Adapter() public {

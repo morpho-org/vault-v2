@@ -33,12 +33,12 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     /* STORAGE */
 
     address public skimRecipient;
-    /// @dev Stores the index in the list plus one, such that zero means that it is not in the list.
-    mapping(Id => uint256) public indexInListPlusOne;
-    MarketParams[] public allMarketParams;
+    /// @dev Stores the rank in the list (index + 1), such that zero means that it is not in the list.
+    mapping(Id => uint256) public rankInList;
+    MarketParams[] public marketParamsList;
 
-    function allMarketParamsLength() external view returns (uint256) {
-        return allMarketParams.length;
+    function marketParamsListLength() external view returns (uint256) {
+        return marketParamsList.length;
     }
 
     /* FUNCTIONS */
@@ -82,9 +82,9 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         int256 change =
             int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(allocation(marketParams));
 
-        if (indexInListPlusOne[marketId] == 0 && IMorpho(morpho).supplyShares(marketId, address(this)) > 0) {
-            indexInListPlusOne[marketId] = allMarketParams.length + 1;
-            allMarketParams.push(marketParams);
+        if (rankInList[marketId] == 0 && IMorpho(morpho).supplyShares(marketId, address(this)) > 0) {
+            rankInList[marketId] = marketParamsList.length + 1;
+            marketParamsList.push(marketParams);
         }
 
         return (ids(marketParams), change);
@@ -107,12 +107,12 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         int256 change =
             int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(allocation(marketParams));
 
-        if (indexInListPlusOne[marketId] != 0 && IMorpho(morpho).supplyShares(marketId, address(this)) == 0) {
-            MarketParams memory lastMarketParams = allMarketParams[allMarketParams.length - 1];
-            allMarketParams[indexInListPlusOne[marketId] - 1] = lastMarketParams;
-            allMarketParams.pop();
-            indexInListPlusOne[lastMarketParams.id()] = indexInListPlusOne[marketId];
-            indexInListPlusOne[marketId] = 0;
+        if (rankInList[marketId] != 0 && IMorpho(morpho).supplyShares(marketId, address(this)) == 0) {
+            MarketParams memory lastMarketParams = marketParamsList[marketParamsList.length - 1];
+            marketParamsList[rankInList[marketId] - 1] = lastMarketParams;
+            marketParamsList.pop();
+            rankInList[lastMarketParams.id()] = rankInList[marketId];
+            rankInList[marketId] = 0;
         }
 
         return (ids(marketParams), change);
@@ -133,8 +133,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     function totalAssets() external view returns (uint256) {
         uint256 res = 0;
-        for (uint256 i = 0; i < allMarketParams.length; i++) {
-            res += IMorpho(morpho).expectedSupplyAssets(allMarketParams[i], address(this));
+        for (uint256 i = 0; i < marketParamsList.length; i++) {
+            res += IMorpho(morpho).expectedSupplyAssets(marketParamsList[i], address(this));
         }
         return res;
     }
