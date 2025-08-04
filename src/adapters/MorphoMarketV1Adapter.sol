@@ -78,7 +78,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
             shares[marketId] += mintedShares;
         }
-        // TODO
+        // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
+        // max total assets of the vault.
         int256 change = int256(expectedSupplyAssets(marketParams, shares[marketId])) - int256(allocation(marketParams));
 
         return (ids(marketParams), change);
@@ -99,7 +100,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
             shares[marketId] -= redeemedShares;
         }
-        // TODO
+        // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
+        // max total assets of the vault.
         int256 change = int256(expectedSupplyAssets(marketParams, shares[marketId])) - int256(allocation(marketParams));
 
         if (shares[marketId] == 0 && assets > 0) {
