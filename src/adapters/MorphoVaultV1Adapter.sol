@@ -7,7 +7,6 @@ import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IMorphoVaultV1Adapter} from "./interfaces/IMorphoVaultV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
-import {MathLib} from "../libraries/MathLib.sol";
 
 /// @dev Designed, developed and audited for Morpho Vaults v1 (v1.0 and v1.1) (also known as MetaMorpho). Integration
 /// with other vaults must be carefully assessed from a security standpoint.
@@ -18,8 +17,6 @@ import {MathLib} from "../libraries/MathLib.sol";
 /// @dev Must not be used with a Morpho Vault v1 which has a market with an Irm that can re-enter the parent vault.
 /// @dev Shares of the Morpho Vault v1 cannot be skimmed (unlike any other token).
 contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
-    using MathLib for uint256;
-
     /* IMMUTABLES */
 
     address public immutable factory;

@@ -9,15 +9,12 @@ import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IMorphoMarketV1Adapter} from "./interfaces/IMorphoMarketV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
-import {MathLib} from "../libraries/MathLib.sol";
 
 /// @dev Morpho Market v1 is also known as Morpho Blue.
 /// @dev This adapter must be used with Morpho Market v1 that are protected against inflation attacks with an initial
 /// supply. Following resource is relevant: https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
 /// @dev Must not be used with a Morpho Market v1 with an Irm that can re-enter the parent vault.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
-    using MathLib for uint256;
-    using MorphoBalancesLib for IMorpho;
     using MarketParamsLib for MarketParams;
 
     /* IMMUTABLES */
@@ -75,7 +72,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
         uint256 _allocation = allocation(marketParams);
-        int256 change = int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(_allocation);
+        int256 change = int256(MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this)))
+            - int256(_allocation);
 
         if (_allocation == 0 && change > 0) marketParamsList.push(marketParams);
 
@@ -97,7 +95,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
         uint256 _allocation = allocation(marketParams);
-        int256 change = int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(_allocation);
+        int256 change = int256(MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this)))
+            - int256(_allocation);
 
         if (_allocation > 0 && int256(_allocation) + change == 0) {
             for (uint256 i = 0; i < marketParamsList.length; i++) {
@@ -128,7 +127,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     function realAssets() external view returns (uint256) {
         uint256 res = 0;
         for (uint256 i = 0; i < marketParamsList.length; i++) {
-            res += IMorpho(morpho).expectedSupplyAssets(marketParamsList[i], address(this));
+            res += MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParamsList[i], address(this));
         }
         return res;
     }
