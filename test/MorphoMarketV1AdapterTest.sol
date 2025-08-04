@@ -10,6 +10,8 @@ import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {IrmMock} from "../lib/morpho-blue/src/mocks/IrmMock.sol";
 import {IMorpho, MarketParams, Id, Market} from "../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {IIrm} from "../lib/morpho-blue/src/interfaces/IIrm.sol";
+import {IOracle} from "../lib/morpho-blue/src/interfaces/IOracle.sol";
 import {MorphoBalancesLib} from "../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 import {MorphoLib} from "../lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
 import {MarketParamsLib} from "../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
@@ -24,16 +26,16 @@ contract MorphoMarketV1AdapterTest is Test {
     using MarketParamsLib for MarketParams;
     using MathLib for uint256;
 
-    MorphoMarketV1AdapterFactory internal factory;
-    MorphoMarketV1Adapter internal adapter;
+    IMorphoMarketV1AdapterFactory internal factory;
+    IMorphoMarketV1Adapter internal adapter;
     VaultV2Mock internal parentVault;
     MarketParams internal marketParams;
     Id internal marketId;
-    ERC20Mock internal loanToken;
-    ERC20Mock internal collateralToken;
-    ERC20Mock internal rewardToken;
-    OracleMock internal oracle;
-    IrmMock internal irm;
+    IERC20 internal loanToken;
+    IERC20 internal collateralToken;
+    IERC20 internal rewardToken;
+    IOracle internal oracle;
+    IIrm internal irm;
     IMorpho internal morpho;
     address internal owner;
     address internal recipient;
@@ -49,9 +51,9 @@ contract MorphoMarketV1AdapterTest is Test {
         address morphoOwner = makeAddr("MorphoOwner");
         morpho = IMorpho(deployCode("Morpho.sol", abi.encode(morphoOwner)));
 
-        loanToken = new ERC20Mock(18);
-        collateralToken = new ERC20Mock(18);
-        rewardToken = new ERC20Mock(18);
+        loanToken = IERC20(address(new ERC20Mock(18)));
+        collateralToken = IERC20(address(new ERC20Mock(18)));
+        rewardToken = IERC20(address(new ERC20Mock(18)));
         oracle = new OracleMock();
         irm = new IrmMock();
 
@@ -193,8 +195,11 @@ contract MorphoMarketV1AdapterTest is Test {
         address newAdapter = factory.createMorphoMarketV1Adapter(newParentVaultAddr, address(morpho));
 
         assertTrue(newAdapter != address(0), "Adapter not created");
-        assertEq(MorphoMarketV1Adapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
-        assertEq(MorphoMarketV1Adapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
+        assertEq(IMorphoMarketV1Adapter(newAdapter).factory(), address(factory), "Incorrect factory");
+        assertEq(IMorphoMarketV1Adapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
+        assertEq(IMorphoMarketV1Adapter(newAdapter).asset(), address(loanToken), "Incorrect asset");
+        assertEq(IMorphoMarketV1Adapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
+        assertEq(IMorphoMarketV1Adapter(newAdapter).adapterId(), expectedIds[0], "Incorrect adapterId");
         assertEq(
             factory.morphoMarketV1Adapter(newParentVaultAddr, address(morpho)),
             newAdapter,
