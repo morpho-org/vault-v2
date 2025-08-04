@@ -153,6 +153,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
     using MathLib for uint128;
+    using MathLib for int256;
 
     /* IMMUTABLE */
 
@@ -519,7 +520,7 @@ contract VaultV2 is IVaultV2 {
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
-            _caps.allocation = uint256(int256(_caps.allocation) + change);
+            _caps.allocation = (int256(_caps.allocation) + change).toUint256();
 
             require(_caps.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
@@ -547,7 +548,7 @@ contract VaultV2 is IVaultV2 {
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
             require(_caps.allocation > 0, ErrorsLib.ZeroAllocation());
-            _caps.allocation = uint256(int256(_caps.allocation) + change);
+            _caps.allocation = (int256(_caps.allocation) + change).toUint256();
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
