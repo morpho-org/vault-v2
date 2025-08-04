@@ -3,8 +3,7 @@
 pragma solidity 0.8.28;
 
 import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
-import {MorphoBalancesLib, MorphoLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
-import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
+import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
@@ -18,7 +17,6 @@ import {MathLib} from "../libraries/MathLib.sol";
 /// @dev Must not be used with a Morpho Market v1 with an Irm that can re-enter the parent vault.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MathLib for uint256;
-    using MorphoLib for IMorpho;
     using MorphoBalancesLib for IMorpho;
     using MarketParamsLib for MarketParams;
 
