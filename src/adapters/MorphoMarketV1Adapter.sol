@@ -77,7 +77,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
         if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-        // TODO: justify safe casting
+        // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
+        // max total assets of the vault.
         int256 change =
             int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(allocation(marketParams));
 
@@ -101,7 +102,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
         if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-        // TODO: justify safe casting
+        // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
+        // max total assets of the vault.
         int256 change =
             int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(allocation(marketParams));
 

@@ -67,8 +67,8 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
 
         if (assets > 0) IERC4626(morphoVaultV1).deposit(assets, address(this));
-        // Safe casts because the vault's totalAssets is stored on 128 bits, and allocation is less than the max
-        // totalAssets.
+        // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
+        // max total assets of the vault.
         int256 change = int256(IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this))))
             - int256(allocation());
 
@@ -85,8 +85,8 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
 
         if (assets > 0) IERC4626(morphoVaultV1).withdraw(assets, address(this), address(this));
-        // Safe casts because the vault's totalAssets is stored on 128 bits, and allocation is less than the max
-        // totalAssets.
+        // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
+        // max total assets of the vault.
         int256 change = int256(IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this))))
             - int256(allocation());
 
