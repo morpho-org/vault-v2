@@ -21,7 +21,7 @@ hook ALL_SSTORE(uint _, uint _) {
 
 // A STATICCAL is unsafe when the storage was changed before the call.
 hook STATICCALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
-    if (storageChanged) {
+    if (storageChanged && addr != 0x1) {
         staticCallAfterSStore = true;
     }
 }
