@@ -10,6 +10,8 @@ import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {IrmMock} from "../lib/morpho-blue/src/mocks/IrmMock.sol";
 import {IMorpho, MarketParams, Id, Market} from "../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {IIrm} from "../lib/morpho-blue/src/interfaces/IIrm.sol";
+import {IOracle} from "../lib/morpho-blue/src/interfaces/IOracle.sol";
 import {MorphoBalancesLib} from "../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 import {MorphoLib} from "../lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
 import {MarketParamsLib} from "../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
@@ -24,16 +26,16 @@ contract MorphoMarketV1AdapterTest is Test {
     using MarketParamsLib for MarketParams;
     using MathLib for uint256;
 
-    MorphoMarketV1AdapterFactory internal factory;
-    MorphoMarketV1Adapter internal adapter;
+    IMorphoMarketV1AdapterFactory internal factory;
+    IMorphoMarketV1Adapter internal adapter;
     VaultV2Mock internal parentVault;
     MarketParams internal marketParams;
     Id internal marketId;
-    ERC20Mock internal loanToken;
-    ERC20Mock internal collateralToken;
-    ERC20Mock internal rewardToken;
-    OracleMock internal oracle;
-    IrmMock internal irm;
+    IERC20 internal loanToken;
+    IERC20 internal collateralToken;
+    IERC20 internal rewardToken;
+    IOracle internal oracle;
+    IIrm internal irm;
     IMorpho internal morpho;
     address internal owner;
     address internal recipient;
@@ -49,9 +51,9 @@ contract MorphoMarketV1AdapterTest is Test {
         address morphoOwner = makeAddr("MorphoOwner");
         morpho = IMorpho(deployCode("Morpho.sol", abi.encode(morphoOwner)));
 
-        loanToken = new ERC20Mock(18);
-        collateralToken = new ERC20Mock(18);
-        rewardToken = new ERC20Mock(18);
+        loanToken = IERC20(address(new ERC20Mock(18)));
+        collateralToken = IERC20(address(new ERC20Mock(18)));
+        rewardToken = IERC20(address(new ERC20Mock(18)));
         oracle = new OracleMock();
         irm = new IrmMock();
 
@@ -132,6 +134,14 @@ contract MorphoMarketV1AdapterTest is Test {
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(change, int256(assets), "Incorrect change returned");
+        assertEq(adapter.marketParamsListLength(), 1, "Incorrect number of market params");
+        (address _loanToken, address _collateralToken, address _oracle, address _irm, uint256 _lltv) =
+            adapter.marketParamsList(0);
+        assertEq(_loanToken, marketParams.loanToken, "Incorrect loan token");
+        assertEq(_collateralToken, marketParams.collateralToken, "Incorrect collateral token");
+        assertEq(_irm, marketParams.irm, "Incorrect irm");
+        assertEq(_oracle, marketParams.oracle, "Incorrect oracle");
+        assertEq(_lltv, marketParams.lltv, "Incorrect lltv");
     }
 
     function testDeallocate(uint256 initialAssets, uint256 withdrawAssets) public {
@@ -156,6 +166,20 @@ contract MorphoMarketV1AdapterTest is Test {
         assertEq(ids, expectedIds, "Incorrect ids returned");
     }
 
+    function testDeallocateAll(uint256 initialAssets) public {
+        initialAssets = _boundAssets(initialAssets);
+
+        deal(address(loanToken), address(adapter), initialAssets);
+        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), initialAssets);
+
+        uint256 beforeSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
+        assertEq(beforeSupply, initialAssets, "Precondition failed: supply not set");
+
+        parentVault.deallocateMocked(address(adapter), abi.encode(marketParams), initialAssets);
+
+        assertEq(adapter.marketParamsListLength(), 0, "Incorrect number of market params");
+    }
+
     function testFactoryCreateMorphoMarketV1Adapter() public {
         address newParentVaultAddr =
             address(new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0)));
@@ -171,8 +195,11 @@ contract MorphoMarketV1AdapterTest is Test {
         address newAdapter = factory.createMorphoMarketV1Adapter(newParentVaultAddr, address(morpho));
 
         assertTrue(newAdapter != address(0), "Adapter not created");
-        assertEq(MorphoMarketV1Adapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
-        assertEq(MorphoMarketV1Adapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
+        assertEq(IMorphoMarketV1Adapter(newAdapter).factory(), address(factory), "Incorrect factory");
+        assertEq(IMorphoMarketV1Adapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
+        assertEq(IMorphoMarketV1Adapter(newAdapter).asset(), address(loanToken), "Incorrect asset");
+        assertEq(IMorphoMarketV1Adapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
+        assertEq(IMorphoMarketV1Adapter(newAdapter).adapterId(), expectedIds[0], "Incorrect adapterId");
         assertEq(
             factory.morphoMarketV1Adapter(newParentVaultAddr, address(morpho)),
             newAdapter,
@@ -265,24 +292,26 @@ contract MorphoMarketV1AdapterTest is Test {
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         donation = bound(donation, 1, MAX_TEST_ASSETS);
 
+        MarketParams memory otherMarketParams = marketParams;
+        otherMarketParams.collateralToken = address(0);
+        morpho.createMarket(otherMarketParams);
+
         // Deposit some assets
         deal(address(loanToken), address(adapter), deposit * 2);
         parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
 
-        uint256 sharesInMarket = MorphoLib.supplyShares(morpho, marketId, address(adapter));
-        assertEq(adapter.shares(marketId), sharesInMarket, "shares not recorded");
+        uint256 realAssetsBefore = adapter.realAssets();
+        assertEq(realAssetsBefore, deposit, "realAssets not set correctly");
 
         // Donate to adapter
         address donor = makeAddr("donor");
         deal(address(loanToken), donor, donation);
         vm.startPrank(donor);
         loanToken.approve(address(morpho), type(uint256).max);
-        morpho.supply(marketParams, donation, 0, address(adapter), "");
+        morpho.supply(otherMarketParams, donation, 0, address(adapter), "");
         vm.stopPrank();
 
-        // Test no impact on allocation
-        uint256 oldallocation = adapter.allocation(marketParams);
-        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
-        assertEq(adapter.allocation(marketParams), oldallocation + deposit, "assets have changed");
+        uint256 realAssetsAfter = adapter.realAssets();
+        assertEq(realAssetsAfter, realAssetsBefore, "realAssets should not change");
     }
 }
