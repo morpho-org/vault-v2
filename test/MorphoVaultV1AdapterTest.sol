@@ -19,12 +19,12 @@ import {MathLib} from "../src/libraries/MathLib.sol";
 contract MorphoVaultV1AdapterTest is Test {
     using MathLib for uint256;
 
-    ERC20Mock internal asset;
-    ERC20Mock internal rewardToken;
+    IERC20 internal asset;
+    IERC20 internal rewardToken;
     VaultV2Mock internal parentVault;
     ERC4626MockExtended internal morphoVaultV1;
-    MorphoVaultV1AdapterFactory internal factory;
-    MorphoVaultV1Adapter internal adapter;
+    IMorphoVaultV1AdapterFactory internal factory;
+    IMorphoVaultV1Adapter internal adapter;
     address internal owner;
     address internal recipient;
     bytes32[] internal expectedIds;
@@ -36,8 +36,8 @@ contract MorphoVaultV1AdapterTest is Test {
         owner = makeAddr("owner");
         recipient = makeAddr("recipient");
 
-        asset = new ERC20Mock(18);
-        rewardToken = new ERC20Mock(18);
+        asset = IERC20(address(new ERC20Mock(18)));
+        rewardToken = IERC20(address(new ERC20Mock(18)));
         morphoVaultV1 = new ERC4626MockExtended(address(asset));
         parentVault = new VaultV2Mock(address(asset), owner, address(0), address(0), address(0));
 
@@ -127,8 +127,10 @@ contract MorphoVaultV1AdapterTest is Test {
         address newAdapter = factory.createMorphoVaultV1Adapter(address(newParentVault), address(newVault));
 
         assertTrue(newAdapter != address(0), "Adapter not created");
-        assertEq(MorphoVaultV1Adapter(newAdapter).parentVault(), address(newParentVault), "Incorrect parent vault");
-        assertEq(MorphoVaultV1Adapter(newAdapter).morphoVaultV1(), address(newVault), "Incorrect morphoVaultV1 vault");
+        assertEq(IMorphoVaultV1Adapter(newAdapter).factory(), address(factory), "Incorrect factory");
+        assertEq(IMorphoVaultV1Adapter(newAdapter).parentVault(), address(newParentVault), "Incorrect parent vault");
+        assertEq(IMorphoVaultV1Adapter(newAdapter).morphoVaultV1(), address(newVault), "Incorrect morphoVaultV1 vault");
+        assertEq(IMorphoVaultV1Adapter(newAdapter).adapterId(), expectedIds[0], "Incorrect adapterId");
         assertEq(
             factory.morphoVaultV1Adapter(address(newParentVault), address(newVault)),
             newAdapter,
