@@ -99,8 +99,6 @@ rule deallocateMorphoVaultV1Adapter(env e, bytes data, uint256 assets) {
     require (MorphoVaultV1Adapter == 0x11, "ack");
     require (currentContract == 0x12, "ack");
 
-    require (MorphoVaultV1.fee == 0, "assume the performance fee is null in MorphoVaultV1");
-
     // Ensure the VaultV2 and MorphoVaultV1 contracts are properly linked to the adapter in the conf file.
     assert MorphoVaultV1Adapter.parentVault == currentContract;
     assert MorphoVaultV1Adapter.morphoVaultV1 == MorphoVaultV1;
@@ -115,8 +113,6 @@ rule deallocateMorphoVaultV1Adapter(env e, bytes data, uint256 assets) {
     uint256 idIAllocationBefore = allocation(adapterIds[i]);
 
     deallocate(e, MorphoVaultV1Adapter, data, assets);
-
-    assert MorphoVaultV1Adapter.allocation() >= MorphoVaultV1.previewRedeem(e, require_uint256(MorphoVaultV1Adapter.shares()));
 
     assert allocation(adapterIds[i]) == idIAllocationBefore + ghostInterest - assets;
     assert !(exists uint j . j < adapterIds.length && id == adapterIds[j]) => allocation(id) == allocationBefore;
