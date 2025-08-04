@@ -295,8 +295,8 @@ contract MorphoMarketV1AdapterTest is Test {
         deal(address(loanToken), address(adapter), deposit * 2);
         parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
 
-        uint256 totalAssets = adapter.totalAssets();
-        assertEq(totalAssets, deposit, "totalAssets not set correctly");
+        uint256 realAssetsBefore = adapter.realAssets();
+        assertEq(realAssetsBefore, deposit, "realAssets not set correctly");
 
         // Donate to adapter
         address donor = makeAddr("donor");
@@ -306,7 +306,7 @@ contract MorphoMarketV1AdapterTest is Test {
         morpho.supply(otherMarketParams, donation, 0, address(adapter), "");
         vm.stopPrank();
 
-        uint256 totalAssetsAfter = adapter.totalAssets();
-        assertEq(totalAssetsAfter, totalAssets, "totalAssets should not change");
+        uint256 realAssetsAfter = adapter.realAssets();
+        assertEq(realAssetsAfter, realAssetsBefore, "realAssets should not change");
     }
 }

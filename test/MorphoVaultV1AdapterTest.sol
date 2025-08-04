@@ -215,7 +215,7 @@ contract MorphoVaultV1AdapterTest is Test {
         deal(address(asset), address(adapter), deposit * 2);
         parentVault.allocateMocked(address(adapter), hex"", deposit);
 
-        uint256 totalAssetsBefore = adapter.totalAssets();
+        uint256 realAssetsBefore = adapter.realAssets();
 
         // Donate to adapter
         address donor = makeAddr("donor");
@@ -225,9 +225,9 @@ contract MorphoVaultV1AdapterTest is Test {
         otherVault.deposit(donation, address(adapter));
         vm.stopPrank();
 
-        uint256 totalAssetsAfter = adapter.totalAssets();
+        uint256 realAssetsAfter = adapter.realAssets();
 
-        assertEq(totalAssetsAfter, totalAssetsBefore, "totalAssets should not change");
+        assertEq(realAssetsAfter, realAssetsBefore, "realAssets should not change");
     }
 }
 
