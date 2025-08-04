@@ -33,8 +33,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     /* STORAGE */
 
     address public skimRecipient;
-    /// @dev Stores the rank in the list (index + 1), such that zero means that it is not in the list.
-    mapping(Id => uint256) public rankInList;
     MarketParams[] public marketParamsList;
 
     function marketParamsListLength() external view returns (uint256) {
@@ -72,20 +70,16 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     /// @dev Returns the ids of the allocation and the change in allocation.
     function allocate(bytes memory data, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
         if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
         // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        int256 change =
-            int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(allocation(marketParams));
+        uint256 _allocation = allocation(marketParams);
+        int256 change = int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(_allocation);
 
-        if (rankInList[marketId] == 0 && IMorpho(morpho).supplyShares(marketId, address(this)) > 0) {
-            rankInList[marketId] = marketParamsList.length + 1;
-            marketParamsList.push(marketParams);
-        }
+        if (_allocation == 0 && change > 0) marketParamsList.push(marketParams);
 
         return (ids(marketParams), change);
     }
@@ -104,15 +98,17 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
         // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        int256 change =
-            int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(allocation(marketParams));
+        uint256 _allocation = allocation(marketParams);
+        int256 change = int256(IMorpho(morpho).expectedSupplyAssets(marketParams, address(this))) - int256(_allocation);
 
-        if (rankInList[marketId] != 0 && IMorpho(morpho).supplyShares(marketId, address(this)) == 0) {
-            MarketParams memory lastMarketParams = marketParamsList[marketParamsList.length - 1];
-            marketParamsList[rankInList[marketId] - 1] = lastMarketParams;
-            marketParamsList.pop();
-            rankInList[lastMarketParams.id()] = rankInList[marketId];
-            rankInList[marketId] = 0;
+        if (_allocation > 0 && int256(_allocation) + change == 0) {
+            for (uint256 i = 0; i < marketParamsList.length; i++) {
+                if (keccak256(abi.encode(marketParamsList[i].id())) == keccak256(abi.encode(marketId))) {
+                    marketParamsList[i] = marketParamsList[marketParamsList.length - 1];
+                    marketParamsList.pop();
+                    break;
+                }
+            }
         }
 
         return (ids(marketParams), change);
