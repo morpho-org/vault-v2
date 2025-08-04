@@ -9,7 +9,7 @@ using Utils as Utils;
 methods {
     function _.extSloads(bytes32[]) external => NONDET DELETE;
 
-    function allocation(bytes32) external returns uint2456 envfree;
+    function allocation(bytes32) external returns uint256 envfree;
     function MorphoVaultV1.totalSupply() external returns uint256 envfree;
     function MorphoVaultV1Adapter.ids() external returns bytes32[] envfree;
     function MorphoVaultV1Adapter.shares() external returns uint256 envfree;
