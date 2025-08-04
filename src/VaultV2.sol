@@ -41,6 +41,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
 /// @dev The allocation is not always up to date, because interest are added only when (de)allocating in the
 /// corresponding markets, and losses are deducted only when realized for these markets.
+/// @dev Allocations can be wrongly updated because of other incorrect adapters, but this cannot prevent to deallocate
+/// the assets of a correct adapter.
 /// @dev The caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
 /// @dev Relative caps are "soft" in the sense that they are only checked on allocate.
 /// @dev The relative cap is relative to totalAssets, or more precisely to firstTotalAssets.
@@ -519,7 +521,7 @@ contract VaultV2 is IVaultV2 {
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
-            _caps.allocation = uint256(int256(_caps.allocation) + change);
+            _caps.allocation = _caps.allocation.zeroFloorAddInt(change);
 
             require(_caps.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
@@ -547,7 +549,7 @@ contract VaultV2 is IVaultV2 {
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
             require(_caps.allocation > 0, ErrorsLib.ZeroAllocation());
-            _caps.allocation = uint256(int256(_caps.allocation) + change);
+            _caps.allocation = _caps.allocation.zeroFloorAddInt(change);
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);

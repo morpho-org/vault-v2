@@ -22,6 +22,18 @@ library MathLib {
         }
     }
 
+    /// @dev Returns max(0, x + y).
+    function zeroFloorAddInt(uint256 x, int256 y) internal pure returns (uint256 z) {
+        if (y < 0) {
+            assembly {
+                let sum := add(x, y)
+                z := mul(lt(sum, x), sum)
+            }
+        } else {
+            z = x + uint256(y);
+        }
+    }
+
     /// @dev Casts to uint128, reverting if input number is too large.
     function toUint128(uint256 x) internal pure returns (uint128) {
         require(x <= type(uint128).max, ErrorsLib.CastOverflow());
