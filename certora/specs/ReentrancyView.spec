@@ -1,40 +1,36 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-// Execution is divided into phases; each STATICCALL starts a new one.
-persistent ghost mathint currentPhase;
-
-// Last phase in which every storage slot was accessed (SLOAD or SSTORE)
-persistent ghost mapping(uint => mathint) lastTouchedPhase;
-
-// True when at least one slot was written after a later STATICCALL
-persistent ghost bool hasReentrancyUnsafeCall;
-
-// Any read marks the slot’s latest phase
-hook ALL_SLOAD(uint loc)  uint v {
-    lastTouchedPhase[loc] = currentPhase;
+methods {
+    function lastUpdate() external returns uint64 envfree;
 }
 
-// A write is unsafe when the slot was last touched in an earlier phase
-hook ALL_SSTORE(uint loc, uint v) {
-    if (lastTouchedPhase[loc] < currentPhase) {
-        hasReentrancyUnsafeCall = true;
+// True when at least one slot was written.
+persistent ghost bool storageChanged;
+
+// True when at least one STATICCALL is executed after a storage change.
+persistent ghost bool staticCallUnsafe;
+
+// Track storage changes.
+hook ALL_SSTORE(uint _, uint _) {
+    storageChanged = true;
+
+}
+
+// A STATICCAL is unsafe when the storage was changed before the call.
+hook STATICCALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
+    if (storageChanged) {
+        staticCallUnsafe = true;
     }
-    lastTouchedPhase[loc] = currentPhase;
-}
-
-// Update the phase number
-hook STATICCALL(uint g, address addr, uint argsOffset, uint argsLength, uint retOffset,  uint retLength) uint rc {
-    currentPhase = currentPhase + 1;
 }
 
 rule reentrancyViewSafe(method f, env e, calldataarg data) {
+    require (storageChanged == false, "setup ghost state");
+    require (staticCallUnsafe == false, "setup ghost state");
 
-    require forall uint loc. lastTouchedPhase[loc] == max_uint256;
-    require currentPhase == 0;
-    require hasReentrancyUnsafeCall == false;
+    require lastUpdate() == e.block.timestamp;
 
     f(e, data);
 
-    assert !hasReentrancyUnsafeCall;
+    assert storageChanged => !staticCallUnsafe;
 }
