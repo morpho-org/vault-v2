@@ -26,4 +26,5 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function skim(address token) external;
     function shares(Id marketId) external view returns (uint256);
     function allocation(MarketParams memory marketParams) external view returns (uint256);
+    function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
 }

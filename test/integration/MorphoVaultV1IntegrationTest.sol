@@ -25,6 +25,8 @@ import {ManualVic, ManualVicFactory} from "../../src/vic/ManualVicFactory.sol";
 import "../../src/VaultV2.sol";
 import {MorphoVaultV1Adapter} from "../../src/adapters/MorphoVaultV1Adapter.sol";
 import {MorphoVaultV1AdapterFactory} from "../../src/adapters/MorphoVaultV1AdapterFactory.sol";
+import {IMorphoVaultV1AdapterFactory} from "../../src/adapters/interfaces/IMorphoVaultV1AdapterFactory.sol";
+import {IMorphoVaultV1Adapter} from "../../src/adapters/interfaces/IMorphoVaultV1Adapter.sol";
 
 contract MorphoVaultV1IntegrationTest is BaseTest {
     using MarketParamsLib for MarketParams;
@@ -50,8 +52,8 @@ contract MorphoVaultV1IntegrationTest is BaseTest {
     MarketParams internal idleParams;
 
     // Adapter.
-    MorphoVaultV1AdapterFactory internal morphoVaultV1AdapterFactory;
-    MorphoVaultV1Adapter internal morphoVaultV1Adapter;
+    IMorphoVaultV1AdapterFactory internal morphoVaultV1AdapterFactory;
+    IMorphoVaultV1Adapter internal morphoVaultV1Adapter;
 
     function setUp() public virtual override {
         super.setUp();
