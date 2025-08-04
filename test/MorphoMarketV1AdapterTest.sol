@@ -173,8 +173,11 @@ contract MorphoMarketV1AdapterTest is Test {
         address newAdapter = factory.createMorphoMarketV1Adapter(newParentVaultAddr, address(morpho));
 
         assertTrue(newAdapter != address(0), "Adapter not created");
-        assertEq(MorphoMarketV1Adapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
-        assertEq(MorphoMarketV1Adapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
+        assertEq(IMorphoMarketV1Adapter(newAdapter).factory(), address(factory), "Incorrect factory");
+        assertEq(IMorphoMarketV1Adapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
+        assertEq(IMorphoMarketV1Adapter(newAdapter).asset(), address(loanToken), "Incorrect asset");
+        assertEq(IMorphoMarketV1Adapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
+        assertEq(IMorphoMarketV1Adapter(newAdapter).adapterId(), expectedIds[0], "Incorrect adapterId");
         assertEq(
             factory.morphoMarketV1Adapter(newParentVaultAddr, address(morpho)),
             newAdapter,
