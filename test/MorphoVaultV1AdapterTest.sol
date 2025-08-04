@@ -209,25 +209,25 @@ contract MorphoVaultV1AdapterTest is Test {
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         donation = bound(donation, 1, MAX_TEST_ASSETS);
 
+        ERC4626MockExtended otherVault = new ERC4626MockExtended(address(asset));
+
         // Deposit some assets
         deal(address(asset), address(adapter), deposit * 2);
         parentVault.allocateMocked(address(adapter), hex"", deposit);
 
-        uint256 adapterShares = morphoVaultV1.balanceOf(address(adapter));
-        assertEq(adapter.shares(), adapterShares, "shares not recorded");
+        uint256 realAssetsBefore = adapter.realAssets();
 
         // Donate to adapter
         address donor = makeAddr("donor");
         deal(address(asset), donor, donation);
         vm.startPrank(donor);
-        asset.approve(address(morphoVaultV1), type(uint256).max);
-        morphoVaultV1.deposit(donation, address(adapter));
+        asset.approve(address(otherVault), type(uint256).max);
+        otherVault.deposit(donation, address(adapter));
         vm.stopPrank();
 
-        // Test no impact on allocation
-        uint256 oldallocation = adapter.allocation();
-        parentVault.allocateMocked(address(adapter), hex"", deposit);
-        assertEq(adapter.allocation(), oldallocation + deposit, "assets have changed");
+        uint256 realAssetsAfter = adapter.realAssets();
+
+        assertEq(realAssetsAfter, realAssetsBefore, "realAssets should not change");
     }
 }
 
