@@ -41,4 +41,8 @@ contract MathTest is Test {
     function toUint192(uint256 x) external pure returns (uint192) {
         return MathLib.toUint192(x);
     }
+
+    function testMin(uint256 x, uint256 y) public pure {
+        assertEq(MathLib.min(x, y), x < y ? x : y);
+    }
 }

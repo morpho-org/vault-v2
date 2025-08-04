@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Morpho Association
 
 methods {
-    function _.interestPerSecond(uint256, uint256) external => PER_CALLEE_CONSTANT;
+    function _.interest(uint256, uint256) external => PER_CALLEE_CONSTANT;
     function _.canReceiveShares(address) external => PER_CALLEE_CONSTANT;
 }
 
