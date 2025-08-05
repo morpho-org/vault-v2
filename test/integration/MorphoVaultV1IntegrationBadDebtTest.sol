@@ -2,10 +2,10 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MorphoVaultIntegrationTest.sol";
+import "./MorphoVaultV1IntegrationTest.sol";
 import {EventsLib as MorphoEventsLib} from "../../lib/metamorpho/lib/morpho-blue/src/libraries/EventsLib.sol";
 
-contract MorphoVaultIntegrationBadDebtTest is MorphoVaultIntegrationTest {
+contract MorphoVaultV1IntegrationBadDebtTest is MorphoVaultV1IntegrationTest {
     using MorphoBalancesLib for IMorpho;
     using MarketParamsLib for MarketParams;
 
@@ -54,7 +54,7 @@ contract MorphoVaultIntegrationBadDebtTest is MorphoVaultIntegrationTest {
         morphoVaultV1.updateWithdrawQueue(indexes);
         vm.stopPrank();
 
-        vault.realizeLoss(address(morphoVaultV1Adapter), hex"");
+        vault.accrueInterest();
 
         assertEq(vault.totalAssets(), initialOnMarket0);
         assertEq(vault.previewRedeem(vault.balanceOf(address(this))), initialOnMarket0);
@@ -86,21 +86,8 @@ contract MorphoVaultIntegrationBadDebtTest is MorphoVaultIntegrationTest {
         );
         morpho.liquidate(allMarketParams[1], borrower, collateralOfBorrower, 0, hex"");
 
-        vm.prank(address(0x123));
-        vault.realizeLoss(address(morphoVaultV1Adapter), hex"");
+        vault.accrueInterest();
 
         assertEq(vault.totalAssets(), initialOnMarket0, "totalAssets() != initialOnMarket0");
-        assertApproxEqAbs(
-            vault.previewRedeem(vault.balanceOf(address(this))),
-            initialOnMarket0 - initialOnMarket1 / 100,
-            1,
-            "previewRedeem(this) != initialOnMarket0 - initialOnMarket1 / 100"
-        );
-        assertApproxEqAbs(
-            vault.previewRedeem(vault.balanceOf(address(0x123))),
-            initialOnMarket1 / 100,
-            1,
-            "previewRedeem(0x123) != initialOnMarket1 / 100"
-        );
     }
 }

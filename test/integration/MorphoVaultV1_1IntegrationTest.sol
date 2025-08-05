@@ -18,18 +18,18 @@ import {
 
 import {IVaultV2Factory} from "../../src/interfaces/IVaultV2Factory.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
-import {IManualVicFactory} from "../../src/vic/interfaces/IManualVicFactory.sol";
 
 import {VaultV2Factory} from "../../src/VaultV2Factory.sol";
-import {ManualVic, ManualVicFactory} from "../../src/vic/ManualVicFactory.sol";
 import "../../src/VaultV2.sol";
 import "../../src/adapters/MorphoVaultV1Adapter.sol";
 import {MorphoVaultV1AdapterFactory} from "../../src/adapters/MorphoVaultV1AdapterFactory.sol";
+import {IMorphoVaultV1AdapterFactory} from "../../src/adapters/interfaces/IMorphoVaultV1AdapterFactory.sol";
+import {IMorphoVaultV1Adapter} from "../../src/adapters/interfaces/IMorphoVaultV1Adapter.sol";
 
 contract MorphoVaultV1_1IntegrationTest is BaseTest {
     using MarketParamsLib for MarketParams;
 
-    uint256 internal constant MAX_TEST_ASSETS = 1e32;
+    uint256 internal MAX_TEST_ASSETS;
 
     // Morpho.
     address internal immutable morphoOwner = makeAddr("MorphoOwner");
@@ -50,11 +50,13 @@ contract MorphoVaultV1_1IntegrationTest is BaseTest {
     MarketParams internal idleParams;
 
     // Adapter.
-    MorphoVaultV1AdapterFactory internal morphoVaultV1AdapterFactory;
-    MorphoVaultV1Adapter internal morphoVaultV1Adapter;
+    IMorphoVaultV1AdapterFactory internal morphoVaultV1AdapterFactory;
+    IMorphoVaultV1Adapter internal morphoVaultV1Adapter;
 
     function setUp() public virtual override {
         super.setUp();
+
+        MAX_TEST_ASSETS = 10 ** min(18 + underlyingToken.decimals(), 32);
 
         // Setup morpho.
         morpho = IMorpho(deployCode("Morpho.sol", abi.encode(morphoOwner)));
@@ -160,7 +162,7 @@ contract MorphoVaultV1_1IntegrationTest is BaseTest {
     function setMorphoVaultV1Cap(MarketParams memory marketParams, uint256 newCap) internal {
         vm.prank(mmCurator);
         morphoVaultV1.submitCap(marketParams, newCap);
-        vm.warp(block.timestamp + morphoVaultV1.timelock());
+        skip(morphoVaultV1.timelock());
         morphoVaultV1.acceptCap(marketParams);
     }
 }

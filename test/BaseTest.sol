@@ -3,11 +3,9 @@
 pragma solidity ^0.8.0;
 
 import {IVaultV2Factory} from "../src/interfaces/IVaultV2Factory.sol";
-import {IVaultV2, IERC20} from "../src/interfaces/IVaultV2.sol";
-import {IManualVicFactory} from "../src/vic/interfaces/IManualVicFactory.sol";
+import "../src/interfaces/IVaultV2.sol";
 
 import {VaultV2Factory} from "../src/VaultV2Factory.sol";
-import {ManualVic, ManualVicFactory} from "../src/vic/ManualVicFactory.sol";
 import "../src/VaultV2.sol";
 
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
@@ -15,6 +13,7 @@ import {AdapterMock} from "./mocks/AdapterMock.sol";
 
 import {Test, console} from "../lib/forge-std/src/Test.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
+import {TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT} from "./PackingTest.sol";
 
 contract BaseTest is Test {
     address immutable owner = makeAddr("owner");
@@ -24,14 +23,9 @@ contract BaseTest is Test {
 
     uint256 UNDERLYING_TOKEN_DECIMALS;
 
-    // The packed slot containing both _totalAssets and lastUpdate.
-    bytes32 TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT = bytes32(uint256(13));
-
     ERC20Mock underlyingToken;
     IVaultV2Factory vaultFactory;
     IVaultV2 vault;
-    IManualVicFactory vicFactory;
-    ManualVic vic;
 
     bytes[] bundle;
     bytes32[] expectedIds;
@@ -50,23 +44,15 @@ contract BaseTest is Test {
 
         vault = IVaultV2(vaultFactory.createVaultV2(owner, address(underlyingToken), bytes32(0)));
         vm.label(address(vault), "vault");
-        vicFactory = IManualVicFactory(address(new ManualVicFactory()));
-        vic = ManualVic(vicFactory.createManualVic(address(vault)));
-        vm.label(address(vic), "vic");
 
         vm.startPrank(owner);
         vault.setCurator(curator);
         vault.setIsSentinel(sentinel, true);
         vm.stopPrank();
 
-        vm.startPrank(curator);
-        ManualVic(vic).setMaxInterestPerSecond(type(uint96).max);
+        vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAllocator, (allocator, true)));
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(vic))));
-        vm.stopPrank();
-
         vault.setIsAllocator(allocator, true);
-        vault.setVic(address(vic));
 
         expectedIds = new bytes32[](2);
         expectedIds[0] = keccak256("id-0");

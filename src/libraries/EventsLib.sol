@@ -7,7 +7,7 @@ library EventsLib {
     event Approval(address indexed owner, address indexed spender, uint256 shares);
     event Transfer(address indexed from, address indexed to, uint256 shares);
     /// @dev Emitted when the allowance is updated by transferFrom (not when it is updated by permit, approve, withdraw,
-    /// redeem because their respective events allow to track the allowance.
+    /// redeem because their respective events allow to track the allowance).
     event AllowanceUpdatedByTransferFrom(address indexed owner, address indexed spender, uint256 shares);
     event Permit(address indexed owner, address indexed spender, uint256 shares, uint256 nonce, uint256 deadline);
 
@@ -21,20 +21,15 @@ library EventsLib {
     event Constructor(address indexed owner, address indexed asset);
 
     // Allocation events
-    event Allocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 interest);
-    event Deallocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 interest);
+    event Allocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, int256 change);
+    event Deallocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, int256 change);
     event ForceDeallocate(
         address indexed sender,
         address adapter,
-        bytes data,
         uint256 assets,
         address indexed onBehalf,
+        bytes32[] ids,
         uint256 penaltyAssets
-    );
-
-    // Loss realization events
-    event RealizeLoss(
-        address indexed sender, address indexed adapter, bytes32[] ids, uint256 loss, uint256 incentiveShares
     );
 
     // Fee and interest events
@@ -45,6 +40,7 @@ library EventsLib {
     // Timelock events
     event Revoke(address indexed sender, bytes4 indexed selector, bytes data);
     event Submit(bytes4 indexed selector, bytes data, uint256 executableAt);
+    event Accept(bytes4 indexed selector, bytes data);
 
     // Configuration events
     event SetOwner(address indexed newOwner);
@@ -56,7 +52,6 @@ library EventsLib {
     event SetSharesGate(address indexed newSharesGate);
     event SetReceiveAssetsGate(address indexed newReceiveAssetsGate);
     event SetSendAssetsGate(address indexed newSendAssetsGate);
-    event SetVic(address indexed newVic);
     event SetIsAdapter(address indexed account, bool newIsAdapter);
     event AbdicateSubmit(bytes4 indexed selector);
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
@@ -72,5 +67,6 @@ library EventsLib {
     event IncreaseAbsoluteCap(bytes32 indexed id, bytes idData, uint256 newAbsoluteCap);
     event DecreaseRelativeCap(address indexed sender, bytes32 indexed id, bytes idData, uint256 newRelativeCap);
     event IncreaseRelativeCap(bytes32 indexed id, bytes idData, uint256 newRelativeCap);
+    event SetMaxRate(uint256 newMaxRate);
     event SetForceDeallocatePenalty(address indexed adapter, uint256 forceDeallocatePenalty);
 }
