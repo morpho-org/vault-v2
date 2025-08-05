@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Morpho Association
 
 methods {
-    function _.totalAssets() external => PER_CALLEE_CONSTANT;
+    function _.realAssets() external => PER_CALLEE_CONSTANT;
     function _.canReceiveShares(address) external => PER_CALLEE_CONSTANT;
 }
 

@@ -19,12 +19,12 @@ import {MathLib} from "../src/libraries/MathLib.sol";
 contract MorphoVaultV1AdapterTest is Test {
     using MathLib for uint256;
 
-    ERC20Mock internal asset;
-    ERC20Mock internal rewardToken;
+    IERC20 internal asset;
+    IERC20 internal rewardToken;
     VaultV2Mock internal parentVault;
     ERC4626MockExtended internal morphoVaultV1;
-    MorphoVaultV1AdapterFactory internal factory;
-    MorphoVaultV1Adapter internal adapter;
+    IMorphoVaultV1AdapterFactory internal factory;
+    IMorphoVaultV1Adapter internal adapter;
     address internal owner;
     address internal recipient;
     bytes32[] internal expectedIds;
@@ -36,8 +36,8 @@ contract MorphoVaultV1AdapterTest is Test {
         owner = makeAddr("owner");
         recipient = makeAddr("recipient");
 
-        asset = new ERC20Mock(18);
-        rewardToken = new ERC20Mock(18);
+        asset = IERC20(address(new ERC20Mock(18)));
+        rewardToken = IERC20(address(new ERC20Mock(18)));
         morphoVaultV1 = new ERC4626MockExtended(address(asset));
         parentVault = new VaultV2Mock(address(asset), owner, address(0), address(0), address(0));
 
@@ -126,9 +126,13 @@ contract MorphoVaultV1AdapterTest is Test {
 
         address newAdapter = factory.createMorphoVaultV1Adapter(address(newParentVault), address(newVault));
 
+        expectedIds[0] = keccak256(abi.encode("this", address(newAdapter)));
+
         assertTrue(newAdapter != address(0), "Adapter not created");
-        assertEq(MorphoVaultV1Adapter(newAdapter).parentVault(), address(newParentVault), "Incorrect parent vault");
-        assertEq(MorphoVaultV1Adapter(newAdapter).morphoVaultV1(), address(newVault), "Incorrect morphoVaultV1 vault");
+        assertEq(IMorphoVaultV1Adapter(newAdapter).factory(), address(factory), "Incorrect factory");
+        assertEq(IMorphoVaultV1Adapter(newAdapter).parentVault(), address(newParentVault), "Incorrect parent vault");
+        assertEq(IMorphoVaultV1Adapter(newAdapter).morphoVaultV1(), address(newVault), "Incorrect morphoVaultV1 vault");
+        assertEq(IMorphoVaultV1Adapter(newAdapter).adapterId(), expectedIds[0], "Incorrect adapterId");
         assertEq(
             factory.morphoVaultV1Adapter(address(newParentVault), address(newVault)),
             newAdapter,
@@ -209,25 +213,25 @@ contract MorphoVaultV1AdapterTest is Test {
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         donation = bound(donation, 1, MAX_TEST_ASSETS);
 
+        ERC4626MockExtended otherVault = new ERC4626MockExtended(address(asset));
+
         // Deposit some assets
         deal(address(asset), address(adapter), deposit * 2);
         parentVault.allocateMocked(address(adapter), hex"", deposit);
 
-        uint256 adapterShares = morphoVaultV1.balanceOf(address(adapter));
-        assertEq(adapter.shares(), adapterShares, "shares not recorded");
+        uint256 realAssetsBefore = adapter.realAssets();
 
         // Donate to adapter
         address donor = makeAddr("donor");
         deal(address(asset), donor, donation);
         vm.startPrank(donor);
-        asset.approve(address(morphoVaultV1), type(uint256).max);
-        morphoVaultV1.deposit(donation, address(adapter));
+        asset.approve(address(otherVault), type(uint256).max);
+        otherVault.deposit(donation, address(adapter));
         vm.stopPrank();
 
-        // Test no impact on allocation
-        uint256 oldallocation = adapter.allocation();
-        parentVault.allocateMocked(address(adapter), hex"", deposit);
-        assertEq(adapter.allocation(), oldallocation + deposit, "assets have changed");
+        uint256 realAssetsAfter = adapter.realAssets();
+
+        assertEq(realAssetsAfter, realAssetsBefore, "realAssets should not change");
     }
 }
 
