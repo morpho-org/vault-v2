@@ -70,9 +70,9 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
         if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+        uint256 _allocation = allocation(marketParams);
         // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        uint256 _allocation = allocation(marketParams);
         int256 change = int256(MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this)))
             - int256(_allocation);
 
@@ -93,9 +93,9 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
         if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+        uint256 _allocation = allocation(marketParams);
         // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        uint256 _allocation = allocation(marketParams);
         int256 change = int256(MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this)))
             - int256(_allocation);
 
@@ -113,7 +113,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     }
 
     function allocation(MarketParams memory marketParams) public view returns (uint256) {
-        return IVaultV2(parentVault).allocation(keccak256(abi.encode("this/marketParams", address(this), marketParams)));
+        return IVaultV2(parentVault).allocation(lastId(marketParams));
     }
 
     /// @dev Returns adapter's ids.
@@ -121,8 +121,12 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         bytes32[] memory ids_ = new bytes32[](3);
         ids_[0] = adapterId;
         ids_[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
-        ids_[2] = keccak256(abi.encode("this/marketParams", address(this), marketParams));
+        ids_[2] = lastId(marketParams);
         return ids_;
+    }
+
+    function lastId(MarketParams memory marketParams) internal view returns (bytes32) {
+        return keccak256(abi.encode("this/marketParams", address(this), marketParams));
     }
 
     function realAssets() external view returns (uint256) {

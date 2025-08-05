@@ -91,15 +91,15 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         return (ids(), change);
     }
 
+    function allocation() public view returns (uint256) {
+        return IVaultV2(parentVault).allocation(adapterId);
+    }
+
     /// @dev Returns adapter's ids.
     function ids() public view returns (bytes32[] memory) {
         bytes32[] memory ids_ = new bytes32[](1);
         ids_[0] = adapterId;
         return ids_;
-    }
-
-    function allocation() public view returns (uint256) {
-        return IVaultV2(parentVault).allocation(adapterId);
     }
 
     function realAssets() external view returns (uint256) {
