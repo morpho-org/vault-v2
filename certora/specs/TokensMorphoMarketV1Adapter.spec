@@ -7,8 +7,6 @@ using ERC20Helper as ERC20;
 
 methods {
     function asset() external returns address envfree;
-    function lastUpdate() external returns uint64 envfree;
-    function liquidityData() external returns bytes envfree;
 
     function ERC20.balanceOf(address, address) external returns uint256 envfree;
 

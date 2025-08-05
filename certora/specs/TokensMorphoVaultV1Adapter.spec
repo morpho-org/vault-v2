@@ -10,8 +10,6 @@ methods {
     function _.extSloads(bytes32[]) external => NONDET DELETE;
 
     function asset() external returns address envfree;
-    function lastUpdate() external returns uint64 envfree;
-    function liquidityData() external returns bytes envfree;
 
     function MorphoVaultV1.asset() external returns address envfree;
     function ERC20.balanceOf(address, address) external returns uint256 envfree;
