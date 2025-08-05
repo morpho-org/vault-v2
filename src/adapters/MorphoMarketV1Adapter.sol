@@ -126,10 +126,10 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     }
 
     function realAssets() external view returns (uint256) {
-        uint256 res = 0;
+        uint256 _realAssets = 0;
         for (uint256 i = 0; i < marketParamsList.length; i++) {
-            res += MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParamsList[i], address(this));
+            _realAssets += MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParamsList[i], address(this));
         }
-        return res;
+        return _realAssets;
     }
 }

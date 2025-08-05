@@ -126,6 +126,8 @@ contract MorphoVaultV1AdapterTest is Test {
 
         address newAdapter = factory.createMorphoVaultV1Adapter(address(newParentVault), address(newVault));
 
+        expectedIds[0] = keccak256(abi.encode("this", address(newAdapter)));
+
         assertTrue(newAdapter != address(0), "Adapter not created");
         assertEq(IMorphoVaultV1Adapter(newAdapter).factory(), address(factory), "Incorrect factory");
         assertEq(IMorphoVaultV1Adapter(newAdapter).parentVault(), address(newParentVault), "Incorrect parent vault");
