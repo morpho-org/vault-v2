@@ -15,7 +15,8 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 /// supply. Following resource is relevant: https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
 /// @dev Must not be used with a Morpho Market v1 with an Irm that can re-enter the parent vault.
 /// @dev Losses that correspond to rounding errors are realizable.
-/// @dev If a market reverts on accrueInterest, realAssets will revert and the vault will not be able to accrueInterest.
+/// @dev If expectedSupplyAssets reverts for a market of the marketParamsList, realAssets will revert and the vault will
+/// not be able to accrueInterest.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MarketParamsLib for MarketParams;
 
