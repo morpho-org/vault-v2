@@ -1,6 +1,6 @@
 # Vault v2
 
-Morpho Vault v2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including but not limited to Morpho Market v1, Morpho Market v2, and Morpho Vaults v1.
+Morpho Vault v2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including but not limited to Morpho Market v1, Morpho Market v2, and Morpho Vault v1.
 Depositors of Morpho Vault v2 earn from the underlying protocols without having to actively manage the risk of their position.
 Management of deposited assets is the responsibility of a set of different roles (owner, curator and allocators).
 The active management of invested positions involves enabling and allocating liquidity to protocols.
@@ -14,7 +14,7 @@ All the contracts are immutable.
 ### Adapters
 
 Vaults can allocate assets to arbitrary protocols and markets via adapters.
-The curator enables adapters to invest on behalf of the vault.
+The curator enables adapters to hold positions on behalf of the vault.
 Adapters are also used to know how much these investments are worth (interest and loss realization).
 Because adapters hold positions in protocols where assets are allocated, they are susceptible to accrue rewards for those protocols.
 To ensure that those rewards can be retrieved, each adapter has a skim function that can be called by the vault's owner.
@@ -35,7 +35,7 @@ A Morpho Market v2 adapter will be released together with Market v2.
 The funds allocation of the vault is constrained by an id system.
 An id is an abstract identifier for a common risk factor of some markets (a collateral, an oracle, a protocol, etc.).
 Allocation on markets with a common id is limited by absolute caps and relative caps.
-Note that relative caps are "soft" because they are not checked on withdrawals (they only constrain new allocations).
+Note that relative caps are "soft" because they are not checked on withdrawals, they only constrain new allocations.
 The curator ensures the consistency of the id system by:
 
 - setting caps for the ids according to an estimation of risk;
@@ -76,8 +76,6 @@ This reduces their position in the vault and increases their position in the und
 A penalty for using forceDeallocate can be set per adapter, of up to 2%.
 This disincentivizes the manipulation of allocations, in particular of relative caps which are not checked on withdrawals.
 Note that the only friction to deallocating an adapter with a 0% penalty is the associated gas cost.
-
-[Gated vaults](#gates) can circumvent the in-kind redemption mechanism.
 
 ### Gates
 
