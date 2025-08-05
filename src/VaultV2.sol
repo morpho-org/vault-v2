@@ -87,7 +87,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// LIVENESS REQUIREMENTS
 /// @dev List of assumptions that guarantees the vault's liveness properties:
-/// - The VIC should not revert on calls to interest.
+/// - Adapters should not revert on realAssets, otherwise accrueInterestView reverts.
 /// - The token should not revert on transfer and transferFrom if balances and approvals are right.
 /// - The token should not revert on transfer to self.
 /// - totalAssets and totalSupply must stay below ~10^35. When taking this into account, note that for assets with
@@ -574,7 +574,6 @@ contract VaultV2 is IVaultV2 {
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     /// @dev The performance and management fees are taken even if the vault incurs some losses.
     /// @dev Both fees are rounded down, so fee recipients could receive less than expected.
-    /// @dev If an adapter reverts on accrueInterest, the function reverts.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         if (firstTotalAssets != 0) return (_totalAssets, 0, 0);
         uint256 elapsed = block.timestamp - lastUpdate;
@@ -738,7 +737,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns shares withdrawn as penalty.
     /// @dev When calling this function, a penalty is taken from onBehalf, in order to discourage allocation
-    /// manipulations. This penalty can then be distributed via the Vic.
+    /// manipulations.
     /// @dev The penalty is taken as a withdrawal for which assets are returned to the vault. In consequence,
     /// totalAssets is decreased normally along with totalSupply (the share price doesn't change except because of
     /// rounding errors), but the amount of assets actually controlled by the vault is not decreased.
