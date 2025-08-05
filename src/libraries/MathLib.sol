@@ -28,6 +28,12 @@ library MathLib {
         return uint128(x);
     }
 
+    /// @dev Casts to uint256, reverting if input number is too small.
+    function toUint256(int256 x) internal pure returns (uint256) {
+        require(x >= 0, ErrorsLib.CastOverflow());
+        return uint256(x);
+    }
+
     /// @dev Returns min(x, y).
     function min(uint256 x, uint256 y) internal pure returns (uint256 z) {
         assembly {
