@@ -16,9 +16,9 @@ methods {
     function MorphoVaultV1Adapter.allocation() external returns uint256 envfree;
 
     function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with (env e)
-        => morphoVaultV1AdapterWrapperSummary(e, true, data, assets, bs, a) expect (bytes32[], uint256) ;
+        => morphoVaultV1AdapterWrapperSummary(e, true, data, assets, bs, a) expect (bytes32[], uint256);
     function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with (env e)
-        => morphoVaultV1AdapterWrapperSummary(e, false, data, assets, bs, a) expect (bytes32[], uint256) ;
+        => morphoVaultV1AdapterWrapperSummary(e, false, data, assets, bs, a) expect (bytes32[], uint256);
     function _.realizeLoss(bytes, bytes4, address) external => DISPATCHER(true);
 
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect uint256;
