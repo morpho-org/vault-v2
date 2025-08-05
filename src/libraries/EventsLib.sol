@@ -21,8 +21,8 @@ library EventsLib {
     event Constructor(address indexed owner, address indexed asset);
 
     // Allocation events
-    event Allocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 interest);
-    event Deallocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, uint256 interest);
+    event Allocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, int256 change);
+    event Deallocate(address indexed sender, address indexed adapter, uint256 assets, bytes32[] ids, int256 change);
     event ForceDeallocate(
         address indexed sender,
         address adapter,
@@ -30,11 +30,6 @@ library EventsLib {
         address indexed onBehalf,
         bytes32[] ids,
         uint256 penaltyAssets
-    );
-
-    // Loss realization events
-    event RealizeLoss(
-        address indexed sender, address indexed adapter, bytes32[] ids, uint256 loss, uint256 incentiveShares
     );
 
     // Fee and interest events
@@ -57,7 +52,6 @@ library EventsLib {
     event SetSharesGate(address indexed newSharesGate);
     event SetReceiveAssetsGate(address indexed newReceiveAssetsGate);
     event SetSendAssetsGate(address indexed newSendAssetsGate);
-    event SetVic(address indexed newVic);
     event SetIsAdapter(address indexed account, bool newIsAdapter);
     event AbdicateSubmit(bytes4 indexed selector);
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
@@ -73,5 +67,6 @@ library EventsLib {
     event IncreaseAbsoluteCap(bytes32 indexed id, bytes idData, uint256 newAbsoluteCap);
     event DecreaseRelativeCap(address indexed sender, bytes32 indexed id, bytes idData, uint256 newRelativeCap);
     event IncreaseRelativeCap(bytes32 indexed id, bytes idData, uint256 newRelativeCap);
+    event SetMaxRate(uint256 newMaxRate);
     event SetForceDeallocatePenalty(address indexed adapter, uint256 forceDeallocatePenalty);
 }

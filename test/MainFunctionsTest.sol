@@ -9,13 +9,17 @@ contract MainFunctionsTest is BaseTest {
 
     uint256 internal constant MAX_TEST_ASSETS = 1e36;
     uint256 internal constant MAX_TEST_SHARES = 1e36;
-    uint256 internal constant INITIAL_DEPOSIT = 1e18;
+    uint256 internal constant INITIAL_DEPOSIT = 1e18 - 123456789;
 
     uint256 internal initialSharesDeposit;
     uint256 internal totalAssetsAfterInterest;
 
     function setUp() public override {
         super.setUp();
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (MAX_MAX_RATE)));
+        vault.setMaxRate(MAX_MAX_RATE);
 
         deal(address(underlyingToken), address(this), INITIAL_DEPOSIT, true);
         underlyingToken.approve(address(vault), type(uint256).max);
@@ -28,17 +32,14 @@ contract MainFunctionsTest is BaseTest {
         assertEq(vault.balanceOf(address(this)), initialSharesDeposit, "balanceOf(this)");
         assertEq(vault.totalSupply(), initialSharesDeposit, "totalSupply vault");
 
-        // Accrue some interest to make sure there is a rounding error.
-        vm.prank(allocator);
-        vic.setInterestPerSecondAndDeadline(uint256(2e18) / (365 days), type(uint64).max);
-        skip(10);
-        vault.accrueInterest();
+        // Make sure there is a rounding error.
+        skip(1); // needed since the max rate.
+        deal(address(underlyingToken), address(this), 123456789);
+        underlyingToken.transfer(address(vault), 123456789);
         assertNotEq((vault.totalAssets() + 1) % (vault.totalSupply() + vault.virtualShares()), 0);
 
+        assertEq(underlyingToken.balanceOf(address(vault)), 1e18, "balanceOf(vault)");
         totalAssetsAfterInterest = vault.totalAssets();
-        deal(address(underlyingToken), address(vault), totalAssetsAfterInterest);
-
-        assertEq(underlyingToken.balanceOf(address(vault)), totalAssetsAfterInterest, "balanceOf(vault)");
     }
 
     function testPostConstruction(address _owner, address asset) public {

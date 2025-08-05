@@ -5,20 +5,22 @@ pragma solidity ^0.8.0;
 import {IAdapter} from "../../src/interfaces/IAdapter.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
 import {IERC20} from "../../src/interfaces/IERC20.sol";
+import {MathLib} from "../../src/libraries/MathLib.sol";
 
 contract AdapterMock is IAdapter {
+    using MathLib for uint256;
+
     address public immutable vault;
 
     bytes32[] public _ids;
     uint256 public interest;
     uint256 public loss;
+    uint256 public deposit;
 
     bytes public recordedAllocateData;
     uint256 public recordedAllocateAssets;
-
     bytes public recordedDeallocateData;
     uint256 public recordedDeallocateAssets;
-
     bytes4 public recordedSelector;
     address public recordedSender;
 
@@ -42,33 +44,29 @@ contract AdapterMock is IAdapter {
 
     function allocate(bytes memory data, uint256 assets, bytes4 selector, address sender)
         external
-        returns (bytes32[] memory, uint256)
+        returns (bytes32[] memory, int256)
     {
         recordedAllocateData = data;
         recordedAllocateAssets = assets;
         recordedSelector = selector;
         recordedSender = sender;
-        return (ids(), interest);
+        deposit += assets;
+        return (_ids, int256(assets) + int256(interest) - int256(loss));
     }
 
     function deallocate(bytes memory data, uint256 assets, bytes4 selector, address sender)
         external
-        returns (bytes32[] memory, uint256)
+        returns (bytes32[] memory, int256)
     {
         recordedDeallocateData = data;
         recordedDeallocateAssets = assets;
         recordedSelector = selector;
         recordedSender = sender;
-        return (ids(), interest);
+        deposit -= assets;
+        return (_ids, -int256(assets) + int256(interest) - int256(loss));
     }
 
-    function realizeLoss(bytes memory, bytes4 selector, address sender) external returns (bytes32[] memory, uint256) {
-        recordedSelector = selector;
-        recordedSender = sender;
-        return (ids(), loss);
-    }
-
-    function ids() internal view returns (bytes32[] memory) {
-        return _ids;
+    function realAssets() external view returns (uint256) {
+        return deposit + interest - loss;
     }
 }
