@@ -7,8 +7,10 @@ using MorphoHarness as MorphoMarketV1;
 using Utils as Utils;
 
 methods {
-    function _.extSloads(bytes32[]) external => NONDET DELETE;
+    function canReceiveShares(address) internal returns bool => ALWAYS(true);
+    function _.canReceiveShares(address) external => ALWAYS(true);
 
+    function _.extSloads(bytes32[]) external => NONDET DELETE;
     function allocation(bytes32) external returns uint256 envfree;
     function MorphoVaultV1.totalSupply() external returns uint256 envfree;
     function MorphoVaultV1Adapter.ids() external returns bytes32[] envfree;
@@ -16,9 +18,9 @@ methods {
     function MorphoVaultV1Adapter.allocation() external returns uint256 envfree;
 
     function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with (env e)
-        => morphoVaultV1AdapterWrapperSummary(e, true, data, assets, bs, a) expect (bytes32[], uint256) ;
+        => morphoVaultV1AdapterWrapperSummary(e, true, data, assets, bs, a) expect (bytes32[], uint256);
     function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with (env e)
-        => morphoVaultV1AdapterWrapperSummary(e, false, data, assets, bs, a) expect (bytes32[], uint256) ;
+        => morphoVaultV1AdapterWrapperSummary(e, false, data, assets, bs, a) expect (bytes32[], uint256);
     function _.realizeLoss(bytes, bytes4, address) external => DISPATCHER(true);
 
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect uint256;
@@ -134,4 +136,32 @@ rule allocationEqExpectedAssets(env e, bytes data, uint256 assets) {
     realizeLoss(e, MorphoVaultV1Adapter, data);
 
     assert MorphoVaultV1Adapter.allocation() == MorphoVaultV1.previewRedeem(e, require_uint256(MorphoVaultV1Adapter.shares()));
+}
+
+rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
+    // Trick to require that all the following addresses are different.
+    require (MorphoVaultV1 == 0x10, "ack");
+    require (MorphoVaultV1Adapter == 0x11, "ack");
+    require (currentContract == 0x12, "ack");
+
+    // Ensure the VaultV2 and MorphoVaultV1 contracts are properly linked to the adapter in the conf file.
+    assert MorphoVaultV1Adapter.parentVault == currentContract;
+    assert MorphoVaultV1Adapter.morphoVaultV1 == MorphoVaultV1;
+
+    uint256 allocationBefore = MorphoVaultV1Adapter.allocation();
+    uint256 expectedBefore = MorphoVaultV1.previewRedeem(e, require_uint256(MorphoVaultV1Adapter.shares()));
+
+    require expectedBefore <= MorphoVaultV1.totalAssets(e);
+    require allocationBefore == 0 => MorphoVaultV1Adapter.shares() == 0;
+
+    require MorphoVaultV1.fee == 0;
+    require e.block.timestamp <= max_uint64;
+
+    deallocate(e, MorphoVaultV1Adapter, data, assets);
+
+    // tentative hints
+    assert ghostInterest != 0 => allocationBefore < expectedBefore;
+    assert ghostInterest == 0 => allocationBefore >= expectedBefore;
+
+    assert MorphoVaultV1Adapter.allocation() >= MorphoVaultV1.previewRedeem(e, require_uint256(MorphoVaultV1Adapter.shares()));
 }
