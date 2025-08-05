@@ -17,6 +17,8 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 /// corresponding bad debt.
 /// @dev Losses that correspond to rounding errors are realizable.
 /// @dev Shares of the Morpho Vault v1 cannot be skimmed (unlike any other token).
+/// @dev If expectedSupplyAssets reverts for a market of the morphoVaultV1, realAssets will revert and the vault will
+/// not be able to accrueInterest.
 contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     /* IMMUTABLES */
 

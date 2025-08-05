@@ -574,6 +574,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     /// @dev The performance and management fees are taken even if the vault incurs some losses.
     /// @dev Both fees are rounded down, so fee recipients could receive less than expected.
+    /// @dev If an adapter reverts on accrueInterest, the function reverts.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         if (firstTotalAssets != 0) return (_totalAssets, 0, 0);
         uint256 elapsed = block.timestamp - lastUpdate;
