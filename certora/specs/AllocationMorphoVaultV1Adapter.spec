@@ -8,6 +8,7 @@ using Utils as Utils;
 
 methods {
     function canReceiveShares(address) internal returns bool => ALWAYS(true);
+    function canSendShares(address) internal returns bool => ALWAYS(true);
     function _.canReceiveShares(address) external => ALWAYS(true);
 
     function _.extSloads(bytes32[]) external => NONDET DELETE;
