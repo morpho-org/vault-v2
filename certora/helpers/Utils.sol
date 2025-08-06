@@ -27,10 +27,6 @@ contract Utils {
         return WAD;
     }
 
-    function maxRatePerSecond() external pure returns (uint256) {
-        return MAX_RATE_PER_SECOND;
-    }
-
     function timelockCap() external pure returns (uint256) {
         return TIMELOCK_CAP;
     }

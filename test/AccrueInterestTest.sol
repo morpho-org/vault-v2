@@ -12,6 +12,7 @@ contract AccrueInterestTest is BaseTest {
     address performanceFeeRecipient = makeAddr("performanceFeeRecipient");
     address managementFeeRecipient = makeAddr("managementFeeRecipient");
     uint256 MAX_TEST_ASSETS;
+    AdapterMock adapter;
 
     function setUp() public override {
         super.setUp();
@@ -28,41 +29,42 @@ contract AccrueInterestTest is BaseTest {
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
-    }
 
-    function testAccrueInterestNoVic(uint256 deposit, uint256 elapsed) public {
-        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
-        elapsed = bound(elapsed, 1, 10 * 365 days);
+        adapter = new AdapterMock(address(vault));
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
+        vault.setIsAdapter(address(adapter), true);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(0))));
-        vault.setVic(address(0));
+        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (MAX_MAX_RATE)));
+        vault.setMaxRate(MAX_MAX_RATE);
 
-        vault.deposit(deposit, address(this));
+        increaseAbsoluteCap("id-0", type(uint128).max);
+        increaseAbsoluteCap("id-1", type(uint128).max);
+        increaseRelativeCap("id-0", WAD);
+        increaseRelativeCap("id-1", WAD);
 
-        skip(elapsed);
-
-        vault.accrueInterest();
-        assertEq(vault._totalAssets(), deposit);
+        vm.prank(allocator);
+        vault.setLiquidityAdapterAndData(address(adapter), hex"");
     }
 
+    /// forge-config: default.isolate = true
     function testAccrueInterestView(
         uint256 deposit,
         uint256 performanceFee,
         uint256 managementFee,
-        uint256 interestPerSecond,
+        uint256 interest,
         uint256 elapsed
     ) public {
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
-        interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        interestPerSecond = bound(interestPerSecond, 0, type(uint96).max);
         elapsed = bound(elapsed, 0, 10 * 365 days);
+        interest = bound(interest, 0, MAX_TEST_ASSETS);
 
         // Setup.
         vm.prank(allocator);
-        vic.setInterestPerSecondAndDeadline(interestPerSecond, type(uint64).max);
+        adapter.setInterest(interest);
         vm.startPrank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));
         vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (managementFee)));
@@ -82,23 +84,23 @@ contract AccrueInterestTest is BaseTest {
         assertEq(managementFeeShares, vault.balanceOf(managementFeeRecipient));
     }
 
+    /// forge-config: default.isolate = true
     function testTotalAssets(
         uint256 deposit,
         uint256 performanceFee,
         uint256 managementFee,
-        uint256 interestPerSecond,
+        uint256 interest,
         uint256 elapsed
     ) public {
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
-        interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        interestPerSecond = bound(interestPerSecond, 0, type(uint96).max);
         elapsed = bound(elapsed, 0, 10 * 365 days);
+        interest = bound(interest, 0, MAX_TEST_ASSETS);
 
         // Setup.
         vm.prank(allocator);
-        vic.setInterestPerSecondAndDeadline(interestPerSecond, type(uint64).max);
+        adapter.setInterest(interest);
         vm.startPrank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));
         vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (managementFee)));
@@ -116,19 +118,19 @@ contract AccrueInterestTest is BaseTest {
         assertEq(newTotalAssets, vault._totalAssets());
     }
 
+    /// forge-config: default.isolate = true
     function testAccrueInterest(
         uint256 deposit,
         uint256 performanceFee,
         uint256 managementFee,
-        uint256 interestPerSecond,
+        uint256 interest,
         uint256 elapsed
     ) public {
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
-        interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        interestPerSecond = bound(interestPerSecond, 0, type(uint96).max);
         elapsed = bound(elapsed, 1, 10 * 365 days);
+        interest = bound(interest, 0, (deposit * MAX_MAX_RATE).mulDivDown(elapsed, WAD));
 
         // Setup.
         vault.deposit(deposit, address(this));
@@ -138,13 +140,12 @@ contract AccrueInterestTest is BaseTest {
         vm.stopPrank();
         vault.setPerformanceFee(performanceFee);
         vault.setManagementFee(managementFee);
+        assertEq(adapter.realAssets(), deposit, "realAssetsBefore");
         vm.prank(allocator);
-        vic.setInterestPerSecondAndDeadline(interestPerSecond, type(uint64).max);
+        adapter.setInterest(interest);
         skip(elapsed);
 
         // Normal path.
-        assertEq(vault._totalAssets(), deposit);
-        uint256 interest = interestPerSecond * elapsed;
         uint256 totalAssets = deposit + interest;
         uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
         uint256 managementFeeAssets = (totalAssets * elapsed).mulDivDown(managementFee, WAD);
@@ -157,115 +158,47 @@ contract AccrueInterestTest is BaseTest {
         vm.expectEmit();
         emit EventsLib.AccrueInterest(deposit, totalAssets, performanceFeeShares, managementFeeShares);
         vault.accrueInterest();
-        assertEq(vault._totalAssets(), totalAssets);
-        assertEq(vault.balanceOf(performanceFeeRecipient), performanceFeeShares);
-        assertEq(vault.balanceOf(managementFeeRecipient), managementFeeShares);
-
-        // Check no emit when reaccruing in same timestamp
-        vm.recordLogs();
-        vault.accrueInterest();
-        assertEq(vm.getRecordedLogs().length, 0, "should not log");
+        assertEq(vault.totalAssets(), totalAssets, "totalAssets");
+        assertEq(vault.balanceOf(performanceFeeRecipient), performanceFeeShares, "performanceFeeShares");
+        assertEq(vault.balanceOf(managementFeeRecipient), managementFeeShares, "managementFeeShares");
     }
 
-    function testAccrueInterestTooHigh(
-        uint256 deposit,
-        uint256 performanceFee,
-        uint256 managementFee,
-        uint256 interestPerSecond,
-        uint256 elapsed
-    ) public {
-        performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
-        managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
+    /// forge-config: default.isolate = true
+    function testAccrueInterestMaxRate(uint256 deposit, uint256 interest, uint256 elapsed) public {
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
-        elapsed = bound(elapsed, 1, 10 * 365 days);
-        interestPerSecond = bound(interestPerSecond, 0, type(uint256).max / elapsed);
-        vm.assume(interestPerSecond * elapsed > (deposit * elapsed).mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        vm.assume(interestPerSecond <= type(uint96).max);
-
-        // Setup.
-        vault.deposit(deposit, address(this));
-        vm.startPrank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));
-        vault.submit(abi.encodeCall(IVaultV2.setManagementFee, (managementFee)));
-        vm.stopPrank();
-        vault.setPerformanceFee(performanceFee);
-        vault.setManagementFee(managementFee);
-        vm.prank(allocator);
-        vic.setInterestPerSecondAndDeadline(interestPerSecond, type(uint64).max);
-        skip(elapsed);
-
-        // Rate too high.
-        uint256 maxInterest = (deposit * elapsed).mulDivDown(MAX_RATE_PER_SECOND, WAD);
-        vault.accrueInterest();
-        assertEq(vault._totalAssets(), deposit + maxInterest);
-    }
-
-    function testAccrueInterestMaxRateValue() public {
-        uint256 deposit = 1e18;
-
-        vault.deposit(deposit, address(this));
-        vm.prank(allocator);
-        vic.setInterestPerSecondAndDeadline(deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD), type(uint64).max);
-        skip(365 days);
-
-        vault.accrueInterest();
-        assertApproxEqRel(vault._totalAssets(), deposit * 3, 0.00001e18);
-    }
-
-    function testSetVicWithNoCodeVic(uint256 elapsed) public {
-        elapsed = bound(elapsed, 1, 1000 weeks);
-
-        // Setup.
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(1))));
-        vault.setVic(address(1));
-        skip(elapsed);
-
-        vm.expectRevert();
-        vault.accrueInterest();
-
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(42))));
-        vault.setVic(address(42));
-    }
-
-    function testSetVicWithRevertingVic(uint256 elapsed) public {
-        elapsed = bound(elapsed, 1, 1000 weeks);
-
-        address reverting = address(new Reverting());
-
-        // Setup.
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (reverting)));
-        vault.setVic(reverting);
-        skip(elapsed);
-
-        vm.expectRevert();
-        vault.accrueInterest();
-
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (address(42))));
-        vault.setVic(address(42));
-
-        // Check lastUpdate updated
-        assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
-    }
-
-    function testAccrueInterestFees(
-        uint256 performanceFee,
-        uint256 managementFee,
-        uint256 interestPerSecond,
-        uint256 deposit,
-        uint256 elapsed
-    ) public {
-        performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
-        managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
-        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
-        interestPerSecond = bound(interestPerSecond, 0, deposit.mulDivDown(MAX_RATE_PER_SECOND, WAD));
-        interestPerSecond = bound(interestPerSecond, 0, type(uint96).max);
+        interest = bound(interest, 0, MAX_MAX_RATE);
         elapsed = bound(elapsed, 0, 10 * 365 days);
 
         vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (MAX_MAX_RATE)));
+        vault.setMaxRate(MAX_MAX_RATE);
+
+        vault.deposit(deposit, address(this));
+
+        vm.prank(allocator);
+        adapter.setInterest(interest);
+        skip(elapsed);
+
+        vault.accrueInterest();
+
+        assertLe(vault.totalAssets(), deposit + (deposit * elapsed).mulDivDown(MAX_MAX_RATE, WAD));
+    }
+
+    /// forge-config: default.isolate = true
+    function testAccrueInterestFees(
+        uint256 performanceFee,
+        uint256 managementFee,
+        uint256 interest,
+        uint256 deposit,
+        uint256 elapsed
+    ) public {
+        performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
+        managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
+        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        elapsed = bound(elapsed, 0, 10 * 365 days);
+        interest = bound(interest, 0, (deposit * MAX_MAX_RATE).mulDivDown(elapsed, WAD));
+
+        vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setPerformanceFee, (performanceFee)));
         vault.setPerformanceFee(performanceFee);
 
@@ -276,11 +209,10 @@ contract AccrueInterestTest is BaseTest {
         vault.deposit(deposit, address(this));
 
         vm.prank(allocator);
-        vic.setInterestPerSecondAndDeadline(interestPerSecond, type(uint64).max);
+        adapter.setInterest(interest);
 
         skip(elapsed);
 
-        uint256 interest = interestPerSecond * elapsed;
         uint256 newTotalAssets = deposit + interest;
         uint256 performanceFeeAssets = interest.mulDivDown(performanceFee, WAD);
         uint256 managementFeeAssets = (newTotalAssets * elapsed).mulDivDown(managementFee, WAD);

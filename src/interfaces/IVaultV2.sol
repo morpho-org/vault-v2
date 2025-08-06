@@ -22,11 +22,12 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function sendAssetsGate() external view returns (address);
     function isSentinel(address account) external view returns (bool);
     function isAllocator(address account) external view returns (bool);
-    function _totalAssets() external view returns (uint192);
     function firstTotalAssets() external view returns (uint256);
+    function _totalAssets() external view returns (uint128);
     function lastUpdate() external view returns (uint64);
-    function vic() external view returns (address);
-    function enterBlocked() external view returns (bool);
+    function maxRate() external view returns (uint64);
+    function adapters(uint256 index) external view returns (address);
+    function adaptersLength() external view returns (uint256);
     function isAdapter(address account) external view returns (bool);
     function allocation(bytes32 id) external view returns (uint256);
     function absoluteCap(bytes32 id) external view returns (uint256);
@@ -66,7 +67,6 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function setSharesGate(address newSharesGate) external;
     function setReceiveAssetsGate(address newReceiveAssetsGate) external;
     function setSendAssetsGate(address newSendAssetsGate) external;
-    function setVic(address newVic) external;
     function setIsAdapter(address account, bool newIsAdapter) external;
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicateSubmit(bytes4 selector) external;
@@ -79,6 +79,7 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function decreaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external;
     function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external;
     function decreaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external;
+    function setMaxRate(uint256 newMaxRate) external;
     function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external;
 
     // Allocator functions
@@ -97,7 +98,4 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256 penaltyShares);
-
-    // Realize loss
-    function realizeLoss(address adapter, bytes memory data) external returns (uint256 incentiveShares, uint256 loss);
 }

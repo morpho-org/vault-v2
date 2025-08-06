@@ -4,18 +4,16 @@ pragma solidity >=0.5.0;
 
 /// @dev See VaultV2 NatSpec comments for more details on adapter's spec.
 interface IAdapter {
-    /// @dev Returns the market' ids and the interest accrued on this market.
+    /// @dev Returns the market' ids and the change in assets on this market.
     function allocate(bytes memory data, uint256 assets, bytes4 selector, address sender)
         external
-        returns (bytes32[] memory ids, uint256 interest);
+        returns (bytes32[] memory ids, int256 change);
 
-    /// @dev Returns the market' ids and the interest accrued on this market.
+    /// @dev Returns the market' ids and the change in assets on this market.
     function deallocate(bytes memory data, uint256 assets, bytes4 selector, address sender)
         external
-        returns (bytes32[] memory ids, uint256 interest);
+        returns (bytes32[] memory ids, int256 change);
 
-    /// @dev Returns the market' ids and the loss occurred on this market.
-    function realizeLoss(bytes memory data, bytes4 selector, address sender)
-        external
-        returns (bytes32[] memory ids, uint256 loss);
+    /// @dev Returns the current value of the investments of the adapter (in underlying asset).
+    function realAssets() external view returns (uint256 assets);
 }
