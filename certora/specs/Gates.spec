@@ -29,7 +29,6 @@ methods {
     function _.withdraw(MorphoMarketV1Adapter.MarketParams, uint256, uint256, address, address) external => NONDET;
     function _.deposit(uint256, address) external => NONDET;
     function _.withdraw(uint256, address, address) external => NONDET;
-    function _.interestPerSecond(uint256, uint256) external => NONDET;
 }
 
 persistent ghost mapping(address => bool) ghostStatusCanSendShares;
