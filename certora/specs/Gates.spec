@@ -114,7 +114,8 @@ rule cantSendAssets(env e, method f, calldataarg args, address user)  filtered {
     f -> f.selector != sig:MorphoMarketV1Adapter.skim(address).selector &&
          f.selector != sig:MorphoVaultV1Adapter.skim(address).selector
 }{
-    require(currentContract.sendAssetsGate != 0, "require gating to be enabled for sending assets");
+    require(currentContract.sendAssetsGate != 0, "setup gating");
+    require (!canSendAssets(user), "setup gating");
 
     // Trick to require that all the following addresses are different.
     require(MorphoMarketV1Adapter == 0x10, "ack");
@@ -122,11 +123,11 @@ rule cantSendAssets(env e, method f, calldataarg args, address user)  filtered {
     require(currentContract == 0x12, "ack");
     require(asset() == 0x13, "ack");
 
-    require (user != MorphoMarketV1Adapter && user != MorphoVaultV1Adapter && user != currentContract, "require that the vault and the adapters are allowed to send assets");
+    require (user != MorphoMarketV1Adapter && user != MorphoVaultV1Adapter && user != currentContract, "do not check if the vault or the adapters themselves are properly gated to not send assets");
     require (currentContract.liquidityAdapter == 0x0 || currentContract.liquidityAdapter == MorphoMarketV1Adapter || currentContract.liquidityAdapter == MorphoVaultV1Adapter, "require that the liquidity adapter is unset or a known implementation");
 
     require (!canSendAssets(user), "assume that the user under scrutiny can't send assets");
-    require (ghostBalanceChangeAllowed[user] == true, "setup the ghost state");
+    require (ghostBalanceChangeAllowed[user], "setup the ghost state");
 
     f(e, args);
 
