@@ -23,7 +23,7 @@ methods {
 
     function _.allocate(bytes data, uint256 assets, bytes4, address) external => DISPATCHER(true);
     function _.deallocate(bytes data, uint256 assets, bytes4, address) external => DISPATCHER(true);
-    function _.realizeLoss(bytes, bytes4, address) external => DISPATCHER(true);
+    function _.realAssets() external => DISPATCHER(true);
 
     function _.supply(MorphoMarketV1Adapter.MarketParams, uint256, uint256, address, bytes) external => NONDET;
     function _.withdraw(MorphoMarketV1Adapter.MarketParams, uint256, uint256, address, address) external => NONDET;
