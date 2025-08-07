@@ -17,7 +17,6 @@ contract SettersTest is BaseTest {
         assertEq(address(vault.asset()), address(underlyingToken));
         assertEq(address(vault.curator()), curator);
         assertTrue(vault.isAllocator(address(allocator)));
-        assertEq(address(vault.vic()), address(vic));
     }
 
     /* OWNER SETTERS */
@@ -172,25 +171,27 @@ contract SettersTest is BaseTest {
 
         // Setup.
         vm.prank(curator);
-        vault.increaseTimelock(IVaultV2.setVic.selector, timelock);
-        assertEq(vault.timelock(IVaultV2.setVic.selector), timelock);
-        bytes memory data = abi.encodeCall(IVaultV2.setVic, address(1));
+        vault.increaseTimelock(IVaultV2.setIsAllocator.selector, timelock);
+        assertEq(vault.timelock(IVaultV2.setIsAllocator.selector), timelock);
+        bytes memory data = abi.encodeCall(IVaultV2.setIsAllocator, (address(1), true));
         vm.prank(curator);
         vault.submit(data);
         assertEq(vault.executableAt(data), block.timestamp + timelock);
 
         // Timelock didn't pass.
-        vm.warp(vm.getBlockTimestamp() + timelock - 1);
+        skip(timelock - 1);
         vm.expectRevert(ErrorsLib.TimelockNotExpired.selector);
-        vault.setVic(address(1));
+        vault.setIsAllocator(address(1), true);
 
         // Normal path.
-        vm.warp(vm.getBlockTimestamp() + 1);
-        vault.setVic(address(1));
+        skip(1);
+        vm.expectEmit();
+        emit EventsLib.Accept(IVaultV2.setIsAllocator.selector, data);
+        vault.setIsAllocator(address(1), true);
 
         // Data not timelocked.
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setVic(address(1));
+        vault.setIsAllocator(address(1), true);
     }
 
     function testSetIsAllocator(address rdm) public {
@@ -218,26 +219,6 @@ contract SettersTest is BaseTest {
         assertFalse(vault.isAllocator(newAllocator));
     }
 
-    function testSetVic(address rdm, uint48 elapsed) public {
-        vm.assume(rdm != curator);
-        address newVic = address(new ManualVic(address(vault)));
-
-        // Nobody can set directly
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vm.prank(rdm);
-        vault.setVic(newVic);
-
-        // Normal path
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setVic, (newVic)));
-        skip(elapsed);
-        vm.expectEmit();
-        emit EventsLib.SetVic(newVic);
-        vault.setVic(newVic);
-        assertEq(address(vault.vic()), newVic);
-        assertEq(vault.lastUpdate(), vm.getBlockTimestamp());
-    }
-
     function testSetIsAdapter(address rdm) public {
         vm.assume(rdm != curator);
         address newAdapter = makeAddr("newAdapter");
@@ -254,6 +235,8 @@ contract SettersTest is BaseTest {
         emit EventsLib.SetIsAdapter(newAdapter, true);
         vault.setIsAdapter(newAdapter, true);
         assertTrue(vault.isAdapter(newAdapter));
+        assertEq(vault.adaptersLength(), 1);
+        assertEq(vault.adapters(0), newAdapter);
 
         // Removal
         vm.prank(curator);
@@ -262,6 +245,7 @@ contract SettersTest is BaseTest {
         emit EventsLib.SetIsAdapter(newAdapter, false);
         vault.setIsAdapter(newAdapter, false);
         assertFalse(vault.isAdapter(newAdapter));
+        assertEq(vault.adaptersLength(), 0);
     }
 
     function testIncreaseTimelock(address rdm, bytes4 selector, uint256 newTimelock) public {
@@ -308,7 +292,7 @@ contract SettersTest is BaseTest {
         vault.submit(abi.encodeCall(IVaultV2.abdicateSubmit, (selector)));
         vm.expectEmit();
         emit EventsLib.AbdicateSubmit(selector);
-        vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
+        skip(TIMELOCK_CAP);
         vault.abdicateSubmit(selector);
         assertEq(vault.timelock(selector), type(uint256).max);
 
@@ -321,7 +305,7 @@ contract SettersTest is BaseTest {
         } else {
             vm.prank(curator);
             vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, 1 weeks)));
-            vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
+            skip(TIMELOCK_CAP);
             vm.expectRevert(ErrorsLib.InfiniteTimelock.selector);
             vault.decreaseTimelock(selector, 1 weeks);
         }
@@ -348,14 +332,14 @@ contract SettersTest is BaseTest {
         // Can't increase timelock with decreaseTimelock
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, oldTimelock + 1)));
-        vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
+        skip(TIMELOCK_CAP);
         vm.expectRevert(ErrorsLib.TimelockNotDecreasing.selector);
         vault.decreaseTimelock(selector, oldTimelock + 1);
 
         // Normal path
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, newTimelock)));
-        vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
+        skip(TIMELOCK_CAP);
         vm.expectEmit();
         emit EventsLib.DecreaseTimelock(selector, newTimelock);
         vault.decreaseTimelock(selector, newTimelock);
@@ -364,7 +348,7 @@ contract SettersTest is BaseTest {
         // Cannot decrease decreaseTimelock's timelock
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (IVaultV2.decreaseTimelock.selector, 1 weeks)));
-        vm.warp(vm.getBlockTimestamp() + TIMELOCK_CAP);
+        skip(TIMELOCK_CAP);
         vm.expectRevert(ErrorsLib.TimelockCapIsFixed.selector);
         vault.decreaseTimelock(IVaultV2.decreaseTimelock.selector, 1 weeks);
     }
@@ -681,6 +665,31 @@ contract SettersTest is BaseTest {
         vm.prank(curator);
         vm.expectRevert(ErrorsLib.RelativeCapNotDecreasing.selector);
         vault.decreaseRelativeCap(idData, newRelativeCap + 1);
+    }
+
+    function testSetMaxRateCantSetDirectly(address rdm) public {
+        vm.assume(rdm != curator);
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.setMaxRate(MAX_MAX_RATE);
+    }
+
+    function testSetMaxRateTooHigh(uint256 newMaxRate) public {
+        newMaxRate = bound(newMaxRate, MAX_MAX_RATE + 1, type(uint256).max);
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (newMaxRate)));
+        vm.expectRevert(ErrorsLib.MaxRateTooHigh.selector);
+        vault.setMaxRate(newMaxRate);
+    }
+
+    function testSetMaxRate(uint256 newMaxRate) public {
+        newMaxRate = bound(newMaxRate, 0, MAX_MAX_RATE);
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (newMaxRate)));
+        vm.expectEmit();
+        emit EventsLib.SetMaxRate(newMaxRate);
+        vault.setMaxRate(newMaxRate);
+        assertEq(vault.maxRate(), newMaxRate);
     }
 
     function testSetForceDeallocatePenalty(address rdm, uint256 newForceDeallocatePenalty) public {

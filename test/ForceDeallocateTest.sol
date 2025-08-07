@@ -47,20 +47,21 @@ contract ForceDeallocateTest is BaseTest {
 
         uint256 penaltyAssets = deallocated.mulDivUp(forceDeallocatePenalty, WAD);
         uint256 expectedShares = shares - vault.previewWithdraw(penaltyAssets);
-        bytes32[] memory ids = new bytes32[](2);
-        ids[0] = keccak256("id-0");
-        ids[1] = keccak256("id-1");
         vm.expectEmit();
-        emit EventsLib.ForceDeallocate(address(this), address(adapter), deallocated, address(this), ids, penaltyAssets);
+        emit EventsLib.ForceDeallocate(
+            address(this), address(adapter), deallocated, address(this), expectedIds, penaltyAssets
+        );
         uint256 withdrawnShares = vault.forceDeallocate(address(adapter), hex"", deallocated, address(this));
-        assertEq(adapter.recordedSelector(), IVaultV2.forceDeallocate.selector);
-        assertEq(adapter.recordedSender(), address(this));
-        assertEq(shares - expectedShares, withdrawnShares);
-        assertEq(underlyingToken.balanceOf(address(adapter)), supplied - deallocated);
-        assertEq(underlyingToken.balanceOf(address(vault)), deallocated);
-        assertEq(vault.balanceOf(address(this)), expectedShares);
+        assertEq(adapter.recordedSelector(), IVaultV2.forceDeallocate.selector, "selector");
+        assertEq(adapter.recordedSender(), address(this), "sender");
+        assertEq(shares - expectedShares, withdrawnShares, "withdrawnShares");
+        assertEq(underlyingToken.balanceOf(address(adapter)), supplied - deallocated, "balanceOf(adapter)");
+        assertEq(underlyingToken.balanceOf(address(vault)), deallocated, "balanceOf(vault)");
+        assertEq(vault.balanceOf(address(this)), expectedShares, "balanceOf(this)");
 
-        vault.withdraw(min(deallocated, vault.previewRedeem(expectedShares)), address(this), address(this));
+        vault.withdraw(
+            min(deallocated - penaltyAssets, vault.previewRedeem(expectedShares)), address(this), address(this)
+        );
     }
 
     function testForceDeallocateWithBlockedVault() public {
