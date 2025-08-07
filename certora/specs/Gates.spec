@@ -32,25 +32,11 @@ methods {
     function _.interestPerSecond(uint256, uint256) external => NONDET;
 }
 
-persistent ghost mapping(address => bool) ghostStatusCanSendShares {
-    init_state axiom forall address user. ghostStatusCanSendShares[user] == false;
-}
-
-persistent ghost mapping(address => bool) ghostStatusCanReceiveShares {
-    init_state axiom forall address user. ghostStatusCanReceiveShares[user] == false;
-}
-
-persistent ghost mapping(address => bool) ghostStatusCanSendAssets {
-    init_state axiom forall address user. ghostStatusCanSendAssets[user] == false;
-}
-
-persistent ghost mapping(address => bool) ghostStatusCanReceiveAssets {
-    init_state axiom forall address user. ghostStatusCanReceiveAssets[user] == false;
-}
-
-persistent ghost mapping(address => bool) ghostBalanceChangeAllowed {
-    init_state axiom forall address user. ghostBalanceChangeAllowed[user] == true;
-}
+persistent ghost mapping(address => bool) ghostStatusCanSendShares;
+persistent ghost mapping(address => bool) ghostStatusCanReceiveShares;
+persistent ghost mapping(address => bool) ghostStatusCanSendAssets;
+persistent ghost mapping(address => bool) ghostStatusCanReceiveAssets;
+persistent ghost mapping(address => bool) ghostBalanceChangeAllowed;
 
 hook Sstore ERC20.balanceOf[KEY address user] uint256 newBalance (uint256 oldBalance) {
     if (!canReceiveAssets(user)) {
@@ -115,7 +101,7 @@ rule cantReceiveAssets(env e, method f, calldataarg args, address user)  filtere
     require(asset() == 0x13, "ack");
 
     require (user != MorphoMarketV1Adapter && user != MorphoVaultV1Adapter && user != currentContract, "require that the vault and the adapters are allowed to receive assets");
-    require (currentContract.liquidityAdapter == 0x0 || currentContract.liquidityAdapter == MorphoMarketV1Adapter || currentContract.liquidityAdapter == MorphoVaultV1Adapter);
+    require (currentContract.liquidityAdapter == 0x0 || currentContract.liquidityAdapter == MorphoMarketV1Adapter || currentContract.liquidityAdapter == MorphoVaultV1Adapter, "require that the liquidity adapter is unset or a known implementation");
 
     require (!canReceiveAssets(user), "assume that the user under scrutiny can't receive assets");
     require (ghostBalanceChangeAllowed[user] == true, "setup the ghost state");
@@ -138,7 +124,7 @@ rule cantSendAssets(env e, method f, calldataarg args, address user)  filtered {
     require(asset() == 0x13, "ack");
 
     require (user != MorphoMarketV1Adapter && user != MorphoVaultV1Adapter && user != currentContract, "require that the vault and the adapters are allowed to send assets");
-    require (currentContract.liquidityAdapter == 0x0 || currentContract.liquidityAdapter == MorphoMarketV1Adapter || currentContract.liquidityAdapter == MorphoVaultV1Adapter);
+    require (currentContract.liquidityAdapter == 0x0 || currentContract.liquidityAdapter == MorphoMarketV1Adapter || currentContract.liquidityAdapter == MorphoVaultV1Adapter, "require that the liquidity adapter is unset or a known implementation");
 
     require (!canSendAssets(user), "assume that the user under scrutiny can't send assets");
     require (ghostBalanceChangeAllowed[user] == true, "setup the ghost state");
