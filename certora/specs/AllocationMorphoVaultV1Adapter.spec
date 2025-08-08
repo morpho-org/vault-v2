@@ -30,7 +30,6 @@ methods {
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
     function _.balanceOf(address) external => DISPATCHER(true);
 
-    // Dispatched for performance reasons.
     function _.market(MorphoHarness.Id) external => DISPATCHER(true);
     function _.idToMarketParams(MorphoHarness.Id) external => DISPATCHER(true);
     function _.position(MorphoHarness.Id, address) external => DISPATCHER(true);
