@@ -17,8 +17,8 @@ jobs:
       matrix:
         conf:
           - AbdicatedFunctions
-          - CS_MorphoMarketV1Adapter
-          - CS_MorphoVaultV1Adapter
+          - ChangesMorphoMarketV1Adapter
+          - ChangesMorphoVaultV1Adapter
           - CS_VaultV2
           - IdsMorphoMarketV1Adapter
           - IdsMorphoVaultV1Adapter

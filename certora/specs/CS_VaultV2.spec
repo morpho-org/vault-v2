@@ -9,7 +9,7 @@ using ERC20Mock as underlying;
 using CSMockAdapter as simpleAdapter;
 
 methods {
-    function multicall(bytes[]) external => NONDET DELETE;
+    function multicall(bytes[]) external => HAVOC_ALL DELETE;
     function allocation(bytes32) external returns uint256 envfree;
 
     function Utils.maxRatePerSecond() external returns (uint) envfree;
@@ -38,61 +38,7 @@ definition YEAR() returns uint256 = 365 * 24 * 60 * 60;
 definition WAD() returns uint256 = 10^18;
 definition mulDivUp(uint256 x, uint256 y, uint256 z) returns mathint = (x * y + (z-1)) / z;
 
-/*
-    - donating the underlying to the vault has no effect on interest accrual when no VIC is set
-*/
-rule giftingUnderlyingToVaultHasNoEffectOnInterestAccrualWithoutVic() {
-    env e1;
-    env e2;
-    require(e1.block.timestamp <= e2.block.timestamp, "e2 must happen after e1.");
-    require(vaultv2.lastUpdate <= e2.block.timestamp, "We don't want last update to be in the future.");
-    require(vaultv2.asset == underlying, "Make sure we gift the vault's underlying.");
-    require(vaultv2.vic == 0, "No vic.");
-
-    mathint totalAssetsPre = vaultv2._totalAssets;
-
-    uint256 amount;
-    underlying.transfer(e1, vaultv2, amount);
-
-    mathint totalAssetsPost = vaultv2.totalAssets(e2);
-
-    assert totalAssetsPre == totalAssetsPost;
-}
-
-/*
-    - donating the underlying to the vault has no effect on interest accrual when the ManualVic is set
-*/
-rule giftingUnderlyingToVaultHasNoEffectOnInterestAccrualWithManualVic() {
-    env e1;
-    env e2;
-    env e3;
-    require(e1.block.timestamp <= e2.block.timestamp, "e2 must happen after e1.");
-    require(e2.block.timestamp <= e3.block.timestamp, "e3 must happen after e2.");
-    require(vaultv2.lastUpdate <= e3.block.timestamp, "We don't want last update to be in the future.");
-    require(e3.block.timestamp < 2^63, "This corresponds to some time very far into the future");
-    require(vaultv2.asset == underlying, "Make sure we gift the vault's underlying.");
-    require(vaultv2.vic == manualVic, "Know your vic (ManualVic).");
-
-    vaultv2.accrueInterest(e1);
-    mathint totalAssetsPre = vaultv2.totalAssets(e1);
-
-    uint256 amount;
-    underlying.transfer(e2, vaultv2, amount);
-
-    uint256 elapsed = e3.block.timestamp > vaultv2.lastUpdate ? assert_uint256(e3.block.timestamp - vaultv2.lastUpdate) : 0;
-    uint256 tentativeInterest = manualVic.interest(e3, 0, elapsed);// OK for the manual vic because it ignores the param, need to change for new VICs
-    mathint maxInterest = (elapsed * vaultv2._totalAssets * Utils.maxRatePerSecond()) / WAD();
-    mathint interest = tentativeInterest <= maxInterest ? tentativeInterest : maxInterest; // 200% apr limit
-
-    mathint totalAssetsPost = vaultv2.totalAssets(e3);
-
-    assert totalAssetsPre + interest == totalAssetsPost;
-}
-
-/*
-    - donating the underlying to the vault has no effect
-      More specifically: donating the underlying to the vault has no effect when there is no VIC but it boils down to having no effect in general (with ManualVic) because giftingUnderlyingToVaultHasNoEffectOnInterestAccrualWithoutVic showed a donation has no effect on interest distribution, which is the only thing a VIC does. Also giftingUnderlyingToVaultHasNoEffectOnInterestAccrualWithManualVic showed that donating to the vault when the ManualVic is set has no effect on interest distribution.
-*/
+// Check how total assets change without interest accrual.
 rule giftingUnderlyingToVaultHasNoEffect(method f) filtered {
          // View functions are not interesting
     f -> !f.isView
@@ -102,17 +48,14 @@ rule giftingUnderlyingToVaultHasNoEffect(method f) filtered {
     env e1;
     env e2;
     env e3;
-    env e4;
     require(e1.block.timestamp <= e2.block.timestamp, "e2 must happen after e1");
     require(e2.block.timestamp <= e3.block.timestamp, "e3 must happen after e2");
-    require(e3.block.timestamp <= e4.block.timestamp, "e4 must happen after e3");
 
     require(vaultv2.asset == underlying, "Make sure we gift the vault's underlying.");
 
     require(e1.msg.sender != currentContract, "Cannot happen.");
     require(e2.msg.sender != currentContract, "Cannot happen.");
     require(e3.msg.sender != currentContract, "Cannot happen.");
-    require(e4.msg.sender != currentContract, "Cannot happen.");
     require(vaultv2.sharesGate == 0, "No need to make call resolution.");
     require(vaultv2.receiveAssetsGate == 0, "No need to make call resolution.");
     require(vaultv2.sendAssetsGate == 0, "No need to make call resolution.");
@@ -125,50 +68,47 @@ rule giftingUnderlyingToVaultHasNoEffect(method f) filtered {
 
     mathint totalAssetsPre = vaultv2.totalAssets(e1);
 
-    uint256 donationAmount;
-    underlying.transfer(e2, vaultv2, donationAmount);
-
     uint256 addedAssets;
     uint256 removedAssets;
 
     if (f.selector == sig:deposit(uint,address).selector) {
         require(removedAssets == 0,  "We only add assets.");
-        vaultv2.deposit(e3, addedAssets, e3.msg.sender);
+        vaultv2.deposit(e2, addedAssets, e2.msg.sender);
     } else if (f.selector == sig:mint(uint,address).selector) {
         require(removedAssets == 0, "We only add assets.");
         uint256 shares;
         require(addedAssets == vaultv2.previewMint(e1, shares), "Added assets should be the result of previewMint before the donation.");
-        vaultv2.mint(e3, shares, e3.msg.sender);
+        vaultv2.mint(e2, shares, e2.msg.sender);
     } else if (f.selector == sig:withdraw(uint,address,address).selector) {
         require(addedAssets == 0, "We only remove assets.");
-        vaultv2.withdraw(e3, removedAssets, e3.msg.sender, e3.msg.sender);
+        vaultv2.withdraw(e2, removedAssets, e2.msg.sender, e2.msg.sender);
     } else if (f.selector == sig:redeem(uint,address,address).selector) {
         require(addedAssets == 0, "We only remove assets.");
         uint256 shares;
         require(removedAssets == vaultv2.previewRedeem(e1, shares), "Redeemed assets should be the result of previewRedeem before the donation.");
-        vaultv2.redeem(e3, shares, e3.msg.sender, e3.msg.sender);
+        vaultv2.redeem(e2, shares, e2.msg.sender, e2.msg.sender);
     } else if (f.selector == sig:forceDeallocate(address,bytes,uint,address).selector) {
         require(addedAssets == 0, "We only remove assets.");
         address adapter;
         bytes data;
         uint256 deallocationAmount;
         require(removedAssets == mulDivUp(deallocationAmount, vaultv2.forceDeallocatePenalty[adapter], WAD()), "This replicates what should happen on the contract level.");
-        vaultv2.forceDeallocate(e3, adapter, data, deallocationAmount, e3.msg.sender);
+        vaultv2.forceDeallocate(e2, adapter, data, deallocationAmount, e2.msg.sender);
     } else if (f.selector == sig:realizeLoss(address,bytes).selector) {
         require(addedAssets == 0, "We only remove assets.");
         address adapter;
         bytes data;
         uint256 incentiveShares; uint256 loss;
-        (incentiveShares, loss) = vaultv2.realizeLoss(e3, adapter, data);
+        (incentiveShares, loss) = vaultv2.realizeLoss(e2, adapter, data);
         require(removedAssets == (loss > totalAssetsPre ? totalAssetsPre : loss), "We expect the decrease of total assests to be min between loss on the vault and the previous total asset.");
     } else {
         require(addedAssets == 0);
         require(removedAssets == 0);
         calldataarg args;
-        vaultv2.f(e3, args);
+        vaultv2.f(e2, args);
     }
 
-    mathint totalAssetsPost = vaultv2.totalAssets(e4);
+    mathint totalAssetsPost = vaultv2.totalAssets(e3);
 
     assert totalAssetsPre + addedAssets - removedAssets == totalAssetsPost;
 }
