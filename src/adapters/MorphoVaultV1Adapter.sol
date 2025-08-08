@@ -68,11 +68,11 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
 
         if (assets > 0) IERC4626(morphoVaultV1).deposit(assets, address(this));
         uint256 _allocation = allocation();
-        uint256 realAssets = IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)));
+        uint256 _realAssets = IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)));
 
         // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        return (ids(), int256(realAssets) - int256(_allocation));
+        return (ids(), int256(_realAssets) - int256(_allocation));
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -86,11 +86,11 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
 
         if (assets > 0) IERC4626(morphoVaultV1).withdraw(assets, address(this), address(this));
         uint256 _allocation = allocation();
-        uint256 realAssets = IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)));
+        uint256 _realAssets = IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)));
 
         // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        return (ids(), int256(realAssets) - int256(_allocation));
+        return (ids(), int256(_realAssets) - int256(_allocation));
     }
 
     /// @dev Returns adapter's ids.
