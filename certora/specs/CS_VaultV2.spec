@@ -4,7 +4,6 @@
 using Utils as Utils;
 
 using VaultV2 as vaultv2;
-using ManualVic as manualVic;
 using ERC20Mock as underlying;
 using CSMockAdapter as simpleAdapter;
 
@@ -12,15 +11,12 @@ methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
     function allocation(bytes32) external returns uint256 envfree;
 
-    function Utils.maxRatePerSecond() external returns (uint) envfree;
-
     function CSMockAdapter.adapterId() external returns (bytes32) envfree;
     function CSMockAdapter.allocation() external returns (uint256) envfree;
-    function CSMockAdapter.deallocate(bytes, uint, bytes4, address) external returns (bytes32[], uint) envfree;
-    function CSMockAdapter.realizeLoss(bytes, bytes4, address) external returns (bytes32[], uint) envfree;
+    function CSMockAdapter.deallocate(bytes, uint256, bytes4, address) external returns (bytes32[], int256) envfree;
 
-    function ERC20Mock.balanceOf(address) external returns (uint) envfree;
-    function ERC20Mock.allowance(address,address) external returns (uint) envfree;
+    function ERC20Mock.balanceOf(address) external returns (uint256) envfree;
+    function ERC20Mock.allowance(address, address) external returns (uint256) envfree;
 
     function _.canReceiveShares(address) external => NONDET;
     function _.canSendShares(address) external => NONDET;
@@ -42,8 +38,6 @@ definition mulDivUp(uint256 x, uint256 y, uint256 z) returns mathint = (x * y + 
 rule giftingUnderlyingToVaultHasNoEffect(method f) filtered {
     // View functions are not interesting
     f -> !f.isView
-    // We don't want to set a new vic as it might distribute interest
-    && f.selector != sig:setVic(address).selector
 } {
     env e1;
     env e2;
@@ -60,8 +54,7 @@ rule giftingUnderlyingToVaultHasNoEffect(method f) filtered {
     require(vaultv2.receiveAssetsGate == 0, "No need to make call resolution.");
     require(vaultv2.sendAssetsGate == 0, "No need to make call resolution.");
 
-    // No interest
-    require(vaultv2.vic == 0, "We don't want interest to be distributed as it will increase the total asset. We can do that thanks to giftingUnderlyingToVaultHasNoEffectOnInterestAccrualWithManualVic");
+    // Todo: assume no interest.
     // No fees for simplicity
     require(vaultv2.performanceFee == 0);
     require(vaultv2.managementFee == 0);
@@ -94,13 +87,6 @@ rule giftingUnderlyingToVaultHasNoEffect(method f) filtered {
         uint256 deallocationAmount;
         require(removedAssets == mulDivUp(deallocationAmount, vaultv2.forceDeallocatePenalty[adapter], WAD()), "This replicates what should happen on the contract level.");
         vaultv2.forceDeallocate(e2, adapter, data, deallocationAmount, e2.msg.sender);
-    } else if (f.selector == sig:realizeLoss(address,bytes).selector) {
-        require(addedAssets == 0, "We only remove assets.");
-        address adapter;
-        bytes data;
-        uint256 incentiveShares; uint256 loss;
-        (incentiveShares, loss) = vaultv2.realizeLoss(e2, adapter, data);
-        require(removedAssets == (loss > totalAssetsPre ? totalAssetsPre : loss), "We expect the decrease of total assests to be min between loss on the vault and the previous total asset.");
     } else {
         require(addedAssets == 0);
         require(removedAssets == 0);
@@ -130,7 +116,6 @@ rule onlyAllocatedCanBeDeallocated() {
     require(vaultv2.lastUpdate <= e.block.timestamp, "Make sure last update is in the past.");
     require(e.msg.value == 0, "Make sure we don't send ETH along, this would make the call revert.");
     require(vaultv2.isAllocator[e.msg.sender], "We need the caller to be whitelisted (allcator or sentinel).");
-    require(vaultv2.vic == 0, "Needed for deallocate to not revert because of a reverting VIC.");
 
     bytes32 targetId = simpleAdapter.adapterId;
     uint256 targetAllocation = vaultv2.allocation(targetId);
@@ -140,12 +125,12 @@ rule onlyAllocatedCanBeDeallocated() {
     require(amount > 0, "We want to force deallocate to revert with underflow on allocation that are zero.");
     require(forall bytes32 id . vaultv2.caps[id].allocation == (id == targetId ? amount : 0), "Only the targetId has some allocation");
 
-    mathint maxAmountSimpleAdapter = simpleAdapter.trackedAssets + simpleAdapter.trackedAssets/100;
+    mathint maxAmountSimpleAdapter = simpleAdapter.realAssets + simpleAdapter.realAssets/100;
     require(underlying.balanceOf(simpleAdapter) >= maxAmountSimpleAdapter, "We need the adapter to have enough funds, otherwise deallocate might revert because of lack of balance.");
     require(underlying.allowance(simpleAdapter, vaultv2) >= maxAmountSimpleAdapter, "Enforce the allowance is enough, for some reason the allowance given in the constructor doesn't seem to work.");
 
-    require(simpleAdapter.trackedAssets + simpleAdapter.trackedAssets/100 < 2^256, "Needed otherwise interest might overflow in the adapter.");
-    require(simpleAdapter.trackedAssets == targetAllocation, "This is an assumption we will need to prove. It is in the wishlist at the end of the file");
+    require(simpleAdapter.realAssets + simpleAdapter.realAssets/100 < 2^256, "Needed otherwise interest might overflow in the adapter.");
+    require(simpleAdapter.realAssets == targetAllocation, "This is an assumption we will need to prove. It is in the wishlist at the end of the file");
 
     bytes data;
     address adapter;
@@ -162,7 +147,7 @@ rule onlyAllocatedCanBeDeallocated() {
 }
 
 // Check that accruing interest has no effect on the allocation.
-// This allows us to set a vic to address(0) in allocationMovements rule because we showed that having an interest does not impact allocations.
+// This allows us to assume no interest in allocationMovements rule because we showed that having an interest does not impact allocations.
 rule accrueInterestDoesNotImpactAllocation() {
     env e;
     bytes32 id;
@@ -183,7 +168,6 @@ rule accrueInterestDoesNotImpactAllocation() {
         * redeem/withdraw (if interest > assets to deallocate)
 
     Allocation can go down:
-        * realizeLoss
         * deallocate/forceDeallocate
         * redeem/withdraw
 
@@ -197,7 +181,7 @@ rule allocationMovements(method f) filtered {
 } {
     env e;
     require(e.msg.sender != currentContract, "Cannot happen.");
-    require(vaultv2.vic == 0, "We can do this thanks to rule accrueInterestDoesNotImpactAllocation.");
+    // Todo: assume no interest.
 
     bytes32 id;
     uint256 allocationPre = vaultv2.allocation(id);
@@ -221,9 +205,6 @@ rule allocationMovements(method f) filtered {
         // Hard to test as it call deallocate and thus depends on the interest
         // Allocation can go up or down. This is a tautology and another rule should check the actual direction of allocation based on the deallocated assets and interest returned by the adapter
         assert (allocationPre <= allocationPost) || (allocationPre >= allocationPost);
-    } else if (f.selector == sig:vaultv2.realizeLoss(address,bytes).selector ) {
-        // Allocation go down
-        assert allocationPre >= allocationPost;
     } else {
         // Allocation does not move
         assert allocationPre == allocationPost;
@@ -239,10 +220,10 @@ rule depositAllocation(method f) filtered {
     env e;
     require(e.msg.sender != currentContract, "Cannot happen.");
     require(e.msg.value == 0, "No function is payable.");
-    require(vaultv2.vic == 0, "We can do this thanks to rule accrueInterestDoesNotImpactAllocation.");
     require(vaultv2.sharesGate == 0, "No need to make call resolution.");
     require(vaultv2.receiveAssetsGate == 0, "No need to make call resolution.");
     require(vaultv2.sendAssetsGate == 0, "No need to make call resolution.");
+    // Todo: assume no interest.
 
     require(forall bytes32 id . vaultv2.caps[id].allocation == 0, "Start with all allocations to 0.");
 
@@ -270,18 +251,16 @@ rule depositAllocation(method f) filtered {
 rule allocationCanOnlyBecomeNonZeroThroughAllocateWithoutLiquidityAdapter(env e, method f, calldataarg args) filtered {
      // View functions are not interesting
     f -> !f.isView
-      // We don't want to set a new vic as it might distribute interest
-      && f.selector != sig:setVic(address).selector // We can do this thanks to rule accrueInterestDoesNotImpactAllocation
       && f.selector != sig:forceDeallocate(address,bytes,uint,address).selector // We can do this thanks to rule onlyDeallocationIfNoAllocation
       && f.selector != sig:deallocate(address,bytes,uint).selector // We can do this thanks to rule onlyDeallocationIfNoAllocation
 
 } {
     require(e.msg.sender != currentContract, "Cannot happen.");
-    require(vaultv2.vic == 0, "We can do this thanks to rule accrueInterestDoesNotImpactAllocation.");
     require(vaultv2.sharesGate == 0, "No need to make call resolution.");
     require(vaultv2.receiveAssetsGate == 0, "No need to make call resolution.");
     require(vaultv2.sendAssetsGate == 0, "No need to make call resolution.");
     require(vaultv2.liquidityAdapter == 0, "We can do this thanks to rule allocationCanOnlyIncreaseOnMintDepositWithLiquidityAdapter.");
+    // Todo: assume no interest.
 
     require(forall bytes32 id . vaultv2.caps[id].allocation == 0, "Start with all allocations to 0.");
 

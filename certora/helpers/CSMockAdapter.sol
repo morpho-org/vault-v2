@@ -9,7 +9,7 @@ import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
 contract CSMockAdapter is IAdapter {
     address public immutable vault;
     bytes32 public immutable adapterId;
-    uint256 public trackedAssets;
+    uint256 public realAssets;
 
     constructor(address _vault) {
         vault = _vault;
@@ -17,38 +17,25 @@ contract CSMockAdapter is IAdapter {
         adapterId = keccak256(abi.encode("this", address(this)));
     }
 
-    function allocate(bytes memory, uint256 assets, bytes4, address)
-        external
-        returns (bytes32[] memory ids, uint256 interest)
-    {
+    function allocate(bytes memory, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
         bytes32[] memory _ids = new bytes32[](1);
         _ids[0] = adapterId;
 
-        interest = trackedAssets / 100;
-        trackedAssets += assets + interest;
+        realAssets += assets;
+        require(assets < uint256(type(int256).max));
+        int256 change = int256(assets);
 
-        return (_ids, interest);
+        return (_ids, change);
     }
 
-    function deallocate(bytes memory, uint256 assets, bytes4, address)
-        external
-        returns (bytes32[] memory ids, uint256 interest)
-    {
+    function deallocate(bytes memory, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
         bytes32[] memory _ids = new bytes32[](1);
         _ids[0] = adapterId;
 
-        interest = trackedAssets / 100;
-        trackedAssets += interest;
-        trackedAssets -= assets;
+        realAssets -= assets;
+        int256 change = int256(assets);
 
-        return (_ids, interest);
-    }
-
-    function realizeLoss(bytes memory, bytes4, address) external view returns (bytes32[] memory ids, uint256 loss) {
-        bytes32[] memory _ids = new bytes32[](1);
-        _ids[0] = adapterId;
-        loss = allocation();
-        return (_ids, loss);
+        return (_ids, change);
     }
 
     function allocation() public view returns (uint256) {
