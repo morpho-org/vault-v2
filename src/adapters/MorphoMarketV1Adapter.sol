@@ -98,16 +98,16 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
         if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
         uint256 _allocation = allocation(marketParams);
-        uint256 realAssets = MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this));
+        uint256 _realAssets = MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this));
 
         // We know that allocation is greater than 0.
-        if (realAssets == 0) {
+        if (_realAssets == 0) {
             removeMarketFromList(marketParams);
         }
 
         // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        return (ids(marketParams), int256(realAssets) - int256(_allocation));
+        return (ids(marketParams), int256(_realAssets) - int256(_allocation));
     }
 
     function removeMarketFromList(MarketParams memory marketParams) internal {
