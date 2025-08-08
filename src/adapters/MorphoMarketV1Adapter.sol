@@ -78,7 +78,11 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         int256 change = int256(MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this)))
             - int256(_allocation);
 
-        if (_allocation == 0 && change > 0) marketParamsList.push(marketParams);
+        if (_allocation == 0 && change > 0) {
+            marketParamsList.push(marketParams);
+        } else if (_allocation > 0 && int256(_allocation) + change == 0) {
+            removeMarketFromList(marketParams);
+        }
 
         return (ids(marketParams), change);
     }
@@ -90,7 +94,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         returns (bytes32[] memory, int256)
     {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Id marketId = marketParams.id();
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
@@ -101,17 +104,23 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         int256 change = int256(MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this)))
             - int256(_allocation);
 
-        if (_allocation > 0 && int256(_allocation) + change == 0) {
-            for (uint256 i = 0; i < marketParamsList.length; i++) {
-                if (Id.unwrap(marketParamsList[i].id()) == Id.unwrap(marketId)) {
-                    marketParamsList[i] = marketParamsList[marketParamsList.length - 1];
-                    marketParamsList.pop();
-                    break;
-                }
-            }
+        // We know that allocation is greater than 0.
+        if (int256(_allocation) + change == 0) {
+            removeMarketFromList(marketParams);
         }
 
         return (ids(marketParams), change);
+    }
+
+    function removeMarketFromList(MarketParams memory marketParams) internal {
+        Id marketId = marketParams.id();
+        for (uint256 i = 0; i < marketParamsList.length; i++) {
+            if (Id.unwrap(marketParamsList[i].id()) == Id.unwrap(marketId)) {
+                marketParamsList[i] = marketParamsList[marketParamsList.length - 1];
+                marketParamsList.pop();
+                break;
+            }
+        }
     }
 
     function allocation(MarketParams memory marketParams) public view returns (uint256) {
