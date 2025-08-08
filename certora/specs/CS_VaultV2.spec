@@ -40,10 +40,10 @@ definition mulDivUp(uint256 x, uint256 y, uint256 z) returns mathint = (x * y + 
 
 // Check how total assets change without interest accrual.
 rule giftingUnderlyingToVaultHasNoEffect(method f) filtered {
-         // View functions are not interesting
+    // View functions are not interesting
     f -> !f.isView
-      // We don't want to set a new vic as it might distribute interest
-      && f.selector != sig:setVic(address).selector
+    // We don't want to set a new vic as it might distribute interest
+    && f.selector != sig:setVic(address).selector
 } {
     env e1;
     env e2;
@@ -113,10 +113,7 @@ rule giftingUnderlyingToVaultHasNoEffect(method f) filtered {
     assert totalAssetsPre + addedAssets - removedAssets == totalAssetsPost;
 }
 
-/*
-    - given there is only one ID with a non-zero allocation, deallocation calls succeed only for that particular ID when one deallocates at most the allocated amount
-        and reverts in all the other cases
-*/
+// Check that given there is only one ID with a non-zero allocation, deallocation calls succeed only for that particular ID when one deallocates at most the allocated amount and reverts in all the other cases.
 rule onlyAllocatedCanBeDeallocated() {
     env e;
 
@@ -164,12 +161,8 @@ rule onlyAllocatedCanBeDeallocated() {
                             || (idTracker == targetId && adapter == simpleAdapter && amount > maxAmountSimpleAdapter);
 }
 
-/*
-    - accruing interest has no effect on the allocation
-
-    This allows us to set a vic to address(0) in allocationMovements rule
-    because we showed that having an interest does not impact allocations
-*/
+// Check that accruing interest has no effect on the allocation.
+// This allows us to set a vic to address(0) in allocationMovements rule because we showed that having an interest does not impact allocations.
 rule accrueInterestDoesNotImpactAllocation() {
     env e;
     bytes32 id;
@@ -179,13 +172,10 @@ rule accrueInterestDoesNotImpactAllocation() {
     assert allocationPre == allocationPost;
 }
 
-/*
-    Assumption: adapter are assumed/trusted to return the correct interest
-*/
+// Summarize of the direction of the allocation mapping per function.
+// Assumption: adapter are assumed/trusted to return the correct interest
 
 /*
-    - summary of the direction of the allocation mapping per function
-
     Allocation can go up:
         * allocate
         * mint/deposit
@@ -240,15 +230,11 @@ rule allocationMovements(method f) filtered {
     }
 }
 
-/*
-    - mint()/deposit() allow the allocation to go from zero to non-zero only if there is a liquidity adapter set
-
-    This allows allocationCanOnlyBecomeNonZeroThroughAllocateWithoutLiquidityAdapter to not set a liquidity adapter for simplicity.
-*/
-rule allocationCanOnlyBecomeNonZeroOnMintDepositWithLiquidityAdapter(method f) filtered {
-    f ->
-        f.selector == sig:vaultv2.deposit(uint,address).selector ||
-        f.selector == sig:vaultv2.mint(uint,address).selector
+// Check that mint/deposit allow the allocation to go from zero to non-zero only if there is a liquidity adapter set.
+// This allows allocationCanOnlyBecomeNonZeroThroughAllocateWithoutLiquidityAdapter to not set a liquidity adapter for simplicity.
+rule depositAllocation(method f) filtered {
+    f -> f.selector == sig:vaultv2.deposit(uint,address).selector ||
+         f.selector == sig:vaultv2.mint(uint,address).selector
 } {
     env e;
     require(e.msg.sender != currentContract, "Cannot happen.");
@@ -321,16 +307,7 @@ rule noDeallocationIfNoAllocation(env e, method f, calldataarg args) filtered {
 {
     require(forall bytes32 id . vaultv2.caps[id].allocation == 0, "Start with all allocations to 0.");
 
-
     vaultv2.f@withrevert(e, args);
 
     assert lastReverted;
 }
-
-/*
-    other ideas for wishlist:
-        sum of non-shared allocations (finest grained IDs) + idle should be bigger than totalAssets
-        only ids with a cap > 0 can be allocated
-        assets tracked by the adapter (per market) are equal to their most finest grained position IDs allocation in the vault
-        take care of the tautology in allocationMovements
-*/

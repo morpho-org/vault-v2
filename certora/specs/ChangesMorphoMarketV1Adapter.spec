@@ -12,12 +12,12 @@ methods {
 
     function MorphoMarketV1Adapter.allocation(Morpho.MarketParams) external returns (uint256) envfree;
 
-    function Utils.marketParamsToBytes(Morpho.MarketParams) external returns (bytes) envfree;
+    function Utils.decodeMarketParams(bytes) external returns (Morpho.MarketParams) envfree;
     function Utils.havocAll() external envfree => HAVOC_ALL;
 }
 
 // Check that from some starting state, calling allocate or deallocate with 0 amount yield the same change.
-rule sameChangeForAllocateAndDeallocate(env e, bytes data, bytes4 selector, address sender) {
+rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 selector, address sender) {
   require(e.msg.sender == adapter.parentVault, "Speed up prover. This is required in the code.");
   require(selector == to_bytes4(0), "Speed up prover. The adapter ignores this param.");
   require(sender == 0, "Speed up prover. The adapter ignores this param.");
@@ -33,22 +33,32 @@ rule sameChangeForAllocateAndDeallocate(env e, bytes data, bytes4 selector, addr
   assert changeAllocate == changeDeallocate;
 }
 
-// Check that the adapter cannot return a change that would make the current allocation negative.
-rule changeIsBoundedByAllocation() {
-  env e;
-  require(e.msg.sender == adapter.parentVault, "Speed up prover.");
-
-  Morpho.MarketParams marketParams;
-  bytes data = Utils.marketParamsToBytes(marketParams);
-  bytes4 selector;
+// Check that allocate cannot return a change that would make the current allocation negative.
+rule changeForAllocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
+  require(e.msg.sender == adapter.parentVault, "Speed up prover. This is required in the code.");
   require(selector == to_bytes4(0), "Speed up prover. The adapter ignores this param.");
-  address sender;
   require(sender == 0, "Speed up prover. The adapter ignores this param.");
 
+  Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
   mathint allocation = adapter.allocation(marketParams);
 
-  uint256 amount; bytes32[] idsAllocate; int256 changeAllocate;
-  idsAllocate, changeAllocate = adapter.allocate(e, data, amount, selector, sender);
+  bytes32[] ids; int256 change;
+  ids, change = adapter.allocate(e, data, assets, selector, sender);
+
+  assert allocation + changeAllocate >= 0;
+}
+
+// Check that deallocate cannot return a change that would make the current allocation negative.
+rule changeForDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
+  require(e.msg.sender == adapter.parentVault, "Speed up prover. This is required in the code.");
+  require(selector == to_bytes4(0), "Speed up prover. The adapter ignores this param.");
+  require(sender == 0, "Speed up prover. The adapter ignores this param.");
+
+  Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
+  mathint allocation = adapter.allocation(marketParams);
+
+  bytes32[] ids; int256 change;
+  ids, change = adapter.deallocate(e, data, assets, selector, sender);
 
   assert allocation + changeAllocate >= 0;
 }
