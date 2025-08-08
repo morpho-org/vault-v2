@@ -73,18 +73,17 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
         if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
         uint256 _allocation = allocation(marketParams);
-        // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
-        // max total assets of the vault.
-        int256 change = int256(MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this)))
-            - int256(_allocation);
+        uint256 realAssets = MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this));
 
-        if (_allocation == 0 && change > 0) {
-            marketParamsList.push(marketParams);
-        } else if (_allocation > 0 && int256(_allocation) + change == 0) {
+        if (_allocation > 0 && realAssets == 0) {
             removeMarketFromList(marketParams);
+        } else if (_allocation == 0 && realAssets > 0) {
+            marketParamsList.push(marketParams);
         }
 
-        return (ids(marketParams), change);
+        // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
+        // max total assets of the vault.
+        return (ids(marketParams), int256(realAssets) - int256(_allocation));
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -99,17 +98,16 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
         if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
         uint256 _allocation = allocation(marketParams);
-        // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
-        // max total assets of the vault.
-        int256 change = int256(MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this)))
-            - int256(_allocation);
+        uint256 realAssets = MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this));
 
-        // We know that allocation is greater than 0.
-        if (int256(_allocation) + change == 0) {
+        // We know that old allocation is greater than 0.
+        if (realAssets == 0) {
             removeMarketFromList(marketParams);
         }
 
-        return (ids(marketParams), change);
+        // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
+        // max total assets of the vault.
+        return (ids(marketParams), int256(realAssets) - int256(_allocation));
     }
 
     function removeMarketFromList(MarketParams memory marketParams) internal {
