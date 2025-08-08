@@ -6,6 +6,7 @@ using Utils as Utils;
 methods {
     function multicall(bytes[]) external => NONDET DELETE;
 
+    function allocation(bytes32) external returns uint256 envfree;
     function owner() external returns address envfree;
     function curator() external returns address envfree;
     function isSentinel(address) external returns bool envfree;
@@ -32,6 +33,8 @@ methods {
 }
 
 definition decreaseTimelockSelector() returns bytes4 = to_bytes4(sig:decreaseTimelock(bytes4,uint256).selector);
+
+definition max_int256() returns int256 = (2 ^ 255) - 1;
 
 ghost mathint sumOfBalances {
     init_state axiom sumOfBalances == 0;
@@ -71,3 +74,6 @@ strong invariant decreaseTimelockTimelock()
 
 strong invariant totalSupplyIsSumOfBalances()
     totalSupply() == sumOfBalances;
+
+strong invariant allocationsIsInt256(bytes32 id)
+    allocation(id) <= max_int256();
