@@ -7,18 +7,19 @@ import {IERC4626} from "../interfaces/IERC4626.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IMorphoVaultV1Adapter} from "./interfaces/IMorphoVaultV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
-import {MathLib} from "../libraries/MathLib.sol";
 
 /// @dev Designed, developed and audited for Morpho Vaults v1 (v1.0 and v1.1) (also known as MetaMorpho). Integration
 /// with other vaults must be carefully assessed from a security standpoint.
-/// @dev Morpho Vaults v1.1 do not realize bad debt, so Morpho Vaults v2 supplying in them will not realize the
-/// corresponding bad debt.
 /// @dev This adapter must be used with Morpho Vaults v1 that are protected against inflation attacks with an initial
 /// deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
 /// @dev Must not be used with a Morpho Vault v1 which has a market with an Irm that can re-enter the parent vault.
+/// @dev Morpho Vaults v1.1 do not realize bad debt, so Morpho Vaults v2 supplying in them will not realize the
+/// corresponding bad debt.
+/// @dev Losses that correspond to rounding errors are realizable.
+/// @dev Shares of the Morpho Vault v1 cannot be skimmed (unlike any other token).
+/// @dev If expectedSupplyAssets reverts for a market of the morphoVaultV1, realAssets will revert and the vault will
+/// not be able to accrueInterest.
 contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
-    using MathLib for uint256;
-
     /* IMMUTABLES */
 
     address public immutable factory;
@@ -29,8 +30,6 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     /* STORAGE */
 
     address public skimRecipient;
-    /// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
-    uint256 public shares;
 
     /* FUNCTIONS */
 
@@ -62,43 +61,36 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the allocation and the interest accrued.
-    function allocate(bytes memory data, uint256 assets, bytes4, address)
-        external
-        returns (bytes32[] memory, uint256)
-    {
+    /// @dev Returns the ids of the allocation and the change in allocation.
+    function allocate(bytes memory data, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 interest = IERC4626(morphoVaultV1).previewRedeem(shares).zeroFloorSub(allocation());
+        if (assets > 0) IERC4626(morphoVaultV1).deposit(assets, address(this));
+        // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
+        // max total assets of the vault.
+        int256 change = int256(IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this))))
+            - int256(allocation());
 
-        if (assets > 0) shares += IERC4626(morphoVaultV1).deposit(assets, address(this));
-
-        return (ids(), interest);
+        return (ids(), change);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
-    /// @dev Returns the ids of the deallocation and the interest accrued.
+    /// @dev Returns the ids of the deallocation and the change in allocation.
     function deallocate(bytes memory data, uint256 assets, bytes4, address)
         external
-        returns (bytes32[] memory, uint256)
+        returns (bytes32[] memory, int256)
     {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 interest = IERC4626(morphoVaultV1).previewRedeem(shares).zeroFloorSub(allocation());
+        if (assets > 0) IERC4626(morphoVaultV1).withdraw(assets, address(this), address(this));
+        // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
+        // max total assets of the vault.
+        int256 change = int256(IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this))))
+            - int256(allocation());
 
-        if (assets > 0) shares -= IERC4626(morphoVaultV1).withdraw(assets, address(this), address(this));
-
-        return (ids(), interest);
-    }
-
-    function realizeLoss(bytes memory data, bytes4, address) external view returns (bytes32[] memory, uint256) {
-        require(data.length == 0, InvalidData());
-
-        uint256 loss = allocation() - IERC4626(morphoVaultV1).previewRedeem(shares);
-
-        return (ids(), loss);
+        return (ids(), change);
     }
 
     /// @dev Returns adapter's ids.
@@ -110,5 +102,9 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
 
     function allocation() public view returns (uint256) {
         return IVaultV2(parentVault).allocation(adapterId);
+    }
+
+    function realAssets() external view returns (uint256) {
+        return IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)));
     }
 }

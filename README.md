@@ -1,6 +1,6 @@
 # Vault v2
 
-Morpho Vault v2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including but not limited to Morpho Market v1, Morpho Market v2, and Morpho Vaults v1.
+Morpho Vault v2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including but not limited to Morpho Market v1, Morpho Market v2, and Morpho Vault v1.
 Depositors of Morpho Vault v2 earn from the underlying protocols without having to actively manage the risk of their position.
 Management of deposited assets is the responsibility of a set of different roles (owner, curator and allocators).
 The active management of invested positions involves enabling and allocating liquidity to protocols.
@@ -14,9 +14,11 @@ All the contracts are immutable.
 ### Adapters
 
 Vaults can allocate assets to arbitrary protocols and markets via adapters.
-The curator enables adapters to invest on behalf of the vault.
+The curator enables adapters to hold positions on behalf of the vault.
+Adapters are also used to know how much these investments are worth (interest and loss realization).
 Because adapters hold positions in protocols where assets are allocated, they are susceptible to accrue rewards for those protocols.
 To ensure that those rewards can be retrieved, each adapter has a skim function that can be called by the vault's owner.
+
 Adapters for the following protocols are currently available:
 
 - [Morpho Market v1](./src/adapters/MorphoMarketV1Adapter.sol).
@@ -33,7 +35,7 @@ A Morpho Market v2 adapter will be released together with Market v2.
 The funds allocation of the vault is constrained by an id system.
 An id is an abstract identifier for a common risk factor of some markets (a collateral, an oracle, a protocol, etc.).
 Allocation on markets with a common id is limited by absolute caps and relative caps.
-Note that relative caps are "soft" because they are not checked on withdrawals (they only constrain new allocations).
+Note that relative caps are "soft" because they are not checked on withdrawals, they only constrain new allocations.
 The curator ensures the consistency of the id system by:
 
 - setting caps for the ids according to an estimation of risk;
@@ -75,30 +77,6 @@ A penalty for using forceDeallocate can be set per adapter, of up to 2%.
 This disincentivizes the manipulation of allocations, in particular of relative caps which are not checked on withdrawals.
 Note that the only friction to deallocating an adapter with a 0% penalty is the associated gas cost.
 
-[Gated vaults](#gates) can circumvent the in-kind redemption mechanism.
-
-### Vault Interest Controller (Vic)
-
-Vault v2 can allocate assets across many markets, especially when interacting with Morpho Markets v2.
-Looping through all markets to compute the total assets is not realistic in the general case.
-This differs from Vault v1, where total assets were automatically computed from the vault's underlying allocations.
-As a result, in Vault v2, curators are responsible for monitoring the vault’s total assets and setting an appropriate interest rate.
-The interest rate is set through the Vic, a contract responsible for returning the `interest` used to accrue interest.
-The rate returned by the Vic must be below `200% APR`.
-
-The vault interest controller can typically be simple smart contract storing the interest per second, whose value is regularly set by an allocator.
-For now only a Vic of this type is provided, the [ManualVic](./src/vic/ManualVic.sol), with the following added features:
-
-- the interest per second can be set by the allocators and sentinels of the vault;
-- the Vic has an additional internal notion of max interest per second, to ensure that the role of allocator can be given more safely.
-  The curator controls this internal notion of max interest per second, while the sentinels are only able to decrease it to reduce the risk of having a rate too high.
-
-### Bad debt realization
-
-In contrast to Morpho Vaults v1.0, bad debt realization is not autonomously realized on the vault when it is realized on the underlying market.
-It can be realized on the vault by anyone for an incentive (1% of the loss).
-To prevent flashloan-based manipulations, when a loss is realized on the vault, deposits are blocked for the rest of the transaction.
-
 ### Gates
 
 Vaults v2 can use external gate contracts to control share transfer, vault asset deposit, and vault asset withdrawal.
@@ -136,6 +114,7 @@ An example gate is defined in [test/examples/GateExample.sol](./test/examples/Ga
 
 #### Owner
 
+The owner's role is to set the curator and sentinels.
 Only one address can have this role.
 
 It can:
@@ -148,6 +127,7 @@ It can:
 
 #### Curator
 
+The curator's role is to curate the vault, meaning setting risk limits, gates, allocators, fees.
 Only one address can have this role.
 
 Some actions of the curator are timelockable (between 0 and 3 weeks, or infinite if the action has been frozen).
@@ -161,7 +141,6 @@ It can:
 - Decrease absolute caps.
 - [Timelockable] Increase relative caps.
 - Decrease relative caps.
-- [Timelockable] Set the `vic`.
 - [Timelockable] Set adapters.
 - [Timelockable] Set allocators.
 - Increase timelocks.
@@ -177,6 +156,8 @@ It can:
 
 #### Allocator
 
+The allocators' role is to handle the allocation of the liquidity (inside the caps set by the curator).
+They are notably responsible for the vault's liquidity.
 Multiple addresses can have this role.
 
 It can:
@@ -196,20 +177,6 @@ It can:
 - Decrease absolute caps.
 - Decrease relative caps.
 - Revoke timelocked actions.
-
-### Main differences with Vault v1
-
-- Vault v2 can supply to arbitrary protocols, including, but not limited to, Morpho Market v1 and Morpho Market v2.
-- The curator is responsible for setting the interest of the vault.
-  This implies monitoring interests generated by the vault in order to set an interest that is in line with the profits generated by the vault.
-- Caps on markets can be set with more granularity than in Vault v1.
-- Curators can set relative caps, limiting the maximum relative exposure of the vault to arbitrary factors (e.g. collateral assets or oracle).
-- The owner no longer inherits the other roles.
-- Most management actions are done by the curator, not the owner.
-- The `Guardian` role of Vault v1 has been replaced by a `Sentinel` role.
-  The scope of the sentinel is slightly different than that of the guardian role.
-- Timelocked actions are subject to configurable timelock durations, set individually for each action.
-- Bad debt realization is not automatic, but any allocation or deallocation will realize bad debt amounts returned by the adapter.
 
 ## Getting started
 

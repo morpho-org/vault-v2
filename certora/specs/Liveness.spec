@@ -4,13 +4,6 @@
 import "Invariants.spec";
 
 
-rule livenessSetVicIfDataIsTimelocked(env e, address newVic) {
-    require e.msg.value == 0;
-
-    setVicMocked@withrevert(e, newVic);
-    assert !lastReverted;
-}
-
 rule livenessDecreaseAbsoluteCapZero(env e, bytes idData) {
     require e.msg.sender == curator() || isSentinel(e.msg.sender);
     require e.msg.value == 0;
