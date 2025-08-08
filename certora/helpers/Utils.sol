@@ -15,8 +15,6 @@ interface IReturnFactory {
 
 contract Utils {
     using MarketParamsLib for MarketParams;
-    using MorphoBalancesLib for IMorpho;
-    using MorphoLib for IMorpho;
     using SharesMathLib for uint256;
 
     function toBytes4(bytes memory data) public pure returns (bytes4) {
@@ -52,7 +50,6 @@ contract Utils {
         Id id = marketParams.id();
         return (marketParams, id);
     }
-
 
     function expectedSupplyAssets(address morpho, MarketParams memory marketParams, uint256 supplyShares)
         external
