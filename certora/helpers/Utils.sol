@@ -53,25 +53,6 @@ contract Utils {
         return (marketParams, id);
     }
 
-    function expectedTotalSupplyAssets(address morpho, MarketParams memory marketParams)
-        external
-        view
-        returns (uint256)
-    {
-        (uint256 totalSupplyAssets,,,) = MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
-
-        return totalSupplyAssets;
-    }
-
-    function expectedTotalSupplyShares(address morpho, MarketParams memory marketParams)
-        external
-        view
-        returns (uint256)
-    {
-        (, uint256 totalSupplyShares,,) = MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
-
-        return totalSupplyShares;
-    }
 
     function expectedSupplyAssets(address morpho, MarketParams memory marketParams, uint256 supplyShares)
         external
