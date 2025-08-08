@@ -100,7 +100,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         uint256 _allocation = allocation(marketParams);
         uint256 realAssets = MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this));
 
-        // We know that old allocation is greater than 0.
+        // We know that allocation is greater than 0.
         if (realAssets == 0) {
             removeMarketFromList(marketParams);
         }
