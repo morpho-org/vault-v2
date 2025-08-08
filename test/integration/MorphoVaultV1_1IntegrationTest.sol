@@ -125,15 +125,16 @@ contract MorphoVaultV1_1IntegrationTest is BaseTest {
         );
 
         bytes memory idData = abi.encode("this", address(morphoVaultV1Adapter));
-        vm.startPrank(curator);
+        vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(morphoVaultV1Adapter), true)));
-        vault.submit(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
-        vault.submit(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
-        vm.stopPrank();
-
         vault.setIsAdapter(address(morphoVaultV1Adapter), true);
-        vault.increaseAbsoluteCap(idData, type(uint128).max);
-        vault.increaseRelativeCap(idData, 1e18);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (MAX_MAX_RATE)));
+        vault.setMaxRate(MAX_MAX_RATE);
+
+        increaseAbsoluteCap(idData, type(uint128).max);
+        increaseRelativeCap(idData, 1e18);
 
         // Approval.
         deal(address(underlyingToken), address(this), type(uint256).max);
