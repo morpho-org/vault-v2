@@ -79,7 +79,8 @@ rule allocateMorphoMarketV1Adapter(env e, bytes data, uint256 assets) {
 
     allocate(e, MorphoMarketV1Adapter, data, assets);
 
-    assert adapterIds = MorphoMarketV1Adapter.ids(marketParams);
+    assert MorphoMarketV1Adapter.ids(marketParams).length == adapterIds.length;
+    assert forall uint k . k < adapterIds.length => adapterIds[k] == MorphoMarketV1Adapter.ids(marketParams)[k];
     assert allocation(adapterIds[i]) == idIAllocationBefore + ghostChange;
     assert !(exists uint j . j < adapterIds.length && id == adapterIds[j]) => allocation(id) == allocationBefore;
 }
@@ -132,7 +133,8 @@ rule deallocateMorphoMarketV1Adapter(env e, bytes data, uint256 assets) {
 
     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
-    assert adapterIds = MorphoMarketV1Adapter.ids(marketParams);
+    assert MorphoMarketV1Adapter.ids(marketParams).length == adapterIds.length;
+    assert forall uint k . k < adapterIds.length => adapterIds[k] == MorphoMarketV1Adapter.ids(marketParams)[k];
     assert allocation(adapterIds[i]) == idIAllocationBefore + ghostChange;
     assert !(exists uint j . j < adapterIds.length && id == adapterIds[j]) => allocation(id) == allocationBefore;
 }

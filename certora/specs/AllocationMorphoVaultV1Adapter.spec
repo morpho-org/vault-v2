@@ -92,7 +92,8 @@ rule allocateMorphoVaultV1Adapter(env e, bytes data, uint256 assets) {
 
     allocate(e, MorphoVaultV1Adapter, data, assets);
 
-    assert adapterIds == MorphoVaultV1Adapter.ids();
+    assert MorphoVaultV1Adapter.ids().length == adapterIds.length;
+    assert forall uint k . k < adapterIds.length => adapterIds[k] == MorphoVaultV1Adapter.ids()[k];
     assert allocation(adapterIds[i]) == idIAllocationBefore + ghostChange;
     assert !(exists uint j . j < adapterIds.length && id == adapterIds[j]) => allocation(id) == allocationBefore;
 }
@@ -135,7 +136,8 @@ rule deallocateMorphoVaultV1Adapter(env e, bytes data, uint256 assets) {
 
     deallocate(e, MorphoVaultV1Adapter, data, assets);
 
-    assert adapterIds == MorphoVaultV1Adapter.ids();
+    assert MorphoVaultV1Adapter.ids().length == adapterIds.length;
+    assert forall uint k . k < adapterIds.length => adapterIds[k] == MorphoVaultV1Adapter.ids()[k];
     assert allocation(adapterIds[i]) == idIAllocationBefore + ghostChange;
     assert !(exists uint j . j < adapterIds.length && id == adapterIds[j]) => allocation(id) == allocationBefore;
 }

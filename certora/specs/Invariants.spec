@@ -75,5 +75,5 @@ strong invariant decreaseTimelockTimelock()
 strong invariant totalSupplyIsSumOfBalances()
     totalSupply() == sumOfBalances;
 
-strong invariant allocationsIsInt256(bytes32 id)
+strong invariant allocationIsInt256(bytes32 id)
     allocation(id) <= max_int256();
