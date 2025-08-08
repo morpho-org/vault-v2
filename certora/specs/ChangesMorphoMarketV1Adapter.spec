@@ -45,7 +45,7 @@ rule changeForAllocateIsBoundedByAllocation(env e, bytes data, uint256 assets, b
   bytes32[] ids; int256 change;
   ids, change = adapter.allocate(e, data, assets, selector, sender);
 
-  assert allocation + changeAllocate >= 0;
+  assert allocation + change >= 0;
 }
 
 // Check that deallocate cannot return a change that would make the current allocation negative.
@@ -60,5 +60,5 @@ rule changeForDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets,
   bytes32[] ids; int256 change;
   ids, change = adapter.deallocate(e, data, assets, selector, sender);
 
-  assert allocation + changeAllocate >= 0;
+  assert allocation + change >= 0;
 }

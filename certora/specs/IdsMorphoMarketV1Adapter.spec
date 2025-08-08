@@ -5,7 +5,7 @@ using Utils as Utils;
 
 methods {
     function Utils.havocAll() external envfree => HAVOC_ALL;
-    function Utils.marketParamsToBytes(MorphoMarketV1Adapter.MarketParams) external returns(bytes) envfree;
+    function Utils.decodeMarketParams(bytes) external returns(MorphoMarketV1Adapter.MarketParams) envfree;
 
     function ids(MorphoMarketV1Adapter.MarketParams) external returns (bytes32[]) envfree;
 }
@@ -26,11 +26,10 @@ rule adapterAlwaysReturnsTheSameIDsForSameData(MorphoMarketV1Adapter.MarketParam
 }
 
 // Show that the ids returned on allocate match the refence id list.
-rule matchingIdsOnAllocate(env e, uint256 amount, bytes4 selector, address sender) {
-  MorphoMarketV1Adapter.MarketParams marketParams;
-  bytes data = Utils.marketParamsToBytes(marketParams);
-  bytes32[] idsAllocate; int256 interestAllocate;
-  idsAllocate, interestAllocate = allocate(e, data, amount, selector, sender);
+rule matchingIdsOnAllocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
+  MorphoMarketV1Adapter.MarketParams marketParams = Utils.decodeMarketParams(data);
+  bytes32[] idsAllocate; int256 change;
+  idsAllocate, change = allocate(e, data, assets, selector, sender);
 
   bytes32[] ids = ids(marketParams);
   assert ids.length == 3;
@@ -41,11 +40,10 @@ rule matchingIdsOnAllocate(env e, uint256 amount, bytes4 selector, address sende
 }
 
 // Show that the ids returned on deallocate match the refence id list.
-rule matchingIdsOnDeallocate(env e, uint256 amount, bytes4 selector, address sender) {
-  MorphoMarketV1Adapter.MarketParams marketParams;
-  bytes data = Utils.marketParamsToBytes(marketParams);
-  bytes32[] idsDeallocate; int256 interestDeallocate;
-  idsDeallocate, interestDeallocate = deallocate(e, data, amount, selector, sender);
+rule matchingIdsOnDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
+  MorphoMarketV1Adapter.MarketParams marketParams = Utils.marketParamsToBytes(data);
+  bytes32[] idsDeallocate; int256 change;
+  idsDeallocate, change = deallocate(e, data, assets, selector, sender);
 
   bytes32[] ids = ids(marketParams);
   assert ids.length == 3;

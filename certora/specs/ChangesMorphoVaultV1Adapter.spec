@@ -57,7 +57,7 @@ rule changeForAllocateIsBoundedByAllocation(env e, bytes data, uint256 assets, b
 }
 
 // Check that deallocate cannot return a change that would make the current allocation negative.
-rule changeForAllocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
+rule changeForDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
   require(e.msg.sender == adapter.parentVault, "Speed up prover. This is required in the code.");
   require(data.length == 0, "Speed up prover. This is required in the code.");
   require(selector == to_bytes4(0), "Speed up prover. The adapter ignores this param.");
