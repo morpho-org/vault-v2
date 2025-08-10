@@ -7,7 +7,7 @@ using MorphoMarketV1Adapter as MorphoMarketV1Adapter;
 using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
 
 methods {
-    function multicall(bytes[]) external => HAVOC_ALL DELETE;
+    function multicall(bytes[]) external => NONDET DELETE;
 
     function asset() external returns address envfree;
     function balanceOf(address) external returns uint256 envfree;
