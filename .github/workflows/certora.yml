@@ -28,6 +28,7 @@ jobs:
           - SentinelLiveness
           - TokensMorphoMarketV1Adapter
           - TokensMorphoVaultV1Adapter
+          - TokensNoAdapter
 
     steps:
       - uses: actions/checkout@v4
