@@ -7,8 +7,6 @@ using MorphoMarketV1Adapter as MorphoMarketV1Adapter;
 using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
 
 methods {
-    function multicall(bytes[]) external => NONDET DELETE;
-
     function asset() external returns address envfree;
     function balanceOf(address) external returns uint256 envfree;
     function canReceiveShares(address) external returns bool envfree;
@@ -87,7 +85,9 @@ hook Sstore ERC20.balanceOf[KEY address user] uint256 newBalance (uint256 oldBal
 }
 
 // Check that the balance of shares may only decrease when a given user can't receive shares.
-rule cantReceiveShares(env e, method f, calldataarg args, address user) {
+rule cantReceiveShares(env e, method f, calldataarg args, address user) filtered {
+    f -> f.selector != sig:multicall(bytes[]).selector
+}{
     require(currentContract.sharesGate != 0, "setup gating");
 
     // Trick to require that all the following addresses are different.
@@ -105,7 +105,9 @@ rule cantReceiveShares(env e, method f, calldataarg args, address user) {
 }
 
 // Check that the balance of shares may only increase when a given user can't send shares.
-rule cantSendShares(env e, method f, calldataarg args, address user, uint256 shares) {
+rule cantSendShares(env e, method f, calldataarg args, address user, uint256 shares) filtered {
+    f -> f.selector != sig:multicall(bytes[]).selector
+}{
     require(currentContract.sharesGate != 0, "setup gating");
 
     // Trick to require that all the following addresses are different.
@@ -123,9 +125,10 @@ rule cantSendShares(env e, method f, calldataarg args, address user, uint256 sha
 }
 
 // Check that transfers initiated from the vault, assuming the vault is no reentred, may only increase the balance of a given user when he can't send, and similarly the balance may only decrease when he can't receive.
-rule cantSendAssetsAndCantReceiveAssets(env e, method f, calldataarg args, address user)  filtered {
+rule cantSendAssetsAndCantReceiveAssets(env e, method f, calldataarg args, address user) filtered {
     f -> f.selector != sig:MorphoMarketV1Adapter.skim(address).selector &&
-         f.selector != sig:MorphoVaultV1Adapter.skim(address).selector
+         f.selector != sig:MorphoVaultV1Adapter.skim(address).selector  &&
+         f.selector != sig:multicall(bytes[]).selector
 }{
     require(currentContract.sendAssetsGate != 0, "setup gating");
     require (!canSendAssets(user), "setup gating");
