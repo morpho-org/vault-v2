@@ -4,8 +4,6 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
-contract Reverting {}
-
 contract AccrueInterestTest is BaseTest {
     using MathLib for uint256;
 
@@ -222,5 +220,67 @@ contract AccrueInterestTest is BaseTest {
         // Share price can be relatively high in the conditions of this test, making rounding errors more significant.
         assertApproxEqAbs(vault.previewRedeem(vault.balanceOf(managementFeeRecipient)), managementFeeAssets, 100);
         assertApproxEqAbs(vault.previewRedeem(vault.balanceOf(performanceFeeRecipient)), performanceFeeAssets, 100);
+    }
+
+    /// forge-config: default.isolate = true
+    function testAccrueInterestDonationNoSkip(uint256 deposit, uint256 donation) public {
+        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        donation = bound(donation, 0, MAX_TEST_ASSETS);
+
+        vault.deposit(deposit, address(this));
+
+        underlyingToken.transfer(address(vault), donation);
+
+        assertEq(vault.totalAssets(), deposit);
+    }
+
+    /// forge-config: default.isolate = true
+    function testAccrueInterestDonationSkip(uint256 deposit, uint256 donation, uint256 elapsed) public {
+        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        donation = bound(donation, 0, MAX_TEST_ASSETS);
+        elapsed = bound(elapsed, 0, 10 * 365 days);
+
+        vault.deposit(deposit, address(this));
+
+        skip(elapsed);
+
+        underlyingToken.transfer(address(vault), donation);
+
+        uint256 maxTotalAssets = deposit + (deposit * elapsed).mulDivDown(MAX_MAX_RATE, WAD);
+        assertEq(vault.totalAssets(), MathLib.min(deposit + donation, maxTotalAssets));
+    }
+
+    // on purpose not isolated.
+    function testFirstTotalAssets(
+        uint256 performanceFee,
+        uint256 managementFee,
+        uint256 interest,
+        uint256 deposit,
+        uint256 elapsed
+    ) public {
+        performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
+        managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
+        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        elapsed = bound(elapsed, 0, 10 * 365 days);
+        interest = bound(interest, 0, (deposit * MAX_MAX_RATE).mulDivDown(elapsed, WAD));
+
+        assertEq(vault.firstTotalAssets(), 0);
+
+        vault.deposit(deposit, address(this));
+        assertEq(vault.firstTotalAssets(), deposit); // updates firstTotalAssets
+
+        vault.deposit(deposit, address(this));
+        assertEq(vault.firstTotalAssets(), deposit); // does not update
+
+        vault.withdraw(2 * deposit, address(this), address(this));
+        assertEq(vault.firstTotalAssets(), deposit); // does not update
+    }
+
+    function multicall(bytes[] memory data) external {
+        for (uint256 i = 0; i < data.length; i++) {
+            (address to, bytes memory _data) = abi.decode(data[i], (address, bytes));
+            (bool success,) = to.call(_data);
+            require(success, "Multicall failed");
+        }
     }
 }
