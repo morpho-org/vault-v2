@@ -54,10 +54,12 @@ contract MorphoVaultV1IntegrationBadDebtTest is MorphoVaultV1IntegrationTest {
         morphoVaultV1.updateWithdrawQueue(indexes);
         vm.stopPrank();
 
-        vault.accrueInterest();
-
         assertEq(vault.totalAssets(), initialOnMarket0);
         assertEq(vault.previewRedeem(vault.balanceOf(address(this))), initialOnMarket0);
+
+        vault.accrueInterest();
+
+        assertEq(vault._totalAssets(), initialOnMarket0);
     }
 
     function testBadDebtThroughLiquidate() public {
@@ -86,8 +88,10 @@ contract MorphoVaultV1IntegrationBadDebtTest is MorphoVaultV1IntegrationTest {
         );
         morpho.liquidate(allMarketParams[1], borrower, collateralOfBorrower, 0, hex"");
 
+        assertEq(vault.totalAssets(), initialOnMarket0, "totalAssets() != initialOnMarket0");
+
         vault.accrueInterest();
 
-        assertEq(vault.totalAssets(), initialOnMarket0, "totalAssets() != initialOnMarket0");
+        assertEq(vault._totalAssets(), initialOnMarket0, "totalAssets() != initialOnMarket0");
     }
 }
