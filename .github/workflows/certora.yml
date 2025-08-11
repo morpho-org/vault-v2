@@ -17,9 +17,9 @@ jobs:
       matrix:
         conf:
           - AbdicatedFunctions
+          - AllocationVaultV2
           - ChangesMorphoMarketV1Adapter
           - ChangesMorphoVaultV1Adapter
-          - CS_VaultV2
           - IdsMorphoMarketV1Adapter
           - IdsMorphoVaultV1Adapter
           - Immutability
@@ -33,6 +33,7 @@ jobs:
           - SentinelLiveness
           - TokensMorphoMarketV1Adapter
           - TokensMorphoVaultV1Adapter
+          - TotalAssetsChange
 
     steps:
       - uses: actions/checkout@v4
