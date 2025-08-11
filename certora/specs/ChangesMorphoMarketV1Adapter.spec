@@ -4,12 +4,10 @@
 using Utils as Utils;
 
 methods {
-    // We need borrowRate and borrowRateView to return the same value
-    // We don't know which IRM will be used, just assume 3% borrow rate for simplicity
-    function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => ALWAYS(95129375);
-    function _.borrowRateView(Morpho.MarketParams, Morpho.Market) external => ALWAYS(95129375);
-
     function allocation(Morpho.MarketParams) external returns (uint256) envfree;
+
+    function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect uint256;
+    function _.borrowRateView(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect uint256;
 
     // To remove because the asset should be linked to be ERC20Mock.
     function _.transfer(address, uint256) external => DISPATCHER(true);
@@ -18,6 +16,8 @@ methods {
     function Utils.decodeMarketParams(bytes) external returns (Morpho.MarketParams) envfree;
     function Utils.havocAll() external envfree => HAVOC_ALL;
 }
+
+persistent ghost uint256 constantBorrowRate;
 
 // Check that from some starting state, calling allocate or deallocate with 0 amount yield the same change.
 rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 selector, address sender) {
