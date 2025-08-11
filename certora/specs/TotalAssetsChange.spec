@@ -4,9 +4,14 @@
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
-    function _.realAssets() external => PER_CALLEE_CONSTANT;
+    function accrueInterestView() internal returns(uint256, uint256, uint256) => summaryAccrueInterestView();
 
     function _.canReceiveShares(address) external => PER_CALLEE_CONSTANT;
+}
+
+// Assume that accrueInterest does nothing.
+function summaryAccrueInterestView() returns (uint256, uint256, uint256) {
+    return (currentContract._totalAssets, 0, 0);
 }
 
 definition mulDivUp(uint256 x, uint256 y, uint256 z) returns mathint = (x * y + (z-1)) / z;
@@ -28,7 +33,7 @@ rule totalAssetsChange(env e, method f) filtered {
     } else if (f.selector == sig:mint(uint,address).selector) {
         uint256 shares;
         require(removedAssets == 0, "this operation only adds assets");
-        require(addedAssets == previewMint(e, shares), "Added assets should be the result of previewMint before the donation.");
+        require(addedAssets == previewMint(e, shares), "added assets should be the result of previewMint before the donation");
         mint(e, shares, e.msg.sender);
     } else if (f.selector == sig:withdraw(uint,address,address).selector) {
         require(addedAssets == 0, "this operation only removes assets");

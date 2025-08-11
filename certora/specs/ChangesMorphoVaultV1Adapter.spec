@@ -51,13 +51,14 @@ rule changeForAllocateIsBoundedByAllocation(env e, bytes data, uint256 assets, b
 
   mathint allocation = allocation();
 
+  // Safe because totalSupply is the sum of the balances.
+  require metamorpho.balanceOf(currentContract) < metamorpho.totalSupply();
+
   bytes32[] ids; int256 change;
   ids, change = allocate(e, data, assets, selector, sender);
 
   // Safe because market v1 stores assets on 128 bits, and there are at most 30 markets in MM.
   require metamorpho.lastTotalAssets() < 30 * 2^128;
-  // Safe because totalSupply is the sum of the balances.
-  require metamorpho.balanceOf(currentContract) < metamorpho.totalSupply();
 
   assert allocation + change >= 0;
 }
@@ -71,13 +72,14 @@ rule changeForDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets,
 
   mathint allocation = allocation();
 
+  // Safe because totalSupply is the sum of the balances.
+  require metamorpho.balanceOf(currentContract) < metamorpho.totalSupply();
+
   bytes32[] ids; int256 change;
   ids, change = deallocate(e, data, assets, selector, sender);
 
   // Safe because market v1 stores assets on 128 bits, and there are at most 30 markets in MM.
   require metamorpho.lastTotalAssets() < 30 * 2^128;
-  // Safe because totalSupply is the sum of the balances.
-  require metamorpho.balanceOf(currentContract) < metamorpho.totalSupply();
 
   assert allocation + change >= 0;
 }
