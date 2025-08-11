@@ -13,6 +13,9 @@ methods {
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
 
+    function MetaMorphoV1_1.lastTotalAssets() external returns uint256 envfree;
+    function MetaMorphoV1_1.balanceOf(address) external returns uint256 envfree;
+    function MetaMorphoV1_1.totalSupply() external returns uint256 envfree;
     // Summarize this so we limit the complexity and don't need to go in Morpho
     function MetaMorphoV1_1._accruedFeeAndAssets() internal returns (uint, uint, uint) => CONSTANT;
     // Summarize this so we limit the complexity and don't need to go in Morpho
@@ -51,6 +54,11 @@ rule changeForAllocateIsBoundedByAllocation(env e, bytes data, uint256 assets, b
   bytes32[] ids; int256 change;
   ids, change = allocate(e, data, assets, selector, sender);
 
+  // Safe because market v1 stores assets on 128 bits, and there are at most 30 markets in MM.
+  require metamorpho.lastTotalAssets() < 30 * 2^128;
+  // Safe because totalSupply is the sum of the balances.
+  require metamorpho.balanceOf(currentContract) < metamorpho.totalSupply();
+
   assert allocation + change >= 0;
 }
 
@@ -65,6 +73,11 @@ rule changeForDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets,
 
   bytes32[] ids; int256 change;
   ids, change = deallocate(e, data, assets, selector, sender);
+
+  // Safe because market v1 stores assets on 128 bits, and there are at most 30 markets in MM.
+  require metamorpho.lastTotalAssets() < 30 * 2^128;
+  // Safe because totalSupply is the sum of the balances.
+  require metamorpho.balanceOf(currentContract) < metamorpho.totalSupply();
 
   assert allocation + change >= 0;
 }
