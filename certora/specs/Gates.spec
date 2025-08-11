@@ -130,7 +130,6 @@ rule cantSendAssetsAndCantReceiveAssets(env e, method f, calldataarg args, addre
          f.selector != sig:multicall(bytes[]).selector
 }{
     require(currentContract.sendAssetsGate != 0, "setup gating");
-    require (!canSendAssets(user), "setup gating");
 
     // Trick to require that all the following addresses are different.
     require(MorphoMarketV1Adapter == 0x10, "ack");
