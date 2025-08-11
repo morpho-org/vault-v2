@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 
 import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {MorphoLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
@@ -19,6 +20,7 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 /// not be able to accrueInterest.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MarketParamsLib for MarketParams;
+    using MorphoLib for IMorpho;
 
     /* IMMUTABLES */
 
@@ -71,14 +73,17 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
-        if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-        uint256 _allocation = allocation(marketParams);
+        uint256 sharesBefore = MorphoLib.supplyShares(IMorpho(morpho), marketParams.id(), address(this));
+        uint256 suppliedShares;
+        if (assets > 0) {
+            (, suppliedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+        }
         // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
         int256 change = int256(MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this)))
-            - int256(_allocation);
+            - int256(allocation(marketParams));
 
-        if (_allocation == 0 && change > 0) marketParamsList.push(marketParams);
+        if (sharesBefore == 0 && suppliedShares > 0) marketParamsList.push(marketParams);
 
         return (ids(marketParams), change);
     }
@@ -94,24 +99,35 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
-        if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-        uint256 _allocation = allocation(marketParams);
+        uint256 sharesBefore = MorphoLib.supplyShares(IMorpho(morpho), marketId, address(this));
+        uint256 withdrawnShares;
+        if (assets > 0) {
+            (, withdrawnShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+        }
         // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
         int256 change = int256(MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this)))
-            - int256(_allocation);
+            - int256(allocation(marketParams));
 
-        if (_allocation > 0 && int256(_allocation) + change == 0) {
-            for (uint256 i = 0; i < marketParamsList.length; i++) {
-                if (Id.unwrap(marketParamsList[i].id()) == Id.unwrap(marketId)) {
-                    marketParamsList[i] = marketParamsList[marketParamsList.length - 1];
-                    marketParamsList.pop();
-                    break;
-                }
-            }
-        }
+        if (sharesBefore > 0 && withdrawnShares == sharesBefore) removeMarketFromList(marketId);
 
         return (ids(marketParams), change);
+    }
+
+    function removeDustMarketFromList(MarketParams memory marketParams) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        require(MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this)) == 0);
+        removeMarketFromList(marketParams.id());
+    }
+
+    function removeMarketFromList(Id marketId) internal {
+        for (uint256 i = 0; i < marketParamsList.length; i++) {
+            if (Id.unwrap(marketParamsList[i].id()) == Id.unwrap(marketId)) {
+                marketParamsList[i] = marketParamsList[marketParamsList.length - 1];
+                marketParamsList.pop();
+                break;
+            }
+        }
     }
 
     function allocation(MarketParams memory marketParams) public view returns (uint256) {
