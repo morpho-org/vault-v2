@@ -251,13 +251,7 @@ contract AccrueInterestTest is BaseTest {
     }
 
     // on purpose not isolated.
-    function testFirstTotalAssets(
-        uint256 interest,
-        uint256 deposit,
-        uint256 elapsed
-    ) public {
-        performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
-        managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
+    function testFirstTotalAssets(uint256 interest, uint256 deposit, uint256 elapsed) public {
         deposit = bound(deposit, 0, MAX_TEST_ASSETS);
         elapsed = bound(elapsed, 0, 10 * 365 days);
         interest = bound(interest, 0, (deposit * MAX_MAX_RATE).mulDivDown(elapsed, WAD));

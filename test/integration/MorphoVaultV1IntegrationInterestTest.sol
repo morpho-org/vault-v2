@@ -28,12 +28,16 @@ contract MorphoVaultV1IntegrationInterestTest is MorphoVaultV1IntegrationTest {
         morpho.borrow(allMarketParams[0], assets, 0, address(this), address(this));
         skip(elapsed);
 
-        uint256 expectedSupplyAssets = morpho.expectedSupplyAssets(allMarketParams[0], address(morphoVaultV1));
-        assertEq(morphoVaultV1.totalAssets(), expectedSupplyAssets, "vault v1 totalAssets");
-        uint256 maxTotalAssets = assets + (assets * elapsed).mulDivDown(MAX_MAX_RATE, WAD);
-        // approx due to the virtual share in the vault v1.
-        assertApproxEqRel(
-            vault.totalAssets(), MathLib.min(expectedSupplyAssets, maxTotalAssets), WAD / assets, "vault totalAssets"
+        assertEq(
+            morphoVaultV1.totalAssets(),
+            morpho.expectedSupplyAssets(allMarketParams[0], address(morphoVaultV1)),
+            "vault v1 totalAssets"
         );
+        // slightly off from the market's expectedSupplyAssets because of the vaultV1 virtual shares.
+        uint256 expectedSupplyAssets =
+            morphoVaultV1.previewRedeem(morphoVaultV1.balanceOf(address(morphoVaultV1Adapter)));
+        uint256 maxTotalAssets = assets + (assets * elapsed).mulDivDown(MAX_MAX_RATE, WAD);
+        uint256 expectedTotalAssets = MathLib.min(expectedSupplyAssets, maxTotalAssets);
+        assertEq(vault.totalAssets(), expectedTotalAssets, "vault totalAssets");
     }
 }

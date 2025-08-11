@@ -255,7 +255,7 @@ contract MorphoVaultV1AdapterTest is Test {
         asset.transfer(address(morphoVaultV1), interest);
 
         // approx because of the virtual shares.
-        assertApproxEqRel(adapter.realAssets(), deposit + interest, WAD / deposit, "realAssets");
+        assertApproxEqAbs(adapter.realAssets() - deposit, interest, interest.mulDivUp(1, deposit + 1), "realAssets");
     }
 }
 
