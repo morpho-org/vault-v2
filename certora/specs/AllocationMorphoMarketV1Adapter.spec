@@ -7,8 +7,6 @@ using Utils as Utils;
 
 methods {
     function allocation(bytes32) external returns uint256 envfree;
-    function MorphoMarketV1.totalSupplyAssets(MorphoHarness.Id) external returns uint256 envfree;
-    function MorphoMarketV1.totalSupplyShares(MorphoHarness.Id) external returns uint256 envfree;
     function MorphoMarketV1.position_(MorphoHarness.Id, address) external returns MorphoHarness.Position envfree;
     function MorphoMarketV1Adapter.ids(MorphoHarness.MarketParams) external returns bytes32[] envfree;
     function MorphoMarketV1Adapter.allocation(MorphoHarness.MarketParams) external returns uint256 envfree;
