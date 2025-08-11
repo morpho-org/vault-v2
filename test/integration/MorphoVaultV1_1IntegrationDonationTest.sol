@@ -9,7 +9,7 @@ contract MorphoVaultV1_1IntegrationDonationTest is MorphoVaultV1_1IntegrationTes
 
     address internal immutable donor = makeAddr("donor");
 
-    function testSharesDonationResistance(uint256 initialAssets, uint256 donatedAssets, uint256 elapsed) public {
+    function testSharesDonationResistanceIfNoAllocation(uint256 initialAssets, uint256 donatedAssets, uint256 elapsed) public {
         initialAssets = bound(initialAssets, 0, MAX_TEST_ASSETS);
         donatedAssets = bound(donatedAssets, 0, MAX_TEST_ASSETS);
         elapsed = bound(elapsed, 0, 10 * 365 days);
