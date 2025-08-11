@@ -9,7 +9,7 @@ methods {
     function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => ALWAYS(95129375);
     function _.borrowRateView(Morpho.MarketParams, Morpho.Market) external => ALWAYS(95129375);
 
-    function MorphoMarketV1Adapter.allocation(Morpho.MarketParams) external returns (uint256) envfree;
+    function allocation(Morpho.MarketParams) external returns (uint256) envfree;
 
     function Utils.decodeMarketParams(bytes) external returns (Morpho.MarketParams) envfree;
     function Utils.havocAll() external envfree => HAVOC_ALL;

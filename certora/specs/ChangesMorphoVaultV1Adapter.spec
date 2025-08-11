@@ -9,7 +9,7 @@ methods {
     function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => ALWAYS(95129375);
     function _.borrowRateView(Morpho.MarketParams, Morpho.Market) external => ALWAYS(95129375);
 
-    function MorphoVaultV1Adapter.allocation() external returns (uint256) envfree;
+    function allocation() external returns (uint256) envfree;
 
     // Summarize this so we limit the complexity and don't need to go in Morpho
     function MetaMorphoV1_1._accruedFeeAndAssets() internal returns (uint, uint, uint) => CONSTANT;
