@@ -14,7 +14,6 @@ methods {
     function canSendAssets(address) external returns bool envfree;
     function canReceiveAssets(address) external returns bool envfree;
     function isAdapter(address) external returns bool envfree;
-    function ERC20.totalSupply() external returns uint256 envfree;
     function ERC20Helper.safeTransferFrom(address, address, address, uint256) external envfree;
 
     function _.canSendShares(address user) external => ghostStatusCanSendShares[user] expect bool;
