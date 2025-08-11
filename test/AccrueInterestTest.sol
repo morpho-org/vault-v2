@@ -273,12 +273,4 @@ contract AccrueInterestTest is BaseTest {
         vault.withdraw(2 * deposit, address(this), address(this));
         assertEq(vault.firstTotalAssets(), deposit); // does not update
     }
-
-    function multicall(bytes[] memory data) external {
-        for (uint256 i = 0; i < data.length; i++) {
-            (address to, bytes memory _data) = abi.decode(data[i], (address, bytes));
-            (bool success,) = to.call(_data);
-            require(success, "Multicall failed");
-        }
-    }
 }
