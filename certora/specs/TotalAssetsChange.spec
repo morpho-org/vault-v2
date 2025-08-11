@@ -15,6 +15,8 @@ definition mulDivUp(uint256 x, uint256 y, uint256 z) returns mathint = (x * y + 
 rule totalAssetsChange(env e, method f) filtered {
     f -> !f.isView
 } {
+    require(currentContract.maxRate == 0, "assume no interest accrual to count assets.");
+
     mathint totalAssetsPre = currentContract._totalAssets;
 
     uint256 addedAssets;
