@@ -252,8 +252,6 @@ contract AccrueInterestTest is BaseTest {
 
     // on purpose not isolated.
     function testFirstTotalAssets(
-        uint256 performanceFee,
-        uint256 managementFee,
         uint256 interest,
         uint256 deposit,
         uint256 elapsed
