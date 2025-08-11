@@ -11,6 +11,7 @@ import {IMorphoVaultV1Adapter} from "../src/adapters/interfaces/IMorphoVaultV1Ad
 import {MorphoVaultV1Adapter} from "../src/adapters/MorphoVaultV1Adapter.sol";
 import {MorphoVaultV1AdapterFactory} from "../src/adapters/MorphoVaultV1AdapterFactory.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
+import {WAD} from "../src/VaultV2.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 import {IMorphoVaultV1AdapterFactory} from "../src/adapters/interfaces/IMorphoVaultV1AdapterFactory.sol";
@@ -232,6 +233,29 @@ contract MorphoVaultV1AdapterTest is Test {
         uint256 realAssetsAfter = adapter.realAssets();
 
         assertEq(realAssetsAfter, realAssetsBefore, "realAssets should not change");
+    }
+
+    function testLoss(uint256 deposit, uint256 loss) public {
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
+        loss = bound(loss, 1, deposit);
+
+        deal(address(asset), address(adapter), deposit);
+        parentVault.allocateMocked(address(adapter), hex"", deposit);
+        morphoVaultV1.lose(loss);
+
+        assertEq(adapter.realAssets(), deposit - loss, "realAssets");
+    }
+
+    function testInterest(uint256 deposit, uint256 interest) public {
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
+        interest = bound(interest, 1, deposit);
+
+        deal(address(asset), address(adapter), deposit);
+        parentVault.allocateMocked(address(adapter), hex"", deposit);
+        asset.transfer(address(morphoVaultV1), interest);
+
+        // approx because of the virtual shares.
+        assertApproxEqAbs(adapter.realAssets() - deposit, interest, interest.mulDivUp(1, deposit + 1), "realAssets");
     }
 }
 
