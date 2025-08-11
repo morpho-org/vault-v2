@@ -139,7 +139,7 @@ rule cantSendAssetsAndCantReceiveAssets(env e, method f, calldataarg args, addre
              user != MorphoVaultV1Adapter.morphoVaultV1 &&
              user != currentContract, "do not check if the vault, the adapters themselves, Morpho markets v1 and Morpho vaults v1 are properly gated to not send/receive assets");
 
-    require (forall address adapter. isAdapter(adapter) => (adapter == MorphoMarketV1Adapter || adapter == MorphoVaultV1Adapter), "assume that, currently, only MorphoMarketV1Adapter and MorphoVaultV1Adapter are under scrutiny");
+    require (forall address adapter. currentContract.isAdapter[adapter] => (adapter == MorphoMarketV1Adapter || adapter == MorphoVaultV1Adapter), "assume that, currently, only MorphoMarketV1Adapter and MorphoVaultV1Adapter are under scrutiny");
 
     require (noInvalidBalanceChange[user], "setup the ghost state");
 
