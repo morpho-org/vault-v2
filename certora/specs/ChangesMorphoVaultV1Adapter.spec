@@ -11,6 +11,10 @@ methods {
 
     function allocation() external returns (uint256) envfree;
 
+    // To remove because the asset should be linked to be ERC20Mock.
+    function _.transfer(address, uint256) external => DISPATCHER(true);
+    function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
+
     // Summarize this so we limit the complexity and don't need to go in Morpho
     function MetaMorphoV1_1._accruedFeeAndAssets() internal returns (uint, uint, uint) => CONSTANT;
     // Summarize this so we limit the complexity and don't need to go in Morpho

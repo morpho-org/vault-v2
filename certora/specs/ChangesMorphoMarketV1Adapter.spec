@@ -11,6 +11,10 @@ methods {
 
     function allocation(Morpho.MarketParams) external returns (uint256) envfree;
 
+    // To remove because the asset should be linked to be ERC20Mock.
+    function _.transfer(address, uint256) external => DISPATCHER(true);
+    function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
+
     function Utils.decodeMarketParams(bytes) external returns (Morpho.MarketParams) envfree;
     function Utils.havocAll() external envfree => HAVOC_ALL;
 }
