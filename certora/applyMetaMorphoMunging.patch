@@ -1,6 +1,15 @@
 diff -ruN MetaMorpho.sol MetaMorpho.sol
 --- MetaMorpho.sol
 +++ MetaMorpho.sol
+@@ -9,7 +9,7 @@
+     IMetaMorphoBase,
+     IMetaMorphoStaticTyping
+ } from "./interfaces/IMetaMorpho.sol";
+-import {Id, MarketParams, Market, IMorpho} from "../lib/morpho-blue/src/interfaces/IMorpho.sol";
++import {Id, MarketParams, Market, IMorphoHarness} from "../certora/helpers/IMorphoHarness.sol";
+ 
+ import {PendingUint192, PendingAddress, PendingLib} from "./libraries/PendingLib.sol";
+ import {ConstantsLib} from "./libraries/ConstantsLib.sol";
 @@ -19,7 +19,6 @@
  import {UtilsLib} from "../lib/morpho-blue/src/libraries/UtilsLib.sol";
  import {SafeCast} from "../lib/openzeppelin-contracts/contracts/utils/math/SafeCast.sol";
@@ -19,6 +28,24 @@ diff -ruN MetaMorpho.sol MetaMorpho.sol
      using MarketParamsLib for MarketParams;
      using PendingLib for MarketConfig;
      using PendingLib for PendingUint192;
+@@ -56,7 +53,7 @@
+     /* IMMUTABLES */
+ 
+     /// @inheritdoc IMetaMorphoBase
+-    IMorpho public immutable MORPHO;
++    IMorphoHarness public immutable MORPHO;
+ 
+     /// @inheritdoc IMetaMorphoBase
+     uint8 public immutable DECIMALS_OFFSET;
+@@ -124,7 +121,7 @@
+     ) ERC4626(IERC20(_asset)) ERC20Permit(_name) ERC20(_name, _symbol) Ownable(owner) {
+         if (morpho == address(0)) revert ErrorsLib.ZeroAddress();
+ 
+-        MORPHO = IMorpho(morpho);
++        MORPHO = IMorphoHarness(morpho);
+         DECIMALS_OFFSET = uint8(uint256(18).zeroFloorSub(IERC20Metadata(_asset).decimals()));
+ 
+         _checkTimelockBounds(initialTimelock);
 @@ -585,7 +582,11 @@
      /// @inheritdoc IERC4626
      function totalAssets() public view override returns (uint256 assets) {
@@ -32,3 +59,24 @@ diff -ruN MetaMorpho.sol MetaMorpho.sol
          }
      }
  
+diff -ruN interfaces/IMetaMorpho.sol interfaces/IMetaMorpho.sol
+--- interfaces/IMetaMorpho.sol
++++ interfaces/IMetaMorpho.sol
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ pragma solidity >=0.5.0;
+ 
+-import {IMorpho, Id, MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
++import {IMorphoHarness, Id, MarketParams} from "../../certora/helpers/IMorphoHarness.sol";
+ import {IERC4626} from "../../lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
+ import {IERC20Permit} from "../../lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Permit.sol";
+ 
+@@ -30,7 +30,7 @@
+ /// @dev Consider using the IMetaMorpho interface instead of this one.
+ interface IMetaMorphoBase {
+     /// @notice The address of the Morpho contract.
+-    function MORPHO() external view returns (IMorpho);
++    function MORPHO() external view returns (IMorphoHarness);
+ 
+     /// @notice OpenZeppelin decimals offset used by the ERC4626 implementation.
+     /// @dev Calculated to be max(0, 18 - underlyingDecimals).
