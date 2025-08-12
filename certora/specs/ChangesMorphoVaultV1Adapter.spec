@@ -56,7 +56,7 @@ rule changeForAllocateIsBoundedByAllocation(env e, bytes data, uint256 assets, b
   bytes32[] ids; int256 change;
   ids, change = allocate(e, data, assets, selector, sender);
 
-  require (vaultV1.balanceOf(currentContract) <= vaultV1.totalSupply(), "total supply is the sum of the balance");
+  require (vaultV1.balanceOf(currentContract) <= vaultV1.totalSupply(), "total supply is the sum of the balances");
 
   assert allocation + change >= 0;
 }
@@ -68,7 +68,7 @@ rule changeForDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets,
   bytes32[] ids; int256 change;
   ids, change = deallocate(e, data, assets, selector, sender);
 
-  require (vaultV1.balanceOf(currentContract) <= vaultV1.totalSupply(), "total supply is the sum of the balance");
+  require (vaultV1.balanceOf(currentContract) <= vaultV1.totalSupply(), "total supply is the sum of the balances");
 
   assert allocation + change >= 0;
 }
