@@ -92,7 +92,7 @@ rule allocateMorphoVaultV1Adapter(env e, bytes data, uint256 assets) {
     allocate(e, MorphoVaultV1Adapter, data, assets);
 
     assert allocation(adapterIds[i]) == idIAllocationBefore + ghostChange;
-    assert !(exists uint j . j < adapterIds.length && id == adapterIds[j]) => allocation(id) == allocationBefore;
+    assert !(exists uint j . j < adapterIds.length && id == adapterIds[j]) => currentContract.caps[id].allocation == allocationBefore;
 }
 
 rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
@@ -134,7 +134,7 @@ rule deallocateMorphoVaultV1Adapter(env e, bytes data, uint256 assets) {
     deallocate(e, MorphoVaultV1Adapter, data, assets);
 
     assert allocation(adapterIds[i]) == idIAllocationBefore + ghostChange;
-    assert !(exists uint j . j < adapterIds.length && id == adapterIds[j]) => allocation(id) == allocationBefore;
+    assert !(exists uint j . j < adapterIds.length && id == adapterIds[j]) => currentContract.caps[id].allocation == allocationBefore;
 }
 
 rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
