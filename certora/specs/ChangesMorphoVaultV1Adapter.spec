@@ -6,8 +6,6 @@ using MetaMorphoV1_1 as vaultV1;
 methods {
     function allocation() external returns (uint256) envfree;
 
-    function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => CONSTANT;
-
     // To remove because the asset should be linked to be ERC20Mock.
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
@@ -31,10 +29,8 @@ persistent ghost uint256 constantNewTotalAssets;
 
 function constantAccrueFeeAndAssets() returns (uint256, uint256, uint256) {
     uint256 feeShares;
-    require feeShares == 0;
     require(constantNewTotalAssets < 30 * 2^128);
     uint256 newLostAssets;
-    require newLostAssets == 0;
     return (0, constantNewTotalAssets, 0);
 }
 
