@@ -6,12 +6,12 @@ using Utils as Utils;
 methods {
     function allocation(Morpho.MarketParams) external returns (uint256) envfree;
 
-    function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect uint256;
-    function _.borrowRateView(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect uint256;
-
     // Needed because linking fails.
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
+
+    function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect uint256;
+    function _.borrowRateView(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect uint256;
 
     function Utils.decodeMarketParams(bytes) external returns (Morpho.MarketParams) envfree;
 }

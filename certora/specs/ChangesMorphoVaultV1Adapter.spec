@@ -10,11 +10,11 @@ methods {
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
 
-    function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => CONSTANT;
-
     function MetaMorphoV1_1.balanceOf(address) external returns uint256 envfree;
     function MetaMorphoV1_1.totalSupply() external returns uint256 envfree;
     function MetaMorphoV1_1._accruedFeeAndAssets() internal returns (uint256, uint256, uint256) => constantAccrueFeeAndAssets();
+
+    function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => CONSTANT;
 
     function Math.mulDiv(uint256 x, uint256 y, uint256 denominator) internal returns (uint256) => mulDivSummary(x, y, denominator);
 }
@@ -27,13 +27,12 @@ function mulDivSummary(uint256 x, uint256 y, uint256 denominator) returns uint25
     return assert_uint256(result);
 }
 
+persistent ghost uint256 constantFeeShares;
 persistent ghost uint256 constantNewTotalAssets;
-
+persistent ghost uint256 constantNewLostAssets;
 function constantAccrueFeeAndAssets() returns (uint256, uint256, uint256) {
-    uint256 feeShares;
     require(constantNewTotalAssets < 30 * 2^128, "market v1 stores assets on 128 bits, and there are at most 30 markets in vault v1");
-    uint256 newLostAssets;
-    return (feeShares, constantNewTotalAssets, newLostAssets);
+    return (constantFeeShares, constantNewTotalAssets, ConstantNewLostAssets);
 }
 
 // Check that calling allocate or deallocate with 0 amount yields the same change.
