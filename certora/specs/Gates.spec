@@ -16,10 +16,10 @@ methods {
     function isAdapter(address) external returns bool envfree;
     function ERC20Helper.safeTransferFrom(address, address, address, uint256) external envfree;
 
-    function _.canSendShares(address user) external => ghostStatusCanSendShares[user] expect bool;
-    function _.canReceiveShares(address user) external => ghostStatusCanReceiveShares[user] expect bool;
-    function _.canSendAssets(address user) external =>  ghostStatusCanSendAssets[user] expect bool;
-    function _.canReceiveAssets(address user) external => ghostStatusCanReceiveAssets[user] expect bool;
+    function _.canSendShares(address user) external => ghostCanSendShares[user] expect bool;
+    function _.canReceiveShares(address user) external => ghostCanReceiveShares[user] expect bool;
+    function _.canSendAssets(address user) external =>  ghostCanSendAssets[user] expect bool;
+    function _.canReceiveAssets(address user) external => ghostCanReceiveAssets[user] expect bool;
 
     function _.supply(MorphoMarketV1Adapter.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, bytes data) external
         => summaryMorphoMarketV1Supply(marketParams, assets, shares, onBehalf, data) expect (uint256, uint256) ALL;
@@ -68,18 +68,19 @@ function summaryMorphoVaultV1Withdraw(uint256 assets, address receiver, address 
     return shares;
 }
 
-persistent ghost mapping(address => bool) ghostStatusCanSendShares;
-persistent ghost mapping(address => bool) ghostStatusCanReceiveShares;
-persistent ghost mapping(address => bool) ghostStatusCanSendAssets;
-persistent ghost mapping(address => bool) ghostStatusCanReceiveAssets;
-persistent ghost mapping(address => bool) ghostBalanceChangeAllowed;
+persistent ghost mapping(address => bool) ghostCanSendShares;
+persistent ghost mapping(address => bool) ghostCanReceiveShares;
+persistent ghost mapping(address => bool) ghostCanSendAssets;
+persistent ghost mapping(address => bool) ghostCanReceiveAssets;
+persistent ghost mapping(address => bool) noInvalidBalanceChange;
 
+// A balance change is invalid if the balance increases when the user can't receive assets, or if it decreases when the user can't send assets.
 hook Sstore ERC20.balanceOf[KEY address user] uint256 newBalance (uint256 oldBalance) {
-    if (!canReceiveAssets(user)) {
-        ghostBalanceChangeAllowed[user] = oldBalance >= newBalance && ghostBalanceChangeAllowed[user];
+    if (!canReceiveAssets(user) && newBalance > oldBalance) {
+        noInvalidBalanceChange[user] = false;
     }
-    if (!canSendAssets(user)) {
-        ghostBalanceChangeAllowed[user] = oldBalance <= newBalance && ghostBalanceChangeAllowed[user];
+    if (!canSendAssets(user) && newBalance < oldBalance) {
+        noInvalidBalanceChange[user] = false;
     }
 }
 
@@ -87,14 +88,12 @@ hook Sstore ERC20.balanceOf[KEY address user] uint256 newBalance (uint256 oldBal
 rule cantReceiveShares(env e, method f, calldataarg args, address user) filtered {
     f -> f.selector != sig:multicall(bytes[]).selector
 }{
-    require(currentContract.sharesGate != 0, "setup gating");
+    require (!canReceiveShares(user), "setup gating");
 
     // Trick to require that all the following addresses are different.
     require(MorphoMarketV1Adapter == 0x10, "ack");
     require(MorphoVaultV1Adapter == 0x11, "ack");
     require(currentContract == 0x12, "ack");
-
-    require (!canReceiveShares(user), "require that the user under scrutiny can't receive shares");
 
     uint256 sharesBefore = balanceOf(user);
 
@@ -107,14 +106,12 @@ rule cantReceiveShares(env e, method f, calldataarg args, address user) filtered
 rule cantSendShares(env e, method f, calldataarg args, address user, uint256 shares) filtered {
     f -> f.selector != sig:multicall(bytes[]).selector
 }{
-    require(currentContract.sharesGate != 0, "setup gating");
+    require (!canSendShares(user), "setup gating");
 
     // Trick to require that all the following addresses are different.
     require(MorphoMarketV1Adapter == 0x10, "ack");
     require(MorphoVaultV1Adapter == 0x11, "ack");
     require(currentContract == 0x12, "ack");
-
-    require (!canSendShares(user), "require that the user under scrutiny can't send shares");
 
     uint256 sharesBefore = balanceOf(user);
 
@@ -123,14 +120,13 @@ rule cantSendShares(env e, method f, calldataarg args, address user, uint256 sha
     assert balanceOf(user) >= sharesBefore;
 }
 
-// Check that transfers initiated from the vault, assuming the vault is no reentred, may only increase the balance of a given user when he can't send, and similarly the balance may only decrease when he can't receive.
+// Check that transfers initiated from the vault, assuming the vault is not reentred, may only increase the balance of a given user when he can't send, and similarly the balance may only decrease when he can't receive.
+// Assume that the vault only uses market v1 and vault v1 adapters, and that those are properly deployed to point to market v1 and vault v1 respectively.
 rule cantSendAssetsAndCantReceiveAssets(env e, method f, calldataarg args, address user) filtered {
     f -> f.selector != sig:MorphoMarketV1Adapter.skim(address).selector &&
          f.selector != sig:MorphoVaultV1Adapter.skim(address).selector  &&
          f.selector != sig:multicall(bytes[]).selector
 }{
-    require(currentContract.sendAssetsGate != 0, "setup gating");
-
     // Trick to require that all the following addresses are different.
     require(MorphoMarketV1Adapter == 0x10, "ack");
     require(MorphoVaultV1Adapter == 0x11, "ack");
@@ -143,11 +139,11 @@ rule cantSendAssetsAndCantReceiveAssets(env e, method f, calldataarg args, addre
              user != MorphoVaultV1Adapter.morphoVaultV1 &&
              user != currentContract, "do not check if the vault, the adapters themselves, Morpho markets v1 and Morpho vaults v1 are properly gated to not send/receive assets");
 
-    require (forall address adapter . isAdapter(adapter) => (adapter == MorphoMarketV1Adapter || adapter == MorphoVaultV1Adapter), "assume that, currently, only MorphoMarketV1Adapter and MorphoVaultV1Adapter are under scrutiny");
+    require (forall address adapter. currentContract.isAdapter[adapter] => (adapter == MorphoMarketV1Adapter || adapter == MorphoVaultV1Adapter), "assume that, currently, only MorphoMarketV1Adapter and MorphoVaultV1Adapter are under scrutiny");
 
-    require (ghostBalanceChangeAllowed[user], "setup the ghost state");
+    require (noInvalidBalanceChange[user], "setup the ghost state");
 
     f(e, args);
 
-    assert ghostBalanceChangeAllowed[user];
+    assert noInvalidBalanceChange[user];
 }
