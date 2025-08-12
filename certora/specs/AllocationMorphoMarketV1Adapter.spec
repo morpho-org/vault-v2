@@ -101,7 +101,7 @@ rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
     uint256 supplyShares = MorphoMarketV1.position_(marketId, MorphoMarketV1Adapter).supplyShares;
     uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, marketParams, supplyShares);
 
-    assert allocation >= expected;
+    assert allocation == expected;
 }
 
 rule deallocateMorphoMarketV1Adapter(env e, bytes data, uint256 assets) {
@@ -153,5 +153,5 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
     uint256 supplyShares = MorphoMarketV1.position_(marketId, MorphoMarketV1Adapter).supplyShares;
     uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, marketParams, supplyShares);
 
-    assert allocation >= expected;
+    assert allocation == expected;
 }
