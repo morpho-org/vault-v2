@@ -6,8 +6,7 @@ using Utils as Utils;
 methods {
     function allocation(Morpho.MarketParams) external returns (uint256) envfree;
 
-    function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect uint256;
-    function _.borrowRateView(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect uint256;
+    function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => CONSTANT;
 
     // To remove because the asset should be linked to be ERC20Mock.
     function _.transfer(address, uint256) external => DISPATCHER(true);
@@ -15,8 +14,6 @@ methods {
 
     function Utils.decodeMarketParams(bytes) external returns (Morpho.MarketParams) envfree;
 }
-
-persistent ghost uint256 constantBorrowRate;
 
 // Check that calling allocate or deallocate with 0 amount yields the same change.
 rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 selector, address sender) {

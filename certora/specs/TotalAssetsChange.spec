@@ -5,8 +5,6 @@ methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
     function accrueInterestView() internal returns(uint256, uint256, uint256) => summaryAccrueInterestView();
-
-    function _.canReceiveShares(address) external => PER_CALLEE_CONSTANT;
 }
 
 // Assume that accrueInterest does nothing.
