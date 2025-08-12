@@ -35,6 +35,11 @@ jobs:
         with:
           submodules: recursive
 
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Install Jq
         uses: sergeysova/jq-action@v2
 
