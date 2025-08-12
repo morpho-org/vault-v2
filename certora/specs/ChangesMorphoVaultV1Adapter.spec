@@ -32,7 +32,7 @@ persistent ghost uint256 constantNewTotalAssets;
 persistent ghost uint256 constantNewLostAssets;
 function constantAccrueFeeAndAssets() returns (uint256, uint256, uint256) {
     require(constantNewTotalAssets < 30 * 2^128, "market v1 stores assets on 128 bits, and there are at most 30 markets in vault v1");
-    return (constantFeeShares, constantNewTotalAssets, ConstantNewLostAssets);
+    return (constantFeeShares, constantNewTotalAssets, constantNewLostAssets);
 }
 
 // Check that calling allocate or deallocate with 0 amount yields the same change.
