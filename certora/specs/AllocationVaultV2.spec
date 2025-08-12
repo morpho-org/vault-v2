@@ -6,18 +6,6 @@ methods {
     function allocation(bytes32) external returns uint256 envfree;
 }
 
-// Check that accruing interest has no effect on the allocation.
-rule accrueInterestDoesNotImpactAllocation(env e) {
-    bytes32 id;
-    uint256 allocationPre = allocation(id);
-
-    accrueInterest(e);
-
-    uint256 allocationPost = allocation(id);
-
-    assert allocationPre == allocationPost;
-}
-
 // Check that only function able to change allocation are deposit, mint, withdraw, redeem, allocation, deallocate, forceDeallocate.
 rule functionsChangingAllocation(env e, method f, calldataarg args) filtered {
     f -> !f.isView &&
