@@ -107,7 +107,7 @@ rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
 
     allocate(e, MorphoVaultV1Adapter, data, assets);
 
-    assert MorphoVaultV1Adapter.allocation() >= MorphoVaultV1.previewRedeem(e, require_uint256(MorphoVaultV1.balanceOf(MorphoVaultV1Adapter)));
+    assert MorphoVaultV1Adapter.allocation() == MorphoVaultV1.previewRedeem(e, require_uint256(MorphoVaultV1.balanceOf(MorphoVaultV1Adapter)));
 }
 
 rule deallocateMorphoVaultV1Adapter(env e, bytes data, uint256 assets) {
