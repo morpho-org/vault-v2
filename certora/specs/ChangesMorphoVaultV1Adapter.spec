@@ -6,8 +6,7 @@ using MetaMorphoV1_1 as vaultV1;
 methods {
     function allocation() external returns (uint256) envfree;
 
-    function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect uint256;
-    function _.borrowRateView(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect uint256;
+    function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => CONSTANT;
 
     // To remove because the asset should be linked to be ERC20Mock.
     function _.transfer(address, uint256) external => DISPATCHER(true);
@@ -28,7 +27,6 @@ function mulDivSummary(uint256 x, uint256 y, uint256 denominator) returns uint25
     return assert_uint256(result);
 }
 
-persistent ghost uint256 constantBorrowRate;
 persistent ghost uint256 constantNewTotalAssets;
 
 function constantAccrueFeeAndAssets() returns (uint256, uint256, uint256) {
@@ -42,11 +40,6 @@ function constantAccrueFeeAndAssets() returns (uint256, uint256, uint256) {
 
 // Check that calling allocate or deallocate with 0 amount yields the same change.
 rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 selector, address sender) {
-  require(e.msg.sender == currentContract.parentVault, "Speed up prover. This is required in the code.");
-  require(data.length == 0, "Speed up prover. This is required in the code.");
-  require(selector == to_bytes4(0), "Speed up prover. The adapter ignores this param.");
-  require(sender == 0, "Speed up prover. The adapter ignores this param.");
-
   storage initialState = lastStorage;
 
   bytes32[] idsAllocate; int256 changeAllocate;
@@ -60,11 +53,6 @@ rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 se
 
 // Check that allocate cannot return a change that would make the current allocation negative.
 rule changeForAllocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
-  require(e.msg.sender == currentContract.parentVault, "Speed up prover. This is required in the code.");
-  require(data.length == 0, "Speed up prover. This is required in the code.");
-  require(selector == to_bytes4(0), "Speed up prover. The adapter ignores this param.");
-  require(sender == 0, "Speed up prover. The adapter ignores this param.");
-
   mathint allocation = allocation();
 
   bytes32[] ids; int256 change;
@@ -77,11 +65,6 @@ rule changeForAllocateIsBoundedByAllocation(env e, bytes data, uint256 assets, b
 
 // Check that deallocate cannot return a change that would make the current allocation negative.
 rule changeForDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
-  require(e.msg.sender == currentContract.parentVault, "Speed up prover. This is required in the code.");
-  require(data.length == 0, "Speed up prover. This is required in the code.");
-  require(selector == to_bytes4(0), "Speed up prover. The adapter ignores this param.");
-  require(sender == 0, "Speed up prover. The adapter ignores this param.");
-
   mathint allocation = allocation();
 
   bytes32[] ids; int256 change;
