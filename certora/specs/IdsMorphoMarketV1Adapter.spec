@@ -4,10 +4,10 @@
 using Utils as Utils;
 
 methods {
+    function ids(MorphoMarketV1Adapter.MarketParams) external returns (bytes32[]) envfree;
+
     function Utils.havocAll() external envfree => HAVOC_ALL;
     function Utils.decodeMarketParams(bytes) external returns(MorphoMarketV1Adapter.MarketParams) envfree;
-
-    function ids(MorphoMarketV1Adapter.MarketParams) external returns (bytes32[]) envfree;
 }
 
 // Show that ids() is a function that only depend on its input. It will be used as the reference id list in other rules.

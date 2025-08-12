@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-using MetaMorphoV1_1 as metamorpho;
+using MetaMorphoV1_1 as vaultV1;
 
 methods {
     function allocation() external returns (uint256) envfree;
@@ -16,15 +16,12 @@ methods {
     function MetaMorphoV1_1.lastTotalAssets() external returns uint256 envfree;
     function MetaMorphoV1_1.balanceOf(address) external returns uint256 envfree;
     function MetaMorphoV1_1.totalSupply() external returns uint256 envfree;
-    // Summarize this so we limit the complexity and don't need to go in Morpho
-    function MetaMorphoV1_1._accruedFeeAndAssets() internal returns (uint, uint, uint) => CONSTANT;
-    // Summarize this so we limit the complexity and don't need to go in Morpho
-    function MetaMorphoV1_1._accrueInterest() internal => CONSTANT;
+    function MetaMorphoV1_1._accruedFeeAndAssets() internal returns (uint, uint, uint) => NONDET;
 }
 
 persistent ghost uint256 constantBorrowRate;
 
-// Check that from some starting state, calling allocate or deallocate with 0 amount yield the same change.
+// Check that calling allocate or deallocate with 0 amount yields the same change.
 rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 selector, address sender) {
   require(e.msg.sender == currentContract.parentVault, "Speed up prover. This is required in the code.");
   require(data.length == 0, "Speed up prover. This is required in the code.");
@@ -51,14 +48,11 @@ rule changeForAllocateIsBoundedByAllocation(env e, bytes data, uint256 assets, b
 
   mathint allocation = allocation();
 
-  // Safe because totalSupply is the sum of the balances.
-  require metamorpho.balanceOf(currentContract) < metamorpho.totalSupply();
-
   bytes32[] ids; int256 change;
   ids, change = allocate(e, data, assets, selector, sender);
 
-  // Safe because market v1 stores assets on 128 bits, and there are at most 30 markets in MM.
-  require metamorpho.lastTotalAssets() < 30 * 2^128;
+  require (vaultV1.balanceOf(currentContract) < vaultV1.totalSupply(), "total supply is the sum of the balance");
+  require (vaultV1.lastTotalAssets() < 30 * 2^128, "market v1 stores assets on 128 bits, and there are at most 30 markets in vault v1");
 
   assert allocation + change >= 0;
 }
@@ -72,14 +66,11 @@ rule changeForDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets,
 
   mathint allocation = allocation();
 
-  // Safe because totalSupply is the sum of the balances.
-  require metamorpho.balanceOf(currentContract) < metamorpho.totalSupply();
-
   bytes32[] ids; int256 change;
   ids, change = deallocate(e, data, assets, selector, sender);
 
-  // Safe because market v1 stores assets on 128 bits, and there are at most 30 markets in MM.
-  require metamorpho.lastTotalAssets() < 30 * 2^128;
+  require (vaultV1.balanceOf(currentContract) < vaultV1.totalSupply(), "total supply is the sum of the balance");
+  require (vaultV1.lastTotalAssets() < 30 * 2^128, "market v1 stores assets on 128 bits, and there are at most 30 markets in vault v1");
 
   assert allocation + change >= 0;
 }

@@ -4,9 +4,9 @@
 using Utils as Utils;
 
 methods {
-    function Utils.havocAll() external envfree => HAVOC_ALL;
-
     function ids() external returns (bytes32[]) envfree;
+
+    function Utils.havocAll() external envfree => HAVOC_ALL;
 }
 
 // Show that ids() is a constant function. It will be used as the reference id list in other rules.

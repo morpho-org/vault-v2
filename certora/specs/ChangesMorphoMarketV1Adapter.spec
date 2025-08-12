@@ -14,12 +14,11 @@ methods {
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
 
     function Utils.decodeMarketParams(bytes) external returns (Morpho.MarketParams) envfree;
-    function Utils.havocAll() external envfree => HAVOC_ALL;
 }
 
 persistent ghost uint256 constantBorrowRate;
 
-// Check that from some starting state, calling allocate or deallocate with 0 amount yield the same change.
+// Check that calling allocate or deallocate with 0 amount yields the same change.
 rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 selector, address sender) {
   require(e.msg.sender == currentContract.parentVault, "Speed up prover. This is required in the code.");
   require(selector == to_bytes4(0), "Speed up prover. The adapter ignores this param.");
