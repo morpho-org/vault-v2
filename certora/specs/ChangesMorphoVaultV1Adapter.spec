@@ -16,7 +16,7 @@ methods {
     function MetaMorphoV1_1.lastTotalAssets() external returns uint256 envfree;
     function MetaMorphoV1_1.balanceOf(address) external returns uint256 envfree;
     function MetaMorphoV1_1.totalSupply() external returns uint256 envfree;
-    function MetaMorphoV1_1._accruedFeeAndAssets() internal returns (uint, uint, uint) => NONDET;
+    function MetaMorphoV1_1._accruedFeeAndAssets() internal returns (uint, uint, uint) => CONSTANT;
 }
 
 persistent ghost uint256 constantBorrowRate;
