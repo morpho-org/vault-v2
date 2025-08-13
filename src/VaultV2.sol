@@ -117,7 +117,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///     - Can lock users out of exiting the vault.
 ///     - Can prevent users from getting back their shares that they deposited on other protocols.
 /// @dev receiveAssetsGate:
-///     - Gates receiving assets from the vault.
+///     - Gates withdrawing assets from the vault.
 ///     - Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
 ///     - The vault itself (address(this)) is always allowed to receive assets, regardless of the gate configuration.
 /// @dev sendAssetsGate:
