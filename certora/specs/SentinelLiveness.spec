@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
+
 using ERC20Mock as ERC20;
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
@@ -10,7 +11,9 @@ methods {
     function executableAt(bytes) external returns (uint256) envfree;
     function getAbsoluteCap(bytes) external returns (uint256) envfree;
     function getRelativeCap(bytes) external returns (uint256) envfree;
+
     function _.deallocate(bytes, uint256 assets, bytes4, address) external => nondetDeallocateSummary(assets) expect(bytes32[], int256);
+
     function ERC20.transferFrom(address, address, uint256) external returns (bool) => NONDET;
 }
 
