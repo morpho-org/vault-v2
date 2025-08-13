@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
+
 using Utils as Utils;
 
 methods {
     function multicall(bytes[]) external => NONDET DELETE;
+
     function owner() external returns (address) envfree;
     function curator() external returns (address) envfree;
     function isSentinel(address) external returns (bool) envfree;
@@ -21,6 +23,7 @@ methods {
     function isAdapter(address adapter) external returns (bool) envfree;
     function balanceOf(address) external returns (uint256) envfree;
     function sharesGate() external returns (address) envfree;
+
     function Utils.wad() external returns (uint256) envfree;
     function Utils.timelockCap() external returns (uint256) envfree;
     function Utils.maxPerformanceFee() external returns (uint256) envfree;
@@ -68,4 +71,3 @@ strong invariant decreaseTimelockTimelock()
 
 strong invariant totalSupplyIsSumOfBalances()
     totalSupply() == sumOfBalances;
-

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
+
 methods {
     function _.realAssets() external => PER_CALLEE_CONSTANT;
     function _.canReceiveShares(address) external => PER_CALLEE_CONSTANT;
@@ -68,4 +69,3 @@ rule previewRedeemRevert(env e, uint256 shares, address receiver, address onBeha
     bool redeemWentThrough = !lastReverted;
     assert redeemWentThrough => previewRedeemWentThrough;
 }
-
