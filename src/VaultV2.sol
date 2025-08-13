@@ -34,10 +34,10 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// for big deposits that go through the liquidity adapter.
 ///
 /// LOSS REALIZATION
-/// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
-/// because flashloan-based shorting is prevented, because interest are accrued only once per transaction.
 /// @dev Loss realization occurs in accrueInterest and decreases the total assets, causing shares to lose value.
 /// @dev No mechanism is implemented at the vault level to reimburse depositors for these losses.
+/// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
+/// because flashloan-based shorting is prevented, because interest are accrued only once per transaction.
 ///
 /// CAPS
 /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
