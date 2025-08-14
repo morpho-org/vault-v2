@@ -129,5 +129,6 @@ rule withdrawTokenChange(env e, uint256 assets, address receiver, address owner)
     assert balanceVaultV2Before > assets => balanceMorphoMarketV1After == balanceMorphoMarketV1Before && assert_uint256(balanceVaultV2Before - balanceVaultV2After) == assets;
     
     assert balanceVaultV2Before <= assets => balanceVaultV2After == 0 && assert_uint256((balanceMorphoMarketV1Before - balanceMorphoMarketV1After) + balanceVaultV2Before) == assets;
+    
     assert assert_uint256(balanceReceiverAfter - balanceReceiverBefore) == assets;
 }
