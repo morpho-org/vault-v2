@@ -6,7 +6,7 @@ methods {
     function allocation(bytes32) external returns uint256 envfree;
 }
 
-// Check that only function able to change allocation are deposit, mint, withdraw, redeem, allocation, deallocate, forceDeallocate.
+// Check that the only functions able to change allocations are deposit, mint, withdraw, redeem, allocation, deallocate, forceDeallocate.
 rule functionsChangingAllocation(env e, method f, calldataarg args) filtered {
     f -> !f.isView &&
          f.selector != sig:deposit(uint,address).selector &&
@@ -22,12 +22,10 @@ rule functionsChangingAllocation(env e, method f, calldataarg args) filtered {
 
     f(e, args);
 
-    uint256 allocationPost = allocation(id);
-
-    assert allocationPost == allocationPre;
+    assert allocation(id) == allocationPre;
 }
 
-// Check that mint/deposit/withdraw/redeem can change an allocation only if there is a liquidity adapter set.
+// Check that allocations change on mint/deposit/withdraw/redeem only if a liquidity adapter is set.
 rule depositWithdrawChangeAllocationThroughLiquidityAdapter(env e, method f, calldataarg args) filtered {
     f -> f.selector == sig:deposit(uint,address).selector ||
          f.selector == sig:mint(uint,address).selector ||
@@ -39,17 +37,15 @@ rule depositWithdrawChangeAllocationThroughLiquidityAdapter(env e, method f, cal
 
     f(e, args);
 
-    uint256 allocationPost = allocation(id);
-
-    assert allocationPost != allocationPre => currentContract.liquidityAdapter != 0;
+    assert allocation(id) != allocationPre => currentContract.liquidityAdapter != 0;
 }
 
-// Check that when no liquidity adapter is set, allocation can change via *allocate functions.
+// Check that when no liquidity adapter is set, allocation can change only via *allocate functions.
 rule functionsChangingAllocationWithoutLiquidityAdapter(env e, method f, calldataarg args) filtered {
     f -> !f.isView &&
-         f.selector != sig:forceDeallocate(address,bytes,uint,address).selector &&
+         f.selector != sig:allocate(address,bytes,uint).selector &&
          f.selector != sig:deallocate(address,bytes,uint).selector &&
-         f.selector != sig:allocate(address,bytes,uint).selector
+         f.selector != sig:forceDeallocate(address,bytes,uint,address).selector
 } {
     require(currentContract.liquidityAdapter == 0, "assume no liquidity adapter");
 
@@ -58,7 +54,5 @@ rule functionsChangingAllocationWithoutLiquidityAdapter(env e, method f, calldat
 
     f(e, args);
 
-    uint256 allocationPost = allocation(id);
-
-    assert allocationPost == allocationPre;
+    assert allocation(id) == allocationPre;
 }
