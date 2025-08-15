@@ -7,7 +7,6 @@ using MorphoHarness as MorphoMarketV1;
 using Utils as Utils;
 
 methods {
-    function _.deposit(uint256, address) external => DISPATCHER(true);
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect uint256;
     function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect uint256;
     function _.balanceOf(address) external => DISPATCHER(true);

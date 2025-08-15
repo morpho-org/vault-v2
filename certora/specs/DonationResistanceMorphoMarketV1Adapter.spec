@@ -7,12 +7,13 @@ using Utils as Utils;
 methods {
     function allocation(Morpho.MarketParams) external returns uint256 envfree;
     function marketParamsListLength() external returns uint256 envfree;
-    function _.marketParamsListLength() external => DISPATCHER(true);
+
     function _.marketParamsList(uint256 i) external => DISPATCHER(true);
+    function _.marketParamsListLength() external => DISPATCHER(true);
+    function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
 
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect uint256;
     function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect uint256;
-    function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
 
     function Utils.isAllocated(address adapter, MorphoHarness.MarketParams) external returns bool envfree;
 }
@@ -24,10 +25,10 @@ rule donationResistance(env e, MorphoHarness.MarketParams marketParams, uint256 
 
     // Ensure that we check the conrete list exhaustively for an arbitrary lenght, the general case follows by induction on this rule.
     require (marketParamsListLength() < 5, "require that the list length is lesser than or equal the loop_iter setting");
-    require !Utils.isAllocated(currentContract, marketParams);
+    require (!Utils.isAllocated(currentContract, marketParams), "assume the donnation is to a non allocated market");
 
     bytes data;
-    require data.length == 0;
+    require (data.length == 0, "ack");
 
     uint256 realAssetsBefore = realAssets(e);
 

@@ -52,6 +52,7 @@ contract Utils {
         MarketParams memory mp2;
         for (uint256 i = 0; i < IMorphoMarketV1Adapter(adapter).marketParamsListLength(); i++) {
             (loanToken, collateralToken, oracle, irm, lltv) = IMorphoMarketV1Adapter(adapter).marketParamsList(i);
+
             mp2.loanToken = loanToken;
             mp2.collateralToken = collateralToken;
             mp2.oracle = oracle;
