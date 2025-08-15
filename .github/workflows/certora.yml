@@ -19,6 +19,7 @@ jobs:
           - AbdicatedFunctions
           - DonationResistanceMorphoMarketV1Adapter
           - DonationResistanceMorphoVaultV1Adapter
+          - Gates
           - Immutability
           - Invariants
           - Liveness

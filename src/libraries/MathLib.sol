@@ -22,13 +22,13 @@ library MathLib {
         }
     }
 
-    /// @dev Casts to uint128, reverting if input number is too large.
+    /// @dev Casts from uint256 to uint128, reverting if input number is too large.
     function toUint128(uint256 x) internal pure returns (uint128) {
         require(x <= type(uint128).max, ErrorsLib.CastOverflow());
         return uint128(x);
     }
 
-    /// @dev Casts to uint256, reverting if input number is too small.
+    /// @dev Casts from int256 to uint256, reverting if input number is negative.
     function toUint256(int256 x) internal pure returns (uint256) {
         require(x >= 0, ErrorsLib.CastOverflow());
         return uint256(x);
