@@ -3,9 +3,10 @@
 using Utils as Utils;
 
 methods {
-    function isMorphoMarketV1Adapter(address) external returns bool envfree;
+    function isMorphoMarketV1Adapter(address) external returns (bool) envfree;
 
-    function Utils.factory(address) external returns address envfree;
+    function Utils.factory(address) external returns (address) envfree;
+
     function _.factory() external => DISPATCHER(true);
 }
 

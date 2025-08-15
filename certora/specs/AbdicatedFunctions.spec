@@ -6,9 +6,9 @@ using Utils as Utils;
 methods {
     function multicall(bytes[]) external => NONDET DELETE;
 
-    function timelock(bytes4 selector) external returns uint256 envfree;
+    function timelock(bytes4 selector) external returns (uint256) envfree;
 
-    function Utils.toBytes4(bytes) external returns bytes4 envfree;
+    function Utils.toBytes4(bytes) external returns (bytes4) envfree;
 }
 
 // Check that abdicating a function set their timelock to infinity.
