@@ -4,7 +4,6 @@ pragma solidity 0.8.28;
 
 import {IVaultV2, IERC20, Caps} from "./interfaces/IVaultV2.sol";
 import {IAdapter} from "./interfaces/IAdapter.sol";
-import {IVic} from "./interfaces/IVic.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
@@ -14,8 +13,8 @@ import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
 
 /// ERC4626
-/// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension). Though the vault has a non
-/// conventional behaviour on max functions: they always return zero.
+/// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension). Though the vault has a
+/// non-conventional behaviour on max functions: they always return zero.
 /// @dev totalSupply is not updated to include shares minted to fee recipients. One can call accrueInterestView to
 /// compute the updated totalSupply.
 /// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). Donations are possible but
@@ -23,22 +22,10 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// deposits and withdrawals with roundings. In order to protect against that, vaults might need to be seeded with an
 /// initial deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 ///
-/// INTEREST / VIC
-/// @dev To accrue interest, the vault queries the Vault Interest Controller (Vic) which returns the interest per second
-/// that must be distributed on the period (since lastUpdate).
-/// @dev The Vic must never distribute more than what the vault is really earning.
-/// @dev The Vic might not distribute as much interest as planned if:
-/// - The Vic reverted on `setVic`.
-/// - The Vic returned an interest per second that is too high (it is capped at a maxed rate).
-/// @dev The vault might earn more interest than expected if:
-/// - A donation in underlying has been made to the vault.
-/// - There has been some calls to forceDeallocate, and the penalty is not zero.
-/// @dev The minimum nonzero interest per second is one asset. Thus, assets with high value (typically low decimals),
-/// small vaults and small rates might not be able to accrue interest consistently and must be considered carefully.
-/// @dev Set the Vic to 0 to disable it (=> no interest accrual).
+/// TOTAL ASSETS
+/// @dev Adapters are responsible for reporting to the vault how much their investments are worth at any time, so that
+/// the vault can accrue interest and realize losses.
 /// @dev _totalAssets stores the last recorded total assets. Use totalAssets() for the updated total assets.
-/// @dev The Vic must not call totalAssets() because it will try to accrue interest, but instead use the argument
-/// _totalAssets that is passed.
 ///
 /// FIRST TOTAL ASSETS
 /// @dev The variable firstTotalAssets tracks the total assets after the first interest accrual of the transaction.
@@ -47,8 +34,10 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// for big deposits that go through the liquidity adapter.
 ///
 /// LOSS REALIZATION
+/// @dev Loss realization occurs in accrueInterest and decreases the total assets, causing shares to lose value.
+/// @dev No mechanism is implemented at the vault level to reimburse depositors for these losses.
 /// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
-/// because flashloan based shorting is prevented (see enterBlocked flag).
+/// because flashloan-based shorting is prevented, because interest are accrued only once per transaction.
 ///
 /// CAPS
 /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
@@ -64,19 +53,15 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Loose specification of adapters:
 /// - They must enforce that only the vault can call allocate/deallocate.
 /// - They must enter/exit markets only in allocate/deallocate.
-/// - They must return the right ids on allocate/deallocate.
+/// - They must return the right ids on allocate/deallocate. Returned ids must not repeat.
 /// - After a call to deallocate, the vault must have an approval to transfer at least `assets` from the adapter.
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
-/// - Adapters' returned ids do not repeat.
-/// - They ignore donations of shares in their respective markets.
-/// - Given a method used by the adapter to estimate its assets in a market and a method to track its allocation to a
-/// market:
-///   - When calculating interest, it must be the positive change between the estimate and the tracked allocation, if
-/// any, since the last interaction.
-///   - When calculating loss, it must be the negative change between the estimate and the tracked allocation, if any,
-/// since the last interaction.
-/// @dev Ids being reused by multiple adapters are useful to do "cross-caps". Adapters can add "this" to an id to avoid
-/// it being reused.
+/// - The totalAssets() calculation ignores markets for which the vault has no allocation.
+/// - They must not re-enter (directly or indirectly) the vault. They might not statically prevent it, but the curator
+/// must not interact with markets that can re-enter the vault.
+/// - After an update, the sum of the changes returned after interactions with a given market must be exactly the
+/// current estimate position.
+/// @dev Ids being reused are useful to cap multiple investments that have a common property.
 /// @dev Allocating is prevented if one of the ids' absolute cap is zero and deallocating is prevented if the id's
 /// allocation is zero. This prevents interactions with zero assets with unknown markets. For markets that share all
 /// their ids, it will be impossible to "disable" them (preventing any interaction) without disabling the others using
@@ -85,24 +70,26 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// the allocation is zero.
 ///
 /// LIQUIDITY ADAPTER
-/// @dev liquidityAdapter is allocated to on deposit/mint, and deallocated from on withdraw/redeem if idle assets don't
-/// cover the withdraw.
+/// @dev Liquidity is allocated to the liquidityAdapter on deposit/mint, and deallocated from the liquidityAdapter on
+/// withdraw/redeem if idle assets don't cover the withdrawal.
 /// @dev The liquidity adapter is useful on exit, so that exit liquidity is available in addition to the idle assets. But
 /// the same adapter/data is used for both entry and exit to have the property that in the general case looping
 /// supply-withdraw or withdraw-supply should not change the allocation.
+/// @dev If a cap (absolute or relative) associated with the ids returned by the liquidity adapter on the liquidity data
+/// is reached, deposit/mint will revert.
 ///
 /// TOKEN REQUIREMENTS
 /// @dev List of assumptions on the token that guarantees that the vault behaves as expected:
 /// - It should be ERC-20 compliant, except that it can omit return values on transfer and transferFrom.
 /// - The balance of the vault should only decrease on transfer and transferFrom. In particular, tokens with burn
 /// functions are not supported.
-/// - It should not re-enter the vault on transfer nor transferFrom.
+/// - It should not re-enter the vault on transfer or transferFrom.
 /// - The balance of the sender (resp. receiver) should decrease (resp. increase) by exactly the given amount on
 /// transfer and transferFrom. In particular, tokens with fees on transfer are not supported.
 ///
 /// LIVENESS REQUIREMENTS
 /// @dev List of assumptions that guarantees the vault's liveness properties:
-/// - The VIC should not revert on interestPerSecond.
+/// - Adapters should not revert on realAssets, otherwise accrueInterestView reverts.
 /// - The token should not revert on transfer and transferFrom if balances and approvals are right.
 /// - The token should not revert on transfer to self.
 /// - totalAssets and totalSupply must stay below ~10^35. When taking this into account, note that for assets with
@@ -112,7 +99,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// TIMELOCKS
 /// @dev The timelock of decreaseTimelock is initially set to TIMELOCK_CAP, and can only be changed to type(uint256).max
-/// through abdicateSubmit..
+/// through abdicateSubmit.
 /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
 /// timelocked data can potentially be changed shortly afterwards.
 /// @dev The minimum time in which a function can be called is the following:
@@ -131,7 +118,6 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///     - Gates sending and receiving shares.
 ///     - Can lock users out of exiting the vault.
 ///     - Can prevent users from getting back their shares that they deposited on other protocols.
-///     - Can prevent the loss realization incentive to be given out to the caller.
 /// @dev receiveAssetsGate:
 ///     - Gates receiving assets from the vault.
 ///     - Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
@@ -144,14 +130,26 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Fees unit is WAD.
 /// @dev This invariant holds for both fees: fee != 0 => recipient != address(0).
 ///
+/// ROLES
+/// @dev The owner cannot do actions that can directly hurt depositors. Though it can set the curator and sentinels.
+/// @dev The curator cannot do actions that can directly hurt depositors without going through a timelock.
+/// @dev Allocators can move funds between markets in the boundaries set by caps without going through timelocks. They
+/// can also set the liquidity adapter and data, which can prevent deposits and/or withdrawals (it cannot prevent
+/// "in-kind redemptions" with forceDeallocate though).
+/// @dev Roles are not "two-step", so anyone can give a role to anyone, but it does not mean that they will exercise it.
+///
 /// MISC
 /// @dev Zero checks are not systematically performed.
 /// @dev No-ops are allowed.
-/// @dev Natspec are specified only when it brings clarity.
-/// @dev Roles are not "two-step" so one must check if they really have this role.
+/// @dev NatSpec comments are included only when they bring clarity.
+/// @dev The contract uses transient storage.
+/// @dev At creation, all settings are set to their default values. Notably, timelocks are zero (except the
+/// decreaseTimelock timelock) which is useful to set up the vault quickly. Also, there are no gates so anybody can
+/// interact with the vault. To prevent that, the gates configuration can be batched with the vault creation.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
-    using MathLib for uint192;
+    using MathLib for uint128;
+    using MathLib for int256;
 
     /* IMMUTABLE */
 
@@ -181,14 +179,14 @@ contract VaultV2 is IVaultV2 {
     /* INTEREST STORAGE */
 
     uint256 public transient firstTotalAssets;
-    uint192 public _totalAssets;
+    uint128 public _totalAssets;
     uint64 public lastUpdate;
-    address public vic;
-    bool public transient enterBlocked;
+    uint64 public maxRate;
 
     /* CURATION STORAGE */
 
     mapping(address account => bool) public isAdapter;
+    address[] public adapters;
     mapping(bytes32 id => Caps) internal caps;
     mapping(address adapter => uint256) public forceDeallocatePenalty;
 
@@ -210,6 +208,10 @@ contract VaultV2 is IVaultV2 {
     address public managementFeeRecipient;
 
     /* GETTERS */
+
+    function adaptersLength() external view returns (uint256) {
+        return adapters.length;
+    }
 
     function totalAssets() external view returns (uint256) {
         (uint256 newTotalAssets,,) = accrueInterestView();
@@ -309,6 +311,7 @@ contract VaultV2 is IVaultV2 {
         require(executableAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
         require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
         executableAt[msg.data] = 0;
+        emit EventsLib.Accept(bytes4(msg.data), msg.data);
     }
 
     function revoke(bytes calldata data) external {
@@ -344,21 +347,24 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
     }
 
-    /// @dev This function never reverts, assuming that the corresponding data is timelocked.
-    /// @dev Users cannot access their funds if the Vic reverts, so this function might better be under a long timelock.
-    function setVic(address newVic) external {
-        timelocked();
-        try this.accrueInterest() {}
-        catch {
-            lastUpdate = uint64(block.timestamp);
-        }
-        vic = newVic;
-        emit EventsLib.SetVic(newVic);
-    }
-
     function setIsAdapter(address account, bool newIsAdapter) external {
         timelocked();
-        isAdapter[account] = newIsAdapter;
+
+        if (isAdapter[account] != newIsAdapter) {
+            if (newIsAdapter) {
+                adapters.push(account);
+            } else {
+                for (uint256 i = 0; i < adapters.length; i++) {
+                    if (adapters[i] == account) {
+                        adapters[i] = adapters[adapters.length - 1];
+                        adapters.pop();
+                        break;
+                    }
+                }
+            }
+            isAdapter[account] = newIsAdapter;
+        }
+
         emit EventsLib.SetIsAdapter(account, newIsAdapter);
     }
 
@@ -462,7 +468,6 @@ contract VaultV2 is IVaultV2 {
 
         // Safe since WAD fits in 128 bits.
         caps[id].relativeCap = uint128(newRelativeCap);
-
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
 
@@ -473,8 +478,18 @@ contract VaultV2 is IVaultV2 {
 
         // Safe since WAD fits in 128 bits.
         caps[id].relativeCap = uint128(newRelativeCap);
-
         emit EventsLib.DecreaseRelativeCap(msg.sender, id, idData, newRelativeCap);
+    }
+
+    function setMaxRate(uint256 newMaxRate) external {
+        timelocked();
+        require(newMaxRate <= MAX_MAX_RATE, ErrorsLib.MaxRateTooHigh());
+
+        accrueInterest();
+
+        // Safe because newMaxRate <= MAX_MAX_RATE < 2**64-1.
+        maxRate = uint64(newMaxRate);
+        emit EventsLib.SetMaxRate(newMaxRate);
     }
 
     function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external {
@@ -497,11 +512,11 @@ contract VaultV2 is IVaultV2 {
         accrueInterest();
 
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
-        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).allocate(data, assets, msg.sig, msg.sender);
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets, msg.sig, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
-            _caps.allocation = _caps.allocation + interest + assets;
+            _caps.allocation = (int256(_caps.allocation) + change).toUint256();
 
             require(_caps.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
             require(_caps.allocation <= _caps.absoluteCap, ErrorsLib.AbsoluteCapExceeded());
@@ -510,7 +525,7 @@ contract VaultV2 is IVaultV2 {
                 ErrorsLib.RelativeCapExceeded()
             );
         }
-        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, interest);
+        emit EventsLib.Allocate(msg.sender, adapter, assets, ids, change);
     }
 
     function deallocate(address adapter, bytes memory data, uint256 assets) external {
@@ -524,16 +539,16 @@ contract VaultV2 is IVaultV2 {
     {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
-        (bytes32[] memory ids, uint256 interest) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
             require(_caps.allocation > 0, ErrorsLib.ZeroAllocation());
-            _caps.allocation = _caps.allocation + interest - assets;
+            _caps.allocation = (int256(_caps.allocation) + change).toUint256();
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
-        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, interest);
+        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, change);
         return ids;
     }
 
@@ -548,31 +563,29 @@ contract VaultV2 is IVaultV2 {
     /* EXCHANGE RATE FUNCTIONS */
 
     function accrueInterest() public {
-        if (lastUpdate != block.timestamp) {
-            (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
-            emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
-            _totalAssets = newTotalAssets.toUint192();
-            if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
-            if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
-            lastUpdate = uint64(block.timestamp);
-        }
-        if (firstTotalAssets == 0) firstTotalAssets = _totalAssets;
+        (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
+        _totalAssets = newTotalAssets.toUint128();
+        if (firstTotalAssets == 0) firstTotalAssets = newTotalAssets;
+        if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
+        if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
+        lastUpdate = uint64(block.timestamp);
     }
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
-    /// @dev Reverts if the call to the Vic reverts.
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     /// @dev The performance and management fees are taken even if the vault incurs some losses.
+    /// @dev Both fees are rounded down, so fee recipients could receive less than expected.
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
+        if (firstTotalAssets != 0) return (_totalAssets, 0, 0);
         uint256 elapsed = block.timestamp - lastUpdate;
-        if (elapsed == 0) return (_totalAssets, 0, 0);
-
-        uint256 tentativeInterestPerSecond = vic != address(0) ? IVic(vic).interestPerSecond(_totalAssets, elapsed) : 0;
-
-        uint256 interestPerSecond = tentativeInterestPerSecond
-            <= uint256(_totalAssets).mulDivDown(MAX_RATE_PER_SECOND, WAD) ? tentativeInterestPerSecond : 0;
-        uint256 interest = interestPerSecond * elapsed;
-        uint256 newTotalAssets = _totalAssets + interest;
+        uint256 realAssets = IERC20(asset).balanceOf(address(this));
+        for (uint256 i = 0; i < adapters.length; i++) {
+            realAssets += IAdapter(adapters[i]).realAssets();
+        }
+        uint256 maxTotalAssets = _totalAssets + (_totalAssets * elapsed).mulDivDown(maxRate, WAD);
+        uint256 newTotalAssets = MathLib.min(realAssets, maxTotalAssets);
+        uint256 interest = newTotalAssets.zeroFloorSub(_totalAssets);
 
         // The performance fee assets may be rounded down to 0 if interest * fee < WAD.
         uint256 performanceFeeAssets = interest > 0 && performanceFee > 0 && canReceiveShares(performanceFeeRecipient)
@@ -580,7 +593,7 @@ contract VaultV2 is IVaultV2 {
             : 0;
         // The management fee is taken on newTotalAssets to make all approximations consistent (interacting less
         // increases fees).
-        uint256 managementFeeAssets = managementFee > 0 && canReceiveShares(managementFeeRecipient)
+        uint256 managementFeeAssets = elapsed > 0 && managementFee > 0 && canReceiveShares(managementFeeRecipient)
             ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD)
             : 0;
 
@@ -674,13 +687,12 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Internal function for deposit and mint.
     function enter(uint256 assets, uint256 shares, address onBehalf) internal {
-        require(!enterBlocked, ErrorsLib.EnterBlocked());
         require(canReceiveShares(onBehalf), ErrorsLib.CannotReceiveShares());
         require(canSendAssets(msg.sender), ErrorsLib.CannotSendAssets());
 
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
-        _totalAssets += assets.toUint192();
+        _totalAssets += assets.toUint128();
         if (liquidityAdapter != address(0)) {
             allocateInternal(liquidityAdapter, liquidityData, assets);
         }
@@ -719,7 +731,7 @@ contract VaultV2 is IVaultV2 {
         }
 
         deleteShares(onBehalf, shares);
-        _totalAssets -= assets.toUint192();
+        _totalAssets -= assets.toUint128();
 
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
@@ -743,40 +755,6 @@ contract VaultV2 is IVaultV2 {
         uint256 penaltyShares = withdraw(penaltyAssets, address(this), onBehalf);
         emit EventsLib.ForceDeallocate(msg.sender, adapter, assets, onBehalf, ids, penaltyAssets);
         return penaltyShares;
-    }
-
-    /// @dev For small losses, the incentive could be null because of rounding.
-    /// @dev The incentive will be null if the msg.sender isn't allowed to receive shares.
-    /// @dev Returns incentiveShares, loss.
-    function realizeLoss(address adapter, bytes memory data) external returns (uint256, uint256) {
-        require(isAdapter[adapter], ErrorsLib.NotAdapter());
-
-        accrueInterest();
-
-        (bytes32[] memory ids, uint256 loss) = IAdapter(adapter).realizeLoss(data, msg.sig, msg.sender);
-
-        uint256 incentiveShares;
-        if (loss > 0) {
-            // Safe cast because the result is at most totalAssets.
-            _totalAssets = uint192(_totalAssets.zeroFloorSub(loss));
-
-            if (canReceiveShares(msg.sender)) {
-                uint256 tentativeIncentive = loss.mulDivDown(LOSS_REALIZATION_INCENTIVE_RATIO, WAD);
-                incentiveShares = tentativeIncentive.mulDivDown(
-                    totalSupply + virtualShares, uint256(_totalAssets).zeroFloorSub(tentativeIncentive) + 1
-                );
-                createShares(msg.sender, incentiveShares);
-            }
-
-            for (uint256 i; i < ids.length; i++) {
-                caps[ids[i]].allocation -= loss;
-            }
-
-            enterBlocked = true;
-        }
-
-        emit EventsLib.RealizeLoss(msg.sender, adapter, ids, loss, incentiveShares);
-        return (incentiveShares, loss);
     }
 
     /* ERC20 FUNCTIONS */

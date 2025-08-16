@@ -22,15 +22,22 @@ library MathLib {
         }
     }
 
-    /// @dev Casts to uint192, reverting if input number is too large.
-    function toUint192(uint256 x) internal pure returns (uint192) {
-        require(x <= type(uint192).max, ErrorsLib.CastOverflow());
-        return uint192(x);
-    }
-
-    /// @dev Casts to uint128, reverting if input number is too large.
+    /// @dev Casts from uint256 to uint128, reverting if input number is too large.
     function toUint128(uint256 x) internal pure returns (uint128) {
         require(x <= type(uint128).max, ErrorsLib.CastOverflow());
         return uint128(x);
+    }
+
+    /// @dev Casts from int256 to uint256, reverting if input number is negative.
+    function toUint256(int256 x) internal pure returns (uint256) {
+        require(x >= 0, ErrorsLib.CastOverflow());
+        return uint256(x);
+    }
+
+    /// @dev Returns min(x, y).
+    function min(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        assembly {
+            z := xor(x, mul(xor(x, y), lt(y, x)))
+        }
     }
 }

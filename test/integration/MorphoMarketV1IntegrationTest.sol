@@ -6,6 +6,8 @@ import "../BaseTest.sol";
 
 import {MorphoMarketV1Adapter} from "../../src/adapters/MorphoMarketV1Adapter.sol";
 import {MorphoMarketV1AdapterFactory} from "../../src/adapters/MorphoMarketV1AdapterFactory.sol";
+import {IMorphoMarketV1AdapterFactory} from "../../src/adapters/interfaces/IMorphoMarketV1AdapterFactory.sol";
+import {IMorphoMarketV1Adapter} from "../../src/adapters/interfaces/IMorphoMarketV1Adapter.sol";
 
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 import {OracleMock} from "../../lib/morpho-blue/src/mocks/OracleMock.sol";
@@ -22,8 +24,8 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
     MarketParams internal marketParams1;
     MarketParams internal marketParams2;
 
-    MorphoMarketV1AdapterFactory internal factory;
-    MorphoMarketV1Adapter internal adapter;
+    IMorphoMarketV1AdapterFactory internal factory;
+    IMorphoMarketV1Adapter internal adapter;
 
     bytes[] internal expectedIdData1;
     bytes[] internal expectedIdData2;
@@ -88,6 +90,10 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
         vault.setIsAdapter(address(adapter), true);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (MAX_MAX_RATE)));
+        vault.setMaxRate(MAX_MAX_RATE);
 
         increaseAbsoluteCap(expectedIdData1[0], type(uint128).max);
         increaseRelativeCap(expectedIdData1[0], WAD);

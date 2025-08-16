@@ -14,11 +14,11 @@ interface IBundlerAdapter {
 
 /// Example VaultV2 Gate with the following characteristics:
 /// - It is a shares gate, i.e. it checks vault shares senders & receivers.
-/// - It a send assets gate, i.e. it checks users who receive assets from the vault.
-/// - It a receive assets gate, i.e. it checks users who deposit assets to the vault.
+/// - It is a send assets gate, i.e. it checks users who deposit assets to the vault.
+/// - It is a receive assets gate, i.e. it checks users who receive assets from the vault.
 /// - It has a single whitelist for all permissions.
 /// - It works with Bundler3.
-///   To enable transfers to/from a Bundler3 adapter (on whitelisted users only), set isBundlerAdapter[bundlerAdapter]
+///   To enable transfers to/from a Bundler3 adapter (for whitelisted users only), set isBundlerAdapter[bundlerAdapter]
 /// to true.
 ///   Only trusted Bundler3 adapters should be added.
 contract GateExample is ISharesGate, IReceiveAssetsGate, ISendAssetsGate {
@@ -35,7 +35,7 @@ contract GateExample is ISharesGate, IReceiveAssetsGate, ISendAssetsGate {
 
     error Unauthorized();
 
-    /* ROLES FUNCTION */
+    /* ROLES FUNCTIONS */
 
     /// @notice Set the owner of the gate.
     function setOwner(address newOwner) external {
