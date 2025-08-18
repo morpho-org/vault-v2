@@ -846,7 +846,7 @@ contract VaultV2 is IVaultV2 {
     function canReceiveShares(address account) public view returns (bool) {
         return receiveSharesGate == address(0) || IReceiveSharesGate(receiveSharesGate).canReceiveShares(account);
     }
-    
+
     function canSendShares(address account) public view returns (bool) {
         return sendSharesGate == address(0) || ISendSharesGate(sendSharesGate).canSendShares(account);
     }
@@ -855,7 +855,7 @@ contract VaultV2 is IVaultV2 {
         return account == address(this) || receiveAssetsGate == address(0)
             || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(account);
     }
-    
+
     function canSendAssets(address account) public view returns (bool) {
         return sendAssetsGate == address(0) || ISendAssetsGate(sendAssetsGate).canSendAssets(account);
     }
