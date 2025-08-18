@@ -10,7 +10,7 @@ import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
-import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
+import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
 
 /// ERC4626
 /// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension). Though the vault has a
@@ -161,7 +161,8 @@ contract VaultV2 is IVaultV2 {
 
     address public owner;
     address public curator;
-    address public sharesGate;
+    address public receiveSharesGate;
+    address public sendSharesGate;
     address public receiveAssetsGate;
     address public sendAssetsGate;
     mapping(address account => bool) public isSentinel;
@@ -329,10 +330,16 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
 
-    function setSharesGate(address newSharesGate) external {
+    function setReceiveSharesGate(address newReceiveSharesGate) external {
         timelocked();
-        sharesGate = newSharesGate;
-        emit EventsLib.SetSharesGate(newSharesGate);
+        receiveSharesGate = newReceiveSharesGate;
+        emit EventsLib.SetReceiveSharesGate(newReceiveSharesGate);
+    }
+
+    function setSendSharesGate(address newSendSharesGate) external {
+        timelocked();
+        sendSharesGate = newSendSharesGate;
+        emit EventsLib.SetSendSharesGate(newSendSharesGate);
     }
 
     function setReceiveAssetsGate(address newReceiveAssetsGate) external {
@@ -835,11 +842,11 @@ contract VaultV2 is IVaultV2 {
     /* PERMISSIONED TOKEN FUNCTIONS */
 
     function canSendShares(address account) public view returns (bool) {
-        return sharesGate == address(0) || ISharesGate(sharesGate).canSendShares(account);
+        return sendSharesGate == address(0) || ISendSharesGate(sendSharesGate).canSendShares(account);
     }
 
     function canReceiveShares(address account) public view returns (bool) {
-        return sharesGate == address(0) || ISharesGate(sharesGate).canReceiveShares(account);
+        return receiveSharesGate == address(0) || IReceiveSharesGate(receiveSharesGate).canReceiveShares(account);
     }
 
     function canSendAssets(address account) public view returns (bool) {
