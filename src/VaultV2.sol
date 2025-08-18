@@ -116,7 +116,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev Gates must never revert, nor consume too much gas.
 /// @dev receiveSharesGate:
 ///     - Gates receiving shares.
-///     - Can lock users out of exiting the vault.
+///     - Can lock users out of getting back their shares deposited on an other contract.
 /// @dev sendSharesGate:
 ///     - Gates sending shares.
 ///     - Can lock users out of exiting the vault.
