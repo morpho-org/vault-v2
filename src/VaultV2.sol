@@ -114,14 +114,16 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// GATES
 /// @dev Set to 0 to disable a gate.
 /// @dev Gates must never revert, nor consume too much gas.
-/// @dev sharesGate:
-///     - Gates sending and receiving shares.
+/// @dev receiveSharesGate:
+///     - Gates receiving shares.
 ///     - Can lock users out of exiting the vault.
-///     - Can prevent users from getting back their shares that they deposited on other protocols.
+/// @dev sendSharesGate:
+///     - Gates sending shares.
+///     - Can lock users out of exiting the vault.
 /// @dev receiveAssetsGate:
 ///     - Gates receiving assets from the vault.
-///     - Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
 ///     - The vault itself (address(this)) is always allowed to receive assets, regardless of the gate configuration.
+///     - Can lock users out of exiting the vault.
 /// @dev sendAssetsGate:
 ///     - Gates depositing assets to the vault.
 ///     - This gate is not critical (cannot block users' funds), while still being able to gate supplies.
