@@ -843,20 +843,20 @@ contract VaultV2 is IVaultV2 {
 
     /* PERMISSIONED TOKEN FUNCTIONS */
 
-    function canSendShares(address account) public view returns (bool) {
-        return sendSharesGate == address(0) || ISendSharesGate(sendSharesGate).canSendShares(account);
-    }
-
     function canReceiveShares(address account) public view returns (bool) {
         return receiveSharesGate == address(0) || IReceiveSharesGate(receiveSharesGate).canReceiveShares(account);
     }
-
-    function canSendAssets(address account) public view returns (bool) {
-        return sendAssetsGate == address(0) || ISendAssetsGate(sendAssetsGate).canSendAssets(account);
+    
+    function canSendShares(address account) public view returns (bool) {
+        return sendSharesGate == address(0) || ISendSharesGate(sendSharesGate).canSendShares(account);
     }
 
     function canReceiveAssets(address account) public view returns (bool) {
         return account == address(this) || receiveAssetsGate == address(0)
             || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(account);
+    }
+    
+    function canSendAssets(address account) public view returns (bool) {
+        return sendAssetsGate == address(0) || ISendAssetsGate(sendAssetsGate).canSendAssets(account);
     }
 }
