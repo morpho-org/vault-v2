@@ -81,30 +81,30 @@ Note that the only friction to deallocating an adapter with a 0% penalty is the 
 
 Vaults v2 can use external gate contracts to control share transfer, vault asset deposit, and vault asset withdrawal.
 
-If a gate is not set, its corresponding operation is not restricted.
+If a gate is not set, its corresponding operations are not restricted.
 
 Gate changes can be timelocked.
-Using `abdicateSubmit`, a curator can commit to a gate setup.
+Using `abdicateSubmit`, a curator can irreversibly commit to a gate setup.
 
 Four gates are defined:
 
 **Receive shares gate** (`receiveSharesGate`): Controls the permission to receive shares.
 
-Upon `deposit`/`mint`, `transfer`/`transferFrom`, and interest accrual (for the fee recipient), `canReceiveShares` must return true for the shares recipient if the gate is set.
+Upon `deposit`/`mint`, `transfer`/`transferFrom`, and interest accrual (for both fee recipients), `canReceiveShares` must return `true` for the shares recipient if the gate is set.
 
-This gate is critical because it can prevent depositors to get back their shares deposited on other contracts. Also, if it reverts and that there is a nonzero fee, interest accrual reverts.
+This gate is critical because it can prevent depositors from getting back their shares deposited on other contracts. Also, if it reverts and there is a non-zero fee, interest accrual reverts.
 
 **Send shares gate** (`sendShareGate`): Controls the permission to send shares.
 
-Upon `withdraw`/`redeem` and `transfer`/`transferFrom`, `canSendShares` must return true for the shares sender if the gate is set.
+Upon `withdraw`/`redeem` and `transfer`/`transferFrom`, `canSendShares` must return `true` for the shares sender if the gate is set.
 
-This gate is critical because it can prevent people to withdraw their shares, or prevent depositors to get back their shares deposited on other contract.
+This gate is critical because it can prevent people from withdrawing their shares, or prevent depositors from getting back their shares deposited on other contract.
 
 **Receive Assets Gate** (`receiveAssetsGate`): Controls permissions related to receiving assets.
 
 Upon `withdraw`/`redeem`, `canReceiveAssets` must return true for the `receiver` if the gate is set.
 
-This gate is critical because it can prevent people to receive their assets upon withdrawals.
+This gate is critical because it can prevent people from receiving their assets upon withdrawals.
 
 **Send Assets Gate** (`sendAssetsGate`): Controls permissions related to sending assets.
 
