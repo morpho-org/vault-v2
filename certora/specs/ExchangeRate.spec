@@ -3,9 +3,6 @@
 
 import "Invariants.spec";
 
-// Duration of 10 years in seconds.
-definition tenYears() returns uint256 = 60 * 60 * 24 * 365 * 10;
-
 // Check that if deposit adds one share less to the user than it does, then the share price would decrease following a deposit.
 rule sharePriceBoundDeposit(env e, uint256 assets, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
@@ -97,10 +94,10 @@ rule lossRealizationMonotonic(env e, address adapter, bytes data){
 
 // Check that share price is increasing, except due to management fees or loss realization.
 rule sharePriceIncreasing(method f, env e, calldataarg a) {
-    require (e.block.timestamp >= currentContract.lastUpdate, "safe requirement because `lastUpdate` is growing and monotonic") ;
-    require (e.block.timestamp - currentContract.lastUpdate < tenYears(), "assume the vault has been pinged less than 10 years ago");
+    require (e.block.timestamp >= currentContract.lastUpdate, "safe requirement because `lastUpdate` is growing and monotonic");
     require (currentContract.managementFee == 0, "assume management fee to be null");
     requireInvariant performanceFee();
+
     require (currentContract.totalSupply > 0, "assume that the vault is seeded");
 
     requireInvariant balanceOfZero();
@@ -108,7 +105,6 @@ rule sharePriceIncreasing(method f, env e, calldataarg a) {
     requireInvariant virtualSharesBounds();
 
     uint256 V = currentContract.virtualShares;
-    require (V <= 10^18, "require virtual shares to be lesser than or equal to 10e18");
 
     uint256 assetsBefore = currentContract._totalAssets;
     uint256 supplyBefore = currentContract.totalSupply;
