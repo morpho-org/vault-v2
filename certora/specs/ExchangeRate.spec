@@ -86,9 +86,9 @@ rule lossRealizationMonotonic(env e, address adapter, bytes data){
     uint256 assetsBefore = currentContract._totalAssets;
     uint256 supplyBefore = currentContract.totalSupply;
 
-    uint256 loss;
-    (loss, _) = realizeLoss(e, adapter, data);
+    accrueInterest(e);
 
+    require (currentContract.lossRealization, "assume loss realization");
     uint256 assetsAfter = currentContract._totalAssets;
     uint256 supplyAfter = currentContract.totalSupply;
 
@@ -96,9 +96,7 @@ rule lossRealizationMonotonic(env e, address adapter, bytes data){
 }
 
 // Check that share price is increasing, except due to management fees or loss realization.
-rule sharePriceIncreasing(method f, env e, calldataarg a) filtered {
-    f -> f.selector != sig:realizeLoss(address, bytes).selector
-} {
+rule sharePriceIncreasing(method f, env e, calldataarg a) {
     require (e.block.timestamp >= currentContract.lastUpdate, "safe requirement because `lastUpdate` is growing and monotonic") ;
     require (e.block.timestamp - currentContract.lastUpdate < tenYears(), "assume the vault has been pinged less than 10 years ago");
     require (currentContract.managementFee == 0, "assume management fee to be null");
@@ -116,6 +114,8 @@ rule sharePriceIncreasing(method f, env e, calldataarg a) filtered {
     uint256 supplyBefore = currentContract.totalSupply;
 
     f(e, a);
+
+    require (!currentContract.lossRealization, "assume no loss realization");
 
     uint256 assetsAfter = currentContract._totalAssets;
     uint256 supplyAfter = currentContract.totalSupply;
