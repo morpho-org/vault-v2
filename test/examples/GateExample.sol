@@ -21,7 +21,7 @@ interface IBundlerAdapter {
 ///   To enable transfers to/from a Bundler3 adapter (for whitelisted users only), set isBundlerAdapter[bundlerAdapter]
 /// to true.
 ///   Only trusted Bundler3 adapters should be added.
-contract GateExample is ISharesGate, IReceiveAssetsGate, ISendAssetsGate {
+contract GateExample is IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate {
     address public owner;
 
     mapping(address => bool) public isBundlerAdapter;
