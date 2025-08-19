@@ -275,8 +275,6 @@ contract ERC20Test is BaseTest {
         (uint8 v, bytes32 r, bytes32 s) = _signPermit(privateKey, owner, to, shares, nonce, deadline);
 
         vm.expectEmit();
-        emit EventsLib.Approval(owner, to, shares);
-        vm.expectEmit();
         emit EventsLib.Permit(owner, to, shares, nonce, deadline);
 
         vault.permit(owner, to, shares, deadline, v, r, s);

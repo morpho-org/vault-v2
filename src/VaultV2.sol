@@ -814,7 +814,6 @@ contract VaultV2 is IVaultV2 {
         require(recoveredAddress != address(0) && recoveredAddress == _owner, ErrorsLib.InvalidSigner());
 
         allowance[_owner][spender] = shares;
-        emit EventsLib.Approval(_owner, spender, shares);
         emit EventsLib.Permit(_owner, spender, shares, nonce, deadline);
     }
 
