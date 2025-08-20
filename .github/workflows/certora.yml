@@ -26,6 +26,7 @@ jobs:
           - OwnerSafety
           - PreviewFunctions
           - Reentrancy
+          - RelativeCaps
           - SentinelLiveness
           - TokensMorphoMarketV1Adapter
           - TokensMorphoVaultV1Adapter
