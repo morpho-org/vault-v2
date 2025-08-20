@@ -4,7 +4,7 @@
 using Utils as Utils;
 
 methods {
-    function multicall(bytes[]) external => NONDET DELETE;
+    function multicall(bytes[]) external => HAVOC_ALL DELETE;
     function deallocateInternal(address, bytes memory, uint256) internal returns (bytes32[] memory) => deallocateInternalSummary();
     function Utils.wad() external returns uint256 envfree;
 }
