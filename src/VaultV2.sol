@@ -481,17 +481,6 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseRelativeCap(msg.sender, id, idData, newRelativeCap);
     }
 
-    function setMaxRate(uint256 newMaxRate) external {
-        timelocked();
-        require(newMaxRate <= MAX_MAX_RATE, ErrorsLib.MaxRateTooHigh());
-
-        accrueInterest();
-
-        // Safe because newMaxRate <= MAX_MAX_RATE < 2**64-1.
-        maxRate = uint64(newMaxRate);
-        emit EventsLib.SetMaxRate(newMaxRate);
-    }
-
     function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external {
         timelocked();
         require(newForceDeallocatePenalty <= MAX_FORCE_DEALLOCATE_PENALTY, ErrorsLib.PenaltyTooHigh());
@@ -558,6 +547,17 @@ contract VaultV2 is IVaultV2 {
         liquidityAdapter = newLiquidityAdapter;
         liquidityData = newLiquidityData;
         emit EventsLib.SetLiquidityAdapterAndData(msg.sender, newLiquidityAdapter, newLiquidityData);
+    }
+
+    function setMaxRate(uint256 newMaxRate) external {
+        require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
+        require(newMaxRate <= MAX_MAX_RATE, ErrorsLib.MaxRateTooHigh());
+
+        accrueInterest();
+
+        // Safe because newMaxRate <= MAX_MAX_RATE < 2**64-1.
+        maxRate = uint64(newMaxRate);
+        emit EventsLib.SetMaxRate(newMaxRate);
     }
 
     /* EXCHANGE RATE FUNCTIONS */
