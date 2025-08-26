@@ -32,6 +32,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
 /// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
 /// for big deposits that go through the liquidity adapter.
+/// @dev Relative caps can still be manipulated (with transient deposits), but it requires capital.
 ///
 /// LOSS REALIZATION
 /// @dev Loss realization occurs in accrueInterest and decreases the total assets, causing shares to lose value.
