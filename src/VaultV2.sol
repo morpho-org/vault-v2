@@ -69,7 +69,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev If allocations underestimate the actual assets, some assets might be lost because deallocating is impossible if
 /// the allocation is zero.
 /// @dev On allocation or deallocation, the underlying position of an adapter may become underestimated, for instance due to roundings or entry/exit fees.
-/// @dev This understimate is only resolved in the next transaction, and so it should be small to avoid excessive fees and withdrawals at unfair share prices, even if the understimate is iterated.
+/// @dev This underestimate is only resolved in the next transaction, and so it should be either always negligible to avoid excessive fees and withdrawals at unfair share prices, or it should be expensive to inflate, for instance by iterating deposits.
 ///
 /// LIQUIDITY ADAPTER
 /// @dev Liquidity is allocated to the liquidityAdapter on deposit/mint, and deallocated from the liquidityAdapter on
