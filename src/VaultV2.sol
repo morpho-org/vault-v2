@@ -26,7 +26,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// LOSS REALIZATION
 /// @dev No mechanism is implemented at the vault level to reimburse depositors for these losses.
 /// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
-/// because flashloan-based shorting is prevented, because interest/loss are accounted only once per transaction.
+/// because flashloan-based shorting is prevented as interests and losses are only accounted once per transaction.
 ///
 /// SHARE PRICE
 /// @dev Interest/loss are accounted only once per transaction (at the first interaction with the vault).
