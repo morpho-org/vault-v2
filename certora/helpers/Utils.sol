@@ -17,10 +17,6 @@ contract Utils {
         return WAD;
     }
 
-    function timelockCap() external pure returns (uint256) {
-        return TIMELOCK_CAP;
-    }
-
     function maxPerformanceFee() external pure returns (uint256) {
         return MAX_PERFORMANCE_FEE;
     }

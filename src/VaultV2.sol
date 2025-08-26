@@ -98,15 +98,14 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// - Adapters must not revert on deallocate if the underlying markets are liquid.
 ///
 /// TIMELOCKS
-/// @dev The timelock of decreaseTimelock is initially set to TIMELOCK_CAP, and can only be changed to type(uint256).max
-/// through abdicateSubmit.
+/// @dev The timelock duration of decreaseTimelock is the timelock duration of the function whose timelock is being
+/// decreased.
 /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
 /// timelocked data can potentially be changed shortly afterwards.
 /// @dev The minimum time in which a function can be called is the following:
 /// min(
 ///     timelock[selector],
-///     executableAt[selector::_],
-///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock
+///     executableAt[selector::_]
 /// ).
 /// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist, conditions
 /// are not met, etc.).
@@ -143,8 +142,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev No-ops are allowed.
 /// @dev NatSpec comments are included only when they bring clarity.
 /// @dev The contract uses transient storage.
-/// @dev At creation, all settings are set to their default values. Notably, timelocks are zero (except the
-/// decreaseTimelock timelock) which is useful to set up the vault quickly. Also, there are no gates so anybody can
+/// @dev At creation, all settings are set to their default values. Notably, timelocks are zero which is useful to set
+/// up the vault quickly. Also, there are no gates so anybody can
 /// interact with the vault. To prevent that, the gates configuration can be batched with the vault creation.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
@@ -260,7 +259,6 @@ contract VaultV2 is IVaultV2 {
         uint256 decimalOffset = uint256(18).zeroFloorSub(assetDecimals);
         decimals = uint8(assetDecimals + decimalOffset);
         virtualShares = 10 ** decimalOffset;
-        timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
         emit EventsLib.Constructor(_owner, _asset);
     }
 
@@ -303,7 +301,13 @@ contract VaultV2 is IVaultV2 {
         require(executableAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
         bytes4 selector = bytes4(data);
-        executableAt[data] = block.timestamp + timelock[selector];
+        if (selector == IVaultV2.decreaseTimelock.selector) {
+            (bytes4 selectorWithDecreasingTimelock,) = abi.decode(data[4:], (bytes4, uint256));
+            require(timelock[selectorWithDecreasingTimelock] != type(uint256).max, ErrorsLib.InfiniteTimelock());
+            executableAt[data] = block.timestamp + timelock[selectorWithDecreasingTimelock];
+        } else {
+            executableAt[data] = block.timestamp + timelock[selector];
+        }
         emit EventsLib.Submit(selector, data, executableAt[data]);
     }
 
@@ -370,7 +374,6 @@ contract VaultV2 is IVaultV2 {
 
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
-        require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
         require(newDuration >= timelock[selector], ErrorsLib.TimelockNotIncreasing());
 
         timelock[selector] = newDuration;
@@ -389,7 +392,7 @@ contract VaultV2 is IVaultV2 {
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
-        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
+        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsAutomatic());
         require(timelock[selector] != type(uint256).max, ErrorsLib.InfiniteTimelock());
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
 

@@ -130,7 +130,7 @@ It can:
 The curator's role is to curate the vault, meaning setting risk limits, gates, allocators, fees.
 Only one address can have this role.
 
-Some actions of the curator are timelockable (between 0 and 3 weeks, or infinite if the action has been frozen).
+Some actions of the curator are timelockable (any duration, or infinite if the action has been frozen).
 Once the timelock has passed, the action can be executed by anyone.
 
 It can:
@@ -144,7 +144,7 @@ It can:
 - [Timelockable] Set adapters.
 - [Timelockable] Set allocators.
 - Increase timelocks.
-- [Timelocked 3 weeks] Decrease timelocks.
+- [Timelocked by the timelock being decreased] Decrease timelocks.
 - [Timelockable] Set the `performanceFee`.
   The performance fee is capped at 50% of generated interest.
 - [Timelockable] Set the `managementFee`.
