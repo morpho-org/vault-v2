@@ -34,6 +34,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// share price but not faster than the maxRate, and the interest are accrued only once per transaction. In order to
 /// protect against inflation attacks, the vault might need to be seeded with an initial deposit. See
 /// https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
+/// @dev Donations and forceDeallocate penalties can be in part stolen by opportunistic depositors if the maxRate is
+/// much greater than the rate.
 ///
 /// CAPS
 /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
