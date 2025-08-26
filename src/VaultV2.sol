@@ -69,7 +69,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev If allocations underestimate the actual assets, some assets might be lost because deallocating is impossible if
 /// the allocation is zero.
 /// @dev Except particular scenarios, adapters should be removed only if they have no assets. In order to ensure no
-/// allocator can allocate some assets in an adapter being removed, it should have an adapter id and its caps should be
+/// allocator can allocate some assets in an adapter being removed, there should be an id exclusive to the adapter with its cap set to zero.
 /// set to zero.
 ///
 /// LIQUIDITY ADAPTER
