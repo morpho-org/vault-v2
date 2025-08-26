@@ -219,31 +219,39 @@ contract SettersTest is BaseTest {
         assertFalse(vault.isAllocator(newAllocator));
     }
 
-    function testSetIsAdapter(address rdm) public {
+    function testAddAdapter(address rdm) public {
         vm.assume(rdm != curator);
         address newAdapter = makeAddr("newAdapter");
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
-        vault.setIsAdapter(newAdapter, true);
+        vault.addAdapter(newAdapter);
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (newAdapter, true)));
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (newAdapter)));
         vm.expectEmit();
-        emit EventsLib.SetIsAdapter(newAdapter, true);
-        vault.setIsAdapter(newAdapter, true);
+        emit EventsLib.AddAdapter(newAdapter);
+        vault.addAdapter(newAdapter);
         assertTrue(vault.isAdapter(newAdapter));
         assertEq(vault.adaptersLength(), 1);
         assertEq(vault.adapters(0), newAdapter);
+    }
+
+    function testRemoveAdapter(address rdm) public {
+        vm.assume(rdm != curator);
+        address newAdapter = makeAddr("newAdapter");
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (newAdapter)));
+        vault.addAdapter(newAdapter);
 
         // Removal
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (newAdapter, false)));
+        vault.submit(abi.encodeCall(IVaultV2.removeAdapter, (newAdapter)));
         vm.expectEmit();
-        emit EventsLib.SetIsAdapter(newAdapter, false);
-        vault.setIsAdapter(newAdapter, false);
+        emit EventsLib.RemoveAdapter(newAdapter);
+        vault.removeAdapter(newAdapter);
         assertFalse(vault.isAdapter(newAdapter));
         assertEq(vault.adaptersLength(), 0);
     }
@@ -699,8 +707,8 @@ contract SettersTest is BaseTest {
         // Setup.
         address adapter = makeAddr("adapter");
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (adapter, true)));
-        vault.setIsAdapter(adapter, true);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (adapter)));
+        vault.addAdapter(adapter);
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
@@ -790,8 +798,8 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (liquidityAdapter, true)));
-        vault.setIsAdapter(liquidityAdapter, true);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (liquidityAdapter)));
+        vault.addAdapter(liquidityAdapter);
         vm.prank(allocator);
         vm.expectEmit();
         emit EventsLib.SetLiquidityAdapterAndData(allocator, liquidityAdapter, liquidityData);

@@ -347,25 +347,28 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
     }
 
-    function setIsAdapter(address account, bool newIsAdapter) external {
+    function addAdapter(address account) external {
         timelocked();
+        if (!isAdapter[account]) {
+            adapters.push(account);
+            isAdapter[account] = true;
+        }
+        emit EventsLib.AddAdapter(account);
+    }
 
-        if (isAdapter[account] != newIsAdapter) {
-            if (newIsAdapter) {
-                adapters.push(account);
-            } else {
-                for (uint256 i = 0; i < adapters.length; i++) {
-                    if (adapters[i] == account) {
-                        adapters[i] = adapters[adapters.length - 1];
-                        adapters.pop();
-                        break;
-                    }
+    function removeAdapter(address account) external {
+        timelocked();
+        if (isAdapter[account]) {
+            for (uint256 i = 0; i < adapters.length; i++) {
+                if (adapters[i] == account) {
+                    adapters[i] = adapters[adapters.length - 1];
+                    adapters.pop();
+                    break;
                 }
             }
-            isAdapter[account] = newIsAdapter;
+            isAdapter[account] = false;
         }
-
-        emit EventsLib.SetIsAdapter(account, newIsAdapter);
+        emit EventsLib.RemoveAdapter(account);
     }
 
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
