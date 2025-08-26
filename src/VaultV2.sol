@@ -17,27 +17,23 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// non-conventional behaviour on max functions: they always return zero.
 /// @dev totalSupply is not updated to include shares minted to fee recipients. One can call accrueInterestView to
 /// compute the updated totalSupply.
-/// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). Donations are possible but
-/// they do not directly increase the share price. Still, it is possible to inflate the share price through repeated
-/// deposits and withdrawals with roundings. In order to protect against that, vaults might need to be seeded with an
-/// initial deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 ///
 /// TOTAL ASSETS
 /// @dev Adapters are responsible for reporting to the vault how much their investments are worth at any time, so that
-/// the vault can accrue interest and realize losses.
+/// the vault can accrue interest or realize losses.
 /// @dev _totalAssets stores the last recorded total assets. Use totalAssets() for the updated total assets.
 ///
-/// FIRST TOTAL ASSETS
-/// @dev The variable firstTotalAssets tracks the total assets after the first interest accrual of the transaction.
-/// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
-/// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
-/// for big deposits that go through the liquidity adapter.
-///
 /// LOSS REALIZATION
-/// @dev Loss realization occurs in accrueInterest and decreases the total assets, causing shares to lose value.
 /// @dev No mechanism is implemented at the vault level to reimburse depositors for these losses.
 /// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
-/// because flashloan-based shorting is prevented, because interest are accrued only once per transaction.
+/// because flashloan-based shorting is prevented, because interest/loss are accounted only once per transaction.
+///
+/// SHARE PRICE
+/// @dev Interest/loss are accounted only once per transaction (at the first interaction with the vault).
+/// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). Donations increase the
+/// share price but not faster than the maxRate, and the interest are accrued only once per transaction. In order to
+/// protect against inflation attacks, the vault might need to be seeded with an initial deposit. See
+/// https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 ///
 /// CAPS
 /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
@@ -48,6 +44,12 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev The relative cap is relative to totalAssets, or more precisely to firstTotalAssets.
 /// @dev The relative cap unit is WAD.
 /// @dev To track allocations using events, use the Allocate and Deallocate events only.
+///
+/// FIRST TOTAL ASSETS
+/// @dev The variable firstTotalAssets tracks the total assets after the first interest accrual of the transaction.
+/// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
+/// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
+/// for big deposits that go through the liquidity adapter.
 ///
 /// ADAPTERS
 /// @dev Loose specification of adapters:
