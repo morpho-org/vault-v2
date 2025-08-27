@@ -733,22 +733,40 @@ contract SettersTest is BaseTest {
         vault.setForceDeallocatePenalty(adapter, tooHighPenalty);
     }
 
-    function testSetSharesGate(address rdm) public {
+    function testSetReceiveSharesGate(address rdm) public {
         vm.assume(rdm != curator);
-        address newSharesGate = makeAddr("newSharesGate");
+        address newReceiveSharesGate = makeAddr("newReceiveSharesGate");
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
-        vault.setSharesGate(newSharesGate);
+        vault.setReceiveSharesGate(newReceiveSharesGate);
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setSharesGate, (newSharesGate)));
+        vault.submit(abi.encodeCall(IVaultV2.setReceiveSharesGate, (newReceiveSharesGate)));
         vm.expectEmit();
-        emit EventsLib.SetSharesGate(newSharesGate);
-        vault.setSharesGate(newSharesGate);
-        assertEq(vault.sharesGate(), newSharesGate);
+        emit EventsLib.SetReceiveSharesGate(newReceiveSharesGate);
+        vault.setReceiveSharesGate(newReceiveSharesGate);
+        assertEq(vault.receiveSharesGate(), newReceiveSharesGate);
+    }
+
+    function testSetSendSharesGate(address rdm) public {
+        vm.assume(rdm != curator);
+        address newSendSharesGate = makeAddr("newSendSharesGate");
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.setSendSharesGate(newSendSharesGate);
+
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setSendSharesGate, (newSendSharesGate)));
+        vm.expectEmit();
+        emit EventsLib.SetSendSharesGate(newSendSharesGate);
+        vault.setSendSharesGate(newSendSharesGate);
+        assertEq(vault.sendSharesGate(), newSendSharesGate);
     }
 
     function testSetReceiveAssetsGate(address rdm) public {
