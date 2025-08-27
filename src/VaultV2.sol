@@ -309,7 +309,7 @@ contract VaultV2 is IVaultV2 {
         bytes4 selector = bytes4(data);
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(executableAt[data] == 0, ErrorsLib.DataAlreadyPending());
-        require(timelock[bytes4(data)] != type(uint256).max, ErrorsLib.Abdicated());
+        require(timelock[selector] != type(uint256).max, ErrorsLib.Abdicated());
 
         executableAt[data] = block.timestamp + timelock[selector];
         emit EventsLib.Submit(selector, data, executableAt[data]);
