@@ -164,8 +164,8 @@ It can:
 
 - Allocate funds from the “idle market” to enabled markets.
 - Deallocate funds from enabled markets to the “idle market”.
-- Set the `liquidityAdapter`.
-- Set the `liquidityData`.
+- Set the `liquidityAdapter` and the `liquidityData`.
+- Set the `maxRate`.
 
 #### Sentinel
 

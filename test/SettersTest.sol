@@ -681,24 +681,22 @@ contract SettersTest is BaseTest {
     }
 
     function testSetMaxRateCantSetDirectly(address rdm) public {
-        vm.assume(rdm != curator);
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.assume(rdm != allocator);
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.setMaxRate(MAX_MAX_RATE);
     }
 
     function testSetMaxRateTooHigh(uint256 newMaxRate) public {
         newMaxRate = bound(newMaxRate, MAX_MAX_RATE + 1, type(uint256).max);
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (newMaxRate)));
+        vm.prank(allocator);
         vm.expectRevert(ErrorsLib.MaxRateTooHigh.selector);
         vault.setMaxRate(newMaxRate);
     }
 
     function testSetMaxRate(uint256 newMaxRate) public {
         newMaxRate = bound(newMaxRate, 0, MAX_MAX_RATE);
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (newMaxRate)));
+        vm.prank(allocator);
         vm.expectEmit();
         emit EventsLib.SetMaxRate(newMaxRate);
         vault.setMaxRate(newMaxRate);
