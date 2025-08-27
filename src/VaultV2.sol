@@ -379,8 +379,6 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.IncreaseTimelock(selector, newDuration);
     }
 
-    /// @dev Irreversibly disable submit for a selector.
-    /// @dev Be particularly careful as this action is not reversible.
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsAutomatic());
