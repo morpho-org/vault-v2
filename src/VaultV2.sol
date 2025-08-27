@@ -21,6 +21,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// they do not directly increase the share price. Still, it is possible to inflate the share price through repeated
 /// deposits and withdrawals with roundings. In order to protect against that, vaults might need to be seeded with an
 /// initial deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
+/// @dev The share price can go down if the vault incurs some losses. Users might want to perform slippage checks upon
+/// withdraw/redeem via an other contract.
 ///
 /// TOTAL ASSETS
 /// @dev Adapters are responsible for reporting to the vault how much their investments are worth at any time, so that
