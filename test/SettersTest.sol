@@ -296,17 +296,22 @@ contract SettersTest is BaseTest {
         vault.abdicateSubmit(selector);
         assertEq(vault.timelock(selector), type(uint256).max);
 
+        // Submit is abdicated
+        vm.expectRevert(ErrorsLib.Abdicated.selector);
+        vm.prank(curator);
+        vault.submit(abi.encode(selector));
+
         // Then it cannot be decreased
-        // If the selector is decreasetimelock itself, submit will revert by overflow
+        // If the selector is decreasetimelock itself, submit will revert
         if (selector == IVaultV2.decreaseTimelock.selector) {
-            vm.expectRevert(stdError.arithmeticError);
+            vm.expectRevert(ErrorsLib.Abdicated.selector);
             vm.prank(curator);
             vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, 1 weeks)));
         } else {
             vm.prank(curator);
             vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, 1 weeks)));
             skip(TIMELOCK_CAP);
-            vm.expectRevert(ErrorsLib.InfiniteTimelock.selector);
+            vm.expectRevert(ErrorsLib.Abdicated.selector);
             vault.decreaseTimelock(selector, 1 weeks);
         }
     }

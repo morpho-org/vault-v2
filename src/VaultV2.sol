@@ -30,6 +30,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// because flashloan-based shorting is prevented as interests and losses are only accounted once per transaction.
 ///
 /// SHARE PRICE
+/// @dev The share price can go down if the vault incurs some losses. Users might want to perform slippage checks upon
+/// withdraw/redeem via an other contract.
 /// @dev Interest/loss are accounted only once per transaction (at the first interaction with the vault).
 /// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). Donations increase the
 /// share price but not faster than the maxRate, and the interest are accrued only once per transaction. In order to
@@ -41,7 +43,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev The allocation is not always up to date, because interest are added only when (de)allocating in the
 /// corresponding markets, and losses are deducted only when realized for these markets.
 /// @dev The caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
-/// @dev Relative caps are "soft" in the sense that they are only checked on allocate.
+/// @dev Relative caps are "soft" in the sense that they are not checked on exit.
+/// @dev Caps can be exceeded because of interest.
 /// @dev The relative cap is relative to totalAssets, or more precisely to firstTotalAssets.
 /// @dev The relative cap unit is WAD.
 /// @dev To track allocations using events, use the Allocate and Deallocate events only.
@@ -302,10 +305,11 @@ contract VaultV2 is IVaultV2 {
     /* TIMELOCKS FOR CURATOR FUNCTIONS */
 
     function submit(bytes calldata data) external {
+        bytes4 selector = bytes4(data);
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(executableAt[data] == 0, ErrorsLib.DataAlreadyPending());
+        require(timelock[bytes4(data)] != type(uint256).max, ErrorsLib.Abdicated());
 
-        bytes4 selector = bytes4(data);
         executableAt[data] = block.timestamp + timelock[selector];
         emit EventsLib.Submit(selector, data, executableAt[data]);
     }
@@ -393,7 +397,7 @@ contract VaultV2 is IVaultV2 {
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
-        require(timelock[selector] != type(uint256).max, ErrorsLib.InfiniteTimelock());
+        require(timelock[selector] != type(uint256).max, ErrorsLib.Abdicated());
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
@@ -577,8 +581,10 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
-    /// @dev The performance and management fees are taken even if the vault incurs some losses.
+    /// @dev The management fees is taken even if the vault incurs some losses.
     /// @dev Both fees are rounded down, so fee recipients could receive less than expected.
+    /// @dev The performance fee is taken on the "distributed interest" (which differs from the "real interest" because
+    /// of the max rate).
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         if (firstTotalAssets != 0) return (_totalAssets, 0, 0);
         uint256 elapsed = block.timestamp - lastUpdate;
