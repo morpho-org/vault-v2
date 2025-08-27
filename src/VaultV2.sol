@@ -125,7 +125,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 ///     - Gates sending shares.
 ///     - Can lock users out of exiting the vault.
 /// @dev receiveAssetsGate:
-///     - Gates receiving assets from the vault.
+///     - Gates withdrawing assets from the vault.
 ///     - The vault itself (address(this)) is always allowed to receive assets, regardless of the gate configuration.
 ///     - Can lock users out of exiting the vault.
 /// @dev sendAssetsGate:
