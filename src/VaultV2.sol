@@ -331,10 +331,16 @@ contract VaultV2 is IVaultV2 {
 
     /* CURATOR FUNCTIONS */
 
-    function setIsAllocator(address account, bool newIsAllocator) external {
+    function addAllocator(address account) external {
         timelocked();
-        isAllocator[account] = newIsAllocator;
-        emit EventsLib.SetIsAllocator(account, newIsAllocator);
+        isAllocator[account] = true;
+        emit EventsLib.AddAllocator(account);
+    }
+
+    function removeAllocator(address account) external {
+        timelocked();
+        isAllocator[account] = false;
+        emit EventsLib.RemoveAllocator(account);
     }
 
     function setReceiveSharesGate(address newReceiveSharesGate) external {

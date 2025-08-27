@@ -64,7 +64,8 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function revoke(bytes memory data) external;
 
     // Curator functions
-    function setIsAllocator(address account, bool newIsAllocator) external;
+    function addAllocator(address account) external;
+    function removeAllocator(address account) external;
     function setReceiveSharesGate(address newReceiveSharesGate) external;
     function setSendSharesGate(address newSendSharesGate) external;
     function setReceiveAssetsGate(address newReceiveAssetsGate) external;

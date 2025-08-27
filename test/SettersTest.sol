@@ -171,9 +171,9 @@ contract SettersTest is BaseTest {
 
         // Setup.
         vm.prank(curator);
-        vault.increaseTimelock(IVaultV2.setIsAllocator.selector, timelock);
-        assertEq(vault.timelock(IVaultV2.setIsAllocator.selector), timelock);
-        bytes memory data = abi.encodeCall(IVaultV2.setIsAllocator, (address(1), true));
+        vault.increaseTimelock(IVaultV2.addAllocator.selector, timelock);
+        assertEq(vault.timelock(IVaultV2.addAllocator.selector), timelock);
+        bytes memory data = abi.encodeCall(IVaultV2.addAllocator, (address(1)));
         vm.prank(curator);
         vault.submit(data);
         assertEq(vault.executableAt(data), block.timestamp + timelock);
@@ -181,41 +181,58 @@ contract SettersTest is BaseTest {
         // Timelock didn't pass.
         skip(timelock - 1);
         vm.expectRevert(ErrorsLib.TimelockNotExpired.selector);
-        vault.setIsAllocator(address(1), true);
+        vault.addAllocator(address(1));
 
         // Normal path.
         skip(1);
         vm.expectEmit();
-        emit EventsLib.Accept(IVaultV2.setIsAllocator.selector, data);
-        vault.setIsAllocator(address(1), true);
+        emit EventsLib.Accept(IVaultV2.addAllocator.selector, data);
+        vault.addAllocator(address(1));
 
         // Data not timelocked.
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
-        vault.setIsAllocator(address(1), true);
+        vault.addAllocator(address(1));
     }
 
-    function testSetIsAllocator(address rdm) public {
+    function testAddAllocatorTimelocked(address rdm) public {
         address newAllocator = makeAddr("newAllocator");
 
-        // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
-        vault.setIsAllocator(newAllocator, true);
+        vault.addAllocator(newAllocator);
+    }
 
-        // Normal path
+    function testAddAllocator() public {
+        address newAllocator = makeAddr("newAllocator");
+
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAllocator, (newAllocator, true)));
+        vault.submit(abi.encodeCall(IVaultV2.addAllocator, (newAllocator)));
         vm.expectEmit();
-        emit EventsLib.SetIsAllocator(newAllocator, true);
-        vault.setIsAllocator(newAllocator, true);
+        emit EventsLib.AddAllocator(newAllocator);
+        vault.addAllocator(newAllocator);
         assertTrue(vault.isAllocator(newAllocator));
+    }
+
+    function testRemoveAllocatorTimelocked(address rdm) public {
+        address newAllocator = makeAddr("newAllocator");
+
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.removeAllocator(newAllocator);
+    }
+
+    function testRemoveAllocator() public {
+        address newAllocator = makeAddr("newAllocator");
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.addAllocator, (newAllocator)));
+        vault.addAllocator(newAllocator);
 
         // Removal
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAllocator, (newAllocator, false)));
+        vault.submit(abi.encodeCall(IVaultV2.removeAllocator, (newAllocator)));
         vm.expectEmit();
-        emit EventsLib.SetIsAllocator(newAllocator, false);
-        vault.setIsAllocator(newAllocator, false);
+        emit EventsLib.RemoveAllocator(newAllocator);
+        vault.removeAllocator(newAllocator);
         assertFalse(vault.isAllocator(newAllocator));
     }
 

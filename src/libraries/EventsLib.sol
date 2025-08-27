@@ -48,7 +48,8 @@ library EventsLib {
     event SetIsSentinel(address indexed account, bool newIsSentinel);
     event SetName(string newName);
     event SetSymbol(string newSymbol);
-    event SetIsAllocator(address indexed account, bool newIsAllocator);
+    event AddAllocator(address indexed account);
+    event RemoveAllocator(address indexed account);
     event SetReceiveSharesGate(address indexed newReceiveSharesGate);
     event SetSendSharesGate(address indexed newSendSharesGate);
     event SetReceiveAssetsGate(address indexed newReceiveAssetsGate);

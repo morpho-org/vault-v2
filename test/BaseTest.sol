@@ -51,8 +51,8 @@ contract BaseTest is Test {
         vm.stopPrank();
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAllocator, (allocator, true)));
-        vault.setIsAllocator(allocator, true);
+        vault.submit(abi.encodeCall(IVaultV2.addAllocator, (allocator)));
+        vault.addAllocator(allocator);
 
         expectedIds = new bytes32[](2);
         expectedIds[0] = keccak256("id-0");
