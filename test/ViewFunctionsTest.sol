@@ -36,8 +36,7 @@ contract ViewFunctionsTest is BaseTest {
         vault.submit(abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
         vault.addAdapter(address(adapter));
 
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (MAX_MAX_RATE)));
+        vm.prank(allocator);
         vault.setMaxRate(MAX_MAX_RATE);
 
         vm.prank(allocator);

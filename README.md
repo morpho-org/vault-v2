@@ -84,31 +84,31 @@ Vaults v2 can use external gate contracts to control share transfer, vault asset
 If a gate is not set, its corresponding operations are not restricted.
 
 Gate changes can be timelocked.
-By setting the timelock an extremely high value such as `2**256-1`, a curator can commit to keeping the vault completely ungated, or, for instance, to only gate deposits and shares reception, but not withdrawals.
+By setting the timelock an extremely high value such as `2**256-1`, a curator can irreversibly commit to a gate setup.
 
-Three gates are defined:
+Four gates are defined:
 
-**Shares Gate** (`shareGate`): Controls permissions related to sending and receiving shares.
-Implements [ISharesGate](./src/interfaces/IGate.sol).
+**Receive shares gate** (`receiveSharesGate`): Controls the permission to receive shares.
 
-When set:
+Upon `deposit`/`mint`, `transfer`/`transferFrom`, and interest accrual (for both fee recipients), `canReceiveShares` must return `true` for the shares recipient if the gate is set.
 
-- Upon `deposit`, `mint` and transfers, the shares receiver must pass the `canReceiveShares` check. Performance and management fee recipients must also pass this check, otherwise their respective fee will be 0.
-- Upon `withdraw`, `redeem` and transfers, the shares sender must pass the `canSendShares` check.
+This gate is critical because it can prevent depositors from getting back their shares deposited on other contracts. Also, if it reverts and there is a non-zero fee, interest accrual reverts.
 
-If the shares gate reverts upon `canReceiveShares` and there is a nonzero fee to be sent, `accrueInterest` will revert.
+**Send shares gate** (`sendShareGate`): Controls the permission to send shares.
+
+Upon `withdraw`/`redeem` and `transfer`/`transferFrom`, `canSendShares` must return `true` for the shares sender if the gate is set.
+
+This gate is critical because it can prevent people from withdrawing their shares, or prevent depositors from getting back their shares deposited on other contract.
 
 **Receive Assets Gate** (`receiveAssetsGate`): Controls permissions related to receiving assets.
-Implements [IReceiveAssetsGate](./src/interfaces/IGate.sol).
 
-- Upon `withdraw` and `redeem`, `receiver` must pass the `canReceiveAssets` check.
+Upon `withdraw`/`redeem`, `canReceiveAssets` must return true for the `receiver` if the gate is set.
+
+This gate is critical because it can prevent people from receiving their assets upon withdrawals.
 
 **Send Assets Gate** (`sendAssetsGate`): Controls permissions related to sending assets.
-Implements [ISendAssetsGate](./src/interfaces/IGate.sol).
 
-- Upon `deposit` and `mint`, `msg.sender` must pass the `canSendAssets` check.
-
-An example gate is defined in [test/examples/GateExample.sol](./test/examples/GateExample.sol).
+Upon `deposit`/`mint`, `canSendAssets` must return true for  `msg.sender` must pass the `canSendAssets` check.
 
 ### Roles
 
@@ -163,8 +163,8 @@ It can:
 
 - Allocate funds from the “idle market” to enabled markets.
 - Deallocate funds from enabled markets to the “idle market”.
-- Set the `liquidityAdapter`.
-- Set the `liquidityData`.
+- Set the `liquidityAdapter` and the `liquidityData`.
+- Set the `maxRate`.
 
 #### Sentinel
 

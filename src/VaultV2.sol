@@ -10,7 +10,7 @@ import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
-import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
+import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
 
 /// ERC4626
 /// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension). Though the vault has a
@@ -117,14 +117,16 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// GATES
 /// @dev Set to 0 to disable a gate.
 /// @dev Gates must never revert, nor consume too much gas.
-/// @dev sharesGate:
-///     - Gates sending and receiving shares.
+/// @dev receiveSharesGate:
+///     - Gates receiving shares.
+///     - Can lock users out of getting back their shares deposited on an other contract.
+/// @dev sendSharesGate:
+///     - Gates sending shares.
 ///     - Can lock users out of exiting the vault.
-///     - Can prevent users from getting back their shares that they deposited on other protocols.
 /// @dev receiveAssetsGate:
-///     - Gates receiving assets from the vault.
-///     - Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
+///     - Gates withdrawing assets from the vault.
 ///     - The vault itself (address(this)) is always allowed to receive assets, regardless of the gate configuration.
+///     - Can lock users out of exiting the vault.
 /// @dev sendAssetsGate:
 ///     - Gates depositing assets to the vault.
 ///     - This gate is not critical (cannot block users' funds), while still being able to gate supplies.
@@ -164,7 +166,8 @@ contract VaultV2 is IVaultV2 {
 
     address public owner;
     address public curator;
-    address public sharesGate;
+    address public receiveSharesGate;
+    address public sendSharesGate;
     address public receiveAssetsGate;
     address public sendAssetsGate;
     mapping(address account => bool) public isSentinel;
@@ -336,10 +339,16 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
 
-    function setSharesGate(address newSharesGate) external {
+    function setReceiveSharesGate(address newReceiveSharesGate) external {
         timelocked();
-        sharesGate = newSharesGate;
-        emit EventsLib.SetSharesGate(newSharesGate);
+        receiveSharesGate = newReceiveSharesGate;
+        emit EventsLib.SetReceiveSharesGate(newReceiveSharesGate);
+    }
+
+    function setSendSharesGate(address newSendSharesGate) external {
+        timelocked();
+        sendSharesGate = newSendSharesGate;
+        emit EventsLib.SetSendSharesGate(newSendSharesGate);
     }
 
     function setReceiveAssetsGate(address newReceiveAssetsGate) external {
@@ -479,17 +488,6 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseRelativeCap(msg.sender, id, idData, newRelativeCap);
     }
 
-    function setMaxRate(uint256 newMaxRate) external {
-        timelocked();
-        require(newMaxRate <= MAX_MAX_RATE, ErrorsLib.MaxRateTooHigh());
-
-        accrueInterest();
-
-        // Safe because newMaxRate <= MAX_MAX_RATE < 2**64-1.
-        maxRate = uint64(newMaxRate);
-        emit EventsLib.SetMaxRate(newMaxRate);
-    }
-
     function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external {
         timelocked();
         require(newForceDeallocatePenalty <= MAX_FORCE_DEALLOCATE_PENALTY, ErrorsLib.PenaltyTooHigh());
@@ -556,6 +554,17 @@ contract VaultV2 is IVaultV2 {
         liquidityAdapter = newLiquidityAdapter;
         liquidityData = newLiquidityData;
         emit EventsLib.SetLiquidityAdapterAndData(msg.sender, newLiquidityAdapter, newLiquidityData);
+    }
+
+    function setMaxRate(uint256 newMaxRate) external {
+        require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
+        require(newMaxRate <= MAX_MAX_RATE, ErrorsLib.MaxRateTooHigh());
+
+        accrueInterest();
+
+        // Safe because newMaxRate <= MAX_MAX_RATE < 2**64-1.
+        maxRate = uint64(newMaxRate);
+        emit EventsLib.SetMaxRate(newMaxRate);
     }
 
     /* EXCHANGE RATE FUNCTIONS */
@@ -834,20 +843,20 @@ contract VaultV2 is IVaultV2 {
 
     /* PERMISSIONED TOKEN FUNCTIONS */
 
-    function canSendShares(address account) public view returns (bool) {
-        return sharesGate == address(0) || ISharesGate(sharesGate).canSendShares(account);
-    }
-
     function canReceiveShares(address account) public view returns (bool) {
-        return sharesGate == address(0) || ISharesGate(sharesGate).canReceiveShares(account);
+        return receiveSharesGate == address(0) || IReceiveSharesGate(receiveSharesGate).canReceiveShares(account);
     }
 
-    function canSendAssets(address account) public view returns (bool) {
-        return sendAssetsGate == address(0) || ISendAssetsGate(sendAssetsGate).canSendAssets(account);
+    function canSendShares(address account) public view returns (bool) {
+        return sendSharesGate == address(0) || ISendSharesGate(sendSharesGate).canSendShares(account);
     }
 
     function canReceiveAssets(address account) public view returns (bool) {
         return account == address(this) || receiveAssetsGate == address(0)
             || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(account);
+    }
+
+    function canSendAssets(address account) public view returns (bool) {
+        return sendAssetsGate == address(0) || ISendAssetsGate(sendAssetsGate).canSendAssets(account);
     }
 }

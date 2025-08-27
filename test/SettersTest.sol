@@ -735,24 +735,22 @@ contract SettersTest is BaseTest {
     }
 
     function testSetMaxRateCantSetDirectly(address rdm) public {
-        vm.assume(rdm != curator);
-        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.assume(rdm != allocator);
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.setMaxRate(MAX_MAX_RATE);
     }
 
     function testSetMaxRateTooHigh(uint256 newMaxRate) public {
         newMaxRate = bound(newMaxRate, MAX_MAX_RATE + 1, type(uint256).max);
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (newMaxRate)));
+        vm.prank(allocator);
         vm.expectRevert(ErrorsLib.MaxRateTooHigh.selector);
         vault.setMaxRate(newMaxRate);
     }
 
     function testSetMaxRate(uint256 newMaxRate) public {
         newMaxRate = bound(newMaxRate, 0, MAX_MAX_RATE);
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (newMaxRate)));
+        vm.prank(allocator);
         vm.expectEmit();
         emit EventsLib.SetMaxRate(newMaxRate);
         vault.setMaxRate(newMaxRate);
@@ -793,25 +791,43 @@ contract SettersTest is BaseTest {
         vault.setForceDeallocatePenalty(adapter, tooHighPenalty);
     }
 
-    function testSetSharesGate(address rdm) public {
+    function testSetReceiveSharesGate(address rdm) public {
         vm.assume(rdm != curator);
-        address newSharesGate = makeAddr("newSharesGate");
+        address newReceiveSharesGate = makeAddr("newReceiveSharesGate");
 
         // Nobody can set directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
-        vault.setSharesGate(newSharesGate);
+        vault.setReceiveSharesGate(newReceiveSharesGate);
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(curator);
-        vault.setSharesGate(newSharesGate);
+        vault.setReceiveSharesGate(newReceiveSharesGate);
 
         // Normal path
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setSharesGate, (newSharesGate)));
+        vault.submit(abi.encodeCall(IVaultV2.setReceiveSharesGate, (newReceiveSharesGate)));
         vm.expectEmit();
-        emit EventsLib.SetSharesGate(newSharesGate);
-        vault.setSharesGate(newSharesGate);
-        assertEq(vault.sharesGate(), newSharesGate);
+        emit EventsLib.SetReceiveSharesGate(newReceiveSharesGate);
+        vault.setReceiveSharesGate(newReceiveSharesGate);
+        assertEq(vault.receiveSharesGate(), newReceiveSharesGate);
+    }
+
+    function testSetSendSharesGate(address rdm) public {
+        vm.assume(rdm != curator);
+        address newSendSharesGate = makeAddr("newSendSharesGate");
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.setSendSharesGate(newSendSharesGate);
+
+        // Normal path
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setSendSharesGate, (newSendSharesGate)));
+        vm.expectEmit();
+        emit EventsLib.SetSendSharesGate(newSendSharesGate);
+        vault.setSendSharesGate(newSendSharesGate);
+        assertEq(vault.sendSharesGate(), newSendSharesGate);
     }
 
     function testSetReceiveAssetsGate(address rdm) public {
