@@ -44,8 +44,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 ///
 /// CAPS
 /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
-/// @dev The allocation is not always up to date, because interest and losses are added only when (de)allocating in the
-/// corresponding markets.
+/// @dev The allocation is not always up to date, because interest and losses are accounted only when (de)allocating in
+/// the corresponding markets.
 /// @dev The caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
 /// @dev Relative caps are "soft" in the sense that they are not checked on exit.
 /// @dev Caps can be exceeded because of interest.
