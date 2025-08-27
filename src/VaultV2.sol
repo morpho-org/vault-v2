@@ -54,6 +54,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
 /// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
 /// for big deposits that go through the liquidity adapter.
+/// @dev Relative caps can still be manipulated by allocators (with transient deposits), but it requires capital.
 ///
 /// ADAPTERS
 /// @dev Loose specification of adapters:
@@ -354,25 +355,28 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
     }
 
-    function setIsAdapter(address account, bool newIsAdapter) external {
+    function addAdapter(address account) external {
         timelocked();
+        if (!isAdapter[account]) {
+            adapters.push(account);
+            isAdapter[account] = true;
+        }
+        emit EventsLib.AddAdapter(account);
+    }
 
-        if (isAdapter[account] != newIsAdapter) {
-            if (newIsAdapter) {
-                adapters.push(account);
-            } else {
-                for (uint256 i = 0; i < adapters.length; i++) {
-                    if (adapters[i] == account) {
-                        adapters[i] = adapters[adapters.length - 1];
-                        adapters.pop();
-                        break;
-                    }
+    function removeAdapter(address account) external {
+        timelocked();
+        if (isAdapter[account]) {
+            for (uint256 i = 0; i < adapters.length; i++) {
+                if (adapters[i] == account) {
+                    adapters[i] = adapters[adapters.length - 1];
+                    adapters.pop();
+                    break;
                 }
             }
-            isAdapter[account] = newIsAdapter;
+            isAdapter[account] = false;
         }
-
-        emit EventsLib.SetIsAdapter(account, newIsAdapter);
+        emit EventsLib.RemoveAdapter(account);
     }
 
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
@@ -645,11 +649,13 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns corresponding shares (rounded down).
+    /// @dev Takes into account performance and management fees.
     function convertToShares(uint256 assets) external view returns (uint256) {
         return previewDeposit(assets);
     }
 
     /// @dev Returns corresponding assets (rounded down).
+    /// @dev Takes into account performance and management fees.
     function convertToAssets(uint256 shares) external view returns (uint256) {
         return previewRedeem(shares);
     }
@@ -702,10 +708,9 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
         _totalAssets += assets.toUint128();
-        if (liquidityAdapter != address(0)) {
-            allocateInternal(liquidityAdapter, liquidityData, assets);
-        }
         emit EventsLib.Deposit(msg.sender, onBehalf, assets, shares);
+
+        if (liquidityAdapter != address(0)) allocateInternal(liquidityAdapter, liquidityData, assets);
     }
 
     /// @dev Returns redeemed shares.
@@ -741,7 +746,6 @@ contract VaultV2 is IVaultV2 {
 
         deleteShares(onBehalf, shares);
         _totalAssets -= assets.toUint128();
-
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }

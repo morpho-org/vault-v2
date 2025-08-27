@@ -5,7 +5,9 @@ pragma solidity >=0.5.0;
 interface IMorphoMarketV1AdapterFactory {
     /* EVENTS */
 
-    event CreateMorphoMarketV1Adapter(address indexed parentVault, address indexed morphoMarketV1Adapter);
+    event CreateMorphoMarketV1Adapter(
+        address indexed parentVault, address indexed morpho, address indexed morphoMarketV1Adapter
+    );
 
     /* FUNCTIONS */
 

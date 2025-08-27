@@ -33,8 +33,8 @@ contract ViewFunctionsTest is BaseTest {
         adapter = new AdapterMock(address(vault));
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
-        vault.setIsAdapter(address(adapter), true);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
+        vault.addAdapter(address(adapter));
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (MAX_MAX_RATE)));

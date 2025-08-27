@@ -13,8 +13,8 @@ contract AccruingFunctionsTest is BaseTest {
         adapter = new AdapterMock(address(vault));
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
-        vault.setIsAdapter(address(adapter), true);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
+        vault.addAdapter(address(adapter));
 
         increaseAbsoluteCap("id-0", type(uint128).max);
         increaseAbsoluteCap("id-1", type(uint128).max);
