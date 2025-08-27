@@ -636,11 +636,13 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns corresponding shares (rounded down).
+    /// @dev Takes into account performance and management fees.
     function convertToShares(uint256 assets) external view returns (uint256) {
         return previewDeposit(assets);
     }
 
     /// @dev Returns corresponding assets (rounded down).
+    /// @dev Takes into account performance and management fees.
     function convertToAssets(uint256 shares) external view returns (uint256) {
         return previewRedeem(shares);
     }
