@@ -21,6 +21,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// they do not directly increase the share price. Still, it is possible to inflate the share price through repeated
 /// deposits and withdrawals with roundings. In order to protect against that, vaults might need to be seeded with an
 /// initial deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
+/// @dev The share price can go down if the vault incurs some losses. Users might want to perform slippage checks upon
+/// withdraw/redeem via an other contract.
 ///
 /// TOTAL ASSETS
 /// @dev Adapters are responsible for reporting to the vault how much their investments are worth at any time, so that
@@ -32,6 +34,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
 /// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
 /// for big deposits that go through the liquidity adapter.
+/// @dev Relative caps can still be manipulated by allocators (with transient deposits), but it requires capital.
 ///
 /// LOSS REALIZATION
 /// @dev Loss realization occurs in accrueInterest and decreases the total assets, causing shares to lose value.
@@ -44,7 +47,8 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev The allocation is not always up to date, because interest are added only when (de)allocating in the
 /// corresponding markets, and losses are deducted only when realized for these markets.
 /// @dev The caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
-/// @dev Relative caps are "soft" in the sense that they are only checked on allocate.
+/// @dev Relative caps are "soft" in the sense that they are not checked on exit.
+/// @dev Caps can be exceeded because of interest.
 /// @dev The relative cap is relative to totalAssets, or more precisely to firstTotalAssets.
 /// @dev The relative cap unit is WAD.
 /// @dev To track allocations using events, use the Allocate and Deallocate events only.
@@ -350,25 +354,28 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
     }
 
-    function setIsAdapter(address account, bool newIsAdapter) external {
+    function addAdapter(address account) external {
         timelocked();
+        if (!isAdapter[account]) {
+            adapters.push(account);
+            isAdapter[account] = true;
+        }
+        emit EventsLib.AddAdapter(account);
+    }
 
-        if (isAdapter[account] != newIsAdapter) {
-            if (newIsAdapter) {
-                adapters.push(account);
-            } else {
-                for (uint256 i = 0; i < adapters.length; i++) {
-                    if (adapters[i] == account) {
-                        adapters[i] = adapters[adapters.length - 1];
-                        adapters.pop();
-                        break;
-                    }
+    function removeAdapter(address account) external {
+        timelocked();
+        if (isAdapter[account]) {
+            for (uint256 i = 0; i < adapters.length; i++) {
+                if (adapters[i] == account) {
+                    adapters[i] = adapters[adapters.length - 1];
+                    adapters.pop();
+                    break;
                 }
             }
-            isAdapter[account] = newIsAdapter;
+            isAdapter[account] = false;
         }
-
-        emit EventsLib.SetIsAdapter(account, newIsAdapter);
+        emit EventsLib.RemoveAdapter(account);
     }
 
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
@@ -565,8 +572,10 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
-    /// @dev The performance and management fees are taken even if the vault incurs some losses.
+    /// @dev The management fees is taken even if the vault incurs some losses.
     /// @dev Both fees are rounded down, so fee recipients could receive less than expected.
+    /// @dev The performance fee is taken on the "distributed interest" (which differs from the "real interest" because
+    /// of the max rate).
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         if (firstTotalAssets != 0) return (_totalAssets, 0, 0);
         uint256 elapsed = block.timestamp - lastUpdate;
@@ -627,11 +636,13 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns corresponding shares (rounded down).
+    /// @dev Takes into account performance and management fees.
     function convertToShares(uint256 assets) external view returns (uint256) {
         return previewDeposit(assets);
     }
 
     /// @dev Returns corresponding assets (rounded down).
+    /// @dev Takes into account performance and management fees.
     function convertToAssets(uint256 shares) external view returns (uint256) {
         return previewRedeem(shares);
     }
@@ -684,10 +695,9 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
         _totalAssets += assets.toUint128();
-        if (liquidityAdapter != address(0)) {
-            allocateInternal(liquidityAdapter, liquidityData, assets);
-        }
         emit EventsLib.Deposit(msg.sender, onBehalf, assets, shares);
+
+        if (liquidityAdapter != address(0)) allocateInternal(liquidityAdapter, liquidityData, assets);
     }
 
     /// @dev Returns redeemed shares.
@@ -723,7 +733,6 @@ contract VaultV2 is IVaultV2 {
 
         deleteShares(onBehalf, shares);
         _totalAssets -= assets.toUint128();
-
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }

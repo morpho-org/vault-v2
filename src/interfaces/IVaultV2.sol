@@ -67,7 +67,8 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function setSharesGate(address newSharesGate) external;
     function setReceiveAssetsGate(address newReceiveAssetsGate) external;
     function setSendAssetsGate(address newSendAssetsGate) external;
-    function setIsAdapter(address account, bool newIsAdapter) external;
+    function addAdapter(address account) external;
+    function removeAdapter(address account) external;
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
     function setPerformanceFee(uint256 newPerformanceFee) external;
