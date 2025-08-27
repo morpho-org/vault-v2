@@ -20,6 +20,7 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function sharesGate() external view returns (address);
     function receiveAssetsGate() external view returns (address);
     function sendAssetsGate() external view returns (address);
+    function whitelister() external view returns (address);
     function isSentinel(address account) external view returns (bool);
     function isAllocator(address account) external view returns (bool);
     function firstTotalAssets() external view returns (uint256);
@@ -67,6 +68,7 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function setSharesGate(address newSharesGate) external;
     function setReceiveAssetsGate(address newReceiveAssetsGate) external;
     function setSendAssetsGate(address newSendAssetsGate) external;
+    function setWhitelister(address newWhitelister) external;
     function addAdapter(address account) external;
     function removeAdapter(address account) external;
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;

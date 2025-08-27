@@ -219,7 +219,7 @@ contract SettersTest is BaseTest {
         assertFalse(vault.isAllocator(newAllocator));
     }
 
-    function testAddAdapter(address rdm) public {
+    function testAddAdapterNoWhitelister(address rdm) public {
         vm.assume(rdm != curator);
         address newAdapter = makeAddr("newAdapter");
 
@@ -237,6 +237,26 @@ contract SettersTest is BaseTest {
         assertTrue(vault.isAdapter(newAdapter));
         assertEq(vault.adaptersLength(), 1);
         assertEq(vault.adapters(0), newAdapter);
+    }
+
+    function testAddAdapterWhitelister(bool whitelisted) public {
+        address newAdapter = makeAddr("newAdapter");
+        address whitelister = makeAddr("whitelister");
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setWhitelister, (whitelister)));
+        vault.setWhitelister(whitelister);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (newAdapter)));
+
+        vm.mockCall(
+            address(whitelister),
+            abi.encodeWithSelector(IWhitelister.whitelisted.selector, newAdapter),
+            abi.encode(whitelisted)
+        );
+        if (!whitelisted) vm.expectRevert(ErrorsLib.NotWhitelisted.selector);
+        vault.addAdapter(newAdapter);
     }
 
     function testRemoveAdapter(address rdm) public {
@@ -787,6 +807,26 @@ contract SettersTest is BaseTest {
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
         vault.setSendAssetsGate(newSendAssetsGate);
         assertEq(vault.sendAssetsGate(), newSendAssetsGate);
+    }
+
+    function testSetWhitelisterTimelocked(address rdm) public {
+        vm.assume(rdm != curator);
+        address newWhitelister = makeAddr("newWhitelister");
+
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.setWhitelister(newWhitelister);
+    }
+
+    function testSetWhitelister() public {
+        address newWhitelister = makeAddr("newWhitelister");
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setWhitelister, (newWhitelister)));
+        vm.expectEmit();
+        emit EventsLib.SetWhitelister(newWhitelister);
+        vault.setWhitelister(newWhitelister);
+        assertEq(vault.whitelister(), newWhitelister);
     }
 
     /* ALLOCATOR SETTERS */
