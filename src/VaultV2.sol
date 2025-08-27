@@ -106,11 +106,12 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// through abdicateSubmit.
 /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
 /// timelocked data can potentially be changed shortly afterwards.
-/// @dev The minimum time in which a function can be called is the following:
+/// @dev For functions other than decreaseTimelock, the minimum time in which a function can be called is the following:
 /// min(
 ///     timelock[selector],
 ///     executableAt[selector::_],
-///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock
+///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock,
+///     timelock[decreaseTimelock] # 3 weeks
 /// ).
 /// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist, conditions
 /// are not met, etc.).
