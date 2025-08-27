@@ -700,10 +700,9 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
         _totalAssets += assets.toUint128();
-        if (liquidityAdapter != address(0)) {
-            allocateInternal(liquidityAdapter, liquidityData, assets);
-        }
         emit EventsLib.Deposit(msg.sender, onBehalf, assets, shares);
+
+        if (liquidityAdapter != address(0)) allocateInternal(liquidityAdapter, liquidityData, assets);
     }
 
     /// @dev Returns redeemed shares.
@@ -739,7 +738,6 @@ contract VaultV2 is IVaultV2 {
 
         deleteShares(onBehalf, shares);
         _totalAssets -= assets.toUint128();
-
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }
