@@ -19,6 +19,7 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 /// @dev Shares of the Morpho Vault v1 cannot be skimmed (unlike any other token).
 /// @dev If expectedSupplyAssets reverts for a market of the morphoVaultV1, realAssets will revert and the vault will
 /// not be able to accrueInterest.
+/// @dev Shouldn't be used alongside another adapter that re-uses the id (abi.encode("this", address(this)).
 contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     /* IMMUTABLES */
 
