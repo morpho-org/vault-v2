@@ -69,7 +69,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev If allocations underestimate the actual assets, some assets might be lost because deallocating is impossible if
 /// the allocation is zero.
 /// @dev On allocation or deallocation, the underlying position of an adapter may become underestimated, for instance
-/// due to roundings or entry/exit fees. This underestimate should stay negligible compared to gas. Adapters might not
+/// due to roundings or entry/exit fees. This loss should stay negligible compared to gas. Adapters might not
 /// statically ensure this, but the curators should not interact with markets that can create big entry/exit losses.
 ///
 /// LIQUIDITY ADAPTER
