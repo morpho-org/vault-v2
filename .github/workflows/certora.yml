@@ -16,7 +16,6 @@ jobs:
 
       matrix:
         conf:
-          - AbdicatedFunctions
           - Gates
           - Immutability
           - Invariants

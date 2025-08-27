@@ -84,7 +84,7 @@ Vaults v2 can use external gate contracts to control share transfer, vault asset
 If a gate is not set, its corresponding operations are not restricted.
 
 Gate changes can be timelocked.
-Using `abdicateSubmit`, a curator can commit to keeping the vault completely ungated, or, for instance, to only gate deposits and shares reception, but not withdrawals.
+By setting the timelock an extremely high value such as `2**256-1`, a curator can commit to keeping the vault completely ungated, or, for instance, to only gate deposits and shares reception, but not withdrawals.
 
 Three gates are defined:
 
@@ -143,7 +143,7 @@ It can:
 - Decrease relative caps.
 - [Timelockable] Set adapters.
 - [Timelockable] Set allocators.
-- Increase timelocks.
+- [Timelockable] Increase timelocks.
 - [Timelocked by the timelock being decreased] Decrease timelocks.
 - [Timelockable] Set the `performanceFee`.
   The performance fee is capped at 50% of generated interest.
@@ -151,8 +151,7 @@ It can:
   The management fee is capped at 5% of assets under management annually.
 - [Timelockable] Set the `performanceFeeRecipient`.
 - [Timelockable] Set the `managementFeeRecipient`.
-- [Timelockable] Abdicate submitting of an action.
-  The timelock on abdicate should be set to a high value (e.g. 3 weeks) after the vault has been created and initial abdications have been done, if any.
+  The timelock on increase timelock should be set to a high value (e.g. 3 weeks) after the vault has been created and initial timelocks have been increased, if any.
 
 #### Allocator
 

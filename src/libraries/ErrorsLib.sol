@@ -18,7 +18,6 @@ library ErrorsLib {
     error DataNotTimelocked();
     error FeeInvariantBroken();
     error FeeTooHigh();
-    error InfiniteTimelock();
     error InvalidSigner();
     error MaxRateTooHigh();
     error NoCode();
