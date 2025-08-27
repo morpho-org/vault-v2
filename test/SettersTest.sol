@@ -169,6 +169,17 @@ contract SettersTest is BaseTest {
         vault.submit(data);
     }
 
+    function testX() public {
+        testRevoke(
+            hex"5c1a1a4f00000000000000000000000000000000000000000000000000000001",
+            0x000000000000000000000000000000000000195B
+        );
+    }
+
+    function tail(bytes calldata data, uint256 start) external pure returns (bytes memory) {
+        return data[start:];
+    }
+
     function testRevoke(bytes memory data, address rdm) public {
         vm.assume(rdm != curator);
         vm.assume(rdm != sentinel);
@@ -179,6 +190,12 @@ contract SettersTest is BaseTest {
         vault.revoke(data);
 
         // Setup
+        // If the data is a decreaseTimelock, we need to submit well-formatted arguments.
+        if (bytes4(data) == IVaultV2.decreaseTimelock.selector) {
+            (bytes4 selectorWithDecreasingTimelock, uint256 timelock) =
+                (bytes4(data), uint256(bytes32(this.tail(data, 4))));
+            data = abi.encodeCall(IVaultV2.decreaseTimelock, (selectorWithDecreasingTimelock, timelock));
+        }
         vm.prank(curator);
         vault.submit(data);
 
