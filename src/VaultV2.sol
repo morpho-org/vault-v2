@@ -117,7 +117,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev The minimum time in which a function can be called is the following:
 /// min(
 ///     timelock[selector],
-///     executableAt[selector::_]
+///     executableAt[selector::_],
 ///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock
 /// ).
 /// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist, argument
