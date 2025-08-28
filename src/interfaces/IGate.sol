@@ -2,9 +2,12 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity >=0.5.0;
 
-interface ISharesGate {
-    function canSendShares(address account) external view returns (bool);
+interface IReceiveSharesGate {
     function canReceiveShares(address account) external view returns (bool);
+}
+
+interface ISendSharesGate {
+    function canSendShares(address account) external view returns (bool);
 }
 
 interface IReceiveAssetsGate {
