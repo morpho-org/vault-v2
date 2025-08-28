@@ -84,7 +84,7 @@ Vaults v2 can use external gate contracts to control share transfer, vault asset
 If a gate is not set, its corresponding operations are not restricted.
 
 Gate changes can be timelocked.
-By setting the timelock an extremely high value such as `2**256-1`, a curator can irreversibly commit to a gate setup.
+By setting the timelock to `type(uint256).max`, a curator can commit to an irreversible gate setup.
 
 Four gates are defined:
 
