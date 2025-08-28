@@ -10,44 +10,53 @@ import {EventsLib} from "./libraries/EventsLib.sol";
 import "./libraries/ConstantsLib.sol";
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
-import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
+import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
 
 /// ERC4626
 /// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension). Though the vault has a
 /// non-conventional behaviour on max functions: they always return zero.
 /// @dev totalSupply is not updated to include shares minted to fee recipients. One can call accrueInterestView to
 /// compute the updated totalSupply.
-/// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). Donations are possible but
-/// they do not directly increase the share price. Still, it is possible to inflate the share price through repeated
-/// deposits and withdrawals with roundings. In order to protect against that, vaults might need to be seeded with an
-/// initial deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 ///
 /// TOTAL ASSETS
 /// @dev Adapters are responsible for reporting to the vault how much their investments are worth at any time, so that
-/// the vault can accrue interest and realize losses.
+/// the vault can accrue interest or realize losses.
 /// @dev _totalAssets stores the last recorded total assets. Use totalAssets() for the updated total assets.
+/// @dev Upon interest accrual, the vault loops through adapters' realAssets(). If there are too many adapters and/or
+/// they consume too much gas on realAssets(), it could cause issues such as expensive interactions, even DOS.
+///
+/// LOSS REALIZATION
+/// @dev Loss realization occurs in accrueInterest and decreases the total assets, causing shares to lose value.
+/// @dev No mechanism is implemented at the vault level to reimburse depositors for these losses.
+/// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
+/// because flashloan-based shorting is prevented as interests and losses are only accounted once per transaction.
+///
+/// SHARE PRICE
+/// @dev The share price can go down if the vault incurs some losses. Users might want to perform slippage checks upon
+/// withdraw/redeem via an other contract.
+/// @dev Interest/loss are accounted only once per transaction (at the first interaction with the vault).
+/// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). Donations increase the
+/// share price but not faster than the maxRate, and the interest are accrued only once per transaction. In order to
+/// protect against inflation attacks, the vault might need to be seeded with an initial deposit. See
+/// https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
+///
+/// CAPS
+/// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
+/// @dev The allocation is not always up to date, because interest and losses are accounted only when (de)allocating in
+/// the corresponding markets.
+/// @dev The caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
+/// @dev Relative caps are "soft" in the sense that they are not checked on exit.
+/// @dev Caps can be exceeded because of interest.
+/// @dev The relative cap is relative to totalAssets, or more precisely to firstTotalAssets.
+/// @dev The relative cap unit is WAD.
+/// @dev To track allocations using events, use the Allocate and Deallocate events only.
 ///
 /// FIRST TOTAL ASSETS
 /// @dev The variable firstTotalAssets tracks the total assets after the first interest accrual of the transaction.
 /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
 /// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
 /// for big deposits that go through the liquidity adapter.
-///
-/// LOSS REALIZATION
-/// @dev Loss realization occurs in accrueInterest and decreases the total assets, causing shares to lose value.
-/// @dev No mechanism is implemented at the vault level to reimburse depositors for these losses.
-/// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
-/// because flashloan-based shorting is prevented, because interest are accrued only once per transaction.
-///
-/// CAPS
-/// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
-/// @dev The allocation is not always up to date, because interest are added only when (de)allocating in the
-/// corresponding markets, and losses are deducted only when realized for these markets.
-/// @dev The caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
-/// @dev Relative caps are "soft" in the sense that they are only checked on allocate.
-/// @dev The relative cap is relative to totalAssets, or more precisely to firstTotalAssets.
-/// @dev The relative cap unit is WAD.
-/// @dev To track allocations using events, use the Allocate and Deallocate events only.
+/// @dev Relative caps can still be manipulated by allocators (with short-term deposits), but it requires capital.
 ///
 /// ADAPTERS
 /// @dev Loose specification of adapters:
@@ -68,6 +77,12 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// the same ids.
 /// @dev If allocations underestimate the actual assets, some assets might be lost because deallocating is impossible if
 /// the allocation is zero.
+/// @dev On allocate or deallocate, the adapters might lose some assets (total realAssets decreases), for instance due
+/// to roundings or entry/exit fees. This loss should stay negligible compared to gas. Adapters might not statically
+/// ensure this, but the curators should not interact with markets that can create big entry/exit losses.
+/// @dev Except particular scenarios, adapters should be removed only if they have no assets. In order to ensure no
+/// allocator can allocate some assets in an adapter being removed, there should be an id exclusive to the adapter with
+/// its cap set to zero.
 ///
 /// LIQUIDITY ADAPTER
 /// @dev Liquidity is allocated to the liquidityAdapter on deposit/mint, and deallocated from the liquidityAdapter on
@@ -114,14 +129,16 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// GATES
 /// @dev Set to 0 to disable a gate.
 /// @dev Gates must never revert, nor consume too much gas.
-/// @dev sharesGate:
-///     - Gates sending and receiving shares.
+/// @dev receiveSharesGate:
+///     - Gates receiving shares.
+///     - Can lock users out of getting back their shares deposited on an other contract.
+/// @dev sendSharesGate:
+///     - Gates sending shares.
 ///     - Can lock users out of exiting the vault.
-///     - Can prevent users from getting back their shares that they deposited on other protocols.
 /// @dev receiveAssetsGate:
-///     - Gates receiving assets from the vault.
-///     - Can prevent users from receiving assets from the vault, potentially locking them out of exiting the vault.
+///     - Gates withdrawing assets from the vault.
 ///     - The vault itself (address(this)) is always allowed to receive assets, regardless of the gate configuration.
+///     - Can lock users out of exiting the vault.
 /// @dev sendAssetsGate:
 ///     - Gates depositing assets to the vault.
 ///     - This gate is not critical (cannot block users' funds), while still being able to gate supplies.
@@ -136,6 +153,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Allocators can move funds between markets in the boundaries set by caps without going through timelocks. They
 /// can also set the liquidity adapter and data, which can prevent deposits and/or withdrawals (it cannot prevent
 /// "in-kind redemptions" with forceDeallocate though).
+/// @dev Warning: if setIsAllocator is timelocked, removing an allocator will take time.
 /// @dev Roles are not "two-step", so anyone can give a role to anyone, but it does not mean that they will exercise it.
 ///
 /// MISC
@@ -161,7 +179,8 @@ contract VaultV2 is IVaultV2 {
 
     address public owner;
     address public curator;
-    address public sharesGate;
+    address public receiveSharesGate;
+    address public sendSharesGate;
     address public receiveAssetsGate;
     address public sendAssetsGate;
     mapping(address account => bool) public isSentinel;
@@ -299,10 +318,11 @@ contract VaultV2 is IVaultV2 {
     /* TIMELOCKS FOR CURATOR FUNCTIONS */
 
     function submit(bytes calldata data) external {
+        bytes4 selector = bytes4(data);
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(executableAt[data] == 0, ErrorsLib.DataAlreadyPending());
+        require(timelock[selector] != type(uint256).max, ErrorsLib.Abdicated());
 
-        bytes4 selector = bytes4(data);
         executableAt[data] = block.timestamp + timelock[selector];
         emit EventsLib.Submit(selector, data, executableAt[data]);
     }
@@ -329,10 +349,16 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetIsAllocator(account, newIsAllocator);
     }
 
-    function setSharesGate(address newSharesGate) external {
+    function setReceiveSharesGate(address newReceiveSharesGate) external {
         timelocked();
-        sharesGate = newSharesGate;
-        emit EventsLib.SetSharesGate(newSharesGate);
+        receiveSharesGate = newReceiveSharesGate;
+        emit EventsLib.SetReceiveSharesGate(newReceiveSharesGate);
+    }
+
+    function setSendSharesGate(address newSendSharesGate) external {
+        timelocked();
+        sendSharesGate = newSendSharesGate;
+        emit EventsLib.SetSendSharesGate(newSendSharesGate);
     }
 
     function setReceiveAssetsGate(address newReceiveAssetsGate) external {
@@ -347,25 +373,28 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
     }
 
-    function setIsAdapter(address account, bool newIsAdapter) external {
+    function addAdapter(address account) external {
         timelocked();
+        if (!isAdapter[account]) {
+            adapters.push(account);
+            isAdapter[account] = true;
+        }
+        emit EventsLib.AddAdapter(account);
+    }
 
-        if (isAdapter[account] != newIsAdapter) {
-            if (newIsAdapter) {
-                adapters.push(account);
-            } else {
-                for (uint256 i = 0; i < adapters.length; i++) {
-                    if (adapters[i] == account) {
-                        adapters[i] = adapters[adapters.length - 1];
-                        adapters.pop();
-                        break;
-                    }
+    function removeAdapter(address account) external {
+        timelocked();
+        if (isAdapter[account]) {
+            for (uint256 i = 0; i < adapters.length; i++) {
+                if (adapters[i] == account) {
+                    adapters[i] = adapters[adapters.length - 1];
+                    adapters.pop();
+                    break;
                 }
             }
-            isAdapter[account] = newIsAdapter;
+            isAdapter[account] = false;
         }
-
-        emit EventsLib.SetIsAdapter(account, newIsAdapter);
+        emit EventsLib.RemoveAdapter(account);
     }
 
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
@@ -390,7 +419,7 @@ contract VaultV2 is IVaultV2 {
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockCapIsFixed());
-        require(timelock[selector] != type(uint256).max, ErrorsLib.InfiniteTimelock());
+        require(timelock[selector] != type(uint256).max, ErrorsLib.Abdicated());
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
@@ -481,17 +510,6 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.DecreaseRelativeCap(msg.sender, id, idData, newRelativeCap);
     }
 
-    function setMaxRate(uint256 newMaxRate) external {
-        timelocked();
-        require(newMaxRate <= MAX_MAX_RATE, ErrorsLib.MaxRateTooHigh());
-
-        accrueInterest();
-
-        // Safe because newMaxRate <= MAX_MAX_RATE < 2**64-1.
-        maxRate = uint64(newMaxRate);
-        emit EventsLib.SetMaxRate(newMaxRate);
-    }
-
     function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external {
         timelocked();
         require(newForceDeallocatePenalty <= MAX_FORCE_DEALLOCATE_PENALTY, ErrorsLib.PenaltyTooHigh());
@@ -560,6 +578,17 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetLiquidityAdapterAndData(msg.sender, newLiquidityAdapter, newLiquidityData);
     }
 
+    function setMaxRate(uint256 newMaxRate) external {
+        require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
+        require(newMaxRate <= MAX_MAX_RATE, ErrorsLib.MaxRateTooHigh());
+
+        accrueInterest();
+
+        // Safe because newMaxRate <= MAX_MAX_RATE < 2**64-1.
+        maxRate = uint64(newMaxRate);
+        emit EventsLib.SetMaxRate(newMaxRate);
+    }
+
     /* EXCHANGE RATE FUNCTIONS */
 
     function accrueInterest() public {
@@ -574,8 +603,10 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev Returns newTotalAssets, performanceFeeShares, managementFeeShares.
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
-    /// @dev The performance and management fees are taken even if the vault incurs some losses.
+    /// @dev The management fees is taken even if the vault incurs some losses.
     /// @dev Both fees are rounded down, so fee recipients could receive less than expected.
+    /// @dev The performance fee is taken on the "distributed interest" (which differs from the "real interest" because
+    /// of the max rate).
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         if (firstTotalAssets != 0) return (_totalAssets, 0, 0);
         uint256 elapsed = block.timestamp - lastUpdate;
@@ -636,11 +667,13 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns corresponding shares (rounded down).
+    /// @dev Takes into account performance and management fees.
     function convertToShares(uint256 assets) external view returns (uint256) {
         return previewDeposit(assets);
     }
 
     /// @dev Returns corresponding assets (rounded down).
+    /// @dev Takes into account performance and management fees.
     function convertToAssets(uint256 shares) external view returns (uint256) {
         return previewRedeem(shares);
     }
@@ -693,10 +726,9 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
         _totalAssets += assets.toUint128();
-        if (liquidityAdapter != address(0)) {
-            allocateInternal(liquidityAdapter, liquidityData, assets);
-        }
         emit EventsLib.Deposit(msg.sender, onBehalf, assets, shares);
+
+        if (liquidityAdapter != address(0)) allocateInternal(liquidityAdapter, liquidityData, assets);
     }
 
     /// @dev Returns redeemed shares.
@@ -732,7 +764,6 @@ contract VaultV2 is IVaultV2 {
 
         deleteShares(onBehalf, shares);
         _totalAssets -= assets.toUint128();
-
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }
@@ -834,20 +865,20 @@ contract VaultV2 is IVaultV2 {
 
     /* PERMISSIONED TOKEN FUNCTIONS */
 
-    function canSendShares(address account) public view returns (bool) {
-        return sharesGate == address(0) || ISharesGate(sharesGate).canSendShares(account);
-    }
-
     function canReceiveShares(address account) public view returns (bool) {
-        return sharesGate == address(0) || ISharesGate(sharesGate).canReceiveShares(account);
+        return receiveSharesGate == address(0) || IReceiveSharesGate(receiveSharesGate).canReceiveShares(account);
     }
 
-    function canSendAssets(address account) public view returns (bool) {
-        return sendAssetsGate == address(0) || ISendAssetsGate(sendAssetsGate).canSendAssets(account);
+    function canSendShares(address account) public view returns (bool) {
+        return sendSharesGate == address(0) || ISendSharesGate(sendSharesGate).canSendShares(account);
     }
 
     function canReceiveAssets(address account) public view returns (bool) {
         return account == address(this) || receiveAssetsGate == address(0)
             || IReceiveAssetsGate(receiveAssetsGate).canReceiveAssets(account);
+    }
+
+    function canSendAssets(address account) public view returns (bool) {
+        return sendAssetsGate == address(0) || ISendAssetsGate(sendAssetsGate).canSendAssets(account);
     }
 }
