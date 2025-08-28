@@ -321,10 +321,8 @@ contract VaultV2 is IVaultV2 {
         require(executableAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
         bytes4 selector = bytes4(data);
-        uint256 timelock = selector != IVaultV2.decreaseTimelock.selector
-            ? timelock[bytes4(data[4:8]);
-            : timelock[selector]; 
-        executableAt[data] = block.timestamp + timelock;
+        bytes4 timelockSelector = selector == IVaultV2.decreaseTimelock.selector ? bytes4(data[4:8]) : selector;
+        executableAt[data] = block.timestamp + timelock[timelockSelector];
         emit EventsLib.Submit(selector, data, executableAt[data]);
     }
 
@@ -399,7 +397,8 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev This function require great caution because it can irreversibly disable submit for a selector.
-    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial executableAt.
+    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
+    /// executableAt.
     /// previous timelock duration.
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
