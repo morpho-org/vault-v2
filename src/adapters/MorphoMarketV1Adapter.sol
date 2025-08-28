@@ -13,12 +13,14 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 /// @dev Morpho Market v1 is also known as Morpho Blue.
 /// @dev This adapter must be used with Morpho Market v1 that are protected against inflation attacks with an initial
 /// supply. Following resource is relevant: https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
-/// @dev Must not be used with a Morpho Market v1 with an Irm that can re-enter the parent vault.
+/// @dev Must not be used with a Morpho Market v1 with an Irm that can re-enter the parent vault or the adapter.
 /// @dev Losses that correspond to rounding errors are realizable.
 /// @dev If expectedSupplyAssets reverts for a market of the marketParamsList, realAssets will revert and the vault will
 /// not be able to accrueInterest.
 /// @dev Upon interest accrual, the vault calls realAssets(). If there are too many markets, it could cause issues such
 /// as expensive interactions, even DOS, because of the gas.
+/// @dev Shouldn't be used alongside another adapter that re-uses the last id (abi.encode("this/marketParams",
+/// address(this), marketParams)).
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MarketParamsLib for MarketParams;
 

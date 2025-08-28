@@ -68,6 +68,7 @@ contract BaseTest is Test {
         bytes32 strippedValue = (value >> 192) << 192;
         assertLe(newTotalAssets, type(uint192).max, "wrong written value");
         vm.store(address(vault), TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT, strippedValue | bytes32(newTotalAssets));
+        assertEq(vault._totalAssets(), newTotalAssets, "writeTotalAssets failed");
     }
 
     function increaseAbsoluteCap(bytes memory idData, uint256 absoluteCap) internal {

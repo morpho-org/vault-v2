@@ -3,6 +3,7 @@
 pragma solidity ^0.8.0;
 
 library ErrorsLib {
+    error Abdicated();
     error AbsoluteCapExceeded();
     error AbsoluteCapNotDecreasing();
     error AbsoluteCapNotIncreasing();
@@ -18,7 +19,6 @@ library ErrorsLib {
     error DataNotTimelocked();
     error FeeInvariantBroken();
     error FeeTooHigh();
-    error InfiniteTimelock();
     error InvalidSigner();
     error MaxRateTooHigh();
     error NoCode();
