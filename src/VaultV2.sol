@@ -102,7 +102,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// - Adapters should not revert on realAssets.
 /// - The token should not revert on transfer and transferFrom if balances and approvals are right.
 /// - The token should not revert on transfer to self.
-/// - totalAssets and totalSupply must stay below ~10^35. Initially min(1, 10^(18-decimals)) shares per asset.
+/// - totalAssets and totalSupply must stay below ~10^35. Initially there are min(1, 10^(18-decimals)) shares per asset.
 /// - The vault is pinged at least every 10 years.
 /// - Adapters must not revert on deallocate if the underlying markets are liquid.
 ///
