@@ -54,7 +54,7 @@ import {ISharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGa
 /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
 /// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
 /// for big deposits that go through the liquidity adapter.
-/// @dev Relative caps can still be manipulated by allocators (with transient deposits), but it requires capital.
+/// @dev Relative caps can still be manipulated by allocators (with short-term deposits), but it requires capital.
 ///
 /// ADAPTERS
 /// @dev Loose specification of adapters:
