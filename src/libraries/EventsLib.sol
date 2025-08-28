@@ -49,7 +49,8 @@ library EventsLib {
     event SetName(string newName);
     event SetSymbol(string newSymbol);
     event SetIsAllocator(address indexed account, bool newIsAllocator);
-    event SetSharesGate(address indexed newSharesGate);
+    event SetReceiveSharesGate(address indexed newReceiveSharesGate);
+    event SetSendSharesGate(address indexed newSendSharesGate);
     event SetReceiveAssetsGate(address indexed newReceiveAssetsGate);
     event SetSendAssetsGate(address indexed newSendAssetsGate);
     event SetRegistry(address indexed newRegistry);

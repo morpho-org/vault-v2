@@ -17,7 +17,8 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function virtualShares() external view returns (uint256);
     function owner() external view returns (address);
     function curator() external view returns (address);
-    function sharesGate() external view returns (address);
+    function receiveSharesGate() external view returns (address);
+    function sendSharesGate() external view returns (address);
     function receiveAssetsGate() external view returns (address);
     function sendAssetsGate() external view returns (address);
     function registry() external view returns (address);
@@ -65,7 +66,8 @@ interface IVaultV2 is IERC4626, IERC2612 {
 
     // Curator functions
     function setIsAllocator(address account, bool newIsAllocator) external;
-    function setSharesGate(address newSharesGate) external;
+    function setReceiveSharesGate(address newReceiveSharesGate) external;
+    function setSendSharesGate(address newSendSharesGate) external;
     function setReceiveAssetsGate(address newReceiveAssetsGate) external;
     function setSendAssetsGate(address newSendAssetsGate) external;
     function setRegistry(address newRegistry) external;

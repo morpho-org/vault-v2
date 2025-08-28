@@ -107,8 +107,7 @@ contract AccruingFunctionsTest is BaseTest {
 
     function testSetMaxRateAccruesInterest() public {
         skip(1);
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setMaxRate, (MAX_MAX_RATE)));
+        vm.prank(allocator);
         vault.setMaxRate(MAX_MAX_RATE);
         assertEq(vault.lastUpdate(), block.timestamp);
     }
