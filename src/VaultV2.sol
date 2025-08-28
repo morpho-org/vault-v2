@@ -321,8 +321,9 @@ contract VaultV2 is IVaultV2 {
         require(executableAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
         bytes4 selector = bytes4(data);
-        bytes4 timelockSelector = selector;
-        if (selector == IVaultV2.decreaseTimelock.selector) timelockSelector = bytes4(data[4:8]);
+        uint256 timelock = selector != IVaultV2.decreaseTimelock.selector
+            ? timelock[bytes4(data[4:8]);
+            : timelock[selector]; 
         executableAt[data] = block.timestamp + timelock[timelockSelector];
         emit EventsLib.Submit(selector, data, executableAt[data]);
     }
