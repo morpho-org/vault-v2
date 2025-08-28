@@ -159,7 +159,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev NatSpec comments are included only when they bring clarity.
 /// @dev The contract uses transient storage.
 /// @dev At creation, all settings are set to their default values. Notably, timelocks are zero which is useful to set
-/// up the vault quickly. Also, there are no gates so anybody can
+/// up the vault quickly. Also, there are no gates so anybody can interact with the vault
 /// interact with the vault. To prevent that, the gates configuration can be batched with the vault creation.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
