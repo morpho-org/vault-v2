@@ -117,7 +117,8 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 ///     executableAt[selector::_],
 ///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock
 /// ).
-/// @dev Nothing is checked on the timelocked data.
+/// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist, conditions
+/// are not met, etc.).
 ///
 /// GATES
 /// @dev Set to 0 to disable a gate.
