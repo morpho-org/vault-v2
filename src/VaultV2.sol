@@ -389,7 +389,7 @@ contract VaultV2 is IVaultV2 {
         if (newAdapterRegistry != address(0)) {
             for (uint256 i = 0; i < adapters.length; i++) {
                 require(
-                    IAdapterRegistry(newAdapterRegistry).isValidAdapter(adapters[i]), ErrorsLib.NotInAdapterRegistry()
+                    IAdapterRegistry(newAdapterRegistry).isInRegistry(adapters[i]), ErrorsLib.NotInAdapterRegistry()
                 );
             }
         }
@@ -401,7 +401,7 @@ contract VaultV2 is IVaultV2 {
     function addAdapter(address account) external {
         timelocked();
         require(
-            adapterRegistry == address(0) || IAdapterRegistry(adapterRegistry).isValidAdapter(account),
+            adapterRegistry == address(0) || IAdapterRegistry(adapterRegistry).isInRegistry(account),
             ErrorsLib.NotInAdapterRegistry()
         );
         if (!isAdapter[account]) {

@@ -3,5 +3,5 @@
 pragma solidity >=0.5.0;
 
 interface IAdapterRegistry {
-    function isValidAdapter(address account) external view returns (bool);
+    function isInRegistry(address account) external view returns (bool);
 }
