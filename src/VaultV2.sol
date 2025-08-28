@@ -28,6 +28,8 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev Adapters are responsible for reporting to the vault how much their investments are worth at any time, so that
 /// the vault can accrue interest and realize losses.
 /// @dev _totalAssets stores the last recorded total assets. Use totalAssets() for the updated total assets.
+/// @dev Upon interest accrual, the vault loops through adapters' realAssets(). If there are too many adapters and/or
+/// they consume too much gas on realAssets(), it could cause issues such as expensive interactions, even DOS.
 ///
 /// FIRST TOTAL ASSETS
 /// @dev The variable firstTotalAssets tracks the total assets after the first interest accrual of the transaction.
