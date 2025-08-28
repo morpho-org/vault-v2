@@ -89,8 +89,9 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev An adapter registry can be added to restrict the adapters that can be added. This is notably useful if
 /// abdicated to prove your vault will always allocate into a certain kind of adapters for business reasons.
 /// @dev If adapterRegistry is set to address(0), any adapter can be added.
-/// @dev When an adapterRegistry is set, it doesn't retroactively check already added adapters.
-/// @dev If the adapterRegistry now returns false for an already added adapter, it doesn't impact the vault.
+/// @dev When an adapterRegistry is set, it retroactively checks already added adapters.
+/// @dev If the adapterRegistry now returns false for an already added adapter, it doesn't impact the vault's
+/// functioning.
 ///
 /// LIQUIDITY ADAPTER
 /// @dev Liquidity is allocated to the liquidityAdapter on deposit/mint, and deallocated from the liquidityAdapter on
@@ -384,6 +385,15 @@ contract VaultV2 is IVaultV2 {
 
     function setAdapterRegistry(address newAdapterRegistry) external {
         timelocked();
+
+        if (newAdapterRegistry != address(0)) {
+            for (uint256 i = 0; i < adapters.length; i++) {
+                require(
+                    IAdapterRegistry(newAdapterRegistry).isValidAdapter(adapters[i]), ErrorsLib.NotInAdapterRegistry()
+                );
+            }
+        }
+
         adapterRegistry = newAdapterRegistry;
         emit EventsLib.SetAdapterRegistry(newAdapterRegistry);
     }
@@ -391,8 +401,8 @@ contract VaultV2 is IVaultV2 {
     function addAdapter(address account) external {
         timelocked();
         require(
-            adapterRegistry == address(0) || IAdapterRegistry(adapterRegistry).canAddAdapter(account),
-            ErrorsLib.CannotAddAdapter()
+            adapterRegistry == address(0) || IAdapterRegistry(adapterRegistry).isValidAdapter(account),
+            ErrorsLib.NotInAdapterRegistry()
         );
         if (!isAdapter[account]) {
             adapters.push(account);

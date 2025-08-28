@@ -239,9 +239,15 @@ contract SettersTest is BaseTest {
         assertEq(vault.adapters(0), newAdapter);
     }
 
-    function testAddAdapterRegistry(bool canAddAdapter) public {
+    function testAddAdapterRegistry(bool isValidAdapter) public {
         address newAdapter = makeAddr("newAdapter");
         address registry = makeAddr("registry");
+
+        vm.mockCall(
+            address(registry),
+            abi.encodeWithSelector(IAdapterRegistry.isValidAdapter.selector, newAdapter),
+            abi.encode(isValidAdapter)
+        );
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setAdapterRegistry, (registry)));
@@ -249,13 +255,7 @@ contract SettersTest is BaseTest {
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.addAdapter, (newAdapter)));
-
-        vm.mockCall(
-            address(registry),
-            abi.encodeWithSelector(IAdapterRegistry.canAddAdapter.selector, newAdapter),
-            abi.encode(canAddAdapter)
-        );
-        if (!canAddAdapter) vm.expectRevert(ErrorsLib.CannotAddAdapter.selector);
+        if (!isValidAdapter) vm.expectRevert(ErrorsLib.NotInAdapterRegistry.selector);
         vault.addAdapter(newAdapter);
     }
 
@@ -834,15 +834,30 @@ contract SettersTest is BaseTest {
         vault.setAdapterRegistry(newRegistry);
     }
 
-    function testSetRegistry() public {
+    function testSetRegistry(bool isValidAdapter) public {
+        address newAdapter = makeAddr("newAdapter");
         address newRegistry = makeAddr("newRegistry");
 
         vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (newAdapter)));
+        vault.addAdapter(newAdapter);
+
+        vm.mockCall(
+            address(newRegistry),
+            abi.encodeWithSelector(IAdapterRegistry.isValidAdapter.selector, newAdapter),
+            abi.encode(isValidAdapter)
+        );
+
+        vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setAdapterRegistry, (newRegistry)));
-        vm.expectEmit();
-        emit EventsLib.SetAdapterRegistry(newRegistry);
+        if (isValidAdapter) {
+            vm.expectEmit();
+            emit EventsLib.SetAdapterRegistry(newRegistry);
+        } else {
+            vm.expectRevert(ErrorsLib.NotInAdapterRegistry.selector);
+        }
         vault.setAdapterRegistry(newRegistry);
-        assertEq(vault.adapterRegistry(), newRegistry);
+        if (isValidAdapter) assertEq(vault.adapterRegistry(), newRegistry);
     }
 
     /* ALLOCATOR SETTERS */
