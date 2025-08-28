@@ -110,7 +110,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// min(
 ///     timelock[selector],
 ///     executableAt[selector::_]
-///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock,
+///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock
 /// ).
 /// @dev The timelocked data, could be not executable (function does not exist, conditions
 /// are not met, etc.).
@@ -385,6 +385,9 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.RemoveAdapter(account);
     }
 
+    /// @dev Be particularly careful as this may irreversibly disable submit for a selector.
+    /// @dev Existing timelocked operations submitted before increasing a timelock can still be executed withinthe
+    /// previous timelock duration.
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
         require(newDuration >= timelock[selector], ErrorsLib.TimelockNotIncreasing());
