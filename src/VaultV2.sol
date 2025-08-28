@@ -398,7 +398,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Be particularly careful as this may irreversibly disable submit for a selector.
-    /// @dev Existing timelocked operations submitted before increasing a timelock can still be executed withinthe
+    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial executableAt.
     /// previous timelock duration.
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
