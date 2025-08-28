@@ -72,7 +72,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// the same ids.
 /// @dev If allocations underestimate the actual assets, some assets might be lost because deallocating is impossible if
 /// the allocation is zero.
-/// @dev On allocate or deallocate, the adapters might loose some assets (total realAssets decreases), for instance due
+/// @dev On allocate or deallocate, the adapters might lose some assets (total realAssets decreases), for instance due
 /// to roundings or entry/exit fees. This loss should stay negligible compared to gas. Adapters might not statically
 /// ensure this, but the curators should not interact with markets that can create big entry/exit losses.
 /// @dev Except particular scenarios, adapters should be removed only if they have no assets. In order to ensure no
