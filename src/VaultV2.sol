@@ -145,7 +145,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev The curator cannot do actions that can directly hurt depositors without going through a timelock.
 /// @dev Allocators can move funds between markets in the boundaries set by caps without going through timelocks. They
 /// can also set the liquidity adapter and data, which can prevent deposits and/or withdrawals (it cannot prevent
-/// "in-kind redemptions" with forceDeallocate though). They can also set the maxRate.
+/// "in-kind redemptions" with forceDeallocate though). Allocators also set the maxRate.
 /// @dev Warning: if setIsAllocator is timelocked, removing an allocator will take time.
 /// @dev Roles are not "two-step", so anyone can give a role to anyone, but it does not mean that they will exercise it.
 ///
