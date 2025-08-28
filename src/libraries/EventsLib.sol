@@ -49,10 +49,12 @@ library EventsLib {
     event SetName(string newName);
     event SetSymbol(string newSymbol);
     event SetIsAllocator(address indexed account, bool newIsAllocator);
-    event SetSharesGate(address indexed newSharesGate);
+    event SetReceiveSharesGate(address indexed newReceiveSharesGate);
+    event SetSendSharesGate(address indexed newSendSharesGate);
     event SetReceiveAssetsGate(address indexed newReceiveAssetsGate);
     event SetSendAssetsGate(address indexed newSendAssetsGate);
-    event SetIsAdapter(address indexed account, bool newIsAdapter);
+    event AddAdapter(address indexed account);
+    event RemoveAdapter(address indexed account);
     event AbdicateSubmit(bytes4 indexed selector);
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event IncreaseTimelock(bytes4 indexed selector, uint256 newDuration);

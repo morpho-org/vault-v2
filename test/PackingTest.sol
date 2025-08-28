@@ -9,7 +9,7 @@ import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {Test, console} from "../lib/forge-std/src/Test.sol";
 
 // The packed slot containing both _totalAssets and lastUpdate.
-bytes32 constant TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT = bytes32(uint256(13));
+bytes32 constant TOTAL_ASSETS_AND_LAST_UPDATE_PACKED_SLOT = bytes32(uint256(14));
 
 contract PackingTest is VaultV2, Test {
     constructor() VaultV2(address(0), address(new ERC20Mock(18))) {}
