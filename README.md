@@ -130,7 +130,7 @@ It can:
 The curator's role is to curate the vault, meaning setting risk limits, gates, allocators, fees.
 Only one address can have this role.
 
-Some actions of the curator are timelockable.
+Curator actions that can safely be timelocked are timelockable.
 Once the timelock has passed, the action can be executed by anyone.
 
 It can:
