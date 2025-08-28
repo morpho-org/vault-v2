@@ -151,7 +151,7 @@ It can:
   The management fee is capped at 5% of assets under management annually.
 - [Timelockable] Set the `performanceFeeRecipient`.
 - [Timelockable] Set the `managementFeeRecipient`.
-  The timelock on increase timelock should be set to a high value (e.g. 3 weeks) after the vault has been created and initial timelocks have been increased, if any.
+  The timelock of increaseTimelock should be set to a high value (e.g. 3 weeks) after the vault has been created and initial timelocks have been set.
 
 #### Allocator
 
