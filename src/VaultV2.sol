@@ -85,6 +85,13 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// allocator can allocate some assets in an adapter being removed, there should be an id exclusive to the adapter with
 /// its cap set to zero.
 ///
+/// ADAPTER REGISTRY
+/// @dev An adapter registry can be added to restrict the adapters that can be added. This is notably useful if
+/// abdicated to prove your vault will always allocate into a certain kind of adapters for business reasons.
+/// @dev If adapterRegistry is set to address(0), any adapter can be added.
+/// @dev When an adapterRegistry is set, it doesn't retroactively check already added adapters.
+/// @dev If the adapterRegistry now returns false for an already added adapter, it doesn't impact the vault.
+///
 /// LIQUIDITY ADAPTER
 /// @dev Liquidity is allocated to the liquidityAdapter on deposit/mint, and deallocated from the liquidityAdapter on
 /// withdraw/redeem if idle assets don't cover the withdrawal.
