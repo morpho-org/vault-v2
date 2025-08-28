@@ -398,7 +398,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.RemoveAdapter(account);
     }
 
-    /// @dev This function require great caution because it can irreversibly disable submit for a selector.
+    /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
     /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
     /// executableAt.
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
