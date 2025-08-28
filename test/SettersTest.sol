@@ -244,15 +244,15 @@ contract SettersTest is BaseTest {
         address registry = makeAddr("registry");
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setRegistry, (registry)));
-        vault.setRegistry(registry);
+        vault.submit(abi.encodeCall(IVaultV2.setAdapterRegistry, (registry)));
+        vault.setAdapterRegistry(registry);
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.addAdapter, (newAdapter)));
 
         vm.mockCall(
             address(registry),
-            abi.encodeWithSelector(IRegistry.canAddAdapter.selector, newAdapter),
+            abi.encodeWithSelector(IAdapterRegistry.canAddAdapter.selector, newAdapter),
             abi.encode(canAddAdapter)
         );
         if (!canAddAdapter) vm.expectRevert(ErrorsLib.CannotAddAdapter.selector);
@@ -831,18 +831,18 @@ contract SettersTest is BaseTest {
 
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
-        vault.setRegistry(newRegistry);
+        vault.setAdapterRegistry(newRegistry);
     }
 
     function testSetRegistry() public {
         address newRegistry = makeAddr("newRegistry");
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setRegistry, (newRegistry)));
+        vault.submit(abi.encodeCall(IVaultV2.setAdapterRegistry, (newRegistry)));
         vm.expectEmit();
-        emit EventsLib.SetRegistry(newRegistry);
-        vault.setRegistry(newRegistry);
-        assertEq(vault.registry(), newRegistry);
+        emit EventsLib.SetAdapterRegistry(newRegistry);
+        vault.setAdapterRegistry(newRegistry);
+        assertEq(vault.adapterRegistry(), newRegistry);
     }
 
     /* ALLOCATOR SETTERS */

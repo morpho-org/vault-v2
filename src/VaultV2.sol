@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 
 import {IVaultV2, IERC20, Caps} from "./interfaces/IVaultV2.sol";
 import {IAdapter} from "./interfaces/IAdapter.sol";
-import {IRegistry} from "./interfaces/IRegistry.sol";
+import {IAdapterRegistry} from "./interfaces/IAdapterRegistry.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
@@ -184,7 +184,7 @@ contract VaultV2 is IVaultV2 {
     address public sendSharesGate;
     address public receiveAssetsGate;
     address public sendAssetsGate;
-    address public registry;
+    address public adapterRegistry;
     mapping(address account => bool) public isSentinel;
     mapping(address account => bool) public isAllocator;
 
@@ -375,15 +375,18 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
     }
 
-    function setRegistry(address newRegistry) external {
+    function setAdapterRegistry(address newAdapterRegistry) external {
         timelocked();
-        registry = newRegistry;
-        emit EventsLib.SetRegistry(newRegistry);
+        adapterRegistry = newAdapterRegistry;
+        emit EventsLib.SetAdapterRegistry(newAdapterRegistry);
     }
 
     function addAdapter(address account) external {
         timelocked();
-        require(registry == address(0) || IRegistry(registry).canAddAdapter(account), ErrorsLib.CannotAddAdapter());
+        require(
+            adapterRegistry == address(0) || IAdapterRegistry(adapterRegistry).canAddAdapter(account),
+            ErrorsLib.CannotAddAdapter()
+        );
         if (!isAdapter[account]) {
             adapters.push(account);
             isAdapter[account] = true;

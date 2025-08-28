@@ -2,6 +2,6 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity >=0.5.0;
 
-interface IRegistry {
+interface IAdapterRegistry {
     function canAddAdapter(address account) external view returns (bool);
 }
