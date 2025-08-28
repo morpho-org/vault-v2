@@ -183,6 +183,7 @@ contract VaultV2 is IVaultV2 {
     address public sendSharesGate;
     address public receiveAssetsGate;
     address public sendAssetsGate;
+    address public registry;
     mapping(address account => bool) public isSentinel;
     mapping(address account => bool) public isAllocator;
 
