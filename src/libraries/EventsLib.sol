@@ -52,7 +52,7 @@ library EventsLib {
     event SetSharesGate(address indexed newSharesGate);
     event SetReceiveAssetsGate(address indexed newReceiveAssetsGate);
     event SetSendAssetsGate(address indexed newSendAssetsGate);
-    event SetWhitelister(address indexed newWhitelister);
+    event SetRegistry(address indexed newRegistry);
     event AddAdapter(address indexed account);
     event RemoveAdapter(address indexed account);
     event AbdicateSubmit(bytes4 indexed selector);

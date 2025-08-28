@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 
 import {IVaultV2, IERC20, Caps} from "./interfaces/IVaultV2.sol";
 import {IAdapter} from "./interfaces/IAdapter.sol";
-import {IWhitelister} from "./interfaces/IWhitelister.sol";
+import {IRegistry} from "./interfaces/IRegistry.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
@@ -169,7 +169,7 @@ contract VaultV2 is IVaultV2 {
     address public sharesGate;
     address public receiveAssetsGate;
     address public sendAssetsGate;
-    address public whitelister;
+    address public registry;
     mapping(address account => bool) public isSentinel;
     mapping(address account => bool) public isAllocator;
 
@@ -354,15 +354,15 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
     }
 
-    function setWhitelister(address newWhitelister) external {
+    function setRegistry(address newRegistry) external {
         timelocked();
-        whitelister = newWhitelister;
-        emit EventsLib.SetWhitelister(newWhitelister);
+        registry = newRegistry;
+        emit EventsLib.SetRegistry(newRegistry);
     }
 
     function addAdapter(address account) external {
         timelocked();
-        require(whitelister == address(0) || IWhitelister(whitelister).whitelisted(account), ErrorsLib.NotWhitelisted());
+        require(registry == address(0) || IRegistry(registry).canAddAdapter(account), ErrorsLib.CannotAddAdapter());
         if (!isAdapter[account]) {
             adapters.push(account);
             isAdapter[account] = true;

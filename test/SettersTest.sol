@@ -219,7 +219,7 @@ contract SettersTest is BaseTest {
         assertFalse(vault.isAllocator(newAllocator));
     }
 
-    function testAddAdapterNoWhitelister(address rdm) public {
+    function testAddAdapterNoRegistry(address rdm) public {
         vm.assume(rdm != curator);
         address newAdapter = makeAddr("newAdapter");
 
@@ -239,23 +239,23 @@ contract SettersTest is BaseTest {
         assertEq(vault.adapters(0), newAdapter);
     }
 
-    function testAddAdapterWhitelister(bool whitelisted) public {
+    function testAddAdapterRegistry(bool canAddAdapter) public {
         address newAdapter = makeAddr("newAdapter");
-        address whitelister = makeAddr("whitelister");
+        address registry = makeAddr("registry");
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setWhitelister, (whitelister)));
-        vault.setWhitelister(whitelister);
+        vault.submit(abi.encodeCall(IVaultV2.setRegistry, (registry)));
+        vault.setRegistry(registry);
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.addAdapter, (newAdapter)));
 
         vm.mockCall(
-            address(whitelister),
-            abi.encodeWithSelector(IWhitelister.whitelisted.selector, newAdapter),
-            abi.encode(whitelisted)
+            address(registry),
+            abi.encodeWithSelector(IRegistry.canAddAdapter.selector, newAdapter),
+            abi.encode(canAddAdapter)
         );
-        if (!whitelisted) vm.expectRevert(ErrorsLib.NotWhitelisted.selector);
+        if (!canAddAdapter) vm.expectRevert(ErrorsLib.CannotAddAdapter.selector);
         vault.addAdapter(newAdapter);
     }
 
@@ -809,24 +809,24 @@ contract SettersTest is BaseTest {
         assertEq(vault.sendAssetsGate(), newSendAssetsGate);
     }
 
-    function testSetWhitelisterTimelocked(address rdm) public {
+    function testSetRegistryTimelocked(address rdm) public {
         vm.assume(rdm != curator);
-        address newWhitelister = makeAddr("newWhitelister");
+        address newRegistry = makeAddr("newRegistry");
 
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
         vm.prank(rdm);
-        vault.setWhitelister(newWhitelister);
+        vault.setRegistry(newRegistry);
     }
 
-    function testSetWhitelister() public {
-        address newWhitelister = makeAddr("newWhitelister");
+    function testSetRegistry() public {
+        address newRegistry = makeAddr("newRegistry");
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setWhitelister, (newWhitelister)));
+        vault.submit(abi.encodeCall(IVaultV2.setRegistry, (newRegistry)));
         vm.expectEmit();
-        emit EventsLib.SetWhitelister(newWhitelister);
-        vault.setWhitelister(newWhitelister);
-        assertEq(vault.whitelister(), newWhitelister);
+        emit EventsLib.SetRegistry(newRegistry);
+        vault.setRegistry(newRegistry);
+        assertEq(vault.registry(), newRegistry);
     }
 
     /* ALLOCATOR SETTERS */
