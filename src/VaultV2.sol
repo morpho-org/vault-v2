@@ -27,7 +27,6 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 ///
 /// LOSS REALIZATION
 /// @dev Loss realization occurs in accrueInterest and decreases the total assets, causing shares to lose value.
-/// @dev No mechanism is implemented at the vault level to reimburse depositors for these losses.
 /// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
 /// because flashloan-based shorting is prevented as interests and losses are only accounted once per transaction.
 ///
@@ -35,9 +34,9 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev The share price can go down if the vault incurs some losses. Users might want to perform slippage checks upon
 /// withdraw/redeem via an other contract.
 /// @dev Interest/loss are accounted only once per transaction (at the first interaction with the vault).
-/// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). Donations increase the
-/// share price but not faster than the maxRate, and the interest are accrued only once per transaction. In order to
-/// protect against inflation attacks, the vault might need to be seeded with an initial deposit. See
+/// @dev Donations increase the share price but not faster than the maxRate.
+/// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). In order to protect against
+/// inflation attacks, the vault might need to be seeded with an initial deposit. See
 /// https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
 ///
 /// CAPS
@@ -47,15 +46,14 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev The caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
 /// @dev Relative caps are "soft" in the sense that they are not checked on exit.
 /// @dev Caps can be exceeded because of interest.
-/// @dev The relative cap is relative to totalAssets, or more precisely to firstTotalAssets.
+/// @dev The relative cap is relative to totalAssets (or more precisely to firstTotalAssets), not realAssets.
 /// @dev The relative cap unit is WAD.
 /// @dev To track allocations using events, use the Allocate and Deallocate events only.
 ///
 /// FIRST TOTAL ASSETS
 /// @dev The variable firstTotalAssets tracks the total assets after the first interest accrual of the transaction.
-/// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans.
-/// @dev This mechanism can generate false positives on relative cap breach when such a cap is nearly reached,
-/// for big deposits that go through the liquidity adapter.
+/// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans. This mechanism makes the
+/// caps conservative and can generate false positives, notably for big deposits that go through the liquidity adapter.
 /// @dev Relative caps can still be manipulated by allocators (with short-term deposits), but it requires capital.
 ///
 /// ADAPTERS
@@ -75,8 +73,6 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// allocation is zero. This prevents interactions with zero assets with unknown markets. For markets that share all
 /// their ids, it will be impossible to "disable" them (preventing any interaction) without disabling the others using
 /// the same ids.
-/// @dev If allocations underestimate the actual assets, some assets might be lost because deallocating is impossible if
-/// the allocation is zero.
 /// @dev On allocate or deallocate, the adapters might lose some assets (total realAssets decreases), for instance due
 /// to roundings or entry/exit fees. This loss should stay negligible compared to gas. Adapters might not statically
 /// ensure this, but the curators should not interact with markets that can create big entry/exit losses.
@@ -96,20 +92,18 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// TOKEN REQUIREMENTS
 /// @dev List of assumptions on the token that guarantees that the vault behaves as expected:
 /// - It should be ERC-20 compliant, except that it can omit return values on transfer and transferFrom.
-/// - The balance of the vault should only decrease on transfer and transferFrom. In particular, tokens with burn
-/// functions are not supported.
+/// - The balance of the vault should only decrease on transfer and transferFrom.
 /// - It should not re-enter the vault on transfer or transferFrom.
 /// - The balance of the sender (resp. receiver) should decrease (resp. increase) by exactly the given amount on
 /// transfer and transferFrom. In particular, tokens with fees on transfer are not supported.
 ///
 /// LIVENESS REQUIREMENTS
 /// @dev List of assumptions that guarantees the vault's liveness properties:
-/// - Adapters should not revert on realAssets, otherwise accrueInterestView reverts.
+/// - Adapters should not revert on realAssets.
 /// - The token should not revert on transfer and transferFrom if balances and approvals are right.
 /// - The token should not revert on transfer to self.
-/// - totalAssets and totalSupply must stay below ~10^35. When taking this into account, note that for assets with
-/// decimals <= 18 there are initially 10^(18-decimals) shares per asset.
-/// - The vault is pinged more than once every 10 years.
+/// - totalAssets and totalSupply must stay below ~10^35. Initially min(1, 10^(18-decimals)) shares per asset.
+/// - The vault is pinged at least every 10 years.
 /// - Adapters must not revert on deallocate if the underlying markets are liquid.
 ///
 /// TIMELOCKS
@@ -123,8 +117,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 ///     executableAt[selector::_],
 ///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock
 /// ).
-/// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist, conditions
-/// are not met, etc.).
+/// @dev Nothing is checked on the timelocked data.
 ///
 /// GATES
 /// @dev Set to 0 to disable a gate.
@@ -152,7 +145,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev The curator cannot do actions that can directly hurt depositors without going through a timelock.
 /// @dev Allocators can move funds between markets in the boundaries set by caps without going through timelocks. They
 /// can also set the liquidity adapter and data, which can prevent deposits and/or withdrawals (it cannot prevent
-/// "in-kind redemptions" with forceDeallocate though).
+/// "in-kind redemptions" with forceDeallocate though). They can also set the maxRate.
 /// @dev Warning: if setIsAllocator is timelocked, removing an allocator will take time.
 /// @dev Roles are not "two-step", so anyone can give a role to anyone, but it does not mean that they will exercise it.
 ///
@@ -484,7 +477,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(newAbsoluteCap <= caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotDecreasing());
 
-        // Safe by invariant: config.absoluteCap fits in 128 bits.
+        // Safe because newAbsoluteCap <= absoluteCap < 2**128.
         caps[id].absoluteCap = uint128(newAbsoluteCap);
         emit EventsLib.DecreaseAbsoluteCap(msg.sender, id, idData, newAbsoluteCap);
     }
@@ -495,7 +488,7 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
         require(newRelativeCap >= caps[id].relativeCap, ErrorsLib.RelativeCapNotIncreasing());
 
-        // Safe since WAD fits in 128 bits.
+        // Safe because WAD < 2**128.
         caps[id].relativeCap = uint128(newRelativeCap);
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
@@ -505,7 +498,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(newRelativeCap <= caps[id].relativeCap, ErrorsLib.RelativeCapNotDecreasing());
 
-        // Safe since WAD fits in 128 bits.
+        // Safe because WAD < 2**128.
         caps[id].relativeCap = uint128(newRelativeCap);
         emit EventsLib.DecreaseRelativeCap(msg.sender, id, idData, newRelativeCap);
     }
