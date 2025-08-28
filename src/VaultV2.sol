@@ -324,7 +324,7 @@ contract VaultV2 is IVaultV2 {
         uint256 timelock = selector != IVaultV2.decreaseTimelock.selector
             ? timelock[bytes4(data[4:8]);
             : timelock[selector]; 
-        executableAt[data] = block.timestamp + timelock[timelockSelector];
+        executableAt[data] = block.timestamp + timelock;
         emit EventsLib.Submit(selector, data, executableAt[data]);
     }
 
