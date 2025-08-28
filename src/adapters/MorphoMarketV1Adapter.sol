@@ -21,6 +21,8 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 /// as expensive interactions, even DOS, because of the gas.
 /// @dev Shouldn't be used alongside another adapter that re-uses the last id (abi.encode("this/marketParams",
 /// address(this), marketParams)).
+/// @dev Markets get removed from the marketParamsList when the allocation is zero, but it doesn't mean that the adapter
+/// has zero shares on the market.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MarketParamsLib for MarketParams;
 
