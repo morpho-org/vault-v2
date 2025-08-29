@@ -321,7 +321,8 @@ contract VaultV2 is IVaultV2 {
 
         bytes4 selector = bytes4(data);
 
-        uint _timelock = selector == IVaultV2.decreaseTimelock.selector ? timelock[bytes4(data[4:8])] : timelock[selector];
+        uint256 _timelock =
+            selector == IVaultV2.decreaseTimelock.selector ? timelock[bytes4(data[4:8])] : timelock[selector];
 
         executableAt[data] = block.timestamp + _timelock;
 
@@ -403,7 +404,7 @@ contract VaultV2 is IVaultV2 {
     /// executableAt.
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
-        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.DecreaseTimelockTimelockIsAutomatic());
+        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.DecreaseTimelockAutomaticallyTimelocked());
         require(newDuration >= timelock[selector], ErrorsLib.TimelockNotIncreasing());
 
         timelock[selector] = newDuration;
@@ -412,7 +413,7 @@ contract VaultV2 is IVaultV2 {
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
-        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.DecreaseTimelockTimelockIsAutomatic());
+        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.DecreaseTimelockAutomaticallyTimelocked());
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
