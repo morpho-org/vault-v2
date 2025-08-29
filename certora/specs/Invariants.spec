@@ -24,6 +24,7 @@ methods {
     function balanceOf(address) external returns uint256 envfree;
 
     function Utils.wad() external returns uint256 envfree;
+    function Utils.timelockCap() external returns uint256 envfree;
     function Utils.maxPerformanceFee() external returns uint256 envfree;
     function Utils.maxManagementFee() external returns uint256 envfree;
     function Utils.maxForceDeallocatePenalty() external returns uint256 envfree;
@@ -60,6 +61,9 @@ strong invariant forceDeallocatePenalty(address adapter)
 
 strong invariant balanceOfZero()
     balanceOf(0) == 0;
+
+strong invariant timelockBounds(bytes4 selector)
+    timelock(selector) <= Utils.timelockCap() || timelock(selector) == max_uint256;
 
 strong invariant decreaseTimelockTimelock()
     timelock(decreaseTimelockSelector()) == 0;

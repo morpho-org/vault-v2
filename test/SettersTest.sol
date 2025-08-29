@@ -4,8 +4,6 @@ pragma solidity ^0.8.0;
 
 import "./BaseTest.sol";
 
-uint256 constant TEST_TIMELOCK_CAP = 3 * 365 days;
-
 contract SettersTest is BaseTest {
     function setUp() public override {
         super.setUp();
@@ -140,7 +138,7 @@ contract SettersTest is BaseTest {
         public
     {
         if (selector != IVaultV2.decreaseTimelock.selector) {
-            oldDuration = bound(oldDuration, 1, TEST_TIMELOCK_CAP);
+            oldDuration = bound(oldDuration, 1, TIMELOCK_CAP);
         } else {
             oldDuration = 0;
         }
@@ -208,7 +206,7 @@ contract SettersTest is BaseTest {
     }
 
     function testTimelocked(uint256 timelock) public {
-        timelock = bound(timelock, 1, TEST_TIMELOCK_CAP);
+        timelock = bound(timelock, 1, TIMELOCK_CAP);
 
         // Setup.
         vm.prank(curator);
@@ -306,7 +304,7 @@ contract SettersTest is BaseTest {
 
     function testIncreaseTimelock(address rdm, bytes4 selector, uint256 newTimelock) public {
         vm.assume(rdm != curator);
-        newTimelock = bound(newTimelock, 0, TEST_TIMELOCK_CAP);
+        newTimelock = bound(newTimelock, 0, TIMELOCK_CAP);
         vm.assume(selector != IVaultV2.decreaseTimelock.selector);
 
         // Nobody can set directly
@@ -322,19 +320,25 @@ contract SettersTest is BaseTest {
         vm.prank(rdm);
         vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (selector, newTimelock)));
 
+        // Can't go over timelock cap
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (selector, TIMELOCK_CAP + 1)));
+        vm.expectRevert(ErrorsLib.TimelockDurationTooHigh.selector);
+        vault.increaseTimelock(selector, TIMELOCK_CAP + 1);
+
         // Normal path
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (selector, newTimelock)));
         vm.expectEmit();
         emit EventsLib.IncreaseTimelock(selector, newTimelock);
-        skip(TEST_TIMELOCK_CAP);
+        skip(TIMELOCK_CAP);
         vault.increaseTimelock(selector, newTimelock);
         assertEq(vault.timelock(selector), newTimelock);
 
         // Cannot increase decreaseTimelock's timelock
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (IVaultV2.decreaseTimelock.selector, 1 weeks)));
-        // skip(TEST_TIMELOCK_CAP);
+        // skip(TIMELOCK_CAP);
         vm.expectRevert(ErrorsLib.TimelockIsAutomatic.selector);
         vault.increaseTimelock(IVaultV2.decreaseTimelock.selector, 1 weeks);
 
@@ -342,16 +346,71 @@ contract SettersTest is BaseTest {
         if (newTimelock > 0) {
             vm.prank(curator);
             vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (selector, newTimelock - 1)));
-            skip(TEST_TIMELOCK_CAP);
+            skip(TIMELOCK_CAP);
             vm.expectRevert(ErrorsLib.TimelockNotIncreasing.selector);
             vault.increaseTimelock(selector, newTimelock - 1);
         }
     }
 
+    function testAbdicateSubmitRevertsOnSubmit(address rdm, bytes4 selector) public {
+        vm.assume(rdm != curator);
+        vm.assume(selector != IVaultV2.decreaseTimelock.selector);
+
+        // Nobody can set directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.abdicateSubmit(selector);
+
+        // Can't abdicate submit decreaseTimelock
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.abdicateSubmit, (IVaultV2.decreaseTimelock.selector)));
+        vm.expectRevert(ErrorsLib.TimelockIsAutomatic.selector);
+        vault.abdicateSubmit(IVaultV2.decreaseTimelock.selector);
+
+        // Can abdicate submit
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.abdicateSubmit, (selector)));
+        vm.expectEmit();
+        emit EventsLib.AbdicateSubmit(selector);
+        skip(TIMELOCK_CAP);
+        vault.abdicateSubmit(selector);
+        assertEq(vault.timelock(selector), type(uint256).max);
+
+        // Submit is abdicated
+        vm.expectRevert(ErrorsLib.Abdicated.selector);
+        vm.prank(curator);
+        vault.submit(abi.encode(selector));
+
+        vm.expectRevert(ErrorsLib.Abdicated.selector);
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, 1 weeks)));
+    }
+
+    function testAbdicateSubmitStopsInFlightDecreaseTimelock(address rdm, bytes4 selector) public {
+        vm.assume(rdm != curator);
+        vm.assume(selector != IVaultV2.decreaseTimelock.selector);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, 1 weeks)));
+
+        // Can abdicate submit
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.abdicateSubmit, (selector)));
+        vm.expectEmit();
+        emit EventsLib.AbdicateSubmit(selector);
+        skip(TIMELOCK_CAP);
+        vault.abdicateSubmit(selector);
+        assertEq(vault.timelock(selector), type(uint256).max);
+
+        vm.prank(curator);
+        vm.expectRevert(ErrorsLib.Abdicated.selector);
+        vault.decreaseTimelock(selector, 1 weeks);
+    }
+
     function testDecreaseTimelock(address rdm, bytes4 selector, uint256 oldTimelock, uint256 newTimelock) public {
         vm.assume(rdm != curator);
         vm.assume(selector != IVaultV2.decreaseTimelock.selector);
-        oldTimelock = bound(oldTimelock, 1, TEST_TIMELOCK_CAP);
+        oldTimelock = bound(oldTimelock, 1, TIMELOCK_CAP);
         newTimelock = bound(newTimelock, 0, oldTimelock);
 
         vm.prank(curator);

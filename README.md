@@ -130,7 +130,7 @@ It can:
 The curator's role is to curate the vault, meaning setting risk limits, gates, allocators, fees.
 Only one address can have this role.
 
-Curator actions are timelockable, except decreaseAbsoluteCap and decreaseRelativeCap.
+Curator actions are timelockable (between 0 and 365 days, or infinite if the action has been abdicated), except decreaseAbsoluteCap and decreaseRelativeCap.
 Once the timelock has passed, the action can be executed by anyone.
 
 It can:
@@ -151,6 +151,7 @@ It can:
   The management fee is capped at 5% of assets under management annually.
 - [Timelockable] Set the `performanceFeeRecipient`.
 - [Timelockable] Set the `managementFeeRecipient`.
+- [Timelockable] Abdicate submitting of an action.
   The timelock of increaseTimelock should be set to a safe value that gives time to detect mistakes (e.g. 1 day) after the vault has been created and initial timelocks have been set.
 
 #### Allocator

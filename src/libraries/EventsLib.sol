@@ -55,6 +55,7 @@ library EventsLib {
     event SetSendAssetsGate(address indexed newSendAssetsGate);
     event AddAdapter(address indexed account);
     event RemoveAdapter(address indexed account);
+    event AbdicateSubmit(bytes4 indexed selector);
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event IncreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event SetLiquidityAdapterAndData(

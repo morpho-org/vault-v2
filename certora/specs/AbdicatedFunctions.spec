@@ -11,6 +11,13 @@ methods {
     function Utils.toBytes4(bytes) external returns bytes4 envfree;
 }
 
+// Check that abdicating a function set their timelock to infinity.
+rule abdicatedFunctionHasInfiniteTimelock(env e, bytes4 selector) {
+    abdicateSubmit(e, selector);
+
+    assert timelock(selector) == max_uint256;
+}
+
 // Check that it is possible to set a function's timelock to uint max.
 rule abdicatedFunctionHasInfiniteTimelock(env e, bytes4 selector) {
     increaseTimelock(e, selector, max_uint256);

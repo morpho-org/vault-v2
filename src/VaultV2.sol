@@ -319,11 +319,11 @@ contract VaultV2 is IVaultV2 {
 
         bytes4 selector = bytes4(data);
 
-        if (selector == IVaultV2.decreaseTimelock.selector) {
-            executableAt[data] = block.timestamp + timelock[bytes4(data[4:8])];
-        } else {
-            executableAt[data] = block.timestamp + timelock[selector];
-        }
+        uint256 _timelock = timelock[selector == IVaultV2.decreaseTimelock.selector ? bytes4(data[4:8]) : selector];
+
+        require(_timelock != type(uint256).max, ErrorsLib.Abdicated());
+
+        executableAt[data] = block.timestamp + _timelock;
 
         emit EventsLib.Submit(selector, data, executableAt[data]);
     }
@@ -398,21 +398,33 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.RemoveAdapter(account);
     }
 
-    /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
-    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
-    /// executableAt.
+    /// @dev Existing pending operations submitted before increasing a timelock can still be executed. The increase of a
+    /// timelock only increases the timelock on future submissions.
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockIsAutomatic());
+        require(newDuration <= TIMELOCK_CAP, ErrorsLib.TimelockDurationTooHigh());
         require(newDuration >= timelock[selector], ErrorsLib.TimelockNotIncreasing());
 
         timelock[selector] = newDuration;
         emit EventsLib.IncreaseTimelock(selector, newDuration);
     }
 
+    /// @dev Irreversibly disable submit for a selector.
+    /// @dev Be particularly careful as this action is not reversible.
+    /// @dev Existing timelocked operations submitted before abdicating the selector can still be executed. The
+    /// abdication of a selector only prevents future operations to be submitted.
+    function abdicateSubmit(bytes4 selector) external {
+        timelocked();
+        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockIsAutomatic());
+        timelock[selector] = type(uint256).max;
+        emit EventsLib.AbdicateSubmit(selector);
+    }
+
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockIsAutomatic());
+        require(timelock[selector] != type(uint256).max, ErrorsLib.Abdicated());
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
