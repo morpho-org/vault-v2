@@ -61,8 +61,8 @@ strong invariant forceDeallocatePenalty(address adapter)
 strong invariant balanceOfZero()
     balanceOf(0) == 0;
 
-strong invariant totalSupplyIsSumOfBalances()
-    totalSupply() == sumOfBalances;
-
 strong invariant decreaseTimelockTimelock()
     timelock(decreaseTimelockSelector()) == 0;
+
+strong invariant totalSupplyIsSumOfBalances()
+    totalSupply() == sumOfBalances;
