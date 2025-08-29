@@ -313,6 +313,8 @@ contract VaultV2 is IVaultV2 {
 
     /* TIMELOCKS FOR CURATOR FUNCTIONS */
 
+    /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block
+    /// timestamp.
     function submit(bytes calldata data) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(executableAt[data] == 0, ErrorsLib.DataAlreadyPending());
@@ -403,7 +405,7 @@ contract VaultV2 is IVaultV2 {
     /// executableAt.
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
-        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockIsAutomatic());
+        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.DecreaseTimelockTimelockIsAutomatic());
         require(newDuration >= timelock[selector], ErrorsLib.TimelockNotIncreasing());
 
         timelock[selector] = newDuration;
@@ -412,7 +414,7 @@ contract VaultV2 is IVaultV2 {
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
-        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockIsAutomatic());
+        require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.DecreaseTimelockTimelockIsAutomatic());
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;

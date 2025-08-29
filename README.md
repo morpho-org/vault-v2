@@ -151,7 +151,7 @@ It can:
   The management fee is capped at 5% of assets under management annually.
 - [Timelockable] Set the `performanceFeeRecipient`.
 - [Timelockable] Set the `managementFeeRecipient`.
-  increaseTimelock should be used carefully, because decreaseTimelock is timelocked with the timelock itself. In particular it is possible to make an action irreversible (which is a feature in itself).
+  increaseTimelock should be used carefully, because decreaseTimelock is timelocked with the timelock itself. In particular it is possible to make an action irreversible (which is a feature in itself). A timelock of `type(uint256).max` is a recommended convention for making an action irreversible.
 
 #### Allocator
 

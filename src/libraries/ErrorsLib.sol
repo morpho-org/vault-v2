@@ -28,7 +28,7 @@ library ErrorsLib {
     error RelativeCapExceeded();
     error RelativeCapNotDecreasing();
     error RelativeCapNotIncreasing();
-    error TimelockIsAutomatic();
+    error DecreaseTimelockTimelockIsAutomatic();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();
