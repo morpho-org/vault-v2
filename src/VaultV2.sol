@@ -86,12 +86,14 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// its cap set to zero.
 ///
 /// ADAPTER REGISTRY
-/// @dev An adapter registry can be added to restrict the adapters that can be added. This is notably useful if
-/// abdicated to prove your vault will always allocate into a certain kind of adapters for business reasons.
-/// @dev If adapterRegistry is set to address(0), any adapter can be added.
+/// @dev An adapter registry can be added to restrict the adapters. This is useful to commit to using only a certain
+/// type of adapters for example.
+/// @dev If adapterRegistry is set to address(0), the vault can have any adapters.
 /// @dev When an adapterRegistry is set, it retroactively checks already added adapters.
 /// @dev If the adapterRegistry now returns false for an already added adapter, it doesn't impact the vault's
 /// functioning.
+/// @dev The invariant that adapters of the vault are all in the registry holds only if the registry cannot remove
+/// adapters (is "add only").
 ///
 /// LIQUIDITY ADAPTER
 /// @dev Liquidity is allocated to the liquidityAdapter on deposit/mint, and deallocated from the liquidityAdapter on
@@ -383,6 +385,7 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
     }
 
+    /// @dev The no-op will revert if the registry now returns false for an already added adapter.
     function setAdapterRegistry(address newAdapterRegistry) external {
         timelocked();
 
