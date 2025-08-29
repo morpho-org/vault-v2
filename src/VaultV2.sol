@@ -318,7 +318,6 @@ contract VaultV2 is IVaultV2 {
         require(executableAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
         bytes4 selector = bytes4(data);
-
         uint256 _timelock = timelock[selector == IVaultV2.decreaseTimelock.selector ? bytes4(data[4:8]) : selector];
 
         require(_timelock != type(uint256).max, ErrorsLib.Abdicated());
@@ -424,7 +423,7 @@ contract VaultV2 is IVaultV2 {
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.TimelockIsAutomatic());
-        require(timelock[selector] != type(uint256).max, ErrorsLib.Abdicated());
+        require(timelock[selector] != type(uint256).max || newDuration == type(uint256).max, ErrorsLib.Abdicated());
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
