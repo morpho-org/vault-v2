@@ -111,7 +111,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 ///
 /// TIMELOCKS
 /// @dev The timelock duration of decreaseTimelock is the timelock duration of the function whose timelock is being
-/// decreased.
+/// decreased (e.g. the timelock of decreaseTimelock(setIsAdapter, ...) is timelock[setIsAdapter]).
 /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
 /// timelocked data can potentially be changed shortly afterwards.
 /// @dev The minimum time in which a function can be called is the following:
@@ -159,8 +159,8 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev NatSpec comments are included only when they bring clarity.
 /// @dev The contract uses transient storage.
 /// @dev At creation, all settings are set to their default values. Notably, timelocks are zero which is useful to set
-/// up the vault quickly. Also, there are no gates so anybody can interact with the vault
-/// interact with the vault. To prevent that, the gates configuration can be batched with the vault creation.
+/// up the vault quickly. Also, there are no gates so anybody can interact with the vault. To prevent that, the gates
+/// configuration can be batched with the vault creation.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
     using MathLib for uint128;

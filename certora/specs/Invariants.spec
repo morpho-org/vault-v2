@@ -63,3 +63,6 @@ strong invariant balanceOfZero()
 
 strong invariant totalSupplyIsSumOfBalances()
     totalSupply() == sumOfBalances;
+
+strong invariant decreaseTimelockTimelock()
+    timelock(decreaseTimelockSelector()) == 0;

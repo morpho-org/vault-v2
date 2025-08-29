@@ -153,7 +153,6 @@ contract SettersTest is BaseTest {
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (selector, oldDuration)));
-        skip(TEST_TIMELOCK_CAP);
         vault.increaseTimelock(selector, oldDuration);
 
         // Normal path
@@ -208,7 +207,6 @@ contract SettersTest is BaseTest {
         // Setup.
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (IVaultV2.setIsAllocator.selector, timelock)));
-        skip(TEST_TIMELOCK_CAP);
         vault.increaseTimelock(IVaultV2.setIsAllocator.selector, timelock);
         assertEq(vault.timelock(IVaultV2.setIsAllocator.selector), timelock);
         bytes memory data = abi.encodeCall(IVaultV2.setIsAllocator, (address(1), true));
@@ -318,7 +316,7 @@ contract SettersTest is BaseTest {
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (selector, newTimelock)));
-        skip(TEST_TIMELOCK_CAP);
+        // skip(TEST_TIMELOCK_CAP);
 
         // Normal path
         vm.prank(curator);
@@ -347,7 +345,6 @@ contract SettersTest is BaseTest {
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (selector, oldTimelock)));
-        skip(TEST_TIMELOCK_CAP);
         vault.increaseTimelock(selector, oldTimelock);
 
         // Nobody can set directly
@@ -364,14 +361,14 @@ contract SettersTest is BaseTest {
         // Can't increase timelock with decreaseTimelock
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, oldTimelock + 1)));
-        skip(TEST_TIMELOCK_CAP);
+        skip(oldTimelock);
         vm.expectRevert(ErrorsLib.TimelockNotDecreasing.selector);
         vault.decreaseTimelock(selector, oldTimelock + 1);
 
         // Normal path
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, newTimelock)));
-        skip(TEST_TIMELOCK_CAP);
+        skip(oldTimelock);
         vm.expectEmit();
         emit EventsLib.DecreaseTimelock(selector, newTimelock);
         vault.decreaseTimelock(selector, newTimelock);
