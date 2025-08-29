@@ -8,6 +8,7 @@ methods {
 
     function owner() external returns address envfree;
     function curator() external returns address envfree;
+    function adapterRegistry() external returns address envfree;
     function isSentinel(address) external returns bool envfree;
     function lastUpdate() external returns uint64 envfree;
     function totalSupply() external returns uint256 envfree;
@@ -23,6 +24,8 @@ methods {
     function isAdapter(address adapter) external returns bool envfree;
     function balanceOf(address) external returns uint256 envfree;
 
+    function _.isInRegistry(address adapter) external => ghostInInRegistry[adapter] expect bool;
+
     function Utils.wad() external returns uint256 envfree;
     function Utils.timelockCap() external returns uint256 envfree;
     function Utils.maxPerformanceFee() external returns uint256 envfree;
@@ -31,6 +34,8 @@ methods {
 }
 
 definition decreaseTimelockSelector() returns bytes4 = to_bytes4(sig:decreaseTimelock(bytes4,uint256).selector);
+
+persistent ghost mapping(address => bool) ghostInInRegistry;
 
 ghost mathint sumOfBalances {
     init_state axiom sumOfBalances == 0;
@@ -70,3 +75,7 @@ strong invariant decreaseTimelockTimelock()
 
 strong invariant totalSupplyIsSumOfBalances()
     totalSupply() == sumOfBalances;
+
+// Note: ghostInInRegistry makes it such that adapters can't be removed from the registry. Without that, the invariant doesn't hold.
+strong invariant adaptersAreInRegistry(address account)
+    adapterRegistry() != 0 => (isAdapter(account) => ghostInInRegistry[account]);
