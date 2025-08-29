@@ -151,7 +151,7 @@ It can:
   The management fee is capped at 5% of assets under management annually.
 - [Timelockable] Set the `performanceFeeRecipient`.
 - [Timelockable] Set the `managementFeeRecipient`.
-  The timelock of increaseTimelock should be set to a safe value that gives time to detect mistakes (e.g. 1 day) after the vault has been created and initial timelocks have been set.
+  increaseTimelock should be used carefully, because decreaseTimelock is timelocked with the timelock itself. In particular it is possible to make an action irreversible (which is a feature in itself).
 
 #### Allocator
 
