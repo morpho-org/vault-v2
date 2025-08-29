@@ -13,7 +13,7 @@ All the contracts are immutable.
 
 ### Adapters
 
-Vaults can allocate assets to arbitrary protocols and markets via adapters.
+Vaults can allocate assets to arbitrary protocols and markets via adapters, or use an adapter registry to add restrictions to allowed adapters.
 The curator enables adapters to hold positions on behalf of the vault.
 Adapters are also used to know how much these investments are worth (interest and loss realization).
 Because adapters hold positions in protocols where assets are allocated, they are susceptible to accrue rewards for those protocols.
@@ -141,6 +141,7 @@ It can:
 - Decrease absolute caps.
 - [Timelockable] Increase relative caps.
 - Decrease relative caps.
+- [Timelockable] Set the adapter registry.
 - [Timelockable] Set adapters.
 - [Timelockable] Set allocators.
 - Increase timelocks.

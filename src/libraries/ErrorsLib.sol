@@ -23,6 +23,7 @@ library ErrorsLib {
     error MaxRateTooHigh();
     error NoCode();
     error NotAdapter();
+    error NotInAdapterRegistry();
     error PenaltyTooHigh();
     error PermitDeadlineExpired();
     error RelativeCapAboveOne();

@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 
 import {IVaultV2, IERC20, Caps} from "./interfaces/IVaultV2.sol";
 import {IAdapter} from "./interfaces/IAdapter.sol";
+import {IAdapterRegistry} from "./interfaces/IAdapterRegistry.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
@@ -84,6 +85,16 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev Except particular scenarios, adapters should be removed only if they have no assets. In order to ensure no
 /// allocator can allocate some assets in an adapter being removed, there should be an id exclusive to the adapter with
 /// its cap set to zero.
+///
+/// ADAPTER REGISTRY
+/// @dev An adapter registry can be added to restrict the adapters. This is useful to commit to using only a certain
+/// type of adapters for example.
+/// @dev If adapterRegistry is set to address(0), the vault can have any adapters.
+/// @dev When an adapterRegistry is set, it retroactively checks already added adapters.
+/// @dev If the adapterRegistry now returns false for an already added adapter, it doesn't impact the vault's
+/// functioning.
+/// @dev The invariant that adapters of the vault are all in the registry holds only if the registry cannot remove
+/// adapters (is "add only").
 ///
 /// LIQUIDITY ADAPTER
 /// @dev Liquidity is allocated to the liquidityAdapter on deposit/mint, and deallocated from the liquidityAdapter on
@@ -182,6 +193,7 @@ contract VaultV2 is IVaultV2 {
     address public sendSharesGate;
     address public receiveAssetsGate;
     address public sendAssetsGate;
+    address public adapterRegistry;
     mapping(address account => bool) public isSentinel;
     mapping(address account => bool) public isAllocator;
 
@@ -372,8 +384,28 @@ contract VaultV2 is IVaultV2 {
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
     }
 
+    /// @dev The no-op will revert if the registry now returns false for an already added adapter.
+    function setAdapterRegistry(address newAdapterRegistry) external {
+        timelocked();
+
+        if (newAdapterRegistry != address(0)) {
+            for (uint256 i = 0; i < adapters.length; i++) {
+                require(
+                    IAdapterRegistry(newAdapterRegistry).isInRegistry(adapters[i]), ErrorsLib.NotInAdapterRegistry()
+                );
+            }
+        }
+
+        adapterRegistry = newAdapterRegistry;
+        emit EventsLib.SetAdapterRegistry(newAdapterRegistry);
+    }
+
     function addAdapter(address account) external {
         timelocked();
+        require(
+            adapterRegistry == address(0) || IAdapterRegistry(adapterRegistry).isInRegistry(account),
+            ErrorsLib.NotInAdapterRegistry()
+        );
         if (!isAdapter[account]) {
             adapters.push(account);
             isAdapter[account] = true;

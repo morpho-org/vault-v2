@@ -219,7 +219,7 @@ contract SettersTest is BaseTest {
         assertFalse(vault.isAllocator(newAllocator));
     }
 
-    function testAddAdapter(address rdm) public {
+    function testAddAdapterNoRegistry(address rdm) public {
         vm.assume(rdm != curator);
         address newAdapter = makeAddr("newAdapter");
 
@@ -237,6 +237,26 @@ contract SettersTest is BaseTest {
         assertTrue(vault.isAdapter(newAdapter));
         assertEq(vault.adaptersLength(), 1);
         assertEq(vault.adapters(0), newAdapter);
+    }
+
+    function testAddAdapterRegistry(bool isInRegistry) public {
+        address newAdapter = makeAddr("newAdapter");
+        address registry = makeAddr("registry");
+
+        vm.mockCall(
+            address(registry),
+            abi.encodeWithSelector(IAdapterRegistry.isInRegistry.selector, newAdapter),
+            abi.encode(isInRegistry)
+        );
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setAdapterRegistry, (registry)));
+        vault.setAdapterRegistry(registry);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (newAdapter)));
+        if (!isInRegistry) vm.expectRevert(ErrorsLib.NotInAdapterRegistry.selector);
+        vault.addAdapter(newAdapter);
     }
 
     function testRemoveAdapter(address rdm) public {
@@ -803,6 +823,41 @@ contract SettersTest is BaseTest {
         emit EventsLib.SetSendAssetsGate(newSendAssetsGate);
         vault.setSendAssetsGate(newSendAssetsGate);
         assertEq(vault.sendAssetsGate(), newSendAssetsGate);
+    }
+
+    function testSetRegistryTimelocked(address rdm) public {
+        vm.assume(rdm != curator);
+        address newRegistry = makeAddr("newRegistry");
+
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.setAdapterRegistry(newRegistry);
+    }
+
+    function testSetRegistry(bool isInRegistry) public {
+        address newAdapter = makeAddr("newAdapter");
+        address newRegistry = makeAddr("newRegistry");
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (newAdapter)));
+        vault.addAdapter(newAdapter);
+
+        vm.mockCall(
+            address(newRegistry),
+            abi.encodeWithSelector(IAdapterRegistry.isInRegistry.selector, newAdapter),
+            abi.encode(isInRegistry)
+        );
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setAdapterRegistry, (newRegistry)));
+        if (isInRegistry) {
+            vm.expectEmit();
+            emit EventsLib.SetAdapterRegistry(newRegistry);
+        } else {
+            vm.expectRevert(ErrorsLib.NotInAdapterRegistry.selector);
+        }
+        vault.setAdapterRegistry(newRegistry);
+        if (isInRegistry) assertEq(vault.adapterRegistry(), newRegistry);
     }
 
     /* ALLOCATOR SETTERS */
