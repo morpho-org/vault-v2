@@ -316,7 +316,6 @@ contract SettersTest is BaseTest {
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (selector, newTimelock)));
-        // skip(TEST_TIMELOCK_CAP);
 
         // Normal path
         vm.prank(curator);
