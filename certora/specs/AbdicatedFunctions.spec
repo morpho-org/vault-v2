@@ -11,18 +11,9 @@ methods {
     function Utils.toBytes4(bytes) external returns bytes4 envfree;
 }
 
-// Check that abdicating a function set their timelock to infinity.
-rule abidcatedFunctionHasInfiniteTimelock(env e, bytes4 selector) {
-    abdicateSubmit(e, selector);
-
-    assert timelock(selector) == max_uint256;
-}
-
-// Check that infinite timelocks can't be changed.
-rule inifiniteTimelockCantBeChanged(env e, method f, calldataarg data, bytes4 selector) {
-    require timelock(selector) == max_uint256;
-
-    f(e, data);
+// Check that it is possible to set a function's timelock to uint max.
+rule abdicatedFunctionHasInfiniteTimelock(env e, bytes4 selector) {
+    increaseTimelock(e, selector, max_uint256);
 
     assert timelock(selector) == max_uint256;
 }
@@ -32,6 +23,8 @@ rule abdicatedFunctionsCantBeSubmitted(env e, bytes data) {
     // Safe require in a non trivial chain.
     require e.block.timestamp > 0;
 
+    // Check that the function is not decreaseTimelock as its timelock is automatic.
+    require(Utils.toBytes4(data) != to_bytes4(sig:VaultV2.decreaseTimelock(bytes4, uint256).selector));
     // Assume that the function has been abdicated.
     require timelock(Utils.toBytes4(data)) == max_uint256;
 

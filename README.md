@@ -84,7 +84,7 @@ Vaults v2 can use external gate contracts to control share transfer, vault asset
 If a gate is not set, its corresponding operations are not restricted.
 
 Gate changes can be timelocked.
-Using `abdicateSubmit`, a curator can irreversibly commit to a gate setup.
+By setting the timelock to `type(uint256).max`, a curator can commit to an irreversible gate setup.
 
 Four gates are defined:
 
@@ -130,7 +130,7 @@ It can:
 The curator's role is to curate the vault, meaning setting risk limits, gates, allocators, fees.
 Only one address can have this role.
 
-Some actions of the curator are timelockable (between 0 and 3 weeks, or infinite if the action has been frozen).
+Curator actions are timelockable, except decreaseAbsoluteCap and decreaseRelativeCap.
 Once the timelock has passed, the action can be executed by anyone.
 
 It can:
@@ -144,16 +144,15 @@ It can:
 - [Timelockable] Set the adapter registry.
 - [Timelockable] Set adapters.
 - [Timelockable] Set allocators.
-- Increase timelocks.
-- [Timelocked 3 weeks] Decrease timelocks.
+- [Timelockable] Increase timelocks.
+- [Timelocked by the timelock being decreased] Decrease timelocks.
 - [Timelockable] Set the `performanceFee`.
   The performance fee is capped at 50% of generated interest.
 - [Timelockable] Set the `managementFee`.
   The management fee is capped at 5% of assets under management annually.
 - [Timelockable] Set the `performanceFeeRecipient`.
 - [Timelockable] Set the `managementFeeRecipient`.
-- [Timelockable] Abdicate submitting of an action.
-  The timelock on abdicate should be set to a high value (e.g. 3 weeks) after the vault has been created and initial abdications have been done, if any.
+  increaseTimelock should be used carefully, because decreaseTimelock is timelocked with the timelock itself. In particular it is possible to make an action irreversible (which is a feature in itself). A timelock of `type(uint256).max` is a recommended convention for making an action irreversible.
 
 #### Allocator
 
