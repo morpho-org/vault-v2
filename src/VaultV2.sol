@@ -346,16 +346,18 @@ contract VaultV2 is IVaultV2 {
         require(executableAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
         require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
         executableAt[msg.data] = 0;
-        pendingCount[bytes4(msg.data)]--;
-        emit EventsLib.Accept(bytes4(msg.data), msg.data);
+        bytes4 selector = bytes4(msg.data);
+        pendingCount[selector]--;
+        emit EventsLib.Accept(selector, msg.data);
     }
 
     function revoke(bytes calldata data) external {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(executableAt[data] != 0, ErrorsLib.DataNotTimelocked());
         executableAt[data] = 0;
-        pendingCount[bytes4(data)]--;
-        emit EventsLib.Revoke(msg.sender, bytes4(data), data);
+        bytes4 selector = bytes4(data);
+        pendingCount[selector]--;
+        emit EventsLib.Revoke(msg.sender, selector, data);
     }
 
     /* CURATOR FUNCTIONS */
