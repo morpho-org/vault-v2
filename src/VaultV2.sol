@@ -229,6 +229,7 @@ contract VaultV2 is IVaultV2 {
 
     mapping(bytes4 selector => uint256) public timelock;
     mapping(bytes data => uint256) public executableAt;
+    mapping(bytes4 selector => uint256) public pendingCount;
 
     /* FEES STORAGE */
 
@@ -337,6 +338,7 @@ contract VaultV2 is IVaultV2 {
         uint256 _timelock =
             selector == IVaultV2.decreaseTimelock.selector ? timelock[bytes4(data[4:8])] : timelock[selector];
         executableAt[data] = block.timestamp + _timelock;
+        pendingCount[selector]++;
         emit EventsLib.Submit(selector, data, executableAt[data]);
     }
 
@@ -344,6 +346,7 @@ contract VaultV2 is IVaultV2 {
         require(executableAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
         require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
         executableAt[msg.data] = 0;
+        pendingCount[bytes4(msg.data)]--;
         emit EventsLib.Accept(bytes4(msg.data), msg.data);
     }
 
@@ -351,6 +354,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(executableAt[data] != 0, ErrorsLib.DataNotTimelocked());
         executableAt[data] = 0;
+        pendingCount[bytes4(data)]--;
         emit EventsLib.Revoke(msg.sender, bytes4(data), data);
     }
 
