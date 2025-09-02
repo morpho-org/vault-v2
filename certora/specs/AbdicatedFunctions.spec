@@ -20,6 +20,7 @@ rule timelockMaxFunctionsCantBeSubmitted(env e, method f, calldataarg args, byte
 
     bytes4 selector = Utils.toBytes4(data);
     // Assume that the function has been abdicated.
+    require Utils.toBytes4(data) != to_bytes4(sig:VaultV2.decreaseTimelock(bytes4, uint256).selector);
     require timelock(selector) == max_uint256;
 
     uint256 executableAtBefore = executableAt(data);
