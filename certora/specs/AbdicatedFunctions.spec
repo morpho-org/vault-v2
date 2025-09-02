@@ -9,6 +9,7 @@ methods {
     function timelock(bytes4 selector) external returns uint256 envfree;
 
     function Utils.toBytes4(bytes) external returns bytes4 envfree;
+    function Utils.toBytes4(uint32) external returns bytes4 envfree;
 }
 
 // Check that it is possible to set a function's timelock to uint max.
@@ -29,5 +30,29 @@ rule abdicatedFunctionsCantBeSubmitted(env e, bytes data) {
     require timelock(Utils.toBytes4(data)) == max_uint256;
 
     submit@withrevert(e, data);
+    assert lastReverted;
+}
+
+// only for timelocked functions.
+rule abdicatedFunctionsCantBeSet(env e, method f, calldataarg args) {
+    require timelock(Utils.toBytes4(f.selector)) == max_uint256;
+    require f.selector == sig:setIsAllocator(address,bool).selector
+        || f.selector == sig:addAdapter(address).selector
+        || f.selector == sig:removeAdapter(address).selector
+        || f.selector == sig:setReceiveSharesGate(address).selector
+        || f.selector == sig:setSendSharesGate(address).selector
+        || f.selector == sig:setReceiveAssetsGate(address).selector
+        || f.selector == sig:setSendAssetsGate(address).selector
+        || f.selector == sig:increaseAbsoluteCap(bytes,uint256).selector
+        || f.selector == sig:increaseRelativeCap(bytes,uint256).selector
+        || f.selector == sig:setPerformanceFee(uint256).selector
+        || f.selector == sig:setManagementFee(uint256).selector
+        || f.selector == sig:setPerformanceFeeRecipient(address).selector
+        || f.selector == sig:setManagementFeeRecipient(address).selector
+        || f.selector == sig:setForceDeallocatePenalty(address,uint256).selector
+        || f.selector == sig:increaseTimelock(bytes4,uint256).selector
+        || f.selector == sig:decreaseTimelock(bytes4,uint256).selector;
+
+    f@withrevert(e, args);
     assert lastReverted;
 }
