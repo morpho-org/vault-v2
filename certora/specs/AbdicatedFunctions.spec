@@ -6,28 +6,56 @@ using Utils as Utils;
 methods {
     function multicall(bytes[]) external => NONDET DELETE;
 
-    function timelock(bytes4 selector) external returns uint256 envfree;
+    function timelock(bytes4) external returns uint256 envfree;
+    function pendingCount(bytes4) external returns uint256 envfree;
+    function executableAt(bytes) external returns uint256 envfree;
 
     function Utils.toBytes4(bytes) external returns bytes4 envfree;
+    function Utils.toBytes4(uint32) external returns bytes4 envfree;
 }
 
-// Check that it is possible to set a function's timelock to uint max.
-rule abdicatedFunctionHasInfiniteTimelock(env e, bytes4 selector) {
-    increaseTimelock(e, selector, max_uint256);
-
-    assert timelock(selector) == max_uint256;
-}
-
-// Check that changes corresponding to functions that have been abdicated can't be submitted.
-rule abdicatedFunctionsCantBeSubmitted(env e, bytes data) {
+rule timelockMaxFunctionsCantBeSubmitted(env e, method f, calldataarg args, bytes data) {
     // Safe require in a non trivial chain.
     require e.block.timestamp > 0;
 
-    // Check that the function is not decreaseTimelock as its timelock is automatic.
-    require(Utils.toBytes4(data) != to_bytes4(sig:VaultV2.decreaseTimelock(bytes4, uint256).selector));
+    bytes4 selector = Utils.toBytes4(data);
     // Assume that the function has been abdicated.
-    require timelock(Utils.toBytes4(data)) == max_uint256;
+    require Utils.toBytes4(data) != to_bytes4(sig:VaultV2.decreaseTimelock(bytes4, uint256).selector);
+    require timelock(selector) == max_uint256;
 
-    submit@withrevert(e, data);
+    uint256 executableAtBefore = executableAt(data);
+    uint256 pendingCountBefore = pendingCount(selector);
+
+    f(e, args);
+
+    assert pendingCount(selector) <= pendingCountBefore;
+    assert executableAt(data) == 0 || executableAt(data) == executableAtBefore;
+}
+
+rule noPendingCountCantBeSet(env e, method f, calldataarg args, bytes data) 
+filtered {
+    f -> f.selector == sig:setIsAllocator(address,bool).selector
+        || f.selector == sig:addAdapter(address).selector
+        || f.selector == sig:removeAdapter(address).selector
+        || f.selector == sig:setReceiveSharesGate(address).selector
+        || f.selector == sig:setSendSharesGate(address).selector
+        || f.selector == sig:setReceiveAssetsGate(address).selector
+        || f.selector == sig:setSendAssetsGate(address).selector
+        || f.selector == sig:increaseAbsoluteCap(bytes,uint256).selector
+        || f.selector == sig:increaseRelativeCap(bytes,uint256).selector
+        || f.selector == sig:setPerformanceFee(uint256).selector
+        || f.selector == sig:setManagementFee(uint256).selector
+        || f.selector == sig:setPerformanceFeeRecipient(address).selector
+        || f.selector == sig:setManagementFeeRecipient(address).selector
+        || f.selector == sig:setForceDeallocatePenalty(address,uint256).selector
+        || f.selector == sig:increaseTimelock(bytes4,uint256).selector
+        || f.selector == sig:decreaseTimelock(bytes4,uint256).selector
+}
+{
+    require pendingCount(Utils.toBytes4(f.selector)) == 0;
+
+    f@withrevert(e, args);
     assert lastReverted;
 }
+
+// Thus (timelock==max && pendingCount==0) => abdicated (= the function can't be called anymore).
