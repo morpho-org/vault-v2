@@ -343,6 +343,7 @@ contract VaultV2 is IVaultV2 {
     function timelocked() internal {
         require(executableAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
         require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
+        require(timelock[bytes4(msg.data)] < type(uint256).max, ErrorsLib.Abdicated());
         executableAt[msg.data] = 0;
         emit EventsLib.Accept(bytes4(msg.data), msg.data);
     }
