@@ -135,6 +135,8 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// ).
 /// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist, argument
 /// encoding is wrong, function' conditions are not met, etc.).
+/// @dev The number of pending executions for a given selectors is stored in pendingCount[selector].
+/// @dev To be sure that a timelocked function will not be called in the future, require that timelock[selector] != type(uint256).max and pendingCount[selector] == 0.
 ///
 /// GATES
 /// @dev Set to 0 to disable a gate.
