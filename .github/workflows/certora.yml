@@ -16,7 +16,6 @@ jobs:
 
       matrix:
         conf:
-          - AbdicatedFunctions
           - Gates
           - Immutability
           - Invariants
@@ -27,6 +26,7 @@ jobs:
           - PreviewFunctions
           - Reentrancy
           - SentinelLiveness
+          - Timelocks
           - TokensMorphoMarketV1Adapter
           - TokensMorphoVaultV1Adapter
           - TokensNoAdapter

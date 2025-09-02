@@ -11,28 +11,57 @@ methods {
     function executableAt(bytes) external returns uint256 envfree;
 
     function Utils.toBytes4(bytes) external returns bytes4 envfree;
-    function Utils.toBytes4(uint32) external returns bytes4 envfree;
 }
 
-rule timelockMaxFunctionsCantBeSubmitted(env e, method f, calldataarg args, bytes data) {
+// Cannot go from A>0 to B>0 (with B!=A).
+rule executableAtChange(env e, method f, calldataarg args, bytes data) {
+    uint256 executableAtBefore = executableAt(data);
+
+    f(e, args);
+
+    uint256 executableAtAfter = executableAt(data);
+    
+    assert executableAtAfter == executableAtBefore
+        || (executableAtAfter == 0 && executableAtBefore > 0)
+        || (executableAtAfter > 0 && executableAtBefore == 0);
+}
+
+rule pendingCountChange(env e, method f, calldataarg args, bytes data) {
+    bytes4 selector = Utils.toBytes4(data);
+    
+    uint256 pendingCountBefore = pendingCount(selector);
+    uint256 executableAtBefore = executableAt(data);
+
+    f(e, args);
+
+    uint256 pendingCountAfter = pendingCount(selector);
+    uint256 executableAtAfter = executableAt(data);
+    
+    // Changed only by 1 maximum.
+    assert pendingCountAfter >= pendingCountBefore - 1 && pendingCountAfter <= pendingCountBefore + 1;
+    // // If executableAt[data] changed, pendingCount should have changed accordingly.
+    // assert (executableAtBefore < executableAtAfter) => pendingCountAfter == pendingCountBefore + 1;
+    // assert (executableAtBefore > executableAtAfter) => pendingCountAfter == pendingCountBefore - 1;
+}
+
+rule countCannotIncreaseIfTimelockMax(env e, method f, calldataarg args, bytes data) {
     // Safe require in a non trivial chain.
     require e.block.timestamp > 0;
 
     bytes4 selector = Utils.toBytes4(data);
-    // Assume that the function has been abdicated.
     require Utils.toBytes4(data) != to_bytes4(sig:VaultV2.decreaseTimelock(bytes4, uint256).selector);
+    // Assume that the function has been abdicated.
     require timelock(selector) == max_uint256;
 
-    uint256 executableAtBefore = executableAt(data);
     uint256 pendingCountBefore = pendingCount(selector);
 
     f(e, args);
 
     assert pendingCount(selector) <= pendingCountBefore;
-    assert executableAt(data) == 0 || executableAt(data) == executableAtBefore;
 }
 
-rule noPendingCountCantBeSet(env e, method f, calldataarg args, bytes data) 
+// Interestingly, provable without proving anything about executableAt because the decrement would underflow anyway.
+rule cantBeSetIfCountZero(env e, method f, calldataarg args, bytes data) 
 filtered {
     f -> f.selector == sig:setIsAllocator(address,bool).selector
         || f.selector == sig:addAdapter(address).selector
@@ -52,7 +81,7 @@ filtered {
         || f.selector == sig:decreaseTimelock(bytes4,uint256).selector
 }
 {
-    require pendingCount(Utils.toBytes4(f.selector)) == 0;
+    require pendingCount(to_bytes4(f.selector)) == 0;
 
     f@withrevert(e, args);
     assert lastReverted;
