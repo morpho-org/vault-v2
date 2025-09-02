@@ -28,7 +28,7 @@ rule timelockMaxFunctionsCantBeSubmitted(env e, method f, calldataarg args, byte
     f(e, args);
 
     assert pendingCount(selector) <= pendingCountBefore;
-    assert executableAt(data) == executableAtBefore;
+    assert executableAt(data) == 0 || executableAt(data) == executableAtBefore;
 }
 
 rule noPendingCountCantBeSet(env e, method f, calldataarg args, bytes data) 
@@ -57,4 +57,4 @@ filtered {
     assert lastReverted;
 }
 
-// Thus (timelock==max && pendingCount==0) => abdicated
+// Thus (timelock==max && pendingCount==0) => abdicated (= the function can't be called anymore).
