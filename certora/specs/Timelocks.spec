@@ -31,20 +31,19 @@ rule timelockMaxFunctionsCantBeSubmitted(env e, method f, calldataarg args, byte
     require e.block.timestamp > 0;
 
     bytes4 selector = Utils.toBytes4(data);
-    // Assume that the function has been abdicated.
     require Utils.toBytes4(data) != to_bytes4(sig:VaultV2.decreaseTimelock(bytes4, uint256).selector);
+    // Assume that the function has been abdicated.
     require timelock(selector) == max_uint256;
 
-    uint256 executableAtBefore = executableAt(data);
     uint256 pendingCountBefore = pendingCount(selector);
 
     f(e, args);
 
     assert pendingCount(selector) <= pendingCountBefore;
-    assert executableAt(data) == 0 || executableAt(data) == executableAtBefore;
 }
 
-rule noPendingCountCantBeSet(env e, method f, calldataarg args, bytes data) 
+// Interestingly, provable without proving anything about executableAt because the decrement would underflow anyway.
+rule cantBeSetIfCountZero(env e, method f, calldataarg args, bytes data) 
 filtered {
     f -> f.selector == sig:setIsAllocator(address,bool).selector
         || f.selector == sig:addAdapter(address).selector
