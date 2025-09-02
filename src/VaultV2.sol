@@ -135,6 +135,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// ).
 /// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist, argument
 /// encoding is wrong, function' conditions are not met, etc.).
+/// @dev When a timelock is set to type(uint256).max, the function cannot be set, even with previously submitted data.
 ///
 /// GATES
 /// @dev Set to 0 to disable a gate.
@@ -433,7 +434,7 @@ contract VaultV2 is IVaultV2 {
 
     /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
     /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
-    /// executableAt.
+    /// executableAt (except if the timelock is now type(uint256).max).
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.AutomaticallyTimelocked());

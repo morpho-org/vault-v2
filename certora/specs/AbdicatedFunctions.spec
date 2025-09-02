@@ -33,7 +33,7 @@ rule abdicatedFunctionsCantBeSubmitted(env e, bytes data) {
     assert lastReverted;
 }
 
-// only for timelocked functions.
+// Check that timelocked functions with timelock=max can't be set, even with previously submitted data.
 rule abdicatedFunctionsCantBeSet(env e, method f, calldataarg args) {
     require timelock(Utils.toBytes4(f.selector)) == max_uint256;
     require f.selector == sig:setIsAllocator(address,bool).selector
