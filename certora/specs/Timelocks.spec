@@ -26,7 +26,25 @@ rule executableAtChange(env e, method f, calldataarg args, bytes data) {
         || (executableAtAfter > 0 && executableAtBefore == 0);
 }
 
-rule timelockMaxFunctionsCantBeSubmitted(env e, method f, calldataarg args, bytes data) {
+rule pendingCountChange(env e, method f, calldataarg args, bytes data) {
+    bytes4 selector = Utils.toBytes4(data);
+    
+    uint256 pendingCountBefore = pendingCount(selector);
+    uint256 executableAtBefore = executableAt(data);
+
+    f(e, args);
+
+    uint256 pendingCountAfter = pendingCount(selector);
+    uint256 executableAtAfter = executableAt(data);
+    
+    // Changed only by 1 maximum.
+    assert pendingCountAfter >= pendingCountBefore - 1 && pendingCountAfter <= pendingCountBefore + 1;
+    // // If executableAt[data] changed, pendingCount should have changed accordingly.
+    // assert (executableAtBefore < executableAtAfter) => pendingCountAfter == pendingCountBefore + 1;
+    // assert (executableAtBefore > executableAtAfter) => pendingCountAfter == pendingCountBefore - 1;
+}
+
+rule countCannotIncreaseIfTimelockMax(env e, method f, calldataarg args, bytes data) {
     // Safe require in a non trivial chain.
     require e.block.timestamp > 0;
 
