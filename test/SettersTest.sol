@@ -236,6 +236,21 @@ contract SettersTest is BaseTest {
         vault.setIsAllocator(address(1), true);
     }
 
+    function testAbdicate() public {
+        bytes memory data = abi.encodeCall(IVaultV2.setIsAllocator, (address(1), true));
+        vm.prank(curator);
+        vault.submit(data);
+        assertEq(vault.executableAt(data), block.timestamp);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (IVaultV2.setIsAllocator.selector, type(uint256).max)));
+        vault.increaseTimelock(IVaultV2.setIsAllocator.selector, type(uint256).max);
+        assertEq(vault.timelock(IVaultV2.setIsAllocator.selector), type(uint256).max);
+
+        vm.expectRevert(ErrorsLib.Abdicated.selector);
+        vault.setIsAllocator(address(1), true);
+    }
+
     function testSetIsAllocator(address rdm) public {
         address newAllocator = makeAddr("newAllocator");
 
