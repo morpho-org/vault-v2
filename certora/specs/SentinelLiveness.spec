@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
+import "./AbdicatedFunctions.spec";
+
 using ERC20Mock as ERC20;
 using Utils as Utils;
 
@@ -51,7 +53,7 @@ rule sentinelCanRevoke(env e, bytes data){
     require (e.msg.value == 0, "ack");
 
     require (executableAt(data) != 0, "assume `data` is pending");
-    require(pendingCount(Utils.toBytes4(data)) > 0, "assume `data` is pending");
+    requireInvariant pendingCount(data);
 
     revoke@withrevert(e, data);
     assert !lastReverted;
