@@ -34,9 +34,9 @@ rule abdicatedFunctionsCantBeSubmitted(env e, bytes data) {
 }
 
 // Check that timelocked functions with timelock=max can't be set, even with previously submitted data.
-rule abdicatedFunctionsCantBeSet(env e, method f, calldataarg args) {
-    require timelock(Utils.toBytes4(f.selector)) == max_uint256;
-    require f.selector == sig:setIsAllocator(address,bool).selector
+rule abdicatedFunctionsCantBeSet(env e, method f, calldataarg args) 
+filtered {
+    f -> f.selector == sig:setIsAllocator(address,bool).selector
         || f.selector == sig:addAdapter(address).selector
         || f.selector == sig:removeAdapter(address).selector
         || f.selector == sig:setReceiveSharesGate(address).selector
@@ -51,8 +51,11 @@ rule abdicatedFunctionsCantBeSet(env e, method f, calldataarg args) {
         || f.selector == sig:setManagementFeeRecipient(address).selector
         || f.selector == sig:setForceDeallocatePenalty(address,uint256).selector
         || f.selector == sig:increaseTimelock(bytes4,uint256).selector
-        || f.selector == sig:decreaseTimelock(bytes4,uint256).selector;
+        || f.selector == sig:decreaseTimelock(bytes4,uint256).selector
+}
+{
+    require timelock(Utils.toBytes4(f.selector)) == max_uint256;
 
     f@withrevert(e, args);
     assert lastReverted;
-}
+} 
