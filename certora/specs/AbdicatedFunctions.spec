@@ -11,8 +11,31 @@ methods {
     function executableAt(bytes) external returns uint256 envfree;
 
     function Utils.toBytes4(bytes) external returns bytes4 envfree;
-    function Utils.toBytes4(uint32) external returns bytes4 envfree;
 }
+
+// Ghost mapping to count the number of nonzero executableAt values per selector.
+ghost mapping(bytes4 => uint256) nonZeroExecutableAt {
+    init_state axiom forall bytes4 selector. nonZeroExecutableAt[selector] == 0;
+}
+
+hook Sload uint256 value executableAt[KEY bytes data] {
+    bytes4 selector = Utils.toBytes4(data);
+    require(value == 0 || nonZeroExecutableAt[selector] > 0);
+}
+
+// When executableAt[data] is loaded, update the ghost count if necessary.
+hook Sstore executableAt[KEY bytes data] uint256 newValue (uint256 oldValue) {
+    bytes4 selector = Utils.toBytes4(data);
+    if (oldValue == 0 && newValue != 0) {
+        nonZeroExecutableAt[selector] = assert_uint256(nonZeroExecutableAt[selector] + 1);
+    }
+    if (oldValue != 0 && newValue == 0) {
+        nonZeroExecutableAt[selector] = assert_uint256(nonZeroExecutableAt[selector] - 1);
+    }
+}
+
+strong invariant pendingCount(bytes4 selector)
+    pendingCount(selector) == nonZeroExecutableAt[selector];
 
 rule timelockMaxFunctionsCantBeSubmitted(env e, method f, calldataarg args, bytes data) {
     // Safe require in a non trivial chain.
@@ -52,7 +75,7 @@ filtered {
         || f.selector == sig:decreaseTimelock(bytes4,uint256).selector
 }
 {
-    require pendingCount(Utils.toBytes4(f.selector)) == 0;
+    require pendingCount(to_bytes4(f.selector)) == 0;
 
     f@withrevert(e, args);
     assert lastReverted;
