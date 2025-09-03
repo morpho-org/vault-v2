@@ -341,7 +341,8 @@ contract VaultV2 is IVaultV2 {
         uint256 _timelock =
             selector == IVaultV2.decreaseTimelock.selector ? timelock[bytes4(data[4:8])] : timelock[selector];
         executableAt[data] = block.timestamp + _timelock;
-        emit EventsLib.Submit(selector, data, executableAt[data], (pendingCount[selector] += 1));
+        pendingCount[selector]++;
+        emit EventsLib.Submit(selector, data, executableAt[data], pendingCount[selector]);
     }
 
     function timelocked() internal {
@@ -349,7 +350,8 @@ contract VaultV2 is IVaultV2 {
         require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
         executableAt[msg.data] = 0;
         bytes4 selector = bytes4(msg.data);
-        emit EventsLib.Accept(selector, msg.data, (pendingCount[selector] -= 1));
+        pendingCount[selector]--;
+        emit EventsLib.Accept(selector, msg.data, pendingCount[selector]);
     }
 
     function revoke(bytes calldata data) external {
@@ -357,7 +359,8 @@ contract VaultV2 is IVaultV2 {
         require(executableAt[data] != 0, ErrorsLib.DataNotTimelocked());
         executableAt[data] = 0;
         bytes4 selector = bytes4(data);
-        emit EventsLib.Revoke(msg.sender, selector, data, (pendingCount[selector] -= 1));
+        pendingCount[selector]--;
+        emit EventsLib.Revoke(msg.sender, selector, data, pendingCount[selector]);
     }
 
     /* CURATOR FUNCTIONS */
