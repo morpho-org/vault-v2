@@ -125,7 +125,7 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.expectEmit();
-        emit EventsLib.Submit(bytes4(data), data, block.timestamp + vault.timelock(bytes4(data)));
+        emit EventsLib.Submit(bytes4(data), data, block.timestamp + vault.timelock(bytes4(data)), 1);
         vm.prank(curator);
         vault.submit(data);
         assertEq(vault.executableAt(data), block.timestamp + vault.timelock(bytes4(data)));
@@ -163,7 +163,7 @@ contract SettersTest is BaseTest {
 
         // Normal path
         vm.expectEmit();
-        emit EventsLib.Submit(IVaultV2.decreaseTimelock.selector, data, block.timestamp + oldDuration);
+        emit EventsLib.Submit(IVaultV2.decreaseTimelock.selector, data, block.timestamp + oldDuration, 1);
         vm.prank(curator);
         vault.submit(data);
         assertEq(vault.executableAt(data), block.timestamp + oldDuration);
@@ -196,7 +196,7 @@ contract SettersTest is BaseTest {
         uint256 snapshot = vm.snapshotState();
         vm.prank(sentinel);
         vm.expectEmit();
-        emit EventsLib.Revoke(sentinel, bytes4(data), data);
+        emit EventsLib.Revoke(sentinel, bytes4(data), data, 0);
         vault.revoke(data);
         assertEq(vault.executableAt(data), 0);
 
@@ -228,7 +228,7 @@ contract SettersTest is BaseTest {
         // Normal path.
         skip(1);
         vm.expectEmit();
-        emit EventsLib.Accept(IVaultV2.setIsAllocator.selector, data);
+        emit EventsLib.Accept(IVaultV2.setIsAllocator.selector, data, 0);
         vault.setIsAllocator(address(1), true);
 
         // Data not timelocked.
@@ -1016,5 +1016,42 @@ contract SettersTest is BaseTest {
         vault.revoke(fullData2);
         assertEq(vault.pendingCount(selector1), 0);
         assertEq(vault.pendingCount(selector2), 0);
+    }
+
+    function testPendingCountEventsBySubmitting(uint256 submitCount, bool useRevoke) public {
+        submitCount = bound(submitCount, 1, 10); // Submit 1-10 times
+
+        bytes4 selector = IVaultV2.setIsAllocator.selector;
+
+        for (uint256 i = 1; i <= submitCount; i++) {
+            bytes memory data = abi.encodeCall(IVaultV2.setIsAllocator, (address(uint160(i)), true));
+
+            vm.expectEmit();
+            emit EventsLib.Submit(selector, data, block.timestamp + vault.timelock(selector), i);
+            vm.prank(curator);
+            vault.submit(data);
+
+            assertEq(vault.pendingCount(selector), i);
+        }
+
+        bytes memory lastData = abi.encodeCall(IVaultV2.setIsAllocator, (address(uint160(submitCount)), true));
+
+        if (useRevoke) {
+            // Test Revoke event with decremented pendingCount
+            vm.expectEmit();
+            emit EventsLib.Revoke(curator, selector, lastData, submitCount - 1);
+            vm.prank(curator);
+            vault.revoke(lastData);
+
+            assertEq(vault.pendingCount(selector), submitCount - 1);
+        } else {
+            skip(vault.timelock(selector) + 1);
+
+            vm.expectEmit();
+            emit EventsLib.Accept(selector, lastData, submitCount - 1);
+            vault.setIsAllocator(address(uint160(submitCount)), true);
+
+            assertEq(vault.pendingCount(selector), submitCount - 1);
+        }
     }
 }
