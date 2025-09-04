@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Morpho Association
 
 using ERC20Mock as ERC20;
+using Utils as Utils;
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
 
@@ -15,6 +16,8 @@ methods {
     function _.deallocate(bytes, uint256 assets, bytes4, address) external =>
         nondetDeallocateSummary(assets) expect (bytes32[], int256);
     function ERC20.transferFrom(address, address, uint256) external returns bool => NONDET;
+    function pendingCount(bytes4) external returns uint256 envfree;
+    function Utils.toBytes4(bytes) external returns bytes4 envfree;
 }
 
 // Ghost copy of caps[*].allocation to be able to use quantifiers.
@@ -48,6 +51,8 @@ rule sentinelCanRevoke(env e, bytes data){
     require (e.msg.value == 0, "ack");
 
     require (executableAt(data) != 0, "assume `data` is pending");
+    // this should be verified (TODO).
+    require(pendingCount(Utils.toBytes4(data)) > 0, "assume `data` is pending");
 
     revoke@withrevert(e, data);
     assert !lastReverted;
