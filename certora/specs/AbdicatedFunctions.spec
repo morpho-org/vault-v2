@@ -11,7 +11,6 @@ methods {
     function executableAt(bytes) external returns uint256 envfree;
 
     function Utils.toBytes4(bytes) external returns bytes4 envfree;
-    function Utils.toBytes4(uint32) external returns bytes4 envfree;
 }
 
 rule timelockMaxFunctionsCantBeSubmitted(env e, method f, calldataarg args, bytes data) {
@@ -52,7 +51,7 @@ filtered {
         || f.selector == sig:decreaseTimelock(bytes4,uint256).selector
 }
 {
-    require pendingCount(Utils.toBytes4(f.selector)) == 0;
+    require pendingCount(to_bytes4(f.selector)) == 0;
 
     f@withrevert(e, args);
     assert lastReverted;

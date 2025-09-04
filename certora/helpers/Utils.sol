@@ -13,10 +13,6 @@ contract Utils {
         return bytes4(data);
     }
 
-    function toBytes4(uint32 data) public pure returns (bytes4) {
-        return bytes4(data);
-    }
-
     function wad() external pure returns (uint256) {
         return WAD;
     }
