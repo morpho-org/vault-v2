@@ -51,6 +51,7 @@ rule sentinelCanRevoke(env e, bytes data){
     require (e.msg.value == 0, "ack");
 
     require (executableAt(data) != 0, "assume `data` is pending");
+    // this should be verified (TODO).
     require(pendingCount(Utils.toBytes4(data)) > 0, "assume `data` is pending");
 
     revoke@withrevert(e, data);
