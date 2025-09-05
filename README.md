@@ -178,15 +178,13 @@ It can:
 - Decrease relative caps.
 - Revoke timelocked actions.
 
-## Getting started
+## Developers
 
-### Package installation
+Compilation, testing and formatting with [forge](https://book.getfoundry.sh/getting-started/installation).
 
-Install [Foundry](https://book.getfoundry.sh/getting-started/installation).
+## Audits
 
-### Run tests
-
-Run `forge test`.
+All audits are stored in the [audits](./audits/)' folder.
 
 ## License
 
