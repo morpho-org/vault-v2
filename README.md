@@ -3,7 +3,7 @@
 > [!NOTE]
 > Vault v2 instances are distinguished between:
 > - **Morpho Vaults**: Vault v2 with the Morpho registry (link to be added) abdicated. Learn more about Morpho Vaults and their benefits here (link to be added).
-> - **Unregistered Vaults**: Vault v2 that can supply to any protocol. They don't get all the Morpho Vaults benefits. In particular, Vault v2 has been audited only in the context of the Morpho Market V1 and Morpho Vault V1 adapters.
+> - **Unaffiliated Vaults**: Vault v2 that can supply to any protocol. They don't get all the Morpho Vaults benefits. In particular, Vault v2 has been developed and audited only in the context of the Morpho Market V1 and Morpho Vault V1 adapters.
 
 Vault v2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including Morpho Market v1, Morpho Market v2, and Morpho Vault v1.
 Depositors of Vault v2 earn from the underlying protocols without having to actively manage their position.
