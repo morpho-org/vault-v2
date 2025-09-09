@@ -1,16 +1,16 @@
-# Vault v2
+# Vault V2
 
 > [!NOTE]
-> Vault v2 instances are distinguished between:
-> - **Morpho Vaults**: Vault v2 with the Morpho registry (link to be added) abdicated. Learn more about Morpho Vaults and their benefits here (link to be added).
-> - **Standard Vaults**: Vault v2 that can supply to any protocol. They don't get all the Morpho Vaults benefits. In particular, Vault v2 has been developed and audited only in the context of the Morpho Market V1 and Morpho Vault V1 adapters.
+> Vault V2 instances are distinguished between:
+> - **Morpho Vaults**: Vault V2 with the Morpho registry (link to be added) abdicated. Learn more about Morpho Vaults and their benefits here (link to be added).
+> - **Standard Vaults**: Vault V2 that can supply to any protocol. They don't get all the Morpho Vaults benefits. In particular, Vault V2 has been developed and audited only in the context of the Morpho Market V1 and Morpho Vault V1 adapters.
 
-Vault v2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including Morpho Market v1, Morpho Market v2, and Morpho Vault v1.
-Depositors of Vault v2 earn from the underlying protocols without having to actively manage their position.
+Vault V2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including Morpho Market v1, Morpho Market V2, and Morpho Vault v1.
+Depositors of Vault V2 earn from the underlying protocols without having to actively manage their position.
 Management of deposited assets is the responsibility of a set of different roles (owner, curator and allocators).
 
-[Vault v2](./src/VaultV2.sol) is [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) and [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) compliant.
-The [VaultV2Factory](./src/VaultV2Factory.sol) deploys instances of Vaults v2.
+[Vault V2](./src/VaultV2.sol) is [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) and [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) compliant.
+The [VaultV2Factory](./src/VaultV2Factory.sol) deploys instances of Vaults V2.
 All the contracts are immutable.
 
 ## Overview
@@ -29,7 +29,7 @@ The following adapters are currently available:
 - [Morpho Vault v1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
   This adapter allocates to a fixed Morpho Vault v1 (v1.0 and v1.1), under the constraints of the [caps](#caps).
   Note that using this adapter with vaults other than Morpho Vaults V1 has not been audited.
-- Morpho Market v2 Adapter. WIP
+- Morpho Market V2 Adapter. WIP
 
 ### Caps
 
@@ -75,7 +75,7 @@ These mechanisms ensure users that they can always withdraw their assets before 
 
 ### Gates
 
-Vaults v2 can use external gate contracts to control share transfer, vault asset deposit, and vault asset withdrawal.
+Vaults V2 can use external gate contracts to control share transfer, vault asset deposit, and vault asset withdrawal.
 If a gate is not set, its corresponding operations are not restricted.
 
 Four gates are defined:
