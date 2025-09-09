@@ -55,7 +55,7 @@ Curator configuration changes are all timelockable (except `decreaseAbsoluteCap`
 This is useful notably to the [non-custodial guarantees](#non-custodial-guarantees), but also in general if a curator wants to give guarantees about some configurations.
 
 In particular, a configuration can be *abdicated*, meaning that it won't be able to be set anymore, by setting the timelock to type(uint256).max and making sure that pendingCount for this selector is zero.
-Thus, increaseTimelock should be used carefully, because decreaseTimelock is timelocked with the timelock itself.
+Thus, increaseTimelock should be used carefully, because decreaseTimelock is function-dependent: decreasing the timelock of a function is timelocked by the timelock of the function itself.
 
 ### In-kind redemptions
 
@@ -93,7 +93,7 @@ This can be useful to stabilize the distributed rate, or build a buffer to be ab
 ### Fees
 
 VaultV2 depositors are charged with a performance fee, which is a cut on interest (capped at 50%), and a management fee (capped at 5%), which is a cut on principal.
-Both go to recipients set by the curator.
+Each fee go to its respective recipient set by the curator.
 
 ### Roles
 
