@@ -88,7 +88,7 @@ Four gates are defined:
 ### Max rate
 
 The vault's share price will not increase faster than the allocator-set `maxRate`.
-This can be useful to stabilize the distributed rate, or build a buffer to tank losses.
+This can be useful to stabilize the distributed rate, or build a buffer to be able to absorb losses.
 
 ### Fees
 
