@@ -105,7 +105,8 @@ Only one address can have this role.
 Only one address can have this role.
 
 - **Allocator(s)**: The allocators' role is to handle the vault's allocation in and out of underlying protocols (with the enabled adapters, and within the caps set by the curator).
-They are notably responsible for the vault's liquidity.
+  They also set the [liquidity adapter](#liquidity) and [max rate](#max-rate).
+They are notably responsible for the vault's performance and liquidity.
 
 - **Sentinel(s)**: The sentinel role can be used to be able to derisk quicky a vault.
 They are able to revoke pending actions, deallocate funds to idle and decrease caps.
