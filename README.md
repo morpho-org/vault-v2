@@ -1,11 +1,15 @@
 # Vault v2
 
-Morpho Vault v2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including but not limited to Morpho Market v1, Morpho Market v2, and Morpho Vault v1.
-Depositors of Morpho Vault v2 earn from the underlying protocols without having to actively manage the risk of their position.
-Management of deposited assets is the responsibility of a set of different roles (owner, curator and allocators).
-The active management of invested positions involves enabling and allocating liquidity to protocols.
+> [!NOTE]
+> Vault v2 instances are distinguished between:
+> - **Morpho Vaults**: Vault v2 with the [Morpho registry](relevant_link) abdicated. Learn more about Morpho Vaults and their benefits here.
+> - **Standard Vaults**: Vault v2 that can supply to any protocol. They don't get all the Morpho Vaults benefits. In particular, Vault v2 has been audited only in the context of the Morpho Market V1 and Morpho Vault V1 adapters.
 
-[Morpho Vault v2](./src/VaultV2.sol) is [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) and [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) compliant.
+Vault v2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including Morpho Market v1, Morpho Market v2, and Morpho Vault v1.
+Depositors of Vault v2 earn from the underlying protocols without having to actively manage their position.
+Management of deposited assets is the responsibility of a set of different roles (owner, curator and allocators).
+
+[Vault v2](./src/VaultV2.sol) is [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) and [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) compliant.
 The [VaultV2Factory](./src/VaultV2Factory.sol) deploys instances of Vaults v2.
 All the contracts are immutable.
 
@@ -13,42 +17,26 @@ All the contracts are immutable.
 
 ### Adapters
 
-Vaults can allocate assets to arbitrary protocols and markets via adapters, or use an adapter registry to add restrictions to allowed adapters.
-The curator enables adapters to hold positions on behalf of the vault.
+Vaults can allocate assets to arbitrary protocols and markets via separate contracts called adapters.
+They hold positions on behalf of the vault.
 Adapters are also used to know how much these investments are worth (interest and loss realization).
-Because adapters hold positions in protocols where assets are allocated, they are susceptible to accrue rewards for those protocols.
-To ensure that those rewards can be retrieved, each adapter has a skim function that can be called by the vault's owner.
 
-Adapters for the following protocols are currently available:
+Vaults can set an adapter registry to constrain which adapter they can have and add. This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure that a vault will forever supply into adapters authorized by a given registry. See for example the [Morpho Registry](relevant_link).
 
-- [Morpho Market v1](./src/adapters/MorphoMarketV1Adapter.sol).
-  This adapter allocates to any Morpho Market v1, constrained by the allocation caps (see [Id system](#id-system) below).
-  The adapter holds a position on each respective market, on behalf of the vault v2.
-- [Morpho Vault v1](./src/adapters/MorphoVaultV1Adapter.sol).
+The following adapters are currently available:
+- [Morpho Market v1 Adapter](./src/adapters/MorphoMarketV1Adapter.sol).
+  This adapter allocates to Morpho Market v1, constrained by the allocation caps (see [#caps](#caps) below).
+- [Morpho Vault v1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
   This adapter allocates to a fixed Morpho Vault v1 (v1.0 and v1.1).
-  The adapter holds shares of the corresponding Morpho Vault v1 (v1.0 and v1.1) on behalf of the vault v2.
+  Note that using this adapter with vaults other than Morpho Vaults V1 has not been audited.
+- Morpho Market v2 Adapter. WIP
 
-A Morpho Market v2 adapter will be released together with Market v2.
+### Caps
 
-### Id system
-
-The funds allocation of the vault is constrained by an id system.
+The funds allocation of the vault is constrained by a caps system.
 An id is an abstract identifier for a common risk factor of some markets (a collateral, an oracle, a protocol, etc.).
 Allocation on markets with a common id is limited by absolute caps and relative caps.
 Note that relative caps are "soft" because they are not checked on withdrawals, they only constrain new allocations.
-The curator ensures the consistency of the id system by:
-
-- setting caps for the ids according to an estimation of risk;
-- setting adapters that return consistent ids.
-
-The ids of Morpho v1 lending markets could be for example the market parameters `(LoanToken, CollateralToken, Oracle, IRM, LLTV)` and `CollateralToken` alone.
-A vault could be set up to enforce the following caps:
-
-- `(loanToken, stEth, chainlink, irm, 86%)`: 10M
-- `(loanToken, stETH, redstone, irm, 86%)`: 10M
-- `stETH`: 15M
-
-This would ensure that the vault never has more than 15M exposure to markets with stETH as collateral, and never more than 10M exposure to an individual market.
 
 ### Liquidity
 
@@ -61,12 +49,15 @@ When defined, the liquidity adapter is also used to forward deposited funds.
 
 A typical liquidity adapter would allow deposits/withdrawals to go through a very liquid Market v1.
 
-### Non-custodial guarantees
+### Timelocks
 
-Non-custodial guarantees come from [in-kind redemptions](#in-kind-redemptions-with-forcedeallocate) and [timelocks](#curator-timelocks).
-These mechanisms allow users to withdraw their assets before any critical configuration change takes effect.
+Curator configuration changes are all timelockable (except `decreaseAbsoluteCap` and ), meaning that doing an action requires submitting it first, and only when the timelock has passed it can be executed (by anyone).
+This is useful notably to the [non-custodial guarantees](#non-custodial-guarantees), but also in general if a curator wants to give guarantees about some configurations.
 
-### In-kind redemptions with `forceDeallocate`
+In particular, a configuration can be *abdicated*, meaning that it won't be able to be set anymore, by setting the timelock to type(uint256).max and making sure that pendingCount for this selector is zero.
+Thus, increaseTimelock should be used carefully, because decreaseTimelock is timelocked with the timelock itself.
+
+### In-kind redemptions
 
 To guarantee exits even in the absence of assets immediately available for withdrawal, the permissionless `forceDeallocate` function allows anyone to move assets from an adapter to the vault's idle assets.
 
@@ -77,116 +68,50 @@ A penalty for using forceDeallocate can be set per adapter, of up to 2%.
 This disincentivizes the manipulation of allocations, in particular of relative caps which are not checked on withdrawals.
 Note that the only friction to deallocating an adapter with a 0% penalty is the associated gas cost.
 
+### Non-custodial guarantees
+
+Non-custodial guarantees come from [in-kind redemptions](#in-kind-redemptions-with-forcedeallocate) and [timelocks](#curator-timelocks).
+These mechanisms ensures users that they can always withdraw their assets before any critical configuration change takes effect (if the right timelocks are not zero).
+
 ### Gates
 
 Vaults v2 can use external gate contracts to control share transfer, vault asset deposit, and vault asset withdrawal.
-
 If a gate is not set, its corresponding operations are not restricted.
-
-Gate changes can be timelocked.
-By setting the timelock to `type(uint256).max`, a curator can commit to an irreversible gate setup.
 
 Four gates are defined:
 
-**Receive shares gate** (`receiveSharesGate`): Controls the permission to receive shares.
+- **Receive shares gate** (`receiveSharesGate`): Controls the permission to receive shares.
+- **Send shares gate** (`sendShareGate`): Controls the permission to send shares.
+- **Receive Assets Gate** (`receiveAssetsGate`): Controls permissions related to receiving assets.
+- **Send Assets Gate** (`sendAssetsGate`): Controls permissions related to sending assets.
 
-Upon `deposit`/`mint`, `transfer`/`transferFrom`, and interest accrual (for both fee recipients), `canReceiveShares` must return `true` for the shares recipient if the gate is set.
+### Max rate
 
-This gate is critical because it can prevent depositors from getting back their shares deposited on other contracts. Also, if it reverts and there is a non-zero fee, interest accrual reverts.
+The vault's share price will not increase faster than the allocator-set `maxRate`.
+This can be useful to stabilize the distributed rate, or build a buffer to tank losses.
 
-**Send shares gate** (`sendShareGate`): Controls the permission to send shares.
+### Fees
 
-Upon `withdraw`/`redeem` and `transfer`/`transferFrom`, `canSendShares` must return `true` for the shares sender if the gate is set.
-
-This gate is critical because it can prevent people from withdrawing their shares, or prevent depositors from getting back their shares deposited on other contract.
-
-**Receive Assets Gate** (`receiveAssetsGate`): Controls permissions related to receiving assets.
-
-Upon `withdraw`/`redeem`, `canReceiveAssets` must return true for the `receiver` if the gate is set.
-
-This gate is critical because it can prevent people from receiving their assets upon withdrawals.
-
-**Send Assets Gate** (`sendAssetsGate`): Controls permissions related to sending assets.
-
-Upon `deposit`/`mint`, `canSendAssets` must return true for  `msg.sender` must pass the `canSendAssets` check.
+VaultV2 depositors are charged settable performance fees, a cut on interest (capped at 50%), and management fees (capped at 5%), a cut on principal, that goes to recipient set by the curator.
 
 ### Roles
 
-#### Owner
-
-The owner's role is to set the curator and sentinels.
+- **Owner**: The owner's role is to set the curator and sentinels.
+It can also set the name and symbol of the vault.
 Only one address can have this role.
 
-It can:
-
-- Set the owner.
-- Set the curator.
-- Set sentinels.
-- Set the name.
-- Set the symbol.
-
-#### Curator
-
-The curator's role is to curate the vault, meaning setting risk limits, gates, allocators, fees.
+- **Curator**: The curator's role is to curate the vault, meaning setting [adapters](#adapters), [risk limits](#caps), [gates](#gates), [allocators](#allocator), [fees](#fees).
 Only one address can have this role.
 
-Curator actions are timelockable, except decreaseAbsoluteCap and decreaseRelativeCap.
-Once the timelock has passed, the action can be executed by anyone.
-
-It can:
-
-<a id="curator-timelocks"></a>
-
-- [Timelockable] Increase absolute caps.
-- Decrease absolute caps.
-- [Timelockable] Increase relative caps.
-- Decrease relative caps.
-- [Timelockable] Set the adapter registry.
-- [Timelockable] Set adapters.
-- [Timelockable] Set allocators.
-- [Timelockable] Increase timelocks.
-- [Timelocked by the timelock being decreased] Decrease timelocks.
-- [Timelockable] Set the `performanceFee`.
-  The performance fee is capped at 50% of generated interest.
-- [Timelockable] Set the `managementFee`.
-  The management fee is capped at 5% of assets under management annually.
-- [Timelockable] Set the `performanceFeeRecipient`.
-- [Timelockable] Set the `managementFeeRecipient`.
-  increaseTimelock should be used carefully, because decreaseTimelock is timelocked with the timelock itself. In particular it is possible to make an action irreversible (which is a feature in itself). A timelock of `type(uint256).max` is a recommended convention for making an action irreversible.
-
-#### Allocator
-
-The allocators' role is to handle the allocation of the liquidity (inside the caps set by the curator).
+- **Allocator(s)**: The allocators' role is to handle the vault's allocation in and out of underlying protocols (with the enabled adapters, and inside the caps set by the curator).
 They are notably responsible for the vault's liquidity.
-Multiple addresses can have this role.
 
-It can:
+- **Sentinel(s)**: The sentinel role can be used to be able to derisk quicky a vault.
+They are able to revoke pending actions, deallocate funds to idle and decrease caps.
 
-- Allocate funds from the “idle market” to enabled markets.
-- Deallocate funds from enabled markets to the “idle market”.
-- Set the `liquidityAdapter` and the `liquidityData`.
-- Set the `maxRate`.
+## Developers
 
-#### Sentinel
-
-Multiple addresses can have this role.
-
-It can:
-
-- Deallocate funds from enabled markets to the “idle market”.
-- Decrease absolute caps.
-- Decrease relative caps.
-- Revoke timelocked actions.
-
-## Getting started
-
-### Package installation
-
-Install [Foundry](https://book.getfoundry.sh/getting-started/installation).
-
-### Run tests
-
-Run `forge test`.
+Compilation, testing and formatting done with [forge](https://book.getfoundry.sh/getting-started/installation).
 
 ## License
 
