@@ -2,7 +2,7 @@
 
 > [!NOTE]
 > Vault v2 instances are distinguished between:
-> - **Morpho Vaults**: Vault v2 with the [Morpho registry](relevant_link) abdicated. Learn more about Morpho Vaults and their benefits here.
+> - **Morpho Vaults**: Vault v2 with the [Morpho registry](LINK) abdicated. Learn more about Morpho Vaults and their benefits [here](LINK).
 > - **Standard Vaults**: Vault v2 that can supply to any protocol. They don't get all the Morpho Vaults benefits. In particular, Vault v2 has been audited only in the context of the Morpho Market V1 and Morpho Vault V1 adapters.
 
 Vault v2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including Morpho Market v1, Morpho Market v2, and Morpho Vault v1.
@@ -21,13 +21,13 @@ Vaults can allocate assets to arbitrary protocols and markets via separate contr
 They hold positions on behalf of the vault.
 Adapters are also used to know how much these investments are worth (interest and loss realization).
 
-Vaults can set an adapter registry to constrain which adapter they can have and add. This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure that a vault will forever supply into adapters authorized by a given registry. See for example the [Morpho Registry](relevant_link).
+Vaults can set an adapter registry to constrain which adapter they can have and add. This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure that a vault will forever supply into adapters authorized by a given registry. See for example the [Morpho Registry](LINK).
 
 The following adapters are currently available:
 - [Morpho Market v1 Adapter](./src/adapters/MorphoMarketV1Adapter.sol).
-  This adapter allocates to Morpho Market v1, constrained by the allocation caps (see [#caps](#caps) below).
+  This adapter allocates to any Morpho Market v1, under the constrained of the [caps](#caps).
 - [Morpho Vault v1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
-  This adapter allocates to a fixed Morpho Vault v1 (v1.0 and v1.1).
+  This adapter allocates to a fixed Morpho Vault v1 (v1.0 and v1.1), under the constrained of the [caps](#caps).
   Note that using this adapter with vaults other than Morpho Vaults V1 has not been audited.
 - Morpho Market v2 Adapter. WIP
 
