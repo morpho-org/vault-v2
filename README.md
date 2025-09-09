@@ -25,9 +25,9 @@ Vaults can set an adapter registry to constrain which adapter they can have and 
 
 The following adapters are currently available:
 - [Morpho Market v1 Adapter](./src/adapters/MorphoMarketV1Adapter.sol).
-  This adapter allocates to any Morpho Market v1, under the constrained of the [caps](#caps).
+  This adapter allocates to any Morpho Market v1, under the constraints of the [caps](#caps).
 - [Morpho Vault v1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
-  This adapter allocates to a fixed Morpho Vault v1 (v1.0 and v1.1), under the constrained of the [caps](#caps).
+  This adapter allocates to a fixed Morpho Vault v1 (v1.0 and v1.1), under the constraints of the [caps](#caps).
   Note that using this adapter with vaults other than Morpho Vaults V1 has not been audited.
 - Morpho Market v2 Adapter. WIP
 
@@ -71,7 +71,7 @@ Note that the only friction to deallocating an adapter with a 0% penalty is the 
 ### Non-custodial guarantees
 
 Non-custodial guarantees come from [in-kind redemptions](#in-kind-redemptions-with-forcedeallocate) and [timelocks](#curator-timelocks).
-These mechanisms ensures users that they can always withdraw their assets before any critical configuration change takes effect (if the right timelocks are not zero).
+These mechanisms ensure users that they can always withdraw their assets before any critical configuration change takes effect (if the right timelocks are not zero).
 
 ### Gates
 
@@ -101,14 +101,14 @@ Each fee go to its respective recipient set by the curator.
 It can also set the name and symbol of the vault.
 Only one address can have this role.
 
-- **Curator**: The curator's role is to curate the vault, meaning setting [adapters](#adapters), [risk limits](#caps), [gates](#gates), [allocators](#allocator), [fees](#fees).
+- **Curator**: The curator's role is to curate the vault, meaning setting [adapters](#adapters), [risk limits](#caps), [gates](#gates), [allocators](#allocator), [fees](#fees) and [timelocks](#timelocks).
 Only one address can have this role.
 
 - **Allocator(s)**: The allocators' role is to handle the vault's allocation in and out of underlying protocols (with the enabled adapters, and within the caps set by the curator).
   They also set the [liquidity adapter](#liquidity) and [max rate](#max-rate).
 They are notably responsible for the vault's performance and liquidity.
 
-- **Sentinel(s)**: The sentinel role can be used to be able to derisk quicky a vault.
+- **Sentinel(s)**: The sentinel role can be used to be able to derisk quickly a vault.
 They are able to revoke pending actions, deallocate funds to idle and decrease caps.
 
 ## Developers
