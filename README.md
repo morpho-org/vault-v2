@@ -111,7 +111,11 @@ They are able to revoke pending actions, deallocate funds to idle and decrease c
 
 ## Developers
 
-Compilation, testing and formatting done with [forge](https://book.getfoundry.sh/getting-started/installation).
+Compilation, testing and formatting with [forge](https://book.getfoundry.sh/getting-started/installation).
+
+## Audits
+
+All audits are stored in the [audits](./audits/)' folder.
 
 ## License
 
