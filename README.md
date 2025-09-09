@@ -3,7 +3,7 @@
 > [!NOTE]
 > Vault v2 instances are distinguished between:
 > - **Morpho Vaults**: Vault v2 with the Morpho registry (link to be added) abdicated. Learn more about Morpho Vaults and their benefits here (link to be added).
-> - **Unaffiliated Vaults**: Vault v2 that can supply to any protocol. They don't get all the Morpho Vaults benefits. In particular, Vault v2 has been developed and audited only in the context of the Morpho Market V1 and Morpho Vault V1 adapters.
+> - **Standard Vaults**: Vault v2 that can supply to any protocol. They don't get all the Morpho Vaults benefits. In particular, Vault v2 has been developed and audited only in the context of the Morpho Market V1 and Morpho Vault V1 adapters.
 
 Vault v2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including Morpho Market v1, Morpho Market v2, and Morpho Vault v1.
 Depositors of Vault v2 earn from the underlying protocols without having to actively manage their position.
@@ -93,7 +93,7 @@ This can be useful to stabilize the distributed rate, or build a buffer to be ab
 ### Fees
 
 VaultV2 depositors are charged with a performance fee, which is a cut on interest (capped at 50%), and a management fee (capped at 5%), which is a cut on principal.
-Each fee go to its respective recipient set by the curator.
+Each fee goes to its respective recipient set by the curator.
 
 ### Roles
 
@@ -101,7 +101,9 @@ Each fee go to its respective recipient set by the curator.
 It can also set the name and symbol of the vault.
 Only one address can have this role.
 
-- **Curator**: The curator's role is to curate the vault, meaning setting [adapters](#adapters), [risk limits](#caps), [gates](#gates), [allocators](#allocator), [fees](#fees) and [timelocks](#timelocks).
+- **Curator**: The curator's role is to configure the vault. 
+They can enable and disable [adapters](#adapters) and an optional adapter registry, configure [risk limits](#caps) by setting absolute and relative caps, set the [gates](#gates), the [allocators](#allocators), the [timelocks](#timelocks), the [fees](#fees) and the fee recipients. 
+All actions are timelockable except decreasing absolute and relative caps.
 Only one address can have this role.
 
 - **Allocator(s)**: The allocators' role is to handle the vault's allocation in and out of underlying protocols (with the enabled adapters, and within the caps set by the curator).
