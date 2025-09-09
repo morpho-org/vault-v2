@@ -33,7 +33,7 @@ The following adapters are currently available:
 
 ### Caps
 
-The funds allocation of the vault is constrained by a caps system.
+The funds allocation of the vault is constrained by an id-based caps system.
 An id is an abstract identifier for a common risk factor of some markets (a collateral, an oracle, a protocol, etc.).
 Allocation on markets with a common id is limited by absolute caps and relative caps.
 Note that relative caps are "soft" because they are not checked on withdrawals, they only constrain new allocations.
@@ -59,7 +59,7 @@ Thus, increaseTimelock should be used carefully, because decreaseTimelock is tim
 
 ### In-kind redemptions
 
-To guarantee exits even in the absence of assets immediately available for withdrawal, the permissionless `forceDeallocate` function allows anyone to move assets from an adapter to the vault's idle assets.
+To guarantee exits even in the absence of assets immediately available for withdrawal, the permissionless `forceDeallocate` function allows anyone to move assets from an adapter to the vault's idle assets (meaning the vault token balance).
 
 Users can redeem in-kind thanks to the `forceDeallocate` function: flashloan liquidity, supply it to an adapter's market, and withdraw the liquidity through `forceDeallocate` before repaying the flashloan.
 This reduces their position in the vault and increases their position in the underlying market.
@@ -92,7 +92,8 @@ This can be useful to stabilize the distributed rate, or build a buffer to tank 
 
 ### Fees
 
-VaultV2 depositors are charged settable performance fees, a cut on interest (capped at 50%), and management fees (capped at 5%), a cut on principal, that goes to recipient set by the curator.
+VaultV2 depositors are charged with a performance fee, which is a cut on interest (capped at 50%), and a management fee (capped at 5%), which is a cut on principal.
+Both go to recipients set by the curator.
 
 ### Roles
 
@@ -103,7 +104,7 @@ Only one address can have this role.
 - **Curator**: The curator's role is to curate the vault, meaning setting [adapters](#adapters), [risk limits](#caps), [gates](#gates), [allocators](#allocator), [fees](#fees).
 Only one address can have this role.
 
-- **Allocator(s)**: The allocators' role is to handle the vault's allocation in and out of underlying protocols (with the enabled adapters, and inside the caps set by the curator).
+- **Allocator(s)**: The allocators' role is to handle the vault's allocation in and out of underlying protocols (with the enabled adapters, and within the caps set by the curator).
 They are notably responsible for the vault's liquidity.
 
 - **Sentinel(s)**: The sentinel role can be used to be able to derisk quicky a vault.
