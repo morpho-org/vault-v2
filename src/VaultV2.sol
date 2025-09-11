@@ -73,7 +73,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// - They must not re-enter (directly or indirectly) the vault. They might not statically prevent it, but the curator
 /// must not interact with markets that can re-enter the vault.
 /// - After an update, the sum of the changes returned after interactions with a given market must be exactly the
-/// current estimate position.
+/// current estimated position.
 /// @dev Ids being reused are useful to cap multiple investments that have a common property.
 /// @dev Allocating is prevented if one of the ids' absolute cap is zero and deallocating is prevented if the id's
 /// allocation is zero. This prevents interactions with zero assets with unknown markets. For markets that share all
@@ -125,7 +125,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 ///
 /// TIMELOCKS
 /// @dev The timelock duration of decreaseTimelock is the timelock duration of the function whose timelock is being
-/// decreased (e.g. the timelock of decreaseTimelock(setIsAdapter, ...) is timelock[setIsAdapter]).
+/// decreased (e.g. the timelock of decreaseTimelock(addAdapter, ...) is timelock[addAdapter]).
 /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
 /// timelocked data can potentially be changed shortly afterwards.
 /// @dev The minimum time in which a function can be called is the following:
