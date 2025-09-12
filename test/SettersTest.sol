@@ -307,12 +307,38 @@ contract SettersTest is BaseTest {
         vault.addAdapter(newAdapter);
     }
 
+    function testAddAdapterTwiceDoesNotCreateDuplicates() public {
+        address newAdapter = makeAddr("newAdapter");
+
+        uint256 initialLength = vault.adaptersLength();
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (newAdapter)));
+        vault.addAdapter(newAdapter);
+        assertTrue(vault.isAdapter(newAdapter));
+        assertEq(vault.adaptersLength(), initialLength + 1);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (newAdapter)));
+        vault.addAdapter(newAdapter);
+        assertTrue(vault.isAdapter(newAdapter));
+        assertEq(vault.adaptersLength(), initialLength + 1);
+    }
+
     function testRemoveAdapter(address rdm) public {
         vm.assume(rdm != curator);
         address newAdapter = makeAddr("newAdapter");
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.addAdapter, (newAdapter)));
         vault.addAdapter(newAdapter);
+
+        // Nobody can remove directly
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
+        vault.removeAdapter(newAdapter);
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(curator);
+        vault.removeAdapter(newAdapter);
 
         // Removal
         vm.prank(curator);
@@ -322,6 +348,58 @@ contract SettersTest is BaseTest {
         vault.removeAdapter(newAdapter);
         assertFalse(vault.isAdapter(newAdapter));
         assertEq(vault.adaptersLength(), 0);
+    }
+
+    function testRemoveNonExistentAdapterDoesNothing() public {
+        address adapter = makeAddr("adapter");
+        address nonExistentAdapter = makeAddr("nonExistentAdapter");
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (adapter)));
+        vault.addAdapter(adapter);
+
+        assertFalse(vault.isAdapter(nonExistentAdapter));
+
+        uint256 lengthBefore = vault.adaptersLength();
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.removeAdapter, (nonExistentAdapter)));
+        vault.removeAdapter(nonExistentAdapter);
+
+        assertFalse(vault.isAdapter(nonExistentAdapter));
+        assertEq(vault.adaptersLength(), lengthBefore);
+    }
+
+    function testRemoveAdapterArrayIntegrity() public {
+        address adapter1 = makeAddr("adapter1");
+        address adapter2 = makeAddr("adapter2");
+        address adapter3 = makeAddr("adapter3");
+
+        vm.startPrank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (adapter1)));
+        vault.addAdapter(adapter1);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (adapter2)));
+        vault.addAdapter(adapter2);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (adapter3)));
+        vault.addAdapter(adapter3);
+        vm.stopPrank();
+
+        // Verify initial state
+        assertEq(vault.adaptersLength(), 3);
+        assertEq(vault.adapters(0), adapter1);
+        assertEq(vault.adapters(1), adapter2);
+        assertEq(vault.adapters(2), adapter3);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.removeAdapter, (adapter2)));
+        vault.removeAdapter(adapter2);
+
+        assertEq(vault.adaptersLength(), 2);
+        assertEq(vault.adapters(0), adapter1);
+        assertEq(vault.adapters(1), adapter3); // adapter3 should move to index 1
+        assertFalse(vault.isAdapter(adapter2));
+        assertTrue(vault.isAdapter(adapter1));
+        assertTrue(vault.isAdapter(adapter3));
     }
 
     function testIncreaseTimelock(address rdm, bytes4 selector, uint256 newTimelock) public {
@@ -914,6 +992,21 @@ contract SettersTest is BaseTest {
         }
         vault.setAdapterRegistry(newRegistry);
         if (isInRegistry) assertEq(vault.adapterRegistry(), newRegistry);
+    }
+
+    function testSetRegistryToZeroWithExistingAdapters() public {
+        address newAdapter = makeAddr("newAdapter");
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (newAdapter)));
+        vault.addAdapter(newAdapter);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setAdapterRegistry, (address(0))));
+        vm.expectEmit();
+        emit EventsLib.SetAdapterRegistry(address(0));
+        vault.setAdapterRegistry(address(0));
+        assertEq(vault.adapterRegistry(), address(0));
     }
 
     /* ALLOCATOR SETTERS */
