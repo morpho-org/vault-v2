@@ -58,6 +58,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev The variable firstTotalAssets tracks the total assets after the first interest accrual of the transaction.
 /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans. This mechanism makes the
 /// caps conservative and can generate false positives, notably for big deposits that go through the liquidity adapter.
+/// @dev Also used to accrue interest only once per transaction (except if the vault is empty, see "share price" above).
 /// @dev Relative caps can still be manipulated by allocators (with short-term deposits), but it requires capital.
 /// @dev The behavior of firstTotalAssets is different when the vault has totalAssets=0, but it does not matter
 /// internally because in this case there are no investments to cap.
