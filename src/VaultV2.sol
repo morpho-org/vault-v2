@@ -129,7 +129,8 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// decreased (e.g. the timelock of decreaseTimelock(addAdapter, ...) is timelock[addAdapter]).
 /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
 /// timelocked data can potentially be changed shortly afterwards.
-/// @dev The minimum time in which a function can be called is the following:
+/// @dev If a function is abdicated, it cannot be called no matter its timelock and what executableAt[data] contains.
+/// Otherwise, the minimum time in which a function can be called is the following:
 /// min(
 ///     timelock[selector],
 ///     executableAt[selector::_],
@@ -137,9 +138,10 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// ).
 /// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist, argument
 /// encoding is wrong, function' conditions are not met, etc.).
-/// @dev The number of pending executions for a given selectors is stored in pendingCount[selector].
-/// @dev To be sure that a timelocked function will not be called in the future, require that timelock[selector] ==
-/// type(uint256).max and pendingCount[selector] == 0.
+///
+/// ABDICATION
+/// @dev When a timelocked function is abdicated, it can't be called anymore.
+/// @dev It is still possible to submit data for it or change its timelock, but it will not be executable / effective.
 ///
 /// GATES
 /// @dev Set to 0 to disable a gate.
@@ -233,8 +235,8 @@ contract VaultV2 is IVaultV2 {
     /* TIMELOCKS STORAGE */
 
     mapping(bytes4 selector => uint256) public timelock;
+    mapping(bytes4 selector => bool) public abdicated;
     mapping(bytes data => uint256) public executableAt;
-    mapping(bytes4 selector => uint256) public pendingCount;
 
     /* FEES STORAGE */
 
@@ -343,17 +345,16 @@ contract VaultV2 is IVaultV2 {
         uint256 _timelock =
             selector == IVaultV2.decreaseTimelock.selector ? timelock[bytes4(data[4:8])] : timelock[selector];
         executableAt[data] = block.timestamp + _timelock;
-        pendingCount[selector]++;
-        emit EventsLib.Submit(selector, data, executableAt[data], pendingCount[selector]);
+        emit EventsLib.Submit(selector, data, executableAt[data]);
     }
 
     function timelocked() internal {
+        bytes4 selector = bytes4(msg.data);
         require(executableAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
         require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
+        require(!abdicated[selector], ErrorsLib.Abdicated());
         executableAt[msg.data] = 0;
-        bytes4 selector = bytes4(msg.data);
-        pendingCount[selector]--;
-        emit EventsLib.Accept(selector, msg.data, pendingCount[selector]);
+        emit EventsLib.Accept(selector, msg.data);
     }
 
     function revoke(bytes calldata data) external {
@@ -361,8 +362,7 @@ contract VaultV2 is IVaultV2 {
         require(executableAt[data] != 0, ErrorsLib.DataNotTimelocked());
         executableAt[data] = 0;
         bytes4 selector = bytes4(data);
-        pendingCount[selector]--;
-        emit EventsLib.Revoke(msg.sender, selector, data, pendingCount[selector]);
+        emit EventsLib.Revoke(msg.sender, selector, data);
     }
 
     /* CURATOR FUNCTIONS */
@@ -460,6 +460,12 @@ contract VaultV2 is IVaultV2 {
 
         timelock[selector] = newDuration;
         emit EventsLib.DecreaseTimelock(selector, newDuration);
+    }
+
+    function abdicate(bytes4 selector) external {
+        timelocked();
+        abdicated[selector] = true;
+        emit EventsLib.Abdicate(selector);
     }
 
     function setPerformanceFee(uint256 newPerformanceFee) external {
