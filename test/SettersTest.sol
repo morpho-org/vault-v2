@@ -1054,4 +1054,38 @@ contract SettersTest is BaseTest {
             assertEq(vault.pendingCount(selector), submitCount - 1);
         }
     }
+
+    function testPendingDecreaseTimelockBreaksPendingCountProtection() public {
+        bytes4 selector = IVaultV2.setIsAllocator.selector;
+        address testAllocator = makeAddr("testAllocator");
+        uint256 year = 365 days;
+
+        // Setup: long function timelock, schedule short function timelock, abdicate function
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (selector, year)));
+        vault.increaseTimelock(selector, year);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, 0)));
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (selector, type(uint256).max)));
+        vault.increaseTimelock(selector, type(uint256).max);
+
+        assertEq(vault.timelock(selector), type(uint256).max);
+        assertEq(vault.pendingCount(selector), 0);
+
+        // Test that even with no pending and abdicated, the function is called in the near future
+        skip(year);
+        assertEq(vault.timelock(selector), type(uint256).max);
+        assertEq(vault.pendingCount(selector), 0);
+
+        vault.decreaseTimelock(selector, 0);
+        assertEq(vault.timelock(selector), 0);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setIsAllocator, (testAllocator, true)));
+        vault.setIsAllocator(testAllocator, true);
+        assertTrue(vault.isAllocator(testAllocator));
+    }
 }
