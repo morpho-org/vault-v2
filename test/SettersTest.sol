@@ -411,6 +411,21 @@ contract SettersTest is BaseTest {
         vault.decreaseTimelock(IVaultV2.decreaseTimelock.selector, 1 weeks);
     }
 
+    function testAbdicateNobodyCanSetDirectly(address rdm, bytes4 selector) public {
+        vm.prank(rdm);
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vault.abdicate(selector);
+    }
+
+    function testAbdicate(bytes4 selector) public {
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.abdicate, (selector)));
+        vm.expectEmit();
+        emit EventsLib.Abdicate(selector);
+        vault.abdicate(selector);
+        assertTrue(vault.abdicated(selector));
+    }
+
     function testSetPerformanceFee(address rdm, uint256 newPerformanceFee) public {
         vm.assume(rdm != curator);
         newPerformanceFee = bound(newPerformanceFee, 1, MAX_PERFORMANCE_FEE);
@@ -1149,5 +1164,23 @@ contract SettersTest is BaseTest {
         vault.setLiquidityAdapterAndData(liquidityAdapter, liquidityData);
         assertEq(vault.liquidityAdapter(), liquidityAdapter);
         assertEq(vault.liquidityData(), liquidityData);
+    }
+
+    /* ABDICATION */
+
+    function testSetAllocatorAbdicated(address rdm) public {
+        testAbdicate(IVaultV2.setIsAllocator.selector);
+
+        // No pending data.
+        vm.expectRevert(ErrorsLib.Abdicated.selector);
+        vm.prank(rdm);
+        vault.setIsAllocator(address(1), true);
+
+        // Pending data.
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.setIsAllocator, (address(1), true)));
+        vm.prank(rdm);
+        vm.expectRevert(ErrorsLib.Abdicated.selector);
+        vault.setIsAllocator(address(1), true);
     }
 }

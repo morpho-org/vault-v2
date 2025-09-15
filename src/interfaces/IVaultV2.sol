@@ -77,6 +77,7 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function abdicate(bytes4 selector) external;
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
+    function abdicate(bytes4 selector) external;
     function setPerformanceFee(uint256 newPerformanceFee) external;
     function setManagementFee(uint256 newManagementFee) external;
     function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external;
