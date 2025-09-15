@@ -354,6 +354,7 @@ contract SettersTest is BaseTest {
         // Cannot increase decreaseTimelock's timelock
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (IVaultV2.decreaseTimelock.selector, 1 weeks)));
+        skip(newTimelock);
         vm.expectRevert(ErrorsLib.AutomaticallyTimelocked.selector);
         vault.increaseTimelock(IVaultV2.decreaseTimelock.selector, 1 weeks);
 
@@ -409,6 +410,21 @@ contract SettersTest is BaseTest {
         vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (IVaultV2.decreaseTimelock.selector, 1 weeks)));
         vm.expectRevert(ErrorsLib.AutomaticallyTimelocked.selector);
         vault.decreaseTimelock(IVaultV2.decreaseTimelock.selector, 1 weeks);
+    }
+
+    function testAbdicateNobodyCanSetDirectly(address rdm, bytes4 selector) public {
+        vm.prank(rdm);
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vault.abdicate(selector);
+    }
+
+    function testAbdicate(bytes4 selector) public {
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.abdicate, (selector)));
+        vm.expectEmit();
+        emit EventsLib.Abdicate(selector);
+        vault.abdicate(selector);
+        assertTrue(vault.abdicated(selector));
     }
 
     function testSetPerformanceFee(address rdm, uint256 newPerformanceFee) public {
@@ -940,81 +956,21 @@ contract SettersTest is BaseTest {
         assertEq(vault.liquidityData(), liquidityData);
     }
 
-    function testPendingCount(bytes4 selector1, bytes4 selector2, bytes memory data) public {
-        vm.assume(selector1 != selector2);
+    /* ABDICATION */
 
-        // Create data with selector1 as prefix
-        bytes memory fullData = abi.encodePacked(selector1, data);
+    function testSetAllocatorAbdicated(address rdm) public {
+        testAbdicate(IVaultV2.setIsAllocator.selector);
 
-        // Initial counters should be zero
-        assertEq(vault.pendingCount(selector1), 0);
-        assertEq(vault.pendingCount(selector2), 0);
-
-        // Submit first action - counter should increment for selector1 only
-        vm.prank(curator);
-        vault.submit(fullData);
-        assertEq(vault.pendingCount(selector1), 1);
-        assertEq(vault.pendingCount(selector2), 0);
-
-        // Submit second action with same selector1 - counter should increment to 2
-        bytes memory fullData2 = abi.encodePacked(selector1, data, "extra");
-        vm.prank(curator);
-        vault.submit(fullData2);
-        assertEq(vault.pendingCount(selector1), 2);
-        assertEq(vault.pendingCount(selector2), 0);
-
-        // Revoke first action - counter should decrement for selector1 only
-        vm.prank(curator);
-        vault.revoke(fullData);
-        assertEq(vault.pendingCount(selector1), 1);
-        assertEq(vault.pendingCount(selector2), 0);
-
-        // Revoke second action - counter should decrement to 0 for selector1
-        vm.prank(curator);
-        vault.revoke(fullData2);
-        assertEq(vault.pendingCount(selector1), 0);
-        assertEq(vault.pendingCount(selector2), 0);
-    }
-
-    function testPendingCountWithExecution(bytes4 selector2) public {
-        vm.assume(selector2 != IVaultV2.setIsAllocator.selector);
-
-        bytes4 selector1 = IVaultV2.setIsAllocator.selector;
-        bytes memory fullData = abi.encodeCall(IVaultV2.setIsAllocator, (address(1), true));
-
-        // Initial counters should be zero
-        assertEq(vault.pendingCount(selector1), 0);
-        assertEq(vault.pendingCount(selector2), 0);
-
-        // Submit action - counter should increment for selector1 only
-        vm.prank(curator);
-        vault.submit(fullData);
-        assertEq(vault.pendingCount(selector1), 1);
-        assertEq(vault.pendingCount(selector2), 0);
-
-        // Execute action - counter should decrement for selector1 only
+        // No pending data.
+        vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
+        vm.prank(rdm);
         vault.setIsAllocator(address(1), true);
-        assertEq(vault.pendingCount(selector1), 0);
-        assertEq(vault.pendingCount(selector2), 0);
 
-        // Submit another action to test up to count 2
-        bytes memory fullData2 = abi.encodeCall(IVaultV2.setIsAllocator, (address(2), true));
+        // Pending data.
         vm.prank(curator);
-        vault.submit(fullData);
-        vm.prank(curator);
-        vault.submit(fullData2);
-        assertEq(vault.pendingCount(selector1), 2);
-        assertEq(vault.pendingCount(selector2), 0);
-
-        // Execute one action
+        vault.submit(abi.encodeCall(IVaultV2.setIsAllocator, (address(1), true)));
+        vm.prank(rdm);
+        vm.expectRevert(ErrorsLib.Abdicated.selector);
         vault.setIsAllocator(address(1), true);
-        assertEq(vault.pendingCount(selector1), 1);
-        assertEq(vault.pendingCount(selector2), 0);
-
-        // Revoke the other
-        vm.prank(curator);
-        vault.revoke(fullData2);
-        assertEq(vault.pendingCount(selector1), 0);
-        assertEq(vault.pendingCount(selector2), 0);
     }
 }

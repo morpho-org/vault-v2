@@ -58,6 +58,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev The variable firstTotalAssets tracks the total assets after the first interest accrual of the transaction.
 /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans. This mechanism makes the
 /// caps conservative and can generate false positives, notably for big deposits that go through the liquidity adapter.
+/// @dev Also used to accrue interest only once per transaction (except if the vault is empty, see "share price" above).
 /// @dev Relative caps can still be manipulated by allocators (with short-term deposits), but it requires capital.
 /// @dev The behavior of firstTotalAssets is different when the vault has totalAssets=0, but it does not matter
 /// internally because in this case there are no investments to cap.
@@ -73,7 +74,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// - They must not re-enter (directly or indirectly) the vault. They might not statically prevent it, but the curator
 /// must not interact with markets that can re-enter the vault.
 /// - After an update, the sum of the changes returned after interactions with a given market must be exactly the
-/// current estimate position.
+/// current estimated position.
 /// @dev Ids being reused are useful to cap multiple investments that have a common property.
 /// @dev Allocating is prevented if one of the ids' absolute cap is zero and deallocating is prevented if the id's
 /// allocation is zero. This prevents interactions with zero assets with unknown markets. For markets that share all
@@ -103,7 +104,8 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// the same adapter/data is used for both entry and exit to have the property that in the general case looping
 /// supply-withdraw or withdraw-supply should not change the allocation.
 /// @dev If a cap (absolute or relative) associated with the ids returned by the liquidity adapter on the liquidity data
-/// is reached, deposit/mint will revert.
+/// is reached, deposit/mint will revert. In particular, when the vault is empty or almost empty, the relative cap check
+/// is likely to make deposits revert.
 ///
 /// TOKEN REQUIREMENTS
 /// @dev List of assumptions on the token that guarantees that the vault behaves as expected:
@@ -124,10 +126,11 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 ///
 /// TIMELOCKS
 /// @dev The timelock duration of decreaseTimelock is the timelock duration of the function whose timelock is being
-/// decreased (e.g. the timelock of decreaseTimelock(setIsAdapter, ...) is timelock[setIsAdapter]).
+/// decreased (e.g. the timelock of decreaseTimelock(addAdapter, ...) is timelock[addAdapter]).
 /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
 /// timelocked data can potentially be changed shortly afterwards.
-/// @dev The minimum time in which a function can be called is the following:
+/// @dev If a function is abdicated, it cannot be called no matter its timelock and what executableAt[data] contains.
+/// Otherwise, the minimum time in which a function can be called is the following:
 /// min(
 ///     timelock[selector],
 ///     executableAt[selector::_],
@@ -135,9 +138,10 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// ).
 /// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist, argument
 /// encoding is wrong, function' conditions are not met, etc.).
-/// @dev The number of pending executions for a given selectors is stored in pendingCount[selector].
-/// @dev To be sure that a timelocked function will not be called in the future, require that timelock[selector] ==
-/// type(uint256).max and pendingCount[selector] == 0.
+///
+/// ABDICATION
+/// @dev When a timelocked function is abdicated, it can't be called anymore.
+/// @dev It is still possible to submit data for it or change its timelock, but it will not be executable / effective.
 ///
 /// GATES
 /// @dev Set to 0 to disable a gate.
@@ -231,8 +235,8 @@ contract VaultV2 is IVaultV2 {
     /* TIMELOCKS STORAGE */
 
     mapping(bytes4 selector => uint256) public timelock;
+    mapping(bytes4 selector => bool) public abdicated;
     mapping(bytes data => uint256) public executableAt;
-    mapping(bytes4 selector => uint256) public pendingCount;
 
     /* FEES STORAGE */
 
@@ -341,16 +345,15 @@ contract VaultV2 is IVaultV2 {
         uint256 _timelock =
             selector == IVaultV2.decreaseTimelock.selector ? timelock[bytes4(data[4:8])] : timelock[selector];
         executableAt[data] = block.timestamp + _timelock;
-        pendingCount[selector]++;
         emit EventsLib.Submit(selector, data, executableAt[data]);
     }
 
     function timelocked() internal {
+        bytes4 selector = bytes4(msg.data);
         require(executableAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
         require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
+        require(!abdicated[selector], ErrorsLib.Abdicated());
         executableAt[msg.data] = 0;
-        bytes4 selector = bytes4(msg.data);
-        pendingCount[selector]--;
         emit EventsLib.Accept(selector, msg.data);
     }
 
@@ -359,7 +362,6 @@ contract VaultV2 is IVaultV2 {
         require(executableAt[data] != 0, ErrorsLib.DataNotTimelocked());
         executableAt[data] = 0;
         bytes4 selector = bytes4(data);
-        pendingCount[selector]--;
         emit EventsLib.Revoke(msg.sender, selector, data);
     }
 
@@ -458,6 +460,12 @@ contract VaultV2 is IVaultV2 {
 
         timelock[selector] = newDuration;
         emit EventsLib.DecreaseTimelock(selector, newDuration);
+    }
+
+    function abdicate(bytes4 selector) external {
+        timelocked();
+        abdicated[selector] = true;
+        emit EventsLib.Abdicate(selector);
     }
 
     function setPerformanceFee(uint256 newPerformanceFee) external {
