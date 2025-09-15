@@ -35,10 +35,10 @@ filtered {
     assert lastReverted;
 }
 
-rule abdicatedCantBeDeabdicated(env e, method f, calldataarg args) {
-    require abdicated(to_bytes4(f.selector));
+rule abdicatedCantBeDeabdicated(env e, method f, calldataarg args, method abdicatedFunction) {
+    require abdicated(to_bytes4(abdicatedFunction.selector));
     
     f@withrevert(e, args);
     
-    assert abdicated(to_bytes4(f.selector));
+    assert abdicated(to_bytes4(abdicatedFunction.selector));
 }
