@@ -15,6 +15,7 @@ filtered {
         || f.selector == sig:setSendSharesGate(address).selector
         || f.selector == sig:setReceiveAssetsGate(address).selector
         || f.selector == sig:setSendAssetsGate(address).selector
+        || f.selector == sig:setAdapterRegistry(address).selector
         || f.selector == sig:increaseAbsoluteCap(bytes,uint256).selector
         || f.selector == sig:increaseRelativeCap(bytes,uint256).selector
         || f.selector == sig:setPerformanceFee(uint256).selector
