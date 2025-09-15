@@ -38,7 +38,7 @@ filtered {
 rule abdicatedCantBeDeabdicated(env e, method f, calldataarg args, method abdicatedFunction) {
     require abdicated(to_bytes4(abdicatedFunction.selector));
     
-    f@withrevert(e, args);
+    f(e, args);
     
     assert abdicated(to_bytes4(abdicatedFunction.selector));
 }
