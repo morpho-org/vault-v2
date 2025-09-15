@@ -1039,6 +1039,33 @@ contract SettersTest is BaseTest {
         vault.increaseTimelock(selector, newDuration);
     }
 
+    function testAbdicateDecreaseTimelock(bytes4 selector, uint256 newDuration) public {
+        // vm.prank(curator);
+        // vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, newDuration)));
+        // vault.decreaseTimelock(selector, newDuration);
+        // assertEq(vault.timelock(selector), newDuration);
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.abdicate, (IVaultV2.decreaseTimelock.selector)));
+        vault.abdicate(IVaultV2.decreaseTimelock.selector);
+        assertTrue(vault.abdicated(IVaultV2.decreaseTimelock.selector));
+
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.abdicate, (IVaultV2.decreaseTimelock.selector)));
+        vault.abdicate(IVaultV2.decreaseTimelock.selector);
+        assertTrue(vault.abdicated(IVaultV2.decreaseTimelock.selector));
+
+        // Submit still works
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, newDuration)));
+        assertEq(
+            vault.executableAt(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, newDuration))), block.timestamp
+        );
+
+        vm.expectRevert(ErrorsLib.Abdicated.selector);
+        vault.decreaseTimelock(selector, newDuration);
+    }
+
     function testAbdicateAbdicate(bytes4 selector) public {
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.abdicate, (IVaultV2.abdicate.selector)));
@@ -1164,23 +1191,5 @@ contract SettersTest is BaseTest {
         vault.setLiquidityAdapterAndData(liquidityAdapter, liquidityData);
         assertEq(vault.liquidityAdapter(), liquidityAdapter);
         assertEq(vault.liquidityData(), liquidityData);
-    }
-
-    /* ABDICATION */
-
-    function testSetAllocatorAbdicated(address rdm) public {
-        testAbdicate(IVaultV2.setIsAllocator.selector);
-
-        // No pending data.
-        vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vm.prank(rdm);
-        vault.setIsAllocator(address(1), true);
-
-        // Pending data.
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAllocator, (address(1), true)));
-        vm.prank(rdm);
-        vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vault.setIsAllocator(address(1), true);
     }
 }
