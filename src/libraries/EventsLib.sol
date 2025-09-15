@@ -38,9 +38,9 @@ library EventsLib {
     );
 
     // Timelock events
-    event Revoke(address indexed sender, bytes4 indexed selector, bytes data, uint256 pendingCount);
-    event Submit(bytes4 indexed selector, bytes data, uint256 executableAt, uint256 pendingCount);
-    event Accept(bytes4 indexed selector, bytes data, uint256 pendingCount);
+    event Revoke(address indexed sender, bytes4 indexed selector, bytes data);
+    event Submit(bytes4 indexed selector, bytes data, uint256 executableAt);
+    event Accept(bytes4 indexed selector, bytes data);
 
     // Configuration events
     event SetOwner(address indexed newOwner);
@@ -58,6 +58,7 @@ library EventsLib {
     event RemoveAdapter(address indexed account);
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event IncreaseTimelock(bytes4 indexed selector, uint256 newDuration);
+    event Abdicate(bytes4 indexed selector);
     event SetLiquidityAdapterAndData(
         address indexed sender, address indexed newLiquidityAdapter, bytes indexed newLiquidityData
     );
