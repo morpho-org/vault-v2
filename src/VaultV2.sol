@@ -129,7 +129,8 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// decreased (e.g. the timelock of decreaseTimelock(addAdapter, ...) is timelock[addAdapter]).
 /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
 /// timelocked data can potentially be changed shortly afterwards.
-/// @dev If a function is abdicated, it cannot be called no matter its timelock and what executableAt[data] contains. Otherwise, the minimum time in which a function can be called is the following:
+/// @dev If a function is abdicated, it cannot be called no matter its timelock and what executableAt[data] contains.
+/// Otherwise, the minimum time in which a function can be called is the following:
 /// min(
 ///     timelock[selector],
 ///     executableAt[selector::_],
