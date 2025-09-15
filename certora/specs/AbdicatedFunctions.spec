@@ -31,7 +31,21 @@ rule timelockMaxFunctionsCantBeSubmitted(env e, method f, calldataarg args, byte
     assert executableAt(data) == 0 || executableAt(data) == executableAtBefore;
 }
 
-rule noPendingCountCantBeSet(env e, method f, calldataarg args, bytes data) 
+rule timelockMaxFunctionsCantReduceTimelock(env e, method f, calldataarg args, bytes data) {
+    // Safe require in a non trivial chain.
+    require e.block.timestamp > 0;
+
+    bytes4 selector = Utils.toBytes4(data);
+    // Assume that the function has been abdicated.
+    require selector != to_bytes4(sig:VaultV2.decreaseTimelock(bytes4, uint256).selector);
+    require timelock(selector) == max_uint256;
+
+    f(e, args);
+
+    assert timelock(selector) == max_uint256;
+}
+
+rule noPendingCountCantBeSet(env e, method f, calldataarg args, bytes data)
 filtered {
     f -> f.selector == sig:setIsAllocator(address,bool).selector
         || f.selector == sig:addAdapter(address).selector
