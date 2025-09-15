@@ -136,11 +136,10 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// ).
 /// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist, argument
 /// encoding is wrong, function' conditions are not met, etc.).
-/// @dev The number of pending executions for a given selectors is stored in pendingCount[selector].
-/// @dev The number of pending timelock decreases for a given selectors is stored in
-/// pendingDecreaseTimelockCount[selector].
+/// @dev The sum of pending executions and pending timelock decreases for a given selector is stored in
+/// pendingForwardChangesCount[selector].
 /// @dev To be sure that a timelocked function will not be called in the future, require that timelock[selector] ==
-/// type(uint256).max, pendingDecreaseTimelockCount[selector] == 0 and pendingCount[selector] == 0.
+/// type(uint256).max and pendingForwardChangesCount[selector] == 0.
 ///
 /// GATES
 /// @dev Set to 0 to disable a gate.
@@ -235,8 +234,7 @@ contract VaultV2 is IVaultV2 {
 
     mapping(bytes4 selector => uint256) public timelock;
     mapping(bytes data => uint256) public executableAt;
-    mapping(bytes4 selector => uint256) public pendingCount;
-    mapping(bytes4 selector => uint256) public pendingDecreaseTimelockCount;
+    mapping(bytes4 selector => uint256) public pendingForwardChangesCount;
 
     /* FEES STORAGE */
 
@@ -345,14 +343,14 @@ contract VaultV2 is IVaultV2 {
         uint256 _timelock;
         if (selector == IVaultV2.decreaseTimelock.selector) {
             bytes4 decreaseTarget = bytes4(data[4:8]);
-            pendingDecreaseTimelockCount[decreaseTarget]++;
+            pendingForwardChangesCount[decreaseTarget]++;
             _timelock = timelock[decreaseTarget];
         } else {
             _timelock = timelock[selector];
         }
         executableAt[data] = block.timestamp + _timelock;
-        pendingCount[selector]++;
-        emit EventsLib.Submit(selector, data, executableAt[data], pendingCount[selector]);
+        pendingForwardChangesCount[selector]++;
+        emit EventsLib.Submit(selector, data, executableAt[data], pendingForwardChangesCount[selector]);
     }
 
     function timelocked() internal {
@@ -360,8 +358,8 @@ contract VaultV2 is IVaultV2 {
         require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
         executableAt[msg.data] = 0;
         bytes4 selector = bytes4(msg.data);
-        pendingCount[selector]--;
-        emit EventsLib.Accept(selector, msg.data, pendingCount[selector]);
+        pendingForwardChangesCount[selector]--;
+        emit EventsLib.Accept(selector, msg.data, pendingForwardChangesCount[selector]);
     }
 
     function revoke(bytes calldata data) external {
@@ -369,9 +367,9 @@ contract VaultV2 is IVaultV2 {
         require(executableAt[data] != 0, ErrorsLib.DataNotTimelocked());
         executableAt[data] = 0;
         bytes4 selector = bytes4(data);
-        if (selector == IVaultV2.decreaseTimelock.selector) pendingDecreaseTimelockCount[bytes4(data[4:8])]--;
-        pendingCount[selector]--;
-        emit EventsLib.Revoke(msg.sender, selector, data, pendingCount[selector]);
+        if (selector == IVaultV2.decreaseTimelock.selector) pendingForwardChangesCount[bytes4(data[4:8])]--;
+        pendingForwardChangesCount[selector]--;
+        emit EventsLib.Revoke(msg.sender, selector, data, pendingForwardChangesCount[selector]);
     }
 
     /* CURATOR FUNCTIONS */
@@ -465,7 +463,7 @@ contract VaultV2 is IVaultV2 {
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.AutomaticallyTimelocked());
-        pendingDecreaseTimelockCount[selector]--;
+        pendingForwardChangesCount[selector]--;
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
 
         timelock[selector] = newDuration;

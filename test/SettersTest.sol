@@ -940,62 +940,64 @@ contract SettersTest is BaseTest {
         assertEq(vault.liquidityData(), liquidityData);
     }
 
-    function testPendingCount(bytes4 selector1, bytes4 selector2, bytes memory data) public {
+    function testPendingForwardChangesCountBySchedulingActions(bytes4 selector1, bytes4 selector2, bytes memory data)
+        public
+    {
         vm.assume(selector1 != selector2);
 
         // Create data with selector1 as prefix
         bytes memory fullData = abi.encodePacked(selector1, data);
 
         // Initial counters should be zero
-        assertEq(vault.pendingCount(selector1), 0);
-        assertEq(vault.pendingCount(selector2), 0);
+        assertEq(vault.pendingForwardChangesCount(selector1), 0);
+        assertEq(vault.pendingForwardChangesCount(selector2), 0);
 
         // Submit first action - counter should increment for selector1 only
         vm.prank(curator);
         vault.submit(fullData);
-        assertEq(vault.pendingCount(selector1), 1);
-        assertEq(vault.pendingCount(selector2), 0);
+        assertEq(vault.pendingForwardChangesCount(selector1), 1);
+        assertEq(vault.pendingForwardChangesCount(selector2), 0);
 
         // Submit second action with same selector1 - counter should increment to 2
         bytes memory fullData2 = abi.encodePacked(selector1, data, "extra");
         vm.prank(curator);
         vault.submit(fullData2);
-        assertEq(vault.pendingCount(selector1), 2);
-        assertEq(vault.pendingCount(selector2), 0);
+        assertEq(vault.pendingForwardChangesCount(selector1), 2);
+        assertEq(vault.pendingForwardChangesCount(selector2), 0);
 
         // Revoke first action - counter should decrement for selector1 only
         vm.prank(curator);
         vault.revoke(fullData);
-        assertEq(vault.pendingCount(selector1), 1);
-        assertEq(vault.pendingCount(selector2), 0);
+        assertEq(vault.pendingForwardChangesCount(selector1), 1);
+        assertEq(vault.pendingForwardChangesCount(selector2), 0);
 
         // Revoke second action - counter should decrement to 0 for selector1
         vm.prank(curator);
         vault.revoke(fullData2);
-        assertEq(vault.pendingCount(selector1), 0);
-        assertEq(vault.pendingCount(selector2), 0);
+        assertEq(vault.pendingForwardChangesCount(selector1), 0);
+        assertEq(vault.pendingForwardChangesCount(selector2), 0);
     }
 
-    function testPendingCountWithExecution(bytes4 selector2) public {
+    function testPendingForwardChangesCountBySchedulingActionsWithExecution(bytes4 selector2) public {
         vm.assume(selector2 != IVaultV2.setIsAllocator.selector);
 
         bytes4 selector1 = IVaultV2.setIsAllocator.selector;
         bytes memory fullData = abi.encodeCall(IVaultV2.setIsAllocator, (address(1), true));
 
         // Initial counters should be zero
-        assertEq(vault.pendingCount(selector1), 0);
-        assertEq(vault.pendingCount(selector2), 0);
+        assertEq(vault.pendingForwardChangesCount(selector1), 0);
+        assertEq(vault.pendingForwardChangesCount(selector2), 0);
 
         // Submit action - counter should increment for selector1 only
         vm.prank(curator);
         vault.submit(fullData);
-        assertEq(vault.pendingCount(selector1), 1);
-        assertEq(vault.pendingCount(selector2), 0);
+        assertEq(vault.pendingForwardChangesCount(selector1), 1);
+        assertEq(vault.pendingForwardChangesCount(selector2), 0);
 
         // Execute action - counter should decrement for selector1 only
         vault.setIsAllocator(address(1), true);
-        assertEq(vault.pendingCount(selector1), 0);
-        assertEq(vault.pendingCount(selector2), 0);
+        assertEq(vault.pendingForwardChangesCount(selector1), 0);
+        assertEq(vault.pendingForwardChangesCount(selector2), 0);
 
         // Submit another action to test up to count 2
         bytes memory fullData2 = abi.encodeCall(IVaultV2.setIsAllocator, (address(2), true));
@@ -1003,22 +1005,24 @@ contract SettersTest is BaseTest {
         vault.submit(fullData);
         vm.prank(curator);
         vault.submit(fullData2);
-        assertEq(vault.pendingCount(selector1), 2);
-        assertEq(vault.pendingCount(selector2), 0);
+        assertEq(vault.pendingForwardChangesCount(selector1), 2);
+        assertEq(vault.pendingForwardChangesCount(selector2), 0);
 
         // Execute one action
         vault.setIsAllocator(address(1), true);
-        assertEq(vault.pendingCount(selector1), 1);
-        assertEq(vault.pendingCount(selector2), 0);
+        assertEq(vault.pendingForwardChangesCount(selector1), 1);
+        assertEq(vault.pendingForwardChangesCount(selector2), 0);
 
         // Revoke the other
         vm.prank(curator);
         vault.revoke(fullData2);
-        assertEq(vault.pendingCount(selector1), 0);
-        assertEq(vault.pendingCount(selector2), 0);
+        assertEq(vault.pendingForwardChangesCount(selector1), 0);
+        assertEq(vault.pendingForwardChangesCount(selector2), 0);
     }
 
-    function testPendingCountEventsBySubmitting(uint256 submitCount, bool useRevoke) public {
+    function testPendingForwardChangesCountEventsBySchedulingActionsBySubmitting(uint256 submitCount, bool useRevoke)
+        public
+    {
         submitCount = bound(submitCount, 1, 10); // Submit 1-10 times
 
         bytes4 selector = IVaultV2.setIsAllocator.selector;
@@ -1031,19 +1035,19 @@ contract SettersTest is BaseTest {
             vm.prank(curator);
             vault.submit(data);
 
-            assertEq(vault.pendingCount(selector), i);
+            assertEq(vault.pendingForwardChangesCount(selector), i);
         }
 
         bytes memory lastData = abi.encodeCall(IVaultV2.setIsAllocator, (address(uint160(submitCount)), true));
 
         if (useRevoke) {
-            // Test Revoke event with decremented pendingCount
+            // Test Revoke event with decremented pendingForwardChangesCount
             vm.expectEmit();
             emit EventsLib.Revoke(curator, selector, lastData, submitCount - 1);
             vm.prank(curator);
             vault.revoke(lastData);
 
-            assertEq(vault.pendingCount(selector), submitCount - 1);
+            assertEq(vault.pendingForwardChangesCount(selector), submitCount - 1);
         } else {
             skip(vault.timelock(selector) + 1);
 
@@ -1051,7 +1055,7 @@ contract SettersTest is BaseTest {
             emit EventsLib.Accept(selector, lastData, submitCount - 1);
             vault.setIsAllocator(address(uint160(submitCount)), true);
 
-            assertEq(vault.pendingCount(selector), submitCount - 1);
+            assertEq(vault.pendingForwardChangesCount(selector), submitCount - 1);
         }
     }
 }

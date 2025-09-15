@@ -16,7 +16,7 @@ methods {
     function _.deallocate(bytes, uint256 assets, bytes4, address) external =>
         nondetDeallocateSummary(assets) expect (bytes32[], int256);
     function ERC20.transferFrom(address, address, uint256) external returns bool => NONDET;
-    function pendingCount(bytes4) external returns uint256 envfree;
+    function pendingForwardChangesCount(bytes4) external returns uint256 envfree;
     function Utils.toBytes4(bytes) external returns bytes4 envfree;
 }
 
@@ -52,7 +52,7 @@ rule sentinelCanRevoke(env e, bytes data){
 
     require (executableAt(data) != 0, "assume `data` is pending");
     // this should be verified (TODO).
-    require(pendingCount(Utils.toBytes4(data)) > 0, "assume `data` is pending");
+    require(pendingForwardChangesCount(Utils.toBytes4(data)) > 0, "assume `data` is pending");
 
     revoke@withrevert(e, data);
     assert !lastReverted;

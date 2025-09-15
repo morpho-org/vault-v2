@@ -7,7 +7,7 @@ methods {
     function multicall(bytes[]) external => NONDET DELETE;
 
     function timelock(bytes4) external returns uint256 envfree;
-    function pendingCount(bytes4) external returns uint256 envfree;
+    function pendingForwardChangesCount(bytes4) external returns uint256 envfree;
     function executableAt(bytes) external returns uint256 envfree;
 
     function Utils.toBytes4(bytes) external returns bytes4 envfree;
@@ -23,11 +23,11 @@ rule timelockMaxFunctionsCantBeSubmitted(env e, method f, calldataarg args, byte
     require timelock(selector) == max_uint256;
 
     uint256 executableAtBefore = executableAt(data);
-    uint256 pendingCountBefore = pendingCount(selector);
+    uint256 pendingForwardChangesCountBefore = pendingForwardChangesCount(selector);
 
     f(e, args);
 
-    assert pendingCount(selector) <= pendingCountBefore;
+    assert pendingForwardChangesCount(selector) <= pendingForwardChangesCountBefore;
     assert executableAt(data) == 0 || executableAt(data) == executableAtBefore;
 }
 
@@ -65,10 +65,10 @@ filtered {
         || f.selector == sig:decreaseTimelock(bytes4,uint256).selector
 }
 {
-    require pendingCount(to_bytes4(f.selector)) == 0;
+    require pendingForwardChangesCount(to_bytes4(f.selector)) == 0;
 
     f@withrevert(e, args);
     assert lastReverted;
 }
 
-// Thus (timelock==max && pendingCount==0) => abdicated (= the function can't be called anymore).
+// Thus (timelock==max && pendingForwardChangesCount==0) => abdicated (= the function can't be called anymore).
