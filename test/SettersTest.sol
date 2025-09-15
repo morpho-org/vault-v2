@@ -354,6 +354,7 @@ contract SettersTest is BaseTest {
         // Cannot increase decreaseTimelock's timelock
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (IVaultV2.decreaseTimelock.selector, 1 weeks)));
+        skip(newTimelock);
         vm.expectRevert(ErrorsLib.AutomaticallyTimelocked.selector);
         vault.increaseTimelock(IVaultV2.decreaseTimelock.selector, 1 weeks);
 
