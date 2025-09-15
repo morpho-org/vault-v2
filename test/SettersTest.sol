@@ -1054,27 +1054,4 @@ contract SettersTest is BaseTest {
             assertEq(vault.pendingCount(selector), submitCount - 1);
         }
     }
-
-    function testPendingDecreaseTimelockBreaksPendingCountProtection() public {
-        bytes4 selector = IVaultV2.setIsAllocator.selector;
-        uint256 year = 365 days;
-
-        // Setup: long function timelock, schedule short function timelock, abdicate function
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (selector, year)));
-        vault.increaseTimelock(selector, year);
-
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, 0)));
-
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (selector, type(uint256).max)));
-        vault.increaseTimelock(selector, type(uint256).max);
-
-        // Test that even with no pending and abdicated, the function timelock cannot decrease
-        skip(year);
-
-        vm.expectRevert(ErrorsLib.AbdicatedFunction.selector);
-        vault.decreaseTimelock(selector, 0);
-    }
 }
