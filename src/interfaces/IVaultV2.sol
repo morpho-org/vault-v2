@@ -74,7 +74,6 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function setAdapterRegistry(address newAdapterRegistry) external;
     function addAdapter(address account) external;
     function removeAdapter(address account) external;
-    function abdicate(bytes4 selector) external;
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicate(bytes4 selector) external;
