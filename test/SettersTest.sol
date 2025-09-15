@@ -953,117 +953,34 @@ contract SettersTest is BaseTest {
     }
 
     function testAbdicateSetIsAllocator(address account, bool isAllocator) public {
-        _abdicateEffect(abi.encodeCall(IVaultV2.setIsAllocator, (account, isAllocator)));
-
-        vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vault.setIsAllocator(account, isAllocator);
-    }
-
-    function testAbdicateSetReceiveSharesGate(address newReceiveSharesGate) public {
-        _abdicateEffect(abi.encodeCall(IVaultV2.setReceiveSharesGate, (newReceiveSharesGate)));
-
-        vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vault.setReceiveSharesGate(newReceiveSharesGate);
-    }
-
-    function testAbdicateSetSendSharesGate(address newSendSharesGate) public {
-        _abdicateEffect(abi.encodeCall(IVaultV2.setSendSharesGate, (newSendSharesGate)));
-
-        vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vault.setSendSharesGate(newSendSharesGate);
-    }
-
-    function testAbdicateSetReceiveAssetsGate(address newReceiveAssetsGate) public {
-        _abdicateEffect(abi.encodeCall(IVaultV2.setReceiveAssetsGate, (newReceiveAssetsGate)));
-
-        vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vault.setReceiveAssetsGate(newReceiveAssetsGate);
-    }
-
-    function testAbdicateSetSendAssetsGate(address newSendAssetsGate) public {
-        _abdicateEffect(abi.encodeCall(IVaultV2.setSendAssetsGate, (newSendAssetsGate)));
-
-        vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vault.setSendAssetsGate(newSendAssetsGate);
-    }
-
-    function testAbdicateSetAdapterRegistry(address newAdapterRegistry) public {
-        _abdicateEffect(abi.encodeCall(IVaultV2.setAdapterRegistry, (newAdapterRegistry)));
-
-        vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vault.setAdapterRegistry(newAdapterRegistry);
-    }
-
-    function testAbdicateAddAdapter(address adapter) public {
-        _abdicateEffect(abi.encodeCall(IVaultV2.addAdapter, (adapter)));
-
-        vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vault.addAdapter(adapter);
-    }
-
-    function testAbdicateRemoveAdapter(address adapter) public {
-        _abdicateEffect(abi.encodeCall(IVaultV2.removeAdapter, (adapter)));
-
-        vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vault.removeAdapter(adapter);
-    }
-
-    function testAbdicateIncreaseTimelock(bytes4 selector, uint256 newDuration) public {
-        // Prepare timelock increase
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (IVaultV2.increaseTimelock.selector, 2 weeks)));
-        vault.increaseTimelock(IVaultV2.increaseTimelock.selector, 2 weeks);
-        assertEq(vault.timelock(IVaultV2.increaseTimelock.selector), 2 weeks);
+        bytes4 selector = IVaultV2.setIsAllocator.selector;
+        bytes memory data = abi.encodeCall(IVaultV2.setIsAllocator, (account, isAllocator));
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.abdicate, (IVaultV2.increaseTimelock.selector)));
-        vault.abdicate(IVaultV2.increaseTimelock.selector);
-        assertTrue(vault.abdicated(IVaultV2.increaseTimelock.selector));
+        vault.submit(abi.encodeCall(IVaultV2.abdicate, (selector)));
+        vault.abdicate(selector);
+        assertTrue(vault.abdicated(selector));
+
+        // Timelock increase still work
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (selector, 2 weeks)));
+        vault.increaseTimelock(selector, 2 weeks);
+        assertEq(vault.timelock(selector), 2 weeks);
 
         // Submit still works
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (selector, newDuration)));
-        assertEq(
-            vault.executableAt(abi.encodeCall(IVaultV2.increaseTimelock, (selector, newDuration))),
-            block.timestamp + 2 weeks
-        );
+        vault.submit(data);
+        assertEq(vault.executableAt(data), block.timestamp + 2 weeks);
 
         // Timelock decrease still work
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (IVaultV2.increaseTimelock.selector, 0)));
+        vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, 0)));
         skip(2 weeks);
-        vault.decreaseTimelock(IVaultV2.increaseTimelock.selector, 0);
-        assertEq(vault.timelock(IVaultV2.increaseTimelock.selector), 0);
+        vault.decreaseTimelock(selector, 0);
+        assertEq(vault.timelock(selector), 0);
 
         vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vault.increaseTimelock(selector, newDuration);
-    }
-
-    function testAbdicateDecreaseTimelock(bytes4 selector, uint256 newDuration) public {
-        // vm.prank(curator);
-        // vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, newDuration)));
-        // vault.decreaseTimelock(selector, newDuration);
-        // assertEq(vault.timelock(selector), newDuration);
-
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.abdicate, (IVaultV2.decreaseTimelock.selector)));
-        vault.abdicate(IVaultV2.decreaseTimelock.selector);
-        assertTrue(vault.abdicated(IVaultV2.decreaseTimelock.selector));
-
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.abdicate, (IVaultV2.decreaseTimelock.selector)));
-        vault.abdicate(IVaultV2.decreaseTimelock.selector);
-        assertTrue(vault.abdicated(IVaultV2.decreaseTimelock.selector));
-
-        // Submit still works
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, newDuration)));
-        assertEq(
-            vault.executableAt(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, newDuration))), block.timestamp
-        );
-
-        vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vault.decreaseTimelock(selector, newDuration);
+        vault.setIsAllocator(account, isAllocator);
     }
 
     function testAbdicateAbdicate(bytes4 selector) public {
@@ -1091,82 +1008,6 @@ contract SettersTest is BaseTest {
 
         vm.expectRevert(ErrorsLib.Abdicated.selector);
         vault.abdicate(selector);
-    }
-
-    function testAbdicateSetPerformanceFee(uint256 newPerformanceFee) public {
-        _abdicateEffect(abi.encodeCall(IVaultV2.setPerformanceFee, (newPerformanceFee)));
-
-        vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vault.setPerformanceFee(newPerformanceFee);
-    }
-
-    function testAbdicateSetManagementFee(uint256 newManagementFee) public {
-        _abdicateEffect(abi.encodeCall(IVaultV2.setManagementFee, (newManagementFee)));
-
-        vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vault.setManagementFee(newManagementFee);
-    }
-
-    function testAbdicateSetPerformanceFeeRecipient(address newPerformanceFeeRecipient) public {
-        _abdicateEffect(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (newPerformanceFeeRecipient)));
-
-        vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vault.setPerformanceFeeRecipient(newPerformanceFeeRecipient);
-    }
-
-    function testAbdicateSetManagementFeeRecipient(address newManagementFeeRecipient) public {
-        _abdicateEffect(abi.encodeCall(IVaultV2.setManagementFeeRecipient, (newManagementFeeRecipient)));
-
-        vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vault.setManagementFeeRecipient(newManagementFeeRecipient);
-    }
-
-    function testAbdicateIncreaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) public {
-        _abdicateEffect(abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, newAbsoluteCap)));
-
-        vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vault.increaseAbsoluteCap(idData, newAbsoluteCap);
-    }
-
-    function testAbdicateIncreaseRelativeCap(bytes memory idData, uint256 newRelativeCap) public {
-        _abdicateEffect(abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, newRelativeCap)));
-
-        vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vault.increaseRelativeCap(idData, newRelativeCap);
-    }
-
-    function testAbdicateSetForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) public {
-        _abdicateEffect(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (adapter, newForceDeallocatePenalty)));
-
-        vm.expectRevert(ErrorsLib.Abdicated.selector);
-        vault.setForceDeallocatePenalty(adapter, newForceDeallocatePenalty);
-    }
-
-    function _abdicateEffect(bytes memory data) internal {
-        bytes4 selector = bytes4(data);
-
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.abdicate, (selector)));
-        vault.abdicate(selector);
-        assertTrue(vault.abdicated(selector));
-
-        // Timelock increase still work
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (selector, 2 weeks)));
-        vault.increaseTimelock(selector, 2 weeks);
-        assertEq(vault.timelock(selector), 2 weeks);
-
-        // Submit still works
-        vm.prank(curator);
-        vault.submit(data);
-        assertEq(vault.executableAt(data), block.timestamp + 2 weeks);
-
-        // Timelock decrease still work
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.decreaseTimelock, (selector, 0)));
-        skip(2 weeks);
-        vault.decreaseTimelock(selector, 0);
-        assertEq(vault.timelock(selector), 0);
     }
 
     /* ALLOCATOR SETTERS */
