@@ -1072,9 +1072,6 @@ contract SettersTest is BaseTest {
         vault.submit(abi.encodeCall(IVaultV2.increaseTimelock, (selector, type(uint256).max)));
         vault.increaseTimelock(selector, type(uint256).max);
 
-        assertEq(vault.timelock(selector), type(uint256).max);
-        assertEq(vault.pendingCount(selector), 0);
-
         // Test that even with no pending and abdicated, the function is called in the near future
         skip(year);
         assertEq(vault.timelock(selector), type(uint256).max);
