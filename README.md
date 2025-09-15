@@ -54,7 +54,7 @@ A typical liquidity adapter would allow deposits/withdrawals to go through a ver
 Curator configuration changes are all timelockable (except `decreaseAbsoluteCap` and `decreaseRelativeCap`), meaning that doing an action requires submitting it first, and only when the timelock has passed it can be executed (by anyone).
 This is useful notably to the [non-custodial guarantees](#non-custodial-guarantees), but also in general if a curator wants to give guarantees about some configurations.
 
-In particular, a configuration can be *abdicated*, meaning that it won't be able to be set anymore, by setting the timelock to type(uint256).max and making sure that pendingCount for this selector is zero.
+In particular, a configuration can be *abdicated*, meaning that it won't be able to be set anymore, by calling `abdicate`.
 Thus, increaseTimelock should be used carefully, because decreaseTimelock is function-dependent: decreasing the timelock of a function is timelocked by the timelock of the function itself.
 
 ### In-kind redemptions

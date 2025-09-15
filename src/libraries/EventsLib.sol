@@ -58,6 +58,7 @@ library EventsLib {
     event RemoveAdapter(address indexed account);
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event IncreaseTimelock(bytes4 indexed selector, uint256 newDuration);
+    event Abdicate(bytes4 indexed selector);
     event SetLiquidityAdapterAndData(
         address indexed sender, address indexed newLiquidityAdapter, bytes indexed newLiquidityData
     );

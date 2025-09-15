@@ -137,9 +137,10 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// ).
 /// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist, argument
 /// encoding is wrong, function' conditions are not met, etc.).
-/// @dev timelock[selector] == type(uint256).max is treated as a special case. It prevent executing pending data, and
-/// prevent executing pending decreaseTimelock for the selector. So to be sure that a timelocked function will not be
-/// called in the future, require that timelock[selector] == type(uint256).max.
+///
+/// ABDICATION
+/// @dev When a timelocked function is abdicated, it can't be called anymore.
+/// @dev It is still possible to submit data for it or change its timelock, but it will not be executable / effective.
 ///
 /// GATES
 /// @dev Set to 0 to disable a gate.
@@ -233,6 +234,7 @@ contract VaultV2 is IVaultV2 {
     /* TIMELOCKS STORAGE */
 
     mapping(bytes4 selector => uint256) public timelock;
+    mapping(bytes4 selector => bool) public abdicated;
     mapping(bytes data => uint256) public executableAt;
 
     /* FEES STORAGE */
@@ -346,11 +348,11 @@ contract VaultV2 is IVaultV2 {
     }
 
     function timelocked() internal {
+        bytes4 selector = bytes4(msg.data);
         require(executableAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
         require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
-        require(timelock[bytes4(msg.data)] != type(uint256).max, ErrorsLib.Abdicated());
+        require(!abdicated[selector], ErrorsLib.Abdicated());
         executableAt[msg.data] = 0;
-        bytes4 selector = bytes4(msg.data);
         emit EventsLib.Accept(selector, msg.data);
     }
 
@@ -454,10 +456,15 @@ contract VaultV2 is IVaultV2 {
         timelocked();
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.AutomaticallyTimelocked());
         require(newDuration <= timelock[selector], ErrorsLib.TimelockNotDecreasing());
-        require(timelock[selector] != type(uint256).max, ErrorsLib.Abdicated());
 
         timelock[selector] = newDuration;
         emit EventsLib.DecreaseTimelock(selector, newDuration);
+    }
+
+    function abdicate(bytes4 selector) external {
+        timelocked();
+        abdicated[selector] = true;
+        emit EventsLib.Abdicate(selector);
     }
 
     function setPerformanceFee(uint256 newPerformanceFee) external {
