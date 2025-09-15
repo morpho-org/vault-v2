@@ -16,7 +16,6 @@ methods {
     function _.deallocate(bytes, uint256 assets, bytes4, address) external =>
         nondetDeallocateSummary(assets) expect (bytes32[], int256);
     function ERC20.transferFrom(address, address, uint256) external returns bool => NONDET;
-    function Utils.toBytes4(bytes) external returns bytes4 envfree;
 }
 
 // Ghost copy of caps[*].allocation to be able to use quantifiers.
