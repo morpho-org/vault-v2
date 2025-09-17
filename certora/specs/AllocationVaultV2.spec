@@ -39,20 +39,3 @@ rule depositWithdrawChangeAllocationThroughLiquidityAdapter(env e, method f, cal
 
     assert allocation(id) != allocationPre => currentContract.liquidityAdapter != 0;
 }
-
-// Check that when no liquidity adapter is set, allocation can change only via *allocate functions.
-rule functionsChangingAllocationWithoutLiquidityAdapter(env e, method f, calldataarg args) filtered {
-    f -> !f.isView &&
-         f.selector != sig:allocate(address,bytes,uint).selector &&
-         f.selector != sig:deallocate(address,bytes,uint).selector &&
-         f.selector != sig:forceDeallocate(address,bytes,uint,address).selector
-} {
-    require(currentContract.liquidityAdapter == 0, "assume no liquidity adapter");
-
-    bytes32 id;
-    uint256 allocationPre = allocation(id);
-
-    f(e, args);
-
-    assert allocation(id) == allocationPre;
-}
