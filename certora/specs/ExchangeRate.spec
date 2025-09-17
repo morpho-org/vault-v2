@@ -3,93 +3,74 @@
 
 import "Invariants.spec";
 
-// Check that if deposit adds one share less to the user than it does, then the share price would decrease following a deposit.
+definition shares() {
+    return currentContract.totalSupply + currentContract.virtualShares;
+}
+
+definition assets() {
+    return currentContract._totalAssets + 1;
+}
+
+// Check that if deposit adds one more share to the user than it does, then the share price would decrease following a deposit.
 rule sharePriceBoundDeposit(env e, uint256 assets, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
-    uint256 V = currentContract.virtualShares;
-
-    uint256 assetsBefore = currentContract._totalAssets;
-    uint256 supplyBefore = currentContract.totalSupply;
+    uint256 assetsBefore = assets();
+    uint256 sharesBefore = shares();
 
     deposit(e, assets, onBehalf);
 
-    uint256 assetsAfter = currentContract._totalAssets;
-    uint256 supplyAfter = currentContract.totalSupply;
-
-    assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V + 1);
+    assert assets() * sharesBefore <= assetsBefore * (shares() + 1);
 }
 
-// Check that if withdraw removed one share less to the user than it does, then the share price would decrease following a withdraw.
+// Check that if withdraw removed one less share to the user than it does, then the share price would decrease following a withdraw.
 rule sharePriceBoundWithdraw(env e, uint256 assets, address receiver, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
-    uint256 V = currentContract.virtualShares;
-
-    uint256 assetsBefore = currentContract._totalAssets;
-    uint256 supplyBefore = currentContract.totalSupply;
+    uint256 assetsBefore = assets();
+    uint256 sharesBefore = shares();
 
     withdraw(e, assets, receiver, onBehalf);
 
-    uint256 assetsAfter = currentContract._totalAssets;
-    uint256 supplyAfter = currentContract.totalSupply;
-
-    assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V + 1);
+    assert assets() * sharesBefore <= assetsBefore * (shares() + 1);
 }
 
-// Check that mint can raise the price-per-share by no more than depositing one extra asset would.
+// Check that if mint asks one less asset to the user than it does, then the share price would decrease following a mint.
 rule sharePriceBoundMint(env e, uint256 shares, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
-    uint256 V = currentContract.virtualShares;
-    uint256 assetsBefore = currentContract._totalAssets;
-    uint256 supplyBefore = currentContract.totalSupply;
+    uint256 assetsBefore = assets();
+    uint256 sharesBefore = shares();
 
     mint(e, shares, onBehalf);
 
-    uint256 assetsAfter = currentContract._totalAssets;
-    uint256 supplyAfter = currentContract.totalSupply;
-
-    // Tight inequality
-    assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V )  + (supplyBefore + V - 1);
-
-    assert (assetsAfter + 1 - 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V);
+    assert (assets() - 1) * sharesBefore <= assetsBefore * shares();
 }
 
-// Check that redeem can raise the price-per-share by no more than contributing one extra asset would.
+// Check that if redeem gave one more asset to the user than it does, then the share price would decrease following a redeem.
 rule sharePriceBoundRedeem(env e, uint256 shares, address receiver, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
-    uint256 V = currentContract.virtualShares;
-    uint256 assetsBefore = currentContract._totalAssets;
-    uint256 supplyBefore = currentContract.totalSupply;
+    uint256 assetsBefore = assets();
+    uint256 sharesBefore = shares();
 
     redeem(e, shares, receiver, onBehalf);
 
-    uint256 assetsAfter = currentContract._totalAssets;
-    uint256 supplyAfter = currentContract.totalSupply;
-
-    // Tight inequality.
-    assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V) + (supplyBefore + V - 1);
-
-    assert (assetsAfter) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V);
+    assert (assets() - 1) * sharesBefore <= assetsBefore * shares();
 }
 
 // Check that loss realization decreases the share price.
 rule lossRealizationMonotonic(env e, address adapter, bytes data){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
-    uint256 V = currentContract.virtualShares;
-    uint256 assetsBefore = currentContract._totalAssets;
-    uint256 supplyBefore = currentContract.totalSupply;
+    uint256 assetsBefore = assets();
+    uint256 sharesBefore = shares();
 
     accrueInterest(e);
 
     require (currentContract.lossRealization, "assume loss realization");
-    uint256 assetsAfter = currentContract._totalAssets;
-    uint256 supplyAfter = currentContract.totalSupply;
 
-    assert (assetsAfter + 1) * (supplyBefore + V) <= (assetsBefore + 1) * (supplyAfter + V);
+    assert assets() * sharesBefore <= assetsBefore * shares();
 }
 
 // Check that share price is increasing, except due to management fees or loss realization.
@@ -104,17 +85,12 @@ rule sharePriceIncreasing(method f, env e, calldataarg a) {
     requireInvariant totalSupplyIsSumOfBalances();
     requireInvariant virtualSharesBounds();
 
-    uint256 V = currentContract.virtualShares;
-
-    uint256 assetsBefore = currentContract._totalAssets;
-    uint256 supplyBefore = currentContract.totalSupply;
+    uint256 assetsBefore = assets();
+    uint256 sharesBefore = shares();
 
     f(e, a);
 
     require (!currentContract.lossRealization, "assume no loss realization");
 
-    uint256 assetsAfter = currentContract._totalAssets;
-    uint256 supplyAfter = currentContract.totalSupply;
-
-    assert (assetsBefore + 1) * (supplyAfter + V) <= (assetsAfter + 1) * (supplyBefore + V);
+    assert assetsBefore * shares() <= assets() * sharesBefore;
 }
