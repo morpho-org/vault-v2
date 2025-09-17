@@ -20,40 +20,38 @@ rule totalAssetsChange(env e, method f) filtered {
 } {
     mathint totalAssetsPre = currentContract._totalAssets;
 
-    uint256 addedAssets;
-    uint256 removedAssets;
+    uint256 expectedAddedAssets;
+    uint256 expectedRemovedAssets;
 
     if (f.selector == sig:deposit(uint,address).selector) {
-        require(removedAssets == 0, "this operation only adds assets");
-        deposit(e, addedAssets, e.msg.sender);
+        require(expectedRemovedAssets == 0, "this operation only adds assets");
+        deposit(e, expectedAddedAssets, e.msg.sender);
     } else if (f.selector == sig:mint(uint,address).selector) {
         uint256 shares;
-        require(removedAssets == 0, "this operation only adds assets");
-        require(addedAssets == previewMint(e, shares), "added assets should be the result of previewMint before the donation");
+        require(expectedRemovedAssets == 0, "this operation only adds assets");
+        require(expectedAddedAssets == previewMint(e, shares), "added assets should be the result of previewMint before the donation");
         mint(e, shares, e.msg.sender);
     } else if (f.selector == sig:withdraw(uint,address,address).selector) {
-        require(addedAssets == 0, "this operation only removes assets");
-        withdraw(e, removedAssets, e.msg.sender, e.msg.sender);
+        require(expectedAddedAssets == 0, "this operation only removes assets");
+        withdraw(e, expectedRemovedAssets, e.msg.sender, e.msg.sender);
     } else if (f.selector == sig:redeem(uint,address,address).selector) {
         uint256 shares;
-        require(addedAssets == 0, "this operation only removes assets");
-        require(removedAssets == previewRedeem(e, shares), "redeemed assets should be the result of previewRedeem before the donation");
+        require(expectedAddedAssets == 0, "this operation only removes assets");
+        require(expectedRemovedAssets == previewRedeem(e, shares), "redeemed assets should be the result of previewRedeem before the donation");
         redeem(e, shares, e.msg.sender, e.msg.sender);
     } else if (f.selector == sig:forceDeallocate(address,bytes,uint,address).selector) {
         address adapter;
         bytes data;
         uint256 deallocationAmount;
-        require(addedAssets == 0, "this operation only removes assets");
-        require(removedAssets == mulDivUp(deallocationAmount, currentContract.forceDeallocatePenalty[adapter], 10^18), "compute the penalty quoted in assets");
+        require(expectedAddedAssets == 0, "this operation only removes assets");
+        require(expectedRemovedAssets == mulDivUp(deallocationAmount, currentContract.forceDeallocatePenalty[adapter], 10^18), "compute the penalty quoted in assets");
         forceDeallocate(e, adapter, data, deallocationAmount, e.msg.sender);
     } else {
         calldataarg args;
-        require(addedAssets == 0, "other operations don't add assets");
-        require(removedAssets == 0, "other operations don't remove assets");
+        require(expectedAddedAssets == 0, "other operations don't add assets");
+        require(expectedRemovedAssets == 0, "other operations don't remove assets");
         f(e, args);
     }
 
-    mathint totalAssetsPost = currentContract._totalAssets;
-
-    assert totalAssetsPre + addedAssets - removedAssets == totalAssetsPost;
+    assert totalAssetsPre + expectedAddedAssets - expectedRemovedAssets == currentContract._totalAssets;
 }

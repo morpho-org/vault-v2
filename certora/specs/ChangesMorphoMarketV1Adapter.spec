@@ -40,6 +40,7 @@ rule changeForAllocateIsBoundedByAllocation(env e, bytes data, uint256 assets, b
   ids, change = allocate(e, data, assets, selector, sender);
 
   assert allocation + change >= 0;
+  assert allocation + change == allocation(marketParams);
 }
 
 // Check that deallocate cannot return a change that would make the current allocation negative.
@@ -51,4 +52,5 @@ rule changeForDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets,
   ids, change = deallocate(e, data, assets, selector, sender);
 
   assert allocation + change >= 0;
+  assert allocation + change == allocation(marketParams);
 }
