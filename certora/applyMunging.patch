@@ -1,7 +1,7 @@
 diff -ruN VaultV2.sol VaultV2.sol
 --- VaultV2.sol
 +++ VaultV2.sol
-@@ -207,6 +207,10 @@
+@@ -226,6 +226,10 @@
      uint96 public managementFee;
      address public managementFeeRecipient;
  
@@ -12,7 +12,7 @@ diff -ruN VaultV2.sol VaultV2.sol
      /* GETTERS */
  
      function adaptersLength() external view returns (uint256) {
-@@ -262,6 +266,9 @@
+@@ -281,6 +285,9 @@
          virtualShares = 10 ** decimalOffset;
          timelock[IVaultV2.decreaseTimelock.selector] = TIMELOCK_CAP;
          emit EventsLib.Constructor(_owner, _asset);
@@ -22,7 +22,7 @@ diff -ruN VaultV2.sol VaultV2.sol
      }
  
      /* OWNER FUNCTIONS */
-@@ -564,6 +571,10 @@
+@@ -593,6 +600,10 @@
  
      function accrueInterest() public {
          (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
