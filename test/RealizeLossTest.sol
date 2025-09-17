@@ -21,8 +21,8 @@ contract RealizeLossTest is BaseTest {
         adapter = new AdapterMock(address(vault));
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
-        vault.setIsAdapter(address(adapter), true);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
+        vault.addAdapter(address(adapter));
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
@@ -90,8 +90,8 @@ contract RealizeLossTest is BaseTest {
         expectedLoss = bound(expectedLoss, 1, deposit);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
-        vault.setIsAdapter(address(adapter), true);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
+        vault.addAdapter(address(adapter));
         vm.prank(allocator);
         vault.setLiquidityAdapterAndData(address(adapter), hex"");
 
@@ -111,8 +111,8 @@ contract RealizeLossTest is BaseTest {
         expectedLoss = bound(expectedLoss, 1, deposit);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
-        vault.setIsAdapter(address(adapter), true);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
+        vault.addAdapter(address(adapter));
         vm.prank(allocator);
         vault.setLiquidityAdapterAndData(address(adapter), hex"");
 
@@ -132,8 +132,8 @@ contract RealizeLossTest is BaseTest {
         expectedLoss = bound(expectedLoss, 1, deposit);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
-        vault.setIsAdapter(address(adapter), true);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
+        vault.addAdapter(address(adapter));
         vm.prank(allocator);
         vault.setLiquidityAdapterAndData(address(adapter), hex"");
 

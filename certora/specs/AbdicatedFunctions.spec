@@ -1,40 +1,44 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-using Utils as Utils;
-
 methods {
     function multicall(bytes[]) external => NONDET DELETE;
-
-    function timelock(bytes4 selector) external returns uint256 envfree;
-
-    function Utils.toBytes4(bytes) external returns bytes4 envfree;
+    function abdicated(bytes4) external returns bool envfree;
 }
 
-// Check that abdicating a function set their timelock to infinity.
-rule abidcatedFunctionHasInfiniteTimelock(env e, bytes4 selector) {
-    abdicateSubmit(e, selector);
-
-    assert timelock(selector) == max_uint256;
+rule abdicatedFunctionsCantBeCalled(env e, method f, calldataarg args) 
+filtered {
+    f -> f.selector == sig:setIsAllocator(address,bool).selector
+        || f.selector == sig:addAdapter(address).selector
+        || f.selector == sig:removeAdapter(address).selector
+        || f.selector == sig:setReceiveSharesGate(address).selector
+        || f.selector == sig:setSendSharesGate(address).selector
+        || f.selector == sig:setReceiveAssetsGate(address).selector
+        || f.selector == sig:setSendAssetsGate(address).selector
+        || f.selector == sig:setAdapterRegistry(address).selector
+        || f.selector == sig:increaseAbsoluteCap(bytes,uint256).selector
+        || f.selector == sig:increaseRelativeCap(bytes,uint256).selector
+        || f.selector == sig:setPerformanceFee(uint256).selector
+        || f.selector == sig:setManagementFee(uint256).selector
+        || f.selector == sig:setPerformanceFeeRecipient(address).selector
+        || f.selector == sig:setManagementFeeRecipient(address).selector
+        || f.selector == sig:setForceDeallocatePenalty(address,uint256).selector
+        || f.selector == sig:increaseTimelock(bytes4,uint256).selector
+        || f.selector == sig:decreaseTimelock(bytes4,uint256).selector
+        || f.selector == sig:abdicate(bytes4).selector
 }
-
-// Check that infinite timelocks can't be changed.
-rule inifiniteTimelockCantBeChanged(env e, method f, calldataarg data, bytes4 selector) {
-    require timelock(selector) == max_uint256;
-
-    f(e, data);
-
-    assert timelock(selector) == max_uint256;
-}
-
-// Check that changes corresponding to functions that have been abdicated can't be submitted.
-rule abdicatedFunctionsCantBeSubmitted(env e, bytes data) {
-    // Safe require in a non trivial chain.
-    require e.block.timestamp > 0;
-
-    // Assume that the function has been abdicated.
-    require timelock(Utils.toBytes4(data)) == max_uint256;
-
-    submit@withrevert(e, data);
+{    
+    require abdicated(to_bytes4(f.selector));
+    
+    f@withrevert(e, args);
+    
     assert lastReverted;
+}
+
+rule abdicatedCantBeDeabdicated(env e, method f, calldataarg args, bytes4 selector) {
+    require abdicated(selector);
+    
+    f(e, args);
+    
+    assert abdicated(selector);
 }

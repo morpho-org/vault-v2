@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Morpho Association
 
 using ERC20Mock as ERC20;
+using Utils as Utils;
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
 
