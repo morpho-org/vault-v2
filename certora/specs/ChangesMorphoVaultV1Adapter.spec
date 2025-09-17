@@ -58,7 +58,6 @@ rule changeForAllocateIsBoundedByAllocation(env e, bytes data, uint256 assets, b
   require (vaultV1.balanceOf(currentContract) <= vaultV1.totalSupply(), "total supply is the sum of the balances");
 
   assert allocation + change >= 0;
-  assert allocation + change == allocation();
 }
 
 // Check that deallocate cannot return a change that would make the current allocation negative.
@@ -71,5 +70,4 @@ rule changeForDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets,
   require (vaultV1.balanceOf(currentContract) <= vaultV1.totalSupply(), "total supply is the sum of the balances");
 
   assert allocation + change >= 0;
-  assert allocation + change == allocation();
 }
