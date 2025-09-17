@@ -3,20 +3,16 @@
 
 import "Invariants.spec";
 
-definition shares() {
-    return currentContract.totalSupply + currentContract.virtualShares;
-}
+definition shares() returns mathint = currentContract.totalSupply + currentContract.virtualShares;
 
-definition assets() {
-    return currentContract._totalAssets + 1;
-}
+definition assets() returns mathint = currentContract._totalAssets + 1;
 
 // Check that if deposit adds one more share to the user than it does, then the share price would decrease following a deposit.
 rule sharePriceBoundDeposit(env e, uint256 assets, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
-    uint256 assetsBefore = assets();
-    uint256 sharesBefore = shares();
+    mathint assetsBefore = assets();
+    mathint sharesBefore = shares();
 
     deposit(e, assets, onBehalf);
 
@@ -27,8 +23,8 @@ rule sharePriceBoundDeposit(env e, uint256 assets, address onBehalf){
 rule sharePriceBoundWithdraw(env e, uint256 assets, address receiver, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
-    uint256 assetsBefore = assets();
-    uint256 sharesBefore = shares();
+    mathint assetsBefore = assets();
+    mathint sharesBefore = shares();
 
     withdraw(e, assets, receiver, onBehalf);
 
@@ -39,8 +35,8 @@ rule sharePriceBoundWithdraw(env e, uint256 assets, address receiver, address on
 rule sharePriceBoundMint(env e, uint256 shares, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
-    uint256 assetsBefore = assets();
-    uint256 sharesBefore = shares();
+    mathint assetsBefore = assets();
+    mathint sharesBefore = shares();
 
     mint(e, shares, onBehalf);
 
@@ -51,8 +47,8 @@ rule sharePriceBoundMint(env e, uint256 shares, address onBehalf){
 rule sharePriceBoundRedeem(env e, uint256 shares, address receiver, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
-    uint256 assetsBefore = assets();
-    uint256 sharesBefore = shares();
+    mathint assetsBefore = assets();
+    mathint sharesBefore = shares();
 
     redeem(e, shares, receiver, onBehalf);
 
@@ -63,8 +59,8 @@ rule sharePriceBoundRedeem(env e, uint256 shares, address receiver, address onBe
 rule lossRealizationMonotonic(env e, address adapter, bytes data){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
-    uint256 assetsBefore = assets();
-    uint256 sharesBefore = shares();
+    mathint assetsBefore = assets();
+    mathint sharesBefore = shares();
 
     accrueInterest(e);
 
@@ -85,8 +81,8 @@ rule sharePriceIncreasing(method f, env e, calldataarg a) {
     requireInvariant totalSupplyIsSumOfBalances();
     requireInvariant virtualSharesBounds();
 
-    uint256 assetsBefore = assets();
-    uint256 sharesBefore = shares();
+    mathint assetsBefore = assets();
+    mathint sharesBefore = shares();
 
     f(e, a);
 
