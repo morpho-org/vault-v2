@@ -78,6 +78,7 @@ strong invariant registeredAdaptersAreSet()
         requireInvariant adaptersUnique();
     }
 }
+
 strong invariant adaptersUnique()
     forall uint256 i. forall uint256 j. (i < j && j < currentContract.adapters.length) => currentContract.adapters[j] != currentContract.adapters[i]
 {
