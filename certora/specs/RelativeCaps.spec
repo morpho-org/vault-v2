@@ -5,35 +5,34 @@ using Utils as Utils;
 
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
-    function deallocateInternal(address, bytes memory, uint256) internal returns (bytes32[] memory) => deallocateInternalSummary();
     function Utils.wad() external returns (uint256) envfree;
 }
 
-persistent ghost bool deallocateInternalCalled;
-
-function deallocateInternalSummary() returns (bytes32[]) {
-    deallocateInternalCalled = true;
-
-    bytes32[] ids;
-    uint i;
-    havoc currentContract.caps[ids[i]].allocation assuming i < ids.length;
-
-    return ids;
-}
-
-// Check that allocation are within relative caps limit assuming no deallocation and no relative cap decrease.
+// Check that no function can break the cap limit, except for:
+// - for the fact that the total asset can decrease when accruing interest;
+// - exit functions (withdraw, redeem & forceDeallocate);
+// - decreaseRelativeCap;
+// - deallocate (because it can actually increase allocations)
 rule relativeCapValidity(env e, method f, calldataarg args)
-filtered { f -> f.selector != sig:decreaseRelativeCap(bytes, uint256).selector } {
+filtered {
+    f -> f.selector != sig:withdraw(uint256, address, address).selector &&
+         f.selector != sig:redeem(uint256, address, address).selector &&
+         f.selector != sig:forceDeallocate(address, bytes, uint256, address).selector &&
+         f.selector != sig:decreaseRelativeCap(bytes, uint256).selector &&
+         f.selector != sig:deallocate(address, bytes, uint256).selector
+} {
     bytes32 id;
+    // Tracks the firstTotalAssets value after calling f.
+    uint256 firstTotalAssetsAfter;
 
     require currentContract.caps[id].relativeCap < Utils.wad() =>
-    currentContract.caps[id].allocation <= (currentContract.firstTotalAssets * currentContract.caps[id].relativeCap) / Utils.wad();
+    currentContract.caps[id].allocation <= (firstTotalAssetsAfter * currentContract.caps[id].relativeCap) / Utils.wad();
 
     f(e, args);
 
-    require !deallocateInternalCalled;
+    // Note that firstTotalAssets is not reset after f, because in CVL functions calls are not isolated in different transactions.
+    require firstTotalAssetsAfter == currentContract.firstTotalAssets;
 
-    // Note that firstTotalAssets is not reset after f, as functions calls are not isolated in different transactions in CVL.
     assert currentContract.caps[id].relativeCap < Utils.wad() =>
-    currentContract.caps[id].allocation <= (currentContract.firstTotalAssets * currentContract.caps[id].relativeCap) / Utils.wad();
+    currentContract.caps[id].allocation <= (firstTotalAssetsAfter * currentContract.caps[id].relativeCap) / Utils.wad();
 }
