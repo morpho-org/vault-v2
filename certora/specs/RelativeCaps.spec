@@ -8,11 +8,11 @@ methods {
     function Utils.wad() external returns (uint256) envfree;
 }
 
-// Check that no function can break the cap limit, except for:
+// Check that no function can break the cap limit, except:
 // - for the fact that the total asset can decrease when accruing interest;
-// - exit functions (withdraw, redeem & forceDeallocate);
-// - decreaseRelativeCap;
-// - deallocate (because it can actually increase allocations)
+// - for exit functions (withdraw, redeem & forceDeallocate);
+// - for decreaseRelativeCap;
+// - for deallocate (because it can actually increase allocations)
 rule relativeCapValidity(env e, method f, calldataarg args)
 filtered {
     f -> f.selector != sig:withdraw(uint256, address, address).selector &&
