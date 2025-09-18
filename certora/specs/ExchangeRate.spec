@@ -8,7 +8,7 @@ definition shares() returns mathint = currentContract.totalSupply + currentContr
 definition assets() returns mathint = currentContract._totalAssets + 1;
 
 // Check that if deposit adds one more share to the user than it does, then the share price would decrease following a deposit.
-rule sharePriceBoundDeposit(env e, uint256 assets, address onBehalf){
+rule boundSharePriceIncreaseOnDeposit(env e, uint256 assets, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
     mathint assetsBefore = assets();
@@ -20,7 +20,7 @@ rule sharePriceBoundDeposit(env e, uint256 assets, address onBehalf){
 }
 
 // Check that if withdraw removed one less share to the user than it does, then the share price would decrease following a withdraw.
-rule sharePriceBoundWithdraw(env e, uint256 assets, address receiver, address onBehalf){
+rule boundSharePriceIncreaseOnWithdraw(env e, uint256 assets, address receiver, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
     mathint assetsBefore = assets();
@@ -32,7 +32,7 @@ rule sharePriceBoundWithdraw(env e, uint256 assets, address receiver, address on
 }
 
 // Check that if mint asks one less asset to the user than it does, then the share price would decrease following a mint.
-rule sharePriceBoundMint(env e, uint256 shares, address onBehalf){
+rule boundSharePriceIncreaseOnMint(env e, uint256 shares, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
     mathint assetsBefore = assets();
@@ -44,7 +44,7 @@ rule sharePriceBoundMint(env e, uint256 shares, address onBehalf){
 }
 
 // Check that if redeem gave one more asset to the user than it does, then the share price would decrease following a redeem.
-rule sharePriceBoundRedeem(env e, uint256 shares, address receiver, address onBehalf){
+rule boundSharePriceIncreaseOnRedeem(env e, uint256 shares, address receiver, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
     mathint assetsBefore = assets();
