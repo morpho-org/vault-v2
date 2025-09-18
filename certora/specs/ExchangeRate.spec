@@ -16,7 +16,7 @@ rule boundSharePriceIncreaseOnDeposit(env e, uint256 assets, address onBehalf){
 
     deposit(e, assets, onBehalf);
 
-    assert assets() * sharesBefore <= assetsBefore * (shares() + 1);
+    assert assets() * sharesBefore < assetsBefore * (shares() + 1);
 }
 
 // Check that if withdraw removed one less share to the user than it does, then the share price would decrease following a withdraw.
@@ -28,7 +28,7 @@ rule boundSharePriceIncreaseOnWithdraw(env e, uint256 assets, address receiver, 
 
     withdraw(e, assets, receiver, onBehalf);
 
-    assert assets() * sharesBefore <= assetsBefore * (shares() + 1);
+    assert assets() * sharesBefore < assetsBefore * (shares() + 1);
 }
 
 // Check that if mint asks one less asset to the user than it does, then the share price would decrease following a mint.
@@ -40,7 +40,7 @@ rule boundSharePriceIncreaseOnMint(env e, uint256 shares, address onBehalf){
 
     mint(e, shares, onBehalf);
 
-    assert (assets() - 1) * sharesBefore <= assetsBefore * shares();
+    assert (assets() - 1) * sharesBefore < assetsBefore * shares();
 }
 
 // Check that if redeem gave one more asset to the user than it does, then the share price would decrease following a redeem.
@@ -52,7 +52,7 @@ rule boundSharePriceIncreaseOnRedeem(env e, uint256 shares, address receiver, ad
 
     redeem(e, shares, receiver, onBehalf);
 
-    assert (assets() - 1) * sharesBefore <= assetsBefore * shares();
+    assert (assets() - 1) * sharesBefore < assetsBefore * shares();
 }
 
 // Check that loss realization decreases the share price.
