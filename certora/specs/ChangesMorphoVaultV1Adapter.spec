@@ -39,10 +39,12 @@ function constantAccrueFeeAndAssets() returns (uint256, uint256, uint256) {
 rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 selector, address sender) {
   storage initialState = lastStorage;
 
-  bytes32[] idsAllocate; int256 changeAllocate;
+  bytes32[] idsAllocate;
+  int256 changeAllocate;
   idsAllocate, changeAllocate = allocate(e, data, 0, selector, sender) at initialState;
 
-  bytes32[] idsDeallocate; int256 changeDeallocate;
+  bytes32[] idsDeallocate;
+  int256 changeDeallocate;
   idsDeallocate, changeDeallocate = deallocate(e, data, 0, selector, sender) at initialState;
 
   assert changeAllocate == changeDeallocate;
@@ -52,7 +54,8 @@ rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 se
 rule changeForAllocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
   mathint allocation = allocation();
 
-  bytes32[] ids; int256 change;
+  bytes32[] ids;
+  int256 change;
   ids, change = allocate(e, data, assets, selector, sender);
 
   require (vaultV1.balanceOf(currentContract) <= vaultV1.totalSupply(), "total supply is the sum of the balances");
@@ -64,7 +67,8 @@ rule changeForAllocateIsBoundedByAllocation(env e, bytes data, uint256 assets, b
 rule changeForDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
   mathint allocation = allocation();
 
-  bytes32[] ids; int256 change;
+  bytes32[] ids;
+  int256 change;
   ids, change = deallocate(e, data, assets, selector, sender);
 
   require (vaultV1.balanceOf(currentContract) <= vaultV1.totalSupply(), "total supply is the sum of the balances");

@@ -22,10 +22,12 @@ persistent ghost uint256 constantBorrowRate;
 rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 selector, address sender) {
   storage initialState = lastStorage;
 
-  bytes32[] idsAllocate; int256 changeAllocate;
+  bytes32[] idsAllocate;
+  int256 changeAllocate;
   idsAllocate, changeAllocate = allocate(e, data, 0, selector, sender) at initialState;
 
-  bytes32[] idsDeallocate; int256 changeDeallocate;
+  bytes32[] idsDeallocate;
+  int256 changeDeallocate;
   idsDeallocate, changeDeallocate = deallocate(e, data, 0, selector, sender) at initialState;
 
   assert changeAllocate == changeDeallocate;
@@ -36,7 +38,8 @@ rule changeForAllocateIsBoundedByAllocation(env e, bytes data, uint256 assets, b
   Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
   mathint allocation = allocation(marketParams);
 
-  bytes32[] ids; int256 change;
+  bytes32[] ids;
+  int256 change;
   ids, change = allocate(e, data, assets, selector, sender);
 
   assert allocation + change >= 0;
@@ -47,7 +50,8 @@ rule changeForDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets,
   Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
   mathint allocation = allocation(marketParams);
 
-  bytes32[] ids; int256 change;
+  bytes32[] ids;
+  int256 change;
   ids, change = deallocate(e, data, assets, selector, sender);
 
   assert allocation + change >= 0;

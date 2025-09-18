@@ -28,7 +28,8 @@ rule adapterAlwaysReturnsTheSameIDsForSameData(MorphoMarketV1Adapter.MarketParam
 // Show that the ids returned on allocate match the refence id list.
 rule matchingIdsOnAllocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
   MorphoMarketV1Adapter.MarketParams marketParams = Utils.decodeMarketParams(data);
-  bytes32[] idsAllocate; int256 change;
+  bytes32[] idsAllocate;
+  int256 change;
   idsAllocate, change = allocate(e, data, assets, selector, sender);
 
   bytes32[] ids = ids(marketParams);
@@ -42,7 +43,8 @@ rule matchingIdsOnAllocate(env e, bytes data, uint256 assets, bytes4 selector, a
 // Show that the ids returned on deallocate match the refence id list.
 rule matchingIdsOnDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
   MorphoMarketV1Adapter.MarketParams marketParams = Utils.decodeMarketParams(data);
-  bytes32[] idsDeallocate; int256 change;
+  bytes32[] idsDeallocate;
+  int256 change;
   idsDeallocate, change = deallocate(e, data, assets, selector, sender);
 
   bytes32[] ids = ids(marketParams);

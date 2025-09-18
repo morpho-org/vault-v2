@@ -24,7 +24,8 @@ rule adapterAlwaysReturnsTheSameIDsForSameData() {
 
 // Show that the ids returned on allocate match the refence id list.
 rule matchingIdsOnAllocate(env e, bytes data, uint256 amount, bytes4 selector, address sender) {
-  bytes32[] idsAllocate; int256 interestAllocate;
+  bytes32[] idsAllocate;
+  int256 interestAllocate;
   idsAllocate, interestAllocate = allocate(e, data, amount, selector, sender);
 
   bytes32[] ids = ids();
@@ -35,7 +36,8 @@ rule matchingIdsOnAllocate(env e, bytes data, uint256 amount, bytes4 selector, a
 
 // Show that the ids returned on deallocate match the refence id list.
 rule matchingIdsOnDeallocate(env e, bytes data, uint256 amount, bytes4 selector, address sender) {
-  bytes32[] idsDeallocate; int256 interestDeallocate;
+  bytes32[] idsDeallocate;
+  int256 interestDeallocate;
   idsDeallocate, interestDeallocate = deallocate(e, data, amount, selector, sender);
 
   bytes32[] ids = ids();
