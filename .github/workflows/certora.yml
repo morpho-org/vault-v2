@@ -17,6 +17,7 @@ jobs:
       matrix:
         conf:
           - AbdicatedFunctions
+          - ExchangeRate
           - Gates
           - Immutability
           - Invariants
@@ -56,6 +57,9 @@ jobs:
 
       - name: Apply MetaMorpho munging
         run: make -C lib/metamorpho/certora munged
+
+      - name: Apply VaultV2 munging
+        run: make -C certora munged
 
       - name: Install certora
         run: pip install certora-cli
