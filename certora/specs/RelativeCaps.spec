@@ -32,6 +32,8 @@ filtered { f -> f.selector != sig:decreaseRelativeCap(bytes, uint256).selector }
     f(e, args);
 
     require !deallocateInternalCalled;
+
+    // Note that firstTotalAssets is not reset after f, as functions calls are not isolated in different transactions in CVL.
     assert currentContract.caps[id].relativeCap < Utils.wad() =>
     currentContract.caps[id].allocation <= (currentContract.firstTotalAssets * currentContract.caps[id].relativeCap) / Utils.wad();
 }
