@@ -24,7 +24,7 @@ rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 se
 
   bytes32[] idsAllocate;
   int256 changeAllocate;
-  idsAllocate, changeAllocate = allocate(e, data, 0, selector, sender) at initialState;
+  idsAllocate, changeAllocate = allocate(e, data, 0, selector, sender);
 
   bytes32[] idsDeallocate;
   int256 changeDeallocate;
