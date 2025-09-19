@@ -17,9 +17,11 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function virtualShares() external view returns (uint256);
     function owner() external view returns (address);
     function curator() external view returns (address);
-    function sharesGate() external view returns (address);
+    function receiveSharesGate() external view returns (address);
+    function sendSharesGate() external view returns (address);
     function receiveAssetsGate() external view returns (address);
     function sendAssetsGate() external view returns (address);
+    function adapterRegistry() external view returns (address);
     function isSentinel(address account) external view returns (bool);
     function isAllocator(address account) external view returns (bool);
     function firstTotalAssets() external view returns (uint256);
@@ -36,6 +38,7 @@ interface IVaultV2 is IERC4626, IERC2612 {
     function liquidityAdapter() external view returns (address);
     function liquidityData() external view returns (bytes memory);
     function timelock(bytes4 selector) external view returns (uint256);
+    function abdicated(bytes4 selector) external view returns (bool);
     function executableAt(bytes memory data) external view returns (uint256);
     function performanceFee() external view returns (uint96);
     function performanceFeeRecipient() external view returns (address);
@@ -64,13 +67,16 @@ interface IVaultV2 is IERC4626, IERC2612 {
 
     // Curator functions
     function setIsAllocator(address account, bool newIsAllocator) external;
-    function setSharesGate(address newSharesGate) external;
+    function setReceiveSharesGate(address newReceiveSharesGate) external;
+    function setSendSharesGate(address newSendSharesGate) external;
     function setReceiveAssetsGate(address newReceiveAssetsGate) external;
     function setSendAssetsGate(address newSendAssetsGate) external;
-    function setIsAdapter(address account, bool newIsAdapter) external;
+    function setAdapterRegistry(address newAdapterRegistry) external;
+    function addAdapter(address account) external;
+    function removeAdapter(address account) external;
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;
-    function abdicateSubmit(bytes4 selector) external;
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
+    function abdicate(bytes4 selector) external;
     function setPerformanceFee(uint256 newPerformanceFee) external;
     function setManagementFee(uint256 newManagementFee) external;
     function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external;

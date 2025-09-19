@@ -19,6 +19,7 @@ jobs:
           - AbdicatedFunctions
           - AllocationMorphoMarketV1Adapter
           - AllocationMorphoVaultV1Adapter
+          - Gates
           - Immutability
           - Invariants
           - Liveness
@@ -30,11 +31,17 @@ jobs:
           - SentinelLiveness
           - TokensMorphoMarketV1Adapter
           - TokensMorphoVaultV1Adapter
+          - TokensNoAdapter
 
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
 
       - name: Install Jq
         uses: sergeysova/jq-action@v2

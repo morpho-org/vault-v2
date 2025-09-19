@@ -22,8 +22,8 @@ contract AllocateTest is BaseTest {
         underlyingToken.approve(address(vault), type(uint256).max);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (adapter, true)));
-        vault.setIsAdapter(adapter, true);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (adapter)));
+        vault.addAdapter(adapter);
 
         ids = new bytes32[](2);
         ids[0] = keccak256("id-0");
@@ -305,5 +305,42 @@ contract AllocateTest is BaseTest {
             allocation - deallocation + interest,
             "Allocation incorrect after deallocation"
         );
+    }
+
+    function testAllocateTooMuchNegativeChange(uint256 deposit, uint256 loss) public {
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS - 1);
+        loss = bound(loss, deposit + 1, MAX_TEST_ASSETS);
+
+        increaseAbsoluteCap("id-0", deposit);
+        increaseAbsoluteCap("id-1", deposit);
+        increaseRelativeCap("id-0", WAD);
+        increaseRelativeCap("id-1", WAD);
+
+        vault.deposit(deposit, address(this));
+        vault.accrueInterest(); // to prevent accrueInterest in the allocate (which would revert with AdapterMock).
+        AdapterMock(adapter).setLoss(loss);
+
+        vm.prank(allocator);
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        vault.allocate(adapter, hex"", deposit);
+    }
+
+    function testDeallocateTooMuchNegativeChange(uint256 deposit, uint256 loss) public {
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS - 1);
+        loss = bound(loss, deposit + 1, MAX_TEST_ASSETS);
+
+        increaseAbsoluteCap("id-0", deposit);
+        increaseAbsoluteCap("id-1", deposit);
+        increaseRelativeCap("id-0", WAD);
+        increaseRelativeCap("id-1", WAD);
+
+        vault.deposit(deposit, address(this));
+        vm.prank(allocator);
+        vault.allocate(adapter, hex"", deposit);
+        AdapterMock(adapter).setLoss(loss);
+
+        vm.prank(allocator);
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        vault.deallocate(adapter, hex"", deposit);
     }
 }

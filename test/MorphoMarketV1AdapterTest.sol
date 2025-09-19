@@ -17,6 +17,7 @@ import {MorphoLib} from "../lib/morpho-blue/src/libraries/periphery/MorphoLib.so
 import {MarketParamsLib} from "../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
+import {WAD} from "../src/VaultV2.sol";
 import {IMorphoMarketV1Adapter} from "../src/adapters/interfaces/IMorphoMarketV1Adapter.sol";
 import {IMorphoMarketV1AdapterFactory} from "../src/adapters/interfaces/IMorphoMarketV1AdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
@@ -190,7 +191,9 @@ contract MorphoMarketV1AdapterTest is Test {
         address expectedNewAdapter =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
-        emit IMorphoMarketV1AdapterFactory.CreateMorphoMarketV1Adapter(newParentVaultAddr, expectedNewAdapter);
+        emit IMorphoMarketV1AdapterFactory.CreateMorphoMarketV1Adapter(
+            newParentVaultAddr, address(morpho), expectedNewAdapter
+        );
 
         address newAdapter = factory.createMorphoMarketV1Adapter(newParentVaultAddr, address(morpho));
 
@@ -315,5 +318,28 @@ contract MorphoMarketV1AdapterTest is Test {
 
         uint256 realAssetsAfter = adapter.realAssets();
         assertEq(realAssetsAfter, realAssetsBefore, "realAssets should not change");
+    }
+
+    function testLoss(uint256 deposit, uint256 loss) public {
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
+        loss = bound(loss, 1, deposit);
+
+        deal(address(loanToken), address(adapter), deposit);
+        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
+        _overrideMarketTotalSupplyAssets(-int256(loss));
+
+        assertEq(adapter.realAssets(), deposit - loss, "realAssets");
+    }
+
+    function testInterest(uint256 deposit, uint256 interest) public {
+        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
+        interest = bound(interest, 1, deposit);
+
+        deal(address(loanToken), address(adapter), deposit);
+        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
+        _overrideMarketTotalSupplyAssets(int256(interest));
+
+        // approx because of the virtual shares.
+        assertApproxEqAbs(adapter.realAssets() - deposit, interest, interest.mulDivUp(1, deposit + 1), "realAssets");
     }
 }

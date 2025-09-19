@@ -12,13 +12,15 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 /// with other vaults must be carefully assessed from a security standpoint.
 /// @dev This adapter must be used with Morpho Vaults v1 that are protected against inflation attacks with an initial
 /// deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
-/// @dev Must not be used with a Morpho Vault v1 which has a market with an Irm that can re-enter the parent vault.
+/// @dev Must not be used with a Morpho Vault v1 which has a market with an Irm that can re-enter the parent vault or
+/// the adapter.
 /// @dev Morpho Vaults v1.1 do not realize bad debt, so Morpho Vaults v2 supplying in them will not realize the
 /// corresponding bad debt.
 /// @dev Losses that correspond to rounding errors are realizable.
 /// @dev Shares of the Morpho Vault v1 cannot be skimmed (unlike any other token).
 /// @dev If expectedSupplyAssets reverts for a market of the morphoVaultV1, realAssets will revert and the vault will
 /// not be able to accrueInterest.
+/// @dev Shouldn't be used alongside another adapter that re-uses the id (abi.encode("this", address(this)).
 contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     /* IMMUTABLES */
 
@@ -67,12 +69,12 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
 
         if (assets > 0) IERC4626(morphoVaultV1).deposit(assets, address(this));
+        uint256 oldAllocation = allocation();
+        uint256 newAllocation = IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)));
+
         // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        int256 change = int256(IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this))))
-            - int256(allocation());
-
-        return (ids(), change);
+        return (ids(), int256(newAllocation) - int256(oldAllocation));
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -85,12 +87,12 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
 
         if (assets > 0) IERC4626(morphoVaultV1).withdraw(assets, address(this), address(this));
+        uint256 oldAllocation = allocation();
+        uint256 newAllocation = IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)));
+
         // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        int256 change = int256(IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this))))
-            - int256(allocation());
-
-        return (ids(), change);
+        return (ids(), int256(newAllocation) - int256(oldAllocation));
     }
 
     /// @dev Returns adapter's ids.
@@ -105,6 +107,8 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     }
 
     function realAssets() external view returns (uint256) {
-        return IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)));
+        return allocation() != 0
+            ? IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)))
+            : 0;
     }
 }

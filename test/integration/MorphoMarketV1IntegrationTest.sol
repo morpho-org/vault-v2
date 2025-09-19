@@ -88,8 +88,11 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
         expectedIdData2[2] = abi.encode("this/marketParams", address(adapter), marketParams2);
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setIsAdapter, (address(adapter), true)));
-        vault.setIsAdapter(address(adapter), true);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
+        vault.addAdapter(address(adapter));
+
+        vm.prank(allocator);
+        vault.setMaxRate(MAX_MAX_RATE);
 
         increaseAbsoluteCap(expectedIdData1[0], type(uint128).max);
         increaseRelativeCap(expectedIdData1[0], WAD);
