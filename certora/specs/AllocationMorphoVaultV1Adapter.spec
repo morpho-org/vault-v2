@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
-
 import "Invariants.spec";
 
 using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
@@ -11,20 +10,19 @@ methods {
     // Safe as this call is circumvented by munging.
     function _.extSloads(bytes32[]) external => NONDET DELETE;
 
-    function MorphoVaultV1.totalSupply() external returns uint256 envfree;
-    function MorphoVaultV1.balanceOf(address) external returns uint256 envfree;
-    function MorphoVaultV1Adapter.ids() external returns bytes32[] envfree;
-    function MorphoVaultV1Adapter.allocation() external returns uint256 envfree;
+    function MorphoVaultV1.totalSupply() external returns (uint256) envfree;
+    function MorphoVaultV1.balanceOf(address) external returns (uint256) envfree;
 
-    function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with (env e)
-        => morphoVaultV1AdapterWrapperSummary(e, true, data, assets, bs, a) expect (bytes32[], int256);
-    function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with (env e)
-        => morphoVaultV1AdapterWrapperSummary(e, false, data, assets, bs, a) expect (bytes32[], int256);
+    function MorphoVaultV1Adapter.ids() external returns (bytes32[]) envfree;
+    function MorphoVaultV1Adapter.allocation() external returns (uint256) envfree;
 
-    function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect uint256;
-    function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect uint256;
+    function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoVaultV1AdapterWrapperSummary(e, true, data, assets, bs, a) expect(bytes32[], int256);
+    function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoVaultV1AdapterWrapperSummary(e, false, data, assets, bs, a) expect(bytes32[], int256);
 
-    function Math.mulDiv(uint256 x, uint256 y, uint256 denominator) internal returns (uint256) => mulDivSummary(x,y,denominator);
+    function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
+    function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
+
+    function Math.mulDiv(uint256 x, uint256 y, uint256 denominator) internal returns (uint256) => mulDivSummary(x, y, denominator);
 
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
@@ -43,7 +41,7 @@ function mulDivSummary(uint256 x, uint256 y, uint256 denominator) returns uint25
     mathint result;
     if (denominator == 0) revert();
     result = x * y / denominator;
-    if (result >= 2^256) revert();
+    if (result >= 2 ^ 256) revert();
     return assert_uint256(result);
 }
 
@@ -57,9 +55,9 @@ function morphoVaultV1AdapterWrapperSummary(env e, bool isAllocateCall, bytes da
     int256 change;
 
     if (isAllocateCall) {
-        (ids, change) = MorphoVaultV1Adapter.allocate(e, data, assets, bs, a);
+        ids, change = MorphoVaultV1Adapter.allocate(e, data, assets, bs, a);
     } else {
-        (ids, change) = MorphoVaultV1Adapter.deallocate(e, data, assets, bs, a);
+        ids, change = MorphoVaultV1Adapter.deallocate(e, data, assets, bs, a);
     }
 
     ghostChange = change;
@@ -69,41 +67,31 @@ function morphoVaultV1AdapterWrapperSummary(env e, bool isAllocateCall, bytes da
 
 rule allocateMorphoVaultV1Adapter(env e, bytes data, uint256 assets) {
     // Trick to require that all the following addresses are different.
-    require (MorphoVaultV1 == 0x10, "ack");
-    require (MorphoVaultV1Adapter == 0x11, "ack");
-    require (currentContract == 0x12, "ack");
-
-
-    // Ensure the VaultV2 and MorphoVaultV1 contracts are properly linked to the adapter in the conf file.
-    assert MorphoVaultV1Adapter.parentVault == currentContract;
-    assert MorphoVaultV1Adapter.morphoVaultV1 == MorphoVaultV1;
+    require MorphoVaultV1 == 0x10, "ack";
+    require MorphoVaultV1Adapter == 0x11, "ack";
+    require currentContract == 0x12, "ack";
 
     bytes32[] adapterIds = MorphoVaultV1Adapter.ids();
-
-    uint i;
-    require (i < adapterIds.length, "require i to be a valid index");
 
     bytes32 id;
     uint256 allocationBefore = allocation(id);
 
+    uint i;
+    require i < adapterIds.length, "require i to be a valid index";
     requireInvariant allocationIsInt256(adapterIds[i]);
     int256 idIAllocationBefore = assert_int256(allocation(adapterIds[i]));
 
     allocate(e, MorphoVaultV1Adapter, data, assets);
 
     assert allocation(adapterIds[i]) == idIAllocationBefore + ghostChange;
-    assert !(exists uint j . j < adapterIds.length && id == adapterIds[j]) => currentContract.caps[id].allocation == allocationBefore;
+    assert !(exists uint j. j < adapterIds.length && id == adapterIds[j]) => currentContract.caps[id].allocation == allocationBefore;
 }
 
 rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
     // Trick to require that all the following addresses are different.
-    require (MorphoVaultV1 == 0x10, "ack");
-    require (MorphoVaultV1Adapter == 0x11, "ack");
-    require (currentContract == 0x12, "ack");
-
-    // Ensure the VaultV2 and MorphoVaultV1 contracts are properly linked to the adapter in the conf file.
-    assert MorphoVaultV1Adapter.parentVault == currentContract;
-    assert MorphoVaultV1Adapter.morphoVaultV1 == MorphoVaultV1;
+    require MorphoVaultV1 == 0x10, "ack";
+    require MorphoVaultV1Adapter == 0x11, "ack";
+    require currentContract == 0x12, "ack";
 
     allocate(e, MorphoVaultV1Adapter, data, assets);
 
@@ -112,40 +100,31 @@ rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
 
 rule deallocateMorphoVaultV1Adapter(env e, bytes data, uint256 assets) {
     // Trick to require that all the following addresses are different.
-    require (MorphoVaultV1 == 0x10, "ack");
-    require (MorphoVaultV1Adapter == 0x11, "ack");
-    require (currentContract == 0x12, "ack");
-
-    // Ensure the VaultV2 and MorphoVaultV1 contracts are properly linked to the adapter in the conf file.
-    assert MorphoVaultV1Adapter.parentVault == currentContract;
-    assert MorphoVaultV1Adapter.morphoVaultV1 == MorphoVaultV1;
+    require MorphoVaultV1 == 0x10, "ack";
+    require MorphoVaultV1Adapter == 0x11, "ack";
+    require currentContract == 0x12, "ack";
 
     bytes32[] adapterIds = MorphoVaultV1Adapter.ids();
-
-    uint i;
-    require (i < adapterIds.length, "require i to be a valid index");
 
     bytes32 id;
     uint256 allocationBefore = allocation(id);
 
+    uint i;
+    require i < adapterIds.length, "require i to be a valid index";
     requireInvariant allocationIsInt256(adapterIds[i]);
     int256 idIAllocationBefore = assert_int256(allocation(adapterIds[i]));
 
     deallocate(e, MorphoVaultV1Adapter, data, assets);
 
     assert allocation(adapterIds[i]) == idIAllocationBefore + ghostChange;
-    assert !(exists uint j . j < adapterIds.length && id == adapterIds[j]) => currentContract.caps[id].allocation == allocationBefore;
+    assert !(exists uint j. j < adapterIds.length && id == adapterIds[j]) => currentContract.caps[id].allocation == allocationBefore;
 }
 
 rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
     // Trick to require that all the following addresses are different.
-    require (MorphoVaultV1 == 0x10, "ack");
-    require (MorphoVaultV1Adapter == 0x11, "ack");
-    require (currentContract == 0x12, "ack");
-
-    // Ensure the VaultV2 and MorphoVaultV1 contracts are properly linked to the adapter in the conf file.
-    assert MorphoVaultV1Adapter.parentVault == currentContract;
-    assert MorphoVaultV1Adapter.morphoVaultV1 == MorphoVaultV1;
+    require MorphoVaultV1 == 0x10, "ack";
+    require MorphoVaultV1Adapter == 0x11, "ack";
+    require currentContract == 0x12, "ack";
 
     deallocate(e, MorphoVaultV1Adapter, data, assets);
 

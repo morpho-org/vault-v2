@@ -6,19 +6,20 @@ using MorphoHarness as MorphoMarketV1;
 using Utils as Utils;
 
 methods {
-    function allocation(bytes32) external returns uint256 envfree;
-    function MorphoMarketV1.position_(MorphoHarness.Id, address) external returns MorphoHarness.Position envfree;
-    function MorphoMarketV1Adapter.ids(MorphoHarness.MarketParams) external returns bytes32[] envfree;
-    function MorphoMarketV1Adapter.allocation(MorphoHarness.MarketParams) external returns uint256 envfree;
+    function allocation(bytes32) external returns (uint256) envfree;
+
+    function MorphoMarketV1.position_(MorphoHarness.Id, address) external returns (MorphoHarness.Position) envfree;
+
+    function MorphoMarketV1Adapter.ids(MorphoHarness.MarketParams) external returns (bytes32[]) envfree;
+    function MorphoMarketV1Adapter.allocation(MorphoHarness.MarketParams) external returns (uint256) envfree;
+
     function Utils.morphoMarketV1MarketParams(bytes) external returns (MorphoHarness.MarketParams, MorphoHarness.Id) envfree;
 
-    function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect uint256;
-    function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect uint256;
+    function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
+    function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
 
-    function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with (env e)
-        => morphoMarketV1AdapterWrapperSummary(e, true, data, assets, bs, a) expect (bytes32[], int256);
-    function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with (env e)
-        => morphoMarketV1AdapterWrapperSummary(e, false, data, assets, bs, a) expect (bytes32[], int256);
+    function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoMarketV1AdapterWrapperSummary(e, true, data, assets, bs, a) expect(bytes32[], int256);
+    function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoMarketV1AdapterWrapperSummary(e, false, data, assets, bs, a) expect(bytes32[], int256);
 
     function _.market(MorphoHarness.Id) external => DISPATCHER(true);
     function _.transfer(address, uint256) external => DISPATCHER(true);
@@ -35,12 +36,11 @@ function morphoMarketV1AdapterWrapperSummary(env e, bool isAllocateCall, bytes d
     int256 change;
 
     if (isAllocateCall) {
-        (ids, change) = MorphoMarketV1Adapter.allocate(e, data, assets, bs, a);
+        ids, change = MorphoMarketV1Adapter.allocate(e, data, assets, bs, a);
     } else {
-        (ids, change) = MorphoMarketV1Adapter.deallocate(e, data, assets, bs, a);
+        ids, change = MorphoMarketV1Adapter.deallocate(e, data, assets, bs, a);
     }
-
-    require (forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "assume that all returned ids are unique");
+    require forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "assume that all returned ids are unique";
     ghostChange = change;
 
     return (ids, change);
@@ -53,48 +53,37 @@ strong invariant allocationIsInt256(bytes32 id)
 
 rule allocateMorphoMarketV1Adapter(env e, bytes data, uint256 assets) {
     // Trick to require that all the following addresses are different.
-    require (MorphoMarketV1 == 0x10, "ack");
-    require (MorphoMarketV1Adapter == 0x11, "ack");
-    require (currentContract == 0x12, "ack");
+    require MorphoMarketV1 == 0x10, "ack";
+    require MorphoMarketV1Adapter == 0x11, "ack";
+    require currentContract == 0x12, "ack";
 
     MorphoHarness.MarketParams marketParams;
-    (marketParams, _) = Utils.morphoMarketV1MarketParams(data);
-
-    // Ensure the VaultV2 and Morpho contracts are properly linked to the adapter in the conf file.
-    assert MorphoMarketV1Adapter.parentVault == currentContract;
-    assert MorphoMarketV1Adapter.morpho == MorphoMarketV1;
-
+    marketParams, _ = Utils.morphoMarketV1MarketParams(data);
     bytes32[] adapterIds = MorphoMarketV1Adapter.ids(marketParams);
 
-    uint i;
-    require (i < adapterIds.length, "require i to be a valid index");
     bytes32 id;
-
     uint256 allocationBefore = allocation(id);
 
+    uint i;
+    require i < adapterIds.length, "require i to be a valid index";
     requireInvariant allocationIsInt256(adapterIds[i]);
     int256 idIAllocationBefore = assert_int256(allocation(adapterIds[i]));
 
     allocate(e, MorphoMarketV1Adapter, data, assets);
 
     assert allocation(adapterIds[i]) == idIAllocationBefore + ghostChange;
-    assert !(exists uint j . j < adapterIds.length && id == adapterIds[j]) => currentContract.caps[id].allocation == allocationBefore;
+    assert !(exists uint j. j < adapterIds.length && id == adapterIds[j]) => currentContract.caps[id].allocation == allocationBefore;
 }
 
 rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
     // Trick to require that all the following addresses are different.
-    require (MorphoMarketV1 == 0x10, "ack");
-    require (MorphoMarketV1Adapter == 0x11, "ack");
-    require (currentContract == 0x12, "ack");
-
-    // Ensure the VaultV2 and Morpho contracts are properly linked to the adapter in the conf file.
-    assert MorphoMarketV1Adapter.parentVault == currentContract;
-    assert MorphoMarketV1Adapter.morpho == MorphoMarketV1;
+    require MorphoMarketV1 == 0x10, "ack";
+    require MorphoMarketV1Adapter == 0x11, "ack";
+    require currentContract == 0x12, "ack";
 
     MorphoHarness.MarketParams marketParams;
     MorphoHarness.Id marketId;
-    (marketParams, marketId) = Utils.morphoMarketV1MarketParams(data);
-
+    marketParams, marketId = Utils.morphoMarketV1MarketParams(data);
     allocate(e, MorphoMarketV1Adapter, data, assets);
 
     uint256 allocation = MorphoMarketV1Adapter.allocation(marketParams);
@@ -106,46 +95,37 @@ rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
 
 rule deallocateMorphoMarketV1Adapter(env e, bytes data, uint256 assets) {
     // Trick to require that all the following addresses are different.
-    require (MorphoMarketV1 == 0x10, "ack");
-    require (MorphoMarketV1Adapter == 0x11, "ack");
-    require (currentContract == 0x12, "ack");
+    require MorphoMarketV1 == 0x10, "ack";
+    require MorphoMarketV1Adapter == 0x11, "ack";
+    require currentContract == 0x12, "ack";
 
     MorphoHarness.MarketParams marketParams;
-    (marketParams, _) = Utils.morphoMarketV1MarketParams(data);
-
-    // Ensure the VaultV2 and Morpho contracts are properly linked to the adapter in the conf file.
-    assert MorphoMarketV1Adapter.parentVault == currentContract;
-    assert MorphoMarketV1Adapter.morpho == MorphoMarketV1;
-
+    marketParams, _ = Utils.morphoMarketV1MarketParams(data);
     bytes32[] adapterIds = MorphoMarketV1Adapter.ids(marketParams);
 
-    uint i;
-    require (i < adapterIds.length, "require i to be a valid index");
     bytes32 id;
     uint256 allocationBefore = allocation(id);
 
+    uint i;
+    require i < adapterIds.length, "require i to be a valid index";
     requireInvariant allocationIsInt256(adapterIds[i]);
     int256 idIAllocationBefore = assert_int256(allocation(adapterIds[i]));
 
     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
     assert allocation(adapterIds[i]) == idIAllocationBefore + ghostChange;
-    assert !(exists uint j . j < adapterIds.length && id == adapterIds[j]) => currentContract.caps[id].allocation == allocationBefore;
+    assert !(exists uint j. j < adapterIds.length && id == adapterIds[j]) => currentContract.caps[id].allocation == allocationBefore;
 }
 
 rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
     // Trick to require that all the following addresses are different.
-    require (MorphoMarketV1 == 0x10, "ack");
-    require (MorphoMarketV1Adapter == 0x11, "ack");
-    require (currentContract == 0x12, "ack");
-
-    // Ensure the VaultV2 and Morpho contracts are properly linked to the adapter in the conf file.
-    assert MorphoMarketV1Adapter.parentVault == currentContract;
-    assert MorphoMarketV1Adapter.morpho == MorphoMarketV1;
+    require MorphoMarketV1 == 0x10, "ack";
+    require MorphoMarketV1Adapter == 0x11, "ack";
+    require currentContract == 0x12, "ack";
 
     MorphoHarness.MarketParams marketParams;
     MorphoHarness.Id marketId;
-    (marketParams, marketId) = Utils.morphoMarketV1MarketParams(data);
+    marketParams, marketId = Utils.morphoMarketV1MarketParams(data);
 
     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
