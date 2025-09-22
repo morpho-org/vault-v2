@@ -7,7 +7,6 @@ using MetaMorpho as MorphoVaultV1;
 using MorphoHarness as MorphoMarketV1;
 
 methods {
-    // Safe as this call is circumvented by munging.
     function _.extSloads(bytes32[]) external => NONDET DELETE;
 
     function MorphoVaultV1.totalSupply() external returns (uint256) envfree;
@@ -126,7 +125,9 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
     require MorphoVaultV1Adapter == 0x11, "ack";
     require currentContract == 0x12, "ack";
 
+    requireInvariant allocationIsInt256(MorphoVaultV1Adapter.adapterId);
+
     deallocate(e, MorphoVaultV1Adapter, data, assets);
 
-    assert MorphoVaultV1Adapter.allocation() >= MorphoVaultV1.previewRedeem(e, require_uint256(MorphoVaultV1.balanceOf(MorphoVaultV1Adapter)));
+    assert MorphoVaultV1Adapter.allocation() == MorphoVaultV1.previewRedeem(e, require_uint256(MorphoVaultV1.balanceOf(MorphoVaultV1Adapter)));
 }
