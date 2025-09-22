@@ -97,7 +97,7 @@ diff -ruN MetaMorpho.sol MetaMorpho.sol
 +
 +    function expectedSupplyAssets(MarketParams memory marketParams, address user) internal view returns (uint256) {
 +        Id id = marketParams.id();
-+        uint256 supplyShares = IMorpho(MORPHO).position(id).supplyShares;
++        uint256 supplyShares = IMorpho(MORPHO).position(id, user).supplyShares;
 +        (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) = MORPHO.expectedMarketBalances(marketParams);
 +        return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
 +    }

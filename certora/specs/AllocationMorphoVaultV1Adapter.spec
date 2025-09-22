@@ -102,6 +102,7 @@ rule deallocateMorphoVaultV1Adapter(env e, bytes data, uint256 assets) {
     require MorphoVaultV1 == 0x10, "ack";
     require MorphoVaultV1Adapter == 0x11, "ack";
     require currentContract == 0x12, "ack";
+    require currentContract.asset == 0x13, "ack";
 
     bytes32[] adapterIds = MorphoVaultV1Adapter.ids();
 
@@ -124,6 +125,7 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
     require MorphoVaultV1 == 0x10, "ack";
     require MorphoVaultV1Adapter == 0x11, "ack";
     require currentContract == 0x12, "ack";
+    require currentContract.asset == 0x13, "ack";
 
     requireInvariant allocationIsInt256(MorphoVaultV1Adapter.adapterId);
 
