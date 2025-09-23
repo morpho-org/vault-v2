@@ -39,9 +39,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). In order to protect against
 /// inflation attacks, the vault might need to be seeded with an initial deposit. See
 /// https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
-/// @dev If they make the rate increase by a large factor, donations and forceDeallocate penalties can be in part stolen
-/// by opportunistic depositors. Setting a low maxRate prevents that by making the donation/penalty distributed over a
-/// long period.
+/// @dev If the maxRate is high, donations and forceDeallocate penalties can attract opportunistic depositors.
 ///
 /// CAPS
 /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
