@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-import "Invariants.spec";
-
 using MorphoMarketV1Adapter as MorphoMarketV1Adapter;
 using MorphoHarness as MorphoMarketV1;
+using Utils as Utils;
 
 methods {
     function _.extSloads(bytes32[]) external => NONDET DELETE;
+
+    function allocation(bytes32) external returns uint256 envfree;
 
     function MorphoMarketV1.position_(MorphoHarness.Id, address) external returns (MorphoHarness.Position) envfree;
 
@@ -26,6 +27,11 @@ methods {
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
 }
+
+definition max_int256() returns int256 = (2 ^ 255) - 1;
+
+strong invariant allocationIsInt256(bytes32 id)
+    allocation(id) <= max_int256();
 
 persistent ghost uint256 constantBorrowRate;
 
