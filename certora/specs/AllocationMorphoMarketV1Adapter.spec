@@ -8,8 +8,6 @@ using Utils as Utils;
 methods {
     function allocation(bytes32) external returns uint256 envfree;
 
-    function MorphoMarketV1.position_(MorphoHarness.Id, address) external returns (MorphoHarness.Position) envfree;
-
     function MorphoMarketV1Adapter.ids(MorphoHarness.MarketParams) external returns (bytes32[]) envfree;
     function MorphoMarketV1Adapter.allocation(MorphoHarness.MarketParams) external returns (uint256) envfree;
 
@@ -22,7 +20,9 @@ methods {
     function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoMarketV1AdapterWrapperSummary(e, true, data, assets, bs, a) expect(bytes32[], int256);
     function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoMarketV1AdapterWrapperSummary(e, false, data, assets, bs, a) expect(bytes32[], int256);
 
+    function _.position(MorphoHarness.Id, address) external => DISPATCHER(true);
     function _.market(MorphoHarness.Id) external => DISPATCHER(true);
+
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
 }
