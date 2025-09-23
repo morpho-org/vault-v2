@@ -12,6 +12,8 @@ methods {
     function MorphoMarketV1Adapter.ids(MorphoHarness.MarketParams) external returns (bytes32[]) envfree;
     function MorphoMarketV1Adapter.allocation(MorphoHarness.MarketParams) external returns (uint256) envfree;
 
+    function Utils.morphoMarketV1MarketParams(bytes) external returns (MorphoHarness.MarketParams, MorphoHarness.Id) envfree;
+
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
     function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
 
@@ -37,7 +39,7 @@ function morphoMarketV1AdapterWrapperSummary(env e, bool isAllocateCall, bytes d
     } else {
         ids, change = MorphoMarketV1Adapter.deallocate(e, data, assets, bs, a);
     }
-    require forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "assume that all returned ids are unique";
+    // assert forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "assume that all returned ids are unique";
     ghostChange = change;
 
     return (ids, change);
