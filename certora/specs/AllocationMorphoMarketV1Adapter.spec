@@ -47,7 +47,7 @@ function morphoMarketV1AdapterWrapperSummary(env e, bool isAllocateCall, bytes d
     return (ids, change);
 }
 
-rule allocateMorphoMarketV1Adapter(env e, bytes data, uint256 assets) {
+rule allocateChangesAdapterIds(env e, bytes data, uint256 assets) {
     // Trick to require that all the following addresses are different.
     require MorphoMarketV1 == 0x10, "ack";
     require MorphoMarketV1Adapter == 0x11, "ack";
@@ -89,7 +89,7 @@ rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
     assert allocation == expected;
 }
 
-rule deallocateMorphoMarketV1Adapter(env e, bytes data, uint256 assets) {
+rule deallocateChangesAdapterIds(env e, bytes data, uint256 assets) {
     // Trick to require that all the following addresses are different.
     require MorphoMarketV1 == 0x10, "ack";
     require MorphoMarketV1Adapter == 0x11, "ack";
