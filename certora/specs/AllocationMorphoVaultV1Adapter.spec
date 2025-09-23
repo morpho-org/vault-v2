@@ -49,7 +49,7 @@ persistent ghost uint256 constantBorrowRate;
 
 persistent ghost int256 ghostChange;
 
-// Wrapper to record interest value returned by the adapter.
+// Wrapper to record change returned by the adapter.
 function morphoVaultV1AdapterWrapperSummary(env e, bool isAllocateCall, bytes data, uint256 assets, bytes4 bs, address a) returns (bytes32[], int256) {
     bytes32[] ids;
     int256 change;

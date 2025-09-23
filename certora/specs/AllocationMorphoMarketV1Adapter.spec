@@ -7,6 +7,8 @@ using MorphoMarketV1Adapter as MorphoMarketV1Adapter;
 using MorphoHarness as MorphoMarketV1;
 
 methods {
+    function _.extSloads(bytes32[]) external => NONDET DELETE;
+
     function MorphoMarketV1.position_(MorphoHarness.Id, address) external returns (MorphoHarness.Position) envfree;
 
     function MorphoMarketV1Adapter.ids(MorphoHarness.MarketParams) external returns (bytes32[]) envfree;
@@ -29,7 +31,7 @@ persistent ghost uint256 constantBorrowRate;
 
 persistent ghost int256 ghostChange;
 
-// Wrapper to record interest value returned by the adapter and ensure returned ids are unique.
+// Wrapper to record change returned by the adapter and ensure returned ids are unique.
 function morphoMarketV1AdapterWrapperSummary(env e, bool isAllocateCall, bytes data, uint256 assets, bytes4 bs, address a) returns (bytes32[], int256) {
     bytes32[] ids;
     int256 change;
