@@ -13,7 +13,8 @@ methods {
     function MorphoMarketV1Adapter.ids(MorphoHarness.MarketParams) external returns (bytes32[]) envfree;
     function MorphoMarketV1Adapter.allocation(MorphoHarness.MarketParams) external returns (uint256) envfree;
 
-    function Utils.morphoMarketV1MarketParams(bytes) external returns (MorphoHarness.MarketParams, MorphoHarness.Id) envfree;
+    function Utils.decodeMarketParams(bytes) external returns (MorphoHarness.MarketParams) envfree;
+    function Utils.id(MorphoHarness.MarketParams) external returns (MorphoHarness.Id) envfree;
 
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
     function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
@@ -57,8 +58,7 @@ rule allocateChangesAdapterIds(env e, bytes data, uint256 assets) {
     require MorphoMarketV1Adapter == 0x11, "ack";
     require currentContract == 0x12, "ack";
 
-    MorphoHarness.MarketParams marketParams;
-    marketParams, _ = Utils.morphoMarketV1MarketParams(data);
+    MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
     bytes32[] adapterIds = MorphoMarketV1Adapter.ids(marketParams);
 
     bytes32 id;
@@ -81,9 +81,8 @@ rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
     require MorphoMarketV1Adapter == 0x11, "ack";
     require currentContract == 0x12, "ack";
 
-    MorphoHarness.MarketParams marketParams;
-    MorphoHarness.Id marketId;
-    marketParams, marketId = Utils.morphoMarketV1MarketParams(data);
+    MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
+    MorphoHarness.Id marketId = Utils.id(marketParams);
     allocate(e, MorphoMarketV1Adapter, data, assets);
 
     uint256 allocation = MorphoMarketV1Adapter.allocation(marketParams);
@@ -99,8 +98,7 @@ rule deallocateChangesAdapterIds(env e, bytes data, uint256 assets) {
     require MorphoMarketV1Adapter == 0x11, "ack";
     require currentContract == 0x12, "ack";
 
-    MorphoHarness.MarketParams marketParams;
-    marketParams, _ = Utils.morphoMarketV1MarketParams(data);
+    MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
     bytes32[] adapterIds = MorphoMarketV1Adapter.ids(marketParams);
 
     bytes32 id;
@@ -123,9 +121,8 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
     require MorphoMarketV1Adapter == 0x11, "ack";
     require currentContract == 0x12, "ack";
 
-    MorphoHarness.MarketParams marketParams;
-    MorphoHarness.Id marketId;
-    marketParams, marketId = Utils.morphoMarketV1MarketParams(data);
+    MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
+    MorphoHarness.Id marketId = Utils.id(marketParams);
 
     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
