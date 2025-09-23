@@ -39,7 +39,7 @@ ghost mathint sumOfBalances {
 }
 
 hook Sload uint256 balance balanceOf[KEY address addr] {
-    require sumOfBalances >= to_mathint(balance);
+    require sumOfBalances >= to_mathint(balance), "sum of balances is greater than any given balance";
 }
 
 hook Sstore balanceOf[KEY address addr] uint256 newValue (uint256 oldValue) {
