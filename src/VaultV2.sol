@@ -127,6 +127,8 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// TIMELOCKS
 /// @dev The timelock duration of decreaseTimelock is the timelock duration of the function whose timelock is being
 /// decreased (e.g. the timelock of decreaseTimelock(addAdapter, ...) is timelock[addAdapter]).
+/// @dev It is still possible to submit change of the timelock duration of decreaseTimelock, but it won't have any
+/// effect and trying to execute this change will revert.
 /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
 /// timelocked data can potentially be changed shortly afterwards.
 /// @dev If a function is abdicated, it cannot be called no matter its timelock and what executableAt[data] contains.
