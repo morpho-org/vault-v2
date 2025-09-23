@@ -81,13 +81,11 @@ rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
     require MorphoMarketV1Adapter == 0x11, "ack";
     require currentContract == 0x12, "ack";
 
-    MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
-    MorphoHarness.Id marketId = Utils.id(marketParams);
     allocate(e, MorphoMarketV1Adapter, data, assets);
 
+    MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
     uint256 allocation = MorphoMarketV1Adapter.allocation(marketParams);
-    uint256 supplyShares = MorphoMarketV1.position_(marketId, MorphoMarketV1Adapter).supplyShares;
-    uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, marketParams, supplyShares);
+    uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, marketParams, MorphoMarketV1Adapter);
 
     assert allocation == expected;
 }
@@ -121,14 +119,11 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
     require MorphoMarketV1Adapter == 0x11, "ack";
     require currentContract == 0x12, "ack";
 
-    MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
-    MorphoHarness.Id marketId = Utils.id(marketParams);
-
     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
+    MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
     uint256 allocation = MorphoMarketV1Adapter.allocation(marketParams);
-    uint256 supplyShares = MorphoMarketV1.position_(marketId, MorphoMarketV1Adapter).supplyShares;
-    uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, marketParams, supplyShares);
+    uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, marketParams, MorphoMarketV1Adapter);
 
     assert allocation == expected;
 }
