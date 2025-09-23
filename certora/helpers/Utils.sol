@@ -41,12 +41,6 @@ contract Utils {
         return IReturnFactory(adapter).factory();
     }
 
-    function morphoMarketV1MarketParams(bytes memory data) external pure returns (MarketParams memory, Id) {
-        MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        Id id = marketParams.id();
-        return (marketParams, id);
-    }
-
     function expectedSupplyAssets(address morpho, MarketParams memory marketParams, uint256 supplyShares)
         external
         view
@@ -56,5 +50,17 @@ contract Utils {
             MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
 
         return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
+    }
+
+    function decodeMarketParams(bytes memory data) external pure returns (MarketParams memory) {
+        return abi.decode(data, (MarketParams));
+    }
+
+    function id(MarketParams memory marketParams) external pure returns (Id) {
+        return MarketParamsLib.id(marketParams);
+    }
+
+    function havocAll() external {
+        this.havocAll();
     }
 }
