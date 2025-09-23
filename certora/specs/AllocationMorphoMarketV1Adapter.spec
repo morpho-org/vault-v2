@@ -6,8 +6,6 @@ using MorphoHarness as MorphoMarketV1;
 using Utils as Utils;
 
 methods {
-    function _.extSloads(bytes32[]) external => NONDET DELETE;
-
     function allocation(bytes32) external returns uint256 envfree;
 
     function MorphoMarketV1.position_(MorphoHarness.Id, address) external returns (MorphoHarness.Position) envfree;
