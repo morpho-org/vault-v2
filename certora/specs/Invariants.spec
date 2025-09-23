@@ -28,6 +28,7 @@ methods {
     function Utils.maxPerformanceFee() external returns uint256 envfree;
     function Utils.maxManagementFee() external returns uint256 envfree;
     function Utils.maxForceDeallocatePenalty() external returns uint256 envfree;
+    function Utils.morphoMarketV1MarketParams(bytes) external returns (MorphoHarness.MarketParams, MorphoHarness.Id) envfree;
 }
 
 definition decreaseTimelockSelector() returns bytes4 = to_bytes4(sig:decreaseTimelock(bytes4,uint256).selector);

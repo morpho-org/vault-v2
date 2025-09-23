@@ -1,19 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
+import "Invariants.spec";
+
 using MorphoMarketV1Adapter as MorphoMarketV1Adapter;
 using MorphoHarness as MorphoMarketV1;
-using Utils as Utils;
 
 methods {
-    function allocation(bytes32) external returns (uint256) envfree;
-
     function MorphoMarketV1.position_(MorphoHarness.Id, address) external returns (MorphoHarness.Position) envfree;
 
     function MorphoMarketV1Adapter.ids(MorphoHarness.MarketParams) external returns (bytes32[]) envfree;
     function MorphoMarketV1Adapter.allocation(MorphoHarness.MarketParams) external returns (uint256) envfree;
-
-    function Utils.morphoMarketV1MarketParams(bytes) external returns (MorphoHarness.MarketParams, MorphoHarness.Id) envfree;
 
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
     function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
@@ -45,11 +42,6 @@ function morphoMarketV1AdapterWrapperSummary(env e, bool isAllocateCall, bytes d
 
     return (ids, change);
 }
-
-definition max_int256() returns int256 = (2 ^ 255) - 1;
-
-strong invariant allocationIsInt256(bytes32 id)
-    allocation(id) <= max_int256();
 
 rule allocateMorphoMarketV1Adapter(env e, bytes data, uint256 assets) {
     // Trick to require that all the following addresses are different.

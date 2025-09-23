@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
+
 import "Invariants.spec";
 
 using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
