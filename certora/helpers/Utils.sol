@@ -62,6 +62,10 @@ contract Utils {
         return MarketParamsLib.id(marketParams);
     }
 
+    function adapterId(address adapter) external pure returns (bytes32) {
+        return keccak256(abi.encode("this", adapter));
+    }
+
     function havocAll() external {
         this.havocAll();
     }
