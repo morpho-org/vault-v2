@@ -4,38 +4,22 @@
 methods {
     function multicall(bytes[]) external => NONDET DELETE;
 
-    function accrueInterestView() internal returns (uint256, uint256, uint256) with (env e) => summaryAccrueInterestView(e);
-
-    function _.balanceOf(address) external => ignoredUintStaticcallWhenInsideAccrueInterestView() expect(uint256);
-    function _.canReceiveShares(address) external => ignoredBoolStaticcallWhenInsideAccrueInterestView() expect(bool);
+    function _.balanceOf(address) external => ignoredUintStaticcall() expect(uint256);
+    function _.canReceiveShares(address) external => ignoredBoolStaticcall() expect(bool);
 }
 
-function ignoredBoolStaticcallWhenInsideAccrueInterestView() returns bool {
-    ignoredStaticcall = insideAccrueInterestView;
+function ignoredBoolStaticcall() returns bool {
+    ignoredStaticcall = true;
     bool value;
     return value;
 }
 
-function ignoredUintStaticcallWhenInsideAccrueInterestView() returns uint256 {
-    ignoredStaticcall = insideAccrueInterestView;
+function ignoredUintStaticcall() returns uint256 {
+    ignoredStaticcall = true;
     uint256 value;
     return value;
 }
 
-function summaryAccrueInterestView(env e) returns (uint256, uint256, uint256) {
-    insideAccrueInterestView = true;
-
-    uint256 newTotalAssets;
-    uint256 performanceFeeShares;
-    uint256 managementFeeShares;
-    (newTotalAssets, performanceFeeShares, managementFeeShares) = accrueInterestView(e);
-
-    insideAccrueInterestView = false;
-
-    return (newTotalAssets, performanceFeeShares, managementFeeShares);
-}
-
-persistent ghost bool insideAccrueInterestView;
 persistent ghost bool ignoredStaticcall;
 
 // True when at least one slot was written.
