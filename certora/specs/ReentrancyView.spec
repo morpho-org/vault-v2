@@ -4,6 +4,7 @@
 methods {
     function multicall(bytes[]) external => NONDET DELETE;
 
+    function _.realAssets() external => ignoredUintStaticcall() expect(uint256);
     function _.balanceOf(address) external => ignoredUintStaticcall() expect(uint256);
     function _.canReceiveShares(address) external => ignoredBoolStaticcall() expect(bool);
 }
