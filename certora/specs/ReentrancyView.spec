@@ -5,8 +5,13 @@ methods {
     function multicall(bytes[]) external => NONDET DELETE;
 
     function _.realAssets() external => ignoredUintStaticcall() expect(uint256);
+
     function _.balanceOf(address) external => ignoredUintStaticcall() expect(uint256);
+
     function _.canReceiveShares(address) external => ignoredBoolStaticcall() expect(bool);
+    function _.canSendShares(address) external => ignoredBoolStaticcall() expect(bool);
+    function _.canReceiveAssets(address) external => ignoredBoolStaticcall() expect(bool);
+    function _.canSendAssets(address) external => ignoredBoolStaticcall() expect(bool);
 }
 
 function ignoredBoolStaticcall() returns bool {
@@ -46,7 +51,7 @@ hook STATICCALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength,
     ignoredStaticcall = false;
 }
 
-// Check that there are no reentrancy unsafe calls except potentially in accrueInterestView, specifically for balanceOf on the asset and for canReceiveShares on the sharesGate.
+// Check that there are no reentrancy unsafe calls except potentially for balanceOf on the asset, realAssets on the adapters and canReceiveShares, canSendShares, canReceiveAssets and canSendAssets on the gates.
 rule reentrancyViewSafe(method f, env e, calldataarg data)
 filtered {
     // forceDeallocate is a composition of deallocate and withdraw.
