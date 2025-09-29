@@ -71,7 +71,7 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
         assertEq(
             morphoVaultV1Adapter.allocation(),
             previousAdapterTrackedAllocation,
-            "Morpho Vault v1 Adapter tracked allocation"
+            "Morpho Vault V1 Adapter tracked allocation"
         );
     }
 
