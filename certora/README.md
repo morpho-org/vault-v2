@@ -1,4 +1,4 @@
-This folder contains the verification of the Vault v2 using CVL, Certora's Verification Language.
+This folder contains the verification of the Vault V2 using CVL, Certora's Verification Language.
 
 The core concepts can be found in the [README](../README.md) at the root of the repository.
 These properties have been verified using CVL.
@@ -64,7 +64,7 @@ Todo:
 
 ## Protection against common attack vectors
 
-Other common and known attack vectors are verified to not be possible on Vault v2.
+Other common and known attack vectors are verified to not be possible on Vault V2.
 
 ### Reentrancy
 

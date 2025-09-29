@@ -31,7 +31,7 @@ contract MorphoVaultV1IntegrationInterestTest is MorphoVaultV1IntegrationTest {
         assertEq(
             morphoVaultV1.totalAssets(),
             morpho.expectedSupplyAssets(allMarketParams[0], address(morphoVaultV1)),
-            "vault v1 totalAssets"
+            "vault V1 totalAssets"
         );
         // slightly off from the market's expectedSupplyAssets because of the vaultV1 virtual shares.
         uint256 expectedSupplyAssets =
