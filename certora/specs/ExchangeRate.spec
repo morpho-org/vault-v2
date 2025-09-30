@@ -7,6 +7,42 @@ definition shares() returns mathint = currentContract.totalSupply + currentContr
 
 definition assets() returns mathint = currentContract._totalAssets + 1;
 
+// Check that share price is increasing, except due to management fees or loss realization.
+rule sharePriceIncreasing(method f, env e, calldataarg a) {
+    require (e.block.timestamp >= currentContract.lastUpdate, "safe requirement because `lastUpdate` is growing and monotonic");
+    require (currentContract.managementFee == 0, "assume management fee to be null");
+    requireInvariant performanceFee();
+
+    require (currentContract.totalSupply > 0, "assume that the vault is seeded");
+
+    requireInvariant balanceOfZero();
+    requireInvariant totalSupplyIsSumOfBalances();
+    requireInvariant virtualSharesBounds();
+
+    mathint assetsBefore = assets();
+    mathint sharesBefore = shares();
+
+    f(e, a);
+
+    uint256 lossRealized = currentContract.lossRealized;
+
+    assert (assetsBefore - lossRealized) * shares() <= assets() * sharesBefore;
+}
+
+// Check that loss realization decreases the share price.
+rule lossRealizationMonotonic(env e, address adapter, bytes data){
+    require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
+
+    mathint assetsBefore = assets();
+    mathint sharesBefore = shares();
+
+    accrueInterest(e);
+
+    require (currentContract.lossRealized > 0, "assume loss realization");
+
+    assert assets() * sharesBefore <= assetsBefore * shares();
+}
+
 // Check that if deposit adds one more share to the user than it does, then the share price would decrease following a deposit.
 rule boundSharePriceIncreaseOnDeposit(env e, uint256 assets, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
@@ -53,40 +89,4 @@ rule boundSharePriceIncreaseOnRedeem(env e, uint256 shares, address receiver, ad
     redeem(e, shares, receiver, onBehalf);
 
     assert (assets() - 1) * sharesBefore < assetsBefore * shares();
-}
-
-// Check that loss realization decreases the share price.
-rule lossRealizationMonotonic(env e, address adapter, bytes data){
-    require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
-
-    mathint assetsBefore = assets();
-    mathint sharesBefore = shares();
-
-    accrueInterest(e);
-
-    require (currentContract.lossRealization, "assume loss realization");
-
-    assert assets() * sharesBefore <= assetsBefore * shares();
-}
-
-// Check that share price is increasing, except due to management fees or loss realization.
-rule sharePriceIncreasing(method f, env e, calldataarg a) {
-    require (e.block.timestamp >= currentContract.lastUpdate, "safe requirement because `lastUpdate` is growing and monotonic");
-    require (currentContract.managementFee == 0, "assume management fee to be null");
-    requireInvariant performanceFee();
-
-    require (currentContract.totalSupply > 0, "assume that the vault is seeded");
-
-    requireInvariant balanceOfZero();
-    requireInvariant totalSupplyIsSumOfBalances();
-    requireInvariant virtualSharesBounds();
-
-    mathint assetsBefore = assets();
-    mathint sharesBefore = shares();
-
-    f(e, a);
-
-    require (!currentContract.lossRealization, "assume no loss realization");
-
-    assert assetsBefore * shares() <= assets() * sharesBefore;
 }
