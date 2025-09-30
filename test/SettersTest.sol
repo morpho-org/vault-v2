@@ -356,10 +356,10 @@ contract SettersTest is BaseTest {
         // Only curator can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
-        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (newAdapter)));
+        vault.submit(abi.encodeCall(IVaultV2.removeAdapter, (newAdapter)));
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (newAdapter)));
+        vault.submit(abi.encodeCall(IVaultV2.removeAdapter, (newAdapter)));
         vault.addAdapter(newAdapter);
 
         // Nobody can remove directly
