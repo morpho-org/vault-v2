@@ -237,6 +237,7 @@ contract SettersTest is BaseTest {
     }
 
     function testSetIsAllocator(address rdm) public {
+        vm.assume(rdm != curator);
         address newAllocator = makeAddr("newAllocator");
 
         // Only curator can submit
@@ -353,14 +354,14 @@ contract SettersTest is BaseTest {
         vm.assume(rdm != curator);
         address newAdapter = makeAddr("newAdapter");
 
+        vm.prank(curator);
+        vault.submit(abi.encodeCall(IVaultV2.addAdapter, (newAdapter)));
+        vault.addAdapter(newAdapter);
+
         // Only curator can submit
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
         vm.prank(rdm);
         vault.submit(abi.encodeCall(IVaultV2.removeAdapter, (newAdapter)));
-
-        vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.removeAdapter, (newAdapter)));
-        vault.addAdapter(newAdapter);
 
         // Nobody can remove directly
         vm.expectRevert(ErrorsLib.DataNotTimelocked.selector);
@@ -808,6 +809,7 @@ contract SettersTest is BaseTest {
     function testIncreaseRelativeCap(address rdm, bytes memory idData, uint256 oldRelativeCap, uint256 newRelativeCap)
         public
     {
+        vm.assume(rdm != curator);
         oldRelativeCap = bound(oldRelativeCap, 1, WAD - 1);
         newRelativeCap = bound(newRelativeCap, oldRelativeCap, WAD - 1);
         bytes32 id = keccak256(idData);
