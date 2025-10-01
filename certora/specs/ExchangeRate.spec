@@ -7,13 +7,14 @@ definition shares() returns mathint = currentContract.totalSupply + currentContr
 
 definition assets() returns mathint = currentContract._totalAssets + 1;
 
-// Check that share price is increasing, except due to management fees or loss realization.
-rule sharePriceIncreasing(method f, env e, calldataarg a) {
+// Check that share price is increasing, except due to management fees and potentially when accruing interest (notably due to loss realization).
+rule sharePriceIsIncreasing(method f, env e, calldataarg a) {
     require (e.block.timestamp >= currentContract.lastUpdate, "safe requirement because `lastUpdate` is growing and monotonic");
-    require (currentContract.managementFee == 0, "assume management fee to be null");
     requireInvariant performanceFee();
 
     require (currentContract.totalSupply > 0, "assume that the vault is seeded");
+    require (currentContract.managementFee == 0, "assume management fee to be null");
+    require (currentContract.firstTotalAssets != 0, "assume that interest has been accrued");
 
     requireInvariant balanceOfZero();
     requireInvariant totalSupplyIsSumOfBalances();
@@ -24,27 +25,23 @@ rule sharePriceIncreasing(method f, env e, calldataarg a) {
 
     f(e, a);
 
-    uint256 lossRealized = currentContract.lossRealized;
-
-    assert (assetsBefore - lossRealized) * shares() <= assets() * sharesBefore;
+    assert assetsBefore * shares() <= assets() * sharesBefore;
 }
 
 // Check that loss realization decreases the share price.
-rule lossRealizationMonotonic(env e, address adapter, bytes data){
-    require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
-
+rule lossRealizationDecreasesSharePrice(env e, address adapter, bytes data){
     mathint assetsBefore = assets();
     mathint sharesBefore = shares();
 
     accrueInterest(e);
 
-    require (currentContract.lossRealized > 0, "assume loss realization");
+    require (currentContract.lossRealization, "assume loss realization");
 
     assert assets() * sharesBefore <= assetsBefore * shares();
 }
 
 // Check that if deposit adds one more share to the user than it does, then the share price would decrease following a deposit.
-rule boundSharePriceIncreaseOnDeposit(env e, uint256 assets, address onBehalf){
+rule optimalRoundingOnDeposit(env e, uint256 assets, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
     mathint assetsBefore = assets();
@@ -56,7 +53,7 @@ rule boundSharePriceIncreaseOnDeposit(env e, uint256 assets, address onBehalf){
 }
 
 // Check that if withdraw removed one less share to the user than it does, then the share price would decrease following a withdraw.
-rule boundSharePriceIncreaseOnWithdraw(env e, uint256 assets, address receiver, address onBehalf){
+rule optimalRoundingOnWithdraw(env e, uint256 assets, address receiver, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
     mathint assetsBefore = assets();
@@ -68,7 +65,7 @@ rule boundSharePriceIncreaseOnWithdraw(env e, uint256 assets, address receiver, 
 }
 
 // Check that if mint asks one less asset to the user than it does, then the share price would decrease following a mint.
-rule boundSharePriceIncreaseOnMint(env e, uint256 shares, address onBehalf){
+rule optimalRoundingOnMint(env e, uint256 shares, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
     mathint assetsBefore = assets();
@@ -80,7 +77,7 @@ rule boundSharePriceIncreaseOnMint(env e, uint256 shares, address onBehalf){
 }
 
 // Check that if redeem gave one more asset to the user than it does, then the share price would decrease following a redeem.
-rule boundSharePriceIncreaseOnRedeem(env e, uint256 shares, address receiver, address onBehalf){
+rule optimalRoundingOnRedeem(env e, uint256 shares, address receiver, address onBehalf){
     require (e.block.timestamp == currentContract.lastUpdate, "assume no interest is accrued");
 
     mathint assetsBefore = assets();
