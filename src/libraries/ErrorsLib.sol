@@ -23,14 +23,14 @@ library ErrorsLib {
     error MaxRateTooHigh();
     error NoCode();
     error NotAdapter();
+    error NotInAdapterRegistry();
     error PenaltyTooHigh();
     error PermitDeadlineExpired();
     error RelativeCapAboveOne();
     error RelativeCapExceeded();
     error RelativeCapNotDecreasing();
     error RelativeCapNotIncreasing();
-    error TimelockCapIsFixed();
-    error TimelockDurationTooHigh();
+    error AutomaticallyTimelocked();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();

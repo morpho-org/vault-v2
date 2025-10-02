@@ -17,6 +17,7 @@ jobs:
       matrix:
         conf:
           - AbdicatedFunctions
+          - ExchangeRate
           - Gates
           - Immutability
           - Invariants
@@ -37,6 +38,11 @@ jobs:
         with:
           submodules: recursive
 
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Install Jq
         uses: sergeysova/jq-action@v2
 
@@ -52,6 +58,9 @@ jobs:
 
       - name: Apply MetaMorpho munging
         run: make -C lib/metamorpho/certora munged
+
+      - name: Apply VaultV2 munging
+        run: make -C certora munged
 
       - name: Install certora
         run: pip install certora-cli
