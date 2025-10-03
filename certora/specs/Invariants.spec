@@ -25,24 +25,10 @@ methods {
 
     function _.isInRegistry(address adapter) external => ghostInInRegistry[adapter] expect(bool);
 
-<<<<<<< HEAD
     function Utils.wad() external returns (uint256) envfree;
-    function Utils.timelockCap() external returns (uint256) envfree;
     function Utils.maxPerformanceFee() external returns (uint256) envfree;
     function Utils.maxManagementFee() external returns (uint256) envfree;
     function Utils.maxForceDeallocatePenalty() external returns (uint256) envfree;
-||||||| c1e7646c
-    function Utils.wad() external returns uint256 envfree;
-    function Utils.timelockCap() external returns uint256 envfree;
-    function Utils.maxPerformanceFee() external returns uint256 envfree;
-    function Utils.maxManagementFee() external returns uint256 envfree;
-    function Utils.maxForceDeallocatePenalty() external returns uint256 envfree;
-=======
-    function Utils.wad() external returns uint256 envfree;
-    function Utils.maxPerformanceFee() external returns uint256 envfree;
-    function Utils.maxManagementFee() external returns uint256 envfree;
-    function Utils.maxForceDeallocatePenalty() external returns uint256 envfree;
->>>>>>> origin/main
 }
 
 definition decreaseTimelockSelector() returns bytes4 = to_bytes4(sig:decreaseTimelock(bytes4, uint256).selector);
