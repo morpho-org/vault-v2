@@ -23,7 +23,7 @@ methods {
     function isAdapter(address adapter) external returns (bool) envfree;
     function balanceOf(address) external returns (uint256) envfree;
 
-    function _.isInRegistry(address adapter) external => ghostInInRegistry[adapter] expect(bool);
+    function _.isInRegistry(address adapter) external => ghostIsInRegistry[calledContract][adapter] expect(bool);
 
     function Utils.wad() external returns (uint256) envfree;
     function Utils.maxPerformanceFee() external returns (uint256) envfree;
@@ -33,7 +33,8 @@ methods {
 
 definition decreaseTimelockSelector() returns bytes4 = to_bytes4(sig:decreaseTimelock(bytes4, uint256).selector);
 
-persistent ghost mapping(address => bool) ghostInInRegistry;
+// For each potential adapter registry, we keep track of which adapters are in that registry, and assume that registries are all add-only.
+persistent ghost mapping(address => mapping(address => bool)) ghostIsInRegistry;
 
 ghost mathint sumOfBalances {
     init_state axiom sumOfBalances == 0;
@@ -74,6 +75,11 @@ strong invariant totalSupplyIsSumOfBalances()
 invariant virtualSharesBounds()
     0 < currentContract.virtualShares && currentContract.virtualShares <= 10^18;
 
-// Note: ghostInInRegistry makes it such that adapters can't be removed from the registry. Without that, the invariant doesn't hold.
+// Note: ghostIsInRegistry makes it such that adapters can't be removed from registries. Without that, the invariant doesn't hold.
 strong invariant adaptersAreInRegistry(address account)
-    adapterRegistry() != 0 => isAdapter(account) => ghostInInRegistry[account];
+    adapterRegistry() != 0 => isAdapter(account) => ghostIsInRegistry[adapterRegistry()][account]
+{
+    preserved {
+        require exists uint256 i. currentContract.isAdapter[account] => i < currentContract.adapters.length && currentContract.adapters[i] == account;
+    }
+}
