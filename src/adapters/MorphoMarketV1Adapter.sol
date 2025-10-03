@@ -10,17 +10,19 @@ import {IERC20} from "../interfaces/IERC20.sol";
 import {IMorphoMarketV1Adapter} from "./interfaces/IMorphoMarketV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
-/// @dev Morpho Market v1 is also known as Morpho Blue.
-/// @dev This adapter must be used with Morpho Market v1 that are protected against inflation attacks with an initial
+/// @dev Morpho Market V1 is also known as Morpho Blue.
+/// @dev This adapter must be used with Morpho Market V1 that are protected against inflation attacks with an initial
 /// supply. Following resource is relevant: https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
-/// @dev Must not be used with a Morpho Market v1 with an Irm that can re-enter the parent vault or the adapter.
-/// @dev Losses that correspond to rounding errors are realizable.
+/// @dev Must not be used with a Morpho Market V1 with an Irm that can re-enter the parent vault or the adapter.
+/// @dev Rounding error losses on supply/withdraw are realizable.
 /// @dev If expectedSupplyAssets reverts for a market of the marketParamsList, realAssets will revert and the vault will
 /// not be able to accrueInterest.
 /// @dev Upon interest accrual, the vault calls realAssets(). If there are too many markets, it could cause issues such
 /// as expensive interactions, even DOS, because of the gas.
 /// @dev Shouldn't be used alongside another adapter that re-uses the last id (abi.encode("this/marketParams",
 /// address(this), marketParams)).
+/// @dev Markets get removed from the marketParamsList when the allocation is zero, but it doesn't mean that the adapter
+/// has zero shares on the market.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MarketParamsLib for MarketParams;
 
@@ -81,7 +83,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         uint256 newAllocation = MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this));
         updateList(marketParams, oldAllocation, newAllocation);
 
-        // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
+        // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
         return (ids(marketParams), int256(newAllocation) - int256(oldAllocation));
     }
@@ -102,7 +104,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         uint256 newAllocation = MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this));
         updateList(marketParams, oldAllocation, newAllocation);
 
-        // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
+        // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
         return (ids(marketParams), int256(newAllocation) - int256(oldAllocation));
     }

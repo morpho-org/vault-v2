@@ -8,16 +8,16 @@ import {IERC20} from "../interfaces/IERC20.sol";
 import {IMorphoVaultV1Adapter} from "./interfaces/IMorphoVaultV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
-/// @dev Designed, developed and audited for Morpho Vaults v1 (v1.0 and v1.1) (also known as MetaMorpho). Integration
+/// @dev Designed, developed and audited for Morpho Vaults V1 (V1.0 and V1.1) (also known as MetaMorpho). Integration
 /// with other vaults must be carefully assessed from a security standpoint.
-/// @dev This adapter must be used with Morpho Vaults v1 that are protected against inflation attacks with an initial
+/// @dev This adapter must be used with Morpho Vaults V1 that are protected against inflation attacks with an initial
 /// deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
-/// @dev Must not be used with a Morpho Vault v1 which has a market with an Irm that can re-enter the parent vault or
+/// @dev Must not be used with a Morpho Vault V1 which has a market with an Irm that can re-enter the parent vault or
 /// the adapter.
-/// @dev Morpho Vaults v1.1 do not realize bad debt, so Morpho Vaults v2 supplying in them will not realize the
+/// @dev Morpho Vaults V1.1 do not realize bad debt, so Morpho Vaults V2 supplying in them will not realize the
 /// corresponding bad debt.
 /// @dev Losses that correspond to rounding errors are realizable.
-/// @dev Shares of the Morpho Vault v1 cannot be skimmed (unlike any other token).
+/// @dev Shares of the Morpho Vault V1 cannot be skimmed (unlike any other token).
 /// @dev If expectedSupplyAssets reverts for a market of the morphoVaultV1, realAssets will revert and the vault will
 /// not be able to accrueInterest.
 /// @dev Shouldn't be used alongside another adapter that re-uses the id (abi.encode("this", address(this)).
@@ -72,7 +72,7 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         uint256 oldAllocation = allocation();
         uint256 newAllocation = IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)));
 
-        // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
+        // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
         return (ids(), int256(newAllocation) - int256(oldAllocation));
     }
@@ -90,7 +90,7 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         uint256 oldAllocation = allocation();
         uint256 newAllocation = IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)));
 
-        // Safe casts because Market v1 bounds the total supply of the underlying token, and allocation is less than the
+        // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
         return (ids(), int256(newAllocation) - int256(oldAllocation));
     }

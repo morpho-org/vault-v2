@@ -25,11 +25,24 @@ methods {
 
     function _.isInRegistry(address adapter) external => ghostInInRegistry[adapter] expect(bool);
 
+<<<<<<< HEAD
     function Utils.wad() external returns (uint256) envfree;
     function Utils.timelockCap() external returns (uint256) envfree;
     function Utils.maxPerformanceFee() external returns (uint256) envfree;
     function Utils.maxManagementFee() external returns (uint256) envfree;
     function Utils.maxForceDeallocatePenalty() external returns (uint256) envfree;
+||||||| c1e7646c
+    function Utils.wad() external returns uint256 envfree;
+    function Utils.timelockCap() external returns uint256 envfree;
+    function Utils.maxPerformanceFee() external returns uint256 envfree;
+    function Utils.maxManagementFee() external returns uint256 envfree;
+    function Utils.maxForceDeallocatePenalty() external returns uint256 envfree;
+=======
+    function Utils.wad() external returns uint256 envfree;
+    function Utils.maxPerformanceFee() external returns uint256 envfree;
+    function Utils.maxManagementFee() external returns uint256 envfree;
+    function Utils.maxForceDeallocatePenalty() external returns uint256 envfree;
+>>>>>>> origin/main
 }
 
 definition decreaseTimelockSelector() returns bytes4 = to_bytes4(sig:decreaseTimelock(bytes4, uint256).selector);
@@ -66,14 +79,14 @@ strong invariant forceDeallocatePenalty(address adapter)
 strong invariant balanceOfZero()
     balanceOf(0) == 0;
 
-strong invariant timelockBounds(bytes4 selector)
-    timelock(selector) <= Utils.timelockCap() || timelock(selector) == max_uint256;
-
 strong invariant decreaseTimelockTimelock()
-    timelock(decreaseTimelockSelector()) == Utils.timelockCap() || timelock(decreaseTimelockSelector()) == max_uint256;
+    timelock(decreaseTimelockSelector()) == 0;
 
 strong invariant totalSupplyIsSumOfBalances()
     totalSupply() == sumOfBalances;
+
+invariant virtualSharesBounds()
+    0 < currentContract.virtualShares && currentContract.virtualShares <= 10^18;
 
 // Note: ghostInInRegistry makes it such that adapters can't be removed from the registry. Without that, the invariant doesn't hold.
 strong invariant adaptersAreInRegistry(address account)
