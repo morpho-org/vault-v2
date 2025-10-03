@@ -8,6 +8,8 @@ methods {
 
     function _.balanceOf(address) external => ignoredUintStaticcall() expect(uint256);
 
+    function _.isInRegistry(address) external => ignoredBoolStaticcall() expect(bool);
+
     function _.canReceiveShares(address) external => ignoredBoolStaticcall() expect(bool);
     function _.canSendShares(address) external => ignoredBoolStaticcall() expect(bool);
     function _.canReceiveAssets(address) external => ignoredBoolStaticcall() expect(bool);
@@ -45,7 +47,8 @@ hook ALL_SSTORE(uint _, uint _) {
 }
 
 hook STATICCALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength, uint256 retOffset, uint256 retLength) uint256 rc {
-    if (!ignoredStaticcall && storageChanged && addr != 0x1 && addr != currentContract) {
+    // address(1) is ignored because it's the ecrecover function.
+    if (!ignoredStaticcall && storageChanged && addr != 0x1) {
         staticCallAfterSStore = true;
     }
     ignoredStaticcall = false;
@@ -57,7 +60,7 @@ filtered {
     // forceDeallocate is a composition of deallocate and withdraw.
     f -> f.selector != sig:forceDeallocate(address, bytes, uint256, address).selector
 } {
-    require !ignoredStaticcall == false, "setup ghost state";
+    require ignoredStaticcall == false, "setup ghost state";
     require storageChanged == false, "setup ghost state";
     require staticCallAfterSStore == false, "setup ghost state";
     require staticCallUnsafe == false, "setup ghost state";
