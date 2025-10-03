@@ -54,7 +54,7 @@ hook STATICCALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength,
     ignoredStaticcall = false;
 }
 
-// Check that there are no reentrancy unsafe calls except potentially for balanceOf on the asset, realAssets on the adapters and canReceiveShares, canSendShares, canReceiveAssets and canSendAssets on the gates.
+// Check that there are no reentrancy unsafe calls except potentially for balanceOf on the asset, realAssets on the adapters and canReceiveShares, canSendShares, canReceiveAssets and canSendAssets on the gates, and isInRegistry on adapter registry.
 rule reentrancyViewSafe(method f, env e, calldataarg data)
 filtered {
     // forceDeallocate is a composition of deallocate and withdraw.
