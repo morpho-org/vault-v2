@@ -12,7 +12,7 @@ methods {
 // - for the fact that the total asset can decrease when accruing interest;
 // - for exit functions (withdraw, redeem & forceDeallocate);
 // - for decreaseRelativeCap;
-// - for deallocate (because it can actually increase allocations)
+// - for deallocate (it can actually increase allocations because of interests, while allocate would revert if interest makes the allocation exceed the cap)
 rule relativeCapValidity(env e, method f, calldataarg args)
 filtered {
     f -> f.selector != sig:withdraw(uint256, address, address).selector &&
