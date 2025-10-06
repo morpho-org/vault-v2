@@ -75,11 +75,19 @@ strong invariant totalSupplyIsSumOfBalances()
 invariant virtualSharesBounds()
     0 < currentContract.virtualShares && currentContract.virtualShares <= 10^18;
 
+invariant witnessForSetAdapters(address account)
+    exists uint256 i. currentContract.isAdapter[account] => i < currentContract.adapters.length && currentContract.adapters[i] == account
+{
+    preserved {
+        require currentContract.adapters.length < 2 ^ 128, "would require an unrealistic amount of computation";
+    }
+}
+
 // Note: ghostIsInRegistry makes it such that adapters can't be removed from registries. Without that, the invariant doesn't hold.
 strong invariant adaptersAreInRegistry(address account)
     adapterRegistry() != 0 => isAdapter(account) => ghostIsInRegistry[adapterRegistry()][account]
 {
     preserved {
-        require exists uint256 i. currentContract.isAdapter[account] => i < currentContract.adapters.length && currentContract.adapters[i] == account;
+        requireInvariant witnessForSetAdapters(account);
     }
 }
