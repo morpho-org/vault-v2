@@ -190,6 +190,15 @@ rule abdicateSetManagementFeeRecipient(env e, method f, calldataarg args) {
     assert abdicated => managementFeeRecipient() == managementFeeRecipientBefore;
 }
 
+rule abdicateSetForceDeallocatePenalty(env e, method f, calldataarg args, address adapter) {
+    bool abdicated = abdicated(to_bytes4(sig:setForceDeallocatePenalty(address, uint256).selector));
+    uint256 forceDeallocatePenaltyBefore = forceDeallocatePenalty(adapter);
+
+    f(e, args);
+
+    assert abdicated => forceDeallocatePenalty(adapter) == forceDeallocatePenaltyBefore;
+}
+
 rule abdicateIncreaseTimelock(env e, method f, calldataarg args, bytes4 selector) {
     bool abdicated = abdicated(to_bytes4(sig:increaseTimelock(bytes4, uint256).selector));
     uint256 timelockBefore = timelock(selector);
