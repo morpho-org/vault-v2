@@ -54,12 +54,12 @@ filtered {
     assert lastReverted;
 }
 
-rule abdicatedCantBeDeabdicated(env e, method f, calldataarg args, method abdicatedFunction) {
-    require abdicated(to_bytes4(abdicatedFunction.selector));
+rule abdicatedCantBeDeabdicated(env e, method f, calldataarg args, bytes4 selector) {
+    require abdicated(selector);
 
     f(e, args);
 
-    assert abdicated(to_bytes4(abdicatedFunction.selector));
+    assert abdicated(selector);
 }
 
 /* ABDICATION PER FUNCTION */

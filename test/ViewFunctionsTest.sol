@@ -126,6 +126,7 @@ contract ViewFunctionsTest is BaseTest {
         return (newTotalAssets, vault.totalSupply() + performanceFeeShares + managementFeeShares);
     }
 
+    /// forge-config: default.isolate = true
     function testPreviewDeposit(TestData memory data, uint256 assets) public {
         (uint256 newTotalAssets, uint256 newTotalSupply) = setupTest(data);
 
@@ -134,6 +135,7 @@ contract ViewFunctionsTest is BaseTest {
         assertEq(vault.previewDeposit(assets), assets * (newTotalSupply + vault.virtualShares()) / (newTotalAssets + 1));
     }
 
+    /// forge-config: default.isolate = true
     function testPreviewMint(TestData memory data, uint256 shares) public {
         (uint256 newTotalAssets, uint256 newTotalSupply) = setupTest(data);
 
@@ -145,6 +147,7 @@ contract ViewFunctionsTest is BaseTest {
         );
     }
 
+    /// forge-config: default.isolate = true
     function testPreviewWithdraw(TestData memory data, uint256 assets) public {
         (uint256 newTotalAssets, uint256 newTotalSupply) = setupTest(data);
 
@@ -156,6 +159,7 @@ contract ViewFunctionsTest is BaseTest {
         );
     }
 
+    /// forge-config: default.isolate = true
     function testPreviewRedeem(TestData memory data, uint256 shares) public {
         (uint256 newTotalAssets, uint256 newTotalSupply) = setupTest(data);
 
