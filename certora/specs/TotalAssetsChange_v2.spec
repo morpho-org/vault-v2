@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-//E RUN : https://prover.certora.com/output/7508195/735f3abb1736440fadc8fd07e020ff5f/?anonymousKey=badc052535e7e1021c60f69a081d9540b96e8b66
+//E RUN : https://prover.certora.com/output/7508195/9f752280ac734a5884d65f4584ec31b2/?anonymousKey=d45d5de3433a373a63e49430c6ea7de37af93d32
 
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
@@ -65,7 +65,7 @@ rule totalAssetsForceDeallocate(env e, address adapter, bytes data, uint256 deal
     assert currentContract._totalAssets == totalAssetsPre - penalty;
 }
 
-definition canChangeAllocation(method f) returns bool =
+definition canChangeTotalAssets(method f) returns bool =
     f.isView || 
          f.selector == sig:deposit(uint,address).selector ||
          f.selector == sig:mint(uint,address).selector ||
@@ -73,10 +73,9 @@ definition canChangeAllocation(method f) returns bool =
          f.selector == sig:redeem(uint,address,address).selector ||
          f.selector == sig:forceDeallocate(address,bytes,uint,address).selector;
 
-
 // other non-view functions don't change totalAssets
 rule totalAssetsUnchangedByOthers(env e, method f) filtered {
-    f -> !canChangeAllocation(f)
+    f -> !canChangeTotalAssets(f)
 } {
     mathint totalAssetsPre = currentContract._totalAssets;
     calldataarg args;

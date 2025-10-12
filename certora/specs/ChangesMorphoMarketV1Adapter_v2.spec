@@ -1,9 +1,8 @@
-
-
-//E RUN : https://prover.certora.com/output/7508195/5fbbff216eb74eb99326ea967364ad64/?anonymousKey=558806f2efdd6ef7959002747c9eea5a63d92a92
-
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
+
+//E RUN : https://prover.certora.com/output/7508195/dc0b706ea1db4aa8b12292619732451f/?anonymousKey=2cef61ce0442bcbecf57a9201671ce258ca8edaf
+
 
 using Utils as Utils;
 
@@ -38,8 +37,8 @@ rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 se
 }
 
 
-// Check that allocate cannot return a change that would make the current allocation negative.
-rule changeForAllocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
+// Check that allocate or deallocate cannot return a change that would make the current allocation negative.
+rule changeForAllocateOrDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
   Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
   mathint allocation = allocation(marketParams);
   bool isAllocate;

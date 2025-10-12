@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-//E RUN : https://prover.certora.com/output/7508195/1acf139ae3914e04935218a677d8c8af/?anonymousKey=368ae4e7742053e53f3dbbd702030fe40e638c8e
+//E RUN : https://prover.certora.com/output/7508195/d6392b5f4cc34478a46be0b5d6dbdb82/?anonymousKey=28e3c2d426a0254faa6ecdd9351cdd56c2ee89cd
 
 using Utils as Utils;
 
@@ -24,8 +24,8 @@ rule adapterAlwaysReturnsTheSameIDsForSameData() {
   assert idsPre[0] == idsPost[0];
 }
 
-// Show that the ids returned on allocate match the refence id list.
-rule matchingIdsOnAllocate(env e, bytes data, uint256 amount, bytes4 selector, address sender) {
+// Show that the ids returned on allocate or deallocate match the reference id list.
+rule matchingIdsOnAllocateOrDeallocate(env e, bytes data, uint256 amount, bytes4 selector, address sender) {
   bytes32[] ids;
   int256 interest;
 

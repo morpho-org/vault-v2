@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-//E RUN : https://prover.certora.com/output/7508195/3027b94cc82341f2948fbc9bc8da4204/?anonymousKey=ff86175e85dc3e4df1f47224044a5e1ca2136fbf
-
+//E RUN : https://prover.certora.com/output/7508195/15ada4a7bb5344cba79c70011a462d4e/?anonymousKey=d9b9a31403689ce2ae3103fb395a1619f612dc97
+ 
 using Utils as Utils;
 
 methods {
@@ -27,8 +27,8 @@ rule adapterAlwaysReturnsTheSameIDsForSameData(MorphoMarketV1Adapter.MarketParam
   assert idsPre[2] == idsPost[2];
 }
 
-// Show that the ids returned on allocate match the refence id list.
-rule matchingIdsOnAllocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
+// Show that the ids returned on allocate or deallocate match the reference id list.
+rule matchingIdsOnAllocateOrDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
   MorphoMarketV1Adapter.MarketParams marketParams = Utils.decodeMarketParams(data);
   bytes32[] ids;
   int256 change;

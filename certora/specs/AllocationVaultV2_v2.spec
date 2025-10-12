@@ -6,7 +6,7 @@ methods {
     function allocation(bytes32) external returns uint256 envfree;
 }
 
-//E RUN : https://prover.certora.com/output/7508195/4d258ad8b91b459d877eb73ff0724179/?anonymousKey=a917616c45df38dfe9332d923f85a07a50bdd62d
+//E RUN : https://prover.certora.com/output/7508195/b3b686b0447b4e4985a8d708899ee1b3/?anonymousKey=652995acf12698483d0793c573da0ad023149abd
 
 // Definition: Functions that are allowed to change allocations
 definition canChangeAllocation(method f) returns bool =
@@ -27,7 +27,7 @@ rule functionsChangingAllocation(env e, method f, calldataarg args) filtered {
 
     f(e, args);
 
-    assert allocation(id) == allocationPre,"Only authorized functions should change allocations";
+    assert allocation(id) == allocationPre, "Only authorized functions should change allocations";
 }
 
 // Definition: ERC4626 functions (deposit/mint/withdraw/redeem)
@@ -47,5 +47,5 @@ rule erc4626ChangeAllocationOnlyWithLiquidityAdapter(env e, method f, calldataar
     f(e, args);
 
     // If allocation changed, then liquidity adapter must be set
-    assert allocation(id) != allocationPre => currentContract.liquidityAdapter != 0,"Allocations should only change via liquidity adapter in ERC4626 functions";
+    assert allocation(id) != allocationPre => currentContract.liquidityAdapter != 0, "Allocations should only change via liquidity adapter in ERC4626 functions";
 }
