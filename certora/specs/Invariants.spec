@@ -66,3 +66,22 @@ strong invariant decreaseTimelockTimelock()
 
 strong invariant totalSupplyIsSumOfBalances()
     totalSupply() == sumOfBalances;
+
+strong invariant registeredAdaptersAreSet()
+    (forall uint256 i. i < currentContract.adapters.length => currentContract.isAdapter[currentContract.adapters[i]])
+{
+    preserved {
+        requireInvariant adaptersUnique();
+    }
+}
+
+strong invariant adaptersUnique()
+    forall uint256 i. forall uint256 j. (i < j && j < currentContract.adapters.length) => currentContract.adapters[j] != currentContract.adapters[i]
+{
+    preserved {
+        requireInvariant registeredAdaptersAreSet();
+    }
+}
+
+invariant virtualSharesBounds()
+    0 < currentContract.virtualShares && currentContract.virtualShares <= 10^18;

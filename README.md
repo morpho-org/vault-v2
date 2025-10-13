@@ -3,9 +3,9 @@
 > [!NOTE]
 > Vault V2 instances are distinguished between:
 > - **Morpho Vaults**: Vault V2 with the Morpho registry (link to be added) abdicated. Learn more about Morpho Vaults and their benefits here (link to be added).
-> - **Standard Vaults**: Vault V2 that can supply to any protocol. They don't get all the Morpho Vaults benefits. In particular, Vault V2 has been developed and audited only in the context of the Morpho Market V1 and Morpho Vault V1 adapters.
+> - **Basic Vaults**: Vault V2 that can supply to any protocol. They don't get all the Morpho Vaults benefits. In particular, Vault V2 has been developed and audited only in the context of the Morpho Market V1 and Morpho Vault V1 adapters.
 
-Vault V2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including Morpho Market v1, Morpho Market V2, and Morpho Vault v1.
+Vault V2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including Morpho Market V1, Morpho Market V2, and Morpho Vault V1.
 Depositors of Vault V2 earn from the underlying protocols without having to actively manage their position.
 Management of deposited assets is the responsibility of a set of different roles (owner, curator and allocators).
 
@@ -24,10 +24,10 @@ Adapters are also used to know how much these investments are worth (interest an
 Vaults can set an adapter registry to constrain which adapter they can have and add. This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure that a vault will forever supply into adapters authorized by a given registry. See for example the Morpho Registry (link to be added).
 
 The following adapters are currently available:
-- [Morpho Market v1 Adapter](./src/adapters/MorphoMarketV1Adapter.sol).
-  This adapter allocates to any Morpho Market v1, under the constraints of the [caps](#caps).
-- [Morpho Vault v1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
-  This adapter allocates to a fixed Morpho Vault v1 (v1.0 and v1.1), under the constraints of the [caps](#caps).
+- [Morpho Market V1 Adapter](./src/adapters/MorphoMarketV1Adapter.sol).
+  This adapter allocates to any Morpho Market V1, under the constraints of the [caps](#caps).
+- [Morpho Vault V1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
+  This adapter allocates to a fixed Morpho Vault V1 (V1.0 and V1.1), under the constraints of the [caps](#caps).
   Note that using this adapter with vaults other than Morpho Vaults V1 has not been audited.
 - Morpho Market V2 Adapter. WIP
 
@@ -47,7 +47,7 @@ When users withdraw assets, the idle assets are taken in priority.
 If there is not enough idle liquidity, liquidity is taken from the liquidity adapter.
 When defined, the liquidity adapter is also used to forward deposited funds.
 
-A typical liquidity adapter would allow deposits/withdrawals to go through a very liquid Market v1.
+A typical liquidity adapter would allow deposits/withdrawals to go through a very liquid Market V1.
 
 ### Timelocks
 

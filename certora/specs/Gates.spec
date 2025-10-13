@@ -121,7 +121,7 @@ rule cantSendShares(env e, method f, calldataarg args, address user, uint256 sha
 }
 
 // Check that transfers initiated from the vault, assuming the vault is not reentred, may only increase the balance of a given user when he can't send, and similarly the balance may only decrease when he can't receive.
-// Assume that the vault only uses market v1 and vault v1 adapters, and that those are properly deployed to point to market v1 and vault v1 respectively.
+// Assume that the vault only uses market V1 and vault V1 adapters, and that those are properly deployed to point to market V1 and vault V1 respectively.
 rule cantSendAssetsAndCantReceiveAssets(env e, method f, calldataarg args, address user) filtered {
     f -> f.selector != sig:MorphoMarketV1Adapter.skim(address).selector &&
          f.selector != sig:MorphoVaultV1Adapter.skim(address).selector  &&
@@ -137,7 +137,7 @@ rule cantSendAssetsAndCantReceiveAssets(env e, method f, calldataarg args, addre
              user != MorphoVaultV1Adapter &&
              user != MorphoMarketV1Adapter.morpho &&
              user != MorphoVaultV1Adapter.morphoVaultV1 &&
-             user != currentContract, "do not check if the vault, the adapters themselves, Morpho markets v1 and Morpho vaults v1 are properly gated to not send/receive assets");
+             user != currentContract, "do not check if the vault, the adapters themselves, Morpho markets V1 and Morpho vaults V1 are properly gated to not send/receive assets");
 
     require (forall address adapter. currentContract.isAdapter[adapter] => (adapter == MorphoMarketV1Adapter || adapter == MorphoVaultV1Adapter), "assume that, currently, only MorphoMarketV1Adapter and MorphoVaultV1Adapter are under scrutiny");
 
