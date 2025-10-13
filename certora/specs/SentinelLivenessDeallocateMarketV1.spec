@@ -46,6 +46,7 @@ function morphoMarketV1AdapterDeallocateWrapper(address adapter, env e, bytes da
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "see changeForDeallocateIsBoundedByAllocation";
 
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that all ids have a positive allocation";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= max_int256(), "assume that the change doesn't overflow int256 on any id";
 
     return (ids, change);
 }
@@ -54,6 +55,7 @@ function morphoMarketV1AdapterDeallocateWrapper(address adapter, env e, bytes da
 // - the adapter has positive allocations on all ids,
 // - the adapter's withdraw call succeeds,
 // - expectedSupplyAssets doesn't revert and returns a value bounded by max_int256.
+// - the change doesn't overflow int256 on any id.
 rule sentinelCanDeallocate(env e, address adapter, bytes data, uint256 assets) {
     require e.block.timestamp < 2 ^ 63, "safe because it corresponds to a time very far in the future";
     require e.block.timestamp >= currentContract.lastUpdate, "safe because lastUpdate is growing and monotonic";
