@@ -21,6 +21,9 @@ Vaults can allocate assets to arbitrary protocols and markets via separate contr
 They hold positions on behalf of the vault.
 Adapters are also used to know how much these investments are worth (interest and loss realization).
 
+> [!NOTE]
+> Developers building adapters for new protocols should carefully review the [Vault V2 NatSpec](https://github.com/morpho-org/vault-v2/blob/main/src/VaultV2.sol#L16-L184), with particular attention to the [adapter specification](https://github.com/morpho-org/vault-v2/blob/main/src/VaultV2.sol#L66-L87).
+
 Vaults can set an adapter registry to constrain which adapter they can have and add. This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure that a vault will forever supply into adapters authorized by a given registry. See for example the Morpho Registry (link to be added).
 
 The following adapters are currently available:
