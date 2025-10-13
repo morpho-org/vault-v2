@@ -54,7 +54,6 @@ function morphoVaultV1AdapterDeallocateWrapper(address adapter, env e, bytes dat
 rule sentinelCanDeallocate(env e, address adapter, bytes data, uint256 assets) {
     require e.block.timestamp < 2 ^ 63, "safe because it corresponds to a time very far in the future";
     require e.block.timestamp >= currentContract.lastUpdate, "safe because lastUpdate is growing and monotonic";
-    require MorphoVaultV1Adapter.parentVault() == currentContract, "assume that the adapter is well-configured";
 
     require data.length == 0, "setup call to have the correct data";
     require isAdapter(adapter), "setup call to be performed on a valid adapter";

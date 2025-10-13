@@ -60,11 +60,9 @@ function morphoMarketV1AdapterDeallocateWrapper(address adapter, env e, bytes da
 rule sentinelCanDeallocate(env e, address adapter, bytes data, uint256 assets) {
     require e.block.timestamp < 2 ^ 63, "safe because it corresponds to a time very far in the future";
     require e.block.timestamp >= currentContract.lastUpdate, "safe because lastUpdate is growing and monotonic";
-    require MorphoMarketV1Adapter.parentVault() == currentContract, "assume that the adapter is well-configured";
-    require MorphoMarketV1Adapter.asset() == currentContract.asset, "ensured in the constructor";
 
     MorphoMarketV1Adapter.MarketParams marketParams;
-    require marketParams.loanToken == currentContract.asset, "setup call to have the correct loan token";
+    require marketParams.loanToken == MorphoMarketV1Adapter.asset(), "setup call to have the correct loan token";
     require data == Utils.encodeMarketParams(marketParams), "setup call to have the correct data";
     require isAdapter(adapter), "setup call to be performed on a valid adapter";
     require isSentinel(e.msg.sender), "setup call to be performed by a sentinel";
