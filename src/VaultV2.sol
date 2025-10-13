@@ -179,6 +179,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev No-ops are allowed.
 /// @dev NatSpec comments are included only when they bring clarity.
 /// @dev The contract uses transient storage.
+/// @dev View calls are not expected to look at the executableAt values.
 /// @dev At creation, all settings are set to their default values. Notably, timelocks are zero which is useful to set
 /// up the vault quickly. Also, there are no gates so anybody can interact with the vault. To prevent that, the gates
 /// configuration can be batched with the vault creation.
