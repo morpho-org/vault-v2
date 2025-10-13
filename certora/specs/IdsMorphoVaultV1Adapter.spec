@@ -1,12 +1,28 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
+
 using Utils as Utils;
 
 methods {
     function ids() external returns (bytes32[]) envfree;
 
     function Utils.havocAll() external envfree => HAVOC_ALL;
+}
+
+// RUN : https://prover.certora.com/output/7508195/76cc8cdfaa5e41b5bc8d7bcae8af2aa8/?anonymousKey=91465b2160811ef0c20c9262d27c46a1347d301b
+
+function allocate_or_deallocate(bool allocate, env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
+    bytes32[] ids;
+    int256 change;
+
+    if (allocate) {
+        ids, change = allocate(e, data, assets, selector, sender);
+    } else {
+        ids, change = deallocate(e, data, assets, selector, sender);
+    }
+    
+    return (ids, change);
 }
 
 // Show that ids() is a constant function. It will be used as the reference id list in other rules.
@@ -22,26 +38,17 @@ rule adapterAlwaysReturnsTheSameIDsForSameData() {
   assert idsPre[0] == idsPost[0];
 }
 
-// Show that the ids returned on allocate match the refence id list.
-rule matchingIdsOnAllocate(env e, bytes data, uint256 amount, bytes4 selector, address sender) {
-  bytes32[] idsAllocate;
-  int256 interestAllocate;
-  idsAllocate, interestAllocate = allocate(e, data, amount, selector, sender);
+// Show that the ids returned on allocate or deallocate match the reference id list.
+rule matchingIdsOnAllocateOrDeallocate(env e, bytes data, uint256 amount, bytes4 selector, address sender) {
+  bytes32[] ids;
 
-  bytes32[] ids = ids();
+  bool isAllocate;
+  ids, _ = allocate_or_deallocate(isAllocate, e, data, amount, selector, sender);
+
+  bytes32[] idsAdapter = ids();
+  assert idsAdapter.length == 1;
   assert ids.length == 1;
-  assert idsAllocate.length == 1;
-  assert idsAllocate[0] == ids[0];
+  assert ids[0] == idsAdapter[0];
 }
 
-// Show that the ids returned on deallocate match the refence id list.
-rule matchingIdsOnDeallocate(env e, bytes data, uint256 amount, bytes4 selector, address sender) {
-  bytes32[] idsDeallocate;
-  int256 interestDeallocate;
-  idsDeallocate, interestDeallocate = deallocate(e, data, amount, selector, sender);
 
-  bytes32[] ids = ids();
-  assert ids.length == 1;
-  assert idsDeallocate.length == 1;
-  assert idsDeallocate[0] == ids[0];
-}
