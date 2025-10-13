@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
+using MorphoMarketV1Adapter as MorphoMarketV1Adapter;
 using ERC20Mock as ERC20;
 using Utils as Utils;
-using MorphoMarketV1Adapter as MorphoMarketV1Adapter;
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
 
@@ -13,7 +13,6 @@ methods {
     function Utils.decodeMarketParams(bytes) external returns (MorphoMarketV1Adapter.MarketParams) envfree;
     function Utils.encodeMarketParams(MorphoMarketV1Adapter.MarketParams) external returns (bytes) envfree;
     function MorphoMarketV1Adapter.allocation(MorphoMarketV1Adapter.MarketParams) external returns (uint256) envfree;
-    function MorphoMarketV1Adapter.parentVault() external returns (address) envfree;
     function MorphoMarketV1Adapter.asset() external returns (address) envfree;
 
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => morphoMarketV1AdapterDeallocateWrapper(calledContract, e, data, assets, selector, sender) expect(bytes32[], int256);

@@ -10,7 +10,6 @@ methods {
     function isAdapter(address) external returns (bool) envfree;
     function isSentinel(address) external returns (bool) envfree;
     function MorphoVaultV1Adapter.allocation() external returns (uint256) envfree;
-    function MorphoVaultV1Adapter.parentVault() external returns (address) envfree;
 
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => morphoVaultV1AdapterDeallocateWrapper(calledContract, e, data, assets, selector, sender) expect(bytes32[], int256);
 
