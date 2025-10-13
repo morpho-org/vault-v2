@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-using ERC20Mock as ERC20;
 using Utils as Utils;
 using MorphoMarketV1Adapter as MorphoMarketV1Adapter;
 
@@ -13,6 +12,8 @@ methods {
     function Utils.decodeMarketParams(bytes) external returns (MorphoMarketV1Adapter.MarketParams) envfree;
     function Utils.encodeMarketParams(MorphoMarketV1Adapter.MarketParams) external returns (bytes) envfree;
     function MorphoMarketV1Adapter.allocation(MorphoMarketV1Adapter.MarketParams) external returns (uint256) envfree;
+    function MorphoMarketV1Adapter.parentVault() external returns (address) envfree;
+    function MorphoMarketV1Adapter.asset() external returns (address) envfree;
 
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => morphoMarketV1AdapterDeallocateWrapper(calledContract, e, data, assets, selector, sender) expect(bytes32[], int256);
 
@@ -20,7 +21,7 @@ methods {
     function _.withdraw(MorphoMarketV1Adapter.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) external => NONDET;
 
     // Transfers should not revert because market v1 sends back tokens to the adapter on withdraw.
-    function ERC20.transferFrom(address, address, uint256) external returns (bool) => NONDET;
+    function _.transferFrom(address, address, uint256) external => NONDET;
 
     // Assume that expectedSupplyAssets doesn't revert on market v1.
     function _.expectedSupplyAssets(address morpho, MorphoMarketV1Adapter.MarketParams memory marketParams, address user) internal => summaryExpectedSupplyAssets(morpho, marketParams, user) expect uint256;
@@ -59,6 +60,8 @@ function morphoMarketV1AdapterDeallocateWrapper(address adapter, env e, bytes da
 rule sentinelCanDeallocate(env e, address adapter, bytes data, uint256 assets) {
     require e.block.timestamp < 2 ^ 63, "safe because it corresponds to a time very far in the future";
     require e.block.timestamp >= currentContract.lastUpdate, "safe because lastUpdate is growing and monotonic";
+    require MorphoMarketV1Adapter.parentVault() == currentContract, "assume that the adapter is well-configured";
+    require MorphoMarketV1Adapter.asset() == currentContract.asset, "ensured in the constructor";
 
     MorphoMarketV1Adapter.MarketParams marketParams;
     require marketParams.loanToken == currentContract.asset, "setup call to have the correct loan token";

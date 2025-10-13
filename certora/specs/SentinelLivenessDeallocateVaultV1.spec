@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-using ERC20Mock as ERC20;
 using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
@@ -10,6 +9,7 @@ methods {
     function isAdapter(address) external returns (bool) envfree;
     function isSentinel(address) external returns (bool) envfree;
     function MorphoVaultV1Adapter.allocation() external returns (uint256) envfree;
+    function MorphoVaultV1Adapter.parentVault() external returns (address) envfree;
 
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => morphoVaultV1AdapterDeallocateWrapper(calledContract, e, data, assets, selector, sender) expect(bytes32[], int256);
 
@@ -17,7 +17,7 @@ methods {
     function _.withdraw(uint256 assets, address onBehalf, address receiver) external => NONDET;
 
     // Transfers should not revert because vault v1 sends back tokens to the adapter on withdraw.
-    function ERC20.transferFrom(address, address, uint256) external returns (bool) => NONDET;
+    function _.transferFrom(address, address, uint256) external => NONDET;
 
     // The function balanceOf doesn't revert on vault v1.
     function _.balanceOf(address) external => NONDET;
@@ -54,6 +54,7 @@ function morphoVaultV1AdapterDeallocateWrapper(address adapter, env e, bytes dat
 rule sentinelCanDeallocate(env e, address adapter, bytes data, uint256 assets) {
     require e.block.timestamp < 2 ^ 63, "safe because it corresponds to a time very far in the future";
     require e.block.timestamp >= currentContract.lastUpdate, "safe because lastUpdate is growing and monotonic";
+    require MorphoVaultV1Adapter.parentVault() == currentContract, "assume that the adapter is well-configured";
 
     require data.length == 0, "setup call to have the correct data";
     require isAdapter(adapter), "setup call to be performed on a valid adapter";
