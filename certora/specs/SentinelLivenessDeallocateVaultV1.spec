@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Morpho Association
 
 using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
+using ERC20Mock as ERC20;
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
 
@@ -17,7 +18,7 @@ methods {
     function _.withdraw(uint256 assets, address onBehalf, address receiver) external => NONDET;
 
     // Transfers should not revert because vault v1 sends back tokens to the adapter on withdraw.
-    function _.transferFrom(address, address, uint256) external => NONDET;
+    function ERC20.transferFrom(address, address, uint256) external => NONDET;
 
     // The function balanceOf doesn't revert on vault v1.
     function _.balanceOf(address) external => NONDET;
