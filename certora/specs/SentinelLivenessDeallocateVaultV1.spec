@@ -2,12 +2,14 @@
 // Copyright (c) 2025 Morpho Association
 
 using ERC20Mock as ERC20;
+using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
 
 methods {
     function isAdapter(address) external returns (bool) envfree;
     function isSentinel(address) external returns (bool) envfree;
+    function MorphoVaultV1Adapter.allocation() external returns (uint256) envfree;
 
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => morphoVaultV1AdapterDeallocateWrapper(calledContract, e, data, assets, selector, sender) expect(bytes32[], int256);
 
@@ -31,21 +33,22 @@ function summaryPreviewRedeem(uint256 shares) returns (uint256) {
 }
 
 function morphoVaultV1AdapterDeallocateWrapper(address adapter, env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
+    uint256 allocation = MorphoVaultV1Adapter.allocation();
+    require allocation <= max_int256(), "see allocationIsInt256";
+
     bytes32[] ids;
     int256 change;
     ids, change = adapter.deallocate(e, data, assets, selector, sender);
 
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= max_int256(), "see allocationIsInt256";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= max_int256(), "see changeForDeallocateIsBoundedByAllocation";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "see changeForDeallocateIsBoundedByAllocation";
+    require allocation + change >= 0, "see changeForDeallocateIsBoundedByAllocation";
 
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that all ids have a positive allocation";
+    require allocation > 0, "assume that the adapter has a positive allocation";
 
     return (ids, change);
 }
 
 // Check that a sentinel can deallocate, assuming that:
-// - the adapter has positive allocations on all ids,
+// - the adapter has a positive allocation,
 // - the adapter's withdraw call succeeds,
 // - previewRedeem doesn't revert and returns a value bounded by max_int256.
 rule sentinelCanDeallocate(env e, address adapter, bytes data, uint256 assets) {
