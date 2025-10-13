@@ -23,8 +23,8 @@ function nondetDeallocateSummary(uint256 assets) returns (bytes32[], int256) {
     int256 change;
 
     require forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "see distinctAdapterIds";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= max_int256(), "no overflow before";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= max_int256(), "no overflow after";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= max_int256(), "see allocationIsInt256";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= max_int256(), "see changeForDeallocateIsBoundedByAllocation";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "see changeForDeallocateIsBoundedByAllocation";
 
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that all ids have a positive allocation";
