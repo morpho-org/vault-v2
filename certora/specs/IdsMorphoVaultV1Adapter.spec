@@ -45,3 +45,10 @@ rule matchingIdsOnDeallocate(env e, bytes data, uint256 amount, bytes4 selector,
   assert idsDeallocate.length == 1;
   assert idsDeallocate[0] == ids[0];
 }
+
+// Show that the ids returned are distinct (trivial since there is only one id).
+rule distinctAdapterIds() {
+  bytes32[] ids = ids();
+
+  assert forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i];
+}
