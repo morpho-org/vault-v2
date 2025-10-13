@@ -18,7 +18,7 @@ methods {
     function _.withdraw(uint256 assets, address onBehalf, address receiver) external => NONDET;
 
     // Transfers should not revert because vault v1 sends back tokens to the adapter on withdraw.
-    function ERC20.transferFrom(address, address, uint256) external => NONDET;
+    function ERC20.transferFrom(address, address, uint256) external returns (bool) => NONDET;
 
     // The function balanceOf doesn't revert on vault v1.
     function _.balanceOf(address) external => NONDET;

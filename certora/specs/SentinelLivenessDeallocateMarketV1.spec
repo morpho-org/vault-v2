@@ -22,7 +22,7 @@ methods {
     function _.withdraw(MorphoMarketV1Adapter.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) external => NONDET;
 
     // Transfers should not revert because market v1 sends back tokens to the adapter on withdraw.
-    function ERC20.transferFrom(address, address, uint256) external => NONDET;
+    function ERC20.transferFrom(address, address, uint256) external returns (bool) => NONDET;
 
     // Assume that expectedSupplyAssets doesn't revert on market v1.
     function _.expectedSupplyAssets(address morpho, MorphoMarketV1Adapter.MarketParams memory marketParams, address user) internal => summaryExpectedSupplyAssets(morpho, marketParams, user) expect uint256;
