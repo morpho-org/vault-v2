@@ -54,6 +54,10 @@ contract Utils {
         return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }
 
+    function encodeMarketParams(MarketParams memory marketParams) external pure returns (bytes memory) {
+        return abi.encode(marketParams);
+    }
+
     function decodeMarketParams(bytes memory data) external pure returns (MarketParams memory) {
         return abi.decode(data, (MarketParams));
     }
