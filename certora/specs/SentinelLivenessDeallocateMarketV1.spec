@@ -43,7 +43,6 @@ function morphoMarketV1AdapterDeallocateWrapper(address adapter, env e, bytes da
 
     require forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "see distinctAdapterIds";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= max_int256(), "see allocationIsInt256";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= max_int256(), "see changeForDeallocateIsBoundedByAllocation";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "see changeForDeallocateIsBoundedByAllocation";
 
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that all ids have a positive allocation";
