@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
+using ERC20Mock as asset;
 
 methods {
+    function asset() external returns address envfree;
+    function asset.balanceOf(address) external returns uint256 envfree;
+
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
     function accrueInterestView() internal returns(uint256, uint256, uint256) => summaryAccrueInterestView();
+
 }
 
 
-//E RUN : https://prover.certora.com/output/7508195/26ffa67a00654acebe531b2e743ef57c/?anonymousKey=6acbf8e78529eb305228d0c3b4903bac5f1aec57
+//E RUN : https://prover.certora.com/output/7508195/848b245af0fe4d4e9fcfa1ec47b92215/?anonymousKey=f3485f941824180cfe9b7b28f19f8afb3a8f28b9
 
 
 // Assume that accrueInterest does nothing.
@@ -68,25 +73,6 @@ rule totalAssetsForceDeallocate(env e, address adapter, bytes data, uint256 deal
     forceDeallocate(e, adapter, data, deallocationAmount, recipient);
     
     assert currentContract._totalAssets == totalAssetsPre - penalty;
-}
-
-// forceDeallocate removes assets based on penalty (without division)
-rule totalAssetsForceDeallocate2(env e, address adapter, bytes data, uint256 deallocationAmount, address recipient) {
-    mathint totalAssetsPre = currentContract._totalAssets;
-    mathint penaltyRate = currentContract.forceDeallocatePenalty[adapter];
-    
-    forceDeallocate(e, adapter, data, deallocationAmount, recipient);
-    
-    mathint totalAssetsPost = currentContract._totalAssets;
-    mathint delta = totalAssetsPre - totalAssetsPost;
-    
-    // Instead of calculating penalty with division, verify the mathematical relationship
-    // For mulDivUp(deallocationAmount, penaltyRate, WAD), we should have:
-        // delta * WAD >= deallocationAmount * penaltyRate (lower bound)
-        // delta * WAD <= deallocationAmount * penaltyRate + WAD - 1 (upper bound for round up)
-    
-    assert delta * 10^18 >= deallocationAmount * penaltyRate, "Penalty too small: insufficient assets removed";
-    assert delta * 10^18 <= deallocationAmount * penaltyRate + 10^18 - 1, "Penalty too large: too many assets removed";
 }
 
 definition canChangeTotalAssets(method f) returns bool =

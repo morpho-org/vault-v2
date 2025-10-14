@@ -6,7 +6,7 @@ methods {
     function allocation(bytes32) external returns uint256 envfree;
 }
 
-//E RUN : https://prover.certora.com/output/7508195/f2daa878c3684e469d7a4c8cba50d159/?anonymousKey=d44f2d89bd7782a9f1e6b14443c9ae5e148dccf5
+//E RUN : https://prover.certora.com/output/7508195/e366be539f21406aac7fded3fbf53a5c/?anonymousKey=bfb434d7be5020b47cc637f24dcbc70f767c8138
 
 // Definition: Functions that are allowed to change allocations
 definition canChangeAllocation(method f) returns bool =

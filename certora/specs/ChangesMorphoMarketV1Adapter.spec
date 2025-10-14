@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
+import "AdapterUtilityFunctions.spec";
+
 using Utils as Utils;
 
 methods {
@@ -16,22 +18,9 @@ methods {
     function Utils.decodeMarketParams(bytes) external returns (Morpho.MarketParams) envfree;
 }
 
-// RUN : https://prover.certora.com/output/7508195/948a99f61d064f24832f12a43d0cd259/?anonymousKey=98b83d604d33896cec49c722a39aeee4694f56b7
+// RUN : https://prover.certora.com/output/7508195/55beb16a51bb4e819d0ae89b65242baa/?anonymousKey=3c173b3c3b1e9e1de39f4bff4ab165decf76fe5a
 
 persistent ghost uint256 constantBorrowRate;
-
-function allocate_or_deallocate(bool allocate, env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
-    bytes32[] ids;
-    int256 change;
-
-    if (allocate) {
-        ids, change = allocate(e, data, assets, selector, sender);
-    } else {
-        ids, change = deallocate(e, data, assets, selector, sender);
-    }
-    
-    return (ids, change);
-}
 
 // Check that allocating or deallocating zero assets returns an equivalent allocation change.  
 rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 selector, address sender) {

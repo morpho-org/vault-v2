@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
+import "AdapterUtilityFunctions.spec";
  
 using Utils as Utils;
 
@@ -11,20 +12,7 @@ methods {
     function Utils.decodeMarketParams(bytes) external returns(MorphoMarketV1Adapter.MarketParams) envfree;
 }
 
-// RUN : https://prover.certora.com/output/7508195/791096c274a54182b70633b4441441f8/?anonymousKey=62ddbc426eb45b54e7104d1b862a79da6f7e4b2e
-
-function allocate_or_deallocate(bool allocate, env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
-    bytes32[] ids;
-    int256 change;
-
-    if (allocate) {
-        ids, change = allocate(e, data, assets, selector, sender);
-    } else {
-        ids, change = deallocate(e, data, assets, selector, sender);
-    }
-    
-    return (ids, change);
-}
+// RUN : https://prover.certora.com/output/7508195/3bf86af7145d4ebcaa2a795150d67886/?anonymousKey=89d4d8c73dfe2c1fa7e7bb6e7e9d0d205da9019b
 
 // Show that ids() is a function that only depend on its input. It will be used as the reference id list in other rules.
 rule adapterAlwaysReturnsTheSameIDsForSameData(MorphoMarketV1Adapter.MarketParams marketParams) {

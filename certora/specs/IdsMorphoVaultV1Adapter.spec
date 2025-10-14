@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
+import "AdapterUtilityFunctions.spec";
 
 using Utils as Utils;
 
@@ -10,20 +11,7 @@ methods {
     function Utils.havocAll() external envfree => HAVOC_ALL;
 }
 
-// RUN : https://prover.certora.com/output/7508195/76cc8cdfaa5e41b5bc8d7bcae8af2aa8/?anonymousKey=91465b2160811ef0c20c9262d27c46a1347d301b
-
-function allocate_or_deallocate(bool allocate, env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
-    bytes32[] ids;
-    int256 change;
-
-    if (allocate) {
-        ids, change = allocate(e, data, assets, selector, sender);
-    } else {
-        ids, change = deallocate(e, data, assets, selector, sender);
-    }
-    
-    return (ids, change);
-}
+// RUN : https://prover.certora.com/output/7508195/f4d1bc6f8a1f44359cbe1107bc42f733/?anonymousKey=6ea9658d5f304db8966ef02d60306229369f3abd
 
 // Show that ids() is a constant function. It will be used as the reference id list in other rules.
 rule adapterAlwaysReturnsTheSameIDsForSameData() {

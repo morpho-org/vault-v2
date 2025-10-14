@@ -21,7 +21,7 @@ methods {
     function Math.mulDiv(uint256 x, uint256 y, uint256 denominator) internal returns (uint256) => mulDivSummary(x, y, denominator);
 }
 
-// RULE : https://prover.certora.com/output/7508195/fa2fefc94b1d4b10b65d050dc99905c0/?anonymousKey=3357b3252814385c75bf52998e84453ed971c255
+// RULE : https://prover.certora.com/output/7508195/73a52f673c754d538258a7bd92ceb6d4/?anonymousKey=03bd983bae76eb731bb38641561dcf2db70e70d9
 
 function mulDivSummary(uint256 x, uint256 y, uint256 denominator) returns uint256 {
     mathint result;
