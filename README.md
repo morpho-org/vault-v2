@@ -2,7 +2,7 @@
 
 > [!NOTE]
 > Vault V2 instances are distinguished between:
-> - **Morpho Vaults**: Vault V2 with the Morpho registry (link to be added) abdicated. Learn more about Morpho Vaults and their benefits here (link to be added).
+> - **Morpho Vaults**: Vault V2 with the [Morpho registry](https://docs.morpho.org/learn/concepts/vault-v2/#adapter-registry) abdicated. Learn more about Morpho Vaults and their benefits here (link to be added).
 > - **Basic Vaults**: Vault V2 that can supply to any protocol. They don't get all the Morpho Vaults benefits. In particular, Vault V2 has been developed and audited only in the context of the Morpho Market V1 and Morpho Vault V1 adapters.
 
 Vault V2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including Morpho Market V1, Morpho Market V2, and Morpho Vault V1.
@@ -21,7 +21,11 @@ Vaults can allocate assets to arbitrary protocols and markets via separate contr
 They hold positions on behalf of the vault.
 Adapters are also used to know how much these investments are worth (interest and loss realization).
 
-Vaults can set an adapter registry to constrain which adapter they can have and add. This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure that a vault will forever supply into adapters authorized by a given registry. See for example the Morpho Registry (link to be added).
+> [!NOTE]
+> Developers building adapters for new protocols should carefully review the [Vault V2 NatSpec](https://github.com/morpho-org/vault-v2/blob/main/src/VaultV2.sol#L16-L184), with particular attention to the [adapter specification](https://github.com/morpho-org/vault-v2/blob/main/src/VaultV2.sol#L66-L87).
+> The code is provided as is. Custom adapters should be developed at your own risk.
+
+Vaults can set an adapter registry to constrain which adapter they can have and add. This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure that a vault will forever supply into adapters authorized by a given registry. See for example the [Morpho Registries](https://github.com/morpho-org/vault-v2-adapter-registries).
 
 The following adapters are currently available:
 - [Morpho Market V1 Adapter](./src/adapters/MorphoMarketV1Adapter.sol).
