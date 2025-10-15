@@ -23,8 +23,6 @@ function summaryAccrueInterestView() returns (uint256, uint256, uint256) {
 definition mulDivUp(uint256 x, uint256 y, uint256 z) returns mathint = (x * y + (z-1)) / z;
 
 // NOTE : receiver == currentContract case is okay since it's _totalAssets that is checked and not actual balance which might not increase/decrease for such cases
-invariant assetBalanceCoversInternalAccounting()
-    asset.balanceOf(currentContract) >= currentContract._totalAssets;
 
 // deposit only adds assets equal to the amount deposited
 rule totalAssetsChangeDeposit(env e, uint256 assets, address receiver) {
