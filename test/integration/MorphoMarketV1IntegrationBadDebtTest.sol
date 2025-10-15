@@ -62,8 +62,12 @@ contract MorphoMarketV1IntegrationBadDebtTest is MorphoMarketV1IntegrationTest {
         morpho.liquidate(marketParams2, borrower, collateralOfBorrower, 0, hex"");
 
         assertEq(vault.totalAssets(), INITIAL_ON_MARKET1, "totalAssets() != INITIAL_ON_MARKET1");
-        assertEq(vault.allocation(keccak256(expectedIdData1[2])), INITIAL_ON_MARKET1, "allocation(1) != INITIAL_ON_MARKET1");
-        assertEq(vault.allocation(keccak256(expectedIdData2[2])), INITIAL_ON_MARKET2, "allocation(2) != INITIAL_ON_MARKET2");
+        assertEq(
+            vault.allocation(keccak256(expectedIdData1[2])), INITIAL_ON_MARKET1, "allocation(1) != INITIAL_ON_MARKET1"
+        );
+        assertEq(
+            vault.allocation(keccak256(expectedIdData2[2])), INITIAL_ON_MARKET2, "allocation(2) != INITIAL_ON_MARKET2"
+        );
 
         vault.accrueInterest();
 
