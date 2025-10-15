@@ -13,9 +13,7 @@ methods {
 
 }
 
-
 //E RUN : https://prover.certora.com/output/7508195/848b245af0fe4d4e9fcfa1ec47b92215/?anonymousKey=f3485f941824180cfe9b7b28f19f8afb3a8f28b9
-
 
 // Assume that accrueInterest does nothing.
 function summaryAccrueInterestView() returns (uint256, uint256, uint256) {
@@ -25,6 +23,8 @@ function summaryAccrueInterestView() returns (uint256, uint256, uint256) {
 definition mulDivUp(uint256 x, uint256 y, uint256 z) returns mathint = (x * y + (z-1)) / z;
 
 // NOTE : receiver == currentContract case is okay since it's _totalAssets that is checked and not actual balance which might not increase/decrease for such cases
+invariant assetBalanceCoversInternalAccounting()
+    asset.balanceOf(currentContract) >= currentContract._totalAssets;
 
 // deposit only adds assets equal to the amount deposited
 rule totalAssetsChangeDeposit(env e, uint256 assets, address receiver) {
