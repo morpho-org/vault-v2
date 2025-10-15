@@ -21,7 +21,7 @@ contract BaseTest is Test {
     address immutable allocator = makeAddr("allocator");
     address immutable sentinel = makeAddr("sentinel");
 
-    uint256 UNDERLYING_TOKEN_DECIMALS;
+    uint256 underlyingTokenDecimals;
 
     ERC20Mock underlyingToken;
     IVaultV2Factory vaultFactory;
@@ -34,10 +34,10 @@ contract BaseTest is Test {
     function setUp() public virtual {
         vm.label(address(this), "testContract");
 
-        UNDERLYING_TOKEN_DECIMALS = vm.envOr("DECIMALS", uint256(18));
-        require(UNDERLYING_TOKEN_DECIMALS <= 36, "decimals too high");
+        underlyingTokenDecimals = vm.envOr("DECIMALS", uint256(18));
+        require(underlyingTokenDecimals <= 36, "decimals too high");
 
-        underlyingToken = new ERC20Mock(uint8(UNDERLYING_TOKEN_DECIMALS));
+        underlyingToken = new ERC20Mock(uint8(underlyingTokenDecimals));
         vm.label(address(underlyingToken), "underlying");
 
         vaultFactory = IVaultV2Factory(address(new VaultV2Factory()));

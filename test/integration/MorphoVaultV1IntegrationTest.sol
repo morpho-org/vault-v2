@@ -29,7 +29,7 @@ import {IMorphoVaultV1Adapter} from "../../src/adapters/interfaces/IMorphoVaultV
 contract MorphoVaultV1IntegrationTest is BaseTest {
     using MarketParamsLib for MarketParams;
 
-    uint256 internal MAX_TEST_ASSETS;
+    uint256 internal maxTestAssets;
 
     // Morpho.
     address internal immutable morphoOwner = makeAddr("MorphoOwner");
@@ -56,7 +56,7 @@ contract MorphoVaultV1IntegrationTest is BaseTest {
     function setUp() public virtual override {
         super.setUp();
 
-        MAX_TEST_ASSETS = 10 ** min(18 + underlyingToken.decimals(), 32);
+        maxTestAssets = 10 ** min(18 + underlyingToken.decimals(), 32);
 
         // Setup morpho.
         morpho = IMorpho(deployCode("Morpho.sol", abi.encode(morphoOwner)));

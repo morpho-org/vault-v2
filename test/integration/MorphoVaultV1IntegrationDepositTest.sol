@@ -9,7 +9,7 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
     using MorphoBalancesLib for IMorpho;
 
     function testDepositNoLiquidityAdapter(uint256 assets) public {
-        assets = bound(assets, 0, MAX_TEST_ASSETS);
+        assets = bound(assets, 0, maxTestAssets);
 
         vault.deposit(assets, address(this));
 
@@ -18,7 +18,7 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
     }
 
     function testDepositLiquidityAdapterSuccess(uint256 assets) public {
-        assets = bound(assets, 0, MAX_TEST_ASSETS);
+        assets = bound(assets, 0, maxTestAssets);
 
         setSupplyQueueIdle();
         vm.prank(allocator);
@@ -121,7 +121,7 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
     }
 
     function testDepositLiquidityAdapterCanFail(uint256 assets) public {
-        assets = bound(assets, 0, MAX_TEST_ASSETS);
+        assets = bound(assets, 0, maxTestAssets);
 
         setSupplyQueueAllMarkets();
         vm.prank(allocator);
