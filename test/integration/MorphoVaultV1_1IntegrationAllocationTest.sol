@@ -46,7 +46,7 @@ contract MorphoVaultV1_1IntegrationAllocationTest is MorphoVaultV1_1IntegrationT
     }
 
     function testDeallocateMoreThanAllocated(uint256 assets) public {
-        assets = bound(assets, initialInMorphoVaultV1 + 1, MAX_TEST_ASSETS);
+        assets = bound(assets, initialInMorphoVaultV1 + 1, maxTestAssets);
 
         vm.prank(allocator);
         vm.expectRevert();
@@ -89,7 +89,7 @@ contract MorphoVaultV1_1IntegrationAllocationTest is MorphoVaultV1_1IntegrationT
     }
 
     function testAllocateMoreThanIdle(uint256 assets) public {
-        assets = bound(assets, initialInIdle + 1, MAX_TEST_ASSETS);
+        assets = bound(assets, initialInIdle + 1, maxTestAssets);
 
         vm.prank(allocator);
         vm.expectRevert(ErrorsLib.TransferReverted.selector);
@@ -97,7 +97,7 @@ contract MorphoVaultV1_1IntegrationAllocationTest is MorphoVaultV1_1IntegrationT
     }
 
     function testAllocateMoreThanMorphoVaultV1Cap(uint256 assets) public {
-        assets = bound(assets, 1, MAX_TEST_ASSETS);
+        assets = bound(assets, 1, maxTestAssets);
 
         // Put all caps to the limit.
         vm.startPrank(mmCurator);

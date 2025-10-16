@@ -11,7 +11,7 @@ contract MorphoVaultV1_1IntegrationInterestTest is MorphoVaultV1_1IntegrationTes
 
     /// forge-config: default.isolate = true
     function testAccrueInterest(uint256 assets, uint256 elapsed) public {
-        assets = bound(assets, 1, MAX_TEST_ASSETS);
+        assets = bound(assets, 1, maxTestAssets);
         elapsed = bound(elapsed, 0, 10 * 365 days);
 
         // setup.

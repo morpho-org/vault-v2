@@ -99,8 +99,8 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// LIQUIDITY ADAPTER
 /// @dev Liquidity is allocated to the liquidityAdapter on deposit/mint, and deallocated from the liquidityAdapter on
 /// withdraw/redeem if idle assets don't cover the withdrawal.
-/// @dev The liquidity adapter is useful on exit, so that exit liquidity is available in addition to the idle assets. But
-/// the same adapter/data is used for both entry and exit to have the property that in the general case looping
+/// @dev The liquidity adapter is useful on exit, so that exit liquidity is available in addition to the idle assets.
+/// But the same adapter/data is used for both entry and exit to have the property that in the general case looping
 /// supply-withdraw or withdraw-supply should not change the allocation.
 /// @dev If a cap (absolute or relative) associated with the ids returned by the liquidity adapter on the liquidity data
 /// is reached, deposit/mint will revert. In particular, when the vault is empty or almost empty, the relative cap check
@@ -179,6 +179,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev No-ops are allowed.
 /// @dev NatSpec comments are included only when they bring clarity.
 /// @dev The contract uses transient storage.
+/// @dev View calls made by this contract should not rely on the executableAt values.
 /// @dev At creation, all settings are set to their default values. Notably, timelocks are zero which is useful to set
 /// up the vault quickly. Also, there are no gates so anybody can interact with the vault. To prevent that, the gates
 /// configuration can be batched with the vault creation.
