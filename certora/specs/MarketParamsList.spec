@@ -15,8 +15,6 @@ definition max_int256() returns int256 = (2 ^ 255) - 1;
 // mapping (MorphoMarketV1Adapter.Id => uint256)
 ghost mapping (address => mapping (address => mapping (address => mapping (address => mapping (uint256 => uint256))))) ghostAllocation;
 
-definition ghostAllocation(MorphoMarketV1Adapter.MarketParams marketParams) returns uint256 = ghostAllocation[marketParams.loanToken][marketParams.collateralToken][marketParams.oracle][marketParams.irm][marketParams.lltv];
-
 function summaryExpectedSupplyAssets(address morpho, MorphoMarketV1Adapter.MarketParams marketParams, address user) returns uint256 {
     uint256 result;
     require result <= max_int256(), "see allocationIsInt256";
@@ -25,14 +23,17 @@ function summaryExpectedSupplyAssets(address morpho, MorphoMarketV1Adapter.Marke
 }
 
 // Would like to do simply the following, but it's not supported:
+// forall MorphoMarketV1Adapter.MarketParams marketParams.
+// Would like to do simply the following, but it's not supported:
 // currentContract.marketParamsList[i] != marketParams
 strong invariant noAllocationMarketParamsIsntInMarketParamsList()
-    forall MorphoMarketV1Adapter.MarketParams marketParams. forall uint256 i. i < currentContract.marketParamsList.length => ghostAllocation(marketParams) == 0 => (
-    currentContract.marketParamsList[i].loanToken != marketParams.loanToken ||
-    currentContract.marketParamsList[i].collateralToken != marketParams.collateralToken ||
-    currentContract.marketParamsList[i].oracle != marketParams.oracle ||
-    currentContract.marketParamsList[i].irm != marketParams.irm ||
-    currentContract.marketParamsList[i].lltv != marketParams.lltv
+    forall address loanToken. forall address collateralToken. forall address oracle. forall address irm. forall uint256 lltv.
+    forall uint256 i. i < currentContract.marketParamsList.length => ghostAllocation[loanToken][collateralToken][oracle][irm][lltv] == 0 => (
+        currentContract.marketParamsList[i].loanToken != loanToken ||
+        currentContract.marketParamsList[i].collateralToken != collateralToken ||
+        currentContract.marketParamsList[i].oracle != oracle ||
+        currentContract.marketParamsList[i].irm != irm ||
+        currentContract.marketParamsList[i].lltv != lltv
     )
 {
     preserved {
@@ -40,8 +41,6 @@ strong invariant noAllocationMarketParamsIsntInMarketParamsList()
     }
 }
 
-// Would like to do simply the following, but it's not supported:
-// rentContract.marketParamsList[j] != currentContract.marketParamsList[i]
 strong invariant marketParamsListUnique()
     forall uint256 i. forall uint256 j. (i < j && j < currentContract.marketParamsList.length) => (
     currentContract.marketParamsList[j].loanToken != currentContract.marketParamsList[i].loanToken ||
