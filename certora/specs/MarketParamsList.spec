@@ -26,14 +26,27 @@ function summaryExpectedSupplyAssets(address morpho, MorphoMarketV1Adapter.Marke
 }
 
 strong invariant noAllocationMarketParamsIsntInMarketParamsList()
-    forall MorphoMarketV1Adapter.MarketParams marketParams. forall uint256 i. i < currentContract.marketParamsList.length => ghostAllocation(marketParams) == 0 => currentContract.marketParamsList[i] != marketParams
-{ preserved {
+    forall MorphoMarketV1Adapter.MarketParams marketParams. forall uint256 i. i < currentContract.marketParamsList.length => ghostAllocation(marketParams) == 0 => (
+    currentContract.marketParamsList[i].loanToken != marketParams.loanToken ||
+    currentContract.marketParamsList[i].collateralToken != marketParams.collateralToken ||
+    currentContract.marketParamsList[i].oracle != marketParams.oracle ||
+    currentContract.marketParamsList[i].irm != marketParams.irm ||
+    currentContract.marketParamsList[i].lltv != marketParams.lltv
+    )
+{
+    preserved {
         requireInvariant marketParamsListUnique();
     }
 }
 
 strong invariant marketParamsListUnique()
-    forall uint256 i. forall uint256 j. (i < j && j < currentContract.marketParamsList.length) => currentContract.marketParamsList[j] != currentContract.marketParamsList[i]
+    forall uint256 i. forall uint256 j. (i < j && j < currentContract.marketParamsList.length) => (
+    currentContract.marketParamsList[j].loanToken != currentContract.marketParamsList[i].loanToken ||
+    currentContract.marketParamsList[j].collateralToken != currentContract.marketParamsList[i].collateralToken ||
+    currentContract.marketParamsList[j].oracle != currentContract.marketParamsList[i].oracle ||
+    currentContract.marketParamsList[j].irm != currentContract.marketParamsList[i].irm ||
+    currentContract.marketParamsList[j].lltv != currentContract.marketParamsList[i].lltv
+    )
 {
     preserved {
         requireInvariant noAllocationMarketParamsIsntInMarketParamsList();
