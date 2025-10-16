@@ -3,8 +3,6 @@
 using Util as Util;
 
 methods {
-    function Util.libId(MorphoMarketV1Adapter.MarketParams) external returns MorphoMarketV1Adapter.Id envfree;
-
     function allocation(MorphoMarketV1Adapter.MarketParams memory marketParams) internal returns (uint256) => ghostAllocation(marketParams);
 
     function MorphoBalancesLib.expectedSupplyAssets(address morpho, MorphoMarketV1Adapter.MarketParams memory marketParams, address user) internal returns (uint256) => summaryExpectedSupplyAssets(morpho, marketParams, user);
@@ -12,16 +10,14 @@ methods {
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
 
-ghost mapping (MorphoMarketV1Adapter.Id => uint256) ghostAllocation;
+ghost mapping (address => mapping (address => mapping (address => mapping (address => mapping (uint256 => uint256))))) ghostAllocation;
 
-function ghostAllocation(MorphoMarketV1Adapter.MarketParams marketParams) returns uint256 {
-    return ghostAllocation[Util.libId(marketParams)];
-}
+definition ghostAllocation(MorphoMarketV1Adapter.MarketParams marketParams) returns uint256 = ghostAllocation[marketParams.loanToken][marketParams.collateralToken][marketParams.oracle][marketParams.irm][marketParams.lltv];
 
 function summaryExpectedSupplyAssets(address morpho, MorphoMarketV1Adapter.MarketParams marketParams, address user) returns uint256 {
     uint256 result;
     require result <= max_int256(), "see allocationIsInt256";
-    ghostAllocation[Util.libId(marketParams)] = result;
+    ghostAllocation[marketParams.loanToken][marketParams.collateralToken][marketParams.oracle][marketParams.irm][marketParams.lltv] = result;
     return result;
 }
 
