@@ -82,7 +82,7 @@ contract MorphoVaultV1_1IntegrationIkrTest is MorphoVaultV1_1IntegrationTest {
         // Equivalent position in Morpho Vault V1.
         uint256 shares = morphoVaultV1.balanceOf(address(this));
         uint256 expectedAssets = morphoVaultV1.previewRedeem(shares);
-        // Note that the PENALTY cannot be paid with the position (makes sense).
+        // Note that the penalty cannot be paid with the position (makes sense).
         assertEq(expectedAssets, assets, "expectedAssets");
     }
 
