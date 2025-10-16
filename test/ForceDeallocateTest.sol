@@ -7,13 +7,13 @@ import "./BaseTest.sol";
 contract ForceDeallocateTest is BaseTest {
     using MathLib for uint256;
 
-    uint256 MAX_TEST_ASSETS;
+    uint256 maxTestAssets;
     AdapterMock adapter;
 
     function setUp() public override {
         super.setUp();
 
-        MAX_TEST_ASSETS = 10 ** min(18 + underlyingToken.decimals(), 36);
+        maxTestAssets = 10 ** min(18 + underlyingToken.decimals(), 36);
 
         adapter = new AdapterMock(address(vault));
         vm.prank(curator);
@@ -30,7 +30,7 @@ contract ForceDeallocateTest is BaseTest {
     }
 
     function testForceDeallocate(uint256 supplied, uint256 deallocated, uint256 forceDeallocatePenalty) public {
-        supplied = bound(supplied, 1, MAX_TEST_ASSETS); // starts at 1 to avoid zero allocation.
+        supplied = bound(supplied, 1, maxTestAssets); // starts at 1 to avoid zero allocation.
         deallocated = bound(deallocated, 0, supplied);
         forceDeallocatePenalty = bound(forceDeallocatePenalty, 0, MAX_FORCE_DEALLOCATE_PENALTY);
 
