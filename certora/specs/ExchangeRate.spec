@@ -3,6 +3,24 @@
 
 import "Invariants.spec";
 
+methods {
+    function accrueInterestView() internal returns (uint256, uint256, uint256) with (env e)=> summaryAccrueInterestView(e);
+}
+
+persistent ghost bool lossRealization;
+
+function summaryAccrueInterestView(env e) returns (uint256, uint256, uint256) {
+    uint256 newTotalAssets;
+    uint256 performanceFeeShares;
+    uint256 managementFeeShares;
+
+    (newTotalAssets, performanceFeeShares, managementFeeShares) = currentContract.accrueInterestView(e);
+
+    lossRealization = newTotalAssets < currentContract._totalAssets;
+
+    return (newTotalAssets, performanceFeeShares, managementFeeShares);
+}
+
 definition shares() returns mathint = currentContract.totalSupply + currentContract.virtualShares;
 
 definition assets() returns mathint = currentContract._totalAssets + 1;
@@ -35,7 +53,7 @@ rule lossRealizationDecreasesSharePrice(env e, address adapter, bytes data){
 
     accrueInterest(e);
 
-    require (currentContract.lossRealization, "assume loss realization");
+    require (lossRealization, "assume loss realization");
 
     assert assets() * sharesBefore <= assetsBefore * shares();
 }
