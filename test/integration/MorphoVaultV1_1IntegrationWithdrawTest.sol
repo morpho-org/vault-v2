@@ -46,7 +46,7 @@ contract MorphoVaultV1_1IntegrationWithdrawTest is MorphoVaultV1_1IntegrationTes
     }
 
     function testWithdrawMoreThanIdleNoLiquidityAdapter(uint256 assets) public {
-        assets = bound(assets, initialInIdle + 1, MAX_TEST_ASSETS);
+        assets = bound(assets, initialInIdle + 1, maxTestAssets);
 
         vm.expectRevert();
         vault.withdraw(assets, receiver, address(this));
@@ -69,7 +69,7 @@ contract MorphoVaultV1_1IntegrationWithdrawTest is MorphoVaultV1_1IntegrationTes
     }
 
     function testWithdrawTooMuchEvenWithLiquidityAdapter(uint256 assets) public {
-        assets = bound(assets, initialTotal + 1, MAX_TEST_ASSETS);
+        assets = bound(assets, initialTotal + 1, maxTestAssets);
         vm.prank(allocator);
         vault.setLiquidityAdapterAndData(address(morphoVaultV1Adapter), hex"");
 

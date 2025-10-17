@@ -136,9 +136,7 @@ contract SettersTest is BaseTest {
         vault.submit(data);
     }
 
-    function testSubmitDecreaseTimelock(bytes4 selector, uint256 oldDuration, uint256 newDuration, address rdm)
-        public
-    {
+    function testSubmitDecreaseTimelock(bytes4 selector, uint256 oldDuration, uint256 newDuration, address rdm) public {
         if (selector != IVaultV2.decreaseTimelock.selector) {
             oldDuration = bound(oldDuration, 1, TEST_TIMELOCK_CAP);
         } else {

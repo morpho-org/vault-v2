@@ -9,9 +9,9 @@ contract MorphoMarketV1IntegrationBadDebtTest is MorphoMarketV1IntegrationTest {
     using MorphoBalancesLib for IMorpho;
     using MarketParamsLib for MarketParams;
 
-    uint256 internal constant initialDeposit = 1.3e18;
-    uint256 internal constant initialInMarket1 = 1e18;
-    uint256 internal constant initialInMarket2 = 0.3e18;
+    uint256 internal constant INITIAL_DEPOSIT = 1.3e18;
+    uint256 internal constant INITIAL_ON_MARKET1 = 1e18;
+    uint256 internal constant INITIAL_ON_MARKET2 = 0.3e18;
 
     address internal immutable borrower = makeAddr("borrower");
     address internal immutable liquidator = makeAddr("liquidator");
@@ -19,35 +19,35 @@ contract MorphoMarketV1IntegrationBadDebtTest is MorphoMarketV1IntegrationTest {
     function setUp() public virtual override {
         super.setUp();
 
-        assertEq(initialDeposit, initialInMarket1 + initialInMarket2);
+        assertEq(INITIAL_DEPOSIT, INITIAL_ON_MARKET1 + INITIAL_ON_MARKET2);
 
-        vault.deposit(initialDeposit, address(this));
+        vault.deposit(INITIAL_DEPOSIT, address(this));
 
         vm.startPrank(allocator);
-        vault.allocate(address(adapter), abi.encode(marketParams1), initialInMarket1);
-        vault.allocate(address(adapter), abi.encode(marketParams2), initialInMarket2);
+        vault.allocate(address(adapter), abi.encode(marketParams1), INITIAL_ON_MARKET1);
+        vault.allocate(address(adapter), abi.encode(marketParams2), INITIAL_ON_MARKET2);
         vm.stopPrank();
 
         assertEq(underlyingToken.balanceOf(address(vault)), 0);
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
-        assertEq(underlyingToken.balanceOf(address(morpho)), initialDeposit);
-        assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), initialInMarket1);
-        assertEq(morpho.expectedSupplyAssets(marketParams2, address(adapter)), initialInMarket2);
+        assertEq(underlyingToken.balanceOf(address(morpho)), INITIAL_DEPOSIT);
+        assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), INITIAL_ON_MARKET1);
+        assertEq(morpho.expectedSupplyAssets(marketParams2, address(adapter)), INITIAL_ON_MARKET2);
     }
 
     function testBadDebt() public {
-        assertEq(vault.totalAssets(), initialDeposit);
-        assertEq(vault.previewRedeem(vault.balanceOf(address(this))), initialDeposit);
+        assertEq(vault.totalAssets(), INITIAL_DEPOSIT);
+        assertEq(vault.previewRedeem(vault.balanceOf(address(this))), INITIAL_DEPOSIT);
 
         // Create bad debt by liquidating everything on market 2.
         deal(address(collateralToken), borrower, type(uint256).max);
         vm.startPrank(borrower);
         collateralToken.approve(address(morpho), type(uint256).max);
-        uint256 collateralOfBorrower = 3 * initialInMarket2;
+        uint256 collateralOfBorrower = 3 * INITIAL_ON_MARKET2;
         morpho.supplyCollateral(marketParams2, collateralOfBorrower, borrower, hex"");
-        morpho.borrow(marketParams2, initialInMarket2, 0, borrower, borrower);
+        morpho.borrow(marketParams2, INITIAL_ON_MARKET2, 0, borrower, borrower);
         vm.stopPrank();
-        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket1);
+        assertEq(underlyingToken.balanceOf(address(morpho)), INITIAL_ON_MARKET1);
 
         oracle.setPrice(0);
 
@@ -57,17 +57,21 @@ contract MorphoMarketV1IntegrationBadDebtTest is MorphoMarketV1IntegrationTest {
         // Make sure that a bad debt of initialInMarket2 is created.
         vm.expectEmit();
         emit MorphoEventsLib.Liquidate(
-            id, liquidator, borrower, 0, 0, collateralOfBorrower, initialInMarket2, borrowerShares
+            id, liquidator, borrower, 0, 0, collateralOfBorrower, INITIAL_ON_MARKET2, borrowerShares
         );
         morpho.liquidate(marketParams2, borrower, collateralOfBorrower, 0, hex"");
 
-        assertEq(vault.totalAssets(), initialInMarket1, "totalAssets() != initialInMarket1");
-        assertEq(vault.allocation(keccak256(expectedIdData1[2])), initialInMarket1, "allocation(1) != initialInMarket1");
-        assertEq(vault.allocation(keccak256(expectedIdData2[2])), initialInMarket2, "allocation(2) != initialInMarket2");
+        assertEq(vault.totalAssets(), INITIAL_ON_MARKET1, "totalAssets() != INITIAL_ON_MARKET1");
+        assertEq(
+            vault.allocation(keccak256(expectedIdData1[2])), INITIAL_ON_MARKET1, "allocation(1) != INITIAL_ON_MARKET1"
+        );
+        assertEq(
+            vault.allocation(keccak256(expectedIdData2[2])), INITIAL_ON_MARKET2, "allocation(2) != INITIAL_ON_MARKET2"
+        );
 
         vault.accrueInterest();
 
-        assertEq(vault._totalAssets(), initialInMarket1, "_totalAssets() != initialInMarket1");
+        assertEq(vault._totalAssets(), INITIAL_ON_MARKET1, "_totalAssets() != INITIAL_ON_MARKET1");
 
         // Test update allocation.
         vault.forceDeallocate(address(adapter), abi.encode(marketParams2), 0, address(this));
