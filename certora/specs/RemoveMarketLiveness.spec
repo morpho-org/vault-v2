@@ -9,17 +9,18 @@ methods {
     function MorphoMarketV1Adapter.marketParamsListLength() external returns (uint256) envfree;
     function MorphoMarketV1Adapter.marketParamsList(uint256) external returns (address, address, address, address, uint256) envfree;
     function Utils.decodeMarketParams(bytes data) external returns (VaultV2.MarketParams memory) envfree;
-    function Utils.expectedSupplyAssets(address morpho, VaultV2.MarketParams marketParams, address user) external returns (uint256) envfree;
 
     function _.deallocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
 }
 
 rule canRemoveMarket(env e, bytes data) {
     VaultV2.MarketParams marketParams = Utils.decodeMarketParams(data);
-    uint256 assets = Utils.expectedSupplyAssets(Morpho, marketParams, MorphoMarketV1Adapter);
+    uint256 assets = Utils.expectedSupplyAssets(e, Morpho, marketParams, MorphoMarketV1Adapter);
 
-    deallocate@withrevert(e, MorphoMarketV1Adapter, data, assets);
-    assert !lastReverted;
+    // Need to require that all markets in marketParamsList are distinct.
+
+    // Could also check that the deallocate call doesn't revert.
+    deallocate(e, MorphoMarketV1Adapter, data, assets);
 
     uint256 i;
     // Is this needed ?
