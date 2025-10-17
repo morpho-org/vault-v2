@@ -2,14 +2,15 @@
 // Copyright (c) 2025 Morpho Association
 
 using MorphoMarketV1Adapter as MorphoMarketV1Adapter;
-using Morpho as Morpho;
+using MorphoHarness as Morpho;
 using Utils as Utils;
 
 methods {
-    function _.extSloads(bytes32[]) external returns (bytes32[]) => NONDET DELETE;
-    function _.multicall(bytes[] calldata data) external => HAVOC_ALL DELETE;
-    function _.supplyShares(address morpho, VaultV2.Id id, address user) internal returns (uint256) => summarySupplyShares(morpho, id, user);
+    function _.extSloads(bytes32[]) external => NONDET DELETE;
+    function _.multicall(bytes[] data) external => HAVOC_ALL DELETE;
+    function _.supplyShares(address, VaultV2.Id id, address user) internal => summarySupplyShares(id, user) expect uint256;
 
+    function Morpho.supplyShares(VaultV2.Id, address) external returns (uint256) envfree;
     function MorphoMarketV1Adapter.marketParamsListLength() external returns (uint256) envfree;
     function MorphoMarketV1Adapter.marketParamsList(uint256) external returns (address, address, address, address, uint256) envfree;
     function Utils.decodeMarketParams(bytes data) external returns (VaultV2.MarketParams memory) envfree;
@@ -17,8 +18,8 @@ methods {
     function _.deallocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
 }
 
-function summarySupplyShares(address morpho, VaultV2.Id id, address user) returns uint256 {
-    return Morpho.position(morpho, id, user).supplyShares;
+function summarySupplyShares(VaultV2.Id id, address user) returns uint256 {
+    return Morpho.supplyShares(id, user);
 }
 
 rule canRemoveMarket(env e, bytes data) {
