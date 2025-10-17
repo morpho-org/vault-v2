@@ -7,7 +7,7 @@ import "./BaseTest.sol";
 contract ViewFunctionsTest is BaseTest {
     using MathLib for uint256;
 
-    uint256 MAX_TEST_ASSETS;
+    uint256 maxTestAssets;
 
     address performanceFeeRecipient = makeAddr("performanceFeeRecipient");
     address managementFeeRecipient = makeAddr("managementFeeRecipient");
@@ -17,7 +17,7 @@ contract ViewFunctionsTest is BaseTest {
     function setUp() public override {
         super.setUp();
 
-        MAX_TEST_ASSETS = 10 ** min(18 + underlyingToken.decimals(), 36);
+        maxTestAssets = 10 ** min(18 + underlyingToken.decimals(), 36);
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
@@ -65,9 +65,9 @@ contract ViewFunctionsTest is BaseTest {
     }
 
     function testConvertToAssets(uint256 initialDeposit, uint256 interest, uint256 shares) public {
-        initialDeposit = bound(initialDeposit, 0, MAX_TEST_ASSETS);
-        interest = bound(interest, 0, MAX_TEST_ASSETS);
-        shares = bound(shares, 0, MAX_TEST_ASSETS);
+        initialDeposit = bound(initialDeposit, 0, maxTestAssets);
+        interest = bound(interest, 0, maxTestAssets);
+        shares = bound(shares, 0, maxTestAssets);
 
         vault.deposit(initialDeposit, address(this));
         writeTotalAssets(initialDeposit + interest);
@@ -79,9 +79,9 @@ contract ViewFunctionsTest is BaseTest {
     }
 
     function testConvertToShares(uint256 initialDeposit, uint256 interest, uint256 assets) public {
-        initialDeposit = bound(initialDeposit, 0, MAX_TEST_ASSETS);
-        interest = bound(interest, 0, MAX_TEST_ASSETS);
-        assets = bound(assets, 0, MAX_TEST_ASSETS);
+        initialDeposit = bound(initialDeposit, 0, maxTestAssets);
+        interest = bound(interest, 0, maxTestAssets);
+        assets = bound(assets, 0, maxTestAssets);
 
         vault.deposit(initialDeposit, address(this));
         writeTotalAssets(initialDeposit + interest);
@@ -102,7 +102,7 @@ contract ViewFunctionsTest is BaseTest {
     }
 
     function setupTest(TestData memory data) internal returns (uint256, uint256) {
-        data.initialDeposit = bound(data.initialDeposit, 0, MAX_TEST_ASSETS);
+        data.initialDeposit = bound(data.initialDeposit, 0, maxTestAssets);
         data.performanceFee = bound(data.performanceFee, 0, MAX_PERFORMANCE_FEE);
         data.managementFee = bound(data.managementFee, 0, MAX_MANAGEMENT_FEE);
         data.elapsed = uint64(bound(data.elapsed, 0, 10 * 365 days));
@@ -130,7 +130,7 @@ contract ViewFunctionsTest is BaseTest {
     function testPreviewDeposit(TestData memory data, uint256 assets) public {
         (uint256 newTotalAssets, uint256 newTotalSupply) = setupTest(data);
 
-        assets = bound(assets, 0, MAX_TEST_ASSETS);
+        assets = bound(assets, 0, maxTestAssets);
 
         assertEq(vault.previewDeposit(assets), assets * (newTotalSupply + vault.virtualShares()) / (newTotalAssets + 1));
     }
@@ -139,7 +139,7 @@ contract ViewFunctionsTest is BaseTest {
     function testPreviewMint(TestData memory data, uint256 shares) public {
         (uint256 newTotalAssets, uint256 newTotalSupply) = setupTest(data);
 
-        shares = bound(shares, 0, MAX_TEST_ASSETS);
+        shares = bound(shares, 0, maxTestAssets);
 
         // Precision 1 because rounded up.
         assertApproxEqAbs(
@@ -151,7 +151,7 @@ contract ViewFunctionsTest is BaseTest {
     function testPreviewWithdraw(TestData memory data, uint256 assets) public {
         (uint256 newTotalAssets, uint256 newTotalSupply) = setupTest(data);
 
-        assets = bound(assets, 0, MAX_TEST_ASSETS);
+        assets = bound(assets, 0, maxTestAssets);
 
         // Precision 1 because rounded up.
         assertApproxEqAbs(
@@ -163,7 +163,7 @@ contract ViewFunctionsTest is BaseTest {
     function testPreviewRedeem(TestData memory data, uint256 shares) public {
         (uint256 newTotalAssets, uint256 newTotalSupply) = setupTest(data);
 
-        shares = bound(shares, 0, MAX_TEST_ASSETS);
+        shares = bound(shares, 0, maxTestAssets);
 
         assertEq(vault.previewRedeem(shares), shares * (newTotalAssets + 1) / (newTotalSupply + vault.virtualShares()));
     }
