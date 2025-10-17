@@ -12,7 +12,7 @@ contract MorphoMarketV1IntegrationIkrTest is MorphoMarketV1IntegrationTest {
     uint256 internal constant MIN_IKR_TEST_ASSETS = 1;
     uint256 internal constant MAX_IKR_TEST_ASSETS = 1e18;
 
-    uint256 internal constant penalty = 0.01e18;
+    uint256 internal constant PENALTY = 0.01e18;
 
     address internal immutable receiver = makeAddr("receiver");
     address internal immutable borrower = makeAddr("borrower");
@@ -21,8 +21,8 @@ contract MorphoMarketV1IntegrationIkrTest is MorphoMarketV1IntegrationTest {
         super.setUp();
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(adapter), penalty)));
-        vault.setForceDeallocatePenalty(address(adapter), penalty);
+        vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(adapter), PENALTY)));
+        vault.setForceDeallocatePenalty(address(adapter), PENALTY);
     }
 
     function setUpAssets(uint256 assets) internal {
@@ -60,7 +60,7 @@ contract MorphoMarketV1IntegrationIkrTest is MorphoMarketV1IntegrationTest {
         assets = bound(assets, MIN_IKR_TEST_ASSETS, MAX_IKR_TEST_ASSETS);
         setUpAssets(assets);
 
-        uint256 penaltyAssets = assets.mulDivUp(penalty, WAD);
+        uint256 penaltyAssets = assets.mulDivUp(PENALTY, WAD);
 
         // Normal withdraw fails
         vm.prank(allocator);

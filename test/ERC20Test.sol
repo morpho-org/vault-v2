@@ -18,11 +18,14 @@ contract ERC20Test is BaseTest {
         uint256 deadline;
     }
 
-    function _signPermit(uint256 privateKey, address owner, address to, uint256 shares, uint256 nonce, uint256 deadline)
-        internal
-        view
-        returns (uint8, bytes32, bytes32)
-    {
+    function _signPermit(
+        uint256 privateKey,
+        address owner,
+        address to,
+        uint256 shares,
+        uint256 nonce,
+        uint256 deadline
+    ) internal view returns (uint8, bytes32, bytes32) {
         bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, owner, to, shares, nonce, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", vault.DOMAIN_SEPARATOR(), hashStruct));
         return vm.sign(privateKey, digest);
@@ -296,9 +299,7 @@ contract ERC20Test is BaseTest {
         vault.permit(owner, to, shares, deadline, v, r, s);
     }
 
-    function testPermitBadSpenderReverts(PermitInfo calldata p, address to, uint256 shares, address badSpender)
-        public
-    {
+    function testPermitBadSpenderReverts(PermitInfo calldata p, address to, uint256 shares, address badSpender) public {
         (address owner, uint256 privateKey, uint256 nonce, uint256 deadline) = _setupPermit(p);
         _setCurrentNonce(owner, nonce);
 

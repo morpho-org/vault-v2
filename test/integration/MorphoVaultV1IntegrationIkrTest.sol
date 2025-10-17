@@ -12,7 +12,7 @@ contract MorphoVaultV1IntegrationIkrTest is MorphoVaultV1IntegrationTest {
     uint256 internal constant MIN_IKR_TEST_ASSETS = 1;
     uint256 internal constant MAX_IKR_TEST_ASSETS = 1e18;
 
-    uint256 internal constant penalty = 0.01e18;
+    uint256 internal constant PENALTY = 0.01e18;
 
     address internal immutable receiver = makeAddr("receiver");
     address internal immutable borrower = makeAddr("borrower");
@@ -23,8 +23,8 @@ contract MorphoVaultV1IntegrationIkrTest is MorphoVaultV1IntegrationTest {
         setSupplyQueueAllMarkets();
 
         vm.prank(curator);
-        vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(morphoVaultV1Adapter), penalty)));
-        vault.setForceDeallocatePenalty(address(morphoVaultV1Adapter), penalty);
+        vault.submit(abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(morphoVaultV1Adapter), PENALTY)));
+        vault.setForceDeallocatePenalty(address(morphoVaultV1Adapter), PENALTY);
     }
 
     function setUpAssets(uint256 assets) internal {
@@ -64,7 +64,7 @@ contract MorphoVaultV1IntegrationIkrTest is MorphoVaultV1IntegrationTest {
         assets = bound(assets, MIN_IKR_TEST_ASSETS, MAX_IKR_TEST_ASSETS);
         setUpAssets(assets);
 
-        uint256 penaltyAssets = assets.mulDivUp(penalty, WAD);
+        uint256 penaltyAssets = assets.mulDivUp(PENALTY, WAD);
 
         // Simulate a flashloan.
         deal(address(underlyingToken), address(this), assets);
@@ -93,7 +93,7 @@ contract MorphoVaultV1IntegrationIkrTest is MorphoVaultV1IntegrationTest {
         vm.prank(mmAllocator);
         morphoVaultV1.setSupplyQueue(emptySupplyQueue);
 
-        uint256 penaltyAssets = assets.mulDivUp(penalty, WAD);
+        uint256 penaltyAssets = assets.mulDivUp(PENALTY, WAD);
 
         // Simulate a flashloan.
         deal(address(underlyingToken), address(this), assets);
