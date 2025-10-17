@@ -9,14 +9,14 @@ contract ExchangeRateTest is BaseTest {
     using stdStorage for StdStorage;
 
     uint256 constant INITIAL_DEPOSIT = 1e24;
-    uint256 MAX_TEST_ASSETS;
+    uint256 maxTestAssets;
     uint256 totalAssets;
     uint256 totalSupply;
 
     function setUp() public override {
         super.setUp();
 
-        MAX_TEST_ASSETS = 10 ** min(18 + underlyingToken.decimals(), 36);
+        maxTestAssets = 10 ** min(18 + underlyingToken.decimals(), 36);
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
@@ -62,14 +62,14 @@ contract ExchangeRateTest is BaseTest {
     }
 
     function testExchangeRateMint(uint256 shares) public {
-        shares = bound(shares, 0, MAX_TEST_ASSETS);
+        shares = bound(shares, 0, maxTestAssets);
         uint256 assets = vault.mint(shares, address(this));
 
         assertApproxEqAbs(assets, shares * (totalAssets + 1) / (totalSupply + vault.virtualShares()), 1);
     }
 
     function testExchangeRateDeposit(uint256 assets) public {
-        assets = bound(assets, 0, MAX_TEST_ASSETS);
+        assets = bound(assets, 0, maxTestAssets);
         uint256 shares = vault.deposit(assets, address(this));
 
         assertEq(shares, assets * (totalSupply + vault.virtualShares()) / (totalAssets + 1));

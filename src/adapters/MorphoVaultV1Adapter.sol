@@ -107,8 +107,9 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     }
 
     function realAssets() external view returns (uint256) {
-        return allocation() != 0
-            ? IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)))
-            : 0;
+        return
+            allocation() != 0
+                ? IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)))
+                : 0;
     }
 }

@@ -9,6 +9,17 @@ dynamic_test_linking = true
 [profile.default.fmt]
 wrap_comments = true
 
+[lint]
+exclude_lints = [
+    "unsafe-typecast",
+    "erc20-unchecked-transfer",
+    "screaming-snake-case-immutable",
+    "unaliased-plain-import",
+    "unused-import",
+    "asm-keccak256",
+    "mixed-case-function",
+]
+
 [profile.no_via_ir]
 via_ir = false
 
