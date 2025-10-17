@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
+import "AdapterUtilityFunctions.spec";
+
 using Utils as Utils;
 
 methods {
@@ -16,9 +18,11 @@ methods {
     function Utils.decodeMarketParams(bytes) external returns (Morpho.MarketParams) envfree;
 }
 
+// RUN : https://prover.certora.com/output/7508195/55beb16a51bb4e819d0ae89b65242baa/?anonymousKey=3c173b3c3b1e9e1de39f4bff4ab165decf76fe5a
+
 persistent ghost uint256 constantBorrowRate;
 
-// Check that calling allocate or deallocate with 0 amount yields the same change.
+// Check that allocating or deallocating zero assets returns an equivalent allocation change.  
 rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 selector, address sender) {
   storage initialState = lastStorage;
 
@@ -33,26 +37,19 @@ rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 se
   assert changeAllocate == changeDeallocate;
 }
 
-// Check that allocate cannot return a change that would make the current allocation negative.
-rule changeForAllocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
+
+// Check that allocate or deallocate cannot return a change that would make the current allocation negative.
+rule changeForAllocateOrDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
   Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
   mathint allocation = allocation(marketParams);
+  bool isAllocate;
 
   bytes32[] ids;
   int256 change;
-  ids, change = allocate(e, data, assets, selector, sender);
+  
+  ids, change = allocate_or_deallocate(isAllocate, e, data, assets, selector, sender);
 
   assert allocation + change >= 0;
 }
 
-// Check that deallocate cannot return a change that would make the current allocation negative.
-rule changeForDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
-  Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
-  mathint allocation = allocation(marketParams);
 
-  bytes32[] ids;
-  int256 change;
-  ids, change = deallocate(e, data, assets, selector, sender);
-
-  assert allocation + change >= 0;
-}
