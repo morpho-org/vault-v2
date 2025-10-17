@@ -30,6 +30,7 @@ jobs:
           - Reentrancy
           - ReentrancyView
           - RelativeCaps
+          - RemoveMarketLiveness
           - SentinelLiveness
           - TokensMorphoMarketV1Adapter
           - TokensMorphoVaultV1Adapter
