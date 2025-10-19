@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-import "AdapterUtilityFunctions.spec";
- 
 using Utils as Utils;
 
 methods {
@@ -11,8 +9,6 @@ methods {
     function Utils.havocAll() external envfree => HAVOC_ALL;
     function Utils.decodeMarketParams(bytes) external returns(MorphoMarketV1Adapter.MarketParams) envfree;
 }
-
-// RUN : https://prover.certora.com/output/7508195/3bf86af7145d4ebcaa2a795150d67886/?anonymousKey=89d4d8c73dfe2c1fa7e7bb6e7e9d0d205da9019b
 
 // Show that ids() is a function that only depend on its input. It will be used as the reference id list in other rules.
 rule adapterAlwaysReturnsTheSameIDsForSameData(MorphoMarketV1Adapter.MarketParams marketParams) {
@@ -29,13 +25,28 @@ rule adapterAlwaysReturnsTheSameIDsForSameData(MorphoMarketV1Adapter.MarketParam
   assert idsPre[2] == idsPost[2];
 }
 
+
+// Helper function to call either allocate or deallocate based on a boolean flag.
+function allocateOrDeallocate(bool allocate, env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
+    bytes32[] ids;
+    int256 change;
+
+    if (allocate) {
+        ids, change = allocate(e, data, assets, selector, sender);
+    } else {
+        ids, change = deallocate(e, data, assets, selector, sender);
+    }
+    
+    return (ids, change);
+}
+
 // Show that the ids returned on allocate or deallocate match the reference id list.
 rule matchingIdsOnAllocateOrDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
   MorphoMarketV1Adapter.MarketParams marketParams = Utils.decodeMarketParams(data);
   bytes32[] ids;
 
   bool isAllocate;
-  ids, _ = allocate_or_deallocate(isAllocate, e, data, assets, selector, sender);
+  ids, _ = allocateOrDeallocate(isAllocate, e, data, assets, selector, sender);
 
   bytes32[] idsMarket = ids(marketParams);
   assert idsMarket.length == 3;

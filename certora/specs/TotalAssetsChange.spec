@@ -4,16 +4,10 @@
 using ERC20Mock as asset;
 
 methods {
-    function asset() external returns address envfree;
-    function asset.balanceOf(address) external returns uint256 envfree;
-
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
-
     function accrueInterestView() internal returns(uint256, uint256, uint256) => summaryAccrueInterestView();
 
 }
-
-//E RUN : https://prover.certora.com/output/7508195/848b245af0fe4d4e9fcfa1ec47b92215/?anonymousKey=f3485f941824180cfe9b7b28f19f8afb3a8f28b9
 
 // Assume that accrueInterest does nothing.
 function summaryAccrueInterestView() returns (uint256, uint256, uint256) {
@@ -24,7 +18,7 @@ definition mulDivUp(uint256 x, uint256 y, uint256 z) returns mathint = (x * y + 
 
 // NOTE : receiver == currentContract case is okay since it's _totalAssets that is checked and not actual balance which might not increase/decrease for such cases
 
-// deposit only adds assets equal to the amount deposited
+// Calling deposit only adds assets equal to the amount deposited, assuming no interest accrual.
 rule totalAssetsChangeDeposit(env e, uint256 assets, address receiver) {
     mathint totalAssetsPre = currentContract._totalAssets;
     
@@ -73,18 +67,17 @@ rule totalAssetsForceDeallocate(env e, address adapter, bytes data, uint256 deal
     assert currentContract._totalAssets == totalAssetsPre - penalty;
 }
 
-definition canChangeTotalAssets(method f) returns bool =
-    f.isView || 
-         f.selector == sig:deposit(uint,address).selector ||
-         f.selector == sig:mint(uint,address).selector ||
-         f.selector == sig:withdraw(uint,address,address).selector ||
-         f.selector == sig:redeem(uint,address,address).selector ||
-         f.selector == sig:forceDeallocate(address,bytes,uint,address).selector;
-
 // other non-view functions don't change totalAssets
-rule totalAssetsUnchangedByOthers(env e, method f) filtered {
-    f -> !canChangeTotalAssets(f)
-} {
+rule totalAssetsUnchangedByOthers(env e, method f) 
+    filtered {
+        f -> !f.isView && 
+        f.selector != sig:deposit(uint,address).selector &&
+        f.selector != sig:mint(uint,address).selector &&
+        f.selector != sig:withdraw(uint,address,address).selector &&
+        f.selector != sig:redeem(uint,address,address).selector &&
+        f.selector != sig:forceDeallocate(address,bytes,uint,address).selector
+    } 
+{
     mathint totalAssetsPre = currentContract._totalAssets;
     calldataarg args;
     
