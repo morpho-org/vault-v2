@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-import "AdapterUtilityFunctions.spec";
-
 using Utils as Utils;
 
 methods {
@@ -17,8 +15,6 @@ methods {
 
     function Utils.decodeMarketParams(bytes) external returns (Morpho.MarketParams) envfree;
 }
-
-// RUN : https://prover.certora.com/output/7508195/55beb16a51bb4e819d0ae89b65242baa/?anonymousKey=3c173b3c3b1e9e1de39f4bff4ab165decf76fe5a
 
 persistent ghost uint256 constantBorrowRate;
 
@@ -38,6 +34,21 @@ rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 se
 }
 
 
+// Helper function to call either allocate or deallocate based on a boolean flag.
+function allocateOrDeallocate(bool allocate, env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
+    bytes32[] ids;
+    int256 change;
+
+    if (allocate) {
+        ids, change = allocate(e, data, assets, selector, sender);
+    } else {
+        ids, change = deallocate(e, data, assets, selector, sender);
+    }
+    
+    return (ids, change);
+}
+
+
 // Check that allocate or deallocate cannot return a change that would make the current allocation negative.
 rule changeForAllocateOrDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
   Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
@@ -47,7 +58,7 @@ rule changeForAllocateOrDeallocateIsBoundedByAllocation(env e, bytes data, uint2
   bytes32[] ids;
   int256 change;
   
-  ids, change = allocate_or_deallocate(isAllocate, e, data, assets, selector, sender);
+  ids, change = allocateOrDeallocate(isAllocate, e, data, assets, selector, sender);
 
   assert allocation + change >= 0;
 }
