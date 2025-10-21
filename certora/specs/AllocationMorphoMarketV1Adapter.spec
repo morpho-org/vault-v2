@@ -46,7 +46,7 @@ function morphoMarketV1AdapterWrapperSummary(env e, bool isAllocateCall, bytes d
     } else {
         ids, change = MorphoMarketV1Adapter.deallocate(e, data, assets, bs, a);
     }
-    require forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "proven in the distinctMarketV1AdapterIds rule";
+    require forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "proven in the distinctAdapterIds rule";
     ghostChange = change;
 
     return (ids, change);

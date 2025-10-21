@@ -48,7 +48,8 @@ rule matchingIdsOnAllocateOrDeallocate(env e, bytes data, uint256 assets, bytes4
 invariant valueOfAdapterId()
   adapterId() == Utils.adapterId(currentContract);
 
-rule distinctMarketV1AdapterIds(MorphoMarketV1Adapter.MarketParams marketParams) {
+// Show that the ids returned are distinct.
+rule distinctAdapterIds(MorphoMarketV1Adapter.MarketParams marketParams) {
   bytes32[] ids = ids(marketParams);
 
   requireInvariant valueOfAdapterId();
