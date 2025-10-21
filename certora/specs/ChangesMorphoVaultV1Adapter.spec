@@ -3,6 +3,7 @@
 
 using MetaMorphoV1_1 as vaultV1;
 
+
 methods {
     function allocation() external returns (uint256) envfree;
 
@@ -13,6 +14,7 @@ methods {
     function MetaMorphoV1_1.balanceOf(address) external returns uint256 envfree;
     function MetaMorphoV1_1.totalSupply() external returns uint256 envfree;
     function MetaMorphoV1_1._accruedFeeAndAssets() internal returns (uint256, uint256, uint256) => constantAccrueFeeAndAssets();
+
 
     function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => CONSTANT;
 
@@ -28,8 +30,11 @@ function mulDivSummary(uint256 x, uint256 y, uint256 denominator) returns uint25
 }
 
 persistent ghost uint256 constantFeeShares;
+
 persistent ghost uint256 constantNewTotalAssets;
+
 persistent ghost uint256 constantNewLostAssets;
+
 function constantAccrueFeeAndAssets() returns (uint256, uint256, uint256) {
     require(constantNewTotalAssets < 30 * 2^128, "market v1 stores assets on 128 bits, and there are at most 30 markets in vault v1");
     return (constantFeeShares, constantNewTotalAssets, constantNewLostAssets);

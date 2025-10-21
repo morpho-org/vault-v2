@@ -6,17 +6,19 @@ methods {
     function allocation(bytes32) external returns uint256 envfree;
 }
 
-// Check that the only functions able to change allocations are deposit, mint, withdraw, redeem, allocation, deallocate, forceDeallocate.
-rule functionsChangingAllocation(env e, method f, calldataarg args) filtered {
-    f -> !f.isView &&
-         f.selector != sig:deposit(uint,address).selector &&
-         f.selector != sig:mint(uint,address).selector &&
-         f.selector != sig:withdraw(uint,address,address).selector &&
-         f.selector != sig:redeem(uint,address,address).selector &&
-         f.selector != sig:allocate(address,bytes,uint).selector &&
-         f.selector != sig:deallocate(address,bytes,uint).selector &&
-         f.selector != sig:forceDeallocate(address,bytes,uint,address).selector
-} {
+// Check that the only functions able to change allocations are deposit, mint, withdraw, redeem, allocate, deallocate, forceDeallocate.
+rule functionsChangingAllocation(env e, method f, calldataarg args) 
+    filtered {  
+        f -> !f.isView && 
+        f.selector != sig:deposit(uint256,address).selector &&
+        f.selector != sig:mint(uint256,address).selector &&
+        f.selector != sig:withdraw(uint256,address,address).selector &&
+        f.selector != sig:redeem(uint256,address,address).selector &&
+        f.selector != sig:allocate(address,bytes,uint256).selector &&
+        f.selector != sig:deallocate(address,bytes,uint256).selector &&
+        f.selector != sig:forceDeallocate(address,bytes,uint256,address).selector
+    } 
+{
     bytes32 id;
     uint256 allocationPre = allocation(id);
 
@@ -26,16 +28,19 @@ rule functionsChangingAllocation(env e, method f, calldataarg args) filtered {
 }
 
 // Check that allocations change on mint/deposit/withdraw/redeem only if a liquidity adapter is set.
-rule depositWithdrawChangeAllocationThroughLiquidityAdapter(env e, method f, calldataarg args) filtered {
-    f -> f.selector == sig:deposit(uint,address).selector ||
-         f.selector == sig:mint(uint,address).selector ||
-         f.selector == sig:withdraw(uint,address,address).selector ||
-         f.selector == sig:redeem(uint,address,address).selector
-} {
+rule erc4626ChangeAllocationOnlyWithLiquidityAdapter(env e, method f, calldataarg args) 
+    filtered {
+        f -> f.selector == sig:deposit(uint256,address).selector ||
+        f.selector == sig:mint(uint256,address).selector ||
+        f.selector == sig:withdraw(uint256,address,address).selector ||
+        f.selector == sig:redeem(uint256,address,address).selector
+    } 
+{
     bytes32 id;
     uint256 allocationPre = allocation(id);
 
     f(e, args);
 
+    // If allocation changed, then liquidity adapter must be set
     assert allocation(id) != allocationPre => currentContract.liquidityAdapter != 0;
 }
