@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
+import "UtilityFunctions.spec";
+
 using Utils as Utils;
 
 methods {
@@ -25,21 +27,6 @@ rule adapterAlwaysReturnsTheSameIDsForSameData(MorphoMarketV1Adapter.MarketParam
   assert idsPre[2] == idsPost[2];
 }
 
-
-// Helper function to call either allocate or deallocate based on a boolean flag.
-function allocateOrDeallocate(bool allocate, env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
-    bytes32[] ids;
-    int256 change;
-
-    if (allocate) {
-        ids, change = allocate(e, data, assets, selector, sender);
-    } else {
-        ids, change = deallocate(e, data, assets, selector, sender);
-    }
-    
-    return (ids, change);
-}
-
 // Show that the ids returned on allocate or deallocate match the reference id list.
 rule matchingIdsOnAllocateOrDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
   MorphoMarketV1Adapter.MarketParams marketParams = Utils.decodeMarketParams(data);
@@ -55,5 +42,3 @@ rule matchingIdsOnAllocateOrDeallocate(env e, bytes data, uint256 assets, bytes4
   assert ids[1] == idsMarket[1];
   assert ids[2] == idsMarket[2];
 }
-
-

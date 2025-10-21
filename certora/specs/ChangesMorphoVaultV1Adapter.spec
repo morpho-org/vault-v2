@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-using MetaMorphoV1_1 as vaultV1;
+import "UtilityFunctions.spec";
 
+using Utils as Utils;
+using MetaMorphoV1_1 as vaultV1;
 
 methods {
     function allocation() external returns (uint256) envfree;
@@ -40,7 +42,7 @@ function constantAccrueFeeAndAssets() returns (uint256, uint256, uint256) {
     return (constantFeeShares, constantNewTotalAssets, constantNewLostAssets);
 }
 
-// Check that calling allocate or deallocate with 0 amount yields the same change.
+// Check that allocating or deallocating zero assets returns an equivalent allocation change.
 rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 selector, address sender) {
   storage initialState = lastStorage;
 
@@ -56,25 +58,13 @@ rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 se
 }
 
 // Check that allocate cannot return a change that would make the current allocation negative.
-rule changeForAllocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
+rule changeForAllocateOrDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
   mathint allocation = allocation();
 
   bytes32[] ids;
   int256 change;
-  ids, change = allocate(e, data, assets, selector, sender);
-
-  require (vaultV1.balanceOf(currentContract) <= vaultV1.totalSupply(), "total supply is the sum of the balances");
-
-  assert allocation + change >= 0;
-}
-
-// Check that deallocate cannot return a change that would make the current allocation negative.
-rule changeForDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
-  mathint allocation = allocation();
-
-  bytes32[] ids;
-  int256 change;
-  ids, change = deallocate(e, data, assets, selector, sender);
+  bool isAllocate;
+  ids, change = allocateOrDeallocate(isAllocate, e, data, assets, selector, sender);
 
   require (vaultV1.balanceOf(currentContract) <= vaultV1.totalSupply(), "total supply is the sum of the balances");
 
