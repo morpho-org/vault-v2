@@ -3,7 +3,6 @@
 
 import "Invariants.spec";
 
-
 rule livenessDecreaseAbsoluteCapZero(env e, bytes idData) {
     require e.msg.sender == curator() || isSentinel(e.msg.sender);
     require e.msg.value == 0;
