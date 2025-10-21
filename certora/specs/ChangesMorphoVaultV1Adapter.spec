@@ -3,7 +3,6 @@
 
 import "UtilityFunctions.spec";
 
-using Utils as Utils;
 using MetaMorphoV1_1 as vaultV1;
 
 methods {

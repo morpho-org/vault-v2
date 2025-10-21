@@ -4,7 +4,7 @@
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
-    function accrueInterestView() internal returns(uint256, uint256, uint256) => summaryAccrueInterestView();
+    function accrueInterestView() internal returns (uint256, uint256, uint256) => summaryAccrueInterestView();
 }
 
 // Assume that accrueInterest does nothing.
@@ -12,7 +12,7 @@ function summaryAccrueInterestView() returns (uint256, uint256, uint256) {
     return (currentContract._totalAssets, 0, 0);
 }
 
-definition mulDivUp(uint256 x, uint256 y, uint256 z) returns mathint = (x * y + (z-1)) / z;
+definition mulDivUp(uint256 x, uint256 y, uint256 z) returns mathint = (x * y + (z - 1)) / z;
 
 // Note that the case where the receiver is the vault itself goes through for withdraw and redeem, since it's _totalAssets that is checked and not actual balance which might not decrease for such cases.
 
@@ -60,7 +60,7 @@ rule totalAssetsChangeRedeem(env e, uint256 shares, address receiver, address ow
 rule totalAssetsForceDeallocate(env e, address adapter, bytes data, uint256 deallocationAmount, address recipient) {
     mathint totalAssetsPre = currentContract._totalAssets;
 
-    mathint penalty = mulDivUp(deallocationAmount, currentContract.forceDeallocatePenalty[adapter], 10^18);
+    mathint penalty = mulDivUp(deallocationAmount, currentContract.forceDeallocatePenalty[adapter], 10 ^ 18);
 
     forceDeallocate(e, adapter, data, deallocationAmount, recipient);
 
@@ -71,11 +71,11 @@ rule totalAssetsForceDeallocate(env e, address adapter, bytes data, uint256 deal
 rule totalAssetsUnchangedByOthers(env e, method f, calldataarg args)
 filtered {
     f -> !f.isView &&
-    f.selector != sig:deposit(uint,address).selector &&
-    f.selector != sig:mint(uint,address).selector &&
-    f.selector != sig:withdraw(uint,address,address).selector &&
-    f.selector != sig:redeem(uint,address,address).selector &&
-    f.selector != sig:forceDeallocate(address,bytes,uint,address).selector
+    f.selector != sig:deposit(uint256,address).selector &&
+    f.selector != sig:mint(uint256,address).selector &&
+    f.selector != sig:withdraw(uint256,address,address).selector &&
+    f.selector != sig:redeem(uint256,address,address).selector &&
+    f.selector != sig:forceDeallocate(address,bytes,uint256,address).selector
 }
 {
     mathint totalAssetsPre = currentContract._totalAssets;
