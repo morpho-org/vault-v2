@@ -12,8 +12,6 @@ methods {
 
 // Check that a sentinel can always revoke.
 rule sentinelCanRevoke(env e, bytes data) {
-    require executableAt(data) != 0, "assume that data is pending";
-
     require isSentinel(e.msg.sender), "setup call to be performed by a sentinel";
     require e.msg.value == 0, "setup call to have no ETH value";
     revoke@withrevert(e, data);
@@ -24,8 +22,6 @@ rule sentinelCanRevoke(env e, bytes data) {
 
 // Check that a sentinel can always decrease the absolute cap.
 rule sentinelCanDecreaseAbsoluteCap(env e, bytes idData, uint256 newAbsoluteCap) {
-    require executableAt(idData) != 0, "assume that idData is pending";
-
     require newAbsoluteCap <= absoluteCap(keccak256(idData)), "setup call to have a newAbsoluteCap <= absoluteCap";
     require isSentinel(e.msg.sender), "setup call to be performed by a sentinel";
     require e.msg.value == 0, "setup call to have no ETH value";
