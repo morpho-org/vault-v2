@@ -40,8 +40,6 @@ function morphoVaultV1AdapterDeallocateWrapper(address adapter, env e, bytes dat
     int256 change;
     ids, change = adapter.deallocate(e, data, assets, selector, sender);
 
-    require allocation + change >= 0, "see changeForDeallocateIsBoundedByAllocation";
-
     require allocation > 0, "assume that the adapter has a positive allocation";
 
     return (ids, change);
