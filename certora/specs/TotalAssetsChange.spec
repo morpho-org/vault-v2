@@ -4,7 +4,7 @@
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
-    function accrueInterestView() internal returns(uint256, uint256, uint256) => summaryAccrueInterestView();
+    function accrueInterestView() internal returns (uint256, uint256, uint256) => summaryAccrueInterestView();
 }
 
 // Assume that accrueInterest does nothing.
@@ -12,46 +12,75 @@ function summaryAccrueInterestView() returns (uint256, uint256, uint256) {
     return (currentContract._totalAssets, 0, 0);
 }
 
-definition mulDivUp(uint256 x, uint256 y, uint256 z) returns mathint = (x * y + (z-1)) / z;
+definition mulDivUp(uint256 x, uint256 y, uint256 z) returns mathint = (x * y + (z - 1)) / z;
 
-// Check how total assets change without interest accrual.
-rule totalAssetsChange(env e, method f) filtered {
-    f -> !f.isView
-} {
+// Note that the case where the receiver is the vault itself goes through for withdraw and redeem, since it's _totalAssets that is checked and not actual balance which might not decrease for such cases.
+
+// Calling deposit only adds assets equal to the amount deposited, assuming no interest accrual.
+rule totalAssetsChangeDeposit(env e, uint256 assets, address receiver) {
     mathint totalAssetsPre = currentContract._totalAssets;
 
-    uint256 expectedAddedAssets;
-    uint256 expectedRemovedAssets;
+    deposit(e, assets, receiver);
 
-    if (f.selector == sig:deposit(uint,address).selector) {
-        require(expectedRemovedAssets == 0, "this operation only adds assets");
-        deposit(e, expectedAddedAssets, e.msg.sender);
-    } else if (f.selector == sig:mint(uint,address).selector) {
-        uint256 shares;
-        require(expectedRemovedAssets == 0, "this operation only adds assets");
-        require(expectedAddedAssets == previewMint(e, shares), "added assets should be the result of previewMint before the donation");
-        mint(e, shares, e.msg.sender);
-    } else if (f.selector == sig:withdraw(uint,address,address).selector) {
-        require(expectedAddedAssets == 0, "this operation only removes assets");
-        withdraw(e, expectedRemovedAssets, e.msg.sender, e.msg.sender);
-    } else if (f.selector == sig:redeem(uint,address,address).selector) {
-        uint256 shares;
-        require(expectedAddedAssets == 0, "this operation only removes assets");
-        require(expectedRemovedAssets == previewRedeem(e, shares), "redeemed assets should be the result of previewRedeem before the donation");
-        redeem(e, shares, e.msg.sender, e.msg.sender);
-    } else if (f.selector == sig:forceDeallocate(address,bytes,uint,address).selector) {
-        address adapter;
-        bytes data;
-        uint256 deallocationAmount;
-        require(expectedAddedAssets == 0, "this operation only removes assets");
-        require(expectedRemovedAssets == mulDivUp(deallocationAmount, currentContract.forceDeallocatePenalty[adapter], 10^18), "compute the penalty quoted in assets");
-        forceDeallocate(e, adapter, data, deallocationAmount, e.msg.sender);
-    } else {
-        calldataarg args;
-        require(expectedAddedAssets == 0, "other operations don't add assets");
-        require(expectedRemovedAssets == 0, "other operations don't remove assets");
-        f(e, args);
-    }
+    assert currentContract._totalAssets == totalAssetsPre + assets;
+}
 
-    assert totalAssetsPre + expectedAddedAssets - expectedRemovedAssets == currentContract._totalAssets;
+// Calling mint only adds assets equal to previewMint result, assuming no interest accrual.
+rule totalAssetsChangeMint(env e, uint256 shares, address receiver) {
+    mathint totalAssetsPre = currentContract._totalAssets;
+
+    uint256 previewedAssets = previewMint(e, shares);
+
+    mint(e, shares, receiver);
+
+    assert currentContract._totalAssets == totalAssetsPre + previewedAssets;
+}
+
+// Calling withdraw only removes the withdrawn assets, assuming no interest accrual.
+rule totalAssetsChangeWithdraw(env e, uint256 assets, address receiver, address owner) {
+    mathint totalAssetsPre = currentContract._totalAssets;
+
+    withdraw(e, assets, receiver, owner);
+
+    assert currentContract._totalAssets == totalAssetsPre - assets;
+}
+
+// Calling redeem removes assets equal to previewRedeem result, assuming no interest accrual.
+rule totalAssetsChangeRedeem(env e, uint256 shares, address receiver, address owner) {
+    mathint totalAssetsPre = currentContract._totalAssets;
+
+    uint256 previewedAssets = previewRedeem(e, shares);
+
+    redeem(e, shares, receiver, owner);
+
+    assert currentContract._totalAssets == totalAssetsPre - previewedAssets;
+}
+
+// Calling forceDeallocate removes assets based on penalty, assuming no interest accrual.
+rule totalAssetsForceDeallocate(env e, address adapter, bytes data, uint256 deallocationAmount, address recipient) {
+    mathint totalAssetsPre = currentContract._totalAssets;
+
+    mathint penalty = mulDivUp(deallocationAmount, currentContract.forceDeallocatePenalty[adapter], 10 ^ 18);
+
+    forceDeallocate(e, adapter, data, deallocationAmount, recipient);
+
+    assert currentContract._totalAssets == totalAssetsPre - penalty;
+}
+
+// Other non-view functions don't change totalAssets, assuming no interest accrual.
+rule totalAssetsUnchangedByOthers(env e, method f, calldataarg args)
+filtered {
+    f -> !f.isView &&
+    f.selector != sig:deposit(uint256,address).selector &&
+    f.selector != sig:mint(uint256,address).selector &&
+    f.selector != sig:withdraw(uint256,address,address).selector &&
+    f.selector != sig:redeem(uint256,address,address).selector &&
+    f.selector != sig:forceDeallocate(address,bytes,uint256,address).selector
+}
+{
+    mathint totalAssetsPre = currentContract._totalAssets;
+
+    f(e, args);
+
+    assert currentContract._totalAssets == totalAssetsPre;
 }
