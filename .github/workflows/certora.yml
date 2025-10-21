@@ -62,9 +62,6 @@ jobs:
         with:
           python-version: ">=3.10"
 
-      - name: Apply MetaMorpho munging
-        run: make -C certora metamorpho-munged
-
       - name: Install certora
         run: pip install certora-cli
 
