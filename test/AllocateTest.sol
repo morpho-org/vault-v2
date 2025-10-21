@@ -11,7 +11,7 @@ contract AllocateTest is BaseTest {
     address adapter;
     bytes32[] public ids;
 
-    uint256 MAX_TEST_ASSETS;
+    uint256 maxTestAssets;
 
     function setUp() public override {
         super.setUp();
@@ -29,7 +29,7 @@ contract AllocateTest is BaseTest {
         ids[0] = keccak256("id-0");
         ids[1] = keccak256("id-1");
 
-        MAX_TEST_ASSETS = 10 ** min(18 + underlyingToken.decimals(), 36);
+        maxTestAssets = 10 ** min(18 + underlyingToken.decimals(), 36);
     }
 
     function testAllocateZeroAbsoluteCap() public {
@@ -174,7 +174,7 @@ contract AllocateTest is BaseTest {
     {
         vm.assume(rdm != address(allocator));
         vm.assume(rdm != address(sentinel));
-        assetsIn = bound(assetsIn, 1, MAX_TEST_ASSETS);
+        assetsIn = bound(assetsIn, 1, maxTestAssets);
         assetsOut = bound(assetsOut, 1, assetsIn);
         absoluteCap = bound(absoluteCap, assetsIn, type(uint128).max);
 
@@ -229,10 +229,10 @@ contract AllocateTest is BaseTest {
         uint256 interest,
         uint256 cap
     ) public {
-        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
+        deposit = bound(deposit, 1, maxTestAssets);
         allocation1 = bound(allocation1, 0, deposit);
         allocation2 = bound(allocation2, 0, deposit - allocation1);
-        interest = bound(interest, 1, MAX_TEST_ASSETS);
+        interest = bound(interest, 1, maxTestAssets);
         cap = bound(cap, allocation1, type(uint128).max);
         cap = bound(cap, 1, type(uint128).max); // to avoid zero cap.
 
@@ -308,8 +308,8 @@ contract AllocateTest is BaseTest {
     }
 
     function testAllocateTooMuchNegativeChange(uint256 deposit, uint256 loss) public {
-        deposit = bound(deposit, 1, MAX_TEST_ASSETS - 1);
-        loss = bound(loss, deposit + 1, MAX_TEST_ASSETS);
+        deposit = bound(deposit, 1, maxTestAssets - 1);
+        loss = bound(loss, deposit + 1, maxTestAssets);
 
         increaseAbsoluteCap("id-0", deposit);
         increaseAbsoluteCap("id-1", deposit);
@@ -326,8 +326,8 @@ contract AllocateTest is BaseTest {
     }
 
     function testDeallocateTooMuchNegativeChange(uint256 deposit, uint256 loss) public {
-        deposit = bound(deposit, 1, MAX_TEST_ASSETS - 1);
-        loss = bound(loss, deposit + 1, MAX_TEST_ASSETS);
+        deposit = bound(deposit, 1, maxTestAssets - 1);
+        loss = bound(loss, deposit + 1, maxTestAssets);
 
         increaseAbsoluteCap("id-0", deposit);
         increaseAbsoluteCap("id-1", deposit);

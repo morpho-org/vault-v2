@@ -9,13 +9,13 @@ contract AccrueInterestTest is BaseTest {
 
     address performanceFeeRecipient = makeAddr("performanceFeeRecipient");
     address managementFeeRecipient = makeAddr("managementFeeRecipient");
-    uint256 MAX_TEST_ASSETS;
+    uint256 maxTestAssets;
     AdapterMock adapter;
 
     function setUp() public override {
         super.setUp();
 
-        MAX_TEST_ASSETS = 10 ** min(18 + underlyingToken.decimals(), 36);
+        maxTestAssets = 10 ** min(18 + underlyingToken.decimals(), 36);
 
         vm.startPrank(curator);
         vault.submit(abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (performanceFeeRecipient)));
@@ -53,11 +53,11 @@ contract AccrueInterestTest is BaseTest {
         uint256 interest,
         uint256 elapsed
     ) public {
-        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        deposit = bound(deposit, 0, maxTestAssets);
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         elapsed = bound(elapsed, 0, 10 * 365 days);
-        interest = bound(interest, 0, MAX_TEST_ASSETS);
+        interest = bound(interest, 0, maxTestAssets);
 
         // Setup.
         vm.prank(allocator);
@@ -89,11 +89,11 @@ contract AccrueInterestTest is BaseTest {
         uint256 interest,
         uint256 elapsed
     ) public {
-        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        deposit = bound(deposit, 0, maxTestAssets);
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
         elapsed = bound(elapsed, 0, 10 * 365 days);
-        interest = bound(interest, 0, MAX_TEST_ASSETS);
+        interest = bound(interest, 0, maxTestAssets);
 
         // Setup.
         vm.prank(allocator);
@@ -125,7 +125,7 @@ contract AccrueInterestTest is BaseTest {
     ) public {
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
-        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        deposit = bound(deposit, 0, maxTestAssets);
         elapsed = bound(elapsed, 1, 10 * 365 days);
         interest = bound(interest, 0, (deposit * MAX_MAX_RATE).mulDivDown(elapsed, WAD));
 
@@ -162,7 +162,7 @@ contract AccrueInterestTest is BaseTest {
 
     /// forge-config: default.isolate = true
     function testAccrueInterestMaxRate(uint256 deposit, uint256 interest, uint256 elapsed) public {
-        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        deposit = bound(deposit, 0, maxTestAssets);
         interest = bound(interest, 0, MAX_MAX_RATE);
         elapsed = bound(elapsed, 0, 10 * 365 days);
 
@@ -190,7 +190,7 @@ contract AccrueInterestTest is BaseTest {
     ) public {
         performanceFee = bound(performanceFee, 0, MAX_PERFORMANCE_FEE);
         managementFee = bound(managementFee, 0, MAX_MANAGEMENT_FEE);
-        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        deposit = bound(deposit, 0, maxTestAssets);
         elapsed = bound(elapsed, 0, 10 * 365 days);
         interest = bound(interest, 0, (deposit * MAX_MAX_RATE).mulDivDown(elapsed, WAD));
 
@@ -222,8 +222,8 @@ contract AccrueInterestTest is BaseTest {
 
     /// forge-config: default.isolate = true
     function testAccrueInterestDonationNoSkip(uint256 deposit, uint256 donation) public {
-        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
-        donation = bound(donation, 0, MAX_TEST_ASSETS);
+        deposit = bound(deposit, 0, maxTestAssets);
+        donation = bound(donation, 0, maxTestAssets);
 
         vault.deposit(deposit, address(this));
 
@@ -234,8 +234,8 @@ contract AccrueInterestTest is BaseTest {
 
     /// forge-config: default.isolate = true
     function testAccrueInterestDonationSkip(uint256 deposit, uint256 donation, uint256 elapsed) public {
-        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
-        donation = bound(donation, 0, MAX_TEST_ASSETS);
+        deposit = bound(deposit, 0, maxTestAssets);
+        donation = bound(donation, 0, maxTestAssets);
         elapsed = bound(elapsed, 0, 10 * 365 days);
 
         vault.deposit(deposit, address(this));
@@ -250,7 +250,7 @@ contract AccrueInterestTest is BaseTest {
 
     // on purpose not isolated.
     function testFirstTotalAssets(uint256 interest, uint256 deposit, uint256 elapsed) public {
-        deposit = bound(deposit, 0, MAX_TEST_ASSETS);
+        deposit = bound(deposit, 0, maxTestAssets);
         elapsed = bound(elapsed, 0, 10 * 365 days);
         interest = bound(interest, 0, (deposit * MAX_MAX_RATE).mulDivDown(elapsed, WAD));
 

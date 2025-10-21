@@ -1,0 +1,24 @@
+diff -ruN VaultV2.sol VaultV2.sol
+--- VaultV2.sol
++++ VaultV2.sol
+@@ -226,6 +226,10 @@
+     uint96 public managementFee;
+     address public managementFeeRecipient;
+ 
++    /* HARNESS */
++
++    bool public lossRealization;
++
+     /* GETTERS */
+ 
+     function adaptersLength() external view returns (uint256) {
+@@ -593,6 +597,9 @@
+ 
+     function accrueInterest() public {
+         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
++
++        lossRealization = newTotalAssets < _totalAssets;
++
+         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
+         _totalAssets = newTotalAssets.toUint128();
+         if (firstTotalAssets == 0) firstTotalAssets = newTotalAssets;

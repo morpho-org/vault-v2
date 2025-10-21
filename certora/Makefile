@@ -1,14 +1,14 @@
-metamorpho-munged: ../lib/metamorpho/munged
+munged: ../munged
 
-../lib/metamorpho/munged: $(wildcard ../src/*.sol) applyMetaMorphoMunging.patch
-	@rm -rf ../lib/metamorpho/munged
-	@cp -r ../lib/metamorpho/src ../lib/metamorpho/munged
-	@patch -p0 -d ../lib/metamorpho/munged < applyMetaMorphoMunging.patch
+../munged: $(wildcard ../src/*.sol) applyMunging.patch
+	@rm -rf ../munged
+	@cp -r ../src ../munged
+	@patch -p0 -d ../munged < applyMunging.patch
 
-metamorpho-record:
-	diff -ruN ../lib/metamorpho/src ../lib/metamorpho/munged | sed -E 's,\.\./lib/metamorpho/src/|\.\./lib/metamorpho/munged/,,g' | sed -E 's,((\-\-\-|\+\+\+) [^[:space:]]*).*,\1,' > applyMetaMorphoMunging.patch
+record:
+	diff -ruN ../src ../munged | sed -E 's,\.\./src/|\.\./munged/,,g' | sed -E 's,((\-\-\-|\+\+\+) [^[:space:]]*).*,\1,' > applyMunging.patch
 
-metamorpho-clean:
-	rm -rf ../lib/metamorpho/munged
+clean:
+	rm -rf ../munged
 
-.PHONY: help metamorpho-clean # do not add munged here, as it is useful to protect munged edits
+.PHONY: help clean # do not add munged here, as it is useful to protect munged edits

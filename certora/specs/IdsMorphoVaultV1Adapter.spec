@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
+import "UtilityFunctions.spec";
+
 using Utils as Utils;
 
 methods {
@@ -22,28 +24,17 @@ rule adapterAlwaysReturnsTheSameIDsForSameData() {
   assert idsPre[0] == idsPost[0];
 }
 
-// Show that the ids returned on allocate match the refence id list.
-rule matchingIdsOnAllocate(env e, bytes data, uint256 amount, bytes4 selector, address sender) {
-  bytes32[] idsAllocate;
-  int256 interestAllocate;
-  idsAllocate, interestAllocate = allocate(e, data, amount, selector, sender);
+// Show that the ids returned on allocate or deallocate match the reference id list.
+rule matchingIdsOnAllocateOrDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
+  bytes32[] ids;
 
-  bytes32[] ids = ids();
+  bool isAllocate;
+  ids, _ = allocateOrDeallocate(isAllocate, e, data, assets, selector, sender);
+
+  bytes32[] idsAdapter = ids();
+  assert idsAdapter.length == 1;
   assert ids.length == 1;
-  assert idsAllocate.length == 1;
-  assert idsAllocate[0] == ids[0];
-}
-
-// Show that the ids returned on deallocate match the refence id list.
-rule matchingIdsOnDeallocate(env e, bytes data, uint256 amount, bytes4 selector, address sender) {
-  bytes32[] idsDeallocate;
-  int256 interestDeallocate;
-  idsDeallocate, interestDeallocate = deallocate(e, data, amount, selector, sender);
-
-  bytes32[] ids = ids();
-  assert ids.length == 1;
-  assert idsDeallocate.length == 1;
-  assert idsDeallocate[0] == ids[0];
+  assert ids[0] == idsAdapter[0];
 }
 
 // Show that the ids returned are distinct (trivial since there is only one id).

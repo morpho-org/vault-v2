@@ -12,9 +12,9 @@ methods {
 
     function MorphoVaultV1.totalSupply() external returns (uint256) envfree;
     function MorphoVaultV1.balanceOf(address) external returns (uint256) envfree;
-
     function MorphoVaultV1Adapter.ids() external returns (bytes32[]) envfree;
     function MorphoVaultV1Adapter.allocation() external returns (uint256) envfree;
+    function MorphoMarketV1.supplyShares(MorphoHarness.Id, address) external returns (uint256) envfree;
 
     function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoVaultV1AdapterWrapperSummary(e, true, data, assets, bs, a) expect(bytes32[], int256);
     function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoVaultV1AdapterWrapperSummary(e, false, data, assets, bs, a) expect(bytes32[], int256);
@@ -23,6 +23,7 @@ methods {
     function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
 
     function Math.mulDiv(uint256 x, uint256 y, uint256 denominator) internal returns (uint256) => mulDivSummary(x, y, denominator);
+    function _.supplyShares(address, MorphoHarness.Id id, address user) internal => summarySupplyShares(id, user) expect uint256;
 
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
@@ -43,6 +44,11 @@ function mulDivSummary(uint256 x, uint256 y, uint256 denominator) returns uint25
     result = x * y / denominator;
     if (result >= 2 ^ 256) revert();
     return assert_uint256(result);
+}
+
+
+function summarySupplyShares(MorphoHarness.Id id, address user) returns uint256 {
+    return MorphoMarketV1.supplyShares(id, user);
 }
 
 persistent ghost uint256 constantBorrowRate;

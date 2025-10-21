@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
+import "UtilityFunctions.spec";
+
 using Utils as Utils;
 
 methods {
@@ -27,34 +29,20 @@ rule adapterAlwaysReturnsTheSameIDsForSameData(MorphoMarketV1Adapter.MarketParam
   assert idsPre[2] == idsPost[2];
 }
 
-// Show that the ids returned on allocate match the refence id list.
-rule matchingIdsOnAllocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
+// Show that the ids returned on allocate or deallocate match the reference id list.
+rule matchingIdsOnAllocateOrDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
   MorphoMarketV1Adapter.MarketParams marketParams = Utils.decodeMarketParams(data);
-  bytes32[] idsAllocate;
-  int256 change;
-  idsAllocate, change = allocate(e, data, assets, selector, sender);
+  bytes32[] ids;
 
-  bytes32[] ids = ids(marketParams);
+  bool isAllocate;
+  ids, _ = allocateOrDeallocate(isAllocate, e, data, assets, selector, sender);
+
+  bytes32[] idsMarket = ids(marketParams);
+  assert idsMarket.length == 3;
   assert ids.length == 3;
-  assert idsAllocate.length == 3;
-  assert idsAllocate[0] == ids[0];
-  assert idsAllocate[1] == ids[1];
-  assert idsAllocate[2] == ids[2];
-}
-
-// Show that the ids returned on deallocate match the refence id list.
-rule matchingIdsOnDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
-  MorphoMarketV1Adapter.MarketParams marketParams = Utils.decodeMarketParams(data);
-  bytes32[] idsDeallocate;
-  int256 change;
-  idsDeallocate, change = deallocate(e, data, assets, selector, sender);
-
-  bytes32[] ids = ids(marketParams);
-  assert ids.length == 3;
-  assert idsDeallocate.length == 3;
-  assert idsDeallocate[0] == ids[0];
-  assert idsDeallocate[1] == ids[1];
-  assert idsDeallocate[2] == ids[2];
+  assert ids[0] == idsMarket[0];
+  assert ids[1] == idsMarket[1];
+  assert ids[2] == idsMarket[2];
 }
 
 invariant valueOfAdapterId()

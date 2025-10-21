@@ -11,7 +11,7 @@ contract MorphoVaultV1IntegrationInterestTest is MorphoVaultV1IntegrationTest {
 
     /// forge-config: default.isolate = true
     function testAccrueInterest(uint256 assets, uint256 elapsed) public {
-        assets = bound(assets, 1, MAX_TEST_ASSETS);
+        assets = bound(assets, 1, maxTestAssets);
         elapsed = bound(elapsed, 0, 10 * 365 days);
 
         // setup.
@@ -31,7 +31,7 @@ contract MorphoVaultV1IntegrationInterestTest is MorphoVaultV1IntegrationTest {
         assertEq(
             morphoVaultV1.totalAssets(),
             morpho.expectedSupplyAssets(allMarketParams[0], address(morphoVaultV1)),
-            "vault v1 totalAssets"
+            "vault V1 totalAssets"
         );
         // slightly off from the market's expectedSupplyAssets because of the vaultV1 virtual shares.
         uint256 expectedSupplyAssets =
