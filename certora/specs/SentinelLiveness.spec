@@ -10,8 +10,9 @@ methods {
     function relativeCap(bytes32) external returns (uint256) envfree;
 }
 
-// Check that a sentinel can always revoke.
+// Check that a sentinel can always revoke some pending data.
 rule sentinelCanRevoke(env e, bytes data) {
+    require executableAt(data) != 0, "assume that data is pending";
     require isSentinel(e.msg.sender), "setup call to be performed by a sentinel";
     require e.msg.value == 0, "setup call to have no ETH value";
     revoke@withrevert(e, data);
@@ -33,8 +34,6 @@ rule sentinelCanDecreaseAbsoluteCap(env e, bytes idData, uint256 newAbsoluteCap)
 
 // Check that a sentinel can always decrease the relative cap.
 rule sentinelCanDecreaseRelativeCap(env e, bytes idData, uint256 newRelativeCap) {
-    require executableAt(idData) != 0, "assume that idData is pending";
-
     require newRelativeCap <= relativeCap(keccak256(idData)), "setup call to have a newRelativeCap <= relativeCap";
     require isSentinel(e.msg.sender), "setup call to be performed by a sentinel";
     require e.msg.value == 0, "setup call to have no ETH value";
