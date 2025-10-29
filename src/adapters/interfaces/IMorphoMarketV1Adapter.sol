@@ -5,6 +5,8 @@ pragma solidity >=0.5.0;
 import {IAdapter} from "../../interfaces/IAdapter.sol";
 import {Id, MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
+/// @dev This interface is inherited by MorphoMarketV1Adapter so that function signatures are checked by the compiler.
+/// @dev Consider using the IMorphoMarketV1AdapterReturnsStruct interface instead.
 interface IMorphoMarketV1Adapter is IAdapter {
     /* EVENTS */
 
@@ -32,6 +34,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function skim(address token) external;
 }
 
+/// @dev Use this interface to have access to all the functions with the appropriate function signatures.
 interface IMorphoMarketV1AdapterReturnsStruct is IAdapter {
     /* EVENTS */
 
