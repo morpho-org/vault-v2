@@ -31,71 +31,17 @@ function summarySupplyShares(Morpho.Id id, address user) returns uint256 {
     return Morpho.supplyShares(id, user);
 }
 
-ghost uint256 ghostMarketParamsListLength;
-ghost mapping (uint256 => address) ghostLoanToken;
-ghost mapping (uint256 => address) ghostCollateralToken;
-ghost mapping (uint256 => address) ghostOracle;
-ghost mapping (uint256 => address) ghostIrm;
-ghost mapping (uint256 => uint256) ghostLltv;
-
-hook Sload uint256 marketParamsListLength MorphoMarketV1Adapter.marketParamsList.(offset 0) {
-    ghostMarketParamsListLength = marketParamsListLength;
-}
-
-hook Sstore MorphoMarketV1Adapter.marketParamsList.(offset 0) uint256 newMarketParamsListLength (uint256 oldMarketParamsListLength) {
-    ghostMarketParamsListLength = newMarketParamsListLength;
-}
-
-hook Sload address loanToken MorphoMarketV1Adapter.marketParamsList[INDEX uint256 i].loanToken {
-    ghostLoanToken[i] = loanToken;
-}
-
-hook Sstore MorphoMarketV1Adapter.marketParamsList[INDEX uint256 i].loanToken address newLoanToken (address oldLoanToken) {
-    ghostLoanToken[i] = newLoanToken;
-}
-
-hook Sload address collateralToken MorphoMarketV1Adapter.marketParamsList[INDEX uint256 i].collateralToken {
-    ghostCollateralToken[i] = collateralToken;
-}
-
-hook Sstore MorphoMarketV1Adapter.marketParamsList[INDEX uint256 i].collateralToken address newCollateralToken (address oldCollateralToken) {
-    ghostCollateralToken[i] = newCollateralToken;
-}
-
-hook Sload address oracle MorphoMarketV1Adapter.marketParamsList[INDEX uint256 i].oracle {
-    ghostOracle[i] = oracle;
-}
-
-hook Sstore MorphoMarketV1Adapter.marketParamsList[INDEX uint256 i].oracle address newOracle (address oldOracle) {
-    ghostOracle[i] = newOracle;
-}
-
-hook Sload address irm MorphoMarketV1Adapter.marketParamsList[INDEX uint256 i].irm {
-    ghostIrm[i] = irm;
-}
-
-hook Sstore MorphoMarketV1Adapter.marketParamsList[INDEX uint256 i].irm address newIrm (address oldIrm) {
-    ghostIrm[i] = newIrm;
-}
-
-hook Sload uint256 lltv MorphoMarketV1Adapter.marketParamsList[INDEX uint256 i].lltv {
-    ghostLltv[i] = lltv;
-}
-
-hook Sstore MorphoMarketV1Adapter.marketParamsList[INDEX uint256 i].lltv uint256 newLltv (uint256 oldLltv) {
-    ghostLltv[i] = newLltv;
-}
-
 rule canRemoveMarket(env e, bytes data) {
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
     uint256 assets = Utils.expectedSupplyAssets(e, Morpho, marketParams, MorphoMarketV1Adapter);
 
-    require forall uint256 i. forall uint256 j. (i < j && j < ghostMarketParamsListLength) => (
-        ghostLoanToken[i] != ghostLoanToken[j] ||
-        ghostCollateralToken[i] != ghostCollateralToken[j] ||
-        ghostOracle[i] != ghostOracle[j] ||
-        ghostIrm[i] != ghostIrm[j] ||
-        ghostLltv[i] != ghostLltv[j]
+    uint256 marketParamsListLength = MorphoMarketV1Adapter.marketParamsListLength();
+    require forall uint256 i. forall uint256 j. (i < j && j < marketParamsListLength) => (
+        MorphoMarketV1Adapter.marketParamsList[i].loanToken != MorphoMarketV1Adapter.marketParamsList[j].loanToken ||
+        MorphoMarketV1Adapter.marketParamsList[i].collateralToken != MorphoMarketV1Adapter.marketParamsList[j].collateralToken ||
+        MorphoMarketV1Adapter.marketParamsList[i].oracle != MorphoMarketV1Adapter.marketParamsList[j].oracle ||
+        MorphoMarketV1Adapter.marketParamsList[i].irm != MorphoMarketV1Adapter.marketParamsList[j].irm ||
+        MorphoMarketV1Adapter.marketParamsList[i].lltv != MorphoMarketV1Adapter.marketParamsList[j].lltv
     ), "see distinctMarketParamsInList";
 
     // Could also check that the deallocate call doesn't revert.
