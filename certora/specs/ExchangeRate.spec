@@ -33,9 +33,11 @@ rule lossRealizationDecreasesSharePrice(env e, address adapter, bytes data){
     mathint assetsBefore = assets();
     mathint sharesBefore = shares();
 
+    mathint totalAssetsBefore = currentContract._totalAssets;
+
     accrueInterest(e);
 
-    require (currentContract.lossRealization, "assume loss realization");
+    require (totalAssetsBefore > currentContract._totalAssets, "assume loss realization");
 
     assert assets() * sharesBefore <= assetsBefore * shares();
 }
