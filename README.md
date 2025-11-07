@@ -22,8 +22,9 @@ They hold positions on behalf of the vault.
 Adapters are also used to know how much these investments are worth (interest and loss realization).
 
 > [!NOTE]
-> Developers building adapters for new protocols should carefully review the [Vault V2 NatSpec](https://github.com/morpho-org/vault-v2/blob/main/src/VaultV2.sol#L16-L184), with particular attention to the [adapter specification](https://github.com/morpho-org/vault-v2/blob/main/src/VaultV2.sol#L66-L87).
-> The code is provided as is. Custom adapters should be developed at your own risk.
+> Developers building adapters for new protocols should carefully review the [Vault V2 NatSpec](https://github.com/morpho-org/vault-v2/blob/main/src/VaultV2.sol#L16-L184), with particular attention to the [adapter specification](https://github.com/morpho-org/vault-v2/blob/main/src/VaultV2.sol#L66-L87) and related technical requirements.
+> The code is provided "as is", without any representations, warranties or conditions express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, or non-infringement.
+> The development and deployment of custom adapters are undertaken at the developer’s sole risk.
 
 Vaults can set an adapter registry to constrain which adapter they can have and add. This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure that a vault will forever supply into adapters authorized by a given registry. See for example the [Morpho Registries](https://github.com/morpho-org/vault-v2-adapter-registries).
 
