@@ -3,6 +3,7 @@
 pragma solidity ^0.8.0;
 
 import {IAdapter} from "../../src/interfaces/IAdapter.sol";
+import {SafeERC20Lib} from "../../src/libraries/SafeERC20Lib.sol";
 
 /// @notice Minimal stub contract used as the parent vault to test adapters.
 contract VaultV2Mock {
@@ -23,10 +24,8 @@ contract VaultV2Mock {
 
     function accrueInterest() public {}
 
-    function allocateMocked(address adapter, bytes memory data, uint256 assets)
-        external
-        returns (bytes32[] memory, int256)
-    {
+    function allocate(address adapter, bytes memory data, uint256 assets) external returns (bytes32[] memory, int256) {
+        SafeERC20Lib.safeTransfer(asset, adapter, assets);
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets, msg.sig, msg.sender);
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] = uint256(int256(allocation[ids[i]]) + change);
@@ -34,7 +33,7 @@ contract VaultV2Mock {
         return (ids, change);
     }
 
-    function deallocateMocked(address adapter, bytes memory data, uint256 assets)
+    function deallocate(address adapter, bytes memory data, uint256 assets)
         external
         returns (bytes32[] memory, int256)
     {
@@ -42,6 +41,7 @@ contract VaultV2Mock {
         for (uint256 i; i < ids.length; i++) {
             allocation[ids[i]] = uint256(int256(allocation[ids[i]]) + change);
         }
+        SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
         return (ids, change);
     }
 }

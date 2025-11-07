@@ -22,6 +22,12 @@ library MathLib {
         }
     }
 
+    /// @dev Casts from uint256 to uint48, reverting if input number is too large.
+    function toUint48(uint256 x) internal pure returns (uint48) {
+        require(x <= type(uint48).max, ErrorsLib.CastOverflow());
+        return uint48(x);
+    }
+
     /// @dev Casts from uint256 to uint128, reverting if input number is too large.
     function toUint128(uint256 x) internal pure returns (uint128) {
         require(x <= type(uint128).max, ErrorsLib.CastOverflow());
@@ -32,6 +38,12 @@ library MathLib {
     function toUint256(int256 x) internal pure returns (uint256) {
         require(x >= 0, ErrorsLib.CastOverflow());
         return uint256(x);
+    }
+
+    /// @dev Casts from uint256 to int256, reverting if input number overflows.
+    function toInt256(uint256 x) internal pure returns (int256) {
+        require(x <= uint256(type(int256).max), ErrorsLib.CastOverflow());
+        return int256(x);
     }
 
     /// @dev Returns min(x, y).
