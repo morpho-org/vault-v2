@@ -37,7 +37,7 @@ contract TimelockManagerHelpers {
     
 }
 
-// Helper verifying execution is blocked before minimum timelock expires
+// Helper verifying we are before the minimum time of execution
 contract BeforeMinimumTimeChecker {
     VaultV2 public vault;
     
@@ -58,7 +58,7 @@ contract BeforeMinimumTimeChecker {
     }
 }
 
-// Helper verifying data has not been submitted
+// Helper verifying msg.data has not been submitted for execution
 contract NotSubmittedHarness {
     VaultV2 public vault;
     

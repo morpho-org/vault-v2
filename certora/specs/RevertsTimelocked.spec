@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-// RevertsTimelocked.spec
-//
-// This specification verifies the revert conditions for timelocked function EXECUTION.
-// Uses the consolidated RevertsTimelocked helper with selector-based filtering.
+// This specification verifies the revert conditions for timelocked function execution.
+// Uses the RevertsTimelocked helper with selector-based filtering.
 
 using RevertsTimelockedHelpers as RevertsTimelockedHelpers;
 

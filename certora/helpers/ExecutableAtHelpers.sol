@@ -62,7 +62,6 @@ contract ExecutableAtHelpers {
     function addAdapter(address account) external {
         checkTimelockConditions();
         
-        // If adapter registry is set, adapter must be in registry
         address registry = vault.adapterRegistry();
         require(
             registry == address(0) || IAdapterRegistry(registry).isInRegistry(account),

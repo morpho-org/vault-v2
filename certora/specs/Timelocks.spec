@@ -121,7 +121,7 @@ filtered {
     require data.length >= 36;
     bytes4 selector = TimelockManagerHelpers.getSelector(data);
     
-    // Compute earliest execution time BEFORE interaction
+    // Compute earliest execution time before interaction
     mathint execAtValue = to_mathint(executableAt(data)) == 0 ? max_uint256 : to_mathint(executableAt(data));
     mathint directSubmitTime = require_uint256(e.block.timestamp + timelock(selector));
     mathint viaDecreaseTime = minDecreaseLock[selector];
@@ -130,7 +130,7 @@ filtered {
     // Arbitrary function call (any state change)
     f(e_next, args);
     
-    // Compute earliest execution time AFTER interaction
+    // Compute earliest execution time after interaction
     mathint execAtValueAfter = to_mathint(executableAt(data)) == 0 ? max_uint256 : to_mathint(executableAt(data));
     mathint directSubmitTimeAfter = require_uint256(e_next.block.timestamp + timelock(selector));
     mathint viaDecreaseTimeAfter = minDecreaseLock[selector];
@@ -165,12 +165,9 @@ rule cannotExecuteBeforeMinimumTime(env e,method fb,method f, calldataarg args)
     bytes4 selector = to_bytes4(f.selector);
     require !abdicated(selector);
     
-    // The fallback will check msg.data and verify we're BEFORE minimum time
-    // If it doesn't revert, we know: currentTime < min(time1, time2)
+    // Check currentTime < min(time1, time2)
     fb(e, args);
     
-    // Now call the actual function with the SAME calldataarg (same msg.data)
-        // => MUST revert since we're before the minimum time
     f@withrevert(e, args);
     assert lastReverted, "Function must revert before minimum executable time";
 }
