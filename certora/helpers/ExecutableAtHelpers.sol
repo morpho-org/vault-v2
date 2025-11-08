@@ -126,7 +126,6 @@ contract ExecutableAtHelpers {
         checkTimelockConditions();
         require(block.timestamp >= vault.lastUpdate(), "Last update not set");
         require(block.timestamp <= vault.lastUpdate() + 315360000, "Time too far in future");
-        require(uint160(newManagementFeeRecipient) == uint160(newManagementFeeRecipient), "Valid address");
         require(
             newManagementFeeRecipient != address(0) || vault.managementFee() == 0,
             "Fee invariant broken: recipient cannot be zero if fee > 0"

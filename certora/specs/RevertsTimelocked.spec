@@ -20,7 +20,6 @@ methods {
 // 1. Call the helper function with the same calldataarg
 // 2. If helper passes (meaning one of the revert conditions is met), call the actual function
 // 3. Assert that the function reverted
-//
 
 definition functionTimelocked(method f) returns bool = 
     f.selector == sig:setIsAllocator(address, bool).selector ||

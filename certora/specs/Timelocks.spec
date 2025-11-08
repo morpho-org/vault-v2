@@ -32,7 +32,6 @@ persistent ghost mapping(bytes4 => mathint) minDecreaseLock {
 hook Sstore executableAt[KEY bytes hookData] uint256 newValue (uint256 oldValue) {
     require hookData.length >= 36;
     bytes4 selector = TimelockManagerHelpers.getSelector(hookData);
-    // require isValidTimelockedSelector(selector);
     
     // decreaseTimelock == 0x5c1a1a4f
     if (selector == to_bytes4(sig:decreaseTimelock(bytes4, uint256).selector)) {
@@ -89,28 +88,6 @@ definition functionTimelocked(method f) returns bool =
     f.selector == sig:setForceDeallocatePenalty(address,uint256).selector;
 
 
-// Helper to check if a selector corresponds to a timelocked function
-definition isValidTimelockedSelector(bytes4 selector) returns bool = 
-    selector == to_bytes4(sig:setIsAllocator(address, bool).selector) ||
-    selector == to_bytes4(sig:setReceiveSharesGate(address).selector) ||
-    selector == to_bytes4(sig:setSendSharesGate(address).selector) ||
-    selector == to_bytes4(sig:setReceiveAssetsGate(address).selector) ||
-    selector == to_bytes4(sig:setSendAssetsGate(address).selector) ||
-    selector == to_bytes4(sig:setAdapterRegistry(address).selector) ||
-    selector == to_bytes4(sig:addAdapter(address).selector) ||
-    selector == to_bytes4(sig:removeAdapter(address).selector) ||
-    selector == to_bytes4(sig:increaseTimelock(bytes4, uint256).selector) ||
-    selector == to_bytes4(sig:decreaseTimelock(bytes4, uint256).selector) ||
-    selector == to_bytes4(sig:abdicate(bytes4).selector) ||
-    selector == to_bytes4(sig:setPerformanceFee(uint256).selector) ||
-    selector == to_bytes4(sig:setManagementFee(uint256).selector) ||
-    selector == to_bytes4(sig:setPerformanceFeeRecipient(address).selector) ||
-    selector == to_bytes4(sig:setManagementFeeRecipient(address).selector) ||
-    selector == to_bytes4(sig:increaseAbsoluteCap(bytes,uint256).selector) ||
-    selector == to_bytes4(sig:increaseRelativeCap(bytes,uint256).selector) ||
-    selector == to_bytes4(sig:setForceDeallocatePenalty(address,uint256).selector);
-
- 
 function extractExpectedDelay(bytes data) returns uint256 {
     bytes4 selector = TimelockManagerHelpers.getSelector(data);
     if (TimelockManagerHelpers.isDecreaseTimelock(data)) {
