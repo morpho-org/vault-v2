@@ -33,6 +33,3 @@ contract Utils {
         return IReturnFactory(adapter).factory();
     }
 }
-
-
-

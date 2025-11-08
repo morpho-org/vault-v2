@@ -17,11 +17,8 @@ contract TimelockManagerHelpers {
 
     // Check if data is for decreaseTimelock
     function isDecreaseTimelock(bytes memory data) public pure returns (bool) {
-        /*if (bytes4(data) == IVaultV2.decreaseTimelock.selector) {
-            return true;
-        } 
-        return false;*/
-        return true;
+        if (data.length < 68) return false;
+        return bytes4(data) == IVaultV2.decreaseTimelock.selector;
     }
     
     function extractDecreaseTimelockArgs(bytes memory data) public pure returns (bytes4 targetSelector, uint256 newTimelock) {
@@ -37,7 +34,6 @@ contract TimelockManagerHelpers {
         
         (targetSelector, newTimelock) = abi.decode(params, (bytes4, uint256));
     }
-
     
 }
 
