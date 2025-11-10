@@ -2,6 +2,7 @@
 
 > [!NOTE]
 > Vault V2 instances are distinguished between:
+>
 > - **Morpho Vaults**: Vault V2 with the Morpho registry (link to be added) abdicated. Learn more about Morpho Vaults and their benefits here (link to be added).
 > - **Basic Vaults**: Vault V2 that can supply to any protocol. They don't get all the Morpho Vaults benefits. In particular, Vault V2 has been developed and audited only in the context of the Morpho Market V1 and Morpho Vault V1 adapters.
 
@@ -24,6 +25,7 @@ Adapters are also used to know how much these investments are worth (interest an
 Vaults can set an adapter registry to constrain which adapter they can have and add. This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure that a vault will forever supply into adapters authorized by a given registry. See for example the Morpho Registry (link to be added).
 
 The following adapters are currently available:
+
 - [Morpho Market V1 Adapter](./src/adapters/MorphoMarketV1Adapter.sol).
   This adapter allocates to any Morpho Market V1, under the constraints of the [caps](#caps).
 - [Morpho Vault V1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
@@ -43,6 +45,9 @@ Note that relative caps are "soft" because they are not checked on withdrawals, 
 The allocator is responsible for ensuring that users can withdraw their assets at any time.
 This is done by managing the available idle liquidity and an optional liquidity adapter.
 
+Additionally, users can make use of the `forceDeallocate` function to exit from liquid markets, assuming that they are willing to pay the corresponding penalty.
+Indeed, the permissionless `forceDeallocate` function allows anyone to move assets from an adapter to the vault's idle assets (meaning the vault token balance).
+
 When users withdraw assets, the idle assets are taken in priority.
 If there is not enough idle liquidity, liquidity is taken from the liquidity adapter.
 When defined, the liquidity adapter is also used to forward deposited funds.
@@ -55,11 +60,11 @@ Curator configuration changes are all timelockable (except `decreaseAbsoluteCap`
 This is useful notably to the [non-custodial guarantees](#non-custodial-guarantees), but also in general if a curator wants to give guarantees about some configurations.
 `increaseTimelock` should be used carefully, because decreaseTimelock is function-dependent: decreasing the timelock of a function is timelocked by the timelock of the function itself.
 
-Also, a configuration can be *abdicated*, meaning that it won't be able to be set anymore, by calling `abdicate`.
+Also, a configuration can be _abdicated_, meaning that it won't be able to be set anymore, by calling `abdicate`.
 
 ### In-kind redemptions
 
-To guarantee exits even in the absence of assets immediately available for withdrawal, the permissionless `forceDeallocate` function allows anyone to move assets from an adapter to the vault's idle assets (meaning the vault token balance).
+Exits are guaranteed even in the absence of assets immediately available for withdrawal, and even in the absence of liquid markets.
 
 Users can redeem in-kind thanks to the `forceDeallocate` function: flashloan liquidity, supply it to an adapter's market, and withdraw the liquidity through `forceDeallocate` before repaying the flashloan.
 This reduces their position in the vault and increases their position in the underlying market.
@@ -98,20 +103,20 @@ Each fee goes to its respective recipient set by the curator.
 ### Roles
 
 - **Owner**: The owner's role is to set the curator and sentinels.
-It can also set the name and symbol of the vault.
-Only one address can have this role.
+  It can also set the name and symbol of the vault.
+  Only one address can have this role.
 
 - **Curator**: The curator's role is to configure the vault.
-They can enable and disable [adapters](#adapters) and an optional adapter registry, configure [risk limits](#caps) by setting absolute and relative caps, set the [gates](#gates), the [allocators](#allocators), the [timelocks](#timelocks), the [fees](#fees) and the fee recipients.
-All actions are timelockable except decreasing absolute and relative caps.
-Only one address can have this role.
+  They can enable and disable [adapters](#adapters) and an optional adapter registry, configure [risk limits](#caps) by setting absolute and relative caps, set the [gates](#gates), the [allocators](#allocators), the [timelocks](#timelocks), the [fees](#fees) and the fee recipients.
+  All actions are timelockable except decreasing absolute and relative caps.
+  Only one address can have this role.
 
 - **Allocator(s)**: The allocators' role is to handle the vault's allocation in and out of underlying protocols (with the enabled adapters, and within the caps set by the curator).
   They also set the [liquidity adapter](#liquidity) and [max rate](#max-rate).
-They are notably responsible for the vault's performance and liquidity.
+  They are notably responsible for the vault's performance and liquidity.
 
 - **Sentinel(s)**: The sentinel role can be used to be able to derisk quickly a vault.
-They are able to revoke pending actions, deallocate funds to idle and decrease caps.
+  They are able to revoke pending actions, deallocate funds to idle and decrease caps.
 
 ## Developers
 
