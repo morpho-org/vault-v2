@@ -45,7 +45,7 @@ Note that relative caps are "soft" because they are not checked on withdrawals, 
 The allocator is responsible for ensuring that users can withdraw their assets at any time.
 This is done by managing the available idle liquidity and an optional liquidity adapter.
 
-Additionally, users can make use of the `forceDeallocate` function to exit from liquid markets, assuming that they are willing to pay the corresponding penalty.
+Additionally, users can make use of the `forceDeallocate` function to withdraw from the vault if there are liquid markets, assuming that they are willing to pay the corresponding penalty.
 Indeed, the permissionless `forceDeallocate` function allows anyone to move assets from an adapter to the vault's idle assets (meaning the vault token balance).
 
 When users withdraw assets, the idle assets are taken in priority.
