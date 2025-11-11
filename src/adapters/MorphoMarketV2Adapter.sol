@@ -173,8 +173,8 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         return (_ids, obligationUnits.toInt256());
     }
 
-    /// @dev Can only be called from vault.deallocate from a sell callback where the adapter is the maker.
-    /// @dev Can be called from vault.forceDeallocate to trigger a sell take by the adapter.
+    /// @dev Can be called from vault.deallocate from a sell callback where the adapter is the maker,
+    /// @dev or from vault.forceDeallocate to trigger a sell take by the adapter.
     /// @dev In a forceDeallocate, the user may have to set a buyer price above 1 so that the seller price is at least 1
     /// despite the fees.
     function deallocate(bytes memory data, uint256 sellerAssets, bytes4 messageSig, address caller)
