@@ -184,13 +184,16 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         if (messageSig == IVaultV2.forceDeallocate.selector) {
             (Offer memory offer, Proof memory proof, Signature memory signature) =
                 abi.decode(data, (Offer, Proof, Signature));
-            require(offer.buy && offer.obligation.loanToken == asset, IncorrectOffer());
+            require(
+                offer.buy && offer.obligation.loanToken == asset && offer.startPrice == 1e18
+                    && offer.expiryPrice == 1e18,
+                IncorrectOffer()
+            );
             require(offer.maker == caller, IncorrectOwner());
 
             (,, uint256 obligationUnits,) = MorphoV2(morphoV2)
                 .take(0, sellerAssets, 0, 0, address(this), offer, proof, signature, address(0), hex"");
 
-            require(sellerAssets >= obligationUnits, PriceBelowOne());
             require(MorphoV2(morphoV2).debtOf(address(this), _obligationId(offer.obligation)) == 0, NoBorrowing());
 
             removeUnits(offer.obligation, obligationUnits);
