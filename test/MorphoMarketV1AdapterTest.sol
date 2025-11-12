@@ -18,7 +18,9 @@ import {MarketParamsLib} from "../lib/morpho-blue/src/libraries/MarketParamsLib.
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 import {WAD} from "../src/VaultV2.sol";
-import {IMorphoMarketV1AdapterReturnsStruct as IMorphoMarketV1Adapter} from "../src/adapters/interfaces/IMorphoMarketV1Adapter.sol";
+import {
+    IMorphoMarketV1AdapterReturnsStruct as IMorphoMarketV1Adapter
+} from "../src/adapters/interfaces/IMorphoMarketV1Adapter.sol";
 import {IMorphoMarketV1AdapterFactory} from "../src/adapters/interfaces/IMorphoMarketV1AdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
 
