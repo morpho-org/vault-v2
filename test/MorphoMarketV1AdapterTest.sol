@@ -18,7 +18,7 @@ import {MarketParamsLib} from "../lib/morpho-blue/src/libraries/MarketParamsLib.
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 import {WAD} from "../src/VaultV2.sol";
-import {IMorphoMarketV1Adapter} from "../src/adapters/interfaces/IMorphoMarketV1Adapter.sol";
+import {IMorphoMarketV1AdapterReturnsStruct as IMorphoMarketV1Adapter} from "../src/adapters/interfaces/IMorphoMarketV1Adapter.sol";
 import {IMorphoMarketV1AdapterFactory} from "../src/adapters/interfaces/IMorphoMarketV1AdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
 
@@ -75,7 +75,7 @@ contract MorphoMarketV1AdapterTest is Test {
         marketId = marketParams.id();
         parentVault = new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0));
         factory = new MorphoMarketV1AdapterFactory();
-        adapter = MorphoMarketV1Adapter(factory.createMorphoMarketV1Adapter(address(parentVault), address(morpho)));
+        adapter = IMorphoMarketV1Adapter(factory.createMorphoMarketV1Adapter(address(parentVault), address(morpho)));
 
         expectedIds = new bytes32[](3);
         expectedIds[0] = keccak256(abi.encode("this", address(adapter)));
@@ -136,13 +136,12 @@ contract MorphoMarketV1AdapterTest is Test {
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(change, int256(assets), "Incorrect change returned");
         assertEq(adapter.marketParamsListLength(), 1, "Incorrect number of market params");
-        (address _loanToken, address _collateralToken, address _oracle, address _irm, uint256 _lltv) =
-            adapter.marketParamsList(0);
-        assertEq(_loanToken, marketParams.loanToken, "Incorrect loan token");
-        assertEq(_collateralToken, marketParams.collateralToken, "Incorrect collateral token");
-        assertEq(_irm, marketParams.irm, "Incorrect irm");
-        assertEq(_oracle, marketParams.oracle, "Incorrect oracle");
-        assertEq(_lltv, marketParams.lltv, "Incorrect lltv");
+        MarketParams memory _marketParams = adapter.marketParamsList(0);
+        assertEq(_marketParams.loanToken, marketParams.loanToken, "Incorrect loan token");
+        assertEq(_marketParams.collateralToken, marketParams.collateralToken, "Incorrect collateral token");
+        assertEq(_marketParams.irm, marketParams.irm, "Incorrect irm");
+        assertEq(_marketParams.oracle, marketParams.oracle, "Incorrect oracle");
+        assertEq(_marketParams.lltv, marketParams.lltv, "Incorrect lltv");
     }
 
     function testDeallocate(uint256 initialAssets, uint256 withdrawAssets) public {
