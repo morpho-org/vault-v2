@@ -147,6 +147,13 @@ contract MorphoMarketV1AdapterTest is Test {
         assertEq(ids, expectedIds, "Incorrect ids returned");
     }
 
+    function testLoanAssetMismatchReverts() public {
+        MarketParams memory mismatchMarketParams = marketParams;
+        mismatchMarketParams.loanToken = address(new ERC20Mock(18));
+        vm.expectRevert(IMorphoMarketV1Adapter.LoanAssetMismatch.selector);
+        new MorphoMarketV1Adapter(address(parentVault), address(morpho), mismatchMarketParams);
+    }
+
     function testFactoryCreateMorphoMarketV1Adapter() public {
         address newParentVaultAddr =
             address(new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0)));
