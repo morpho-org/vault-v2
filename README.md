@@ -65,7 +65,7 @@ Also, a configuration can be _abdicated_, meaning that it won't be able to be se
 ### In-kind redemptions
 
 In-kind redemption is a mechanism that reduces the position of the user in the vault and increases their position in an underlying market.
-Exits through in-kind redemptions are guaranteed even in the absence of assets immediately available for withdrawal, and even in the absence of liquid markets.
+Exits through in-kind redemptions allow to exit the vault with the underlying position at any time, even when no underlying markets are liquid.
 Users can redeem in-kind thanks to the `forceDeallocate` function: flashloan liquidity, supply it to an adapter's market, and withdraw the liquidity through `forceDeallocate` before repaying the flashloan.
 
 A penalty for using forceDeallocate can be set per adapter, of up to 2%.
