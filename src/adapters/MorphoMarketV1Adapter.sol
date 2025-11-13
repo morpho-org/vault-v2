@@ -16,8 +16,7 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 /// supply. Following resource is relevant: https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
 /// @dev Must not be used with a Morpho Market V1 with an Irm that can re-enter the parent vault or the adapter.
 /// @dev Rounding error losses on supply/withdraw are realizable.
-/// @dev If expectedSupplyAssets reverts, realAssets will revert and the vault will
-/// not be able to accrueInterest.
+/// @dev If expectedSupplyAssets reverts, realAssets will revert and the vault will not be able to accrueInterest.
 /// @dev Shouldn't be used alongside another adapter that re-uses the adapter id (abi.encode("this",address(this))).
 /// @dev The adapter returns 0 real assets when the allocation is zero, but it doesn't mean that the adapter has zero
 /// shares on the market.
@@ -86,12 +85,9 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             supplyShares += mintedShares;
         }
 
-        uint256 oldAllocation = IVaultV2(parentVault).allocation(adapterId);
-        uint256 newAllocation = expectedSupplyAssets();
-
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        return (ids(), int256(newAllocation) - int256(oldAllocation));
+        return (ids(), int256(expectedSupplyAssets()) - int256(allocation()));
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -105,12 +101,9 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             supplyShares -= redeemedShares;
         }
 
-        uint256 oldAllocation = allocation();
-        uint256 newAllocation = expectedSupplyAssets();
-
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        return (ids(), int256(newAllocation) - int256(oldAllocation));
+        return (ids(), int256(expectedSupplyAssets()) - int256(allocation()));
     }
 
     function allocation() public view returns (uint256) {
@@ -125,12 +118,12 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         return ids_;
     }
 
-    function realAssets() external view returns (uint256) {
-        return allocation() != 0 ? expectedSupplyAssets() : 0;
-    }
-
     function marketParams() public view returns (MarketParams memory) {
         return MarketParams({loanToken: asset, collateralToken: collateralToken, oracle: oracle, irm: irm, lltv: lltv});
+    }
+
+    function realAssets() external view returns (uint256) {
+        return allocation() != 0 ? expectedSupplyAssets() : 0;
     }
 
     /* INTERNAL FUNCTIONS */
