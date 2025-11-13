@@ -5,6 +5,7 @@ pragma solidity 0.8.28;
 import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
+import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IMorphoMarketV1Adapter} from "./interfaces/IMorphoMarketV1Adapter.sol";
@@ -25,6 +26,7 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 /// has zero shares on the market.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MarketParamsLib for MarketParams;
+    using SharesMathLib for uint256;
 
     /* IMMUTABLES */
 
@@ -38,6 +40,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     address public skimRecipient;
     MarketParams[] public marketParamsList;
+    mapping(Id marketId => uint256) public marketShares;
+    mapping(Id marketId => uint256) public removalValidAt;
 
     function marketParamsListLength() external view returns (uint256) {
         return marketParamsList.length;
@@ -70,6 +74,20 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         emit Skim(token, balance);
     }
 
+    function submitRemoveMarket(MarketParams memory marketParams) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        removalValidAt[marketParams.id()] = block.timestamp + 3 days;
+        emit SubmitRemoveMarket(marketParams);
+    }
+
+    function removeMarket(MarketParams memory marketParams) external {
+        uint256 _removalValidAt = removalValidAt[marketParams.id()];
+        require(_removalValidAt != 0 && block.timestamp >= _removalValidAt, NotRemovableYet());
+        marketShares[marketParams.id()] = 0;
+        updateList(marketParams, allocation(marketParams), 0);
+        emit RemoveMarket(marketParams);
+    }
+
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the change in allocation.
     function allocate(bytes memory data, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
@@ -77,7 +95,10 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
-        if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+        if (assets > 0) {
+            (, uint256 sharesSupplied) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+            marketShares[marketParams.id()] += sharesSupplied;
+        }
 
         uint256 oldAllocation = allocation(marketParams);
         uint256 newAllocation = MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this));
@@ -98,7 +119,11 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
-        if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+        if (assets > 0) {
+            (, uint256 sharesWithdrawn) =
+                IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+            marketShares[marketParams.id()] -= sharesWithdrawn;
+        }
 
         uint256 oldAllocation = allocation(marketParams);
         uint256 newAllocation = MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this));
@@ -140,7 +165,9 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     function realAssets() external view returns (uint256) {
         uint256 _realAssets = 0;
         for (uint256 i = 0; i < marketParamsList.length; i++) {
-            _realAssets += MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParamsList[i], address(this));
+            (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
+                MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParamsList[i]);
+            _realAssets += marketShares[marketParamsList[i].id()].toAssetsDown(totalSupplyAssets, totalSupplyShares);
         }
         return _realAssets;
     }
