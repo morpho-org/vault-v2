@@ -88,7 +88,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         }
 
         uint256 oldAllocation = IVaultV2(parentVault).allocation(adapterId);
-        uint256 newAllocation = expectedSupplyAssets(marketParams());
+        uint256 newAllocation = expectedSupplyAssets();
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
@@ -107,7 +107,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         }
 
         uint256 oldAllocation = allocation();
-        uint256 newAllocation = expectedSupplyAssets(marketParams());
+        uint256 newAllocation = expectedSupplyAssets();
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
@@ -127,10 +127,10 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     }
 
     function realAssets() external view returns (uint256) {
-        return allocation() != 0 ? expectedSupplyAssets(marketParams()) : 0;
+        return allocation() != 0 ? expectedSupplyAssets() : 0;
     }
 
-    function marketParams() public pure returns (MarketParams memory) {
+    function marketParams() public view returns (MarketParams memory) {
         return MarketParams({loanToken: asset, collateralToken: collateralToken, oracle: oracle, irm: irm, lltv: lltv});
     }
 
