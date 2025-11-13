@@ -93,10 +93,6 @@ contract MorphoMarketV1AdapterTest is Test {
         assertEq(adapter.parentVault(), address(parentVault), "Incorrect parent vault set");
         assertEq(adapter.morpho(), address(morpho), "Incorrect morpho set");
         assertEq(adapter.asset(), marketParams.loanToken, "Incorrect loan token");
-        assertEq(adapter.collateralToken(), marketParams.collateralToken, "Incorrect collateral token");
-        assertEq(adapter.irm(), marketParams.irm, "Incorrect irm");
-        assertEq(adapter.oracle(), marketParams.oracle, "Incorrect oracle");
-        assertEq(adapter.lltv(), marketParams.lltv, "Incorrect lltv");
     }
 
     function testAllocateNotAuthorizedReverts(uint256 assets) public {
@@ -186,14 +182,12 @@ contract MorphoMarketV1AdapterTest is Test {
             newAdapter,
             "Adapter not tracked correctly"
         );
-        assertEq(
-            IMorphoMarketV1Adapter(newAdapter).collateralToken(),
-            marketParams.collateralToken,
-            "Incorrect collateral token"
-        );
-        assertEq(IMorphoMarketV1Adapter(newAdapter).oracle(), marketParams.oracle, "Incorrect oracle");
-        assertEq(IMorphoMarketV1Adapter(newAdapter).irm(), marketParams.irm, "Incorrect irm");
-        assertEq(IMorphoMarketV1Adapter(newAdapter).lltv(), marketParams.lltv, "Incorrect lltv");
+        MarketParams memory returnedMarketParams = IMorphoMarketV1Adapter(newAdapter).marketParams();
+        assertEq(returnedMarketParams.loanToken, address(loanToken), "Incorrect loan token");
+        assertEq(returnedMarketParams.collateralToken, marketParams.collateralToken, "Incorrect collateral token");
+        assertEq(returnedMarketParams.oracle, marketParams.oracle, "Incorrect oracle");
+        assertEq(returnedMarketParams.irm, marketParams.irm, "Incorrect irm");
+        assertEq(returnedMarketParams.lltv, marketParams.lltv, "Incorrect lltv");
         assertEq(
             IMorphoMarketV1Adapter(newAdapter).collateralTokenId(), expectedIds[1], "Incorrect collateral token id"
         );
