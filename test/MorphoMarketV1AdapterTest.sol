@@ -75,12 +75,13 @@ contract MorphoMarketV1AdapterTest is Test {
         marketId = marketParams.id();
         parentVault = new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0));
         factory = new MorphoMarketV1AdapterFactory();
-        adapter = MorphoMarketV1Adapter(factory.createMorphoMarketV1Adapter(address(parentVault), address(morpho)));
+        adapter = MorphoMarketV1Adapter(
+            factory.createMorphoMarketV1Adapter(address(parentVault), address(morpho), marketParams)
+        );
 
-        expectedIds = new bytes32[](3);
+        expectedIds = new bytes32[](2);
         expectedIds[0] = keccak256(abi.encode("this", address(adapter)));
         expectedIds[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
-        expectedIds[2] = keccak256(abi.encode("this/marketParams", address(adapter), marketParams));
     }
 
     function _boundAssets(uint256 assets) internal pure returns (uint256) {
@@ -91,6 +92,11 @@ contract MorphoMarketV1AdapterTest is Test {
         assertEq(adapter.factory(), address(factory), "Incorrect factory set");
         assertEq(adapter.parentVault(), address(parentVault), "Incorrect parent vault set");
         assertEq(adapter.morpho(), address(morpho), "Incorrect morpho set");
+        assertEq(adapter.asset(), marketParams.loanToken, "Incorrect loan token");
+        assertEq(adapter.collateralToken(), marketParams.collateralToken, "Incorrect collateral token");
+        assertEq(adapter.irm(), marketParams.irm, "Incorrect irm");
+        assertEq(adapter.oracle(), marketParams.oracle, "Incorrect oracle");
+        assertEq(adapter.lltv(), marketParams.lltv, "Incorrect lltv");
     }
 
     function testAllocateNotAuthorizedReverts(uint256 assets) public {
@@ -105,24 +111,6 @@ contract MorphoMarketV1AdapterTest is Test {
         adapter.deallocate(abi.encode(marketParams), assets, bytes4(0), address(0));
     }
 
-    function testAllocateDifferentAssetReverts(address randomAsset, uint256 assets) public {
-        vm.assume(randomAsset != marketParams.loanToken);
-        assets = _boundAssets(assets);
-        marketParams.loanToken = randomAsset;
-        vm.expectRevert(IMorphoMarketV1Adapter.LoanAssetMismatch.selector);
-        vm.prank(address(parentVault));
-        adapter.allocate(abi.encode(marketParams), assets, bytes4(0), address(0));
-    }
-
-    function testDeallocateDifferentAssetReverts(address randomAsset, uint256 assets) public {
-        vm.assume(randomAsset != marketParams.loanToken);
-        assets = _boundAssets(assets);
-        marketParams.loanToken = randomAsset;
-        vm.expectRevert(IMorphoMarketV1Adapter.LoanAssetMismatch.selector);
-        vm.prank(address(parentVault));
-        adapter.deallocate(abi.encode(marketParams), assets, bytes4(0), address(0));
-    }
-
     function testAllocate(uint256 assets) public {
         assets = _boundAssets(assets);
         deal(address(loanToken), address(adapter), assets);
@@ -130,19 +118,11 @@ contract MorphoMarketV1AdapterTest is Test {
         (bytes32[] memory ids, int256 change) =
             parentVault.allocateMocked(address(adapter), abi.encode(marketParams), assets);
 
-        assertEq(adapter.allocation(marketParams), assets, "Incorrect allocation");
+        assertEq(adapter.allocation(), assets, "Incorrect allocation");
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), assets, "Incorrect assets in Morpho");
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(change, int256(assets), "Incorrect change returned");
-        assertEq(adapter.marketParamsListLength(), 1, "Incorrect number of market params");
-        (address _loanToken, address _collateralToken, address _oracle, address _irm, uint256 _lltv) =
-            adapter.marketParamsList(0);
-        assertEq(_loanToken, marketParams.loanToken, "Incorrect loan token");
-        assertEq(_collateralToken, marketParams.collateralToken, "Incorrect collateral token");
-        assertEq(_irm, marketParams.irm, "Incorrect irm");
-        assertEq(_oracle, marketParams.oracle, "Incorrect oracle");
-        assertEq(_lltv, marketParams.lltv, "Incorrect lltv");
     }
 
     function testDeallocate(uint256 initialAssets, uint256 withdrawAssets) public {
@@ -159,7 +139,7 @@ contract MorphoMarketV1AdapterTest is Test {
             parentVault.deallocateMocked(address(adapter), abi.encode(marketParams), withdrawAssets);
 
         assertEq(change, -int256(withdrawAssets), "Incorrect change returned");
-        assertEq(adapter.allocation(marketParams), initialAssets - withdrawAssets, "Incorrect allocation");
+        assertEq(adapter.allocation(), initialAssets - withdrawAssets, "Incorrect allocation");
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
         assertEq(loanToken.balanceOf(address(adapter)), withdrawAssets, "Adapter did not receive withdrawn tokens");
@@ -167,26 +147,14 @@ contract MorphoMarketV1AdapterTest is Test {
         assertEq(ids, expectedIds, "Incorrect ids returned");
     }
 
-    function testDeallocateAll(uint256 initialAssets) public {
-        initialAssets = _boundAssets(initialAssets);
-
-        deal(address(loanToken), address(adapter), initialAssets);
-        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), initialAssets);
-
-        uint256 beforeSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
-        assertEq(beforeSupply, initialAssets, "Precondition failed: supply not set");
-
-        parentVault.deallocateMocked(address(adapter), abi.encode(marketParams), initialAssets);
-
-        assertEq(adapter.marketParamsListLength(), 0, "Incorrect number of market params");
-    }
-
     function testFactoryCreateMorphoMarketV1Adapter() public {
         address newParentVaultAddr =
             address(new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0)));
 
         bytes32 initCodeHash = keccak256(
-            abi.encodePacked(type(MorphoMarketV1Adapter).creationCode, abi.encode(newParentVaultAddr, morpho))
+            abi.encodePacked(
+                type(MorphoMarketV1Adapter).creationCode, abi.encode(newParentVaultAddr, morpho, marketParams)
+            )
         );
         address expectedNewAdapter =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
@@ -195,9 +163,10 @@ contract MorphoMarketV1AdapterTest is Test {
             newParentVaultAddr, address(morpho), expectedNewAdapter
         );
 
-        address newAdapter = factory.createMorphoMarketV1Adapter(newParentVaultAddr, address(morpho));
+        address newAdapter = factory.createMorphoMarketV1Adapter(newParentVaultAddr, address(morpho), marketParams);
 
         expectedIds[0] = keccak256(abi.encode("this", address(newAdapter)));
+        expectedIds[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
 
         assertTrue(newAdapter != address(0), "Adapter not created");
         assertEq(IMorphoMarketV1Adapter(newAdapter).factory(), address(factory), "Incorrect factory");
@@ -209,6 +178,17 @@ contract MorphoMarketV1AdapterTest is Test {
             factory.morphoMarketV1Adapter(newParentVaultAddr, address(morpho)),
             newAdapter,
             "Adapter not tracked correctly"
+        );
+        assertEq(
+            IMorphoMarketV1Adapter(newAdapter).collateralToken(),
+            marketParams.collateralToken,
+            "Incorrect collateral token"
+        );
+        assertEq(IMorphoMarketV1Adapter(newAdapter).oracle(), marketParams.oracle, "Incorrect oracle");
+        assertEq(IMorphoMarketV1Adapter(newAdapter).irm(), marketParams.irm, "Incorrect irm");
+        assertEq(IMorphoMarketV1Adapter(newAdapter).lltv(), marketParams.lltv, "Incorrect lltv");
+        assertEq(
+            IMorphoMarketV1Adapter(newAdapter).collateralTokenId(), expectedIds[1], "Incorrect collateral token id"
         );
         assertTrue(factory.isMorphoMarketV1Adapter(newAdapter), "Adapter not tracked correctly");
     }
@@ -290,7 +270,7 @@ contract MorphoMarketV1AdapterTest is Test {
     }
 
     function testIds() public view {
-        assertEq(adapter.ids(marketParams), expectedIds);
+        assertEq(adapter.ids(), expectedIds);
     }
 
     function testDonationResistance(uint256 deposit, uint256 donation) public {

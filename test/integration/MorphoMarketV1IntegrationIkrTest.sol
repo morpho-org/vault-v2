@@ -29,7 +29,7 @@ contract MorphoMarketV1IntegrationIkrTest is MorphoMarketV1IntegrationTest {
         vault.deposit(assets, address(this));
 
         vm.prank(allocator);
-        vault.allocate(address(adapter), abi.encode(marketParams1), assets);
+        vault.allocate(address(adapter), abi.encode(marketParams), assets);
 
         assertEq(underlyingToken.balanceOf(address(morpho)), assets);
 
@@ -37,8 +37,8 @@ contract MorphoMarketV1IntegrationIkrTest is MorphoMarketV1IntegrationTest {
         deal(address(collateralToken), borrower, type(uint256).max);
         vm.startPrank(borrower);
         collateralToken.approve(address(morpho), type(uint256).max);
-        morpho.supplyCollateral(marketParams1, 2 * assets, borrower, hex"");
-        morpho.borrow(marketParams1, assets, 0, borrower, borrower);
+        morpho.supplyCollateral(marketParams, 2 * assets, borrower, hex"");
+        morpho.borrow(marketParams, assets, 0, borrower, borrower);
         vm.stopPrank();
         assertEq(underlyingToken.balanceOf(address(morpho)), 0);
 
@@ -64,7 +64,7 @@ contract MorphoMarketV1IntegrationIkrTest is MorphoMarketV1IntegrationTest {
 
         // Normal withdraw fails
         vm.prank(allocator);
-        vault.setLiquidityAdapterAndData(address(adapter), abi.encode(marketParams1));
+        vault.setLiquidityAdapterAndData(address(adapter), abi.encode(marketParams));
 
         vm.expectRevert();
         vault.withdraw(assets, address(this), address(this));
@@ -72,9 +72,9 @@ contract MorphoMarketV1IntegrationIkrTest is MorphoMarketV1IntegrationTest {
         // Simulate a flashloan.
         deal(address(underlyingToken), address(this), assets);
         underlyingToken.approve(address(morpho), type(uint256).max);
-        morpho.supply(marketParams1, assets, 0, address(this), hex"");
-        vault.forceDeallocate(address(adapter), abi.encode(marketParams1), assets, address(this));
-        assertEq(vault.allocation(keccak256(expectedIdData1[2])), 0, "allocation(2)");
+        morpho.supply(marketParams, assets, 0, address(this), hex"");
+        vault.forceDeallocate(address(adapter), abi.encode(marketParams), assets, address(this));
+        assertEq(vault.allocation(keccak256(expectedIdData[0])), 0, "allocation(2)");
 
         vault.withdraw(assets - penaltyAssets, address(this), address(this));
 
@@ -86,7 +86,7 @@ contract MorphoMarketV1IntegrationIkrTest is MorphoMarketV1IntegrationTest {
         uint256 assetsLeftInVault = vault.previewRedeem(vault.balanceOf(address(this)));
         assertApproxEqAbs(assetsLeftInVault, 0, 1, "assetsLeftInVault");
         // Equivalent position in the market.
-        uint256 expectedAssets = morpho.expectedSupplyAssets(marketParams1, address(this));
+        uint256 expectedAssets = morpho.expectedSupplyAssets(marketParams, address(this));
         assertEq(expectedAssets, assets, "expectedAssets");
     }
 }

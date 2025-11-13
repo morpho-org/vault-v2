@@ -23,11 +23,15 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function asset() external view returns (address);
     function morpho() external view returns (address);
     function adapterId() external view returns (bytes32);
+    function collateralToken() external view returns (address);
+    function collateralTokenId() external view returns (bytes32);
+    function oracle() external view returns (address);
+    function irm() external view returns (address);
+    function lltv() external view returns (uint256);
     function skimRecipient() external view returns (address);
-    function marketParamsList(uint256 index) external view returns (address, address, address, address, uint256);
-    function marketParamsListLength() external view returns (uint256);
-    function allocation(MarketParams memory marketParams) external view returns (uint256);
-    function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
+    function supplyShares() external view returns (uint128);
+    function allocation() external view returns (uint256);
+    function ids() external view returns (bytes32[] memory);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
 }

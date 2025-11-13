@@ -15,17 +15,17 @@ contract MorphoMarketV1IntegrationInterestTest is MorphoMarketV1IntegrationTest 
 
         // setup.
         vm.prank(allocator);
-        vault.setLiquidityAdapterAndData(address(adapter), abi.encode(marketParams1));
+        vault.setLiquidityAdapterAndData(address(adapter), abi.encode(marketParams));
         vault.deposit(assets, address(this));
 
         // accrue some interest on the underlying market.
         deal(address(collateralToken), address(this), type(uint256).max);
         collateralToken.approve(address(morpho), type(uint256).max);
-        morpho.supplyCollateral(marketParams1, assets * 2, address(this), hex"");
-        morpho.borrow(marketParams1, assets, 0, address(this), address(this));
+        morpho.supplyCollateral(marketParams, assets * 2, address(this), hex"");
+        morpho.borrow(marketParams, assets, 0, address(this), address(this));
         skip(elapsed);
 
-        uint256 expectedSupplyAssets = morpho.expectedSupplyAssets(marketParams1, address(adapter));
+        uint256 expectedSupplyAssets = morpho.expectedSupplyAssets(marketParams, address(adapter));
         uint256 maxTotalAssets = assets + (assets * elapsed).mulDivDown(MAX_MAX_RATE, WAD);
         assertEq(vault.totalAssets(), MathLib.min(expectedSupplyAssets, maxTotalAssets), "vault totalAssets");
     }
