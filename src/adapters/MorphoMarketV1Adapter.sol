@@ -20,7 +20,8 @@ import {console} from "forge-std/console.sol";
 /// @dev If expectedSupplyAssets reverts, realAssets will revert and the vault will
 /// not be able to accrueInterest.
 /// @dev Shouldn't be used alongside another adapter that re-uses the last id (abi.encode("this",address(this))).
-/// @dev The adapter returns 0 real assets when the allocation is zero, but it doesn't mean that the adapter has zero shares on the market.
+/// @dev The adapter returns 0 real assets when the allocation is zero, but it doesn't mean that the adapter has zero
+/// shares on the market.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MarketParamsLib for MarketParams;
     using SharesMathLib for uint256;
@@ -100,7 +101,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
 
         if (assets > 0) {
-            (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams(), assets, 0, address(this), address(this));
+            (, uint256 redeemedShares) =
+                IMorpho(morpho).withdraw(marketParams(), assets, 0, address(this), address(this));
             supplyShares -= redeemedShares;
         }
 
@@ -140,5 +142,4 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
         return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }
-
 }
