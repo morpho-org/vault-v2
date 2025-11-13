@@ -41,7 +41,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     /* STORAGE */
 
     address public skimRecipient;
-    uint128 public supplyShares;
+    uint256 public supplyShares;
 
     /* FUNCTIONS */
 
@@ -86,7 +86,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
         if (assets > 0) {
             (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-            supplyShares += uint128(mintedShares);
+            supplyShares += mintedShares;
         }
 
         uint256 oldAllocation = IVaultV2(parentVault).allocation(adapterId);
@@ -106,7 +106,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
         if (assets > 0) {
             (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-            supplyShares -= uint128(redeemedShares);
+            supplyShares -= redeemedShares;
         }
 
         uint256 oldAllocation = allocation();
@@ -141,6 +141,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
             MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
 
-        return uint256(supplyShares).toAssetsDown(totalSupplyAssets, totalSupplyShares);
+        return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }
 }

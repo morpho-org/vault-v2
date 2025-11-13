@@ -29,7 +29,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function irm() external view returns (address);
     function lltv() external view returns (uint256);
     function skimRecipient() external view returns (address);
-    function supplyShares() external view returns (uint128);
+    function supplyShares() external view returns (uint256);
     function allocation() external view returns (uint256);
     function ids() external view returns (bytes32[] memory);
     function setSkimRecipient(address newSkimRecipient) external;
