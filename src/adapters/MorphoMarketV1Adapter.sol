@@ -10,7 +10,6 @@ import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IMorphoMarketV1Adapter} from "./interfaces/IMorphoMarketV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
-import {console} from "forge-std/console.sol";
 
 /// @dev Morpho Market V1 is also known as Morpho Blue.
 /// @dev This adapter must be used with Morpho Market V1 that are protected against inflation attacks with an initial
@@ -19,7 +18,7 @@ import {console} from "forge-std/console.sol";
 /// @dev Rounding error losses on supply/withdraw are realizable.
 /// @dev If expectedSupplyAssets reverts, realAssets will revert and the vault will
 /// not be able to accrueInterest.
-/// @dev Shouldn't be used alongside another adapter that re-uses the last id (abi.encode("this",address(this))).
+/// @dev Shouldn't be used alongside another adapter that re-uses the adapter id (abi.encode("this",address(this))).
 /// @dev The adapter returns 0 real assets when the allocation is zero, but it doesn't mean that the adapter has zero
 /// shares on the market.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
