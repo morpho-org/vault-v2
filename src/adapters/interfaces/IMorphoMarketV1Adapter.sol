@@ -12,8 +12,10 @@ interface IMorphoMarketV1Adapter is IAdapter {
     event Skim(address indexed token, uint256 assets);
     event SubmitBurnShares(MarketParams indexed marketParams, uint256 executableAt);
     event RevokeBurnShares(MarketParams indexed marketParams);
-    event BurnShares(MarketParams indexed marketParams);
-
+    event BurnShares(MarketParams indexed marketParams, uint256 shares);
+    event Allocate(MarketParams indexed marketParams, uint256 shares);
+    event Deallocate(MarketParams indexed marketParams, uint256 shares);
+    event UpdateList(MarketParams[] marketParamsList);
     /* ERRORS */
 
     error LoanAssetMismatch();

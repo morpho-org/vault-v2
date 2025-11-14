@@ -94,8 +94,9 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(burnSharesExecutableAt[marketParams.id()] != 0, NotTimelocked());
         require(block.timestamp >= burnSharesExecutableAt[marketParams.id()], TimelockNotExpired());
         burnSharesExecutableAt[marketParams.id()] = 0;
+        uint256 shares = marketShares[marketParams.id()];
         marketShares[marketParams.id()] = 0;
-        emit BurnShares(marketParams);
+        emit BurnShares(marketParams, shares);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -108,6 +109,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         if (assets > 0) {
             (, uint256 shares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
             marketShares[marketParams.id()] += shares;
+            emit Allocate(marketParams, shares);
         }
 
         uint256 _oldAllocation = oldAllocation(marketParams);
@@ -132,6 +134,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         if (assets > 0) {
             (, uint256 shares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
             marketShares[marketParams.id()] -= shares;
+            emit Deallocate(marketParams, shares);
         }
 
         uint256 _oldAllocation = oldAllocation(marketParams);
@@ -150,11 +153,13 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
                 if (Id.unwrap(marketParamsList[i].id()) == Id.unwrap(marketId)) {
                     marketParamsList[i] = marketParamsList[marketParamsList.length - 1];
                     marketParamsList.pop();
+                    emit UpdateList(marketParamsList);
                     break;
                 }
             }
         } else if (_oldAllocation == 0 && _newAllocation > 0) {
             marketParamsList.push(marketParams);
+            emit UpdateList(marketParamsList);
         }
     }
 
