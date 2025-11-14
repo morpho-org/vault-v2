@@ -21,7 +21,7 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
         vault.deposit(initialTotal, address(this));
 
         vm.prank(allocator);
-        vault.allocate(address(adapter), abi.encode(marketParams), initialInMarket);
+        vault.allocate(address(adapter), hex"", initialInMarket);
 
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle);
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
@@ -34,7 +34,7 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
         assets = bound(assets, 0, initialInMarket);
 
         vm.prank(allocator);
-        vault.deallocate(address(adapter), abi.encode(marketParams), assets);
+        vault.deallocate(address(adapter), hex"", assets);
 
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle + assets);
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
@@ -48,7 +48,7 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
 
         vm.prank(allocator);
         vm.expectRevert();
-        vault.deallocate(address(adapter), abi.encode(marketParams), assets);
+        vault.deallocate(address(adapter), hex"", assets);
     }
 
     function testDeallocateNoLiquidity(uint256 assets) public {
@@ -67,14 +67,14 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
 
         vm.prank(allocator);
         vm.expectRevert();
-        vault.deallocate(address(adapter), abi.encode(marketParams), assets);
+        vault.deallocate(address(adapter), hex"", assets);
     }
 
     function testAllocateLessThanIdleToMarket1(uint256 assets) public {
         assets = bound(assets, 0, initialInIdle);
 
         vm.prank(allocator);
-        vault.allocate(address(adapter), abi.encode(marketParams), assets);
+        vault.allocate(address(adapter), hex"", assets);
 
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle - assets);
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
@@ -88,6 +88,6 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
 
         vm.prank(allocator);
         vm.expectRevert(ErrorsLib.TransferReverted.selector);
-        vault.allocate(address(adapter), abi.encode(marketParams), assets);
+        vault.allocate(address(adapter), hex"", assets);
     }
 }

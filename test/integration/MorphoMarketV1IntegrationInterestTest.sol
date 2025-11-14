@@ -15,7 +15,7 @@ contract MorphoMarketV1IntegrationInterestTest is MorphoMarketV1IntegrationTest 
 
         // setup.
         vm.prank(allocator);
-        vault.setLiquidityAdapterAndData(address(adapter), abi.encode(marketParams));
+        vault.setLiquidityAdapterAndData(address(adapter), hex"");
         vault.deposit(assets, address(this));
 
         // accrue some interest on the underlying market.

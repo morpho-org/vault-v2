@@ -22,7 +22,7 @@ contract MorphoMarketV1IntegrationWithdrawTest is MorphoMarketV1IntegrationTest 
         vault.deposit(initialTotal, address(this));
 
         vm.startPrank(allocator);
-        vault.allocate(address(adapter), abi.encode(marketParams), initialInMarket);
+        vault.allocate(address(adapter), hex"", initialInMarket);
         vm.stopPrank();
 
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle);
@@ -54,7 +54,7 @@ contract MorphoMarketV1IntegrationWithdrawTest is MorphoMarketV1IntegrationTest 
     function testWithdrawThanksToLiquidityAdapter(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialInIdle + initialInMarket);
         vm.prank(allocator);
-        vault.setLiquidityAdapterAndData(address(adapter), abi.encode(marketParams));
+        vault.setLiquidityAdapterAndData(address(adapter), hex"");
 
         vault.withdraw(assets, receiver, address(this));
 
@@ -69,7 +69,7 @@ contract MorphoMarketV1IntegrationWithdrawTest is MorphoMarketV1IntegrationTest 
     function testWithdrawTooMuchEvenWithLiquidityAdapter(uint256 assets) public {
         assets = bound(assets, initialInIdle + initialInMarket + 1, MAX_TEST_ASSETS);
         vm.prank(allocator);
-        vault.setLiquidityAdapterAndData(address(adapter), abi.encode(marketParams));
+        vault.setLiquidityAdapterAndData(address(adapter), hex"");
 
         vm.expectRevert();
         vault.withdraw(assets, receiver, address(this));
@@ -78,7 +78,7 @@ contract MorphoMarketV1IntegrationWithdrawTest is MorphoMarketV1IntegrationTest 
     function testWithdrawLiquidityAdapterNoLiquidity(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialTotal);
         vm.prank(allocator);
-        vault.setLiquidityAdapterAndData(address(adapter), abi.encode(marketParams));
+        vault.setLiquidityAdapterAndData(address(adapter), hex"");
 
         // Remove liquidity by borrowing.
         deal(address(collateralToken), borrower, type(uint256).max);

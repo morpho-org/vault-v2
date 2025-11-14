@@ -8,12 +8,20 @@ interface IMorphoMarketV1AdapterFactory {
     /* EVENTS */
 
     event CreateMorphoMarketV1Adapter(
-        address indexed parentVault, address indexed morpho, address indexed morphoMarketV1Adapter, MarketParams marketParams
+        address indexed parentVault,
+        address indexed morpho,
+        MarketParams marketParams,
+        address indexed morphoMarketV1Adapter
     );
 
     /* FUNCTIONS */
 
-    function morphoMarketV1Adapter(address parentVault, address morpho, Id marketParamsId) external view returns (address);
+    function morphoMarketV1Adapter(address parentVault, address morpho, Id marketParamsId)
+        external
+        view
+        returns (address);
     function isMorphoMarketV1Adapter(address account) external view returns (bool);
-    function createMorphoMarketV1Adapter(address parentVault, address morpho, MarketParams memory marketParams) external returns (address morphoMarketV1Adapter);
+    function createMorphoMarketV1Adapter(address parentVault, address morpho, MarketParams memory marketParams)
+        external
+        returns (address morphoMarketV1Adapter);
 }

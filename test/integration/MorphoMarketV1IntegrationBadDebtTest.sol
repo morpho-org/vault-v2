@@ -20,7 +20,7 @@ contract MorphoMarketV1IntegrationBadDebtTest is MorphoMarketV1IntegrationTest {
         vault.deposit(INITIAL_DEPOSIT, address(this));
 
         vm.startPrank(allocator);
-        vault.allocate(address(adapter), abi.encode(marketParams), INITIAL_DEPOSIT);
+        vault.allocate(address(adapter), hex"", INITIAL_DEPOSIT);
         vm.stopPrank();
 
         assertEq(underlyingToken.balanceOf(address(vault)), 0);

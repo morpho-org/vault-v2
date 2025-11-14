@@ -11,7 +11,8 @@ contract MorphoMarketV1AdapterFactory is IMorphoMarketV1AdapterFactory {
     using MarketParamsLib for MarketParams;
     /* STORAGE */
 
-    mapping(address parentVault => mapping(address morpho => mapping(Id marketParamsId => address morphoMarketV1Adapter))) public morphoMarketV1Adapter;
+    mapping(address parentVault => mapping(address morpho => mapping(Id marketParamsId => address))) public
+        morphoMarketV1Adapter;
     mapping(address account => bool) public isMorphoMarketV1Adapter;
 
     /* FUNCTIONS */
@@ -24,7 +25,7 @@ contract MorphoMarketV1AdapterFactory is IMorphoMarketV1AdapterFactory {
             address(new MorphoMarketV1Adapter{salt: bytes32(0)}(parentVault, morpho, marketParams));
         morphoMarketV1Adapter[parentVault][morpho][marketParams.id()] = _morphoMarketV1Adapter;
         isMorphoMarketV1Adapter[_morphoMarketV1Adapter] = true;
-        emit CreateMorphoMarketV1Adapter(parentVault, morpho, _morphoMarketV1Adapter, marketParams);
+        emit CreateMorphoMarketV1Adapter(parentVault, morpho, marketParams, _morphoMarketV1Adapter);
         return _morphoMarketV1Adapter;
     }
 }
