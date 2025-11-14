@@ -44,4 +44,8 @@ contract VaultV2Mock {
         }
         return (ids, change);
     }
+
+    function absoluteCap(bytes32) external pure returns (uint256) {
+        return type(uint256).max;
+    }
 }

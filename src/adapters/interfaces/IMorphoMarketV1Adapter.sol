@@ -5,6 +5,12 @@ pragma solidity >=0.5.0;
 import {IAdapter} from "../../interfaces/IAdapter.sol";
 import {Id, MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
+struct PositionInMarket {
+    uint128 shares;
+    uint128 lastAssets;
+    uint256 lastCap;
+}
+
 interface IMorphoMarketV1Adapter is IAdapter {
     /* EVENTS */
 
