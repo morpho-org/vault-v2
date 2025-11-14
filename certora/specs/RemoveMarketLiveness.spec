@@ -48,6 +48,8 @@ rule canRemoveMarket(env e, bytes data) {
     // Could also check that the deallocate call doesn't revert.
     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
+    require Morpho.supplyShares(marketId, MorphoMarketV1Adapter) == 0, "see deallocatingExpectedSupplyAssetsRemovesAllShares";
+
     uint256 i;
     // Is this needed ?
     require i < MorphoMarketV1Adapter.marketParamsListLength();
@@ -64,4 +66,15 @@ rule canRemoveMarket(env e, bytes data) {
         irm != marketParams.irm ||
         lltv != marketParams.lltv
     );
+}
+
+rule deallocatingExpectedSupplyAssetsRemovesAllShares(env e, bytes data) {
+    Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
+    require Morpho.feeRecipient != MorphoMarketV1Adapter, "sane assumption to simplify the amount of asset to remove";
+    uint256 assets = Utils.expectedSupplyAssets(e, Morpho, marketParams, MorphoMarketV1Adapter);
+
+    // Could also check that the deallocate call doesn't revert.
+    deallocate(e, MorphoMarketV1Adapter, data, assets);
+
+    assert Morpho.supplyShares(marketId, MorphoMarketV1Adapter) == 0;
 }
