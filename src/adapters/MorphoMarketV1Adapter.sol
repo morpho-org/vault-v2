@@ -48,8 +48,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         factory = msg.sender;
         parentVault = _parentVault;
         morpho = _morpho;
-        loanToken = IVaultV2(_parentVault).asset();
-        require(_marketParams.loanToken == loanToken, LoanAssetMismatch());
+        require(_marketParams.loanToken == IVaultV2(_parentVault).asset(), AssetMismatch());
+        loanToken = _marketParams.loanToken;
 
         collateralToken = _marketParams.collateralToken;
         oracle = _marketParams.oracle;
