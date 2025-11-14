@@ -33,6 +33,7 @@ function summarySupplyShares(Morpho.Id id, address user) returns uint256 {
 
 rule canRemoveMarket(env e, bytes data) {
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
+    require Morpho.feeRecipient != MorphoMarketV1Adapter, "sane assumption to simplify the amount of asset to remove";
     uint256 assets = Utils.expectedSupplyAssets(e, Morpho, marketParams, MorphoMarketV1Adapter);
 
     uint256 marketParamsListLength = MorphoMarketV1Adapter.marketParamsListLength();
