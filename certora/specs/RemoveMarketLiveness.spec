@@ -2,7 +2,6 @@
 // Copyright (c) 2025 Morpho Association
 
 using MorphoMarketV1Adapter as MorphoMarketV1Adapter;
-using Util as Util;
 using MorphoHarness as Morpho;
 using Utils as Utils;
 
@@ -15,7 +14,6 @@ methods {
     function MorphoMarketV1Adapter.marketParamsListLength() external returns (uint256) envfree;
     function MorphoMarketV1Adapter.marketParamsList(uint256) external returns (address, address, address, address, uint256) envfree;
     function Utils.decodeMarketParams(bytes data) external returns (Morpho.MarketParams memory) envfree;
-    function Util.libId(Morpho.MarketParams) external returns (Morpho.Id) envfree;
 
     function _.deallocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
 
@@ -50,7 +48,7 @@ rule canRemoveMarket(env e, bytes data) {
     // Could also check that the deallocate call doesn't revert.
     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
-    assert Morpho.supplyShares(Util.libId(marketParams), MorphoMarketV1Adapter) == 0;
+    assert Utils.expectedSupplyAssets(e, Morpho, marketParams, MorphoMarketV1Adapter) == 0;
 
     uint256 i;
     // Is this needed ?
