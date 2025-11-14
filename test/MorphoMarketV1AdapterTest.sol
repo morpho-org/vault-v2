@@ -125,10 +125,9 @@ contract MorphoMarketV1AdapterTest is Test {
 
     function testAllocate(uint256 assets) public {
         assets = _boundAssets(assets);
-        deal(address(loanToken), address(adapter), assets);
+        deal(address(loanToken), address(parentVault), assets);
 
-        (bytes32[] memory ids, int256 change) =
-            parentVault.allocateMocked(address(adapter), abi.encode(marketParams), assets);
+        (bytes32[] memory ids, int256 change) = parentVault.allocate(address(adapter), abi.encode(marketParams), assets);
 
         assertEq(adapter.allocation(marketParams), assets, "Incorrect allocation");
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), assets, "Incorrect assets in Morpho");
@@ -149,20 +148,20 @@ contract MorphoMarketV1AdapterTest is Test {
         initialAssets = _boundAssets(initialAssets);
         withdrawAssets = bound(withdrawAssets, 1, initialAssets);
 
-        deal(address(loanToken), address(adapter), initialAssets);
-        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), initialAssets);
+        deal(address(loanToken), address(parentVault), initialAssets);
+        parentVault.allocate(address(adapter), abi.encode(marketParams), initialAssets);
 
         uint256 beforeSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(beforeSupply, initialAssets, "Precondition failed: supply not set");
 
         (bytes32[] memory ids, int256 change) =
-            parentVault.deallocateMocked(address(adapter), abi.encode(marketParams), withdrawAssets);
+            parentVault.deallocate(address(adapter), abi.encode(marketParams), withdrawAssets);
 
         assertEq(change, -int256(withdrawAssets), "Incorrect change returned");
         assertEq(adapter.allocation(marketParams), initialAssets - withdrawAssets, "Incorrect allocation");
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
-        assertEq(loanToken.balanceOf(address(adapter)), withdrawAssets, "Adapter did not receive withdrawn tokens");
+        assertEq(loanToken.balanceOf(address(parentVault)), withdrawAssets, "Vault did not receive withdrawn tokens");
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
         assertEq(ids, expectedIds, "Incorrect ids returned");
     }
@@ -170,13 +169,13 @@ contract MorphoMarketV1AdapterTest is Test {
     function testDeallocateAll(uint256 initialAssets) public {
         initialAssets = _boundAssets(initialAssets);
 
-        deal(address(loanToken), address(adapter), initialAssets);
-        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), initialAssets);
+        deal(address(loanToken), address(parentVault), initialAssets);
+        parentVault.allocate(address(adapter), abi.encode(marketParams), initialAssets);
 
         uint256 beforeSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(beforeSupply, initialAssets, "Precondition failed: supply not set");
 
-        parentVault.deallocateMocked(address(adapter), abi.encode(marketParams), initialAssets);
+        parentVault.deallocate(address(adapter), abi.encode(marketParams), initialAssets);
 
         assertEq(adapter.marketParamsListLength(), 0, "Incorrect number of market params");
     }
@@ -302,8 +301,8 @@ contract MorphoMarketV1AdapterTest is Test {
         morpho.createMarket(otherMarketParams);
 
         // Deposit some assets
-        deal(address(loanToken), address(adapter), deposit * 2);
-        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
+        deal(address(loanToken), address(parentVault), deposit * 2);
+        parentVault.allocate(address(adapter), abi.encode(marketParams), deposit);
 
         uint256 realAssetsBefore = adapter.realAssets();
         assertEq(realAssetsBefore, deposit, "realAssets not set correctly");
@@ -324,8 +323,8 @@ contract MorphoMarketV1AdapterTest is Test {
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
         loss = bound(loss, 1, deposit);
 
-        deal(address(loanToken), address(adapter), deposit);
-        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
+        deal(address(loanToken), address(parentVault), deposit);
+        parentVault.allocate(address(adapter), abi.encode(marketParams), deposit);
         _overrideMarketTotalSupplyAssets(-int256(loss));
 
         assertEq(adapter.realAssets(), deposit - loss, "realAssets");
@@ -335,8 +334,8 @@ contract MorphoMarketV1AdapterTest is Test {
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
         interest = bound(interest, 1, deposit);
 
-        deal(address(loanToken), address(adapter), deposit);
-        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), deposit);
+        deal(address(loanToken), address(parentVault), deposit);
+        parentVault.allocate(address(adapter), abi.encode(marketParams), deposit);
         _overrideMarketTotalSupplyAssets(int256(interest));
 
         // approx because of the virtual shares.
