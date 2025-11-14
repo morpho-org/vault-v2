@@ -5,7 +5,9 @@ pragma solidity >=0.5.0;
 import {IAdapter} from "../../interfaces/IAdapter.sol";
 import {Id, MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
-interface IMorphoMarketV1Adapter is IAdapter {
+/// @dev This interface is used for factorizing IMorphoMarketV1AdapterStaticTyping and IMorphoMarketV1Adapter.
+/// @dev Consider using the IMorphoMarketV1Adapter interface instead of this one.
+interface IMorphoMarketV1AdapterBase is IAdapter {
     /* EVENTS */
 
     event SetSkimRecipient(address indexed newSkimRecipient);
@@ -24,10 +26,21 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function morpho() external view returns (address);
     function adapterId() external view returns (bytes32);
     function skimRecipient() external view returns (address);
-    function marketParamsList(uint256 index) external view returns (address, address, address, address, uint256);
     function marketParamsListLength() external view returns (uint256);
     function allocation(MarketParams memory marketParams) external view returns (uint256);
     function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
+}
+
+/// @dev This interface is inherited by MorphoMarketV1Adapter so that function signatures are checked by the compiler.
+/// @dev Consider using the IMorphoMarketV1Adapter interface instead of this one.
+interface IMorphoMarketV1AdapterStaticTyping is IMorphoMarketV1AdapterBase {
+    function marketParamsList(uint256 index) external view returns (address, address, address, address, uint256);
+}
+
+/// @dev Use this interface for MorphoMarketV1Adapter to have access to all the functions with the appropriate function
+/// signatures.
+interface IMorphoMarketV1Adapter is IMorphoMarketV1AdapterBase {
+    function marketParamsList(uint256 index) external view returns (address, address, address, address, uint256);
 }
