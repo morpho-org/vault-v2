@@ -28,10 +28,10 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     address public immutable factory;
     address public immutable parentVault;
-    address public immutable asset;
     address public immutable morpho;
     bytes32 public immutable adapterId;
     bytes32 public immutable collateralTokenId;
+    address immutable loanToken;
     address immutable collateralToken;
     address immutable oracle;
     address immutable irm;
@@ -48,8 +48,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         factory = msg.sender;
         parentVault = _parentVault;
         morpho = _morpho;
-        asset = IVaultV2(_parentVault).asset();
-        require(_marketParams.loanToken == asset, LoanAssetMismatch());
+        loanToken = IVaultV2(_parentVault).asset();
+        require(_marketParams.loanToken == loanToken, LoanAssetMismatch());
 
         collateralToken = _marketParams.collateralToken;
         oracle = _marketParams.oracle;
@@ -58,8 +58,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
         adapterId = keccak256(abi.encode("this", address(this)));
         collateralTokenId = keccak256(abi.encode("collateralToken", collateralToken));
-        SafeERC20Lib.safeApprove(asset, _morpho, type(uint256).max);
-        SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
+        SafeERC20Lib.safeApprove(loanToken, _morpho, type(uint256).max);
+        SafeERC20Lib.safeApprove(loanToken, _parentVault, type(uint256).max);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -126,7 +126,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     }
 
     function marketParams() public view returns (MarketParams memory) {
-        return MarketParams({loanToken: asset, collateralToken: collateralToken, oracle: oracle, irm: irm, lltv: lltv});
+        return
+            MarketParams({loanToken: loanToken, collateralToken: collateralToken, oracle: oracle, irm: irm, lltv: lltv});
     }
 
     function realAssets() external view returns (uint256) {

@@ -92,7 +92,12 @@ contract MorphoMarketV1AdapterTest is Test {
         assertEq(adapter.factory(), address(factory), "Incorrect factory set");
         assertEq(adapter.parentVault(), address(parentVault), "Incorrect parent vault set");
         assertEq(adapter.morpho(), address(morpho), "Incorrect morpho set");
-        assertEq(adapter.asset(), marketParams.loanToken, "Incorrect loan token");
+        MarketParams memory returnedMarketParams = adapter.marketParams();
+        assertEq(returnedMarketParams.loanToken, marketParams.loanToken, "Incorrect loan token");
+        assertEq(returnedMarketParams.collateralToken, marketParams.collateralToken, "Incorrect collateral token");
+        assertEq(returnedMarketParams.oracle, marketParams.oracle, "Incorrect oracle");
+        assertEq(returnedMarketParams.irm, marketParams.irm, "Incorrect irm");
+        assertEq(returnedMarketParams.lltv, marketParams.lltv, "Incorrect lltv");
     }
 
     function testAllocateNotAuthorizedReverts(uint256 assets) public {
@@ -172,7 +177,6 @@ contract MorphoMarketV1AdapterTest is Test {
         assertTrue(newAdapter != address(0), "Adapter not created");
         assertEq(IMorphoMarketV1Adapter(newAdapter).factory(), address(factory), "Incorrect factory");
         assertEq(IMorphoMarketV1Adapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
-        assertEq(IMorphoMarketV1Adapter(newAdapter).asset(), address(loanToken), "Incorrect asset");
         assertEq(IMorphoMarketV1Adapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
         assertEq(IMorphoMarketV1Adapter(newAdapter).adapterId(), expectedIds[0], "Incorrect adapterId");
         assertEq(
@@ -183,6 +187,7 @@ contract MorphoMarketV1AdapterTest is Test {
         MarketParams memory returnedMarketParams = IMorphoMarketV1Adapter(newAdapter).marketParams();
         assertEq(returnedMarketParams.loanToken, address(loanToken), "Incorrect loan token");
         assertEq(returnedMarketParams.collateralToken, marketParams.collateralToken, "Incorrect collateral token");
+        assertEq(returnedMarketParams.loanToken, address(loanToken), "Incorrect loan token");
         assertEq(returnedMarketParams.oracle, marketParams.oracle, "Incorrect oracle");
         assertEq(returnedMarketParams.irm, marketParams.irm, "Incorrect irm");
         assertEq(returnedMarketParams.lltv, marketParams.lltv, "Incorrect lltv");
