@@ -13,6 +13,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
 
     /* ERRORS */
 
+    error InvalidData();
     error LoanAssetMismatch();
     error NotAuthorized();
 

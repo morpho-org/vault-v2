@@ -163,7 +163,7 @@ contract MorphoMarketV1AdapterTest is Test {
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
         emit IMorphoMarketV1AdapterFactory.CreateMorphoMarketV1Adapter(
-            newParentVaultAddr, address(morpho), expectedNewAdapter
+            newParentVaultAddr, address(morpho), expectedNewAdapter, marketParams
         );
 
         address newAdapter = factory.createMorphoMarketV1Adapter(newParentVaultAddr, address(morpho), marketParams);
@@ -178,7 +178,7 @@ contract MorphoMarketV1AdapterTest is Test {
         assertEq(IMorphoMarketV1Adapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
         assertEq(IMorphoMarketV1Adapter(newAdapter).adapterId(), expectedIds[0], "Incorrect adapterId");
         assertEq(
-            factory.morphoMarketV1Adapter(newParentVaultAddr, address(morpho)),
+            factory.morphoMarketV1Adapter(newParentVaultAddr, address(morpho), marketId),
             newAdapter,
             "Adapter not tracked correctly"
         );

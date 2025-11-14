@@ -79,7 +79,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the change in allocation.
-    function allocate(bytes memory, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
+    function allocate(bytes memory data, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
+        require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
         if (assets > 0) {
@@ -94,7 +95,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the change in allocation.
-    function deallocate(bytes memory, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
+    function deallocate(bytes memory data, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
+        require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
         if (assets > 0) {
