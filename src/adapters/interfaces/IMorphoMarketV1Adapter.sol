@@ -29,7 +29,8 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function skimRecipient() external view returns (address);
     function marketParamsList(uint256 index) external view returns (address, address, address, address, uint256);
     function marketParamsListLength() external view returns (uint256);
-    function allocation(MarketParams memory marketParams) external view returns (uint256);
+    function oldAllocation(MarketParams memory marketParams) external view returns (uint256);
+    function newAllocation(MarketParams memory marketParams) external view returns (uint256);
     function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;

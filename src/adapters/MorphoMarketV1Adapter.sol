@@ -84,7 +84,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         uint256 _removalValidAt = removalValidAt[marketParams.id()];
         require(_removalValidAt != 0 && block.timestamp >= _removalValidAt, NotRemovableYet());
         marketShares[marketParams.id()] = 0;
-        updateList(marketParams, allocation(marketParams), 0);
+        updateList(marketParams, oldAllocation(marketParams), 0);
         emit RemoveMarket(marketParams);
     }
 
@@ -96,17 +96,17 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
         if (assets > 0) {
-            (, uint256 sharesSupplied) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-            marketShares[marketParams.id()] += sharesSupplied;
+            (, uint256 shares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+            marketShares[marketParams.id()] += shares;
         }
 
-        uint256 oldAllocation = allocation(marketParams);
-        uint256 newAllocation = MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this));
-        updateList(marketParams, oldAllocation, newAllocation);
+        uint256 _oldAllocation = oldAllocation(marketParams);
+        uint256 _newAllocation = newAllocation(marketParams);
+        updateList(marketParams, _oldAllocation, _newAllocation);
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        return (ids(marketParams), int256(newAllocation) - int256(oldAllocation));
+        return (ids(marketParams), int256(_newAllocation) - int256(_oldAllocation));
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -120,22 +120,21 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
         if (assets > 0) {
-            (, uint256 sharesWithdrawn) =
-                IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-            marketShares[marketParams.id()] -= sharesWithdrawn;
+            (, uint256 shares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+            marketShares[marketParams.id()] -= shares;
         }
 
-        uint256 oldAllocation = allocation(marketParams);
-        uint256 newAllocation = MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this));
-        updateList(marketParams, oldAllocation, newAllocation);
+        uint256 _oldAllocation = oldAllocation(marketParams);
+        uint256 _newAllocation = newAllocation(marketParams);
+        updateList(marketParams, _oldAllocation, _newAllocation);
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        return (ids(marketParams), int256(newAllocation) - int256(oldAllocation));
+        return (ids(marketParams), int256(_newAllocation) - int256(_oldAllocation));
     }
 
-    function updateList(MarketParams memory marketParams, uint256 oldAllocation, uint256 newAllocation) internal {
-        if (oldAllocation > 0 && newAllocation == 0) {
+    function updateList(MarketParams memory marketParams, uint256 _oldAllocation, uint256 _newAllocation) internal {
+        if (_oldAllocation > 0 && _newAllocation == 0) {
             Id marketId = marketParams.id();
             for (uint256 i = 0; i < marketParamsList.length; i++) {
                 if (Id.unwrap(marketParamsList[i].id()) == Id.unwrap(marketId)) {
@@ -144,13 +143,19 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
                     break;
                 }
             }
-        } else if (oldAllocation == 0 && newAllocation > 0) {
+        } else if (_oldAllocation == 0 && _newAllocation > 0) {
             marketParamsList.push(marketParams);
         }
     }
 
-    function allocation(MarketParams memory marketParams) public view returns (uint256) {
+    function oldAllocation(MarketParams memory marketParams) public view returns (uint256) {
         return IVaultV2(parentVault).allocation(keccak256(abi.encode("this/marketParams", address(this), marketParams)));
+    }
+
+    function newAllocation(MarketParams memory marketParams) public view returns (uint256) {
+        (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
+            MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
+        return marketShares[marketParams.id()].toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }
 
     /// @dev Returns adapter's ids.
@@ -165,9 +170,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     function realAssets() external view returns (uint256) {
         uint256 _realAssets = 0;
         for (uint256 i = 0; i < marketParamsList.length; i++) {
-            (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
-                MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParamsList[i]);
-            _realAssets += marketShares[marketParamsList[i].id()].toAssetsDown(totalSupplyAssets, totalSupplyShares);
+            _realAssets += newAllocation(marketParamsList[i]);
         }
         return _realAssets;
     }
