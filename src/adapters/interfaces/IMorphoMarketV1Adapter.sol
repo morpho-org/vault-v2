@@ -5,8 +5,6 @@ pragma solidity >=0.5.0;
 import {IAdapter} from "../../interfaces/IAdapter.sol";
 import {Id, MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
-/// @dev `shares` are the recorded shares created by allocate and burned by deallocate.
-/// @dev `assets` are the recorded share value at the last allocate or deallocate.
 struct PositionInMarket {
     uint128 shares;
     uint128 lastAssets;

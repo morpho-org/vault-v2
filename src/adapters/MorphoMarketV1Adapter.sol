@@ -119,7 +119,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         }
 
         uint256 oldAllocation = allocation(marketParams);
-        uint256 newAllocation = uint128(expectedSupplyAssets(marketParams, position.shares));
+        uint256 newAllocation = expectedSupplyAssets(marketParams, position.shares);
         updateList(marketParams, oldAllocation, newAllocation);
 
         position.lastCap =
