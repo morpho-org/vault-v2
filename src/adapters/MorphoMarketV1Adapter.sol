@@ -41,7 +41,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     address public skimRecipient;
     MarketParams[] public marketParamsList;
     mapping(Id marketId => uint256) public marketShares;
-    mapping(Id marketId => uint256) public removalValidAt;
+    mapping(Id marketId => uint256) public burnSharesExecutableAt;
 
     function marketParamsListLength() external view returns (uint256) {
         return marketParamsList.length;
@@ -74,18 +74,27 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         emit Skim(token, balance);
     }
 
-    function submitRemoveMarket(MarketParams memory marketParams) external {
+    function submitBurnShares(MarketParams memory marketParams) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        removalValidAt[marketParams.id()] = block.timestamp + 3 days;
-        emit SubmitRemoveMarket(marketParams);
+        require(burnSharesExecutableAt[marketParams.id()] == 0, AlreadyPending());
+        burnSharesExecutableAt[marketParams.id()] = block.timestamp + 3 days;
+        emit SubmitBurnShares(marketParams, burnSharesExecutableAt[marketParams.id()]);
     }
 
-    function removeMarket(MarketParams memory marketParams) external {
-        uint256 _removalValidAt = removalValidAt[marketParams.id()];
-        require(_removalValidAt != 0 && block.timestamp >= _removalValidAt, NotRemovableYet());
+    function revokeBurnShares(MarketParams memory marketParams) external {
+        require(
+            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
+        burnSharesExecutableAt[marketParams.id()] = 0;
+        emit RevokeBurnShares(marketParams);
+    }
+
+    function burnShares(MarketParams memory marketParams) external {
+        require(burnSharesExecutableAt[marketParams.id()] != 0, NotTimelocked());
+        require(block.timestamp >= burnSharesExecutableAt[marketParams.id()], TimelockNotExpired());
         marketShares[marketParams.id()] = 0;
-        updateList(marketParams, oldAllocation(marketParams), 0);
-        emit RemoveMarket(marketParams);
+        emit BurnShares(marketParams);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
