@@ -4,10 +4,12 @@ pragma solidity 0.8.28;
 
 import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
+import {MathLib} from "../libraries/MathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IMorphoMarketV1Adapter} from "./interfaces/IMorphoMarketV1Adapter.sol";
+import {IMorphoMarketV1Adapter, PositionInMarket} from "./interfaces/IMorphoMarketV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
 /// @dev Morpho Market V1 is also known as Morpho Blue.
@@ -25,6 +27,7 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 /// has zero shares on the market.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MarketParamsLib for MarketParams;
+    using SharesMathLib for uint256;
 
     /* IMMUTABLES */
 
@@ -38,6 +41,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     address public skimRecipient;
     MarketParams[] public marketParamsList;
+    mapping(Id => PositionInMarket) internal positions;
 
     function marketParamsListLength() external view returns (uint256) {
         return marketParamsList.length;
@@ -76,12 +80,22 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
+        PositionInMarket storage position = positions[marketParams.id()];
 
-        if (assets > 0) IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+        if (assets > 0) {
+            (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+            position.shares += uint128(mintedShares);
+        }
 
         uint256 oldAllocation = allocation(marketParams);
-        uint256 newAllocation = MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this));
+        uint256 newAllocation = expectedSupplyAssets(marketParams, position.shares);
         updateList(marketParams, oldAllocation, newAllocation);
+
+        position.lastCap =
+            IVaultV2(parentVault).absoluteCap(keccak256(abi.encode("this/marketParams", address(this), marketParams)));
+        position.lastAssets = uint128(
+            position.lastCap >= newAllocation ? newAllocation : MathLib.max(position.lastCap, position.lastAssets)
+        );
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
@@ -97,12 +111,22 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
+        PositionInMarket storage position = positions[marketParams.id()];
 
-        if (assets > 0) IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+        if (assets > 0) {
+            (, uint256 redeemedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+            position.shares -= uint128(redeemedShares);
+        }
 
         uint256 oldAllocation = allocation(marketParams);
-        uint256 newAllocation = MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, address(this));
+        uint256 newAllocation = uint128(expectedSupplyAssets(marketParams, position.shares));
         updateList(marketParams, oldAllocation, newAllocation);
+
+        position.lastCap =
+            IVaultV2(parentVault).absoluteCap(keccak256(abi.encode("this/marketParams", address(this), marketParams)));
+        position.lastAssets = uint128(
+            position.lastCap >= newAllocation ? newAllocation : MathLib.max(position.lastCap, position.lastAssets)
+        );
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
@@ -140,8 +164,26 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     function realAssets() external view returns (uint256) {
         uint256 _realAssets = 0;
         for (uint256 i = 0; i < marketParamsList.length; i++) {
-            _realAssets += MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParamsList[i], address(this));
+            MarketParams memory marketParams = marketParamsList[i];
+            PositionInMarket storage position = positions[marketParams.id()];
+            uint256 currentAssets = expectedSupplyAssets(marketParams, position.shares);
+            _realAssets += position.lastCap >= currentAssets
+                ? currentAssets
+                : MathLib.max(position.lastCap, position.lastAssets);
         }
         return _realAssets;
+    }
+
+    /* INTERNAL FUNCTIONS */
+
+    function expectedSupplyAssets(MarketParams memory marketParams, uint256 supplyShares)
+        internal
+        view
+        returns (uint256)
+    {
+        (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
+            MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
+
+        return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }
 }

@@ -40,4 +40,11 @@ library MathLib {
             z := xor(x, mul(xor(x, y), lt(y, x)))
         }
     }
+
+    /// @dev Returns max(x, y).
+    function max(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        assembly {
+            z := xor(x, mul(xor(x, y), lt(x, y)))
+        }
+    }
 }
