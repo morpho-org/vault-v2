@@ -8,7 +8,7 @@ import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsL
 import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IMorphoMarketV1Adapter} from "./interfaces/IMorphoMarketV1Adapter.sol";
+import {IMorphoMarketV1AdapterStaticTyping} from "./interfaces/IMorphoMarketV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
 /// @dev Morpho Market V1 is also known as Morpho Blue.
@@ -24,7 +24,7 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 /// address(this), marketParams)).
 /// @dev Markets get removed from the marketParamsList when the allocation is zero, but it doesn't mean that the adapter
 /// has zero shares on the market.
-contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
+contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
     using MarketParamsLib for MarketParams;
     using SharesMathLib for uint256;
 
