@@ -93,6 +93,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     function burnShares(MarketParams memory marketParams) external {
         require(burnSharesExecutableAt[marketParams.id()] != 0, NotTimelocked());
         require(block.timestamp >= burnSharesExecutableAt[marketParams.id()], TimelockNotExpired());
+        burnSharesExecutableAt[marketParams.id()] = 0;
         marketShares[marketParams.id()] = 0;
         emit BurnShares(marketParams);
     }
