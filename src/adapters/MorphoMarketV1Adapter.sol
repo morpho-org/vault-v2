@@ -77,7 +77,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     function submitBurnShares(MarketParams memory marketParams) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         require(burnSharesExecutableAt[marketParams.id()] == 0, AlreadyPending());
-        burnSharesExecutableAt[marketParams.id()] = block.timestamp + 3 days;
+        burnSharesExecutableAt[marketParams.id()] =
+            block.timestamp + IVaultV2(parentVault).timelock(IVaultV2.removeAdapter.selector);
         emit SubmitBurnShares(marketParams, burnSharesExecutableAt[marketParams.id()]);
     }
 
@@ -86,6 +87,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
             NotAuthorized()
         );
+        require(burnSharesExecutableAt[marketParams.id()] != 0, NotPending());
         burnSharesExecutableAt[marketParams.id()] = 0;
         emit RevokeBurnShares(marketParams);
     }
@@ -110,13 +112,13 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             marketShares[marketParams.id()] += shares;
         }
 
-        uint256 _oldAllocation = oldAllocation(marketParams);
+        uint256 oldAllocation = allocation(marketParams);
         uint256 _newAllocation = newAllocation(marketParams);
-        updateList(marketParams, _oldAllocation, _newAllocation);
+        updateList(marketParams, oldAllocation, _newAllocation);
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        return (ids(marketParams), int256(_newAllocation) - int256(_oldAllocation));
+        return (ids(marketParams), int256(_newAllocation) - int256(oldAllocation));
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -134,17 +136,17 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             marketShares[marketParams.id()] -= shares;
         }
 
-        uint256 _oldAllocation = oldAllocation(marketParams);
+        uint256 oldAllocation = allocation(marketParams);
         uint256 _newAllocation = newAllocation(marketParams);
-        updateList(marketParams, _oldAllocation, _newAllocation);
+        updateList(marketParams, oldAllocation, _newAllocation);
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        return (ids(marketParams), int256(_newAllocation) - int256(_oldAllocation));
+        return (ids(marketParams), int256(_newAllocation) - int256(oldAllocation));
     }
 
-    function updateList(MarketParams memory marketParams, uint256 _oldAllocation, uint256 _newAllocation) internal {
-        if (_oldAllocation > 0 && _newAllocation == 0) {
+    function updateList(MarketParams memory marketParams, uint256 oldAllocation, uint256 _newAllocation) internal {
+        if (oldAllocation > 0 && _newAllocation == 0) {
             Id marketId = marketParams.id();
             for (uint256 i = 0; i < marketParamsList.length; i++) {
                 if (Id.unwrap(marketParamsList[i].id()) == Id.unwrap(marketId)) {
@@ -153,12 +155,12 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
                     break;
                 }
             }
-        } else if (_oldAllocation == 0 && _newAllocation > 0) {
+        } else if (oldAllocation == 0 && _newAllocation > 0) {
             marketParamsList.push(marketParams);
         }
     }
 
-    function oldAllocation(MarketParams memory marketParams) public view returns (uint256) {
+    function allocation(MarketParams memory marketParams) public view returns (uint256) {
         return IVaultV2(parentVault).allocation(keccak256(abi.encode("this/marketParams", address(this), marketParams)));
     }
 

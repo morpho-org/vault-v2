@@ -21,6 +21,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
     error NotTimelocked();
     error TimelockNotExpired();
     error AlreadyPending();
+    error NotPending();
 
     /* FUNCTIONS */
 
@@ -34,7 +35,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function marketParamsListLength() external view returns (uint256);
     function submitBurnShares(MarketParams memory marketParams) external;
     function burnShares(MarketParams memory marketParams) external;
-    function oldAllocation(MarketParams memory marketParams) external view returns (uint256);
+    function allocation(MarketParams memory marketParams) external view returns (uint256);
     function newAllocation(MarketParams memory marketParams) external view returns (uint256);
     function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
     function setSkimRecipient(address newSkimRecipient) external;
