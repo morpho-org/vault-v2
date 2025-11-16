@@ -82,16 +82,19 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
+        uint256 shares;
         if (assets > 0) {
-            (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams(), assets, 0, address(this), hex"");
+            (, shares) = IMorpho(morpho).supply(marketParams(), assets, 0, address(this), hex"");
             // Safe cast because Market V1 bounds the total shares to uint128.max.
-            supplyShares += uint128(mintedShares);
+            supplyShares += uint128(shares);
         }
 
         uint256 newAllocation = realAssets();
         // Safe casts because Market V1 bounds totalSupplyAssets to uint128.max.
         int256 change = int256(newAllocation) - int256(uint256(allocation));
         allocation = uint128(newAllocation);
+
+        emit Allocate(marketParams(), newAllocation, shares);
 
         return (ids(), change);
     }
@@ -105,17 +108,19 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
+        uint256 shares;
         if (assets > 0) {
-            (, uint256 redeemedShares) =
-                IMorpho(morpho).withdraw(marketParams(), assets, 0, address(this), address(this));
+            (, shares) = IMorpho(morpho).withdraw(marketParams(), assets, 0, address(this), address(this));
             // Safe cast because Market V1 bounds the total shares to uint128.max.
-            supplyShares -= uint128(redeemedShares);
+            supplyShares -= uint128(shares);
         }
 
         uint256 newAllocation = realAssets();
         // Safe casts because Market V1 bounds totalSupplyAssets to uint128.max.
         int256 change = int256(newAllocation) - int256(uint256(allocation));
         allocation = uint128(newAllocation);
+
+        emit Deallocate(marketParams(), newAllocation, shares);
 
         return (ids(), change);
     }
