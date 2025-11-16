@@ -107,14 +107,17 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
+        uint256 shares;
         if (assets > 0) {
-            (, uint256 shares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+            (, shares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
             marketShares[marketParams.id()] += shares;
         }
 
         uint256 oldAllocation = allocation(marketParams);
         uint256 _newAllocation = newAllocation(marketParams);
         updateList(marketParams, oldAllocation, _newAllocation);
+
+        emit Allocate(marketParams, _newAllocation, shares);
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
@@ -131,14 +134,17 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
+        uint256 shares;
         if (assets > 0) {
-            (, uint256 shares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+            (, shares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
             marketShares[marketParams.id()] -= shares;
         }
 
         uint256 oldAllocation = allocation(marketParams);
         uint256 _newAllocation = newAllocation(marketParams);
         updateList(marketParams, oldAllocation, _newAllocation);
+
+        emit Deallocate(marketParams, _newAllocation, shares);
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
