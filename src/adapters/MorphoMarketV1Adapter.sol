@@ -4,7 +4,6 @@ pragma solidity 0.8.28;
 
 import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
-import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
@@ -21,44 +20,43 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 /// @dev The adapter returns 0 real assets when the allocation is zero, but it doesn't mean that the adapter has zero
 /// shares on the market.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
-    using MarketParamsLib for MarketParams;
-    using SharesMathLib for uint256;
+    using SharesMathLib for uint128;
 
     /* IMMUTABLES */
 
     address public immutable factory;
     address public immutable parentVault;
     address public immutable morpho;
+    address internal immutable loanToken;
+    address internal immutable collateralToken;
+    address internal immutable oracle;
+    address internal immutable irm;
+    uint256 internal immutable lltv;
     bytes32 public immutable adapterId;
     bytes32 public immutable collateralTokenId;
-    address immutable loanToken;
-    address immutable collateralToken;
-    address immutable oracle;
-    address immutable irm;
-    uint256 immutable lltv;
 
     /* STORAGE */
 
     address public skimRecipient;
-    uint248 public _supplyShares;
-    bool public isAllocated;
+    uint128 public supplyShares;
+    uint128 public allocation;
 
     /* FUNCTIONS */
 
     constructor(address _parentVault, address _morpho, MarketParams memory _marketParams) {
+        require(_marketParams.loanToken == IVaultV2(_parentVault).asset(), LoanAssetMismatch());
+
         factory = msg.sender;
         parentVault = _parentVault;
         morpho = _morpho;
-        require(_marketParams.loanToken == IVaultV2(_parentVault).asset(), LoanAssetMismatch());
         loanToken = _marketParams.loanToken;
-
         collateralToken = _marketParams.collateralToken;
         oracle = _marketParams.oracle;
         irm = _marketParams.irm;
         lltv = _marketParams.lltv;
-
         adapterId = keccak256(abi.encode("this", address(this)));
         collateralTokenId = keccak256(abi.encode("collateralToken", collateralToken));
+
         SafeERC20Lib.safeApprove(loanToken, _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(loanToken, _parentVault, type(uint256).max);
     }
@@ -84,17 +82,21 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
+        uint256 shares;
         if (assets > 0) {
-            (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams(), assets, 0, address(this), hex"");
-            _supplyShares += uint248(mintedShares);
+            (, shares) = IMorpho(morpho).supply(marketParams(), assets, 0, address(this), hex"");
+            // Safe cast because Market V1 bounds the total shares to uint128.max.
+            supplyShares += uint128(shares);
         }
 
-        uint256 _expectedSupplyAssets = expectedSupplyAssets();
-        isAllocated = _expectedSupplyAssets > 0;
+        uint256 _newAllocation = newAllocation();
+        // Safe casts because Market V1 bounds totalSupplyAssets to uint128.max.
+        int256 change = int256(_newAllocation) - int256(uint256(allocation));
+        allocation = uint128(_newAllocation);
 
-        // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
-        // max total assets of the vault.
-        return (ids(), int256(_expectedSupplyAssets) - int256(allocation()));
+        emit Allocate(shares);
+
+        return (ids(), change);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -106,23 +108,24 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
+        uint256 shares;
         if (assets > 0) {
-            (, uint256 redeemedShares) =
-                IMorpho(morpho).withdraw(marketParams(), assets, 0, address(this), address(this));
-            _supplyShares -= uint248(redeemedShares);
+            (, shares) = IMorpho(morpho).withdraw(marketParams(), assets, 0, address(this), address(this));
+            // Safe cast because Market V1 bounds the total shares to uint128.max.
+            supplyShares -= uint128(shares);
         }
 
-        uint256 _expectedSupplyAssets = expectedSupplyAssets();
-        isAllocated = _expectedSupplyAssets > 0;
+        uint256 _newAllocation = newAllocation();
+        // Safe casts because Market V1 bounds totalSupplyAssets to uint128.max.
+        int256 change = int256(_newAllocation) - int256(uint256(allocation));
+        allocation = uint128(_newAllocation);
 
-        // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
-        // max total assets of the vault.
-        return (ids(), int256(_expectedSupplyAssets) - int256(allocation()));
+        emit Deallocate(shares);
+
+        return (ids(), change);
     }
 
-    function allocation() public view returns (uint256) {
-        return IVaultV2(parentVault).allocation(adapterId);
-    }
+    /* VIEWS */
 
     /// @dev Returns adapter's ids.
     function ids() public view returns (bytes32[] memory) {
@@ -137,20 +140,13 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             MarketParams({loanToken: loanToken, collateralToken: collateralToken, oracle: oracle, irm: irm, lltv: lltv});
     }
 
-    function realAssets() external view returns (uint256) {
-        return isAllocated ? expectedSupplyAssets() : 0;
-    }
-
-    function supplyShares() public view returns (uint256) {
-        return _supplyShares;
-    }
-
-    /* INTERNAL FUNCTIONS */
-
-    function expectedSupplyAssets() internal view returns (uint256) {
+    function newAllocation() public view returns (uint256) {
         (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
             MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams());
+        return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
+    }
 
-        return uint256(_supplyShares).toAssetsDown(totalSupplyAssets, totalSupplyShares);
+    function realAssets() public view returns (uint256) {
+        return allocation != 0 ? newAllocation() : 0;
     }
 }
