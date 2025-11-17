@@ -29,13 +29,13 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     address public immutable factory;
     address public immutable parentVault;
     address public immutable morpho;
+    address public immutable loanToken;
+    address public immutable collateralToken;
+    address public immutable oracle;
+    address public immutable irm;
+    uint256 public immutable lltv;
     bytes32 public immutable adapterId;
     bytes32 public immutable collateralTokenId;
-    address immutable loanToken;
-    address immutable collateralToken;
-    address immutable oracle;
-    address immutable irm;
-    uint256 immutable lltv;
 
     /* STORAGE */
 
@@ -45,19 +45,19 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     /* FUNCTIONS */
 
     constructor(address _parentVault, address _morpho, MarketParams memory _marketParams) {
+        require(_marketParams.loanToken == IVaultV2(_parentVault).asset(), LoanAssetMismatch());
+
         factory = msg.sender;
         parentVault = _parentVault;
         morpho = _morpho;
-        require(_marketParams.loanToken == IVaultV2(_parentVault).asset(), LoanAssetMismatch());
         loanToken = _marketParams.loanToken;
-
         collateralToken = _marketParams.collateralToken;
         oracle = _marketParams.oracle;
         irm = _marketParams.irm;
         lltv = _marketParams.lltv;
-
         adapterId = keccak256(abi.encode("this", address(this)));
         collateralTokenId = keccak256(abi.encode("collateralToken", collateralToken));
+
         SafeERC20Lib.safeApprove(loanToken, _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(loanToken, _parentVault, type(uint256).max);
     }
@@ -90,7 +90,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        return (ids(), int256(expectedSupplyAssets()) - int256(allocation()));
+        return (ids(), int256(realAssets()) - int256(allocation()));
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -110,8 +110,10 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        return (ids(), int256(expectedSupplyAssets()) - int256(allocation()));
+        return (ids(), int256(realAssets()) - int256(allocation()));
     }
+
+    /* VIEWS */
 
     function allocation() public view returns (uint256) {
         return IVaultV2(parentVault).allocation(adapterId);
@@ -130,16 +132,9 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             MarketParams({loanToken: loanToken, collateralToken: collateralToken, oracle: oracle, irm: irm, lltv: lltv});
     }
 
-    function realAssets() external view returns (uint256) {
-        return allocation() != 0 ? expectedSupplyAssets() : 0;
-    }
-
-    /* INTERNAL FUNCTIONS */
-
-    function expectedSupplyAssets() internal view returns (uint256) {
+    function realAssets() public view returns (uint256) {
         (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
             MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams());
-
         return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }
 }
