@@ -94,7 +94,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         int256 change = int256(newAllocation) - int256(uint256(allocation));
         allocation = uint128(newAllocation);
 
-        emit Allocate(marketParams(), newAllocation, shares);
+        emit Allocate(shares);
 
         return (ids(), change);
     }
@@ -120,7 +120,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         int256 change = int256(newAllocation) - int256(uint256(allocation));
         allocation = uint128(newAllocation);
 
-        emit Deallocate(marketParams(), newAllocation, shares);
+        emit Deallocate(shares);
 
         return (ids(), change);
     }
