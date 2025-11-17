@@ -89,7 +89,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             _supplyShares += uint248(mintedShares);
         }
 
-        uint _expectedSupplyAssets = expectedSupplyAssets();
+        uint256 _expectedSupplyAssets = expectedSupplyAssets();
         isAllocated = _expectedSupplyAssets > 0;
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
@@ -112,7 +112,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             _supplyShares -= uint248(redeemedShares);
         }
 
-        uint _expectedSupplyAssets = expectedSupplyAssets();
+        uint256 _expectedSupplyAssets = expectedSupplyAssets();
         isAllocated = _expectedSupplyAssets > 0;
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
@@ -151,6 +151,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
             MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams());
 
-        return uint(_supplyShares).toAssetsDown(totalSupplyAssets, totalSupplyShares);
+        return uint256(_supplyShares).toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }
 }
