@@ -89,10 +89,10 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             supplyShares += uint128(shares);
         }
 
-        uint256 newAllocation = realAssets();
+        uint256 _newAllocation = newAllocation();
         // Safe casts because Market V1 bounds totalSupplyAssets to uint128.max.
-        int256 change = int256(newAllocation) - int256(uint256(allocation));
-        allocation = uint128(newAllocation);
+        int256 change = int256(_newAllocation) - int256(uint256(allocation));
+        allocation = uint128(_newAllocation);
 
         emit Allocate(shares);
 
@@ -115,10 +115,10 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             supplyShares -= uint128(shares);
         }
 
-        uint256 newAllocation = realAssets();
+        uint256 _newAllocation = newAllocation();
         // Safe casts because Market V1 bounds totalSupplyAssets to uint128.max.
-        int256 change = int256(newAllocation) - int256(uint256(allocation));
-        allocation = uint128(newAllocation);
+        int256 change = int256(_newAllocation) - int256(uint256(allocation));
+        allocation = uint128(_newAllocation);
 
         emit Deallocate(shares);
 
@@ -140,9 +140,13 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             MarketParams({loanToken: loanToken, collateralToken: collateralToken, oracle: oracle, irm: irm, lltv: lltv});
     }
 
-    function realAssets() public view returns (uint256) {
+    function newAllocation() public view returns (uint256) {
         (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
             MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams());
         return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
+    }
+
+    function realAssets() public view returns (uint256) {
+        return newAllocation() != 0 ? newAllocation() : 0;
     }
 }
