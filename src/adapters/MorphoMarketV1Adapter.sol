@@ -147,6 +147,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     }
 
     function realAssets() public view returns (uint256) {
-        return newAllocation() != 0 ? newAllocation() : 0;
+        return allocation != 0 ? newAllocation() : 0;
     }
 }
