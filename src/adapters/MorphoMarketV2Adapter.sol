@@ -26,14 +26,13 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
 
     /* MANAGEMENT */
 
-    address public manager;
     address public skimRecipient;
     uint256 public minTimeToMaturity;
     uint256 public minRate;
 
     /* ACCOUNTING */
 
-    uint256 public lastRealAssetsEstimate;
+    uint256 public _totalAssets;
     uint48 public lastUpdate;
     uint48 public firstMaturity;
     uint128 public currentGrowth;
@@ -46,7 +45,6 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         parentVault = _parentVault;
         morphoV2 = _morphoV2;
         lastUpdate = uint48(block.timestamp);
-        manager = IVaultV2(parentVault).curator();
         SafeERC20Lib.safeApprove(asset, _morphoV2, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
         firstMaturity = type(uint48).max;
@@ -79,37 +77,24 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         emit Skim(token, balance);
     }
 
-    /* MANAGEMENT FUNCTIONS */
+    /* VAULT CURATOR FUNCTIONS */
 
     function setMinTimeToMaturity(uint256 _minTimeToMaturity) external {
-        require(msg.sender == manager, NotAuthorized());
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         require(_minTimeToMaturity <= type(uint48).max, IncorrectMinTimeToMaturity());
         minTimeToMaturity = _minTimeToMaturity;
     }
 
-    function setManager(address _manager) external {
-        require(msg.sender == manager || msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        manager = _manager;
-    }
+    /* VAULT ALLOCATORS FUNCTIONS */
 
     // Do not cleanup the linked list if we end up at 0 growth
     function withdraw(Obligation memory obligation, uint256 obligationUnits, uint256 shares) external {
-        require(msg.sender == manager, NotAuthorized());
+        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
         (obligationUnits, shares) = MorphoV2(morphoV2).withdraw(obligation, obligationUnits, shares, address(this));
         removeUnits(obligation, obligationUnits);
         IVaultV2(parentVault)
             .deallocate(address(this), abi.encode(obligationUnits, vaultIds(obligation)), obligationUnits);
     }
-
-    /* RATIFICATION FUNCTIONS */
-
-    function setRatified(
-        Offer memory offer,
-        Signature memory signature,
-        bytes32 root,
-        bytes32[] memory proof,
-        bool isRatified
-    ) external {}
 
     /* ACCRUAL */
 
@@ -128,19 +113,20 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
 
         gainedAssets += uint256(newGrowth) * (block.timestamp - lastChange);
 
-        return (nextMaturity, newGrowth, lastRealAssetsEstimate + gainedAssets);
+        return (nextMaturity, newGrowth, _totalAssets + gainedAssets);
     }
 
     function accrueInterest() public {
         if (lastUpdate != block.timestamp) {
             (uint48 nextMaturity, uint128 newGrowth, uint256 newTotalAssets) = accrueInterestView();
-            lastRealAssetsEstimate = newTotalAssets;
+            _totalAssets = newTotalAssets;
             lastUpdate = uint48(block.timestamp);
             firstMaturity = nextMaturity;
             currentGrowth = newGrowth;
         }
     }
 
+    /// @dev Returns an estimate of the real assets.
     function realAssets() external view returns (uint256) {
         (,, uint256 newTotalAssets) = accrueInterestView();
         return newTotalAssets;
@@ -175,8 +161,6 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
 
     /// @dev Can be called from vault.deallocate from a sell callback where the adapter is the maker,
     /// @dev or from vault.forceDeallocate to trigger a sell take by the adapter.
-    /// @dev In a forceDeallocate, the user may have to set a buyer price above 1 so that the seller price is at least 1
-    /// despite the fees.
     function deallocate(bytes memory data, uint256 sellerAssets, bytes4 messageSig, address caller)
         external
         returns (bytes32[] memory, int256)
@@ -189,7 +173,6 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
                     && offer.expiryPrice == 1e18,
                 IncorrectOffer()
             );
-            require(offer.maker == caller, IncorrectOwner());
 
             (,, uint256 obligationUnits,) = MorphoV2(morphoV2)
                 .take(0, sellerAssets, 0, 0, address(this), offer, proof, signature, address(0), hex"");
@@ -218,7 +201,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         require(offer.start <= block.timestamp, IncorrectStart());
         // uint48.max is the list end pointer
         require(offer.obligation.maturity < type(uint48).max, IncorrectMaturity());
-        require(signer == manager, IncorrectSigner());
+        require(IVaultV2(parentVault).isAllocator(signer), IncorrectSigner());
         return true;
     }
 
@@ -241,12 +224,12 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         if (obligation.maturity > block.timestamp) {
             uint128 timeToMaturity = uint128(obligation.maturity - block.timestamp);
             uint128 gainedGrowth = ((obligationUnits - buyerAssets) / timeToMaturity).toUint128();
-            lastRealAssetsEstimate += buyerAssets + (obligationUnits - buyerAssets) % timeToMaturity;
+            _totalAssets += buyerAssets + (obligationUnits - buyerAssets) % timeToMaturity;
             _positions[obligationId].growth += gainedGrowth;
             _maturities[obligation.maturity].growthLostAtMaturity += gainedGrowth;
             currentGrowth += gainedGrowth;
         } else {
-            lastRealAssetsEstimate += obligationUnits;
+            _totalAssets += obligationUnits;
         }
 
         _positions[obligationId].units += obligationUnits.toUint128();
@@ -296,16 +279,16 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         }
         uint256 vaultBuffer = vaultRealAssets.zeroFloorSub(IVaultV2(parentVault).totalAssets());
 
-        uint256 realAssetsEstimateBefore = lastRealAssetsEstimate;
+        uint256 _totalAssetsBefore = _totalAssets;
         removeUnits(obligation, obligationUnits);
-        require(vaultBuffer >= realAssetsEstimateBefore.zeroFloorSub(lastRealAssetsEstimate), BufferTooLow());
+        require(vaultBuffer >= _totalAssetsBefore.zeroFloorSub(_totalAssets), BufferTooLow());
 
         IVaultV2(parentVault).deallocate(address(this), abi.encode(obligationUnits, vaultIds(obligation)), sellerAssets);
     }
 
     /// INTERNAL FUNCTIONS ///
 
-    /// @dev The assets estimate can go up after removing units to compensate for the rounded up lost growth.
+    /// @dev The total assets can go up after removing units to compensate for the rounded up lost growth.
     function removeUnits(Obligation memory obligation, uint256 removedUnits) internal {
         accrueInterest();
         bytes32 obligationId = _obligationId(obligation);
@@ -316,9 +299,9 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
             _maturities[obligation.maturity].growthLostAtMaturity -= removedGrowth;
             _positions[obligationId].growth -= removedGrowth;
             _positions[obligationId].units -= removedUnits.toUint128();
-            lastRealAssetsEstimate = lastRealAssetsEstimate + (removedGrowth * timeToMaturity) - removedUnits;
+            _totalAssets = _totalAssets + (removedGrowth * timeToMaturity) - removedUnits;
         } else {
-            lastRealAssetsEstimate -= removedUnits;
+            _totalAssets -= removedUnits;
             _positions[obligationId].units -= removedUnits.toUint128();
         }
     }
