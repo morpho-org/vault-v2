@@ -4,7 +4,6 @@ pragma solidity 0.8.28;
 
 import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
-import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
@@ -21,8 +20,7 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 /// @dev The adapter returns 0 real assets when the allocation is zero, but it doesn't mean that the adapter has zero
 /// shares on the market.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
-    using MarketParamsLib for MarketParams;
-    using SharesMathLib for uint256;
+    using SharesMathLib for uint128;
 
     /* IMMUTABLES */
 
@@ -40,7 +38,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     /* STORAGE */
 
     address public skimRecipient;
-    uint256 public supplyShares;
+    uint128 public supplyShares;
+    uint128 public allocation;
 
     /* FUNCTIONS */
 
@@ -85,12 +84,16 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
         if (assets > 0) {
             (, uint256 mintedShares) = IMorpho(morpho).supply(marketParams(), assets, 0, address(this), hex"");
-            supplyShares += mintedShares;
+            // Safe cast because Market V1 bounds the total shares to uint128.max.
+            supplyShares += uint128(mintedShares);
         }
 
-        // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
-        // max total assets of the vault.
-        return (ids(), int256(realAssets()) - int256(allocation()));
+        uint256 newAllocation = realAssets();
+        // Safe casts because Market V1 bounds totalSupplyAssets to uint128.max.
+        int256 change = int256(newAllocation) - int256(uint256(allocation));
+        allocation = uint128(newAllocation);
+
+        return (ids(), change);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -105,19 +108,19 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         if (assets > 0) {
             (, uint256 redeemedShares) =
                 IMorpho(morpho).withdraw(marketParams(), assets, 0, address(this), address(this));
-            supplyShares -= redeemedShares;
+            // Safe cast because Market V1 bounds the total shares to uint128.max.
+            supplyShares -= uint128(redeemedShares);
         }
 
-        // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
-        // max total assets of the vault.
-        return (ids(), int256(realAssets()) - int256(allocation()));
+        uint256 newAllocation = realAssets();
+        // Safe casts because Market V1 bounds totalSupplyAssets to uint128.max.
+        int256 change = int256(newAllocation) - int256(uint256(allocation));
+        allocation = uint128(newAllocation);
+
+        return (ids(), change);
     }
 
     /* VIEWS */
-
-    function allocation() public view returns (uint256) {
-        return IVaultV2(parentVault).allocation(adapterId);
-    }
 
     /// @dev Returns adapter's ids.
     function ids() public view returns (bytes32[] memory) {
