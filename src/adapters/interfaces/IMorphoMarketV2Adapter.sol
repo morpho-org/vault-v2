@@ -54,7 +54,7 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
 
     /* FUNCTIONS */
 
-    function lastRealAssetsEstimate() external view returns (uint256);
+    function _totalAssets() external view returns (uint256);
     function lastUpdate() external view returns (uint48);
     function firstMaturity() external view returns (uint48);
     function currentGrowth() external view returns (uint128);
@@ -63,18 +63,9 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
     function setMinTimeToMaturity(uint256 minTimeToMaturity) external;
-    function setManager(address _manager) external;
     function withdraw(Obligation memory obligation, uint256 units, uint256 shares) external;
-    function setRatified(
-        Offer memory offer,
-        Signature memory signature,
-        bytes32 root,
-        bytes32[] memory proof,
-        bool isRatified
-    ) external;
     function minTimeToMaturity() external view returns (uint256);
     function minRate() external view returns (uint256);
-    function manager() external view returns (address);
     function parentVault() external view returns (address);
     function accrueInterestView() external view returns (uint48, uint128, uint256);
     function accrueInterest() external;

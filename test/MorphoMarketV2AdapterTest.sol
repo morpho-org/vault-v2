@@ -39,8 +39,8 @@ contract MorphoMarketV2AdapterTest is Test {
     IERC20 internal rewardToken;
     address internal owner;
     address internal curator;
-    address internal manager;
-    uint256 internal managerPrivateKey;
+    address internal signerAllocator;
+    uint256 internal signerAllocatorPrivateKey;
     address internal taker;
     address internal recipient;
     address internal tradingFeeRecipient = makeAddr("tradingFeeRecipient");
@@ -69,8 +69,8 @@ contract MorphoMarketV2AdapterTest is Test {
     function setUp() public {
         owner = makeAddr("owner");
         curator = makeAddr("curator");
-        (manager, managerPrivateKey) = makeAddrAndKey("manager");
-        privateKey[manager] = managerPrivateKey;
+        (signerAllocator, signerAllocatorPrivateKey) = makeAddrAndKey("signerAllocator");
+        privateKey[signerAllocator] = signerAllocatorPrivateKey;
 
         recipient = makeAddr("recipient");
         taker = makeAddr("taker");
@@ -83,13 +83,10 @@ contract MorphoMarketV2AdapterTest is Test {
         loanToken = IERC20(address(new ERC20Mock(18)));
         rewardToken = IERC20(address(new ERC20Mock(18)));
 
-        parentVault = new VaultV2Mock(address(loanToken), owner, curator, address(0), address(0));
+        parentVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
         factory = new MorphoMarketV2AdapterFactory();
         adapter = MorphoMarketV2Adapter(factory.createMorphoMarketV2Adapter(address(parentVault), address(morphoV2)));
-
-        vm.prank(parentVault.curator());
-        adapter.setManager(manager);
 
         storedCollaterals.push(
             Collateral({token: address(new ERC20Mock(18)), lltv: 0.8 ether, oracle: address(new OracleMock())})
@@ -166,31 +163,13 @@ contract MorphoMarketV2AdapterTest is Test {
     function testSetMinTimeToMaturity(uint256 minTimeToMaturity) public {
         uint256 goodMinTimeToMaturity = bound(minTimeToMaturity, 0, type(uint48).max);
         uint256 badMinTimeToMaturity = bound(minTimeToMaturity, uint256(type(uint48).max) + 1, type(uint256).max);
-        vm.prank(adapter.manager());
+        vm.prank(parentVault.curator());
         vm.expectRevert(IMorphoMarketV2Adapter.IncorrectMinTimeToMaturity.selector);
         adapter.setMinTimeToMaturity(badMinTimeToMaturity);
 
-        vm.prank(adapter.manager());
+        vm.prank(parentVault.curator());
         adapter.setMinTimeToMaturity(goodMinTimeToMaturity);
         assertEq(adapter.minTimeToMaturity(), goodMinTimeToMaturity);
-    }
-
-    function testSetManager(address sender, address newManager) public {
-        vm.assume(sender != adapter.manager());
-        vm.assume(sender != IVaultV2(adapter.parentVault()).curator());
-        vm.expectRevert(IMorphoMarketV2Adapter.NotAuthorized.selector);
-        adapter.setManager(newManager);
-
-        uint256 snap = vm.snapshotState();
-
-        vm.prank(adapter.manager());
-        adapter.setManager(newManager);
-        assertEq(adapter.manager(), newManager);
-
-        vm.revertToStateAndDelete(snap);
-        vm.prank(IVaultV2(adapter.parentVault()).curator());
-        adapter.setManager(newManager);
-        assertEq(adapter.manager(), newManager);
     }
 
     function testSimpleBuy() public {
@@ -211,11 +190,11 @@ contract MorphoMarketV2AdapterTest is Test {
         offer.callback = address(adapter);
         offer.callbackData = abi.encode(0);
         vm.prank(taker);
-        morphoV2.take(assets, 0, 0, 0, taker, offer, proof([offer]), sign([offer], manager), address(0), "");
+        morphoV2.take(assets, 0, 0, 0, taker, offer, proof([offer]), sign([offer], signerAllocator), address(0), "");
 
         uint256 units = assets * 1e18 / offer.startPrice;
         uint256 remainder = (units - assets) % (offer.obligation.maturity - vm.getBlockTimestamp());
-        assertEq(adapter.lastRealAssetsEstimate(), assets + remainder, "lastRealAssetsEstimate");
+        assertEq(adapter._totalAssets(), assets + remainder, "_totalAssets");
         assertEq(adapter.lastUpdate(), vm.getBlockTimestamp(), "lastUpdate");
         assertEq(adapter.firstMaturity(), vm.getBlockTimestamp() + 200, "firstMaturity");
 
@@ -261,13 +240,13 @@ contract MorphoMarketV2AdapterTest is Test {
         offer.callback = address(adapter);
         offer.callbackData = bytes("");
 
-        vm.prank(manager);
+        vm.prank(parentVault.curator());
         adapter.setMinTimeToMaturity(minTimeToMaturity);
     }
 
     function testRatifyIncorrectOfferBadSellSigner(uint256 seed, address otherSigner) public {
         vm.setSeed(seed);
-        vm.assume(otherSigner != manager);
+        vm.assume(otherSigner != signerAllocator);
         (Offer memory offer,) = _ratificationSetup();
         vm.expectRevert(IMorphoMarketV2Adapter.IncorrectSigner.selector);
         vm.prank(address(morphoV2));
@@ -276,7 +255,8 @@ contract MorphoMarketV2AdapterTest is Test {
 
     function testRatifyIncorrectOfferBadBuySigner(uint256 seed, address otherSigner) public {
         vm.setSeed(seed);
-        vm.assume(otherSigner != manager);
+        vm.assume(otherSigner != signerAllocator);
+        vm.assume(otherSigner != address(adapter));
         (Offer memory offer,) = _ratificationSetup();
         vm.expectRevert(IMorphoMarketV2Adapter.IncorrectSigner.selector);
         vm.prank(address(morphoV2));
@@ -290,7 +270,7 @@ contract MorphoMarketV2AdapterTest is Test {
         offer.obligation.loanToken = otherToken;
         vm.expectRevert(IMorphoMarketV2Adapter.LoanAssetMismatch.selector);
         vm.prank(address(morphoV2));
-        adapter.onRatify(offer, manager);
+        adapter.onRatify(offer, signerAllocator);
     }
 
     function testRatifyIncorrectOwner(uint256 seed, address otherMaker) public {
@@ -300,7 +280,7 @@ contract MorphoMarketV2AdapterTest is Test {
         offer.maker = otherMaker;
         vm.expectRevert(IMorphoMarketV2Adapter.IncorrectOwner.selector);
         vm.prank(address(morphoV2));
-        adapter.onRatify(offer, manager);
+        adapter.onRatify(offer, signerAllocator);
     }
 
     function testRatifyIncorrectMaturity(uint256 seed) public {
@@ -313,7 +293,7 @@ contract MorphoMarketV2AdapterTest is Test {
             vm.expectRevert(IMorphoMarketV2Adapter.IncorrectMaturity.selector);
         }
         vm.prank(address(morphoV2));
-        adapter.onRatify(offer, manager);
+        adapter.onRatify(offer, signerAllocator);
     }
 
     function testRatifyIncorrectStart(uint256 seed) public {
@@ -322,7 +302,7 @@ contract MorphoMarketV2AdapterTest is Test {
         offer.start = vm.getBlockTimestamp() + 1;
         vm.expectRevert(IMorphoMarketV2Adapter.IncorrectStart.selector);
         vm.prank(address(morphoV2));
-        adapter.onRatify(offer, manager);
+        adapter.onRatify(offer, signerAllocator);
     }
 
     function testRatifyIncorrectCallbackAddress(uint256 seed) public {
@@ -331,14 +311,14 @@ contract MorphoMarketV2AdapterTest is Test {
         offer.callback = address(0);
         vm.expectRevert(IMorphoMarketV2Adapter.IncorrectCallbackAddress.selector);
         vm.prank(address(morphoV2));
-        adapter.onRatify(offer, manager);
+        adapter.onRatify(offer, signerAllocator);
     }
 
     function testRatifyIncorrectExpiry(uint256 seed) public {
         vm.setSeed(seed);
         (Offer memory offer,) = _ratificationSetup();
         vm.prank(address(morphoV2));
-        adapter.onRatify(offer, manager);
+        adapter.onRatify(offer, signerAllocator);
     }
 
     /* STEPS SETUP */
@@ -396,7 +376,9 @@ contract MorphoMarketV2AdapterTest is Test {
             morphoV2.supplyCollateral(offer.obligation, address(storedCollaterals[1].token), 1_000e18, taker);
 
             ObligationPosition memory positionBefore = adapter.positions(obligationId);
-            morphoV2.take(step.assets, 0, 0, 0, taker, offer, proof([offer]), sign([offer], manager), address(0), "");
+            morphoV2.take(
+                step.assets, 0, 0, 0, taker, offer, proof([offer]), sign([offer], signerAllocator), address(0), ""
+            );
             vm.stopPrank();
 
             assertEq(adapter.positions(obligationId).units, positionBefore.units + units, "setup: units 1");
@@ -476,31 +458,26 @@ contract MorphoMarketV2AdapterTest is Test {
     /* ACCRUE INTEREST USING STEPS */
 
     // Apply steps and test that accrueInterestView over time is correct.
-    function accrueInterestViewTest(
-        Step[] memory steps,
-        uint256 initialGrowth,
-        uint256 lastRealAssetsEstimate,
-        uint256 elapsed
-    ) internal {
+    function accrueInterestViewTest(Step[] memory steps, uint256 initialGrowth, uint256 _totalAssets, uint256 elapsed)
+        internal
+    {
         uint256 begin = vm.getBlockTimestamp();
         initialGrowth = bound(initialGrowth, 0, 1e36);
-        lastRealAssetsEstimate = bound(lastRealAssetsEstimate, 0, type(uint128).max);
+        _totalAssets = bound(_totalAssets, 0, type(uint128).max);
         uint256 maxElapsed =
             steps.length == 0 ? 365 days : 2 * (steps[steps.length - 1].maturity - vm.getBlockTimestamp());
         elapsed = bound(elapsed, 0, maxElapsed);
 
         setCurrentGrowth(uint128(initialGrowth));
-        setLastRealAssetsEstimate(lastRealAssetsEstimate);
+        set_TotalAssets(_totalAssets);
         setupObligations(steps);
         uint256 expectedCurrentGrowth = initialGrowth + expectedAddedGrowth;
         assertEq(adapter.currentGrowth(), expectedCurrentGrowth, "currentGrowth");
-        assertEq(
-            adapter.lastRealAssetsEstimate(), lastRealAssetsEstimate + expectedAddedAssets, "lastRealAssetsEstimate"
-        );
+        assertEq(adapter._totalAssets(), _totalAssets + expectedAddedAssets, "_totalAssets");
 
         skip(elapsed);
 
-        (uint48 nextMaturity, uint128 newGrowth, uint256 newRealAssetsEstimate) = adapter.accrueInterestView();
+        (uint48 nextMaturity, uint128 newGrowth, uint256 newTotalAssets) = adapter.accrueInterestView();
 
         uint256 lostGrowth = 0;
         uint256 interest = initialGrowth * elapsed;
@@ -520,17 +497,15 @@ contract MorphoMarketV2AdapterTest is Test {
         }
         assertEq(nextMaturity, expectedNextMaturity, "nextMaturity");
         assertEq(newGrowth, expectedCurrentGrowth - lostGrowth, "newGrowth");
-        assertEq(
-            newRealAssetsEstimate, lastRealAssetsEstimate + expectedAddedAssets + interest, "newRealAssetsEstimate"
-        );
+        assertEq(newTotalAssets, _totalAssets + expectedAddedAssets + interest, "newTotalAssets");
     }
 
-    function testAccrueInterestView00(uint256 growth, uint256 lastRealAssetsEstimate, uint256 elapsed) public {
-        accrueInterestViewTest(steps00, growth, lastRealAssetsEstimate, elapsed);
+    function testAccrueInterestView00(uint256 growth, uint256 _totalAssets, uint256 elapsed) public {
+        accrueInterestViewTest(steps00, growth, _totalAssets, elapsed);
     }
 
-    function testAccrueInterestView01(uint256 growth, uint256 lastRealAssetsEstimate, uint256 elapsed) public {
-        accrueInterestViewTest(steps01, growth, lastRealAssetsEstimate, elapsed);
+    function testAccrueInterestView01(uint256 growth, uint256 _totalAssets, uint256 elapsed) public {
+        accrueInterestViewTest(steps01, growth, _totalAssets, elapsed);
     }
 
     /* UTILITIES */
@@ -539,8 +514,8 @@ contract MorphoMarketV2AdapterTest is Test {
         stdstore.target(address(adapter)).enable_packed_slots().sig("currentGrowth()").checked_write(growth);
     }
 
-    function setLastRealAssetsEstimate(uint256 lastRealAssetsEstimate) internal {
-        stdstore.target(address(adapter)).sig("lastRealAssetsEstimate()").checked_write(lastRealAssetsEstimate);
+    function set_TotalAssets(uint256 _totalAssets) internal {
+        stdstore.target(address(adapter)).sig("_totalAssets()").checked_write(_totalAssets);
     }
 
     function removeCopies(uint256[] storage array) internal returns (uint256[] memory) {
