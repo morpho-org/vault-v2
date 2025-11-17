@@ -21,7 +21,6 @@ interface IMorphoMarketV1Adapter is IAdapter {
 
     function factory() external view returns (address);
     function parentVault() external view returns (address);
-    function asset() external view returns (address);
     function morpho() external view returns (address);
     function adapterId() external view returns (bytes32);
     function marketParams() external view returns (MarketParams memory);
