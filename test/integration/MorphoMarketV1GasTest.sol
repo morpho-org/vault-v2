@@ -33,59 +33,30 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
     uint256 internal constant MIN_TEST_ASSETS = 10;
     uint256 internal constant MAX_TEST_ASSETS = 1e24;
 
+    uint MAX_N = 50;
+    MarketParams[] internal marketParamsArray;
+
     function setUp() public virtual override {
         super.setUp();
+
+        marketParamsArray = new MarketParams[](MAX_N);
 
         /* MORPHO SETUP */
 
         address morphoOwner = makeAddr("MorphoOwner");
         morpho = IMorpho(deployCode("Morpho.sol", abi.encode(morphoOwner)));
-
-        collateralToken = new ERC20Mock(18);
         oracle = new OracleMock();
         irm = new IrmMock();
 
         oracle.setPrice(ORACLE_PRICE_SCALE);
 
-        marketParams1 = MarketParams({
-            loanToken: address(underlyingToken),
-            collateralToken: address(collateralToken),
-            irm: address(irm),
-            oracle: address(oracle),
-            lltv: 0.8 ether
-        });
-
-        marketParams2 = MarketParams({
-            loanToken: address(underlyingToken),
-            collateralToken: address(collateralToken),
-            irm: address(irm),
-            oracle: address(oracle),
-            lltv: 0.9 ether
-        });
-
         vm.startPrank(morphoOwner);
         morpho.enableIrm(address(irm));
         morpho.enableLltv(0.8 ether);
-        morpho.enableLltv(0.9 ether);
         vm.stopPrank();
-
-        morpho.createMarket(marketParams1);
-        morpho.createMarket(marketParams2);
-
-        /* VAULT SETUP */
 
         factory = new MorphoMarketV1AdapterFactory();
         adapter = MorphoMarketV1Adapter(factory.createMorphoMarketV1Adapter(address(vault), address(morpho)));
-
-        expectedIdData1 = new bytes[](3);
-        expectedIdData1[0] = abi.encode("this", address(adapter));
-        expectedIdData1[1] = abi.encode("collateralToken", marketParams1.collateralToken);
-        expectedIdData1[2] = abi.encode("this/marketParams", address(adapter), marketParams1);
-
-        expectedIdData2 = new bytes[](3);
-        expectedIdData2[0] = abi.encode("this", address(adapter));
-        expectedIdData2[1] = abi.encode("collateralToken", marketParams2.collateralToken);
-        expectedIdData2[2] = abi.encode("this/marketParams", address(adapter), marketParams2);
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
@@ -94,20 +65,59 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
         vm.prank(allocator);
         vault.setMaxRate(MAX_MAX_RATE);
 
-        increaseAbsoluteCap(expectedIdData1[0], type(uint128).max);
-        increaseRelativeCap(expectedIdData1[0], WAD);
+        deal(address(underlyingToken), address(vault), type(uint256).max);
+        // underlyingToken.approve(address(vault), type(uint256).max);
 
-        increaseAbsoluteCap(expectedIdData1[1], type(uint128).max);
-        increaseRelativeCap(expectedIdData1[1], WAD);
+        bytes memory thisId = abi.encode("this", address(adapter));
+        increaseAbsoluteCap(thisId, type(uint128).max);
+        increaseRelativeCap(thisId, WAD);
 
-        increaseAbsoluteCap(expectedIdData1[2], type(uint128).max);
-        increaseRelativeCap(expectedIdData1[2], WAD);
+        MarketParams memory marketParams;
+        for (uint256 i = 0; i < MAX_N; i++) {
+            marketParams = MarketParams({
+                loanToken: address(underlyingToken),
+                collateralToken: address (new ERC20Mock(18)),
+                irm: address(irm),
+                oracle: address(oracle),
+                lltv: 0.8 ether
+            });
 
-        // expectedIdData2[0] and expectedIdData2[1] are the same as expectedIdData1[0] and expectedIdData1[1]
-        increaseAbsoluteCap(expectedIdData2[2], type(uint128).max);
-        increaseRelativeCap(expectedIdData2[2], WAD);
+            marketParamsArray[i] = marketParams;
 
-        deal(address(underlyingToken), address(this), type(uint256).max);
-        underlyingToken.approve(address(vault), type(uint256).max);
+            vm.prank(morphoOwner);
+            morpho.createMarket(marketParams);
+        }
+    }
+
+  function _setupMarket(uint256 i) internal {
+        MarketParams memory marketParams = marketParamsArray[i];
+
+        bytes memory collateralId = abi.encode("collateralToken", marketParams.collateralToken);
+        bytes memory marketParamsId = abi.encode("this/marketParams", address(adapter), marketParams);
+
+        increaseAbsoluteCap(collateralId, type(uint128).max);
+        increaseRelativeCap(collateralId, WAD);
+        increaseAbsoluteCap(marketParamsId, type(uint128).max);
+        increaseRelativeCap(marketParamsId, WAD);
+
+        vm.prank(allocator);
+        vault.allocate(address(adapter), abi.encode(marketParams), 1);
+    }
+
+    // function testAssets() public {
+    //     uint assets = vault.totalAssets();
+    //     uint used = vm.lastCallGas().gasTotalUsed;
+    //     console.log("assets", assets);
+    //     console.log("GAS   ", used);
+    // }
+
+    /// forge-config: default.isolate = true
+    function testAll() public {
+        for (uint256 i = 0; i < MAX_N; i++) {
+            _setupMarket(i);
+            vault.totalAssets();
+            uint used = vm.lastCallGas().gasTotalUsed;
+            console.log("%s: %s", i+1, used);
+        }
     }
 }
