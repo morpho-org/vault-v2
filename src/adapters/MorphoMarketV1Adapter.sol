@@ -32,6 +32,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     address internal immutable oracle;
     address internal immutable irm;
     uint256 internal immutable lltv;
+    bytes32 public immutable morphoMarketV1Id;
     bytes32 public immutable adapterId;
     bytes32 public immutable collateralTokenId;
 
@@ -54,6 +55,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         oracle = _marketParams.oracle;
         irm = _marketParams.irm;
         lltv = _marketParams.lltv;
+        morphoMarketV1Id = keccak256(abi.encode("morphoMarketV1", _morpho));
         adapterId = keccak256(abi.encode("this", address(this)));
         collateralTokenId = keccak256(abi.encode("collateralToken", collateralToken));
 
@@ -129,9 +131,10 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     /// @dev Returns adapter's ids.
     function ids() public view returns (bytes32[] memory) {
-        bytes32[] memory ids_ = new bytes32[](2);
-        ids_[0] = adapterId;
-        ids_[1] = collateralTokenId;
+        bytes32[] memory ids_ = new bytes32[](3);
+        ids_[0] = morphoMarketV1Id;
+        ids_[1] = adapterId;
+        ids_[2] = collateralTokenId;
         return ids_;
     }
 

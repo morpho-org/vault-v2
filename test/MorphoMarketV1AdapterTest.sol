@@ -79,9 +79,10 @@ contract MorphoMarketV1AdapterTest is Test {
             factory.createMorphoMarketV1Adapter(address(parentVault), address(morpho), marketParams)
         );
 
-        expectedIds = new bytes32[](2);
-        expectedIds[0] = keccak256(abi.encode("this", address(adapter)));
-        expectedIds[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
+        expectedIds = new bytes32[](3);
+        expectedIds[0] = keccak256(abi.encode("morphoMarketV1", address(morpho)));
+        expectedIds[1] = keccak256(abi.encode("this", address(adapter)));
+        expectedIds[2] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
     }
 
     function _boundAssets(uint256 assets) internal pure returns (uint256) {
