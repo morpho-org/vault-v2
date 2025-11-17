@@ -27,11 +27,11 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     address public immutable factory;
     address public immutable parentVault;
     address public immutable morpho;
-    address public immutable loanToken;
-    address public immutable collateralToken;
-    address public immutable oracle;
-    address public immutable irm;
-    uint256 public immutable lltv;
+    address private immutable loanToken;
+    address private immutable collateralToken;
+    address private immutable oracle;
+    address private immutable irm;
+    uint256 private immutable lltv;
     bytes32 public immutable adapterId;
     bytes32 public immutable collateralTokenId;
 
