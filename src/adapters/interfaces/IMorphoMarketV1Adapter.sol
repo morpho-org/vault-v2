@@ -8,8 +8,8 @@ import {Id, MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.
 interface IMorphoMarketV1Adapter is IAdapter {
     /* EVENTS */
 
-    event Allocate(uint256 shares);
-    event Deallocate(uint256 shares);
+    event Allocate(uint256 mintedShares);
+    event Deallocate(uint256 burnedShares);
     event SetSkimRecipient(address indexed newSkimRecipient);
     event Skim(address indexed token, uint256 assets);
 
