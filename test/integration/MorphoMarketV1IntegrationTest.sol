@@ -68,7 +68,13 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
         expectedIdData = new bytes[](3);
         expectedIdData[0] = abi.encode("morphoV1", address(morpho));
         expectedIdData[1] = abi.encode("collateralToken", marketParams.collateralToken);
-        expectedIdData[2] = abi.encode("this/marketParams", address(adapter), marketParams);
+        expectedIdData[2] = abi.encode(
+            "this/factory/parentVault/morpho/marketParams",
+            address(factory),
+            address(vault),
+            address(morpho),
+            marketParams
+        );
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));

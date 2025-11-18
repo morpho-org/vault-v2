@@ -34,7 +34,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     uint256 internal immutable lltv;
     bytes32 public immutable morphoV1Id;
     bytes32 public immutable collateralTokenId;
-    bytes32 public immutable marketV1Id;
+    bytes32 public immutable marketV1AdapterId;
 
     /* STORAGE */
 
@@ -57,7 +57,15 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         lltv = _marketParams.lltv;
         morphoV1Id = keccak256(abi.encode("morphoV1", _morpho));
         collateralTokenId = keccak256(abi.encode("collateralToken", collateralToken));
-        marketV1Id = keccak256(abi.encode("this/marketParams", address(this), _marketParams));
+        marketV1AdapterId = keccak256(
+            abi.encode(
+                "this/factory/parentVault/morpho/marketParams",
+                address(factory),
+                address(parentVault),
+                address(morpho),
+                _marketParams
+            )
+        );
 
         SafeERC20Lib.safeApprove(loanToken, _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(loanToken, _parentVault, type(uint256).max);
@@ -134,7 +142,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         bytes32[] memory ids_ = new bytes32[](3);
         ids_[0] = morphoV1Id;
         ids_[1] = collateralTokenId;
-        ids_[2] = marketV1Id;
+        ids_[2] = marketV1AdapterId;
         return ids_;
     }
 
