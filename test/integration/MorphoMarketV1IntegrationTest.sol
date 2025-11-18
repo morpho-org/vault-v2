@@ -21,10 +21,14 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
     ERC20Mock internal collateralToken;
     OracleMock internal oracle;
     IrmMock internal irm;
-    MarketParams internal marketParams;
+    MarketParams internal marketParams1;
+    MarketParams internal marketParams2;
 
     IMorphoMarketV1AdapterFactory internal factory;
     IMorphoMarketV1Adapter internal adapter;
+
+    bytes[] internal expectedIdData1;
+    bytes[] internal expectedIdData2;
 
     uint256 internal constant MIN_TEST_ASSETS = 10;
     uint256 internal constant MAX_TEST_ASSETS = 1e24;
@@ -43,12 +47,20 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
 
         oracle.setPrice(ORACLE_PRICE_SCALE);
 
-        marketParams = MarketParams({
+        marketParams1 = MarketParams({
             loanToken: address(underlyingToken),
             collateralToken: address(collateralToken),
             irm: address(irm),
             oracle: address(oracle),
             lltv: 0.8 ether
+        });
+
+        marketParams2 = MarketParams({
+            loanToken: address(underlyingToken),
+            collateralToken: address(collateralToken),
+            irm: address(irm),
+            oracle: address(oracle),
+            lltv: 0.9 ether
         });
 
         vm.startPrank(morphoOwner);
@@ -57,18 +69,23 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
         morpho.enableLltv(0.9 ether);
         vm.stopPrank();
 
-        morpho.createMarket(marketParams);
+        morpho.createMarket(marketParams1);
+        morpho.createMarket(marketParams2);
 
         /* VAULT SETUP */
 
         factory = new MorphoMarketV1AdapterFactory();
-        adapter =
-            MorphoMarketV1Adapter(factory.createMorphoMarketV1Adapter(address(vault), address(morpho), marketParams));
+        adapter = MorphoMarketV1Adapter(factory.createMorphoMarketV1Adapter(address(vault), address(morpho)));
 
-        expectedIdData = new bytes[](3);
-        expectedIdData[0] = abi.encode("morphoMarketV1", address(morpho));
-        expectedIdData[1] = abi.encode("this", address(adapter));
-        expectedIdData[2] = abi.encode("collateralToken", marketParams.collateralToken);
+        expectedIdData1 = new bytes[](3);
+        expectedIdData1[0] = abi.encode("this", address(adapter));
+        expectedIdData1[1] = abi.encode("collateralToken", marketParams1.collateralToken);
+        expectedIdData1[2] = abi.encode("this/marketParams", address(adapter), marketParams1);
+
+        expectedIdData2 = new bytes[](3);
+        expectedIdData2[0] = abi.encode("this", address(adapter));
+        expectedIdData2[1] = abi.encode("collateralToken", marketParams2.collateralToken);
+        expectedIdData2[2] = abi.encode("this/marketParams", address(adapter), marketParams2);
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
@@ -77,14 +94,18 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
         vm.prank(allocator);
         vault.setMaxRate(MAX_MAX_RATE);
 
-        increaseAbsoluteCap(expectedIdData[0], type(uint128).max);
-        increaseRelativeCap(expectedIdData[0], WAD);
+        increaseAbsoluteCap(expectedIdData1[0], type(uint128).max);
+        increaseRelativeCap(expectedIdData1[0], WAD);
 
-        increaseAbsoluteCap(expectedIdData[1], type(uint128).max);
-        increaseRelativeCap(expectedIdData[1], WAD);
+        increaseAbsoluteCap(expectedIdData1[1], type(uint128).max);
+        increaseRelativeCap(expectedIdData1[1], WAD);
 
-        increaseAbsoluteCap(expectedIdData[2], type(uint128).max);
-        increaseRelativeCap(expectedIdData[2], WAD);
+        increaseAbsoluteCap(expectedIdData1[2], type(uint128).max);
+        increaseRelativeCap(expectedIdData1[2], WAD);
+
+        // expectedIdData2[0] and expectedIdData2[1] are the same as expectedIdData1[0] and expectedIdData1[1]
+        increaseAbsoluteCap(expectedIdData2[2], type(uint128).max);
+        increaseRelativeCap(expectedIdData2[2], WAD);
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);

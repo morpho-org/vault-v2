@@ -2,26 +2,16 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity >=0.5.0;
 
-import {MarketParams, Id} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
-
 interface IMorphoMarketV1AdapterFactory {
     /* EVENTS */
 
     event CreateMorphoMarketV1Adapter(
-        address indexed parentVault,
-        address indexed morpho,
-        MarketParams marketParams,
-        address indexed morphoMarketV1Adapter
+        address indexed parentVault, address indexed morpho, address indexed morphoMarketV1Adapter
     );
 
     /* FUNCTIONS */
 
-    function morphoMarketV1Adapter(address parentVault, address morpho, Id marketParamsId)
-        external
-        view
-        returns (address);
+    function morphoMarketV1Adapter(address parentVault, address morpho) external view returns (address);
     function isMorphoMarketV1Adapter(address account) external view returns (bool);
-    function createMorphoMarketV1Adapter(address parentVault, address morpho, MarketParams memory marketParams)
-        external
-        returns (address morphoMarketV1Adapter);
+    function createMorphoMarketV1Adapter(address parentVault, address morpho) external returns (address);
 }

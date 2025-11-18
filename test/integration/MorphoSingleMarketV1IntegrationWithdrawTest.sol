@@ -2,36 +2,33 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MorphoMarketV1IntegrationTest.sol";
+import "./MorphoSingleMarketV1IntegrationTest.sol";
 
-contract MorphoMarketV1IntegrationWithdrawTest is MorphoMarketV1IntegrationTest {
+contract MorphoSingleMarketV1IntegrationWithdrawTest is MorphoSingleMarketV1IntegrationTest {
     using MorphoBalancesLib for IMorpho;
 
     address internal immutable receiver = makeAddr("receiver");
     address internal immutable borrower = makeAddr("borrower");
 
     uint256 internal initialInIdle = 0.2e18 - 1;
-    uint256 internal initialInMarket1 = 0.3e18;
-    uint256 internal initialInMarket2 = 0.5e18;
-    uint256 internal initialTotal = 1e18 - 1;
+    uint256 internal initialInMarket = 0.3e18;
+    uint256 internal initialTotal = 0.5e18 - 1;
 
     function setUp() public virtual override {
         super.setUp();
 
-        assertEq(initialTotal, initialInIdle + initialInMarket1 + initialInMarket2);
+        assertEq(initialTotal, initialInIdle + initialInMarket);
 
         vault.deposit(initialTotal, address(this));
 
         vm.startPrank(allocator);
-        vault.allocate(address(adapter), abi.encode(marketParams1), initialInMarket1);
-        vault.allocate(address(adapter), abi.encode(marketParams2), initialInMarket2);
+        vault.allocate(address(adapter), hex"", initialInMarket);
         vm.stopPrank();
 
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle);
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
-        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket1 + initialInMarket2);
-        assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), initialInMarket1);
-        assertEq(morpho.expectedSupplyAssets(marketParams2, address(adapter)), initialInMarket2);
+        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket);
+        assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), initialInMarket);
     }
 
     function testWithdrawLessThanIdle(uint256 assets) public {
@@ -42,11 +39,9 @@ contract MorphoMarketV1IntegrationWithdrawTest is MorphoMarketV1IntegrationTest 
         assertEq(underlyingToken.balanceOf(receiver), assets);
         assertEq(underlyingToken.balanceOf(address(vault)), initialInIdle - assets);
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
-        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket1 + initialInMarket2);
-        assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), initialInMarket1);
-        assertEq(morpho.expectedSupplyAssets(marketParams2, address(adapter)), initialInMarket2);
-        assertEq(vault.allocation(keccak256(expectedIdData1[2])), initialInMarket1);
-        assertEq(vault.allocation(keccak256(expectedIdData2[2])), initialInMarket2);
+        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket);
+        assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), initialInMarket);
+        assertEq(vault.allocation(keccak256(expectedIdData[0])), initialInMarket);
     }
 
     function testWithdrawMoreThanIdleNoLiquidityAdapter(uint256 assets) public {
@@ -57,9 +52,9 @@ contract MorphoMarketV1IntegrationWithdrawTest is MorphoMarketV1IntegrationTest 
     }
 
     function testWithdrawThanksToLiquidityAdapter(uint256 assets) public {
-        assets = bound(assets, initialInIdle + 1, initialInIdle + initialInMarket1);
+        assets = bound(assets, initialInIdle + 1, initialInIdle + initialInMarket);
         vm.prank(allocator);
-        vault.setLiquidityAdapterAndData(address(adapter), abi.encode(marketParams1));
+        vault.setLiquidityAdapterAndData(address(adapter), hex"");
 
         vault.withdraw(assets, receiver, address(this));
 
@@ -67,18 +62,14 @@ contract MorphoMarketV1IntegrationWithdrawTest is MorphoMarketV1IntegrationTest 
         assertEq(underlyingToken.balanceOf(address(vault)), 0);
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialTotal - assets);
-        assertEq(
-            morpho.expectedSupplyAssets(marketParams1, address(adapter)), initialInMarket1 + initialInIdle - assets
-        );
-        assertEq(morpho.expectedSupplyAssets(marketParams2, address(adapter)), initialInMarket2);
-        assertEq(vault.allocation(keccak256(expectedIdData1[2])), initialInMarket1 - (assets - initialInIdle));
-        assertEq(vault.allocation(keccak256(expectedIdData2[2])), initialInMarket2);
+        assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), initialInMarket + initialInIdle - assets);
+        assertEq(vault.allocation(keccak256(expectedIdData[0])), initialInMarket - (assets - initialInIdle));
     }
 
     function testWithdrawTooMuchEvenWithLiquidityAdapter(uint256 assets) public {
-        assets = bound(assets, initialInIdle + initialInMarket1 + 1, MAX_TEST_ASSETS);
+        assets = bound(assets, initialInIdle + initialInMarket + 1, MAX_TEST_ASSETS);
         vm.prank(allocator);
-        vault.setLiquidityAdapterAndData(address(adapter), abi.encode(marketParams1));
+        vault.setLiquidityAdapterAndData(address(adapter), hex"");
 
         vm.expectRevert();
         vault.withdraw(assets, receiver, address(this));
@@ -87,16 +78,16 @@ contract MorphoMarketV1IntegrationWithdrawTest is MorphoMarketV1IntegrationTest 
     function testWithdrawLiquidityAdapterNoLiquidity(uint256 assets) public {
         assets = bound(assets, initialInIdle + 1, initialTotal);
         vm.prank(allocator);
-        vault.setLiquidityAdapterAndData(address(adapter), abi.encode(marketParams1));
+        vault.setLiquidityAdapterAndData(address(adapter), hex"");
 
         // Remove liquidity by borrowing.
         deal(address(collateralToken), borrower, type(uint256).max);
         vm.startPrank(borrower);
         collateralToken.approve(address(morpho), type(uint256).max);
-        morpho.supplyCollateral(marketParams1, 2 * initialInMarket1, borrower, hex"");
-        morpho.borrow(marketParams1, initialInMarket1, 0, borrower, borrower);
+        morpho.supplyCollateral(marketParams, 2 * initialInMarket, borrower, hex"");
+        morpho.borrow(marketParams, initialInMarket, 0, borrower, borrower);
         vm.stopPrank();
-        assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket2);
+        assertEq(underlyingToken.balanceOf(address(morpho)), 0);
 
         vm.expectRevert();
         vault.withdraw(assets, receiver, address(this));

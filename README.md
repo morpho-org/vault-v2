@@ -4,7 +4,7 @@
 > Vault V2 instances are distinguished between:
 >
 > - **Morpho Vaults**: Vault V2 with the Morpho registry (link to be added) abdicated. Learn more about Morpho Vaults and their benefits here (link to be added).
-> - **Basic Vaults**: Vault V2 that can supply to any protocol. They don't get all the Morpho Vaults benefits. In particular, Vault V2 has been developed and audited only in the context of the Morpho Market V1 and Morpho Vault V1 adapters.
+> - **Basic Vaults**: Vault V2 that can supply to any protocol. They don't get all the Morpho Vaults benefits. In particular, Vault V2 has been developed and audited only in the context of the Morpho Single Market V1, Morpho Market V1, and Morpho Vault V1 adapters.
 
 Vault V2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including Morpho Market V1, Morpho Market V2, and Morpho Vault V1.
 Depositors of Vault V2 earn from the underlying protocols without having to actively manage their position.
@@ -26,6 +26,8 @@ Vaults can set an adapter registry to constrain which adapter they can have and 
 
 The following adapters are currently available:
 
+- [Morpho Single Market V1 Adapter](./src/adapters/MorphoSingleMarketV1Adapter.sol).
+  This adapter allocates to one Morpho Market V1, under the constraints of the [caps](#caps).
 - [Morpho Market V1 Adapter](./src/adapters/MorphoMarketV1Adapter.sol).
   This adapter allocates to any Morpho Market V1, under the constraints of the [caps](#caps).
 - [Morpho Vault V1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
