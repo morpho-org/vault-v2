@@ -6,7 +6,7 @@
 > - **Morpho Vaults**: Vault V2 with the Morpho registry (link to be added) abdicated. Learn more about Morpho Vaults and their benefits here (link to be added).
 > - **Basic Vaults**: Vault V2 that can supply to any protocol. They don't get all the Morpho Vaults benefits. In particular, Vault V2 has been developed and audited only in the context of the Morpho Market V1 and Morpho Vault V1 adapters.
 
-Vault V2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including Morpho Market V1, Morpho Market V2, and Morpho Vault V1.
+Vault V2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including Morpho V1 and V2.
 Depositors of Vault V2 earn from the underlying protocols without having to actively manage their position.
 Management of deposited assets is the responsibility of a set of different roles (owner, curator and allocators).
 
@@ -28,10 +28,9 @@ The following adapters are currently available:
 
 - [Morpho Market V1 Adapter](./src/adapters/MorphoMarketV1Adapter.sol).
   This adapter allocates to any Morpho Market V1, under the constraints of the [caps](#caps).
-- [Morpho Vault V1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
-  This adapter allocates to a fixed Morpho Vault V1 (V1.0 and V1.1), under the constraints of the [caps](#caps).
-  Note that using this adapter with vaults other than Morpho Vaults V1 has not been audited.
 - Morpho Market V2 Adapter. WIP
+
+See this [tag](https://github.com/morpho-org/vault-v2/releases/tag/2025-09-15) for legacy adapters.
 
 ### Caps
 

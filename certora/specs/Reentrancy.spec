@@ -2,7 +2,6 @@
 // Copyright (c) 2025 Morpho Association
 
 using MorphoMarketV1Adapter as MorphoMarketV1Adapter;
-using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
 
 methods {
     function multicall(bytes[]) external => NONDET DELETE;
@@ -50,10 +49,10 @@ persistent ghost bool ignoredCall;
 persistent ghost bool hasCall;
 
 hook CALL(uint g, address addr, uint value, uint argsOffset, uint argsLength, uint retOffset, uint retLength) uint rc {
-    // Ignore calls to tokens and Morpho markets and Metamorpho as they are trusted to not reenter (they have gone through a timelock).
+    // Ignore calls to tokens and Morpho markets they are trusted to not reenter (they have gone through a timelock).
     if (ignoredCall || addr == currentContract) {
         ignoredCall = false;
-    } else if (addr == MorphoMarketV1Adapter || addr == MorphoVaultV1Adapter) {
+    } else if (addr == MorphoMarketV1Adapter) {
         assert isAdapter(addr);
         ignoredCall = false;
     } else {
