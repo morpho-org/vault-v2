@@ -4,7 +4,7 @@ using MorphoMarketV1Adapter as MorphoMarketV1Adapter;
 using VaultV2 as VaultV2;
 
 methods {
-    function MorphoMarketV1Adapter.newAllocation() external returns (uint256) envfree;
+    function MorphoMarketV1Adapter.allocation() external returns (uint128) envfree;
     function VaultV2.allocation(bytes32 id) external returns (uint256) envfree;
 
     // Assume that the adapter called is MorphoMarketV1Adapter.
@@ -14,12 +14,12 @@ methods {
 
 rule allocationConsistency(method f, env e, calldataarg args, bytes32 id) {
     uint256 vaultAllocationBefore = VaultV2.allocation(id);
-    uint256 adapterAllocationBefore = MorphoMarketV1Adapter.newAllocation();
+    uint256 adapterAllocationBefore = MorphoMarketV1Adapter.allocation();
 
     f(e, args);
 
     uint256 vaultAllocationAfter = VaultV2.allocation(id);
-    uint256 adapterAllocationAfter = MorphoMarketV1Adapter.newAllocation();
+    uint256 adapterAllocationAfter = MorphoMarketV1Adapter.allocation();
 
     assert vaultAllocationBefore != vaultAllocationAfter => vaultAllocationAfter - vaultAllocationBefore == adapterAllocationAfter - adapterAllocationBefore;
 }
