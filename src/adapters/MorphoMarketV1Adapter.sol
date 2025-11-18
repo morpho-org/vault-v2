@@ -90,12 +90,15 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             // Safe cast because Market V1 bounds the total shares to uint128.max.
             supplyShares += uint128(mintedShares);
         }
+
+        uint256 _newAllocation = newAllocation();
+        // Safe casts because Market V1 bounds totalSupplyAssets to uint128.max.
+        int256 change = int256(_newAllocation) - int256(uint256(allocation));
+        allocation = uint128(_newAllocation);
+
         emit Allocate(mintedShares);
 
-        uint256 oldAllocation = allocation;
-        // Safe casts because Market V1 bounds totalSupplyAssets to uint128.max.
-        allocation = uint128(newAllocation());
-        return (ids(), int256(uint256(allocation)) - int256(oldAllocation));
+        return (ids(), change);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -114,12 +117,14 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             supplyShares -= uint128(burnedShares);
         }
 
+        uint256 _newAllocation = newAllocation();
+        // Safe casts because Market V1 bounds totalSupplyAssets to uint128.max.
+        int256 change = int256(_newAllocation) - int256(uint256(allocation));
+        allocation = uint128(_newAllocation);
+
         emit Deallocate(burnedShares);
 
-        uint256 oldAllocation = allocation;
-        // Safe casts because Market V1 bounds totalSupplyAssets to uint128.max.
-        allocation = uint128(newAllocation());
-        return (ids(), int256(uint256(allocation)) - int256(oldAllocation));
+        return (ids(), change);
     }
 
     /* VIEWS */
