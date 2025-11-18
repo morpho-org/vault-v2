@@ -16,7 +16,7 @@ jobs:
         isolate: [true, false]
 
     runs-on: ubuntu-latest
-    name: test (${{ matrix.decimals }} decimals, isolate: ${{ matrix.isolate }})
+    name: "test (${{ matrix.decimals }} decimals, isolate: ${{ matrix.isolate }})"
     steps:
       - uses: actions/checkout@v4
         with:
