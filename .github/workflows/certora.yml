@@ -22,7 +22,7 @@ jobs:
           - Immutability
           - Invariants
           - Liveness
-          - MorphoMarketV1AdapterFactory
+          - MorphoMarketV1AdapterV2Factory
           - MorphoVaultV1AdapterFactory
           - OwnerSafety
           - PreviewFunctions

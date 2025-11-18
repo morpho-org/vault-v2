@@ -7,7 +7,7 @@ import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/M
 import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IMorphoMarketV1Adapter} from "./interfaces/IMorphoMarketV1Adapter.sol";
+import {IMorphoMarketV1AdapterV2} from "./interfaces/IMorphoMarketV1AdapterV2.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
 /// @dev Morpho Market V1 is also known as Morpho Blue.
@@ -19,7 +19,7 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 /// @dev Shouldn't be used alongside another adapter that re-uses the adapter id (abi.encode("this",address(this))).
 /// @dev The adapter returns 0 real assets when the allocation is zero, but it doesn't mean that the adapter has zero
 /// shares on the market.
-contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
+contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     using SharesMathLib for uint128;
 
     /* IMMUTABLES */

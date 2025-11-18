@@ -3,8 +3,8 @@
 pragma solidity ^0.8.0;
 
 import "../lib/forge-std/src/Test.sol";
-import {MorphoMarketV1Adapter} from "../src/adapters/MorphoMarketV1Adapter.sol";
-import {MorphoMarketV1AdapterFactory} from "../src/adapters/MorphoMarketV1AdapterFactory.sol";
+import {MorphoMarketV1AdapterV2} from "../src/adapters/MorphoMarketV1AdapterV2.sol";
+import {MorphoMarketV1AdapterV2Factory} from "../src/adapters/MorphoMarketV1AdapterV2Factory.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
@@ -18,17 +18,17 @@ import {MarketParamsLib} from "../lib/morpho-blue/src/libraries/MarketParamsLib.
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 import {WAD} from "../src/VaultV2.sol";
-import {IMorphoMarketV1Adapter} from "../src/adapters/interfaces/IMorphoMarketV1Adapter.sol";
-import {IMorphoMarketV1AdapterFactory} from "../src/adapters/interfaces/IMorphoMarketV1AdapterFactory.sol";
+import {IMorphoMarketV1AdapterV2} from "../src/adapters/interfaces/IMorphoMarketV1AdapterV2.sol";
+import {IMorphoMarketV1AdapterV2Factory} from "../src/adapters/interfaces/IMorphoMarketV1AdapterV2Factory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
 
-contract MorphoMarketV1AdapterTest is Test {
+contract MorphoMarketV1AdapterV2Test is Test {
     using MorphoBalancesLib for IMorpho;
     using MarketParamsLib for MarketParams;
     using MathLib for uint256;
 
-    IMorphoMarketV1AdapterFactory internal factory;
-    IMorphoMarketV1Adapter internal adapter;
+    IMorphoMarketV1AdapterV2Factory internal factory;
+    IMorphoMarketV1AdapterV2 internal adapter;
     VaultV2Mock internal parentVault;
     MarketParams internal marketParams;
     Id internal marketId;
@@ -74,9 +74,9 @@ contract MorphoMarketV1AdapterTest is Test {
         morpho.createMarket(marketParams);
         marketId = marketParams.id();
         parentVault = new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0));
-        factory = new MorphoMarketV1AdapterFactory();
-        adapter = MorphoMarketV1Adapter(
-            factory.createMorphoMarketV1Adapter(address(parentVault), address(morpho), marketParams)
+        factory = new MorphoMarketV1AdapterV2Factory();
+        adapter = MorphoMarketV1AdapterV2(
+            factory.createMorphoMarketV1AdapterV2(address(parentVault), address(morpho), marketParams)
         );
 
         expectedIds = new bytes32[](3);
@@ -103,13 +103,13 @@ contract MorphoMarketV1AdapterTest is Test {
 
     function testAllocateNotAuthorizedReverts(uint256 assets) public {
         assets = _boundAssets(assets);
-        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1AdapterV2.NotAuthorized.selector);
         adapter.allocate(hex"", assets, bytes4(0), address(0));
     }
 
     function testDeallocateNotAuthorizedReverts(uint256 assets) public {
         assets = _boundAssets(assets);
-        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1AdapterV2.NotAuthorized.selector);
         adapter.deallocate(hex"", assets, bytes4(0), address(0));
     }
 
@@ -150,42 +150,42 @@ contract MorphoMarketV1AdapterTest is Test {
     function testLoanAssetMismatchReverts() public {
         MarketParams memory mismatchMarketParams = marketParams;
         mismatchMarketParams.loanToken = address(new ERC20Mock(18));
-        vm.expectRevert(IMorphoMarketV1Adapter.LoanAssetMismatch.selector);
-        new MorphoMarketV1Adapter(address(parentVault), address(morpho), mismatchMarketParams);
+        vm.expectRevert(IMorphoMarketV1AdapterV2.LoanAssetMismatch.selector);
+        new MorphoMarketV1AdapterV2(address(parentVault), address(morpho), mismatchMarketParams);
     }
 
-    function testFactoryCreateMorphoMarketV1Adapter() public {
+    function testFactoryCreateMorphoMarketV1AdapterV2() public {
         address newParentVaultAddr =
             address(new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0)));
 
         bytes32 initCodeHash = keccak256(
             abi.encodePacked(
-                type(MorphoMarketV1Adapter).creationCode, abi.encode(newParentVaultAddr, morpho, marketParams)
+                type(MorphoMarketV1AdapterV2).creationCode, abi.encode(newParentVaultAddr, morpho, marketParams)
             )
         );
         address expectedNewAdapter =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
-        emit IMorphoMarketV1AdapterFactory.CreateMorphoMarketV1Adapter(
+        emit IMorphoMarketV1AdapterV2Factory.CreateMorphoMarketV1AdapterV2(
             newParentVaultAddr, address(morpho), marketParams, expectedNewAdapter
         );
 
-        address newAdapter = factory.createMorphoMarketV1Adapter(newParentVaultAddr, address(morpho), marketParams);
+        address newAdapter = factory.createMorphoMarketV1AdapterV2(newParentVaultAddr, address(morpho), marketParams);
 
         expectedIds[0] = keccak256(abi.encode("this", address(newAdapter)));
         expectedIds[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
 
         assertTrue(newAdapter != address(0), "Adapter not created");
-        assertEq(IMorphoMarketV1Adapter(newAdapter).factory(), address(factory), "Incorrect factory");
-        assertEq(IMorphoMarketV1Adapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
-        assertEq(IMorphoMarketV1Adapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
-        assertEq(IMorphoMarketV1Adapter(newAdapter).adapterId(), expectedIds[0], "Incorrect adapterId");
+        assertEq(IMorphoMarketV1AdapterV2(newAdapter).factory(), address(factory), "Incorrect factory");
+        assertEq(IMorphoMarketV1AdapterV2(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
+        assertEq(IMorphoMarketV1AdapterV2(newAdapter).morpho(), address(morpho), "Incorrect morpho");
+        assertEq(IMorphoMarketV1AdapterV2(newAdapter).adapterId(), expectedIds[0], "Incorrect adapterId");
         assertEq(
-            factory.morphoMarketV1Adapter(newParentVaultAddr, address(morpho), marketId),
+            factory.morphoMarketV1AdapterV2(newParentVaultAddr, address(morpho), marketId),
             newAdapter,
             "Adapter not tracked correctly"
         );
-        MarketParams memory returnedMarketParams = IMorphoMarketV1Adapter(newAdapter).marketParams();
+        MarketParams memory returnedMarketParams = IMorphoMarketV1AdapterV2(newAdapter).marketParams();
         assertEq(returnedMarketParams.loanToken, address(loanToken), "Incorrect loan token");
         assertEq(returnedMarketParams.collateralToken, marketParams.collateralToken, "Incorrect collateral token");
         assertEq(returnedMarketParams.loanToken, address(loanToken), "Incorrect loan token");
@@ -193,9 +193,9 @@ contract MorphoMarketV1AdapterTest is Test {
         assertEq(returnedMarketParams.irm, marketParams.irm, "Incorrect irm");
         assertEq(returnedMarketParams.lltv, marketParams.lltv, "Incorrect lltv");
         assertEq(
-            IMorphoMarketV1Adapter(newAdapter).collateralTokenId(), expectedIds[1], "Incorrect collateral token id"
+            IMorphoMarketV1AdapterV2(newAdapter).collateralTokenId(), expectedIds[1], "Incorrect collateral token id"
         );
-        assertTrue(factory.isMorphoMarketV1Adapter(newAdapter), "Adapter not tracked correctly");
+        assertTrue(factory.isMorphoMarketV1AdapterV2(newAdapter), "Adapter not tracked correctly");
     }
 
     function testSetSkimRecipient(address newRecipient, address caller) public {
@@ -204,12 +204,12 @@ contract MorphoMarketV1AdapterTest is Test {
         vm.assume(caller != owner);
 
         vm.prank(caller);
-        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1AdapterV2.NotAuthorized.selector);
         adapter.setSkimRecipient(newRecipient);
 
         vm.prank(owner);
         vm.expectEmit();
-        emit IMorphoMarketV1Adapter.SetSkimRecipient(newRecipient);
+        emit IMorphoMarketV1AdapterV2.SetSkimRecipient(newRecipient);
         adapter.setSkimRecipient(newRecipient);
 
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
@@ -227,14 +227,14 @@ contract MorphoMarketV1AdapterTest is Test {
         assertEq(token.balanceOf(address(adapter)), assets, "Adapter did not receive tokens");
 
         vm.expectEmit();
-        emit IMorphoMarketV1Adapter.Skim(address(token), assets);
+        emit IMorphoMarketV1AdapterV2.Skim(address(token), assets);
         vm.prank(recipient);
         adapter.skim(address(token));
 
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
         assertEq(token.balanceOf(recipient), assets, "Recipient did not receive tokens");
 
-        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1AdapterV2.NotAuthorized.selector);
         adapter.skim(address(token));
     }
 
