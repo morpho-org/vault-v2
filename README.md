@@ -33,6 +33,8 @@ The following adapters are currently available:
   Note that using this adapter with vaults other than Morpho Vaults V1 has not been audited.
 - Morpho Market V2 Adapter. WIP
 
+_Note:_ The Market V1 Adapter V2 has replaced the Market V1 Adapter V1 to make it easier to force remove individual markets.
+
 ### Caps
 
 The funds allocation of the vault is constrained by an id-based caps system.
