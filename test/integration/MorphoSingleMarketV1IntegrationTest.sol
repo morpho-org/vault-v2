@@ -6,7 +6,9 @@ import "../BaseTest.sol";
 
 import {MorphoSingleMarketV1Adapter} from "../../src/adapters/MorphoSingleMarketV1Adapter.sol";
 import {MorphoSingleMarketV1AdapterFactory} from "../../src/adapters/MorphoSingleMarketV1AdapterFactory.sol";
-import {IMorphoSingleMarketV1AdapterFactory} from "../../src/adapters/interfaces/IMorphoSingleMarketV1AdapterFactory.sol";
+import {
+    IMorphoSingleMarketV1AdapterFactory
+} from "../../src/adapters/interfaces/IMorphoSingleMarketV1AdapterFactory.sol";
 import {IMorphoSingleMarketV1Adapter} from "../../src/adapters/interfaces/IMorphoSingleMarketV1Adapter.sol";
 
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
@@ -62,8 +64,9 @@ contract MorphoSingleMarketV1IntegrationTest is BaseTest {
         /* VAULT SETUP */
 
         factory = new MorphoSingleMarketV1AdapterFactory();
-        adapter =
-            MorphoSingleMarketV1Adapter(factory.createMorphoSingleMarketV1Adapter(address(vault), address(morpho), marketParams));
+        adapter = MorphoSingleMarketV1Adapter(
+            factory.createMorphoSingleMarketV1Adapter(address(vault), address(morpho), marketParams)
+        );
 
         expectedIdData = new bytes[](3);
         expectedIdData[0] = abi.encode("morphoSingleMarketV1", address(morpho));

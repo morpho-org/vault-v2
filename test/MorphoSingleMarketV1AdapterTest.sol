@@ -170,7 +170,8 @@ contract MorphoSingleMarketV1AdapterTest is Test {
             newParentVaultAddr, address(morpho), marketParams, expectedNewAdapter
         );
 
-        address newAdapter = factory.createMorphoSingleMarketV1Adapter(newParentVaultAddr, address(morpho), marketParams);
+        address newAdapter =
+            factory.createMorphoSingleMarketV1Adapter(newParentVaultAddr, address(morpho), marketParams);
 
         expectedIds[0] = keccak256(abi.encode("this", address(newAdapter)));
         expectedIds[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
@@ -193,7 +194,9 @@ contract MorphoSingleMarketV1AdapterTest is Test {
         assertEq(returnedMarketParams.irm, marketParams.irm, "Incorrect irm");
         assertEq(returnedMarketParams.lltv, marketParams.lltv, "Incorrect lltv");
         assertEq(
-            IMorphoSingleMarketV1Adapter(newAdapter).collateralTokenId(), expectedIds[1], "Incorrect collateral token id"
+            IMorphoSingleMarketV1Adapter(newAdapter).collateralTokenId(),
+            expectedIds[1],
+            "Incorrect collateral token id"
         );
         assertTrue(factory.isMorphoSingleMarketV1Adapter(newAdapter), "Adapter not tracked correctly");
     }

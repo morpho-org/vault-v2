@@ -2,8 +2,7 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.28;
 
-import {MorphoMarketV1Adapter} from "./MorphoMarketV1Adapter.sol";
-src/adapters/MorphoSingleMarketV1AdapterFactory.sol
+import {MorphoSingleMarketV1Adapter} from "./MorphoSingleMarketV1Adapter.sol";
 import {IMorphoSingleMarketV1AdapterFactory} from "./interfaces/IMorphoSingleMarketV1AdapterFactory.sol";
 import {MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
@@ -13,20 +12,20 @@ contract MorphoSingleMarketV1AdapterFactory is IMorphoSingleMarketV1AdapterFacto
     /* STORAGE */
 
     mapping(address parentVault => mapping(address morpho => mapping(Id marketParamsId => address))) public
-        morphoMarketV1Adapter;
-    mapping(address account => bool) public isMorphoMarketV1Adapter;
+        morphoSingleMarketV1Adapter;
+    mapping(address account => bool) public isMorphoSingleMarketV1Adapter;
 
     /* FUNCTIONS */
 
-    function createMorphoMarketV1Adapter(address parentVault, address morpho, MarketParams memory marketParams)
+    function createMorphoSingleMarketV1Adapter(address parentVault, address morpho, MarketParams memory marketParams)
         external
         returns (address)
     {
-        address _morphoMarketV1Adapter =
-            address(new MorphoMarketV1Adapter{salt: bytes32(0)}(parentVault, morpho, marketParams));
-        morphoMarketV1Adapter[parentVault][morpho][marketParams.id()] = _morphoMarketV1Adapter;
-        isMorphoMarketV1Adapter[_morphoMarketV1Adapter] = true;
-        emit CreateMorphoMarketV1Adapter(parentVault, morpho, marketParams, _morphoMarketV1Adapter);
-        return _morphoMarketV1Adapter;
+        address _morphoSingleMarketV1Adapter =
+            address(new MorphoSingleMarketV1Adapter{salt: bytes32(0)}(parentVault, morpho, marketParams));
+        morphoSingleMarketV1Adapter[parentVault][morpho][marketParams.id()] = _morphoSingleMarketV1Adapter;
+        isMorphoSingleMarketV1Adapter[_morphoSingleMarketV1Adapter] = true;
+        emit CreateMorphoSingleMarketV1Adapter(parentVault, morpho, marketParams, _morphoSingleMarketV1Adapter);
+        return _morphoSingleMarketV1Adapter;
     }
 }
