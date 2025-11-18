@@ -13,9 +13,10 @@ jobs:
       fail-fast: true
       matrix:
         decimals: [0, 6, 8, 18, 24]
+        isolate: [true, false]
 
     runs-on: ubuntu-latest
-    name: test (${{ matrix.decimals }} decimals)
+    name: test (${{ matrix.decimals }} decimals, isolate: ${{ matrix.isolate }})
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,6 +29,6 @@ jobs:
         run: forge fmt --check
 
       - name: Run forge tests with a ${{ matrix.decimals }} decimals underlying asset
-        run: forge test -vvv
+        run: if [ ${{ matrix.isolate }} = true ]; then forge test -vvv --isolate; else forge test -vvv; fi
         env:
           DECIMALS: ${{ matrix.decimals }}
