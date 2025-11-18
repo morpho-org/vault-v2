@@ -12,5 +12,6 @@ methods {
     function _.deallocate(bytes data, uint256 assets, bytes4, address) external => DISPATCHER(true);
 }
 
+// This is not true for ids that are used by multiple adapters. But it shows that they evolve in sync.
 invariant allocationConsistency(bytes32 id)
     VaultV2.allocation(id) == MorphoMarketV1Adapter.allocation();
