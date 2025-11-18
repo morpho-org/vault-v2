@@ -20,5 +20,5 @@ rule allocationConsistency(method f, env e, calldataarg args, bytes32 id) {
     uint256 vaultAllocationAfter = VaultV2.allocation(id);
     uint256 adapterAllocationAfter = MorphoMarketV1Adapter.newAllocation();
 
-    assert vaultAllocationBefore != vaultAllocationAfter => vaultAllocationBefore - vaultAllocationAfter == adapterAllocationBefore - adapterAllocationAfter;
+    assert vaultAllocationBefore != vaultAllocationAfter => vaultAllocationAfter - vaultAllocationBefore == adapterAllocationAfter - adapterAllocationBefore;
 }
