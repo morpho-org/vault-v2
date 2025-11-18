@@ -7,6 +7,7 @@ methods {
     function MorphoMarketV1Adapter.newAllocation() external returns (uint256) envfree;
     function VaultV2.allocation(bytes32 id) external returns (uint256) envfree;
 
+    // Assume that the adapter called is MorphoMarketV1Adapter.
     function _.allocate(bytes data, uint256 assets, bytes4, address) external => DISPATCHER(true);
     function _.deallocate(bytes data, uint256 assets, bytes4, address) external => DISPATCHER(true);
 }
