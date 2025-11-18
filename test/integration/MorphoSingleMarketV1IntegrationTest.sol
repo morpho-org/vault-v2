@@ -69,7 +69,7 @@ contract MorphoSingleMarketV1IntegrationTest is BaseTest {
         );
 
         expectedIdData = new bytes[](3);
-        expectedIdData[0] = abi.encode("morphoSingleMarketV1", address(morpho));
+        expectedIdData[0] = abi.encode("morphoMarketV1", address(morpho));
         expectedIdData[1] = abi.encode("this", address(adapter));
         expectedIdData[2] = abi.encode("collateralToken", marketParams.collateralToken);
 
