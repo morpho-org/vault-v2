@@ -32,9 +32,9 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     address internal immutable oracle;
     address internal immutable irm;
     uint256 internal immutable lltv;
-    bytes32 public immutable morphoMarketV1Id;
+    bytes32 public immutable morphoV1Id;
     bytes32 public immutable collateralTokenId;
-    bytes32 public immutable adapterId;
+    bytes32 public immutable marketV1Id;
 
     /* STORAGE */
 
@@ -55,9 +55,9 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         oracle = _marketParams.oracle;
         irm = _marketParams.irm;
         lltv = _marketParams.lltv;
-        morphoMarketV1Id = keccak256(abi.encode("morphoMarketV1", _morpho));
+        morphoV1Id = keccak256(abi.encode("morphoV1", _morpho));
         collateralTokenId = keccak256(abi.encode("collateralToken", collateralToken));
-        adapterId = keccak256(abi.encode("this", address(this)));
+        marketV1Id = keccak256(abi.encode("this/marketParams", address(this), _marketParams));
 
         SafeERC20Lib.safeApprove(loanToken, _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(loanToken, _parentVault, type(uint256).max);
@@ -132,9 +132,9 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     /// @dev Returns adapter's ids.
     function ids() public view returns (bytes32[] memory) {
         bytes32[] memory ids_ = new bytes32[](3);
-        ids_[0] = morphoMarketV1Id;
+        ids_[0] = morphoV1Id;
         ids_[1] = collateralTokenId;
-        ids_[2] = adapterId;
+        ids_[2] = marketV1Id;
         return ids_;
     }
 

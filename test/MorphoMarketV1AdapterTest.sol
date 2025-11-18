@@ -80,9 +80,9 @@ contract MorphoMarketV1AdapterTest is Test {
         );
 
         expectedIds = new bytes32[](3);
-        expectedIds[0] = keccak256(abi.encode("morphoMarketV1", address(morpho)));
+        expectedIds[0] = keccak256(abi.encode("morphoV1", address(morpho)));
         expectedIds[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
-        expectedIds[2] = keccak256(abi.encode("this", address(adapter)));
+        expectedIds[2] = keccak256(abi.encode("this/marketParams", address(adapter), marketParams));
     }
 
     function _boundAssets(uint256 assets) internal pure returns (uint256) {
@@ -172,14 +172,15 @@ contract MorphoMarketV1AdapterTest is Test {
 
         address newAdapter = factory.createMorphoMarketV1Adapter(newParentVaultAddr, address(morpho), marketParams);
 
-        expectedIds[0] = keccak256(abi.encode("this", address(newAdapter)));
+        expectedIds[0] = keccak256(abi.encode("morphoV1", address(morpho)));
         expectedIds[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
+        expectedIds[2] = keccak256(abi.encode("this/marketParams", address(newAdapter), marketParams));
 
         assertTrue(newAdapter != address(0), "Adapter not created");
         assertEq(IMorphoMarketV1Adapter(newAdapter).factory(), address(factory), "Incorrect factory");
         assertEq(IMorphoMarketV1Adapter(newAdapter).parentVault(), newParentVaultAddr, "Incorrect parent vault");
         assertEq(IMorphoMarketV1Adapter(newAdapter).morpho(), address(morpho), "Incorrect morpho");
-        assertEq(IMorphoMarketV1Adapter(newAdapter).adapterId(), expectedIds[0], "Incorrect adapterId");
+        assertEq(IMorphoMarketV1Adapter(newAdapter).morphoV1Id(), expectedIds[0], "Incorrect morphoV1Id");
         assertEq(
             factory.morphoMarketV1Adapter(newParentVaultAddr, address(morpho), marketId),
             newAdapter,
