@@ -100,7 +100,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(forceRemoveExecutableAt != 0, NotTimelocked());
         require(block.timestamp >= forceRemoveExecutableAt, TimelockNotExpired());
         supplyShares = 0;
-        allocation = 0;
         forceRemoveExecutableAt = 0;
         emit ForceRemove();
     }

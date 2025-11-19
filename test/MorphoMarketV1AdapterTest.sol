@@ -438,7 +438,9 @@ contract MorphoMarketV1AdapterTest is Test {
         adapter.forceRemove();
 
         assertEq(adapter.supplyShares(), 0, "shares");
-        assertEq(adapter.allocation(), 0, "allocation");
+        assertEq(adapter.allocation(), assets, "allocation");
         assertEq(adapter.forceRemoveExecutableAt(), 0, "executable at");
     }
+
+    function testUpdateVaultAfterForceRemove() public {}
 }
