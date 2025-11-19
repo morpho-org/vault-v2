@@ -71,26 +71,26 @@ function morphoVaultV1AdapterWrapperSummary(env e, bool isAllocateCall, bytes da
     return (ids, change);
 }
 
-rule allocateChangesAdapterIds(env e, bytes data, uint256 assets) {
+rule allocateChangesAllocationOfIds(env e, bytes data, uint256 assets) {
     // Trick to require that all the following addresses are different.
     require MorphoVaultV1 == 0x10, "ack";
     require MorphoVaultV1Adapter == 0x11, "ack";
     require currentContract == 0x12, "ack";
 
-    bytes32[] adapterIds = MorphoVaultV1Adapter.ids();
+    bytes32[] ids = MorphoVaultV1Adapter.ids();
 
     bytes32 id;
     uint256 allocationBefore = allocation(id);
 
     uint i;
-    require i < adapterIds.length, "require i to be a valid index";
-    requireInvariant allocationIsInt256(adapterIds[i]);
-    int256 idIAllocationBefore = assert_int256(allocation(adapterIds[i]));
+    require i < ids.length, "require i to be a valid index";
+    requireInvariant allocationIsInt256(ids[i]);
+    int256 idIAllocationBefore = assert_int256(allocation(ids[i]));
 
     allocate(e, MorphoVaultV1Adapter, data, assets);
 
-    assert allocation(adapterIds[i]) == idIAllocationBefore + ghostChange;
-    assert !(exists uint j. j < adapterIds.length && id == adapterIds[j]) => currentContract.caps[id].allocation == allocationBefore;
+    assert allocation(ids[i]) == idIAllocationBefore + ghostChange;
+    assert currentContract.caps[id].allocation != allocationBefore => exists uint j. j < ids.length && id == ids[j];
 }
 
 rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
@@ -104,27 +104,27 @@ rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
     assert MorphoVaultV1Adapter.allocation() == MorphoVaultV1.previewRedeem(e, MorphoVaultV1.balanceOf(MorphoVaultV1Adapter));
 }
 
-rule deallocateChangesAdapterIds(env e, bytes data, uint256 assets) {
+rule deallocateChangesAllocationOfIds(env e, bytes data, uint256 assets) {
     // Trick to require that all the following addresses are different.
     require MorphoVaultV1 == 0x10, "ack";
     require MorphoVaultV1Adapter == 0x11, "ack";
     require currentContract == 0x12, "ack";
     require currentContract.asset == 0x13, "ack";
 
-    bytes32[] adapterIds = MorphoVaultV1Adapter.ids();
+    bytes32[] ids = MorphoVaultV1Adapter.ids();
 
     bytes32 id;
     uint256 allocationBefore = allocation(id);
 
     uint i;
-    require i < adapterIds.length, "require i to be a valid index";
-    requireInvariant allocationIsInt256(adapterIds[i]);
-    int256 idIAllocationBefore = assert_int256(allocation(adapterIds[i]));
+    require i < ids.length, "require i to be a valid index";
+    requireInvariant allocationIsInt256(ids[i]);
+    int256 idIAllocationBefore = assert_int256(allocation(ids[i]));
 
     deallocate(e, MorphoVaultV1Adapter, data, assets);
 
-    assert allocation(adapterIds[i]) == idIAllocationBefore + ghostChange;
-    assert !(exists uint j. j < adapterIds.length && id == adapterIds[j]) => currentContract.caps[id].allocation == allocationBefore;
+    assert allocation(ids[i]) == idIAllocationBefore + ghostChange;
+    assert currentContract.caps[id].allocation != allocationBefore => exists uint j. j < ids.length && id == ids[j];
 }
 
 rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
