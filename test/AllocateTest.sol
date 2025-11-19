@@ -317,7 +317,7 @@ contract AllocateTest is BaseTest {
         increaseRelativeCap("id-1", WAD);
 
         vault.deposit(deposit, address(this));
-        vault.accrueInterest(); // to prevent accrueInterest in the allocate (which would revert with AdapterMock).
+        vm.mockCall(address(adapter), abi.encodeCall(AdapterMock.realAssets, ()), abi.encode(0));
         AdapterMock(adapter).setLoss(loss);
 
         vm.prank(allocator);
