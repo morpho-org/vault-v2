@@ -45,21 +45,16 @@ contract Utils {
         return MAX_MAX_RATE;
     }
 
-    function expectedSupplyAssets(IMorpho morpho, MarketParams memory marketParams, address user)
+    function expectedSupplyAssets(IMorpho morpho, MarketParams memory marketParams, uint256 supplyShares)
         external
         view
         returns (uint256)
     {
         Id marketId = marketParams.id();
-        uint256 supplyShares = morpho.position(marketId, user).supplyShares;
         (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
             MorphoBalancesLib.expectedMarketBalances(morpho, marketParams);
 
         return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
-    }
-
-    function decodeMarketParams(bytes memory data) external pure returns (MarketParams memory) {
-        return abi.decode(data, (MarketParams));
     }
 
     function id(MarketParams memory marketParams) external pure returns (Id) {
@@ -68,6 +63,14 @@ contract Utils {
 
     function adapterId(address adapter) external pure returns (bytes32) {
         return keccak256(abi.encode("this", adapter));
+    }
+
+    function marketV1Id(address morpho) external pure returns (bytes32) {
+        return keccak256(abi.encode("morphoMarketV1", morpho));
+    }
+
+    function collateralTokenId(address collateralToken) external pure returns (bytes32) {
+        return keccak256(abi.encode("collateralToken", collateralToken));
     }
 
     function havocAll() external {

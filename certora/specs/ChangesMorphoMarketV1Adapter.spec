@@ -6,8 +6,7 @@ import "UtilityFunctions.spec";
 using Utils as Utils;
 
 methods {
-    function allocation(Morpho.MarketParams) external returns (uint256) envfree;
-    function Utils.decodeMarketParams(bytes) external returns (Morpho.MarketParams) envfree;
+    function allocation() external returns (uint128) envfree;
 
     // Needed because linking fails.
     function _.transfer(address, uint256) external => DISPATCHER(true);
@@ -36,8 +35,7 @@ rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 se
 
 // Check that allocate or deallocate cannot return a change that would make the current allocation negative.
 rule changeForAllocateOrDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
-    Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
-    mathint allocation = allocation(marketParams);
+    mathint allocation = allocation();
 
     bytes32[] ids;
     int256 change;
