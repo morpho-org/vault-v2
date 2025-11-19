@@ -20,6 +20,7 @@ methods {
     function forceDeallocatePenalty(address) external returns (uint256) envfree;
     function absoluteCap(bytes32 id) external returns (uint256) envfree;
     function relativeCap(bytes32 id) external returns (uint256) envfree;
+    function maxRate() external returns (uint64) envfree;
     function allocation(bytes32 id) external returns (uint256) envfree;
     function timelock(bytes4 selector) external returns (uint256) envfree;
     function isAdapter(address adapter) external returns (bool) envfree;
@@ -31,6 +32,7 @@ methods {
     function Utils.maxPerformanceFee() external returns (uint256) envfree;
     function Utils.maxManagementFee() external returns (uint256) envfree;
     function Utils.maxForceDeallocatePenalty() external returns (uint256) envfree;
+    function Utils.maxMaxRate() external returns (uint256) envfree;
 }
 
 definition decreaseTimelockSelector() returns bytes4 = to_bytes4(sig:decreaseTimelock(bytes4, uint256).selector);
@@ -52,20 +54,26 @@ hook Sstore balanceOf[KEY address addr] uint256 newValue (uint256 oldValue) {
     sumOfBalances = sumOfBalances - oldValue + newValue;
 }
 
-strong invariant performanceFeeRecipient()
+strong invariant performanceFeeRecipientSetWhenPerformanceFeeIsSet()
     performanceFee() != 0 => performanceFeeRecipient() != 0;
 
-strong invariant managementFeeRecipient()
+strong invariant managementFeeRecipientSetWhenManagementFeeIsSet()
     managementFee() != 0 => managementFeeRecipient() != 0;
 
-strong invariant performanceFee()
+strong invariant performanceFeeBound()
     performanceFee() <= Utils.maxPerformanceFee();
 
-strong invariant managementFee()
+strong invariant managementFeeBound()
     managementFee() <= Utils.maxManagementFee();
 
-strong invariant forceDeallocatePenalty(address adapter)
+strong invariant forceDeallocatePenaltyBound(address adapter)
     forceDeallocatePenalty(adapter) <= Utils.maxForceDeallocatePenalty();
+
+strong invariant relativeCapBound(bytes32 id)
+    relativeCap(id) <= 10^18;
+
+strong invariant maxRateBound()
+    maxRate() <= Utils.maxMaxRate();
 
 strong invariant balanceOfZero()
     balanceOf(0) == 0;

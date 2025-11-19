@@ -41,6 +41,10 @@ contract Utils {
         return IReturnFactory(adapter).factory();
     }
 
+    function maxMaxRate() external pure returns (uint256) {
+        return MAX_MAX_RATE;
+    }
+
     function expectedSupplyAssets(IMorpho morpho, MarketParams memory marketParams, address user)
         external
         view
