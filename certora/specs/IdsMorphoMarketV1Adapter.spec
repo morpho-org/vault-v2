@@ -8,13 +8,17 @@ using Utils as Utils;
 methods {
     function adapterId() external returns (bytes32) envfree;
     function ids() external returns (bytes32[]) envfree;
+    function morpho() external returns (address) envfree;
+    function marketParams() external returns (MorphoMarketV1Adapter.MarketParams) envfree;  
 
     function Utils.havocAll() external envfree => HAVOC_ALL;
     function Utils.adapterId(address) external returns (bytes32) envfree;
+    function Utils.marketV1Id(address) external returns (bytes32) envfree;
+    function Utils.collateralTokenId(address) external returns (bytes32) envfree;
 }
 
-// Show that ids() is a function that only depend on its input. It will be used as the reference id list in other rules.
-rule adapterAlwaysReturnsTheSameIDsForSameData() {
+// Show that ids() always return the same thing. It will be used as the reference id list in other rules.
+rule adapterAlwaysReturnsTheSameIDs() {
   bytes32[] idsPre = ids();
 
   Utils.havocAll();
@@ -41,6 +45,12 @@ rule matchingIdsOnAllocateOrDeallocate(env e, bytes data, uint256 assets, bytes4
   assert ids[2] == idsMarket[2];
 }
 
+invariant valueOfMarketV1Id()
+  ids()[0] == Utils.marketV1Id(morpho());
+
+invariant valueOfCollateralTokenId()
+  ids()[1] == Utils.collateralTokenId(marketParams().collateralToken);
+
 invariant valueOfAdapterId()
   adapterId() == Utils.adapterId(currentContract);
 
@@ -48,6 +58,8 @@ rule distinctMarketV1Ids() {
   bytes32[] ids = ids();
 
   requireInvariant valueOfAdapterId();
+  requireInvariant valueOfMarketV1Id();
+  requireInvariant valueOfCollateralTokenId();
 
   assert forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i];
 }

@@ -58,16 +58,20 @@ contract Utils {
         return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }
 
-    function decodeMarketParams(bytes memory data) external pure returns (MarketParams memory) {
-        return abi.decode(data, (MarketParams));
-    }
-
     function id(MarketParams memory marketParams) external pure returns (Id) {
         return MarketParamsLib.id(marketParams);
     }
 
     function adapterId(address adapter) external pure returns (bytes32) {
         return keccak256(abi.encode("this", adapter));
+    }
+
+    function marketV1Id(address morpho) external pure returns (bytes32) {
+        return keccak256(abi.encode("morphoMarketV1", morpho));
+    }
+
+    function collateralTokenId(address collateralToken) external pure returns (bytes32) {
+        return keccak256(abi.encode("collateralToken", collateralToken));
     }
 
     function havocAll() external {
