@@ -72,7 +72,7 @@ rule allocateChangesAllocationOfIds(env e, bytes data, uint256 assets) {
     allocate(e, MorphoMarketV1Adapter, data, assets);
 
     assert allocation(ids[i]) == idIAllocationBefore + ghostChange;
-    assert currentContract.caps[id].allocation != allocationBefore => exists uint j. j < ids.length && id == ids[j];
+    assert currentContract.caps[id].allocation != allocationBefore => (exists uint j. j < ids.length && id == ids[j]);
 }
 
 rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
@@ -110,7 +110,7 @@ rule deallocateChangesAllocationOfIds(env e, bytes data, uint256 assets) {
     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
     assert allocation(ids[i]) == idIAllocationBefore + ghostChange;
-    assert currentContract.caps[id].allocation != allocationBefore => exists uint j. j < ids.length && id == ids[j];
+    assert currentContract.caps[id].allocation != allocationBefore => (exists uint j. j < ids.length && id == ids[j]);
 }
 
 rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
