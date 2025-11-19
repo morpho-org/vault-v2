@@ -6,8 +6,8 @@ using MorphoHarness as MorphoMarketV1;
 using Utils as Utils;
 
 methods {
-    function allocation(bytes32) external returns uint256 envfree;
-
+    function allocation(bytes32) external returns (uint256) envfree;
+    
     function MorphoMarketV1Adapter.marketParams() external returns (MorphoHarness.MarketParams) envfree;
     function MorphoMarketV1Adapter.ids() external returns (bytes32[]) envfree;
     function MorphoMarketV1Adapter.allocation() external returns (uint128) envfree;
@@ -83,7 +83,7 @@ rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
     allocate(e, MorphoMarketV1Adapter, data, assets);
 
     uint256 allocation = MorphoMarketV1Adapter.allocation();
-    uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, MorphoMarketV1Adapter.marketParams, MorphoMarketV1Adapter);
+    uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, MorphoMarketV1Adapter.marketParams(), MorphoMarketV1Adapter);
 
     assert allocation == expected;
 }
@@ -119,7 +119,7 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
     uint256 allocation = MorphoMarketV1Adapter.allocation();
-    uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, MorphoMarketV1Adapter.marketParams, MorphoMarketV1Adapter);
+    uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, MorphoMarketV1Adapter.marketParams(), MorphoMarketV1Adapter);
 
     assert allocation == expected;
 }
