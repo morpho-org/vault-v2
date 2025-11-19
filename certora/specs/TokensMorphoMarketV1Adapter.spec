@@ -28,7 +28,7 @@ methods {
 rule depositTokenChange(env e, uint256 assets, address receiver) {
     address asset = asset();
 
-    require (MorphoMarketV1Adapter.asset == asset, "assume that the VaultV2's underlying asset is the same as the adapter's");
+    require (MorphoMarketV1Adapter.loanToken == asset, "assume that the VaultV2's underlying asset is the same as the adapter's");
 
     // Trick to require that all the following addresses are different.
     require (MorphoMarketV1 == 0x10, "ack");
@@ -62,7 +62,7 @@ rule depositTokenChange(env e, uint256 assets, address receiver) {
 rule withdrawTokenChange(env e, uint256 assets, address receiver, address owner) {
     address asset = asset();
 
-    require (MorphoMarketV1Adapter.asset == asset, "assume that the VaultV2's underlying asset is the same as the adapter's");
+    require (MorphoMarketV1Adapter.loanToken == asset, "assume that the VaultV2's underlying asset is the same as the adapter's");
 
     // Trick to require that all the following addresses are different.
     require (MorphoMarketV1 == 0x10, "ack");
