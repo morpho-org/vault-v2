@@ -60,8 +60,7 @@ rule changeForAllocateOrDeallocateIsBoundedByAllocation(env e, bytes data, uint2
 
     bytes32[] ids;
     int256 change;
-    bool isAllocate;
-    ids, change = allocateOrDeallocate(isAllocate, e, data, assets, selector, sender);
+    ids, change = allocateOrDeallocate(e, data, assets, selector, sender);
 
     require vaultV1.balanceOf(currentContract) <= vaultV1.totalSupply(), "total supply is the sum of the balances";
 

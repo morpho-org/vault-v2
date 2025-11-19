@@ -27,9 +27,7 @@ rule adapterAlwaysReturnsTheSameIDsForSameData() {
 // Show that the ids returned on allocate or deallocate match the reference id list.
 rule matchingIdsOnAllocateOrDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
   bytes32[] ids;
-
-  bool isAllocate;
-  ids, _ = allocateOrDeallocate(isAllocate, e, data, assets, selector, sender);
+  ids, _ = allocateOrDeallocate(e, data, assets, selector, sender);
 
   bytes32[] idsAdapter = ids();
   assert idsAdapter.length == 1;

@@ -30,10 +30,9 @@ rule adapterAlwaysReturnsTheSameIDsForSameData(MorphoMarketV1Adapter.MarketParam
 // Show that the ids returned on allocate or deallocate match the reference id list.
 rule matchingIdsOnAllocateOrDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
   MorphoMarketV1Adapter.MarketParams marketParams = Utils.decodeMarketParams(data);
-  bytes32[] ids;
 
-  bool isAllocate;
-  ids, _ = allocateOrDeallocate(isAllocate, e, data, assets, selector, sender);
+  bytes32[] ids;
+  ids, _ = allocateOrDeallocate(e, data, assets, selector, sender);
 
   bytes32[] idsMarket = ids(marketParams);
   assert idsMarket.length == 3;
