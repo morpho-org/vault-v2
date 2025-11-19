@@ -29,6 +29,7 @@ jobs:
           - Immutability
           - Invariants
           - Liveness
+          - MarketParamsList
           - MorphoMarketV1AdapterFactory
           - MorphoVaultV1AdapterFactory
           - OwnerSafety
@@ -64,9 +65,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ">=3.10"
-
-      - name: Apply VaultV2 munging
-        run: make -C certora munged
 
       - name: Install certora
         run: pip install certora-cli

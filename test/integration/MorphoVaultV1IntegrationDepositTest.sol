@@ -32,6 +32,8 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
         );
     }
 
+    // useful to get the total asset after the tx
+    /// forge-config: default.isolate = true
     function testDepositRoundingLoss(uint256 donationFactor, uint256 roundedDeposit) public {
         // Setup
         donationFactor = bound(donationFactor, 2, 100);
@@ -62,12 +64,13 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
         uint256 previousVaultTotalAssets = vault.totalAssets();
         uint256 previousAdapterTrackedAllocation = morphoVaultV1Adapter.allocation();
 
-        vault.deposit(roundedDeposit, address(this));
+        uint256 totalAssetsDuringTx = this.depositAndReturnTotalAssets(roundedDeposit);
 
+        assertEq(totalAssetsDuringTx, previousVaultTotalAssets + roundedDeposit, "total assets during tx");
         assertEq(
             morphoVaultV1.balanceOf(address(morphoVaultV1Adapter)), previousAdapterShares, "adapter shares balance"
         );
-        assertEq(vault.totalAssets(), previousVaultTotalAssets + roundedDeposit, "vault total assets");
+        assertEq(vault.totalAssets(), previousVaultTotalAssets, "vault total assets after tx");
         assertEq(
             morphoVaultV1Adapter.allocation(),
             previousAdapterTrackedAllocation,
@@ -75,6 +78,8 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
         );
     }
 
+    // useful to get the total asset after the tx
+    /// forge-config: default.isolate = true
     function testWithdrawRoundingLoss(uint256 donationFactor, uint256 roundedWithdraw) public {
         donationFactor = bound(donationFactor, 2, 100);
         roundedWithdraw = bound(roundedWithdraw, 1, donationFactor / 2);
@@ -111,12 +116,13 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
         uint256 previousVaultTotalAssets = vault.totalAssets();
         uint256 previousAdapterTrackedAllocation = morphoVaultV1Adapter.allocation();
 
-        vault.withdraw(roundedWithdraw, address(this), address(this));
+        uint256 totalAssetsDuringTx = this.withdrawAndReturnTotalAssets(roundedWithdraw);
 
+        assertEq(totalAssetsDuringTx, previousVaultTotalAssets - roundedWithdraw, "total assets during tx");
         assertEq(
             morphoVaultV1.balanceOf(address(morphoVaultV1Adapter)), previousAdapterShares - 1, "adapter shares balance"
         );
-        assertEq(vault.totalAssets(), previousVaultTotalAssets - roundedWithdraw, "total assets");
+        assertEq(vault.totalAssets(), previousVaultTotalAssets - donationFactor, "total assets after tx");
         assertEq(morphoVaultV1Adapter.allocation(), previousAdapterTrackedAllocation - donationFactor, "allocation");
     }
 
@@ -155,5 +161,15 @@ contract MorphoVaultV1IntegrationDepositTest is MorphoVaultV1IntegrationTest {
         assertEq(underlyingToken.balanceOf(address(morphoVaultV1)), 0, "underlying balance of morphoVaultV1");
         assertEq(underlyingToken.balanceOf(address(morphoVaultV1Adapter)), 0, "underlying balance of adapter");
         assertEq(underlyingToken.balanceOf(address(vault)), assets, "underlying balance of vault");
+    }
+
+    function depositAndReturnTotalAssets(uint256 assets) external returns (uint256) {
+        vault.deposit(assets, address(this));
+        return vault.totalAssets();
+    }
+
+    function withdrawAndReturnTotalAssets(uint256 assets) external returns (uint256) {
+        vault.withdraw(assets, address(this), address(this));
+        return vault.totalAssets();
     }
 }
