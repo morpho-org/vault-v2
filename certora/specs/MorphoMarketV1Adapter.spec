@@ -8,9 +8,8 @@ methods {
     function MorphoMarketV1Adapter.adapterId() external returns (bytes32) envfree;
     function VaultV2.allocation(bytes32 id) external returns (uint256) envfree;
 
-    // Assume that the adapter called is MorphoMarketV1Adapter.
-    function _.allocate(bytes data, uint256 assets, bytes4, address) external => DISPATCHER(true);
-    function _.deallocate(bytes data, uint256 assets, bytes4, address) external => DISPATCHER(true);
+    function _.allocate(bytes data, uint256 assets, bytes4 selector, address sender) external with (env e) => summaryMorphoMarketV1Allocate(e, data, assets, selector, sender) expect (bytes32[], int256);
+    function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with (env e) => summaryMorphoMarketV1Deallocate(e, data, assets, selector, sender) expect (bytes32[], int256);
 
     // Safe assumption because the specification focuses on VaultV2 and MorphoMarketV1Adapter storage variables.
     function _.supply(MorphoMarketV1Adapter.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, bytes data) external => NONDET;
@@ -18,8 +17,23 @@ methods {
     function _.transfer(address, uint256) external => NONDET;
 }
 
-invariant sameAllocationInVaultAndInAdapter()
-    MorphoMarketV1Adapter.allocation() == VaultV2.allocation(MorphoMarketV1Adapter.adapterId());
+function summaryMorphoMarketV1Allocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
+    bytes32[] ids;
+    int256 change;
+    // Assume that the adapter called is MorphoMarketV1Adapter.
+    (ids, change) = MorphoMarketV1Adapter.allocate(e, data, assets, selector, sender);
+    require forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "proven in the distinctMarketV1Ids rule";
+    return (ids, change);
+}
+
+function summaryMorphoMarketV1Deallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
+    bytes32[] ids;
+    int256 change;
+    // Assume that the adapter called is MorphoMarketV1Adapter.
+    (ids, change) = MorphoMarketV1Adapter.deallocate(e, data, assets, selector, sender);
+    require forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "proven in the distinctMarketV1Ids rule";
+    return (ids, change);
+}
 
 rule allocationMirrorChangesInVaultAndAdapter(method f, env e, calldataarg args, bytes32 id) {
     uint256 vaultAllocationBefore = VaultV2.allocation(id);
