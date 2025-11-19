@@ -17,7 +17,7 @@ function summaryExpectedSupplyAssets(address morpho, MorphoMarketV1Adapter.Marke
     uint256 newAllocation;
     require newAllocation <= max_int256(), "see allocationIsInt256";
     // Assumes that the allocation in the vault is newAllocation after allocate and deallocate.
-    // Safe because it is a corollary of allocateChangesAdapterIds, deallocateChangesAdapterIds and allocationIsInt256.
+    // Safe because it is a corollary of allocateChangesAllocationOfIds, deallocateChangesAllocationOfIds and allocationIsInt256.
     ghostAllocation[marketParams.loanToken][marketParams.collateralToken][marketParams.oracle][marketParams.irm][marketParams.lltv] = newAllocation;
     return newAllocation;
 }

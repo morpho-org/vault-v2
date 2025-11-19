@@ -6,9 +6,11 @@ import "UtilityFunctions.spec";
 using Utils as Utils;
 
 methods {
+    function adapterId() external returns (bytes32) envfree;
     function ids(MorphoMarketV1Adapter.MarketParams) external returns (bytes32[]) envfree;
 
     function Utils.havocAll() external envfree => HAVOC_ALL;
+    function Utils.adapterId(address) external returns (bytes32) envfree;
     function Utils.decodeMarketParams(bytes) external returns(MorphoMarketV1Adapter.MarketParams) envfree;
 }
 
@@ -40,4 +42,15 @@ rule matchingIdsOnAllocateOrDeallocate(env e, bytes data, uint256 assets, bytes4
   assert ids[0] == idsMarket[0];
   assert ids[1] == idsMarket[1];
   assert ids[2] == idsMarket[2];
+}
+
+invariant valueOfAdapterId()
+  adapterId() == Utils.adapterId(currentContract);
+
+rule distinctMarketV1Ids(MorphoMarketV1Adapter.MarketParams marketParams) {
+  bytes32[] ids = ids(marketParams);
+
+  requireInvariant valueOfAdapterId();
+
+  assert forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i];
 }

@@ -10,7 +10,7 @@ definition assets() returns mathint = currentContract._totalAssets + 1;
 // Check that share price is increasing, except due to management fees and potentially when accruing interest (notably due to loss realization).
 rule sharePriceIsIncreasing(method f, env e, calldataarg a) {
     require (e.block.timestamp >= currentContract.lastUpdate, "safe requirement because `lastUpdate` is growing and monotonic");
-    requireInvariant performanceFee();
+    requireInvariant performanceFeeBound();
 
     require (currentContract.totalSupply > 0, "assume that the vault is seeded");
     require (currentContract.managementFee == 0, "assume management fee to be null");
