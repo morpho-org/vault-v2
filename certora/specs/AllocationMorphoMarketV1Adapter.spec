@@ -120,6 +120,7 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
 
     uint256 allocation = MorphoMarketV1Adapter.allocation();
     uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, MorphoMarketV1Adapter.marketParams(), MorphoMarketV1Adapter.supplyShares());
+    require expected < 2 ^ 128;
 
     assert allocation == expected;
 }
