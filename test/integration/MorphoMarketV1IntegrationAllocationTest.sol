@@ -90,4 +90,20 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
         vm.expectRevert(ErrorsLib.TransferReverted.selector);
         vault.allocate(address(adapter), hex"", assets);
     }
+
+    function testAllocateWithSlippage() public {
+        // Increase rate by borrowing.
+        deal(address(collateralToken), borrower, type(uint256).max);
+        vm.startPrank(borrower);
+        collateralToken.approve(address(morpho), type(uint256).max);
+        morpho.supplyCollateral(marketParams, 2 * initialInMarket, borrower, hex"");
+        morpho.borrow(marketParams, initialInMarket, 0, borrower, borrower);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 60 * 60 * 24 * 365 * 200); //200 years
+
+        vm.prank(allocator);
+        vm.expectRevert(IMorphoMarketV1Adapter.SlippageExceeded.selector);
+        vault.allocate(address(adapter), hex"", 100);
+    }
 }
