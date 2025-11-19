@@ -84,11 +84,11 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 shares;
+        uint256 mintedShares;
         if (assets > 0) {
-            (, shares) = IMorpho(morpho).supply(marketParams(), assets, 0, address(this), hex"");
+            (, mintedShares) = IMorpho(morpho).supply(marketParams(), assets, 0, address(this), hex"");
             // Safe cast because Market V1 bounds the total shares to uint128.max.
-            supplyShares += uint128(shares);
+            supplyShares += uint128(mintedShares);
         }
 
         uint256 _newAllocation = newAllocation();
@@ -96,7 +96,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         int256 change = int256(_newAllocation) - int256(uint256(allocation));
         allocation = uint128(_newAllocation);
 
-        emit Allocate(shares);
+        emit Allocate(mintedShares);
 
         return (ids(), change);
     }
@@ -110,11 +110,11 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(data.length == 0, InvalidData());
         require(msg.sender == parentVault, NotAuthorized());
 
-        uint256 shares;
+        uint256 burnedShares;
         if (assets > 0) {
-            (, shares) = IMorpho(morpho).withdraw(marketParams(), assets, 0, address(this), address(this));
+            (, burnedShares) = IMorpho(morpho).withdraw(marketParams(), assets, 0, address(this), address(this));
             // Safe cast because Market V1 bounds the total shares to uint128.max.
-            supplyShares -= uint128(shares);
+            supplyShares -= uint128(burnedShares);
         }
 
         uint256 _newAllocation = newAllocation();
@@ -122,7 +122,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         int256 change = int256(_newAllocation) - int256(uint256(allocation));
         allocation = uint128(_newAllocation);
 
-        emit Deallocate(shares);
+        emit Deallocate(burnedShares);
 
         return (ids(), change);
     }
