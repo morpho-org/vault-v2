@@ -90,9 +90,12 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
             vault.submit(abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
             vault.addAdapter(address(adapter));
 
+            bytes memory morphoMarketV1Id = abi.encode("morphoMarketV1", address(morpho));
             bytes memory collateralId = abi.encode("collateralToken", marketParams.collateralToken);
             bytes memory adapterId = abi.encode("this", address(adapter));
 
+            increaseAbsoluteCap(morphoMarketV1Id, type(uint128).max);
+            increaseRelativeCap(morphoMarketV1Id, WAD);
             increaseAbsoluteCap(collateralId, type(uint128).max);
             increaseRelativeCap(collateralId, WAD);
             increaseAbsoluteCap(adapterId, type(uint128).max);
