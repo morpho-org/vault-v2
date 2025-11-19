@@ -6,9 +6,11 @@ import "UtilityFunctions.spec";
 using Utils as Utils;
 
 methods {
+    function adapterId() external returns (bytes32) envfree;
     function ids() external returns (bytes32[]) envfree;
 
     function Utils.havocAll() external envfree => HAVOC_ALL;
+    function Utils.adapterId(address) external returns (bytes32) envfree;
 }
 
 // Show that ids() is a constant function. It will be used as the reference id list in other rules.
@@ -34,3 +36,6 @@ rule matchingIdsOnAllocateOrDeallocate(env e, bytes data, uint256 assets, bytes4
   assert ids.length == 1;
   assert ids[0] == idsAdapter[0];
 }
+
+invariant valueOfAdapterId()
+  adapterId() == Utils.adapterId(currentContract);
