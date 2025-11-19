@@ -2,7 +2,7 @@
 
 > [!NOTE]
 > Vault V2 instances are distinguished between:
-> - **Morpho Vaults**: Vault V2 with the [Morpho registry](https://docs.morpho.org/learn/concepts/vault-v2/#adapter-registry) abdicated. Learn more about Morpho Vaults and their benefits here (link to be added).
+> - **Morpho Vaults**: Vault V2 with the [adapter registry](https://github.com/morpho-org/vault-v2/blob/main/src/VaultV2.sol#L89-L97) set to the Morpho registry and abdicated. Learn more about Morpho Vaults and their benefits [here](https://docs.morpho.org/learn/concepts/vault-v2/#:~:text=Basic%20Vaults:%20Vaults,of%20Morpho's%20infrastructure).
 > - **Basic Vaults**: Vault V2 that can supply to any protocol. They don't get all the Morpho Vaults benefits. In particular, Vault V2 has been developed and audited only in the context of the Morpho Market V1 and Morpho Vault V1 adapters.
 
 Vault V2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including Morpho Market V1, Morpho Market V2, and Morpho Vault V1.
