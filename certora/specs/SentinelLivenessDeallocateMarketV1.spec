@@ -42,7 +42,7 @@ function morphoMarketV1AdapterDeallocateWrapper(address adapter, env e, bytes da
     int256 change;
     ids, change = adapter.deallocate(e, data, assets, selector, sender);
 
-    require forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "see distinctAdapterIds";
+    require forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "see distinctMarketV1Ids";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= max_int256(), "see allocationIsInt256";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "safe because of changeForDeallocateIsBoundedByAllocation and other ids returned have greater allocation than this/marketParams id";
 

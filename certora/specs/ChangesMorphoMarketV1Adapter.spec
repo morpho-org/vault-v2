@@ -42,8 +42,7 @@ rule changeForAllocateOrDeallocateIsBoundedByAllocation(env e, bytes data, uint2
     bytes32[] ids;
     int256 change;
 
-    bool isAllocate;
-    ids, change = allocateOrDeallocate(isAllocate, e, data, assets, selector, sender);
+    ids, change = allocateOrDeallocate(e, data, assets, selector, sender);
 
     assert allocation + change >= 0;
 }
