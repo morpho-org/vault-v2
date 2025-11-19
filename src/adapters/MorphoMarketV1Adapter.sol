@@ -89,7 +89,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             (, mintedShares) = IMorpho(morpho).supply(marketParams(), assets, 0, address(this), hex"");
 
             // Rounding error protection
-            require(mintedShares >= assets, SlippageExceeded());
+            require(mintedShares >= assets, SharePriceTooHigh());
 
             // Safe cast because Market V1 bounds the total shares to uint128.max.
             supplyShares += uint128(mintedShares);
