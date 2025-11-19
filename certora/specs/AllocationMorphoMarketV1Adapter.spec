@@ -17,8 +17,8 @@ methods {
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
     function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
 
-    function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoMarketV1AdapterWrapperSummary(e, true, data, assets, bs, a) expect(bytes32[], int256);
-    function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoMarketV1AdapterWrapperSummary(e, false, data, assets, bs, a) expect(bytes32[], int256);
+    function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => summaryMorphoMarketV1AllocateOrDeallocate(e, true, data, assets, bs, a) expect(bytes32[], int256);
+    function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => summaryMorphoMarketV1AllocateOrDeallocate(e, false, data, assets, bs, a) expect(bytes32[], int256);
 
     function _.position(MorphoHarness.Id, address) external => DISPATCHER(true);
     function _.market(MorphoHarness.Id) external => DISPATCHER(true);
@@ -36,8 +36,8 @@ persistent ghost uint256 constantBorrowRate;
 
 persistent ghost int256 ghostChange;
 
-// Wrapper to record change returned by the adapter and ensure returned ids are distinct.
-function morphoMarketV1AdapterWrapperSummary(env e, bool isAllocateCall, bytes data, uint256 assets, bytes4 bs, address a) returns (bytes32[], int256) {
+// Wrapper to record change returned by the adapter, ensure returned ids are distinct and assume that the adapter called is MorphoMarketV1Adapter.
+function summaryMorphoMarketV1AllocateOrDeallocate(env e, bool isAllocateCall, bytes data, uint256 assets, bytes4 bs, address a) returns (bytes32[], int256) {
     bytes32[] ids;
     int256 change;
 
