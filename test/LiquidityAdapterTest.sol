@@ -8,14 +8,14 @@ contract LiquidityAdapterTest is BaseTest {
     using MathLib for uint256;
 
     AdapterMock public adapter;
-    uint256 internal MAX_TEST_ASSETS;
-    uint256 internal MAX_TEST_SHARES;
+    uint256 internal maxTestAssets;
+    uint256 internal maxTestShares;
 
     function setUp() public override {
         super.setUp();
 
-        MAX_TEST_ASSETS = 10 ** min(18 + underlyingToken.decimals(), 36);
-        MAX_TEST_SHARES = 10 ** min(18 + underlyingToken.decimals(), 36);
+        maxTestAssets = 10 ** min(18 + underlyingToken.decimals(), 36);
+        maxTestShares = 10 ** min(18 + underlyingToken.decimals(), 36);
 
         adapter = new AdapterMock(address(vault));
 
@@ -33,7 +33,7 @@ contract LiquidityAdapterTest is BaseTest {
     }
 
     function testLiquidityAdapterDeposit(bytes memory data, uint256 assets) public {
-        assets = bound(assets, 0, MAX_TEST_ASSETS);
+        assets = bound(assets, 0, maxTestAssets);
 
         vm.prank(allocator);
         vault.setLiquidityAdapterAndData(address(adapter), data);
@@ -46,7 +46,7 @@ contract LiquidityAdapterTest is BaseTest {
     }
 
     function testLiquidityAdapterMint(bytes memory data, uint256 shares) public {
-        shares = bound(shares, 0, MAX_TEST_SHARES);
+        shares = bound(shares, 0, maxTestShares);
 
         vm.prank(allocator);
         vault.setLiquidityAdapterAndData(address(adapter), data);
@@ -60,7 +60,7 @@ contract LiquidityAdapterTest is BaseTest {
 
     function testLiquidityAdapterWithdraw(bytes memory data, uint256 deposit) public {
         address receiver = makeAddr("receiver");
-        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
+        deposit = bound(deposit, 1, maxTestAssets);
 
         vm.prank(allocator);
         vault.setLiquidityAdapterAndData(address(adapter), data);
@@ -76,7 +76,7 @@ contract LiquidityAdapterTest is BaseTest {
 
     function testLiquidityAdapterRedeem(bytes memory data, uint256 deposit) public {
         address receiver = makeAddr("receiver");
-        deposit = bound(deposit, 1, MAX_TEST_ASSETS);
+        deposit = bound(deposit, 1, maxTestAssets);
 
         vm.prank(allocator);
         vault.setLiquidityAdapterAndData(address(adapter), data);

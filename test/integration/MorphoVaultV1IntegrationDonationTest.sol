@@ -12,8 +12,8 @@ contract MorphoVaultV1IntegrationDonationTest is MorphoVaultV1IntegrationTest {
     function testSharesDonationResistanceIfNoAllocation(uint256 initialAssets, uint256 donatedAssets, uint256 elapsed)
         public
     {
-        initialAssets = bound(initialAssets, 0, MAX_TEST_ASSETS);
-        donatedAssets = bound(donatedAssets, 0, MAX_TEST_ASSETS);
+        initialAssets = bound(initialAssets, 0, maxTestAssets);
+        donatedAssets = bound(donatedAssets, 0, maxTestAssets);
         elapsed = bound(elapsed, 0, 10 * 365 days);
 
         setSupplyQueueIdle();

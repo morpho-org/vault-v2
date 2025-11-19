@@ -11,12 +11,12 @@ struct Call {
 
 contract RealizeLossTest is BaseTest {
     AdapterMock internal adapter;
-    uint256 MAX_TEST_AMOUNT;
+    uint256 maxTestAmount;
 
     function setUp() public override {
         super.setUp();
 
-        MAX_TEST_AMOUNT = 10 ** min(18 + underlyingToken.decimals(), 36);
+        maxTestAmount = 10 ** min(18 + underlyingToken.decimals(), 36);
 
         adapter = new AdapterMock(address(vault));
 
@@ -35,7 +35,7 @@ contract RealizeLossTest is BaseTest {
 
     /// forge-config: default.isolate = true
     function testRealizeLoss(uint256 deposit, uint256 expectedLoss) public {
-        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+        deposit = bound(deposit, 1, maxTestAmount);
         expectedLoss = bound(expectedLoss, 1, deposit);
 
         vault.deposit(deposit, address(this));
@@ -52,7 +52,7 @@ contract RealizeLossTest is BaseTest {
 
     /// forge-config: default.isolate = true
     function testTouchThenLoss(uint256 deposit, uint256 expectedLoss) public {
-        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+        deposit = bound(deposit, 1, maxTestAmount);
         expectedLoss = bound(expectedLoss, 1, deposit);
 
         vault.deposit(deposit, address(this));
@@ -60,9 +60,9 @@ contract RealizeLossTest is BaseTest {
         vault.allocate(address(adapter), hex"", deposit);
 
         Call[] memory calls = new Call[](3);
-        calls[0] = Call(address(vault), abi.encodeCall(IVaultV2.accrueInterest, ()));
-        calls[1] = Call(address(adapter), abi.encodeCall(AdapterMock.setLoss, (expectedLoss)));
-        calls[2] = Call(address(vault), abi.encodeCall(IERC4626.totalAssets, ()));
+        calls[0] = Call({target: address(vault), data: abi.encodeCall(IVaultV2.accrueInterest, ())});
+        calls[1] = Call({target: address(adapter), data: abi.encodeCall(AdapterMock.setLoss, (expectedLoss))});
+        calls[2] = Call({target: address(vault), data: abi.encodeCall(IERC4626.totalAssets, ())});
         bytes[] memory results = this.multicall(calls);
         uint256 totalAssets = abi.decode(results[2], (uint256));
         assertEq(totalAssets, deposit, "total assets should not have changed");
@@ -70,7 +70,7 @@ contract RealizeLossTest is BaseTest {
 
     /// forge-config: default.isolate = true
     function testLossThenTouch(uint256 deposit, uint256 expectedLoss) public {
-        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+        deposit = bound(deposit, 1, maxTestAmount);
         expectedLoss = bound(expectedLoss, 1, deposit);
 
         vault.deposit(deposit, address(this));
@@ -78,15 +78,15 @@ contract RealizeLossTest is BaseTest {
         vault.allocate(address(adapter), hex"", deposit);
 
         Call[] memory calls = new Call[](2);
-        calls[0] = Call(address(adapter), abi.encodeCall(AdapterMock.setLoss, (expectedLoss)));
-        calls[1] = Call(address(vault), abi.encodeCall(IERC4626.totalAssets, ()));
+        calls[0] = Call({target: address(adapter), data: abi.encodeCall(AdapterMock.setLoss, (expectedLoss))});
+        calls[1] = Call({target: address(vault), data: abi.encodeCall(IERC4626.totalAssets, ())});
         bytes[] memory results = this.multicall(calls);
         uint256 totalAssets = abi.decode(results[1], (uint256));
         assertEq(totalAssets, deposit - expectedLoss, "total assets should have decreased by the loss");
     }
 
     function testAllocationLossAllocate(uint256 deposit, uint256 expectedLoss) public {
-        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+        deposit = bound(deposit, 1, maxTestAmount);
         expectedLoss = bound(expectedLoss, 1, deposit);
 
         vm.prank(curator);
@@ -107,7 +107,7 @@ contract RealizeLossTest is BaseTest {
     }
 
     function testAllocationLossDeallocate(uint256 deposit, uint256 expectedLoss) public {
-        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+        deposit = bound(deposit, 1, maxTestAmount);
         expectedLoss = bound(expectedLoss, 1, deposit);
 
         vm.prank(curator);
@@ -128,7 +128,7 @@ contract RealizeLossTest is BaseTest {
     }
 
     function testAllocationLossForceDeallocate(uint256 deposit, uint256 expectedLoss) public {
-        deposit = bound(deposit, 1, MAX_TEST_AMOUNT);
+        deposit = bound(deposit, 1, maxTestAmount);
         expectedLoss = bound(expectedLoss, 1, deposit);
 
         vm.prank(curator);
