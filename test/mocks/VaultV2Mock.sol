@@ -12,6 +12,7 @@ contract VaultV2Mock {
     mapping(address => bool) public isAllocator;
     mapping(address => bool) public isSentinel;
     mapping(bytes32 => uint256) public allocation;
+    uint256 public _timelock;
 
     constructor(address _asset, address _owner, address _curator, address _allocator, address _sentinel) {
         asset = _asset;
@@ -19,6 +20,7 @@ contract VaultV2Mock {
         curator = _curator;
         isAllocator[_allocator] = true;
         isSentinel[_sentinel] = true;
+        _timelock = 1 days;
     }
 
     function accrueInterest() public {}
@@ -43,5 +45,13 @@ contract VaultV2Mock {
             allocation[ids[i]] = uint256(int256(allocation[ids[i]]) + change);
         }
         return (ids, change);
+    }
+
+    function setTimelock(uint256 newTimelock) external {
+        _timelock = newTimelock;
+    }
+
+    function timelock(bytes4) external view returns (uint256) {
+        return _timelock;
     }
 }

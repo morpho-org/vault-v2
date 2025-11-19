@@ -39,6 +39,8 @@ contract MorphoMarketV1AdapterTest is Test {
     IIrm internal irm;
     IMorpho internal morpho;
     address internal owner;
+    address internal curator;
+    address internal sentinel;
     address internal recipient;
     bytes32[] internal expectedIds;
 
@@ -47,6 +49,8 @@ contract MorphoMarketV1AdapterTest is Test {
 
     function setUp() public {
         owner = makeAddr("owner");
+        curator = makeAddr("curator");
+        sentinel = makeAddr("sentinel");
         recipient = makeAddr("recipient");
 
         address morphoOwner = makeAddr("MorphoOwner");
@@ -73,7 +77,7 @@ contract MorphoMarketV1AdapterTest is Test {
 
         morpho.createMarket(marketParams);
         marketId = marketParams.id();
-        parentVault = new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0));
+        parentVault = new VaultV2Mock(address(loanToken), owner, curator, address(0), sentinel);
         factory = new MorphoMarketV1AdapterFactory();
         adapter = MorphoMarketV1Adapter(
             factory.createMorphoMarketV1Adapter(address(parentVault), address(morpho), marketParams)
@@ -326,5 +330,115 @@ contract MorphoMarketV1AdapterTest is Test {
 
         // approx because of the virtual shares.
         assertApproxEqAbs(adapter.realAssets() - deposit, interest, interest.mulDivUp(1, deposit + 1), "realAssets");
+    }
+
+    function testSubmitForceRemoveNotAuthorized(address caller) public {
+        vm.assume(caller != curator);
+        vm.prank(caller);
+        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        adapter.submitForceRemove();
+    }
+
+    function testSubmitForceRemoveAlreadyPending() public {
+        vm.prank(curator);
+        adapter.submitForceRemove();
+
+        vm.expectRevert(IMorphoMarketV1Adapter.AlreadyPending.selector);
+        vm.prank(curator);
+        adapter.submitForceRemove();
+    }
+
+    function testSubmitForceRemove() public {
+        vm.expectEmit();
+        emit IMorphoMarketV1Adapter.SubmitForceRemove(block.timestamp
+                + parentVault.timelock(IVaultV2.removeAdapter.selector));
+        vm.prank(curator);
+        adapter.submitForceRemove();
+
+        assertEq(
+            adapter.forceRemoveExecutableAt(), block.timestamp + parentVault.timelock(IVaultV2.removeAdapter.selector)
+        );
+    }
+
+    function testRevokeForceRemoveNotAuthorized(address caller) public {
+        vm.assume(caller != curator);
+        vm.assume(caller != sentinel);
+
+        vm.prank(caller);
+        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        adapter.revokeForceRemove();
+    }
+
+    function testRevokeForceRemoveNotPending() public {
+        vm.prank(curator);
+        vm.expectRevert(IMorphoMarketV1Adapter.NotPending.selector);
+        adapter.revokeForceRemove();
+    }
+
+    function testRevokeForceRemove() public {
+        vm.prank(curator);
+        adapter.submitForceRemove();
+
+        uint256 snap = vm.snapshotState();
+
+        vm.prank(curator);
+        vm.expectEmit();
+        emit IMorphoMarketV1Adapter.RevokeForceRemove();
+        adapter.revokeForceRemove();
+
+        assertEq(adapter.forceRemoveExecutableAt(), 0);
+
+        vm.revertToStateAndDelete(snap);
+
+        vm.prank(curator);
+        vm.expectEmit();
+        emit IMorphoMarketV1Adapter.RevokeForceRemove();
+        adapter.revokeForceRemove();
+
+        assertEq(adapter.forceRemoveExecutableAt(), 0);
+    }
+
+    function testForceRemoveNotTimelocked() public {
+        vm.expectRevert(IMorphoMarketV1Adapter.NotTimelocked.selector);
+        adapter.forceRemove();
+    }
+
+    function testForceRemoveTimelockNotExpired(uint256 timelockDuration, uint256 skipDuration) public {
+        timelockDuration = bound(timelockDuration, 1, 3650 days);
+
+        parentVault.setTimelock(timelockDuration);
+
+        vm.prank(curator);
+        adapter.submitForceRemove();
+
+        skip(bound(skipDuration, 0, timelockDuration - 1));
+
+        vm.expectRevert(IMorphoMarketV1Adapter.TimelockNotExpired.selector);
+        adapter.forceRemove();
+    }
+
+    function testForceRemove(uint256 timelockDuration, uint256 extraSkip) public {
+        uint256 assets = _boundAssets(1000);
+        deal(address(loanToken), address(adapter), assets);
+        parentVault.allocateMocked(address(adapter), hex"", assets);
+
+        assertGt(adapter.supplyShares(), 0);
+        assertGt(adapter.allocation(), 0);
+
+        timelockDuration = bound(timelockDuration, 0, 3650 days);
+        parentVault.setTimelock(timelockDuration);
+
+        vm.prank(curator);
+        adapter.submitForceRemove();
+
+        skip(timelockDuration + bound(extraSkip, 0, 3650 days));
+
+        vm.expectEmit();
+        emit IMorphoMarketV1Adapter.ForceRemove();
+        adapter.forceRemove();
+
+        assertEq(adapter.supplyShares(), 0, "shares");
+        assertEq(adapter.allocation(), 0, "allocation");
+        assertEq(adapter.forceRemoveExecutableAt(), 0, "executable at");
     }
 }

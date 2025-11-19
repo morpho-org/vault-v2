@@ -41,6 +41,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     address public skimRecipient;
     uint128 public supplyShares;
     uint128 public allocation;
+    uint256 public forceRemoveExecutableAt;
 
     /* FUNCTIONS */
 
@@ -76,6 +77,32 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         uint256 balance = IERC20(token).balanceOf(address(this));
         SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
         emit Skim(token, balance);
+    }
+
+    function submitForceRemove() external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        require(forceRemoveExecutableAt == 0, AlreadyPending());
+        forceRemoveExecutableAt = block.timestamp + IVaultV2(parentVault).timelock(IVaultV2.removeAdapter.selector);
+        emit SubmitForceRemove(forceRemoveExecutableAt);
+    }
+
+    function revokeForceRemove() external {
+        require(
+            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
+        require(forceRemoveExecutableAt != 0, NotPending());
+        forceRemoveExecutableAt = 0;
+        emit RevokeForceRemove();
+    }
+
+    function forceRemove() external {
+        require(forceRemoveExecutableAt != 0, NotTimelocked());
+        require(block.timestamp >= forceRemoveExecutableAt, TimelockNotExpired());
+        supplyShares = 0;
+        allocation = 0;
+        forceRemoveExecutableAt = 0;
+        emit ForceRemove();
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
