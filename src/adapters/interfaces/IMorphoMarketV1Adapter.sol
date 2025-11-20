@@ -5,6 +5,11 @@ pragma solidity >=0.5.0;
 import {IAdapter} from "../../interfaces/IAdapter.sol";
 import {Id, MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
+struct MarketPosition {
+    uint128 supplyShares;
+    uint128 allocation;
+}
+
 /// @dev This interface is used for factorizing IMorphoMarketV1AdapterStaticTyping and IMorphoMarketV1Adapter.
 /// @dev Consider using the IMorphoMarketV1Adapter interface instead of this one.
 interface IMorphoMarketV1AdapterBase is IAdapter {
@@ -35,11 +40,11 @@ interface IMorphoMarketV1AdapterBase is IAdapter {
     function morpho() external view returns (address);
     function adapterId() external view returns (bytes32);
     function skimRecipient() external view returns (address);
+    function positions(Id id) external view returns (uint128 supplyShares, uint128 allocation);
     function marketParamsListLength() external view returns (uint256);
     function submitBurnShares(Id id) external;
     function revokeBurnShares(Id id) external;
     function burnShares(Id id) external;
-    function allocation(MarketParams memory marketParams) external view returns (uint256);
     function newAllocation(MarketParams memory marketParams) external view returns (uint256);
     function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
     function setSkimRecipient(address newSkimRecipient) external;
