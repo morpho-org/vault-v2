@@ -27,7 +27,7 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket);
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), initialInMarket);
-        assertEq(vault.allocation(keccak256(expectedIdData[0])), initialInMarket);
+        assertEq(vault.allocation(expectedIds[0]), initialInMarket);
     }
 
     function testDeallocateLessThanAllocated(uint256 assets) public {
@@ -40,7 +40,7 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket - assets);
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), initialInMarket - assets);
-        assertEq(vault.allocation(keccak256(expectedIdData[0])), initialInMarket - assets);
+        assertEq(vault.allocation(expectedIds[0]), initialInMarket - assets);
     }
 
     function testDeallocateMoreThanAllocated(uint256 assets) public {
@@ -80,7 +80,7 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket + assets);
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), initialInMarket + assets);
-        assertEq(vault.allocation(keccak256(expectedIdData[0])), initialInMarket + assets);
+        assertEq(vault.allocation(expectedIds[0]), initialInMarket + assets);
     }
 
     function testAllocateMoreThanIdle(uint256 assets) public {
