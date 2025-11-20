@@ -41,7 +41,7 @@ contract MorphoMarketV1IntegrationWithdrawTest is MorphoMarketV1IntegrationTest 
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket);
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), initialInMarket);
-        assertEq(vault.allocation(keccak256(expectedIdData[0])), initialInMarket);
+        assertEq(vault.allocation(expectedIds[0]), initialInMarket);
     }
 
     function testWithdrawMoreThanIdleNoLiquidityAdapter(uint256 assets) public {
@@ -63,7 +63,7 @@ contract MorphoMarketV1IntegrationWithdrawTest is MorphoMarketV1IntegrationTest 
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialTotal - assets);
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), initialInMarket + initialInIdle - assets);
-        assertEq(vault.allocation(keccak256(expectedIdData[0])), initialInMarket - (assets - initialInIdle));
+        assertEq(vault.allocation(expectedIds[0]), initialInMarket - (assets - initialInIdle));
     }
 
     function testWithdrawTooMuchEvenWithLiquidityAdapter(uint256 assets) public {

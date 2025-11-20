@@ -74,7 +74,7 @@ contract MorphoMarketV1IntegrationIkrTest is MorphoMarketV1IntegrationTest {
         underlyingToken.approve(address(morpho), type(uint256).max);
         morpho.supply(marketParams, assets, 0, address(this), hex"");
         vault.forceDeallocate(address(adapter), hex"", assets, address(this));
-        assertEq(vault.allocation(keccak256(expectedIdData[0])), 0, "allocation(2)");
+        assertEq(vault.allocation(expectedIds[0]), 0, "allocation(2)");
 
         vault.withdraw(assets - penaltyAssets, address(this), address(this));
 
