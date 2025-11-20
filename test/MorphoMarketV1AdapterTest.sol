@@ -434,7 +434,7 @@ contract MorphoMarketV1AdapterTest is Test {
         skip(timelockDuration + bound(extraSkip, 0, 3650 days));
 
         vm.expectEmit();
-        emit IMorphoMarketV1Adapter.ForceRemove();
+        emit IMorphoMarketV1Adapter.ForceRemove(adapter.supplyShares());
         adapter.forceRemove();
 
         assertEq(adapter.supplyShares(), 0, "shares");

@@ -19,6 +19,8 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 /// @dev Shouldn't be used alongside another adapter that re-uses the adapter id (abi.encode("this",address(this))).
 /// @dev The adapter returns 0 real assets when the allocation is zero, but it doesn't mean that the adapter has zero
 /// shares on the market.
+/// @dev Force removal should be performed before the adapter is removed from the vault, and the adapter should only be
+/// removed when its allocation is 0.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using SharesMathLib for uint128;
 
@@ -99,9 +101,9 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     function forceRemove() external {
         require(forceRemoveExecutableAt != 0, NotTimelocked());
         require(block.timestamp >= forceRemoveExecutableAt, TimelockNotExpired());
+        emit ForceRemove(supplyShares);
         supplyShares = 0;
         forceRemoveExecutableAt = 0;
-        emit ForceRemove();
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -170,9 +172,13 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     }
 
     function newAllocation() public view returns (uint256) {
-        (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
-            MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams());
-        return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
+        if (supplyShares == 0) {
+            return 0;
+        } else {
+            (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
+                MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams());
+            return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
+        }
     }
 
     function realAssets() public view returns (uint256) {
