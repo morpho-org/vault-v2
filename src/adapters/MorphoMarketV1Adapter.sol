@@ -79,33 +79,29 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         emit Skim(token, balance);
     }
 
-    function submitBurnShares(MarketParams memory marketParams) external {
+    function submitBurnShares(Id id) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        Id marketId = marketParams.id();
-        require(burnSharesExecutableAt[marketId] == 0, AlreadyPending());
-        burnSharesExecutableAt[marketId] =
-            block.timestamp + IVaultV2(parentVault).timelock(IVaultV2.removeAdapter.selector);
-        emit SubmitBurnShares(marketParams, burnSharesExecutableAt[marketId]);
+        require(burnSharesExecutableAt[id] == 0, AlreadyPending());
+        burnSharesExecutableAt[id] = block.timestamp + IVaultV2(parentVault).timelock(IVaultV2.removeAdapter.selector);
+        emit SubmitBurnShares(id, burnSharesExecutableAt[id]);
     }
 
-    function revokeBurnShares(MarketParams memory marketParams) external {
+    function revokeBurnShares(Id id) external {
         require(
             msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
             NotAuthorized()
         );
-        Id marketId = marketParams.id();
-        require(burnSharesExecutableAt[marketId] != 0, NotPending());
-        burnSharesExecutableAt[marketId] = 0;
-        emit RevokeBurnShares(marketParams);
+        require(burnSharesExecutableAt[id] != 0, NotPending());
+        burnSharesExecutableAt[id] = 0;
+        emit RevokeBurnShares(id);
     }
 
-    function burnShares(MarketParams memory marketParams) external {
-        Id marketId = marketParams.id();
-        require(burnSharesExecutableAt[marketId] != 0, NotTimelocked());
-        require(block.timestamp >= burnSharesExecutableAt[marketId], TimelockNotExpired());
-        burnSharesExecutableAt[marketId] = 0;
-        positions[marketId].supplyShares = 0;
-        emit BurnShares(marketParams);
+    function burnShares(Id id) external {
+        require(burnSharesExecutableAt[id] != 0, NotTimelocked());
+        require(block.timestamp >= burnSharesExecutableAt[id], TimelockNotExpired());
+        burnSharesExecutableAt[id] = 0;
+        positions[id].supplyShares = 0;
+        emit BurnShares(id);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -118,10 +114,10 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         Id marketId = marketParams.id();
         MarketPosition storage position = positions[marketId];
 
-        uint256 shares;
+        uint256 mintedShares;
         if (assets > 0) {
-            (, shares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-            position.supplyShares += uint128(shares);
+            (, mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+            position.supplyShares += uint128(mintedShares);
         }
 
         uint256 oldAllocation = position.allocation;
@@ -129,7 +125,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         updateMarketIds(marketId, oldAllocation, _newAllocation);
         position.allocation = uint128(_newAllocation);
 
-        emit Allocate(marketParams, _newAllocation, shares);
+        emit Allocate(marketParams, _newAllocation, mintedShares);
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
@@ -150,10 +146,10 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         Id marketId = marketParams.id();
         MarketPosition storage position = positions[marketId];
 
-        uint256 shares;
+        uint256 burnedShares;
         if (assets > 0) {
-            (, shares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-            position.supplyShares -= uint128(shares);
+            (, burnedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+            position.supplyShares -= uint128(burnedShares);
         }
 
         uint256 oldAllocation = position.allocation;
@@ -161,7 +157,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         updateMarketIds(marketId, oldAllocation, _newAllocation);
         position.allocation = uint128(_newAllocation);
 
-        emit Deallocate(marketParams, _newAllocation, shares);
+        emit Deallocate(marketParams, _newAllocation, burnedShares);
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
