@@ -9,7 +9,7 @@ methods {
     function adapterId() external returns (bytes32) envfree;
     function ids() external returns (bytes32[]) envfree;
     function morpho() external returns (address) envfree;
-    function marketParams() external returns (MorphoMarketV1Adapter.MarketParams) envfree;  
+    function marketParams() external returns (MorphoMarketV1AdapterV2.MarketParams) envfree;  
 
     function Utils.havocAll() external envfree => HAVOC_ALL;
     function Utils.adapterId(address) external returns (bytes32) envfree;
