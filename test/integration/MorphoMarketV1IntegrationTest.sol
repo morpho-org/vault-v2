@@ -48,7 +48,6 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
 
         collateralToken = new ERC20Mock(18);
         oracle = new OracleMock();
-        // irm = new AdaptiveCurveIrm();
 
         oracle.setPrice(ORACLE_PRICE_SCALE);
 
