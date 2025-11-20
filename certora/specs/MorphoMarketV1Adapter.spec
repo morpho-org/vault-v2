@@ -17,6 +17,7 @@ methods {
     function _.supply(MorphoMarketV1Adapter.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, bytes data) external => NONDET;
     function _.withdraw(MorphoMarketV1Adapter.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) external => NONDET;
     function _.transfer(address, uint256) external => NONDET;
+    function _.transferFrom(address, address, uint256) external => NONDET;
 }
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
@@ -53,7 +54,7 @@ rule adapterAllocationEvolvesByChange(env e, method f, calldataarg args) {
     assert adapterAllocationBefore != adapterAllocationAfter => adapterAllocationAfter == adapterAllocationBefore + ghostChange;
 }
 
-rule vaultAllocationEvolvesByChange(method f, env e, calldataarg args, bytes32 id) {    
+rule vaultAllocationEvolvesByChange(method f, env e, calldataarg args, bytes32 id) {
     uint256 vaultAllocationBefore = VaultV2.allocation(id);
 
     f(e, args);
