@@ -9,18 +9,21 @@ import {MorphoMarketV1AdapterFactory} from "../../src/adapters/MorphoMarketV1Ada
 import {IMorphoMarketV1AdapterFactory} from "../../src/adapters/interfaces/IMorphoMarketV1AdapterFactory.sol";
 import {IMorphoMarketV1Adapter} from "../../src/adapters/interfaces/IMorphoMarketV1Adapter.sol";
 
-import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
-import {OracleMock} from "../../lib/morpho-blue/src/mocks/OracleMock.sol";
-import {IrmMock} from "../../lib/morpho-blue/src/mocks/IrmMock.sol";
-import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
-import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
-import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/libraries/ConstantsLib.sol";
+import {OracleMock} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/mocks/OracleMock.sol";
+import {IrmMock} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/mocks/IrmMock.sol";
+import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {MarketParamsLib} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/libraries/MarketParamsLib.sol";
+import {
+    MorphoBalancesLib
+} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {IAdaptiveCurveIrm} from "../../lib/morpho-blue-irm/src/adaptive-curve-irm/interfaces/IAdaptiveCurveIrm.sol";
 
 contract MorphoMarketV1IntegrationTest is BaseTest {
     IMorpho internal morpho;
     ERC20Mock internal collateralToken;
     OracleMock internal oracle;
-    IrmMock internal irm;
+    IAdaptiveCurveIrm internal irm;
     MarketParams internal marketParams1;
     MarketParams internal marketParams2;
 
@@ -41,9 +44,11 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
         address morphoOwner = makeAddr("MorphoOwner");
         morpho = IMorpho(deployCode("Morpho.sol", abi.encode(morphoOwner)));
 
+        irm = IAdaptiveCurveIrm(deployCode("AdaptiveCurveIrm.sol", abi.encode(address(morpho))));
+
         collateralToken = new ERC20Mock(18);
         oracle = new OracleMock();
-        irm = new IrmMock();
+        // irm = new AdaptiveCurveIrm();
 
         oracle.setPrice(ORACLE_PRICE_SCALE);
 
@@ -74,7 +79,7 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
 
         /* VAULT SETUP */
 
-        factory = new MorphoMarketV1AdapterFactory();
+        factory = new MorphoMarketV1AdapterFactory(address(irm));
         adapter = IMorphoMarketV1Adapter(factory.createMorphoMarketV1Adapter(address(vault), address(morpho)));
 
         expectedIdData1 = new bytes[](3);

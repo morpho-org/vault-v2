@@ -13,6 +13,8 @@ contract MorphoMarketV1IntegrationInterestTest is MorphoMarketV1IntegrationTest 
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         elapsed = bound(elapsed, 0, 10 * 365 days);
 
+        console.log("assets              ", assets);
+
         // setup.
         vm.prank(allocator);
         vault.setLiquidityAdapterAndData(address(adapter), abi.encode(marketParams1));
@@ -27,6 +29,9 @@ contract MorphoMarketV1IntegrationInterestTest is MorphoMarketV1IntegrationTest 
 
         uint256 expectedSupplyAssets = morpho.expectedSupplyAssets(marketParams1, address(adapter));
         uint256 maxTotalAssets = assets + (assets * elapsed).mulDivDown(MAX_MAX_RATE, WAD);
+        console.log("vault assets        ", vault.totalAssets());
+        console.log("expectedSupplyAssets", expectedSupplyAssets);
+        console.log("maxTotalAssets      ", maxTotalAssets);
         assertEq(vault.totalAssets(), MathLib.min(expectedSupplyAssets, maxTotalAssets), "vault totalAssets");
     }
 }
