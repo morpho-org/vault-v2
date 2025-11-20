@@ -74,29 +74,30 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
         emit Skim(token, balance);
     }
 
-    function submitBurnShares(Id id) external {
+    function submitBurnShares(Id marketId) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        require(burnSharesExecutableAt[id] == 0, AlreadyPending());
-        burnSharesExecutableAt[id] = block.timestamp + IVaultV2(parentVault).timelock(IVaultV2.removeAdapter.selector);
-        emit SubmitBurnShares(id, burnSharesExecutableAt[id]);
+        require(burnSharesExecutableAt[marketId] == 0, AlreadyPending());
+        burnSharesExecutableAt[marketId] =
+            block.timestamp + IVaultV2(parentVault).timelock(IVaultV2.removeAdapter.selector);
+        emit SubmitBurnShares(marketId, burnSharesExecutableAt[marketId]);
     }
 
-    function revokeBurnShares(Id id) external {
+    function revokeBurnShares(Id marketId) external {
         require(
             msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
             NotAuthorized()
         );
-        require(burnSharesExecutableAt[id] != 0, NotPending());
-        burnSharesExecutableAt[id] = 0;
-        emit RevokeBurnShares(id);
+        require(burnSharesExecutableAt[marketId] != 0, NotPending());
+        burnSharesExecutableAt[marketId] = 0;
+        emit RevokeBurnShares(marketId);
     }
 
-    function burnShares(Id id) external {
-        require(burnSharesExecutableAt[id] != 0, NotTimelocked());
-        require(block.timestamp >= burnSharesExecutableAt[id], TimelockNotExpired());
-        burnSharesExecutableAt[id] = 0;
-        positions[id].supplyShares = 0;
-        emit BurnShares(id);
+    function burnShares(Id marketId) external {
+        require(burnSharesExecutableAt[marketId] != 0, NotTimelocked());
+        require(block.timestamp >= burnSharesExecutableAt[marketId], TimelockNotExpired());
+        burnSharesExecutableAt[marketId] = 0;
+        positions[marketId].supplyShares = 0;
+        emit BurnShares(marketId);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -105,8 +106,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
-        Id id = marketParams.id();
-        MarketPosition storage position = positions[id];
+        Id marketId = marketParams.id();
+        MarketPosition storage position = positions[marketId];
 
         uint256 mintedShares;
         if (assets > 0) {
@@ -135,7 +136,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
-        MarketPosition storage position = positions[marketParams.id()];
+        Id marketId = marketParams.id();
+        MarketPosition storage position = positions[marketId];
 
         uint256 burnedShares;
         if (assets > 0) {
