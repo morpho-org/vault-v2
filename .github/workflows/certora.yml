@@ -17,11 +17,19 @@ jobs:
       matrix:
         conf:
           - AbdicatedFunctions
+          - AllocationMorphoMarketV1Adapter
+          - AllocationMorphoVaultV1Adapter
+          - AllocationVaultV2
+          - ChangesMorphoMarketV1Adapter
+          - ChangesMorphoVaultV1Adapter
           - ExchangeRate
           - Gates
+          - IdsMorphoMarketV1Adapter
+          - IdsMorphoVaultV1Adapter
           - Immutability
           - Invariants
           - Liveness
+          - MarketParamsList
           - MorphoMarketV1AdapterFactory
           - MorphoVaultV1AdapterFactory
           - OwnerSafety
@@ -33,6 +41,7 @@ jobs:
           - TokensMorphoMarketV1Adapter
           - TokensMorphoVaultV1Adapter
           - TokensNoAdapter
+          - TotalAssetsChange
 
     steps:
       - uses: actions/checkout@v4
@@ -57,12 +66,6 @@ jobs:
         with:
           python-version: ">=3.10"
 
-      - name: Apply MetaMorpho munging
-        run: make -C lib/metamorpho/certora munged
-
-      - name: Apply VaultV2 munging
-        run: make -C certora munged
-
       - name: Install certora
         run: pip install certora-cli
 
@@ -77,6 +80,12 @@ jobs:
           wget https://github.com/ethereum/solidity/releases/download/v0.8.21/solc-static-linux
           chmod +x solc-static-linux
           sudo mv solc-static-linux /usr/local/bin/solc-0.8.21
+
+      - name: Install solc (0.8.26)
+        run: |
+          wget https://github.com/ethereum/solidity/releases/download/v0.8.26/solc-static-linux
+          chmod +x solc-static-linux
+          sudo mv solc-static-linux /usr/local/bin/solc-0.8.26
 
       - name: Install solc (0.8.28)
         run: |
