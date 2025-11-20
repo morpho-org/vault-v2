@@ -25,6 +25,8 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
 
     event SetSkimRecipient(address indexed newSkimRecipient);
     event Skim(address indexed token, uint256 assets);
+    event AddDuration(uint256 duration);
+    event RemoveDuration(uint256 duration);
 
     /* ERRORS */
 
@@ -33,6 +35,7 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
     error IncorrectCallbackAddress();
     error IncorrectCallbackData();
     error IncorrectCollateralSet();
+    error IncorrectDuration();
     error IncorrectExpiry();
     error IncorrectHint();
     error IncorrectMaturity();
@@ -45,7 +48,9 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
     error IncorrectStart();
     error IncorrectUnits();
     error LoanAssetMismatch();
+    error MaxDurationsExceeded();
     error NoBorrowing();
+    error NoDuplicates();
     error NotAuthorized();
     error NotMorphoV2();
     error NotSelf();
@@ -58,14 +63,16 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
     function lastUpdate() external view returns (uint48);
     function firstMaturity() external view returns (uint48);
     function currentGrowth() external view returns (uint128);
+    function adapterId() external view returns (bytes32);
     function positions(bytes32 obligationId) external view returns (ObligationPosition memory);
     function maturities(uint256 date) external view returns (Maturity memory);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
-    function setMinTimeToMaturity(uint256 minTimeToMaturity) external;
+    function addDuration(uint256 duration) external;
+    function removeDuration(uint256 duration) external;
+    function durations() external view returns (uint256[] memory);
     function withdraw(Obligation memory obligation, uint256 units, uint256 shares) external;
-    function minTimeToMaturity() external view returns (uint256);
-    function minRate() external view returns (uint256);
+    function ids(Obligation memory obligation) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
     function accrueInterestView() external view returns (uint48, uint128, uint256);
     function accrueInterest() external;

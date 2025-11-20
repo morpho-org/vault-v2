@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
-pragma solidity ^0.8.0;
+pragma solidity 0.8.28;
 
 import {MorphoV2} from "lib/morpho-v2/src/MorphoV2.sol";
 import {Offer, Signature, Obligation, Collateral, Seizure, Proof} from "lib/morpho-v2/src/interfaces/IMorphoV2.sol";
@@ -10,6 +10,7 @@ import {MathLib} from "../libraries/MathLib.sol";
 import {MathLib as MorphoV2MathLib} from "lib/morpho-v2/src/libraries/MathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMorphoMarketV2Adapter, ObligationPosition, Maturity, IAdapter} from "./interfaces/IMorphoMarketV2Adapter.sol";
+import {DurationsLib, MAX_DURATIONS} from "./libraries/DurationsLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest separately for each obligation.
 /// @dev Losses are immdiately accounted minus a discount applied to the remaining interest to be earned, in proportion
@@ -17,18 +18,18 @@ import {IMorphoMarketV2Adapter, ObligationPosition, Maturity, IAdapter} from "./
 /// @dev The adapter must have the allocator role in its parent vault to be able to buy & sell obligations.
 contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
     using MathLib for uint256;
+    using DurationsLib for bytes32;
 
     /* IMMUTABLES */
 
     address public immutable asset;
     address public immutable parentVault;
     address public immutable morphoV2;
+    bytes32 public immutable adapterId;
 
     /* MANAGEMENT */
 
     address public skimRecipient;
-    uint256 public minTimeToMaturity;
-    uint256 public minRate;
 
     /* ACCOUNTING */
 
@@ -38,6 +39,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
     uint128 public currentGrowth;
     mapping(uint256 timestamp => Maturity) public _maturities;
     mapping(bytes32 obligationId => ObligationPosition) public _positions;
+    bytes32 public _durations;
     /* CONSTRUCTOR */
 
     constructor(address _parentVault, address _morphoV2) {
@@ -48,6 +50,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         SafeERC20Lib.safeApprove(asset, _morphoV2, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
         firstMaturity = type(uint48).max;
+        adapterId = keccak256(abi.encode("this", address(this)));
     }
 
     /* GETTERS */
@@ -58,6 +61,19 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
 
     function maturities(uint256 date) public view returns (Maturity memory) {
         return _maturities[date];
+    }
+
+    function durations() external view returns (uint256[] memory) {
+        uint256[] memory durationsArray = new uint256[](MAX_DURATIONS);
+        uint256 durationsCount = 0;
+        for (uint256 i = 0; i < MAX_DURATIONS; i++) {
+            uint256 duration = _durations.get(i);
+            if (duration != 0) durationsArray[durationsCount++] = duration;
+        }
+        assembly ("memory-safe") {
+            mstore(durationsArray, durationsCount)
+        }
+        return durationsArray;
     }
 
     /* SKIM FUNCTIONS */
@@ -79,10 +95,31 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
 
     /* VAULT CURATOR FUNCTIONS */
 
-    function setMinTimeToMaturity(uint256 _minTimeToMaturity) external {
+    /// @dev Adds a new duration to the adapter.
+    function addDuration(uint256 addedDuration) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        require(_minTimeToMaturity <= type(uint48).max, IncorrectMinTimeToMaturity());
-        minTimeToMaturity = _minTimeToMaturity;
+        require(addedDuration != 0, IncorrectDuration());
+        uint256 freePosition = type(uint256).max;
+        for (uint256 i = 0; i < MAX_DURATIONS; i++) {
+            uint256 duration = _durations.get(i);
+            require(addedDuration != duration, NoDuplicates());
+            if (duration == 0 && freePosition == type(uint256).max) freePosition = i;
+        }
+        if (freePosition == type(uint256).max) revert MaxDurationsExceeded();
+        _durations = _durations.set(freePosition, addedDuration);
+        emit AddDuration(addedDuration);
+    }
+
+    /// @dev Future obligation that match this duration will no longer consume the duration cap in the vault.
+    function removeDuration(uint256 removedDuration) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        for (uint256 i = 0; i < MAX_DURATIONS; i++) {
+            if (_durations.get(i) == removedDuration) {
+                _durations = _durations.set(i, 0);
+                break;
+            }
+        }
+        emit RemoveDuration(removedDuration);
     }
 
     /* VAULT ALLOCATORS FUNCTIONS */
@@ -92,8 +129,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
         (obligationUnits, shares) = MorphoV2(morphoV2).withdraw(obligation, obligationUnits, shares, address(this));
         removeUnits(obligation, obligationUnits);
-        IVaultV2(parentVault)
-            .deallocate(address(this), abi.encode(obligationUnits, vaultIds(obligation)), obligationUnits);
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(obligationUnits, ids(obligation)), obligationUnits);
     }
 
     /* ACCRUAL */
@@ -143,7 +179,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
 
         uint256 lostUnits = _positions[obligationId].units - remainingUnits;
         removeUnits(obligation, lostUnits);
-        IVaultV2(parentVault).deallocate(address(this), abi.encode(lostUnits, vaultIds(obligation)), 0);
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(lostUnits, ids(obligation)), 0);
     }
 
     /* ALLOCATION FUNCTIONS */
@@ -180,7 +216,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
             require(MorphoV2(morphoV2).debtOf(address(this), _obligationId(offer.obligation)) == 0, NoBorrowing());
 
             removeUnits(offer.obligation, obligationUnits);
-            return (vaultIds(offer.obligation), -obligationUnits.toInt256());
+            return (ids(offer.obligation), -obligationUnits.toInt256());
         } else {
             require(caller == address(this), SelfAllocationOnly());
             (uint256 obligationUnits, bytes32[] memory _ids) = abi.decode(data, (uint256, bytes32[]));
@@ -197,7 +233,6 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         require(offer.maker == address(this), IncorrectOwner());
         require(offer.callback == address(this), IncorrectCallbackAddress());
         require(bytes32(offer.callbackData) != "forceDeallocate", IncorrectCallbackData());
-        require(offer.obligation.maturity >= minTimeToMaturity + block.timestamp, IncorrectMaturity());
         require(offer.start <= block.timestamp, IncorrectStart());
         // uint48.max is the list end pointer
         require(offer.obligation.maturity < type(uint48).max, IncorrectMaturity());
@@ -256,7 +291,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
             }
         }
 
-        IVaultV2(parentVault).allocate(address(this), abi.encode(obligationUnits, vaultIds(obligation)), buyerAssets);
+        IVaultV2(parentVault).allocate(address(this), abi.encode(obligationUnits, ids(obligation)), buyerAssets);
     }
 
     function onSell(
@@ -283,7 +318,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         removeUnits(obligation, obligationUnits);
         require(vaultBuffer >= _totalAssetsBefore.zeroFloorSub(_totalAssets), BufferTooLow());
 
-        IVaultV2(parentVault).deallocate(address(this), abi.encode(obligationUnits, vaultIds(obligation)), sellerAssets);
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(obligationUnits, ids(obligation)), sellerAssets);
     }
 
     /// INTERNAL FUNCTIONS ///
@@ -310,9 +345,34 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         return keccak256(abi.encode(obligation));
     }
 
-    function vaultIds(Obligation memory) internal pure returns (bytes32[] memory) {
-        // TODO return correct ids
-        return new bytes32[](0);
+    function ids(Obligation memory obligation) public view returns (bytes32[] memory) {
+        uint256 baseLength = 1 + obligation.collaterals.length * 2;
+        bytes32[] memory _ids = new bytes32[](baseLength + MAX_DURATIONS);
+        uint256 j = 0;
+        _ids[j++] = adapterId;
+        for (uint256 i = 0; i < obligation.collaterals.length; i++) {
+            address collateralToken = obligation.collaterals[i].token;
+            _ids[j++] = keccak256(abi.encode("collateralToken", collateralToken));
+            _ids[j++] = keccak256(
+                abi.encode(
+                    "collateral", collateralToken, obligation.collaterals[i].oracle, obligation.collaterals[i].lltv
+                )
+            );
+        }
+        uint256 timeToMaturity = (obligation.maturity - block.timestamp);
+        uint256 durationIdCount = 0;
+        for (uint256 i = 0; i < MAX_DURATIONS; i++) {
+            uint256 duration = _durations.get(i);
+
+            if (duration != 0 && timeToMaturity >= duration) {
+                durationIdCount++;
+                _ids[j++] = keccak256(abi.encode("duration", duration));
+            }
+        }
+        assembly ("memory-safe") {
+            mstore(_ids, add(baseLength, durationIdCount))
+        }
+        return _ids;
     }
 
     function onLiquidate(Seizure[] memory, address, address, bytes memory) external pure {

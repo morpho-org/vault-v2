@@ -19,6 +19,7 @@ import {Offer, Signature, Obligation, Collateral, Proof} from "../lib/morpho-v2/
 import {stdStorage, StdStorage} from "../lib/forge-std/src/Test.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
 import {ORACLE_PRICE_SCALE} from "../lib/morpho-blue/src/libraries/ConstantsLib.sol";
+import {DurationsLib, MAX_DURATIONS} from "../src/adapters/libraries/DurationsLib.sol";
 
 struct Step {
     uint256 assets;
@@ -160,18 +161,6 @@ contract MorphoMarketV2AdapterTest is Test {
         );
     }
 
-    function testSetMinTimeToMaturity(uint256 minTimeToMaturity) public {
-        uint256 goodMinTimeToMaturity = bound(minTimeToMaturity, 0, type(uint48).max);
-        uint256 badMinTimeToMaturity = bound(minTimeToMaturity, uint256(type(uint48).max) + 1, type(uint256).max);
-        vm.prank(parentVault.curator());
-        vm.expectRevert(IMorphoMarketV2Adapter.IncorrectMinTimeToMaturity.selector);
-        adapter.setMinTimeToMaturity(badMinTimeToMaturity);
-
-        vm.prank(parentVault.curator());
-        adapter.setMinTimeToMaturity(goodMinTimeToMaturity);
-        assertEq(adapter.minTimeToMaturity(), goodMinTimeToMaturity);
-    }
-
     function testSimpleBuy() public {
         Offer memory offer = storedOffer;
 
@@ -213,9 +202,7 @@ contract MorphoMarketV2AdapterTest is Test {
 
     /* RATIFICATION */
 
-    function _ratificationSetup() internal returns (Offer memory offer, uint256 minTimeToMaturity) {
-        minTimeToMaturity = bound(vm.randomUint(), 1, 10 * 365 days);
-
+    function _ratificationSetup() internal returns (Offer memory offer) {
         offer.buy = true;
         offer.maker = address(adapter);
         offer.assets = 100;
@@ -229,7 +216,7 @@ contract MorphoMarketV2AdapterTest is Test {
                 Collateral({token: address(new ERC20Mock(18)), lltv: 0.8 ether, oracle: address(new OracleMock())});
         }
         offer.obligation.collaterals = collaterals;
-        offer.obligation.maturity = bound(vm.randomUint(), vm.getBlockTimestamp() + minTimeToMaturity, type(uint48).max);
+        offer.obligation.maturity = bound(vm.randomUint(), vm.getBlockTimestamp(), type(uint48).max);
 
         offer.start = bound(vm.randomUint(), 0, vm.getBlockTimestamp());
         offer.expiry = bound(vm.randomUint(), offer.start, type(uint48).max);
@@ -239,15 +226,12 @@ contract MorphoMarketV2AdapterTest is Test {
         }
         offer.callback = address(adapter);
         offer.callbackData = bytes("");
-
-        vm.prank(parentVault.curator());
-        adapter.setMinTimeToMaturity(minTimeToMaturity);
     }
 
     function testRatifyIncorrectOfferBadSellSigner(uint256 seed, address otherSigner) public {
         vm.setSeed(seed);
         vm.assume(otherSigner != signerAllocator);
-        (Offer memory offer,) = _ratificationSetup();
+        Offer memory offer = _ratificationSetup();
         vm.expectRevert(IMorphoMarketV2Adapter.IncorrectSigner.selector);
         vm.prank(address(morphoV2));
         adapter.onRatify(offer, otherSigner);
@@ -257,7 +241,7 @@ contract MorphoMarketV2AdapterTest is Test {
         vm.setSeed(seed);
         vm.assume(otherSigner != signerAllocator);
         vm.assume(otherSigner != address(adapter));
-        (Offer memory offer,) = _ratificationSetup();
+        Offer memory offer = _ratificationSetup();
         vm.expectRevert(IMorphoMarketV2Adapter.IncorrectSigner.selector);
         vm.prank(address(morphoV2));
         adapter.onRatify(offer, otherSigner);
@@ -265,7 +249,7 @@ contract MorphoMarketV2AdapterTest is Test {
 
     function testRatifyLoanAssetMismatch(uint256 seed, address otherToken) public {
         vm.setSeed(seed);
-        (Offer memory offer,) = _ratificationSetup();
+        Offer memory offer = _ratificationSetup();
         vm.assume(otherToken != offer.obligation.loanToken);
         offer.obligation.loanToken = otherToken;
         vm.expectRevert(IMorphoMarketV2Adapter.LoanAssetMismatch.selector);
@@ -275,7 +259,7 @@ contract MorphoMarketV2AdapterTest is Test {
 
     function testRatifyIncorrectOwner(uint256 seed, address otherMaker) public {
         vm.setSeed(seed);
-        (Offer memory offer,) = _ratificationSetup();
+        Offer memory offer = _ratificationSetup();
         vm.assume(otherMaker != address(adapter));
         offer.maker = otherMaker;
         vm.expectRevert(IMorphoMarketV2Adapter.IncorrectOwner.selector);
@@ -285,20 +269,16 @@ contract MorphoMarketV2AdapterTest is Test {
 
     function testRatifyIncorrectMaturity(uint256 seed) public {
         vm.setSeed(seed);
-        (Offer memory offer, uint256 minTimeToMaturity) = _ratificationSetup();
-        offer.obligation.maturity = vm.getBlockTimestamp() + minTimeToMaturity - 1;
-        if (offer.obligation.maturity < vm.getBlockTimestamp()) {
-            vm.expectRevert(stdError.arithmeticError);
-        } else {
-            vm.expectRevert(IMorphoMarketV2Adapter.IncorrectMaturity.selector);
-        }
+        Offer memory offer = _ratificationSetup();
+        offer.obligation.maturity = vm.randomUint(type(uint48).max, type(uint256).max);
+        vm.expectRevert(IMorphoMarketV2Adapter.IncorrectMaturity.selector);
         vm.prank(address(morphoV2));
         adapter.onRatify(offer, signerAllocator);
     }
 
     function testRatifyIncorrectStart(uint256 seed) public {
         vm.setSeed(seed);
-        (Offer memory offer,) = _ratificationSetup();
+        Offer memory offer = _ratificationSetup();
         offer.start = vm.getBlockTimestamp() + 1;
         vm.expectRevert(IMorphoMarketV2Adapter.IncorrectStart.selector);
         vm.prank(address(morphoV2));
@@ -307,7 +287,7 @@ contract MorphoMarketV2AdapterTest is Test {
 
     function testRatifyIncorrectCallbackAddress(uint256 seed) public {
         vm.setSeed(seed);
-        (Offer memory offer,) = _ratificationSetup();
+        Offer memory offer = _ratificationSetup();
         offer.callback = address(0);
         vm.expectRevert(IMorphoMarketV2Adapter.IncorrectCallbackAddress.selector);
         vm.prank(address(morphoV2));
@@ -316,7 +296,7 @@ contract MorphoMarketV2AdapterTest is Test {
 
     function testRatifyIncorrectExpiry(uint256 seed) public {
         vm.setSeed(seed);
-        (Offer memory offer,) = _ratificationSetup();
+        Offer memory offer = _ratificationSetup();
         vm.prank(address(morphoV2));
         adapter.onRatify(offer, signerAllocator);
     }
@@ -508,6 +488,159 @@ contract MorphoMarketV2AdapterTest is Test {
         accrueInterestViewTest(steps01, growth, _totalAssets, elapsed);
     }
 
+    /* DURATIONS */
+
+    function testDurationsUpdate() public {
+        vm.startPrank(parentVault.curator());
+        vm.expectEmit();
+        emit IMorphoMarketV2Adapter.AddDuration(10);
+        adapter.addDuration(10);
+        assertEq(adapter.durations().length, 1);
+        assertEq(adapter.durations(), [uint256(10)]);
+
+        vm.expectEmit();
+        emit IMorphoMarketV2Adapter.RemoveDuration(10);
+        adapter.removeDuration(10);
+        assertEq(adapter.durations().length, 0);
+
+        vm.expectEmit();
+        emit IMorphoMarketV2Adapter.AddDuration(20);
+        adapter.addDuration(20);
+        assertEq(adapter.durations().length, 1);
+        assertEq(adapter.durations()[0], 20);
+
+        vm.expectEmit();
+        emit IMorphoMarketV2Adapter.AddDuration(1);
+        adapter.addDuration(1);
+        assertEq(adapter.durations().length, 2);
+        assertEq(adapter.durations()[0], 20);
+        assertEq(adapter.durations()[1], 1);
+
+        vm.expectEmit();
+        emit IMorphoMarketV2Adapter.RemoveDuration(20);
+        adapter.removeDuration(20);
+        assertEq(adapter.durations().length, 1);
+
+        adapter.addDuration(19);
+        adapter.addDuration(20);
+        adapter.addDuration(99);
+        adapter.addDuration(98);
+        adapter.addDuration(97);
+        adapter.addDuration(96);
+        adapter.addDuration(95);
+        assertEq(adapter.durations().length, 8);
+        assertEq(adapter.durations()[0], 19);
+        assertEq(adapter.durations()[1], 1);
+        assertEq(adapter.durations()[2], 20);
+        assertEq(adapter.durations()[3], 99);
+        assertEq(adapter.durations()[4], 98);
+        assertEq(adapter.durations()[5], 97);
+        assertEq(adapter.durations()[6], 96);
+        assertEq(adapter.durations()[7], 95);
+        adapter.removeDuration(95);
+        assertEq(adapter.durations().length, 7);
+        adapter.addDuration(94);
+        vm.expectRevert(IMorphoMarketV2Adapter.MaxDurationsExceeded.selector);
+        adapter.addDuration(2);
+        vm.stopPrank();
+    }
+
+    function testSetDurationsAccess(address sender, uint256 duration) public {
+        vm.assume(sender != parentVault.curator());
+        vm.prank(sender);
+        vm.expectRevert(IMorphoMarketV2Adapter.NotAuthorized.selector);
+        adapter.addDuration(duration);
+
+        vm.prank(sender);
+        vm.expectRevert(IMorphoMarketV2Adapter.NotAuthorized.selector);
+        adapter.removeDuration(duration);
+    }
+
+    function testAddDurationIncorrectOrDuplicate(bytes32 _durations, uint256 duplicated) public {
+        vm.assume(uint256(_durations) > type(uint16).max);
+        set_Durations(_durations);
+        uint256[] memory durationsArray = adapter.durations();
+        duplicated = bound(duplicated, 0, durationsArray.length - 1);
+        if (durationsArray[duplicated] == 0 || durationsArray[duplicated] > type(uint32).max) {
+            vm.prank(parentVault.curator());
+            vm.expectRevert(IMorphoMarketV2Adapter.IncorrectDuration.selector);
+            adapter.addDuration(durationsArray[duplicated]);
+        } else {
+            vm.prank(parentVault.curator());
+            vm.expectRevert(IMorphoMarketV2Adapter.NoDuplicates.selector);
+            adapter.addDuration(durationsArray[duplicated]);
+        }
+    }
+
+    function testDurationsGetter(bytes32 _durations) public {
+        set_Durations(_durations);
+        uint256[] memory durationsArray = adapter.durations();
+        uint256 arrayIndex = 0;
+        for (uint256 i = 0; i < MAX_DURATIONS; i++) {
+            uint256 duration = uint256(uint32(bytes4(_durations << (32 * i))));
+            if (duration != 0) assertEq(durationsArray[arrayIndex++], duration);
+        }
+    }
+
+    /* IDS */
+
+    function testIds(uint256 collateralCount, uint256 durationsCount, uint256 maturity) public {
+        uint256[] memory possibleDurations = new uint256[](4);
+        possibleDurations[0] = 1 days;
+        possibleDurations[1] = 10 days;
+        possibleDurations[2] = 300 days;
+        possibleDurations[3] = 700 days;
+        possibleDurations = vm.shuffle(possibleDurations);
+
+        collateralCount = bound(collateralCount, 0, 5);
+        durationsCount = bound(durationsCount, 0, 4);
+
+        Obligation memory obligation;
+
+        Collateral[] memory collaterals = new Collateral[](collateralCount);
+        for (uint256 i = 0; i < collateralCount; i++) {
+            collaterals[i].token = address(uint160(i));
+        }
+        obligation.collaterals = storedCollaterals;
+        obligation.maturity = bound(maturity, 1, 700 days);
+        vm.startPrank(parentVault.curator());
+        for (uint256 i = 0; i < durationsCount; i++) {
+            adapter.addDuration(possibleDurations[i]);
+        }
+        vm.stopPrank();
+
+        bytes32[] memory ids = adapter.ids(obligation);
+        assertEq(ids[0], adapter.adapterId());
+        for (uint256 i = 0; i < obligation.collaterals.length; i++) {
+            assertEq(ids[i * 2 + 1], keccak256(abi.encode("collateralToken", obligation.collaterals[i].token)));
+            assertEq(
+                ids[i * 2 + 2],
+                keccak256(
+                    abi.encode(
+                        "collateral",
+                        obligation.collaterals[i].token,
+                        obligation.collaterals[i].oracle,
+                        obligation.collaterals[i].lltv
+                    )
+                )
+            );
+        }
+
+        uint256[] memory durationsArray = adapter.durations();
+        uint256 durationIdCount = 0;
+        for (uint256 i = 0; i < durationsArray.length; i++) {
+            if ((obligation.maturity - block.timestamp) >= durationsArray[i]) {
+                assertEq(
+                    ids[1 + obligation.collaterals.length * 2 + durationIdCount],
+                    keccak256(abi.encode("duration", durationsArray[i]))
+                );
+                durationIdCount++;
+            }
+        }
+
+        assertEq(ids.length, 1 + obligation.collaterals.length * 2 + durationIdCount);
+    }
+
     /* UTILITIES */
 
     function setCurrentGrowth(uint128 growth) internal {
@@ -516,6 +649,10 @@ contract MorphoMarketV2AdapterTest is Test {
 
     function set_TotalAssets(uint256 _totalAssets) internal {
         stdstore.target(address(adapter)).sig("_totalAssets()").checked_write(_totalAssets);
+    }
+
+    function set_Durations(bytes32 _durations) internal {
+        stdstore.target(address(adapter)).sig("_durations()").checked_write(_durations);
     }
 
     function removeCopies(uint256[] storage array) internal returns (uint256[] memory) {
@@ -579,5 +716,33 @@ contract MorphoMarketV2AdapterTest is Test {
     /// @dev Returns the concatenation of x and y, sorted lexicographically.
     function sort(bytes32 x, bytes32 y) internal pure returns (bytes memory) {
         return x < y ? abi.encodePacked(x, y) : abi.encodePacked(y, x);
+    }
+
+    function assertEq(uint256[] memory left, uint256[1] memory right) internal pure {
+        require(left.length == right.length, "lengths don't match (1)");
+        for (uint256 i = 0; i < right.length; i++) {
+            assertEq(left[i], right[i], "durations[i]");
+        }
+    }
+
+    function assertEq(uint256[] memory left, uint256[2] memory right) internal pure {
+        require(left.length == right.length, "lengths don't match (2)");
+        for (uint256 i = 0; i < right.length; i++) {
+            assertEq(left[i], right[i], "durations[i]");
+        }
+    }
+
+    function assertEq(uint256[] memory left, uint256[3] memory right) internal pure {
+        require(left.length == right.length, "lengths don't match (3)");
+        for (uint256 i = 0; i < right.length; i++) {
+            assertEq(left[i], right[i], "durations[i]");
+        }
+    }
+
+    function assertEq(uint256[] memory left, uint256[8] memory right) internal pure {
+        require(left.length == right.length, "lengths don't match (10)");
+        for (uint256 i = 0; i < right.length; i++) {
+            assertEq(left[i], right[i], "durations[i]");
+        }
     }
 }
