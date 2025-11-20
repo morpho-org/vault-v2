@@ -10,7 +10,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
 
     event Allocate(uint256 mintedShares);
     event Deallocate(uint256 burnedShares);
-    event ForceRemove();
+    event ForceRemove(uint256 supplyShares);
     event RevokeForceRemove();
     event SetSkimRecipient(address indexed newSkimRecipient);
     event Skim(address indexed token, uint256 assets);

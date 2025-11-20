@@ -101,9 +101,9 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     function forceRemove() external {
         require(forceRemoveExecutableAt != 0, NotTimelocked());
         require(block.timestamp >= forceRemoveExecutableAt, TimelockNotExpired());
+        emit ForceRemove(supplyShares);
         supplyShares = 0;
         forceRemoveExecutableAt = 0;
-        emit ForceRemove();
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
