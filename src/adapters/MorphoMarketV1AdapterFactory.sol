@@ -6,15 +6,27 @@ import {MorphoMarketV1Adapter} from "./MorphoMarketV1Adapter.sol";
 import {IMorphoMarketV1AdapterFactory} from "./interfaces/IMorphoMarketV1AdapterFactory.sol";
 
 contract MorphoMarketV1AdapterFactory is IMorphoMarketV1AdapterFactory {
+    /* IMMUTABLES */
+
+    address public immutable irm;
+
     /* STORAGE */
 
     mapping(address parentVault => mapping(address morpho => address)) public morphoMarketV1Adapter;
     mapping(address account => bool) public isMorphoMarketV1Adapter;
 
+    /* CONSTRUCTOR */
+
+    constructor(address _irm) {
+        // Must be the adaptive curve irm.
+        irm = _irm;
+        emit CreateMorphoMarketV1AdapterFactory(irm);
+    }
+
     /* FUNCTIONS */
 
     function createMorphoMarketV1Adapter(address parentVault, address morpho) external returns (address) {
-        address _morphoMarketV1Adapter = address(new MorphoMarketV1Adapter{salt: bytes32(0)}(parentVault, morpho));
+        address _morphoMarketV1Adapter = address(new MorphoMarketV1Adapter{salt: bytes32(0)}(parentVault, morpho, irm));
         morphoMarketV1Adapter[parentVault][morpho] = _morphoMarketV1Adapter;
         isMorphoMarketV1Adapter[_morphoMarketV1Adapter] = true;
         emit CreateMorphoMarketV1Adapter(parentVault, morpho, _morphoMarketV1Adapter);
