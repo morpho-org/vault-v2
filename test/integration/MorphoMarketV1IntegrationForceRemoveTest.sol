@@ -5,7 +5,6 @@ pragma solidity ^0.8.0;
 import "./MorphoMarketV1IntegrationTest.sol";
 
 contract MorphoMarketV1IntegrationForceRemoveTest is MorphoMarketV1IntegrationTest {
-
     MarketParams internal marketParams2;
     MorphoMarketV1Adapter internal adapter2;
     bytes internal adapter2Id;
