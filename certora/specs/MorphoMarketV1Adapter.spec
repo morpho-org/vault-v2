@@ -4,6 +4,8 @@ using MorphoMarketV1Adapter as MorphoMarketV1Adapter;
 using VaultV2 as VaultV2;
 
 methods {
+    function VaultV2.multicall(bytes[]) external => NONDET DELETE;
+
     function MorphoMarketV1Adapter.allocation() external returns (uint128) envfree;
     function MorphoMarketV1Adapter.adapterId() external returns (bytes32) envfree;
     function VaultV2.allocation(bytes32 id) external returns (uint256) envfree;
@@ -19,10 +21,14 @@ methods {
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
 
+persistent ghost int256 ghostChange;
+
 // Wrapper to ensure returned ids are distinct and assume that the adapter called is MorphoMarketV1Adapter.
 function summaryMorphoMarketV1AllocateOrDeallocate(env e, bool isAllocateCall, bytes data, uint256 assets, bytes4 bs, address a) returns (bytes32[], int256) {
     bytes32[] ids;
     int256 change;
+
+    uint256 adapterAllocationBefore = MorphoMarketV1Adapter.allocation();
 
     if (isAllocateCall) {
         ids, change = MorphoMarketV1Adapter.allocate(e, data, assets, bs, a);
@@ -31,19 +37,27 @@ function summaryMorphoMarketV1AllocateOrDeallocate(env e, bool isAllocateCall, b
     }
     require forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "proven in the distinctMarketV1Ids rule";
 
+    ghostChange = change;
+
+    require adapterAllocationBefore + change < 2^128;
+
     return (ids, change);
 }
 
-rule allocationMirrorChangesInVaultAndAdapter(method f, env e, calldataarg args, bytes32 id) {
-    uint256 vaultAllocationBefore = VaultV2.allocation(id);
+rule adapterAllocationEvolvesByChange(env e, method f, calldataarg args) {
     uint256 adapterAllocationBefore = MorphoMarketV1Adapter.allocation();
 
-    require vaultAllocationBefore < max_int256(), "proven in the allocationIsInt256 rule";
+    f(e, args);
+
+    uint256 adapterAllocationAfter = MorphoMarketV1Adapter.allocation();
+    assert adapterAllocationBefore != adapterAllocationAfter => adapterAllocationAfter == adapterAllocationBefore + ghostChange;
+}
+
+rule vaultAllocationEvolvesByChange(method f, env e, calldataarg args, bytes32 id) {    
+    uint256 vaultAllocationBefore = VaultV2.allocation(id);
 
     f(e, args);
 
     uint256 vaultAllocationAfter = VaultV2.allocation(id);
-    uint256 adapterAllocationAfter = MorphoMarketV1Adapter.allocation();
-
-    assert vaultAllocationBefore != vaultAllocationAfter => vaultAllocationAfter - vaultAllocationBefore == adapterAllocationAfter - adapterAllocationBefore;
+    assert vaultAllocationBefore != vaultAllocationAfter => vaultAllocationAfter == vaultAllocationBefore + ghostChange;
 }
