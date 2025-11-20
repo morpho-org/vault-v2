@@ -28,7 +28,7 @@ import {
 /// has zero shares on the market.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MarketParamsLib for MarketParams;
-    using SharesMathLib for uint256;
+    using SharesMathLib for uint128;
 
     /* IMMUTABLES */
 
@@ -178,6 +178,13 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         }
     }
 
+    function newAllocation(Id marketId) internal view returns (uint256) {
+        (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
+            MorphoAdaptiveCurveIrmBalancesLib2.expectedMarketBalances2(IMorpho(morpho), marketId, irm);
+
+        return positions[marketId].supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
+    }
+
     /// @dev Returns adapter's ids.
     function ids(MarketParams memory marketParams) public view returns (bytes32[] memory) {
         bytes32[] memory ids_ = new bytes32[](3);
@@ -185,13 +192,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         ids_[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
         ids_[2] = keccak256(abi.encode("this/marketParams", address(this), marketParams));
         return ids_;
-    }
-
-    function newAllocation(Id marketId) internal view returns (uint256) {
-        (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
-            MorphoAdaptiveCurveIrmBalancesLib2.expectedMarketBalances2(IMorpho(morpho), marketId, irm);
-
-        return uint256(positions[marketId].supplyShares).toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }
 
     function realAssets() external view returns (uint256) {
