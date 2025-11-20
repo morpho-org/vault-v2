@@ -37,7 +37,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     address public immutable asset;
     address public immutable morpho;
     bytes32 public immutable adapterId;
-    address public immutable irm;
+    address public immutable adaptiveCurveIrm;
 
     /* STORAGE */
 
@@ -52,14 +52,13 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     /* FUNCTIONS */
 
-    constructor(address _parentVault, address _morpho, address _irm) {
+    constructor(address _parentVault, address _morpho, address _adaptiveCurveIrm) {
         factory = msg.sender;
         parentVault = _parentVault;
         morpho = _morpho;
         asset = IVaultV2(_parentVault).asset();
         adapterId = keccak256(abi.encode("this", address(this)));
-        // Must be the adaptive curve irm.
-        irm = _irm;
+        adaptiveCurveIrm = _adaptiveCurveIrm;
         SafeERC20Lib.safeApprove(asset, _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
@@ -110,7 +109,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
-        require(marketParams.irm == irm, IrmMismatch());
+        require(marketParams.irm == adaptiveCurveIrm, IrmMismatch());
         Id marketId = marketParams.id();
         MarketPosition storage position = positions[marketId];
 
@@ -141,7 +140,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
-        require(marketParams.irm == irm, IrmMismatch());
+        require(marketParams.irm == adaptiveCurveIrm, IrmMismatch());
 
         Id marketId = marketParams.id();
         MarketPosition storage position = positions[marketId];
@@ -180,7 +179,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     function newAllocation(Id marketId) internal view returns (uint256) {
         (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
-            MorphoAdaptiveCurveIrmBalancesLib2.expectedMarketBalances2(IMorpho(morpho), marketId, irm);
+            MorphoAdaptiveCurveIrmBalancesLib2.expectedMarketBalances2(IMorpho(morpho), marketId, adaptiveCurveIrm);
 
         return positions[marketId].supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }
