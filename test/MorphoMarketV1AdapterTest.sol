@@ -379,6 +379,17 @@ contract MorphoMarketV1AdapterTest is Test {
         vm.prank(curator);
         adapter.submitForceRemove();
 
+        uint256 snap = vm.snapshotState();
+
+        vm.prank(sentinel);
+        vm.expectEmit();
+        emit IMorphoMarketV1Adapter.RevokeForceRemove();
+        adapter.revokeForceRemove();
+
+        assertEq(adapter.forceRemoveExecutableAt(), 0);
+
+        vm.revertToStateAndDelete(snap);
+
         vm.prank(curator);
         vm.expectEmit();
         emit IMorphoMarketV1Adapter.RevokeForceRemove();
