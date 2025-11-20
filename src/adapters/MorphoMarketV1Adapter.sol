@@ -122,7 +122,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
         uint256 oldAllocation = position.allocation;
         uint256 _newAllocation = newAllocation(marketId);
-        updateMarketIds(marketId, oldAllocation, _newAllocation);
+        updateList(marketId, oldAllocation, _newAllocation);
         position.allocation = uint128(_newAllocation);
 
         emit Allocate(marketParams, _newAllocation, mintedShares);
@@ -153,7 +153,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
         uint256 oldAllocation = position.allocation;
         uint256 _newAllocation = newAllocation(marketId);
-        updateMarketIds(marketId, oldAllocation, _newAllocation);
+        updateList(marketId, oldAllocation, _newAllocation);
         position.allocation = uint128(_newAllocation);
 
         emit Deallocate(marketParams, _newAllocation, burnedShares);
@@ -163,7 +163,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         return (ids(marketParams), int256(_newAllocation) - int256(oldAllocation));
     }
 
-    function updateMarketIds(Id marketId, uint256 oldAllocation, uint256 _newAllocation) internal {
+    function updateList(Id marketId, uint256 oldAllocation, uint256 _newAllocation) internal {
         if (oldAllocation > 0 && _newAllocation == 0) {
             for (uint256 i = 0; i < marketIds.length; i++) {
                 if (Id.unwrap(marketIds[i]) == Id.unwrap(marketId)) {
