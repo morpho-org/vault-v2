@@ -5,19 +5,22 @@ pragma solidity >=0.5.0;
 import {IAdapter} from "../../interfaces/IAdapter.sol";
 import {Id, MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
-/// @dev This interface is used for factorizing IMorphoMarketV1AdapterStaticTyping and IMorphoMarketV1Adapter.
-/// @dev Consider using the IMorphoMarketV1Adapter interface instead of this one.
-interface IMorphoMarketV1AdapterBase is IAdapter {
+struct MarketPosition {
+    uint128 supplyShares;
+    uint128 allocation;
+}
+
+interface IMorphoMarketV1Adapter is IAdapter {
     /* EVENTS */
 
     event Allocate(MarketParams indexed marketParams, uint256 newAllocation, uint256 shares);
     event Deallocate(MarketParams indexed marketParams, uint256 newAllocation, uint256 shares);
+    event MarketParamsAdded(address marketParamsStore);
     event SetSkimRecipient(address indexed newSkimRecipient);
     event Skim(address indexed token, uint256 assets);
     event SubmitBurnShares(MarketParams indexed marketParams, uint256 executableAt);
     event RevokeBurnShares(MarketParams indexed marketParams);
     event BurnShares(MarketParams indexed marketParams);
-
     /* ERRORS */
 
     error LoanAssetMismatch();
@@ -35,24 +38,14 @@ interface IMorphoMarketV1AdapterBase is IAdapter {
     function morpho() external view returns (address);
     function adapterId() external view returns (bytes32);
     function skimRecipient() external view returns (address);
+    function positions(Id marketId) external view returns (uint128, uint128);
+    function marketParamsStoreList(uint256 index) external view returns (address);
+    function marketParamsList(uint256 index) external view returns (MarketParams memory);
     function marketParamsListLength() external view returns (uint256);
     function submitBurnShares(MarketParams memory marketParams) external;
     function burnShares(MarketParams memory marketParams) external;
-    function allocation(MarketParams memory marketParams) external view returns (uint256);
-    function newAllocation(MarketParams memory marketParams) external view returns (uint256);
+    function expectedSupplyAssets(MarketParams memory marketParams) external view returns (uint256);
     function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
-}
-
-/// @dev This interface is inherited by MorphoMarketV1Adapter so that function signatures are checked by the compiler.
-/// @dev Consider using the IMorphoMarketV1Adapter interface instead of this one.
-interface IMorphoMarketV1AdapterStaticTyping is IMorphoMarketV1AdapterBase {
-    function marketParamsList(uint256 index) external view returns (address, address, address, address, uint256);
-}
-
-/// @dev Use this interface for MorphoMarketV1Adapter to have access to all the functions with the appropriate function
-/// signatures.
-interface IMorphoMarketV1Adapter is IMorphoMarketV1AdapterBase {
-    function marketParamsList(uint256 index) external view returns (address, address, address, address, uint256);
 }

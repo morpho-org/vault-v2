@@ -8,8 +8,9 @@ import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsL
 import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IMorphoMarketV1AdapterStaticTyping} from "./interfaces/IMorphoMarketV1Adapter.sol";
+import {IMorphoMarketV1Adapter, MarketPosition} from "./interfaces/IMorphoMarketV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
+import {MarketParamsStore} from "./MarketParamsStore.sol";
 
 /// @dev Morpho Market V1 is also known as Morpho Blue.
 /// @dev This adapter must be used with Morpho Market V1 that are protected against inflation attacks with an initial
@@ -24,7 +25,7 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 /// address(this), marketParams)).
 /// @dev Markets get removed from the marketParamsList when the allocation is zero, but it doesn't mean that the adapter
 /// has zero shares on the market.
-contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
+contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MarketParamsLib for MarketParams;
     using SharesMathLib for uint256;
 
@@ -39,12 +40,17 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
     /* STORAGE */
 
     address public skimRecipient;
-    MarketParams[] public marketParamsList;
-    mapping(Id marketId => uint256) public marketShares;
+    address[] public marketParamsStoreList;
+    mapping(Id marketId => MarketPosition) public positions;
     mapping(Id marketId => uint256) public burnSharesExecutableAt;
 
     function marketParamsListLength() external view returns (uint256) {
-        return marketParamsList.length;
+        return marketParamsStoreList.length;
+    }
+
+    function marketParamsList(uint256 index) external view returns (MarketParams memory) {
+        (MarketParams memory marketParams,) = MarketParamsStore(marketParamsStoreList[index]).marketParamsAndId();
+        return marketParams;
     }
 
     /* FUNCTIONS */
@@ -96,7 +102,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
         require(burnSharesExecutableAt[marketParams.id()] != 0, NotTimelocked());
         require(block.timestamp >= burnSharesExecutableAt[marketParams.id()], TimelockNotExpired());
         burnSharesExecutableAt[marketParams.id()] = 0;
-        marketShares[marketParams.id()] = 0;
+        positions[marketParams.id()].supplyShares = 0;
         emit BurnShares(marketParams);
     }
 
@@ -107,15 +113,19 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
+        Id marketId = marketParams.id();
+        MarketPosition storage position = positions[marketId];
+
         uint256 shares;
         if (assets > 0) {
             (, shares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-            marketShares[marketParams.id()] += shares;
+            position.supplyShares += uint128(shares);
         }
 
-        uint256 oldAllocation = allocation(marketParams);
-        uint256 _newAllocation = newAllocation(marketParams);
+        uint256 oldAllocation = position.allocation;
+        uint256 _newAllocation = newAllocation(marketParams, position.supplyShares);
         updateList(marketParams, oldAllocation, _newAllocation);
+        position.allocation = uint128(_newAllocation);
 
         emit Allocate(marketParams, _newAllocation, shares);
 
@@ -134,14 +144,18 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
 
+        Id marketId = marketParams.id();
+        MarketPosition storage position = positions[marketId];
+
         uint256 shares;
         if (assets > 0) {
             (, shares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
-            marketShares[marketParams.id()] -= shares;
+            position.supplyShares -= uint128(shares);
         }
 
-        uint256 oldAllocation = allocation(marketParams);
-        uint256 _newAllocation = newAllocation(marketParams);
+        uint256 oldAllocation = position.allocation;
+        uint256 _newAllocation = newAllocation(marketParams, position.supplyShares);
+        position.allocation = uint128(_newAllocation);
         updateList(marketParams, oldAllocation, _newAllocation);
 
         emit Deallocate(marketParams, _newAllocation, shares);
@@ -154,26 +168,29 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
     function updateList(MarketParams memory marketParams, uint256 oldAllocation, uint256 _newAllocation) internal {
         if (oldAllocation > 0 && _newAllocation == 0) {
             Id marketId = marketParams.id();
-            for (uint256 i = 0; i < marketParamsList.length; i++) {
-                if (Id.unwrap(marketParamsList[i].id()) == Id.unwrap(marketId)) {
-                    marketParamsList[i] = marketParamsList[marketParamsList.length - 1];
-                    marketParamsList.pop();
+            for (uint256 i = 0; i < marketParamsStoreList.length; i++) {
+                (, bytes32 currentMarketId) = MarketParamsStore(marketParamsStoreList[i]).marketParamsAndId();
+                if (currentMarketId == Id.unwrap(marketId)) {
+                    marketParamsStoreList[i] = marketParamsStoreList[marketParamsStoreList.length - 1];
+                    marketParamsStoreList.pop();
                     break;
                 }
             }
         } else if (oldAllocation == 0 && _newAllocation > 0) {
-            marketParamsList.push(marketParams);
+            address marketParamsStore = address(new MarketParamsStore(marketParams));
+            marketParamsStoreList.push(marketParamsStore);
+            emit MarketParamsAdded(marketParamsStore);
         }
     }
 
-    function allocation(MarketParams memory marketParams) public view returns (uint256) {
-        return IVaultV2(parentVault).allocation(keccak256(abi.encode("this/marketParams", address(this), marketParams)));
-    }
-
-    function newAllocation(MarketParams memory marketParams) public view returns (uint256) {
+    function newAllocation(MarketParams memory marketParams, uint256 shares) internal view returns (uint256) {
         (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
             MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
-        return marketShares[marketParams.id()].toAssetsDown(totalSupplyAssets, totalSupplyShares);
+        return shares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
+    }
+
+    function expectedSupplyAssets(MarketParams memory marketParams) public view returns (uint256) {
+        return newAllocation(marketParams, positions[marketParams.id()].supplyShares);
     }
 
     /// @dev Returns adapter's ids.
@@ -187,8 +204,10 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
 
     function realAssets() external view returns (uint256) {
         uint256 _realAssets = 0;
-        for (uint256 i = 0; i < marketParamsList.length; i++) {
-            _realAssets += newAllocation(marketParamsList[i]);
+        for (uint256 i = 0; i < marketParamsStoreList.length; i++) {
+            (MarketParams memory marketParams, bytes32 marketId) =
+                MarketParamsStore(marketParamsStoreList[i]).marketParamsAndId();
+            _realAssets += newAllocation(marketParams, positions[Id.wrap(marketId)].supplyShares);
         }
         return _realAssets;
     }
