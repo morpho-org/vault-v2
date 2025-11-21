@@ -3,38 +3,30 @@
 using Util as Util;
 
 methods {
-    function MorphoMarketV1Adapter.positions(MorphoMarketV1Adapter.Id marketId) external returns (uint256, uint256) envfree;
-    function MorphoBalancesLib.expectedSupplyAssets(address morpho, MorphoMarketV1Adapter.MarketParams memory marketParams, address user) internal returns (uint256) => summaryExpectedSupplyAssets(morpho, marketParams, user);
+    function positions(MorphoMarketV1Adapter.Id marketId) external returns (uint128, uint128) envfree;
 }
 
-definition max_int256() returns int256 = (2 ^ 255) - 1;
+function allocation(MorphoMarketV1Adapter.Id marketId) returns (uint256) {
+    uint128 supplyShares;
+    uint128 allocation;
+    (supplyShares, allocation) = positions(marketId);
+    return allocation;
+}
 
-// // Prove that if a market has no allocation, it is not in the market params list.
-// strong invariant marketParamsWithNoAllocationIsNotInMarketParamsList()
-//     forall bytes32 marketId. forall uint256 i. i < currentContract.marketParamsList.length => allocation(marketId) == 0 => (
-//         currentContract.marketParamsList[i].loanToken != loanToken ||
-//         currentContract.marketParamsList[i].collateralToken != collateralToken ||
-//         currentContract.marketParamsList[i].oracle != oracle ||
-//         currentContract.marketParamsList[i].irm != irm ||
-//         currentContract.marketParamsList[i].lltv != lltv
-//     )
-// {
-//     preserved {
-//         requireInvariant distinctMarketParamsInList();
-//     }
-// }
+// Prove that if a market has no allocation, it is not in the market params list.
+strong invariant marketParamsWithNoAllocationIsNotInMarketParamsList()
+    forall bytes32 marketId. forall uint256 i. i < currentContract.marketIds.length => allocation(marketId) == 0 => currentContract.marketIds[i] != marketId
+{
+    preserved {
+        requireInvariant distinctMarketParamsInList();
+    }
+}
 
-// // Prove that marketParamsList contains distinct elements.
-// strong invariant distinctMarketParamsInList()
-//     forall uint256 i. forall uint256 j. (i < j && j < currentContract.marketParamsList.length) => (
-//         currentContract.marketParamsList[j].loanToken != currentContract.marketParamsList[i].loanToken ||
-//         currentContract.marketParamsList[j].collateralToken != currentContract.marketParamsList[i].collateralToken ||
-//         currentContract.marketParamsList[j].oracle != currentContract.marketParamsList[i].oracle ||
-//         currentContract.marketParamsList[j].irm != currentContract.marketParamsList[i].irm ||
-//         currentContract.marketParamsList[j].lltv != currentContract.marketParamsList[i].lltv
-//     )
-// {
-//     preserved {
-//         requireInvariant marketParamsWithNoAllocationIsNotInMarketParamsList();
-//     }
-// }
+// Prove that marketParamsList contains distinct elements.
+strong invariant distinctMarketParamsInList()
+    forall uint256 i. forall uint256 j. (i < j && j < currentContract.marketIds.length) => currentContract.marketIds[j] != currentContract.marketIds[i]
+{
+    preserved {
+        requireInvariant marketParamsWithNoAllocationIsNotInMarketParamsList();
+    }
+}
