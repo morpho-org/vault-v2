@@ -25,12 +25,13 @@ interface IMorphoMarketV1AdapterBase is IAdapter {
 
     /* ERRORS */
 
+    error AlreadyPending();
     error LoanAssetMismatch();
     error NotAuthorized();
-    error NotTimelocked();
-    error TimelockNotExpired();
-    error AlreadyPending();
     error NotPending();
+    error NotTimelocked();
+    error SharePriceTooHigh();
+    error TimelockNotExpired();
 
     /* FUNCTIONS */
 
