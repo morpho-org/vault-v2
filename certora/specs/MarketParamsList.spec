@@ -1,21 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-using Util as Util;
-
 methods {
     function positions(MorphoMarketV1Adapter.Id marketId) external returns (uint128, uint128) envfree;
 }
 
-function allocation(MorphoMarketV1Adapter.Id marketId) returns (uint256) {
-    uint128 supplyShares;
-    uint128 allocation;
-    (supplyShares, allocation) = positions(marketId);
-    return allocation;
-}
-
 // Prove that if a market has no allocation, it is not in the market params list.
 strong invariant marketParamsWithNoAllocationIsNotInMarketParamsList()
-    forall bytes32 marketId. forall uint256 i. i < currentContract.marketIds.length => allocation(marketId) == 0 => currentContract.marketIds[i] != marketId
+    forall MorphoMarketV1Adapter.Id marketId. forall uint256 i. i < currentContract.marketIds.length => currentContract.positions[marketId].allocation == 0 => currentContract.marketIds[i] != marketId
 {
     preserved {
         requireInvariant distinctMarketParamsInList();
