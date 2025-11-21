@@ -26,7 +26,7 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 /// has zero shares on the market.
 contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
     using MarketParamsLib for MarketParams;
-    using SharesMathLib for uint128;
+    using SharesMathLib for uint256;
 
     /* IMMUTABLES */
 
@@ -174,9 +174,14 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
     }
 
     function newAllocation(MarketParams memory marketParams) public view returns (uint256) {
-        (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
-            MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
-        return positions[marketParams.id()].supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
+        uint256 supplyShares = positions[marketParams.id()].supplyShares;
+        if (supplyShares == 0) {
+            return 0;
+        } else {
+            (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
+                MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
+            return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
+        }
     }
 
     /// @dev Returns adapter's ids.

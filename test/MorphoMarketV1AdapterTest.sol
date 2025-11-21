@@ -133,7 +133,7 @@ contract MorphoMarketV1AdapterTest is Test {
         (bytes32[] memory ids, int256 change) =
             parentVault.allocateMocked(address(adapter), abi.encode(marketParams), assets);
 
-        (uint128 supplyShares, uint128 allocation) = adapter.positions(marketParams.id());
+        (, uint128 allocation) = adapter.positions(marketParams.id());
         assertEq(allocation, assets, "Incorrect allocation");
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), assets, "Incorrect assets in Morpho");
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
@@ -163,7 +163,7 @@ contract MorphoMarketV1AdapterTest is Test {
             parentVault.deallocateMocked(address(adapter), abi.encode(marketParams), withdrawAssets);
 
         assertEq(change, -int256(withdrawAssets), "Incorrect change returned");
-        (uint128 supplyShares, uint128 allocation) = adapter.positions(marketParams.id());
+        (, uint128 allocation) = adapter.positions(marketParams.id());
         assertEq(allocation, initialAssets - withdrawAssets, "Incorrect allocation");
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
