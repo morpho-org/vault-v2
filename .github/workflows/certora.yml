@@ -38,6 +38,7 @@ jobs:
           - ReentrancyView
           - RelativeCaps
           - SentinelLiveness
+          - Timelocks
           - TokensMorphoMarketV1Adapter
           - TokensMorphoVaultV1Adapter
           - TokensNoAdapter
