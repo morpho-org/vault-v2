@@ -21,20 +21,6 @@ methods {
     function _.canSendAssets(address user) external =>  ghostCanSendAssets[user] expect bool;
     function _.canReceiveAssets(address user) external => ghostCanReceiveAssets[user] expect bool;
 
-    function _.supply(MorphoMarketV1Adapter.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, bytes data) external
-        => summaryMorphoMarketV1Supply(marketParams, assets, shares, onBehalf, data) expect (uint256, uint256) ALL;
-    function _.withdraw(MorphoMarketV1Adapter.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) external
-        => summaryMorphoMarketV1Withdraw(marketParams, assets, shares, onBehalf, receiver) expect (uint256, uint256) ALL;
-
-    function _.deposit(uint256 assets, address receiver) external =>
-        summaryMorphoVaultV1Deposit(assets, receiver) expect uint256 ALL;
-    function _.withdraw(uint256 assets, address receiver, address owner) external =>
-        summaryMorphoVaultV1Withdraw(assets, receiver, owner) expect uint256 ALL;
-
-    function _.allocate(bytes data, uint256 assets, bytes4, address) external => DISPATCHER(true);
-    function _.deallocate(bytes data, uint256 assets, bytes4, address) external => DISPATCHER(true);
-    function _.realAssets() external => DISPATCHER(true);
-
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
 }
@@ -72,15 +58,15 @@ persistent ghost mapping(address => bool) ghostCanSendShares;
 persistent ghost mapping(address => bool) ghostCanReceiveShares;
 persistent ghost mapping(address => bool) ghostCanSendAssets;
 persistent ghost mapping(address => bool) ghostCanReceiveAssets;
-persistent ghost mapping(address => bool) noInvalidBalanceChange;
+persistent ghost mapping(address => bool) invalidBalanceChange;
 
 // A balance change is invalid if the balance increases when the user can't receive assets, or if it decreases when the user can't send assets.
 hook Sstore ERC20.balanceOf[KEY address user] uint256 newBalance (uint256 oldBalance) {
     if (!canReceiveAssets(user) && newBalance > oldBalance) {
-        noInvalidBalanceChange[user] = false;
+        invalidBalanceChange[user] = true;
     }
     if (!canSendAssets(user) && newBalance < oldBalance) {
-        noInvalidBalanceChange[user] = false;
+        invalidBalanceChange[user] = true;
     }
 }
 
@@ -89,11 +75,6 @@ rule cantReceiveShares(env e, method f, calldataarg args, address user) filtered
     f -> f.selector != sig:multicall(bytes[]).selector
 }{
     require (!canReceiveShares(user), "setup gating");
-
-    // Trick to require that all the following addresses are different.
-    require(MorphoMarketV1Adapter == 0x10, "ack");
-    require(MorphoVaultV1Adapter == 0x11, "ack");
-    require(currentContract == 0x12, "ack");
 
     uint256 sharesBefore = balanceOf(user);
 
@@ -108,11 +89,6 @@ rule cantSendShares(env e, method f, calldataarg args, address user, uint256 sha
 }{
     require (!canSendShares(user), "setup gating");
 
-    // Trick to require that all the following addresses are different.
-    require(MorphoMarketV1Adapter == 0x10, "ack");
-    require(MorphoVaultV1Adapter == 0x11, "ack");
-    require(currentContract == 0x12, "ack");
-
     uint256 sharesBefore = balanceOf(user);
 
     f(e, args);
@@ -123,27 +99,19 @@ rule cantSendShares(env e, method f, calldataarg args, address user, uint256 sha
 // Check that transfers initiated from the vault, assuming the vault is not reentred, may only increase the balance of a given user when he can't send, and similarly the balance may only decrease when he can't receive.
 // Assume that the vault only uses market V1 and vault V1 adapters, and that those are properly deployed to point to market V1 and vault V1 respectively.
 rule cantSendAssetsAndCantReceiveAssets(env e, method f, calldataarg args, address user) filtered {
-    f -> f.selector != sig:MorphoMarketV1Adapter.skim(address).selector &&
-         f.selector != sig:MorphoVaultV1Adapter.skim(address).selector  &&
-         f.selector != sig:multicall(bytes[]).selector
+    f -> f.selector != sig:multicall(bytes[]).selector
 }{
     // Trick to require that all the following addresses are different.
-    require(MorphoMarketV1Adapter == 0x10, "ack");
-    require(MorphoVaultV1Adapter == 0x11, "ack");
     require(currentContract == 0x12, "ack");
     require(asset() == 0x13, "ack");
 
-    require (user != MorphoMarketV1Adapter &&
-             user != MorphoVaultV1Adapter &&
-             user != MorphoMarketV1Adapter.morpho &&
-             user != MorphoVaultV1Adapter.morphoVaultV1 &&
-             user != currentContract, "do not check if the vault, the adapters themselves, Morpho markets V1 and Morpho vaults V1 are properly gated to not send/receive assets");
+    require (user != currentContract);
+    require (!currentContract.isAdapter[user]);
+    require (!currentContract.isAdapter[asset()]);
 
-    require (forall address adapter. currentContract.isAdapter[adapter] => (adapter == MorphoMarketV1Adapter || adapter == MorphoVaultV1Adapter), "assume that, currently, only MorphoMarketV1Adapter and MorphoVaultV1Adapter are under scrutiny");
-
-    require (noInvalidBalanceChange[user], "setup the ghost state");
+    require (!invalidBalanceChange[user], "setup the ghost state");
 
     f(e, args);
 
-    assert noInvalidBalanceChange[user];
+    assert !invalidBalanceChange[user];
 }
