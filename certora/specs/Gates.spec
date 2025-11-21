@@ -3,8 +3,6 @@
 
 using ERC20Standard as ERC20;
 using ERC20Helper as ERC20Helper;
-using MorphoMarketV1Adapter as MorphoMarketV1Adapter;
-using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
 
 methods {
     function asset() external returns address envfree;
