@@ -13,8 +13,10 @@ methods {
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
 
+    function _.borrowRateView2(Morpho.Id, Morpho.Market, address) external => constantBorrowRate expect(uint256);
     function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect(uint256);
     function _.borrowRateView(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect(uint256);
+    function _.rateAtTarget(Morpho.Id) external => CONSTANT;
 
     function Utils.id(Morpho.MarketParams) external returns (Morpho.Id) envfree;
 }
