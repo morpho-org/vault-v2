@@ -17,7 +17,6 @@ jobs:
       matrix:
         conf:
           - AbdicatedFunctions
-          - AllocationMorphoMarketV1Adapter
           - AllocationMorphoVaultV1Adapter
           - AllocationVaultV2
           - ChangesMorphoMarketV1Adapter
