@@ -42,6 +42,8 @@ contract MorphoMarketV1AdapterTest is Test {
     IIrm internal irm;
     IMorpho internal morpho;
     address internal owner;
+    address internal curator;
+    address internal sentinel;
     address internal recipient;
     bytes32[] internal expectedIds;
 
@@ -50,6 +52,8 @@ contract MorphoMarketV1AdapterTest is Test {
 
     function setUp() public {
         owner = makeAddr("owner");
+        curator = makeAddr("curator");
+        sentinel = makeAddr("sentinel");
         recipient = makeAddr("recipient");
 
         address morphoOwner = makeAddr("MorphoOwner");
@@ -76,7 +80,7 @@ contract MorphoMarketV1AdapterTest is Test {
 
         morpho.createMarket(marketParams);
         marketId = marketParams.id();
-        parentVault = new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0));
+        parentVault = new VaultV2Mock(address(loanToken), owner, curator, address(0), sentinel);
         factory = new MorphoMarketV1AdapterFactory();
         adapter = IMorphoMarketV1Adapter(factory.createMorphoMarketV1Adapter(address(parentVault), address(morpho)));
 
@@ -133,7 +137,7 @@ contract MorphoMarketV1AdapterTest is Test {
         (bytes32[] memory ids, int256 change) =
             parentVault.allocateMocked(address(adapter), abi.encode(marketParams), assets);
 
-        (uint128 supplyShares, uint128 allocation) = adapter.positions(marketParams.id());
+        (, uint128 allocation) = adapter.positions(marketParams.id());
         assertEq(allocation, assets, "Incorrect allocation");
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), assets, "Incorrect assets in Morpho");
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
@@ -163,7 +167,7 @@ contract MorphoMarketV1AdapterTest is Test {
             parentVault.deallocateMocked(address(adapter), abi.encode(marketParams), withdrawAssets);
 
         assertEq(change, -int256(withdrawAssets), "Incorrect change returned");
-        (uint128 supplyShares, uint128 allocation) = adapter.positions(marketParams.id());
+        (, uint128 allocation) = adapter.positions(marketParams.id());
         assertEq(allocation, initialAssets - withdrawAssets, "Incorrect allocation");
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
@@ -346,5 +350,120 @@ contract MorphoMarketV1AdapterTest is Test {
 
         // approx because of the virtual shares.
         assertApproxEqAbs(adapter.realAssets() - deposit, interest, interest.mulDivUp(1, deposit + 1), "realAssets");
+    }
+
+    function testSubmitBurnSharesNotAuthorized(address caller, Id _marketId) public {
+        vm.assume(caller != curator);
+        vm.assume(caller != sentinel);
+        vm.prank(caller);
+        vm.expectRevert(IMorphoMarketV1AdapterBase.NotAuthorized.selector);
+        adapter.submitBurnShares(_marketId);
+    }
+
+    function testSubmitBurnSharesAlreadyPending(Id _marketId) public {
+        vm.prank(curator);
+        adapter.submitBurnShares(_marketId);
+
+        vm.expectRevert(IMorphoMarketV1AdapterBase.AlreadyPending.selector);
+        vm.prank(curator);
+        adapter.submitBurnShares(_marketId);
+    }
+
+    function testSubmitBurnShares(Id _marketId) public {
+        vm.expectEmit();
+        emit IMorphoMarketV1AdapterBase.SubmitBurnShares(
+            _marketId, block.timestamp + parentVault.timelock(IVaultV2.removeAdapter.selector)
+        );
+        vm.prank(curator);
+        adapter.submitBurnShares(_marketId);
+
+        assertEq(
+            adapter.burnSharesExecutableAt(_marketId),
+            block.timestamp + parentVault.timelock(IVaultV2.removeAdapter.selector)
+        );
+    }
+
+    function testRevokeBurnSharesNotAuthorized(address caller, Id _marketId) public {
+        vm.assume(caller != curator);
+        vm.assume(caller != sentinel);
+
+        vm.prank(caller);
+        vm.expectRevert(IMorphoMarketV1AdapterBase.NotAuthorized.selector);
+        adapter.revokeBurnShares(_marketId);
+    }
+
+    function testRevokeBurnSharesNotPending(Id _marketId) public {
+        vm.prank(curator);
+        vm.expectRevert(IMorphoMarketV1AdapterBase.NotPending.selector);
+        adapter.revokeBurnShares(_marketId);
+    }
+
+    function testRevokeBurnShares(Id _marketId) public {
+        vm.prank(curator);
+        adapter.submitBurnShares(_marketId);
+
+        uint256 snap = vm.snapshotState();
+
+        vm.prank(curator);
+        vm.expectEmit();
+        emit IMorphoMarketV1AdapterBase.RevokeBurnShares(_marketId);
+        adapter.revokeBurnShares(_marketId);
+
+        assertEq(adapter.burnSharesExecutableAt(_marketId), 0);
+
+        vm.revertToStateAndDelete(snap);
+
+        vm.prank(sentinel);
+        vm.expectEmit();
+        emit IMorphoMarketV1AdapterBase.RevokeBurnShares(_marketId);
+        adapter.revokeBurnShares(_marketId);
+
+        assertEq(adapter.burnSharesExecutableAt(_marketId), 0);
+    }
+
+    function testBurnSharesNotTimelocked(Id _marketId) public {
+        vm.expectRevert(IMorphoMarketV1AdapterBase.NotTimelocked.selector);
+        adapter.burnShares(_marketId);
+    }
+
+    function testBurnSharesTimelockNotExpired(Id _marketId, uint256 timelockDuration, uint256 skipDuration) public {
+        timelockDuration = bound(timelockDuration, 1, 3650 days);
+
+        parentVault.setTimelock(timelockDuration);
+
+        vm.prank(curator);
+        adapter.submitBurnShares(_marketId);
+
+        skip(bound(skipDuration, 0, timelockDuration - 1));
+
+        vm.expectRevert(IMorphoMarketV1AdapterBase.TimelockNotExpired.selector);
+        adapter.burnShares(_marketId);
+    }
+
+    function testBurnShares(uint256 timelockDuration, uint256 extraSkip) public {
+        uint256 assets = _boundAssets(1000);
+        deal(address(loanToken), address(adapter), assets);
+        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), assets);
+
+        (uint128 supplyShares, uint128 allocation) = adapter.positions(marketId);
+        assertGt(supplyShares, 0);
+        assertGt(allocation, 0);
+
+        timelockDuration = bound(timelockDuration, 0, 3650 days);
+        parentVault.setTimelock(timelockDuration);
+
+        vm.prank(curator);
+        adapter.submitBurnShares(marketId);
+
+        skip(timelockDuration + bound(extraSkip, 0, 3650 days));
+
+        vm.expectEmit();
+        emit IMorphoMarketV1AdapterBase.BurnShares(marketId, supplyShares);
+        adapter.burnShares(marketId);
+
+        (supplyShares, allocation) = adapter.positions(marketId);
+        assertEq(supplyShares, 0, "shares");
+        assertEq(allocation, assets, "allocation");
+        assertEq(adapter.burnSharesExecutableAt(marketId), 0, "executable at");
     }
 }

@@ -29,6 +29,8 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
 
     bytes[] internal expectedIdData1;
     bytes[] internal expectedIdData2;
+    bytes32[] internal expectedIds1;
+    bytes32[] internal expectedIds2;
 
     uint256 internal constant MIN_TEST_ASSETS = 10;
     uint256 internal constant MAX_TEST_ASSETS = 1e24;
@@ -82,10 +84,20 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
         expectedIdData1[1] = abi.encode("collateralToken", marketParams1.collateralToken);
         expectedIdData1[2] = abi.encode("this/marketParams", address(adapter), marketParams1);
 
+        expectedIds1 = new bytes32[](3);
+        expectedIds1[0] = keccak256(expectedIdData1[0]);
+        expectedIds1[1] = keccak256(expectedIdData1[1]);
+        expectedIds1[2] = keccak256(expectedIdData1[2]);
+
         expectedIdData2 = new bytes[](3);
         expectedIdData2[0] = abi.encode("this", address(adapter));
         expectedIdData2[1] = abi.encode("collateralToken", marketParams2.collateralToken);
         expectedIdData2[2] = abi.encode("this/marketParams", address(adapter), marketParams2);
+
+        expectedIds2 = new bytes32[](3);
+        expectedIds2[0] = keccak256(expectedIdData2[0]);
+        expectedIds2[1] = keccak256(expectedIdData2[1]);
+        expectedIds2[2] = keccak256(expectedIdData2[2]);
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));

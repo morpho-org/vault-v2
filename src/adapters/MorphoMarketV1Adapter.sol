@@ -75,7 +75,10 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
     }
 
     function submitBurnShares(Id marketId) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        require(
+            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
         require(burnSharesExecutableAt[marketId] == 0, AlreadyPending());
         burnSharesExecutableAt[marketId] =
             block.timestamp + IVaultV2(parentVault).timelock(IVaultV2.removeAdapter.selector);
@@ -96,8 +99,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
         require(burnSharesExecutableAt[marketId] != 0, NotTimelocked());
         require(block.timestamp >= burnSharesExecutableAt[marketId], TimelockNotExpired());
         burnSharesExecutableAt[marketId] = 0;
+        emit BurnShares(marketId, positions[marketId].supplyShares);
         positions[marketId].supplyShares = 0;
-        emit BurnShares(marketId);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
