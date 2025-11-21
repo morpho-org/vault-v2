@@ -2,6 +2,14 @@
 
 methods {
     function positions(MorphoMarketV1Adapter.Id marketId) external returns (uint128, uint128) envfree;
+
+    function newAllocation(MorphoMarketV1Adapter.Id marketId) internal returns (uint256) => summaryNewAllocation(marketId);
+}
+
+function summaryNewAllocation(MorphoMarketV1Adapter.Id marketId) returns (uint256) {
+    uint256 newAllocation;
+    require newAllocation < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
+    return newAllocation;
 }
 
 // Prove that if a market has no allocation, it is not in the market params list.
