@@ -6,10 +6,10 @@ using MorphoHarness as MorphoMarketV1;
 using Utils as Utils;
 
 methods {
-    function allocation(bytes32) external returns uint256 envfree;
+    function allocation(bytes32) external returns (uint256) envfree;
 
     function MorphoMarketV1Adapter.ids(MorphoHarness.MarketParams) external returns (bytes32[]) envfree;
-    function MorphoMarketV1Adapter.allocation(MorphoHarness.MarketParams) external returns (uint256) envfree;
+    function MorphoMarketV1Adapter.positions(MorphoHarness.Id) external returns (uint128, uint128) envfree;
 
     function Utils.decodeMarketParams(bytes) external returns (MorphoHarness.MarketParams) envfree;
     function Utils.id(MorphoHarness.MarketParams) external returns (MorphoHarness.Id) envfree;
@@ -84,7 +84,10 @@ rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
     allocate(e, MorphoMarketV1Adapter, data, assets);
 
     MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
-    uint256 allocation = MorphoMarketV1Adapter.allocation(marketParams);
+    MorphoHarness.Id marketId = Utils.id(marketParams);
+    uint256 allocation;
+    uint256 supplyShares;
+    (supplyShares, allocation) = MorphoMarketV1Adapter.positions(marketId);
     uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, marketParams, MorphoMarketV1Adapter);
 
     assert allocation == expected;
@@ -122,7 +125,10 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
     MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
-    uint256 allocation = MorphoMarketV1Adapter.allocation(marketParams);
+    MorphoHarness.Id marketId = Utils.id(marketParams);
+    uint256 allocation;
+    uint256 supplyShares;
+    (supplyShares, allocation) = MorphoMarketV1Adapter.positions(marketId);
     uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, marketParams, MorphoMarketV1Adapter);
 
     assert allocation == expected;
