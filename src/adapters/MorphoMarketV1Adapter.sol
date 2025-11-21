@@ -75,10 +75,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
     }
 
     function submitBurnShares(Id marketId) external {
-        require(
-            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
-            NotAuthorized()
-        );
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         require(burnSharesExecutableAt[marketId] == 0, AlreadyPending());
         burnSharesExecutableAt[marketId] =
             block.timestamp + IVaultV2(parentVault).timelock(IVaultV2.removeAdapter.selector);

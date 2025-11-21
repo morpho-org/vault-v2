@@ -354,7 +354,6 @@ contract MorphoMarketV1AdapterTest is Test {
 
     function testSubmitBurnSharesNotAuthorized(address caller, Id _marketId) public {
         vm.assume(caller != curator);
-        vm.assume(caller != sentinel);
         vm.prank(caller);
         vm.expectRevert(IMorphoMarketV1AdapterBase.NotAuthorized.selector);
         adapter.submitBurnShares(_marketId);
