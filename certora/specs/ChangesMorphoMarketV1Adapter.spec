@@ -6,7 +6,7 @@ import "UtilityFunctions.spec";
 using Utils as Utils;
 
 methods {
-    function allocation(Morpho.MarketParams) external returns (uint256) envfree;
+    function positions(Morpho.Id) external returns (uint128, uint128) envfree;
     function Utils.decodeMarketParams(bytes) external returns (Morpho.MarketParams) envfree;
 
     // Needed because linking fails.
@@ -15,6 +15,8 @@ methods {
 
     function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect(uint256);
     function _.borrowRateView(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect(uint256);
+
+    function Utils.id(Morpho.MarketParams) external returns (Morpho.Id) envfree;
 }
 
 persistent ghost uint256 constantBorrowRate;
@@ -37,7 +39,10 @@ rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 se
 // Check that allocate or deallocate cannot return a change that would make the current allocation negative.
 rule changeForAllocateOrDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
-    mathint allocation = allocation(marketParams);
+    Morpho.Id marketId = Utils.id(marketParams);
+    uint256 allocation;
+    uint256 supplyShares;
+    (supplyShares, allocation) = positions(marketId);
 
     bytes32[] ids;
     int256 change;
