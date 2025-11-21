@@ -11,7 +11,6 @@ import {IMorphoMarketV1Adapter} from "../../src/adapters/interfaces/IMorphoMarke
 
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/libraries/ConstantsLib.sol";
 import {OracleMock} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/mocks/OracleMock.sol";
-import {IrmMock} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/mocks/IrmMock.sol";
 import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MarketParamsLib} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {

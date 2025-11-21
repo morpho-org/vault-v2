@@ -38,7 +38,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function asset() external view returns (address);
     function morpho() external view returns (address);
     function marketIds(uint256 index) external view returns (Id);
-    function positions(Id marketId) external view returns (uint128, uint128);
+    function positions(Id marketId) external view returns (uint128 supplyShares, uint128 allocation);
     function adapterId() external view returns (bytes32);
     function skimRecipient() external view returns (address);
     function marketIdsLength() external view returns (uint256);
