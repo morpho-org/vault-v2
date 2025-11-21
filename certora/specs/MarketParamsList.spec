@@ -5,19 +5,19 @@ methods {
 }
 
 // Prove that if a market has no allocation, it is not in the market params list.
-strong invariant marketParamsWithNoAllocationIsNotInMarketParamsList()
-    forall MorphoMarketV1Adapter.Id marketId. forall uint256 i. i < currentContract.marketIds.length => currentContract.positions[marketId].allocation == 0 => currentContract.marketIds[i] != marketId
+strong invariant marketParamsWithNoAllocationIsNotInMarketIds()
+    forall MorphoMarketV1Adapter.Id marketId. forall uint256 i. i < currentContract.marketIds.length => currentContract.positions[marketId].allocation == 0 => currentContract.marketIds[i] != marketId.unwrap()
 {
     preserved {
-        requireInvariant distinctMarketParamsInList();
+        requireInvariant distinctMarketIds();
     }
 }
 
-// Prove that marketParamsList contains distinct elements.
-strong invariant distinctMarketParamsInList()
+// Prove that marketIds contains distinct elements.
+strong invariant distinctMarketIds()
     forall uint256 i. forall uint256 j. (i < j && j < currentContract.marketIds.length) => currentContract.marketIds[j] != currentContract.marketIds[i]
 {
     preserved {
-        requireInvariant marketParamsWithNoAllocationIsNotInMarketParamsList();
+        requireInvariant marketParamsWithNoAllocationIsNotInMarketIds();
     }
 }
