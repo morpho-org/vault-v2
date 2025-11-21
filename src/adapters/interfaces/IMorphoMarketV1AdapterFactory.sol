@@ -8,7 +8,7 @@ interface IMorphoMarketV1AdapterFactory {
     event CreateMorphoMarketV1AdapterFactory(address indexed irm);
 
     event CreateMorphoMarketV1Adapter(
-        address indexed parentVault, address indexed morpho, address indexed morphoMarketV1Adapter
+        address indexed parentVault, address indexed morpho, address irm, address indexed morphoMarketV1Adapter
     );
 
     /* FUNCTIONS */

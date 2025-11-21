@@ -29,7 +29,7 @@ contract MorphoMarketV1AdapterFactory is IMorphoMarketV1AdapterFactory {
         address _morphoMarketV1Adapter = address(new MorphoMarketV1Adapter{salt: bytes32(0)}(parentVault, morpho, irm));
         morphoMarketV1Adapter[parentVault][morpho] = _morphoMarketV1Adapter;
         isMorphoMarketV1Adapter[_morphoMarketV1Adapter] = true;
-        emit CreateMorphoMarketV1Adapter(parentVault, morpho, _morphoMarketV1Adapter);
+        emit CreateMorphoMarketV1Adapter(parentVault, morpho, irm, _morphoMarketV1Adapter);
         return _morphoMarketV1Adapter;
     }
 }

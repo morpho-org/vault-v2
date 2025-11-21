@@ -190,7 +190,7 @@ contract MorphoMarketV1AdapterTest is Test {
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
         emit IMorphoMarketV1AdapterFactory.CreateMorphoMarketV1Adapter(
-            newParentVaultAddr, address(morpho), expectedNewAdapter
+            newParentVaultAddr, address(morpho), address(irm), expectedNewAdapter
         );
 
         address newAdapter = factory.createMorphoMarketV1Adapter(newParentVaultAddr, address(morpho));
