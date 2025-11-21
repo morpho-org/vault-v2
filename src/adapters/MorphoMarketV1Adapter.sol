@@ -96,8 +96,9 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
         require(burnSharesExecutableAt[marketId] != 0, NotTimelocked());
         require(block.timestamp >= burnSharesExecutableAt[marketId], TimelockNotExpired());
         burnSharesExecutableAt[marketId] = 0;
-        emit BurnShares(marketId, positions[marketId].supplyShares);
+        uint supplySharesBefore = positions[marketId].supplyShares;
         positions[marketId].supplyShares = 0;
+        emit BurnShares(marketId, supplySharesBefore);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
