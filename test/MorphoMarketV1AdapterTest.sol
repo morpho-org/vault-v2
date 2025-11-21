@@ -8,9 +8,7 @@ import {MorphoMarketV1AdapterFactory} from "../src/adapters/MorphoMarketV1Adapte
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "../lib/morpho-blue-irm/lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
-import {IrmMock} from "../lib/morpho-blue-irm/lib/morpho-blue/src/mocks/IrmMock.sol";
 import {IMorpho, MarketParams, Id, Market} from "../lib/morpho-blue-irm/lib/morpho-blue/src/interfaces/IMorpho.sol";
-import {IIrm} from "../lib/morpho-blue-irm/lib/morpho-blue/src/interfaces/IIrm.sol";
 import {IOracle} from "../lib/morpho-blue-irm/lib/morpho-blue/src/interfaces/IOracle.sol";
 import {MorphoBalancesLib} from "../lib/morpho-blue-irm/lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 import {MorphoLib} from "../lib/morpho-blue-irm/lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
@@ -190,7 +188,7 @@ contract MorphoMarketV1AdapterTest is Test {
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
         emit IMorphoMarketV1AdapterFactory.CreateMorphoMarketV1Adapter(
-            newParentVaultAddr, address(morpho), expectedNewAdapter
+            newParentVaultAddr, address(morpho), address(irm), expectedNewAdapter
         );
 
         address newAdapter = factory.createMorphoMarketV1Adapter(newParentVaultAddr, address(morpho));
