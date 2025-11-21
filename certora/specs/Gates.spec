@@ -23,35 +23,6 @@ methods {
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
 }
 
-function summaryMorphoMarketV1Supply(MorphoMarketV1Adapter.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, bytes data) returns (uint256, uint256) {
-    assert shares == 0;
-    assert data.length == 0;
-    uint256 returnedShares;
-    ERC20Helper.safeTransferFrom(marketParams.loanToken, onBehalf, MorphoMarketV1Adapter.morpho, assets);
-    return (assets, returnedShares);
-}
-
-function summaryMorphoMarketV1Withdraw(MorphoMarketV1Adapter.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) returns (uint256, uint256) {
-    assert shares == 0;
-    uint256 returnedShares;
-    ERC20Helper.safeTransferFrom(marketParams.loanToken, MorphoMarketV1Adapter.morpho, onBehalf, assets);
-    return (assets, returnedShares);
-}
-
-function summaryMorphoVaultV1Deposit(uint256 assets, address receiver) returns uint256 {
-    uint256 shares;
-    ERC20Helper.safeTransferFrom(currentContract.asset, MorphoVaultV1Adapter, MorphoVaultV1Adapter.morphoVaultV1, assets);
-    ERC20Helper.safeTransferFrom(currentContract.asset, MorphoVaultV1Adapter.morphoVaultV1, MorphoMarketV1Adapter.morpho, assets);
-    return shares;
-}
-
-function summaryMorphoVaultV1Withdraw(uint256 assets, address receiver, address owner) returns uint256 {
-    uint256 shares;
-    ERC20Helper.safeTransferFrom(currentContract.asset, MorphoMarketV1Adapter.morpho, MorphoVaultV1Adapter.morphoVaultV1, assets);
-    ERC20Helper.safeTransferFrom(currentContract.asset, MorphoVaultV1Adapter.morphoVaultV1, MorphoVaultV1Adapter, assets);
-    return shares;
-}
-
 persistent ghost mapping(address => bool) ghostCanSendShares;
 persistent ghost mapping(address => bool) ghostCanReceiveShares;
 persistent ghost mapping(address => bool) ghostCanSendAssets;
