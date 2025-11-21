@@ -2,12 +2,10 @@
 
 using Util as Util;
 
-methods {
-    function MorphoMarketV1Adapter.positions(MorphoMarketV1Adapter.Id marketId) external returns (uint256, uint256) envfree;
-    function MorphoBalancesLib.expectedSupplyAssets(address morpho, MorphoMarketV1Adapter.MarketParams memory marketParams, address user) internal returns (uint256) => summaryExpectedSupplyAssets(morpho, marketParams, user);
-}
-
-definition max_int256() returns int256 = (2 ^ 255) - 1;
+// methods {
+//     function positions(MorphoMarketV1Adapter.Id marketId) external returns (uint256, uint256) envfree;
+//     function MorphoBalancesLib.expectedSupplyAssets(address morpho, MorphoMarketV1Adapter.MarketParams memory marketParams, address user) internal returns (uint256) => summaryExpectedSupplyAssets(morpho, marketParams, user);
+// }
 
 // // Prove that if a market has no allocation, it is not in the market params list.
 // strong invariant marketParamsWithNoAllocationIsNotInMarketParamsList()

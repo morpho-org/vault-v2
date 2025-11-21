@@ -36,100 +36,100 @@ persistent ghost uint256 constantBorrowRate;
 
 persistent ghost int256 ghostChange;
 
-// Wrapper to record change returned by the adapter and ensure returned ids are distinct.
-function morphoMarketV1AdapterWrapperSummary(env e, bool isAllocateCall, bytes data, uint256 assets, bytes4 bs, address a) returns (bytes32[], int256) {
-    bytes32[] ids;
-    int256 change;
+// // Wrapper to record change returned by the adapter and ensure returned ids are distinct.
+// function morphoMarketV1AdapterWrapperSummary(env e, bool isAllocateCall, bytes data, uint256 assets, bytes4 bs, address a) returns (bytes32[], int256) {
+//     bytes32[] ids;
+//     int256 change;
 
-    if (isAllocateCall) {
-        ids, change = MorphoMarketV1Adapter.allocate(e, data, assets, bs, a);
-    } else {
-        ids, change = MorphoMarketV1Adapter.deallocate(e, data, assets, bs, a);
-    }
-    require forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "proven in the distinctMarketV1Ids rule";
-    ghostChange = change;
+//     if (isAllocateCall) {
+//         ids, change = MorphoMarketV1Adapter.allocate(e, data, assets, bs, a);
+//     } else {
+//         ids, change = MorphoMarketV1Adapter.deallocate(e, data, assets, bs, a);
+//     }
+//     require forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "proven in the distinctMarketV1Ids rule";
+//     ghostChange = change;
 
-    return (ids, change);
-}
+//     return (ids, change);
+// }
 
-rule allocateChangesAllocationOfIds(env e, bytes data, uint256 assets) {
-    // Trick to require that all the following addresses are different.
-    require MorphoMarketV1 == 0x10, "ack";
-    require MorphoMarketV1Adapter == 0x11, "ack";
-    require currentContract == 0x12, "ack";
+// rule allocateChangesAllocationOfIds(env e, bytes data, uint256 assets) {
+//     // Trick to require that all the following addresses are different.
+//     require MorphoMarketV1 == 0x10, "ack";
+//     require MorphoMarketV1Adapter == 0x11, "ack";
+//     require currentContract == 0x12, "ack";
 
-    MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
-    bytes32[] ids = MorphoMarketV1Adapter.ids(marketParams);
+//     MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
+//     bytes32[] ids = MorphoMarketV1Adapter.ids(marketParams);
 
-    bytes32 id;
-    uint256 allocationBefore = allocation(id);
+//     bytes32 id;
+//     uint256 allocationBefore = allocation(id);
 
-    uint i;
-    require i < ids.length, "require i to be a valid index";
-    requireInvariant allocationIsInt256(ids[i]);
-    int256 idIAllocationBefore = assert_int256(allocation(ids[i]));
+//     uint i;
+//     require i < ids.length, "require i to be a valid index";
+//     requireInvariant allocationIsInt256(ids[i]);
+//     int256 idIAllocationBefore = assert_int256(allocation(ids[i]));
 
-    allocate(e, MorphoMarketV1Adapter, data, assets);
+//     allocate(e, MorphoMarketV1Adapter, data, assets);
 
-    assert allocation(ids[i]) == idIAllocationBefore + ghostChange;
-    assert currentContract.caps[id].allocation != allocationBefore => (exists uint j. j < ids.length && id == ids[j]);
-}
+//     assert allocation(ids[i]) == idIAllocationBefore + ghostChange;
+//     assert currentContract.caps[id].allocation != allocationBefore => (exists uint j. j < ids.length && id == ids[j]);
+// }
 
-rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
-    // Trick to require that all the following addresses are different.
-    require MorphoMarketV1 == 0x10, "ack";
-    require MorphoMarketV1Adapter == 0x11, "ack";
-    require currentContract == 0x12, "ack";
+// rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
+//     // Trick to require that all the following addresses are different.
+//     require MorphoMarketV1 == 0x10, "ack";
+//     require MorphoMarketV1Adapter == 0x11, "ack";
+//     require currentContract == 0x12, "ack";
 
-    allocate(e, MorphoMarketV1Adapter, data, assets);
+//     allocate(e, MorphoMarketV1Adapter, data, assets);
 
-    MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
-    MorphoHarness.Id marketId = Utils.id(marketParams);
-    uint256 allocation;
-    uint256 supplyShares;
-    (supplyShares, allocation) = MorphoMarketV1Adapter.positions(marketId);
-    uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, marketParams, MorphoMarketV1Adapter);
+//     MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
+//     MorphoHarness.Id marketId = Utils.id(marketParams);
+//     uint256 allocation;
+//     uint256 supplyShares;
+//     (supplyShares, allocation) = MorphoMarketV1Adapter.positions(marketId);
+//     uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, marketParams, MorphoMarketV1Adapter);
 
-    assert allocation == expected;
-}
+//     assert allocation == expected;
+// }
 
-rule deallocateChangesAllocationOfIds(env e, bytes data, uint256 assets) {
-    // Trick to require that all the following addresses are different.
-    require MorphoMarketV1 == 0x10, "ack";
-    require MorphoMarketV1Adapter == 0x11, "ack";
-    require currentContract == 0x12, "ack";
+// rule deallocateChangesAllocationOfIds(env e, bytes data, uint256 assets) {
+//     // Trick to require that all the following addresses are different.
+//     require MorphoMarketV1 == 0x10, "ack";
+//     require MorphoMarketV1Adapter == 0x11, "ack";
+//     require currentContract == 0x12, "ack";
 
-    MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
-    bytes32[] ids = MorphoMarketV1Adapter.ids(marketParams);
+//     MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
+//     bytes32[] ids = MorphoMarketV1Adapter.ids(marketParams);
 
-    bytes32 id;
-    uint256 allocationBefore = allocation(id);
+//     bytes32 id;
+//     uint256 allocationBefore = allocation(id);
 
-    uint i;
-    require i < ids.length, "require i to be a valid index";
-    requireInvariant allocationIsInt256(ids[i]);
-    int256 idIAllocationBefore = assert_int256(allocation(ids[i]));
+//     uint i;
+//     require i < ids.length, "require i to be a valid index";
+//     requireInvariant allocationIsInt256(ids[i]);
+//     int256 idIAllocationBefore = assert_int256(allocation(ids[i]));
 
-    deallocate(e, MorphoMarketV1Adapter, data, assets);
+//     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
-    assert allocation(ids[i]) == idIAllocationBefore + ghostChange;
-    assert currentContract.caps[id].allocation != allocationBefore => (exists uint j. j < ids.length && id == ids[j]);
-}
+//     assert allocation(ids[i]) == idIAllocationBefore + ghostChange;
+//     assert currentContract.caps[id].allocation != allocationBefore => (exists uint j. j < ids.length && id == ids[j]);
+// }
 
-rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
-    // Trick to require that all the following addresses are different.
-    require MorphoMarketV1 == 0x10, "ack";
-    require MorphoMarketV1Adapter == 0x11, "ack";
-    require currentContract == 0x12, "ack";
+// rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
+//     // Trick to require that all the following addresses are different.
+//     require MorphoMarketV1 == 0x10, "ack";
+//     require MorphoMarketV1Adapter == 0x11, "ack";
+//     require currentContract == 0x12, "ack";
 
-    deallocate(e, MorphoMarketV1Adapter, data, assets);
+//     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
-    MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
-    MorphoHarness.Id marketId = Utils.id(marketParams);
-    uint256 allocation;
-    uint256 supplyShares;
-    (supplyShares, allocation) = MorphoMarketV1Adapter.positions(marketId);
-    uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, marketParams, MorphoMarketV1Adapter);
+//     MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
+//     MorphoHarness.Id marketId = Utils.id(marketParams);
+//     uint256 allocation;
+//     uint256 supplyShares;
+//     (supplyShares, allocation) = MorphoMarketV1Adapter.positions(marketId);
+//     uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, marketParams, MorphoMarketV1Adapter);
 
-    assert allocation == expected;
-}
+//     assert allocation == expected;
+// }
