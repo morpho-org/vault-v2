@@ -134,7 +134,8 @@ contract MorphoMarketV1AdapterTest is Test {
             parentVault.allocateMocked(address(adapter), abi.encode(marketParams), assets);
 
         assertEq(
-            adapter.positions(marketParams.id()).supplyShares, IMorpho(morpho).position(marketId, address(adapter)).supplyShares
+            adapter.positions(marketParams.id()).supplyShares,
+            IMorpho(morpho).position(marketId, address(adapter)).supplyShares
         );
         assertEq(adapter.positions(marketParams.id()).allocation, assets, "Incorrect allocation");
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), assets, "Incorrect assets in Morpho");
