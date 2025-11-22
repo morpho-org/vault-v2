@@ -464,5 +464,6 @@ contract MorphoMarketV1AdapterTest is Test {
         assertEq(supplyShares, 0, "shares");
         assertEq(allocation, assets, "allocation");
         assertEq(adapter.burnSharesExecutableAt(marketId), 0, "executable at");
+        assertEq(adapter.realAssets(), 0, "realAssets");
     }
 }
