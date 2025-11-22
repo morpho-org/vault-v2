@@ -7,7 +7,10 @@ import "../BaseTest.sol";
 import {MorphoMarketV1Adapter} from "../../src/adapters/MorphoMarketV1Adapter.sol";
 import {MorphoMarketV1AdapterFactory} from "../../src/adapters/MorphoMarketV1AdapterFactory.sol";
 import {IMorphoMarketV1AdapterFactory} from "../../src/adapters/interfaces/IMorphoMarketV1AdapterFactory.sol";
-import {IMorphoMarketV1Adapter} from "../../src/adapters/interfaces/IMorphoMarketV1Adapter.sol";
+import {
+    IMorphoMarketV1Adapter,
+    IMorphoMarketV1AdapterBase
+} from "../../src/adapters/interfaces/IMorphoMarketV1Adapter.sol";
 
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 import {OracleMock} from "../../lib/morpho-blue/src/mocks/OracleMock.sol";

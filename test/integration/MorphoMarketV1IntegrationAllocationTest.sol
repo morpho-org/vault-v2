@@ -140,4 +140,20 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
 
         assertEq(adapter.marketParamsListLength(), 1, "duplicate market in market list");
     }
+
+    function testAllocateWithSlippage() public {
+        // Increase rate by borrowing.
+        deal(address(collateralToken), borrower, type(uint256).max);
+        vm.startPrank(borrower);
+        collateralToken.approve(address(morpho), type(uint256).max);
+        morpho.supplyCollateral(marketParams1, 2 * initialInMarket1, borrower, hex"");
+        morpho.borrow(marketParams1, initialInMarket1, 0, borrower, borrower);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 60 * 60 * 24 * 365 * 200); //200 years
+
+        vm.prank(allocator);
+        vm.expectRevert(IMorphoMarketV1AdapterBase.SharePriceAboveOne.selector);
+        vault.allocate(address(adapter), abi.encode(marketParams1), 100);
+    }
 }
