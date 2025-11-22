@@ -10,7 +10,7 @@ struct MarketPosition {
     uint128 allocation;
 }
 
-interface IMorphoMarketV1Adapter is IAdapter {
+interface IMorphoMarketV1AdapterBase is IAdapter {
     /* EVENTS */
 
     event Allocate(MarketParams indexed marketParams, uint256 newAllocation, uint256 shares);
@@ -38,7 +38,6 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function asset() external view returns (address);
     function morpho() external view returns (address);
     function marketIds(uint256 index) external view returns (Id);
-    function positions(Id marketId) external view returns (uint128 supplyShares, uint128 allocation);
     function adapterId() external view returns (bytes32);
     function skimRecipient() external view returns (address);
     function marketIdsLength() external view returns (uint256);
@@ -49,4 +48,12 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
+}
+
+interface IMorphoMarketV1AdapterStaticTyping is IMorphoMarketV1AdapterBase {
+    function positions(Id marketId) external view returns (uint128 supplyShares, uint128 allocation);
+}
+
+interface IMorphoMarketV1Adapter is IMorphoMarketV1AdapterBase {
+    function positions(Id marketId) external view returns (MarketPosition memory);
 }

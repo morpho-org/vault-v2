@@ -4,6 +4,10 @@ pragma solidity ^0.8.0;
 
 import "../lib/forge-std/src/Test.sol";
 import {MorphoMarketV1Adapter} from "../src/adapters/MorphoMarketV1Adapter.sol";
+import {
+    IMorphoMarketV1Adapter,
+    IMorphoMarketV1AdapterBase
+} from "../src/adapters/interfaces/IMorphoMarketV1Adapter.sol";
 import {MorphoMarketV1AdapterFactory} from "../src/adapters/MorphoMarketV1AdapterFactory.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "../lib/morpho-blue-irm/lib/morpho-blue/src/mocks/OracleMock.sol";
@@ -94,13 +98,13 @@ contract MorphoMarketV1AdapterTest is Test {
 
     function testAllocateNotAuthorizedReverts(uint256 assets) public {
         assets = _boundAssets(assets);
-        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1AdapterBase.NotAuthorized.selector);
         adapter.allocate(abi.encode(marketParams), assets, bytes4(0), address(0));
     }
 
     function testDeallocateNotAuthorizedReverts(uint256 assets) public {
         assets = _boundAssets(assets);
-        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1AdapterBase.NotAuthorized.selector);
         adapter.deallocate(abi.encode(marketParams), assets, bytes4(0), address(0));
     }
 
@@ -108,7 +112,7 @@ contract MorphoMarketV1AdapterTest is Test {
         vm.assume(randomAsset != marketParams.loanToken);
         assets = _boundAssets(assets);
         marketParams.loanToken = randomAsset;
-        vm.expectRevert(IMorphoMarketV1Adapter.LoanAssetMismatch.selector);
+        vm.expectRevert(IMorphoMarketV1AdapterBase.LoanAssetMismatch.selector);
         vm.prank(address(parentVault));
         adapter.allocate(abi.encode(marketParams), assets, bytes4(0), address(0));
     }
@@ -117,7 +121,7 @@ contract MorphoMarketV1AdapterTest is Test {
         vm.assume(randomAsset != marketParams.loanToken);
         assets = _boundAssets(assets);
         marketParams.loanToken = randomAsset;
-        vm.expectRevert(IMorphoMarketV1Adapter.LoanAssetMismatch.selector);
+        vm.expectRevert(IMorphoMarketV1AdapterBase.LoanAssetMismatch.selector);
         vm.prank(address(parentVault));
         adapter.deallocate(abi.encode(marketParams), assets, bytes4(0), address(0));
     }
@@ -129,8 +133,10 @@ contract MorphoMarketV1AdapterTest is Test {
         (bytes32[] memory ids, int256 change) =
             parentVault.allocateMocked(address(adapter), abi.encode(marketParams), assets);
 
-        (, uint256 allocation) = adapter.positions(marketParams.id());
-        assertEq(allocation, assets, "Incorrect allocation");
+        assertEq(
+            adapter.positions(marketParams.id()).supplyShares, IMorpho(morpho).position(marketId, address(adapter)).supplyShares
+        );
+        assertEq(adapter.positions(marketParams.id()).allocation, assets, "Incorrect allocation");
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), assets, "Incorrect assets in Morpho");
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
         assertEq(ids, expectedIds, "Incorrect ids returned");
@@ -154,8 +160,14 @@ contract MorphoMarketV1AdapterTest is Test {
             parentVault.deallocateMocked(address(adapter), abi.encode(marketParams), withdrawAssets);
 
         assertEq(change, -int256(withdrawAssets), "Incorrect change returned");
-        (, uint256 allocation) = adapter.positions(marketParams.id());
-        assertEq(allocation, initialAssets - withdrawAssets, "Incorrect allocation");
+        assertEq(
+            adapter.positions(marketParams.id()).supplyShares,
+            IMorpho(morpho).position(marketId, address(adapter)).supplyShares,
+            "Incorrect allocation"
+        );
+        assertEq(
+            adapter.positions(marketParams.id()).allocation, initialAssets - withdrawAssets, "Incorrect allocation"
+        );
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
         assertEq(loanToken.balanceOf(address(adapter)), withdrawAssets, "Adapter did not receive withdrawn tokens");
@@ -215,12 +227,12 @@ contract MorphoMarketV1AdapterTest is Test {
         vm.assume(caller != owner);
 
         vm.prank(caller);
-        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1AdapterBase.NotAuthorized.selector);
         adapter.setSkimRecipient(newRecipient);
 
         vm.prank(owner);
         vm.expectEmit();
-        emit IMorphoMarketV1Adapter.SetSkimRecipient(newRecipient);
+        emit IMorphoMarketV1AdapterBase.SetSkimRecipient(newRecipient);
         adapter.setSkimRecipient(newRecipient);
 
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
@@ -238,14 +250,14 @@ contract MorphoMarketV1AdapterTest is Test {
         assertEq(token.balanceOf(address(adapter)), assets, "Adapter did not receive tokens");
 
         vm.expectEmit();
-        emit IMorphoMarketV1Adapter.Skim(address(token), assets);
+        emit IMorphoMarketV1AdapterBase.Skim(address(token), assets);
         vm.prank(recipient);
         adapter.skim(address(token));
 
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
         assertEq(token.balanceOf(recipient), assets, "Recipient did not receive tokens");
 
-        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1AdapterBase.NotAuthorized.selector);
         adapter.skim(address(token));
     }
 

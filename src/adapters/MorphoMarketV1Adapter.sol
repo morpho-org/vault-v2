@@ -7,7 +7,7 @@ import {MarketParamsLib} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/lib
 import {SharesMathLib} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IMorphoMarketV1Adapter, MarketPosition} from "./interfaces/IMorphoMarketV1Adapter.sol";
+import {IMorphoMarketV1AdapterStaticTyping, MarketPosition} from "./interfaces/IMorphoMarketV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {
     MorphoAdaptiveCurveIrmBalancesLib2
@@ -26,7 +26,7 @@ import {
 /// address(this), marketParams)).
 /// @dev Markets get removed from the marketIds when the allocation is zero, but it doesn't mean that the adapter has
 /// zero shares on the market.
-contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
+contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
     using MarketParamsLib for MarketParams;
     using SharesMathLib for uint128;
 
