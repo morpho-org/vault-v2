@@ -112,7 +112,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
         uint256 mintedShares;
         if (assets > 0) {
             (, mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
-            require(mintedShares >= assets, SharePriceTooHigh());
+            require(mintedShares >= assets, SharePriceAboveOne());
             position.supplyShares += uint128(mintedShares);
         }
 

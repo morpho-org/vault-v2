@@ -30,7 +30,7 @@ interface IMorphoMarketV1AdapterBase is IAdapter {
     error NotAuthorized();
     error NotPending();
     error NotTimelocked();
-    error SharePriceTooHigh();
+    error SharePriceAboveOne();
     error TimelockNotExpired();
 
     /* FUNCTIONS */
