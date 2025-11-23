@@ -76,7 +76,7 @@ rule cantSendAssetsAndCantReceiveAssets(env e, method f, calldataarg args, addre
 
     require (user != currentContract, "gates are not checked for the vault itself");
     require (!currentContract.isAdapter[user], "gates are not checked for the adapters");
-    require (!currentContract.isAdapter[asset()], "gates are not checked for the asset itself);
+    require (!currentContract.isAdapter[asset()], "gates are not checked for the asset itself");
 
     require (!invalidBalanceChange[user], "setup the ghost state");
 
