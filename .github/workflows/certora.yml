@@ -9,7 +9,7 @@ on:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: linux/amd64
     container:
       image: mathisgd/certora-docker-19-21-26-28
 
