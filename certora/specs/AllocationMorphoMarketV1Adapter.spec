@@ -9,12 +9,12 @@ methods {
     function allocation(bytes32) external returns (uint256) envfree;
 
     function MorphoMarketV1Adapter.ids(MorphoHarness.MarketParams) external returns (bytes32[]) envfree;
-    function MorphoMarketV1Adapter.positions(MorphoHarness.Id) external returns (uint128, uint128) envfree;
+    function MorphoMarketV1Adapter.positions(bytes32) external returns (uint128, uint128) envfree;
 
     function Utils.decodeMarketParams(bytes) external returns (MorphoHarness.MarketParams) envfree;
     function Utils.id(MorphoHarness.MarketParams) external returns (MorphoHarness.Id) envfree;
 
-    function _.borrowRateView2(MorphoHarness.Id, MorphoHarness.Market, address) external => constantBorrowRate expect(uint256);
+    function _.borrowRateView(bytes32, MorphoHarness.Market, address) external => constantBorrowRate expect(uint256);
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
     function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
 
