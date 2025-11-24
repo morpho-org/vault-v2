@@ -2,16 +2,16 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.28;
 
-import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/interfaces/IMorpho.sol";
-import {MarketParamsLib} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/libraries/MarketParamsLib.sol";
-import {SharesMathLib} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/libraries/SharesMathLib.sol";
+import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
+import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IMorphoMarketV1Adapter, MarketPosition} from "./interfaces/IMorphoMarketV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {
-    MorphoAdaptiveCurveIrmBalancesLib2
-} from "../../lib/morpho-blue-irm/src/adaptive-curve-irm/libraries/external/MorphoAdaptiveCurveIrmBalancesLib2.sol";
+    AdaptiveCurveIrmLib
+} from "../../lib/morpho-blue-irm/src/adaptive-curve-irm/libraries/periphery/AdaptiveCurveIrmLib.sol";
 
 /// @dev Morpho Market V1 is also known as Morpho Blue.
 /// @dev This adapter must be used with Morpho Market V1 that are protected against inflation attacks with an initial
@@ -19,13 +19,14 @@ import {
 /// @dev Must not be used with a Morpho Market V1 with an Irm that can re-enter the parent vault or the adapter.
 /// @dev Rounding error losses on supply/withdraw are realizable.
 /// @dev If expectedSupplyAssets reverts for a market of the marketIds, realAssets will revert and the vault will not be
-/// able to accrueInterest. @dev Upon interest accrual, the vault calls realAssets(). If there are too many markets, it
-/// could cause issues such
+/// able to accrueInterest.
+/// @dev Upon interest accrual, the vault calls realAssets(). If there are too many markets, it could cause issues such
 /// as expensive interactions, even DOS, because of the gas.
 /// @dev Shouldn't be used alongside another adapter that re-uses the last id (abi.encode("this/marketParams",
 /// address(this), marketParams)).
 /// @dev Markets get removed from the marketIds when the allocation is zero, but it doesn't mean that the adapter has
 /// zero shares on the market.
+/// @dev This adapter can only be used for markets with the adaptive curve irm.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MarketParamsLib for MarketParams;
     using SharesMathLib for uint128;
@@ -179,7 +180,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     function newAllocation(Id marketId) public view returns (uint256) {
         (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
-            MorphoAdaptiveCurveIrmBalancesLib2.expectedMarketBalances2(IMorpho(morpho), marketId, adaptiveCurveIrm);
+            AdaptiveCurveIrmLib.expectedMarketBalances(morpho, Id.unwrap(marketId), adaptiveCurveIrm);
 
         return positions[marketId].supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }

@@ -3,11 +3,11 @@
 pragma solidity 0.8.28;
 
 import "../../src/libraries/ConstantsLib.sol";
-import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/interfaces/IMorpho.sol";
-import {MarketParamsLib} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/libraries/MarketParamsLib.sol";
-import {MorphoBalancesLib} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
-import {MorphoLib} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
-import {SharesMathLib} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/libraries/SharesMathLib.sol";
+import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
+import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {MorphoLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
+import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 
 interface IReturnFactory {
     function factory() external view returns (address);

@@ -9,13 +9,11 @@ import {MorphoMarketV1AdapterFactory} from "../../src/adapters/MorphoMarketV1Ada
 import {IMorphoMarketV1AdapterFactory} from "../../src/adapters/interfaces/IMorphoMarketV1AdapterFactory.sol";
 import {IMorphoMarketV1Adapter} from "../../src/adapters/interfaces/IMorphoMarketV1Adapter.sol";
 
-import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/libraries/ConstantsLib.sol";
-import {OracleMock} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/mocks/OracleMock.sol";
-import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/interfaces/IMorpho.sol";
-import {MarketParamsLib} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/libraries/MarketParamsLib.sol";
-import {
-    MorphoBalancesLib
-} from "../../lib/morpho-blue-irm/lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
+import {OracleMock} from "../../lib/morpho-blue/src/mocks/OracleMock.sol";
+import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
+import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 import {IAdaptiveCurveIrm} from "../../lib/morpho-blue-irm/src/adaptive-curve-irm/interfaces/IAdaptiveCurveIrm.sol";
 
 contract MorphoMarketV1IntegrationTest is BaseTest {

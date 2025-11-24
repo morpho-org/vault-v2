@@ -3,7 +3,7 @@
 pragma solidity >=0.5.0;
 
 import {IAdapter} from "../../interfaces/IAdapter.sol";
-import {Id, MarketParams} from "../../../lib/morpho-blue-irm/lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {Id, MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 struct MarketPosition {
     uint128 supplyShares;
