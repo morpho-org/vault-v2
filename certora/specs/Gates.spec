@@ -66,7 +66,7 @@ rule cantSendShares(env e, method f, calldataarg args, address user, uint256 sha
 }
 
 // Check that transfers initiated from the vault, assuming the vault is not reentred, may only increase the balance of a given user when he can't send, and similarly the balance may only decrease when he can't receive.
-// Assume that the vault only uses market V1 and vault V1 adapters, and that those are properly deployed to point to market V1 and vault V1 respectively.
+// Doesn't verify that the adapters themselves don't break the gate properties.
 rule cantSendAssetsAndCantReceiveAssets(env e, method f, calldataarg args, address user) filtered {
     f -> f.selector != sig:multicall(bytes[]).selector
 }{
