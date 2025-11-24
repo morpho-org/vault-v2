@@ -3,7 +3,7 @@
 pragma solidity >=0.5.0;
 
 import {IAdapter} from "../../interfaces/IAdapter.sol";
-import {Id, MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 struct MarketPosition {
     uint128 supplyShares;
@@ -13,13 +13,13 @@ struct MarketPosition {
 interface IMorphoMarketV1Adapter is IAdapter {
     /* EVENTS */
 
-    event Allocate(MarketParams indexed marketParams, uint256 newAllocation, uint256 shares);
-    event Deallocate(MarketParams indexed marketParams, uint256 newAllocation, uint256 shares);
+    event Allocate(bytes32 indexed marketId, uint256 newAllocation, uint256 shares);
+    event Deallocate(bytes32 indexed marketId, uint256 newAllocation, uint256 shares);
     event SetSkimRecipient(address indexed newSkimRecipient);
     event Skim(address indexed token, uint256 assets);
-    event SubmitBurnShares(Id indexed id, uint256 executableAt);
-    event RevokeBurnShares(Id indexed id);
-    event BurnShares(Id indexed id, uint256 supplyShares);
+    event SubmitBurnShares(bytes32 indexed id, uint256 executableAt);
+    event RevokeBurnShares(bytes32 indexed id);
+    event BurnShares(bytes32 indexed id, uint256 supplyShares);
 
     /* ERRORS */
 
@@ -38,18 +38,18 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function parentVault() external view returns (address);
     function asset() external view returns (address);
     function morpho() external view returns (address);
-    function marketIds(uint256 index) external view returns (Id);
-    function positions(Id marketId) external view returns (uint128 supplyShares, uint128 allocation);
+    function marketIds(uint256 index) external view returns (bytes32);
+    function positions(bytes32 marketId) external view returns (uint128 supplyShares, uint128 allocation);
     function adapterId() external view returns (bytes32);
     function skimRecipient() external view returns (address);
     function marketIdsLength() external view returns (uint256);
-    function newAllocation(Id marketId) external view returns (uint256);
-    function burnSharesExecutableAt(Id id) external view returns (uint256);
+    function newAllocation(bytes32 marketId) external view returns (uint256);
+    function burnSharesExecutableAt(bytes32 id) external view returns (uint256);
     function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
 
-    function submitBurnShares(Id id) external;
-    function revokeBurnShares(Id id) external;
-    function burnShares(Id id) external;
+    function submitBurnShares(bytes32 id) external;
+    function revokeBurnShares(bytes32 id) external;
+    function burnShares(bytes32 id) external;
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
 }

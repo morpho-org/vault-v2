@@ -43,9 +43,9 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     /* STORAGE */
 
     address public skimRecipient;
-    Id[] public marketIds;
-    mapping(Id marketId => MarketPosition) public positions;
-    mapping(Id marketId => uint256) public burnSharesExecutableAt;
+    bytes32[] public marketIds;
+    mapping(bytes32 marketId => MarketPosition) public positions;
+    mapping(bytes32 marketId => uint256) public burnSharesExecutableAt;
 
     function marketIdsLength() external view returns (uint256) {
         return marketIds.length;
@@ -79,7 +79,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         emit Skim(token, balance);
     }
 
-    function submitBurnShares(Id marketId) external {
+    function submitBurnShares(bytes32 marketId) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         require(burnSharesExecutableAt[marketId] == 0, AlreadyPending());
         burnSharesExecutableAt[marketId] =
@@ -87,7 +87,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         emit SubmitBurnShares(marketId, burnSharesExecutableAt[marketId]);
     }
 
-    function revokeBurnShares(Id marketId) external {
+    function revokeBurnShares(bytes32 marketId) external {
         require(
             msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
             NotAuthorized()
@@ -98,7 +98,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     }
 
     /// @dev Deallocate 0 from the vault after burning shares to update the allocation there.
-    function burnShares(Id marketId) external {
+    function burnShares(bytes32 marketId) external {
         require(burnSharesExecutableAt[marketId] != 0, NotTimelocked());
         require(block.timestamp >= burnSharesExecutableAt[marketId], TimelockNotExpired());
         burnSharesExecutableAt[marketId] = 0;
@@ -114,7 +114,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
         require(marketParams.irm == adaptiveCurveIrm, IrmMismatch());
-        Id marketId = marketParams.id();
+        bytes32 marketId = Id.unwrap(marketParams.id());
         MarketPosition storage position = positions[marketId];
 
         uint256 mintedShares;
@@ -129,7 +129,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         updateList(marketId, oldAllocation, _newAllocation);
         position.allocation = uint128(_newAllocation);
 
-        emit Allocate(marketParams, _newAllocation, mintedShares);
+        emit Allocate(marketId, _newAllocation, mintedShares);
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
@@ -146,7 +146,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == parentVault, NotAuthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
         require(marketParams.irm == adaptiveCurveIrm, IrmMismatch());
-        Id marketId = marketParams.id();
+        bytes32 marketId = Id.unwrap(marketParams.id());
         MarketPosition storage position = positions[marketId];
 
         uint256 burnedShares;
@@ -160,17 +160,17 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         updateList(marketId, oldAllocation, _newAllocation);
         position.allocation = uint128(_newAllocation);
 
-        emit Deallocate(marketParams, _newAllocation, burnedShares);
+        emit Deallocate(marketId, _newAllocation, burnedShares);
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
         return (ids(marketParams), int256(_newAllocation) - int256(oldAllocation));
     }
 
-    function updateList(Id marketId, uint256 oldAllocation, uint256 _newAllocation) internal {
+    function updateList(bytes32 marketId, uint256 oldAllocation, uint256 _newAllocation) internal {
         if (oldAllocation > 0 && _newAllocation == 0) {
             for (uint256 i = 0; i < marketIds.length; i++) {
-                if (Id.unwrap(marketIds[i]) == Id.unwrap(marketId)) {
+                if (marketIds[i] == marketId) {
                     marketIds[i] = marketIds[marketIds.length - 1];
                     marketIds.pop();
                     break;
@@ -181,9 +181,9 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         }
     }
 
-    function newAllocation(Id marketId) public view returns (uint256) {
+    function newAllocation(bytes32 marketId) public view returns (uint256) {
         (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
-            AdaptiveCurveIrmLib.expectedMarketBalances(morpho, Id.unwrap(marketId), adaptiveCurveIrm);
+            AdaptiveCurveIrmLib.expectedMarketBalances(morpho, marketId, adaptiveCurveIrm);
 
         return positions[marketId].supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
     }
