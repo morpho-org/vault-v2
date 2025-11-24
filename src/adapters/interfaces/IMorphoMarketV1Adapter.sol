@@ -3,7 +3,7 @@
 pragma solidity >=0.5.0;
 
 import {IAdapter} from "../../interfaces/IAdapter.sol";
-import {Id, MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 struct MarketPosition {
     uint128 supplyShares;
@@ -43,13 +43,13 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function adapterId() external view returns (bytes32);
     function skimRecipient() external view returns (address);
     function marketIdsLength() external view returns (uint256);
+    function newAllocation(bytes32 marketId) external view returns (uint256);
+    function burnSharesExecutableAt(bytes32 id) external view returns (uint256);
+    function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
+
     function submitBurnShares(bytes32 id) external;
     function revokeBurnShares(bytes32 id) external;
     function burnShares(bytes32 id) external;
-    function newAllocation(bytes32 marketId) external view returns (uint256);
-    function burnSharesExecutableAt(bytes32 id) external view returns (uint256);
-    function newAllocation(MarketParams memory marketParams) external view returns (uint256);
-    function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
 }

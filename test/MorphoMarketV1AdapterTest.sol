@@ -30,7 +30,7 @@ contract MorphoMarketV1AdapterTest is Test {
     IMorphoMarketV1Adapter internal adapter;
     VaultV2Mock internal parentVault;
     MarketParams internal marketParams;
-    Id internal marketId;
+    bytes32 internal marketId;
     IERC20 internal loanToken;
     IERC20 internal collateralToken;
     IERC20 internal rewardToken;
@@ -75,7 +75,7 @@ contract MorphoMarketV1AdapterTest is Test {
         vm.stopPrank();
 
         morpho.createMarket(marketParams);
-        marketId = marketParams.id();
+        marketId = Id.unwrap(marketParams.id());
         parentVault = new VaultV2Mock(address(loanToken), owner, curator, address(0), sentinel);
         factory = new MorphoMarketV1AdapterFactory(address(irm));
         adapter = IMorphoMarketV1Adapter(factory.createMorphoMarketV1Adapter(address(parentVault), address(morpho)));
@@ -264,26 +264,26 @@ contract MorphoMarketV1AdapterTest is Test {
     }
 
     function testOverwriteMarketTotalSupplyAssets(uint256 newTotalSupplyAssets) public {
-        Market memory market = morpho.market(marketId);
+        Market memory market = morpho.market(Id.wrap(marketId));
         newTotalSupplyAssets = _boundAssets(newTotalSupplyAssets);
         _overrideMarketTotalSupplyAssets(int256(newTotalSupplyAssets));
         assertEq(
-            morpho.market(marketId).totalSupplyAssets,
+            morpho.market(Id.wrap(marketId)).totalSupplyAssets,
             uint128(newTotalSupplyAssets),
             "Market total supply assets not set correctly"
         );
         assertEq(
-            morpho.market(marketId).totalSupplyShares,
+            morpho.market(Id.wrap(marketId)).totalSupplyShares,
             uint128(market.totalSupplyShares),
             "Market total supply shares not set correctly"
         );
         assertEq(
-            morpho.market(marketId).totalBorrowShares,
+            morpho.market(Id.wrap(marketId)).totalBorrowShares,
             uint128(market.totalBorrowShares),
             "Market total borrow shares not set correctly"
         );
         assertEq(
-            morpho.market(marketId).totalBorrowAssets,
+            morpho.market(Id.wrap(marketId)).totalBorrowAssets,
             uint128(market.totalBorrowAssets),
             "Market total borrow assets not set correctly"
         );
@@ -343,25 +343,25 @@ contract MorphoMarketV1AdapterTest is Test {
         assertApproxEqAbs(adapter.realAssets() - deposit, interest, interest.mulDivUp(1, deposit + 1), "realAssets");
     }
 
-    function testSubmitBurnSharesNotAuthorized(address caller, Id _marketId) public {
+    function testSubmitBurnSharesNotAuthorized(address caller, bytes32 _marketId) public {
         vm.assume(caller != curator);
         vm.prank(caller);
-        vm.expectRevert(IMorphoMarketV1AdapterBase.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
         adapter.submitBurnShares(_marketId);
     }
 
-    function testSubmitBurnSharesAlreadyPending(Id _marketId) public {
+    function testSubmitBurnSharesAlreadyPending(bytes32 _marketId) public {
         vm.prank(curator);
         adapter.submitBurnShares(_marketId);
 
-        vm.expectRevert(IMorphoMarketV1AdapterBase.AlreadyPending.selector);
+        vm.expectRevert(IMorphoMarketV1Adapter.AlreadyPending.selector);
         vm.prank(curator);
         adapter.submitBurnShares(_marketId);
     }
 
-    function testSubmitBurnShares(Id _marketId) public {
+    function testSubmitBurnShares(bytes32 _marketId) public {
         vm.expectEmit();
-        emit IMorphoMarketV1AdapterBase.SubmitBurnShares(
+        emit IMorphoMarketV1Adapter.SubmitBurnShares(
             _marketId, block.timestamp + parentVault.timelock(IVaultV2.removeAdapter.selector)
         );
         vm.prank(curator);
@@ -373,22 +373,22 @@ contract MorphoMarketV1AdapterTest is Test {
         );
     }
 
-    function testRevokeBurnSharesNotAuthorized(address caller, Id _marketId) public {
+    function testRevokeBurnSharesNotAuthorized(address caller, bytes32 _marketId) public {
         vm.assume(caller != curator);
         vm.assume(caller != sentinel);
 
         vm.prank(caller);
-        vm.expectRevert(IMorphoMarketV1AdapterBase.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
         adapter.revokeBurnShares(_marketId);
     }
 
-    function testRevokeBurnSharesNotPending(Id _marketId) public {
+    function testRevokeBurnSharesNotPending(bytes32 _marketId) public {
         vm.prank(curator);
-        vm.expectRevert(IMorphoMarketV1AdapterBase.NotPending.selector);
+        vm.expectRevert(IMorphoMarketV1Adapter.NotPending.selector);
         adapter.revokeBurnShares(_marketId);
     }
 
-    function testRevokeBurnShares(Id _marketId) public {
+    function testRevokeBurnShares(bytes32 _marketId) public {
         vm.prank(curator);
         adapter.submitBurnShares(_marketId);
 
@@ -396,7 +396,7 @@ contract MorphoMarketV1AdapterTest is Test {
 
         vm.prank(curator);
         vm.expectEmit();
-        emit IMorphoMarketV1AdapterBase.RevokeBurnShares(_marketId);
+        emit IMorphoMarketV1Adapter.RevokeBurnShares(_marketId);
         adapter.revokeBurnShares(_marketId);
 
         assertEq(adapter.burnSharesExecutableAt(_marketId), 0);
@@ -405,18 +405,20 @@ contract MorphoMarketV1AdapterTest is Test {
 
         vm.prank(sentinel);
         vm.expectEmit();
-        emit IMorphoMarketV1AdapterBase.RevokeBurnShares(_marketId);
+        emit IMorphoMarketV1Adapter.RevokeBurnShares(_marketId);
         adapter.revokeBurnShares(_marketId);
 
         assertEq(adapter.burnSharesExecutableAt(_marketId), 0);
     }
 
-    function testBurnSharesNotTimelocked(Id _marketId) public {
-        vm.expectRevert(IMorphoMarketV1AdapterBase.NotTimelocked.selector);
+    function testBurnSharesNotTimelocked(bytes32 _marketId) public {
+        vm.expectRevert(IMorphoMarketV1Adapter.NotTimelocked.selector);
         adapter.burnShares(_marketId);
     }
 
-    function testBurnSharesTimelockNotExpired(Id _marketId, uint256 timelockDuration, uint256 skipDuration) public {
+    function testBurnSharesTimelockNotExpired(bytes32 _marketId, uint256 timelockDuration, uint256 skipDuration)
+        public
+    {
         timelockDuration = bound(timelockDuration, 1, 3650 days);
 
         parentVault.setTimelock(timelockDuration);
@@ -426,7 +428,7 @@ contract MorphoMarketV1AdapterTest is Test {
 
         skip(bound(skipDuration, 0, timelockDuration - 1));
 
-        vm.expectRevert(IMorphoMarketV1AdapterBase.TimelockNotExpired.selector);
+        vm.expectRevert(IMorphoMarketV1Adapter.TimelockNotExpired.selector);
         adapter.burnShares(_marketId);
     }
 
@@ -448,7 +450,7 @@ contract MorphoMarketV1AdapterTest is Test {
         skip(timelockDuration + bound(extraSkip, 0, 3650 days));
 
         vm.expectEmit();
-        emit IMorphoMarketV1AdapterBase.BurnShares(marketId, supplyShares);
+        emit IMorphoMarketV1Adapter.BurnShares(marketId, supplyShares);
         adapter.burnShares(marketId);
 
         (supplyShares, allocation) = adapter.positions(marketId);
