@@ -133,7 +133,7 @@ contract MorphoMarketV1AdapterTest is Test {
         (bytes32[] memory ids, int256 change) =
             parentVault.allocateMocked(address(adapter), abi.encode(marketParams), assets);
 
-        (, uint256 allocation) = adapter.positions(Id.unwrap(marketParams.id()));
+        uint256 allocation = adapter.allocation(marketParams);
         assertEq(allocation, assets, "Incorrect allocation");
         assertEq(morpho.expectedSupplyAssets(marketParams, address(adapter)), assets, "Incorrect assets in Morpho");
         assertEq(ids.length, expectedIds.length, "Unexpected number of ids returned");
@@ -158,7 +158,7 @@ contract MorphoMarketV1AdapterTest is Test {
             parentVault.deallocateMocked(address(adapter), abi.encode(marketParams), withdrawAssets);
 
         assertEq(change, -int256(withdrawAssets), "Incorrect change returned");
-        (, uint256 allocation) = adapter.positions(Id.unwrap(marketParams.id()));
+        uint256 allocation = adapter.allocation(marketParams);
         assertEq(allocation, initialAssets - withdrawAssets, "Incorrect allocation");
         uint256 afterSupply = morpho.expectedSupplyAssets(marketParams, address(adapter));
         assertEq(afterSupply, initialAssets - withdrawAssets, "Supply not decreased correctly");
@@ -437,7 +437,8 @@ contract MorphoMarketV1AdapterTest is Test {
         deal(address(loanToken), address(adapter), assets);
         parentVault.allocateMocked(address(adapter), abi.encode(marketParams), assets);
 
-        (uint128 supplyShares, uint128 allocation) = adapter.positions(marketId);
+        uint256 supplyShares = adapter.supplyShares(marketId);
+        uint256 allocation = adapter.allocation(marketParams);
         assertGt(supplyShares, 0);
         assertGt(allocation, 0);
 
@@ -453,7 +454,8 @@ contract MorphoMarketV1AdapterTest is Test {
         emit IMorphoMarketV1Adapter.BurnShares(marketId, supplyShares);
         adapter.burnShares(marketId);
 
-        (supplyShares, allocation) = adapter.positions(marketId);
+        supplyShares = adapter.supplyShares(marketId);
+        allocation = adapter.allocation(marketParams);
         assertEq(supplyShares, 0, "shares");
         assertEq(allocation, assets, "allocation");
         assertEq(adapter.burnSharesExecutableAt(marketId), 0, "executable at");
