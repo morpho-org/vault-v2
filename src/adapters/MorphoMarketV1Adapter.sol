@@ -28,7 +28,7 @@ import {
 /// @dev This adapter can only be used for markets with the adaptive curve irm.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MarketParamsLib for MarketParams;
-    using SharesMathLib for uint128;
+    using SharesMathLib for uint256;
 
     /* IMMUTABLES */
 
