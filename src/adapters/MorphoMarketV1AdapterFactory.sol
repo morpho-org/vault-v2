@@ -5,6 +5,7 @@ pragma solidity 0.8.28;
 import {MorphoMarketV1Adapter} from "./MorphoMarketV1Adapter.sol";
 import {IMorphoMarketV1AdapterFactory} from "./interfaces/IMorphoMarketV1AdapterFactory.sol";
 
+/// @dev irm must be the adaptive curve irm.
 contract MorphoMarketV1AdapterFactory is IMorphoMarketV1AdapterFactory {
     /* IMMUTABLES */
 
@@ -17,8 +18,8 @@ contract MorphoMarketV1AdapterFactory is IMorphoMarketV1AdapterFactory {
 
     /* CONSTRUCTOR */
 
+    /// @dev _irm must be the adaptive curve irm.
     constructor(address _irm) {
-        // Must be the adaptive curve irm.
         irm = _irm;
         emit CreateMorphoMarketV1AdapterFactory(irm);
     }

@@ -13,13 +13,13 @@ struct MarketPosition {
 interface IMorphoMarketV1Adapter is IAdapter {
     /* EVENTS */
 
-    event Allocate(bytes32 indexed marketId, uint256 newAllocation, uint256 shares);
-    event Deallocate(bytes32 indexed marketId, uint256 newAllocation, uint256 shares);
     event SetSkimRecipient(address indexed newSkimRecipient);
     event Skim(address indexed token, uint256 assets);
     event SubmitBurnShares(bytes32 indexed id, uint256 executableAt);
     event RevokeBurnShares(bytes32 indexed id);
     event BurnShares(bytes32 indexed id, uint256 supplyShares);
+    event Allocate(bytes32 indexed marketId, uint256 newAllocation, uint256 shares);
+    event Deallocate(bytes32 indexed marketId, uint256 newAllocation, uint256 shares);
 
     /* ERRORS */
 
