@@ -10,6 +10,7 @@ methods {
 
     function MorphoMarketV1Adapter.ids(MorphoHarness.MarketParams) external returns (bytes32[]) envfree;
     function MorphoMarketV1Adapter.allocation(MorphoHarness.MarketParams) external returns (uint256) envfree;
+    function MorphoMarketV1Adapter.expectedSupplyAssets(bytes32) external returns (uint256) envfree;
 
     function Utils.decodeMarketParams(bytes) external returns (MorphoHarness.MarketParams) envfree;
     function Utils.id(MorphoHarness.MarketParams) external returns (MorphoHarness.Id) envfree;
@@ -85,11 +86,10 @@ rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
     allocate(e, MorphoMarketV1Adapter, data, assets);
 
     MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
-    bytes32 marketId = Utils.id(marketParams);
-    uint256 allocation = MorphoMarketV1Adapter.allocation(marketParams);
-    uint256 expected = MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId);
+    uint256 expected = MorphoMarketV1Adapter.expectedSupplyAssets(Utils.id(marketParams));
+    require expected < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
 
-    assert allocation == expected;
+    assert MorphoMarketV1Adapter.allocation(marketParams) == expected;
 }
 
 rule deallocateChangesAllocationOfIds(env e, bytes data, uint256 assets) {
@@ -124,9 +124,8 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
     MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
-    bytes32 marketId = Utils.id(marketParams);
-    uint256 allocation = MorphoMarketV1Adapter.allocation(marketParams);
-    uint256 expected = MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId);
+    uint256 expected = MorphoMarketV1Adapter.expectedSupplyAssets(Utils.id(marketParams));
+    require expected < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
 
-    assert allocation == expected;
+    assert MorphoMarketV1Adapter.allocation(marketParams) == expected;
 }
