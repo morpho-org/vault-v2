@@ -190,7 +190,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
                 AdaptiveCurveIrmLib.expectedMarketBalances(morpho, marketId, adaptiveCurveIrm);
 
-            return positions[marketId].supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
+            return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
         }
     }
 
