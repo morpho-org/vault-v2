@@ -27,8 +27,8 @@ hook Sload uint256 alloc caps[KEY bytes32 id].allocation {
     require (ghostAllocation[id] == alloc, "set ghost value to be equal to the concrete value");
 }
 
-hook Sstore caps[KEY bytes32 id].allocation uint256 newAllocation (uint256 oldAllocation) {
-    ghostAllocation[id] = newAllocation;
+hook Sstore caps[KEY bytes32 id].allocation uint256 realAssets (uint256 oldAllocation) {
+    ghostAllocation[id] = realAssets;
 }
 
 function nondetDeallocateSummary(uint256 assets) returns (bytes32[], int256) {

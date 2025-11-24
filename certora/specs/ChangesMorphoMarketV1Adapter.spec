@@ -13,8 +13,11 @@ methods {
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
 
+    function _.borrowRateView(bytes32, Morpho.Market memory, address) internal => constantBorrowRate expect(uint256);
     function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect(uint256);
     function _.borrowRateView(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect(uint256);
+
+    function Utils.id(Morpho.MarketParams) external returns (Morpho.Id) envfree;
 }
 
 persistent ghost uint256 constantBorrowRate;
@@ -37,7 +40,7 @@ rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 se
 // Check that allocate or deallocate cannot return a change that would make the current allocation negative.
 rule changeForAllocateOrDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
-    mathint allocation = allocation(marketParams);
+    uint256 allocation = allocation(marketParams);
 
     bytes32[] ids;
     int256 change;
