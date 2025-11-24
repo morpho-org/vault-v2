@@ -2,17 +2,13 @@
 // Copyright (c) 2025 Morpho Association
 
 using ERC20Standard as ERC20;
-using ERC20Helper as ERC20Helper;
 
 methods {
-    function asset() external returns address envfree;
     function balanceOf(address) external returns uint256 envfree;
     function canReceiveShares(address) external returns bool envfree;
     function canSendShares(address) external returns bool envfree;
     function canSendAssets(address) external returns bool envfree;
     function canReceiveAssets(address) external returns bool envfree;
-    function isAdapter(address) external returns bool envfree;
-    function ERC20Helper.safeTransferFrom(address, address, address, uint256) external envfree;
 
     function _.canSendShares(address user) external => ghostCanSendShares[user] expect bool;
     function _.canReceiveShares(address user) external => ghostCanReceiveShares[user] expect bool;
@@ -70,13 +66,8 @@ rule cantSendShares(env e, method f, calldataarg args, address user, uint256 sha
 rule cantSendAssetsAndCantReceiveAssets(env e, method f, calldataarg args, address user) filtered {
     f -> f.selector != sig:multicall(bytes[]).selector
 }{
-    // Trick to require that all the following addresses are different.
-    require(currentContract == 0x12, "ack");
-    require(asset() == 0x13, "ack");
-
     require (user != currentContract, "gates are not checked for the vault itself");
     require (!currentContract.isAdapter[user], "gates are not checked for the adapters");
-    require (!currentContract.isAdapter[asset()], "gates are not checked for the asset itself");
 
     require (!invalidBalanceChange[user], "setup the ghost state");
 
