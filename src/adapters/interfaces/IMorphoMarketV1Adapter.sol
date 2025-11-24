@@ -19,17 +19,18 @@ interface IMorphoMarketV1Adapter is IAdapter {
     event Skim(address indexed token, uint256 assets);
     event SubmitBurnShares(Id indexed id, uint256 executableAt);
     event RevokeBurnShares(Id indexed id);
-    event BurnShares(Id indexed id);
+    event BurnShares(Id indexed id, uint256 supplyShares);
 
     /* ERRORS */
 
+    error AlreadyPending();
     error IrmMismatch();
     error LoanAssetMismatch();
     error NotAuthorized();
-    error NotTimelocked();
-    error TimelockNotExpired();
-    error AlreadyPending();
     error NotPending();
+    error NotTimelocked();
+    error SharePriceAboveOne();
+    error TimelockNotExpired();
 
     /* FUNCTIONS */
 
@@ -46,6 +47,8 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function revokeBurnShares(Id id) external;
     function burnShares(Id id) external;
     function newAllocation(Id marketId) external view returns (uint256);
+    function burnSharesExecutableAt(Id id) external view returns (uint256);
+    function newAllocation(MarketParams memory marketParams) external view returns (uint256);
     function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
