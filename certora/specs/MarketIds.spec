@@ -3,13 +3,13 @@
 methods {
     function positions(bytes32 marketId) external returns (uint128, uint128) envfree;
 
-    function newAllocation(bytes32 marketId) internal returns (uint256) => summaryNewAllocation(marketId);
+    function realAssets(bytes32 marketId) internal returns (uint256) => summaryRealAssets(marketId);
 }
 
-function summaryNewAllocation(bytes32 marketId) returns (uint256) {
-    uint256 newAllocation;
-    require newAllocation < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
-    return newAllocation;
+function summaryRealAssets(bytes32 marketId) returns (uint256) {
+    uint256 realAssets;
+    require realAssets < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
+    return realAssets;
 }
 
 // Prove that if a market has no allocation, it is not in the market params list.

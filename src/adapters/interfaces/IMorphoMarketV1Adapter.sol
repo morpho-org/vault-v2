@@ -18,8 +18,8 @@ interface IMorphoMarketV1Adapter is IAdapter {
     event SubmitBurnShares(bytes32 indexed id, uint256 executableAt);
     event RevokeBurnShares(bytes32 indexed id);
     event BurnShares(bytes32 indexed id, uint256 supplyShares);
-    event Allocate(bytes32 indexed marketId, uint256 newAllocation, uint256 shares);
-    event Deallocate(bytes32 indexed marketId, uint256 newAllocation, uint256 shares);
+    event Allocate(bytes32 indexed marketId, uint256 realAssets, uint256 shares);
+    event Deallocate(bytes32 indexed marketId, uint256 realAssets, uint256 shares);
 
     /* ERRORS */
 
@@ -43,7 +43,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function adapterId() external view returns (bytes32);
     function skimRecipient() external view returns (address);
     function marketIdsLength() external view returns (uint256);
-    function newAllocation(bytes32 marketId) external view returns (uint256);
+    function realAssets(bytes32 marketId) external view returns (uint256);
     function burnSharesExecutableAt(bytes32 id) external view returns (uint256);
     function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
 

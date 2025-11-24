@@ -123,15 +123,15 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         }
 
         uint256 oldAllocation = position.allocation;
-        uint256 _newAllocation = newAllocation(marketId);
-        updateList(marketId, oldAllocation, _newAllocation);
-        position.allocation = uint128(_newAllocation);
+        uint256 _realAssets = realAssets(marketId);
+        updateList(marketId, oldAllocation, _realAssets);
+        position.allocation = uint128(_realAssets);
 
-        emit Allocate(marketId, _newAllocation, mintedShares);
+        emit Allocate(marketId, _realAssets, mintedShares);
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        return (ids(marketParams), int256(_newAllocation) - int256(oldAllocation));
+        return (ids(marketParams), int256(_realAssets) - int256(oldAllocation));
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -154,19 +154,19 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         }
 
         uint256 oldAllocation = position.allocation;
-        uint256 _newAllocation = newAllocation(marketId);
-        updateList(marketId, oldAllocation, _newAllocation);
-        position.allocation = uint128(_newAllocation);
+        uint256 _realAssets = realAssets(marketId);
+        updateList(marketId, oldAllocation, _realAssets);
+        position.allocation = uint128(_realAssets);
 
-        emit Deallocate(marketId, _newAllocation, burnedShares);
+        emit Deallocate(marketId, _realAssets, burnedShares);
 
         // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
         // max total assets of the vault.
-        return (ids(marketParams), int256(_newAllocation) - int256(oldAllocation));
+        return (ids(marketParams), int256(_realAssets) - int256(oldAllocation));
     }
 
-    function updateList(bytes32 marketId, uint256 oldAllocation, uint256 _newAllocation) internal {
-        if (oldAllocation > 0 && _newAllocation == 0) {
+    function updateList(bytes32 marketId, uint256 oldAllocation, uint256 _realAssets) internal {
+        if (oldAllocation > 0 && _realAssets == 0) {
             for (uint256 i = 0; i < marketIds.length; i++) {
                 if (marketIds[i] == marketId) {
                     marketIds[i] = marketIds[marketIds.length - 1];
@@ -174,12 +174,12 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
                     break;
                 }
             }
-        } else if (oldAllocation == 0 && _newAllocation > 0) {
+        } else if (oldAllocation == 0 && _realAssets > 0) {
             marketIds.push(marketId);
         }
     }
 
-    function newAllocation(bytes32 marketId) public view returns (uint256) {
+    function realAssets(bytes32 marketId) public view returns (uint256) {
         (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
             AdaptiveCurveIrmLib.expectedMarketBalances(morpho, marketId, adaptiveCurveIrm);
 
@@ -198,7 +198,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     function realAssets() external view returns (uint256) {
         uint256 _realAssets = 0;
         for (uint256 i = 0; i < marketIds.length; i++) {
-            _realAssets += newAllocation(marketIds[i]);
+            _realAssets += realAssets(marketIds[i]);
         }
         return _realAssets;
     }
