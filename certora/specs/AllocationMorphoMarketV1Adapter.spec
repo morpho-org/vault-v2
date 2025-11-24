@@ -9,12 +9,12 @@ methods {
     function allocation(bytes32) external returns (uint256) envfree;
 
     function MorphoMarketV1Adapter.ids(MorphoHarness.MarketParams) external returns (bytes32[]) envfree;
-    function MorphoMarketV1Adapter.positions(MorphoHarness.Id) external returns (uint128, uint128) envfree;
+    function MorphoMarketV1Adapter.positions(bytes32) external returns (uint128, uint128) envfree;
 
     function Utils.decodeMarketParams(bytes) external returns (MorphoHarness.MarketParams) envfree;
     function Utils.id(MorphoHarness.MarketParams) external returns (MorphoHarness.Id) envfree;
 
-    function _.borrowRateView2(MorphoHarness.Id, MorphoHarness.Market, address) external => constantBorrowRate expect(uint256);
+    function _.borrowRateView(bytes32, MorphoHarness.Market, address) external => constantBorrowRate expect(uint256);
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
     function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
 
@@ -85,11 +85,11 @@ rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
     allocate(e, MorphoMarketV1Adapter, data, assets);
 
     MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
-    MorphoHarness.Id marketId = Utils.id(marketParams);
-    uint256 allocation;
     uint256 supplyShares;
-    (supplyShares, allocation) = MorphoMarketV1Adapter.positions(marketId);
-    uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, marketParams, MorphoMarketV1Adapter);
+    uint256 allocation;
+    (supplyShares, allocation) = MorphoMarketV1Adapter.positions(Utils.id(marketParams));
+    uint256 expected = MorphoMarketV1Adapter.newAllocation(e, Utils.id(marketParams));
+    require expected < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
 
     assert allocation == expected;
 }
@@ -126,11 +126,11 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
     MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
-    MorphoHarness.Id marketId = Utils.id(marketParams);
-    uint256 allocation;
     uint256 supplyShares;
-    (supplyShares, allocation) = MorphoMarketV1Adapter.positions(marketId);
-    uint256 expected = Utils.expectedSupplyAssets(e, MorphoMarketV1, marketParams, MorphoMarketV1Adapter);
+    uint256 allocation;
+    (supplyShares, allocation) = MorphoMarketV1Adapter.positions(Utils.id(marketParams));
+    uint256 expected = MorphoMarketV1Adapter.newAllocation(e, Utils.id(marketParams));
+    require expected < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
 
     assert allocation == expected;
 }
