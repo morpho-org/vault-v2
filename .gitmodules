@@ -4,12 +4,15 @@
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/openzeppelin/openzeppelin-contracts
-[submodule "lib/morpho-blue"]
-	path = lib/morpho-blue
-	url = https://github.com/morpho-org/morpho-blue
 [submodule "lib/metamorpho"]
 	path = lib/metamorpho
 	url = https://github.com/morpho-org/metamorpho
 [submodule "lib/metamorpho-v1.1"]
 	path = lib/metamorpho-v1.1
 	url = https://github.com/morpho-org/metamorpho-v1.1
+[submodule "lib/morpho-blue-irm"]
+	path = lib/morpho-blue-irm
+	url = https://github.com/morpho-org/morpho-blue-irm
+[submodule "lib/morpho-blue"]
+	path = lib/morpho-blue
+	url = https://github.com/morpho-org/morpho-blue

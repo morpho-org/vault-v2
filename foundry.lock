@@ -9,7 +9,10 @@
     "rev": "2d160ba9bb945ca3bf12efb182427445dce59c27"
   },
   "lib/morpho-blue": {
-    "rev": "d89ca53ff6cbbacf8717a8ce819ee58f49bcc592"
+    "rev": "cf3f0ce68db99421bcd808d505cfe49d61f4eaa0"
+  },
+  "lib/morpho-blue-irm": {
+    "rev": "2bce6da3ebe910ceeec963781aa3f4b4322c296e"
   },
   "lib/openzeppelin-contracts": {
     "rev": "b72e3da0ec1f47e4a7911a4c06dc92e78c646607"

@@ -111,7 +111,7 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
     function testAllocateNoDuplicateMarket() public {
         deal(address(underlyingToken), allocator, initialInMarket1);
 
-        assertEq(adapter.marketParamsListLength(), 1, "incorrectly set up market list");
+        assertEq(adapter.marketIdsLength(), 1, "incorrectly set up market id list");
 
         oracle.setPrice(1e36);
 
@@ -138,7 +138,7 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
         vm.prank(allocator);
         vault.allocate(address(adapter), abi.encode(marketParams1), 1);
 
-        assertEq(adapter.marketParamsListLength(), 1, "duplicate market in market list");
+        assertEq(adapter.marketIdsLength(), 1, "duplicate market in market id list");
     }
 
     function testAllocateWithSlippage() public {
@@ -153,7 +153,7 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
         vm.warp(block.timestamp + 60 * 60 * 24 * 365 * 200); //200 years
 
         vm.prank(allocator);
-        vm.expectRevert(IMorphoMarketV1AdapterBase.SharePriceAboveOne.selector);
+        vm.expectRevert(IMorphoMarketV1Adapter.SharePriceAboveOne.selector);
         vault.allocate(address(adapter), abi.encode(marketParams1), 100);
     }
 }

@@ -6,15 +6,17 @@ import "UtilityFunctions.spec";
 using Utils as Utils;
 
 methods {
-    function positions(Morpho.Id) external returns (uint128, uint128) envfree;
+    function positions(bytes32) external returns (uint128, uint128) envfree;
     function Utils.decodeMarketParams(bytes) external returns (Morpho.MarketParams) envfree;
 
     // Needed because linking fails.
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
 
+    function _.borrowRateView2(Morpho.Id, Morpho.Market, address) external => constantBorrowRate expect(uint256);
     function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect(uint256);
     function _.borrowRateView(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect(uint256);
+    function _.rateAtTarget(Morpho.Id) external => CONSTANT;
 
     function Utils.id(Morpho.MarketParams) external returns (Morpho.Id) envfree;
 }
@@ -39,7 +41,7 @@ rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 se
 // Check that allocate or deallocate cannot return a change that would make the current allocation negative.
 rule changeForAllocateOrDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
-    Morpho.Id marketId = Utils.id(marketParams);
+    bytes32 marketId = Utils.id(marketParams);
     uint256 allocation;
     uint256 supplyShares;
     (supplyShares, allocation) = positions(marketId);
