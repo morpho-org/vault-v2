@@ -153,7 +153,7 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
         vm.warp(block.timestamp + 60 * 60 * 24 * 365 * 200); //200 years
 
         vm.prank(allocator);
-        vm.expectRevert(IMorphoMarketV1AdapterBase.SharePriceAboveOne.selector);
+        vm.expectRevert(IMorphoMarketV1Adapter.SharePriceAboveOne.selector);
         vault.allocate(address(adapter), abi.encode(marketParams1), 100);
     }
 }
