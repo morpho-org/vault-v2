@@ -18,8 +18,8 @@ interface IMorphoMarketV1Adapter is IAdapter {
     event SubmitBurnShares(bytes32 indexed id, uint256 executableAt);
     event RevokeBurnShares(bytes32 indexed id);
     event BurnShares(bytes32 indexed id, uint256 supplyShares);
-    event Allocate(bytes32 indexed marketId, uint256 realAssets, uint256 shares);
-    event Deallocate(bytes32 indexed marketId, uint256 realAssets, uint256 shares);
+    event Allocate(bytes32 indexed marketId, int256 change, uint256 shares);
+    event Deallocate(bytes32 indexed marketId, int256 change, uint256 shares);
 
     /* ERRORS */
 
