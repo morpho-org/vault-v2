@@ -19,13 +19,14 @@ import {
 /// @dev Must not be used with a Morpho Market V1 with an Irm that can re-enter the parent vault or the adapter.
 /// @dev Rounding error losses on supply/withdraw are realizable.
 /// @dev If expectedSupplyAssets reverts for a market of the marketIds, realAssets will revert and the vault will not be
-/// able to accrueInterest. @dev Upon interest accrual, the vault calls realAssets(). If there are too many markets, it
-/// could cause issues such
+/// able to accrueInterest.
+/// @dev Upon interest accrual, the vault calls realAssets(). If there are too many markets, it could cause issues such
 /// as expensive interactions, even DOS, because of the gas.
 /// @dev Shouldn't be used alongside another adapter that re-uses the last id (abi.encode("this/marketParams",
 /// address(this), marketParams)).
 /// @dev Markets get removed from the marketIds when the allocation is zero, but it doesn't mean that the adapter has
 /// zero shares on the market.
+/// @dev This adapter can only be used for markets with the adaptive curve irm.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MarketParamsLib for MarketParams;
     using SharesMathLib for uint128;
@@ -96,12 +97,14 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         emit RevokeBurnShares(marketId);
     }
 
+    /// @dev Deallocate 0 from the vault after burning shares to update the allocation there.
     function burnShares(bytes32 marketId) external {
         require(burnSharesExecutableAt[marketId] != 0, NotTimelocked());
         require(block.timestamp >= burnSharesExecutableAt[marketId], TimelockNotExpired());
         burnSharesExecutableAt[marketId] = 0;
+        uint256 supplySharesBefore = positions[marketId].supplyShares;
         positions[marketId].supplyShares = 0;
-        emit BurnShares(marketId);
+        emit BurnShares(marketId, supplySharesBefore);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
@@ -117,6 +120,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         uint256 mintedShares;
         if (assets > 0) {
             (, mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
+            require(mintedShares >= assets, SharePriceAboveOne());
             position.supplyShares += uint128(mintedShares);
         }
 
