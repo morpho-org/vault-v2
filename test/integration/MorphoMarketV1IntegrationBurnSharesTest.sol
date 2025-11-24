@@ -22,7 +22,7 @@ contract MorphoMarketV1IntegrationBurnSharesTest is MorphoMarketV1IntegrationTes
         assertEq(vault.allocation(expectedIds1[1]), assets * 2, "market1 1 before");
         assertEq(vault.allocation(expectedIds1[2]), assets, "market1 2 before");
 
-        assertEq(vault.allocation(expectedIds2[2]), assets, "market1 2 before");
+        assertEq(vault.allocation(expectedIds2[2]), assets, "market2 2 before");
 
         // Burn shares at adapter level
         vm.prank(curator);
@@ -36,6 +36,6 @@ contract MorphoMarketV1IntegrationBurnSharesTest is MorphoMarketV1IntegrationTes
         assertEq(vault.allocation(expectedIds1[1]), assets, "market1 1 after");
         assertEq(vault.allocation(expectedIds1[2]), 0, "market1 2 after");
 
-        assertEq(vault.allocation(expectedIds2[2]), assets, "market1 2 after");
+        assertEq(vault.allocation(expectedIds2[2]), assets, "market2 2 after");
     }
 }
