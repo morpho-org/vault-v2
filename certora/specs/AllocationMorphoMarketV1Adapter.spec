@@ -14,7 +14,7 @@ methods {
     function Utils.decodeMarketParams(bytes) external returns (MorphoHarness.MarketParams) envfree;
     function Utils.id(MorphoHarness.MarketParams) external returns (MorphoHarness.Id) envfree;
 
-    function _.borrowRateView(bytes32, MorphoHarness.Market, address) external => constantBorrowRate expect(uint256);
+    function _.borrowRateView(bytes32, MorphoHarness.Market memory, address) internal => constantBorrowRate expect(uint256);
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
     function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
 
