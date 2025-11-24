@@ -9,7 +9,7 @@ import {IMorphoMarketV1AdapterFactory} from "./interfaces/IMorphoMarketV1Adapter
 contract MorphoMarketV1AdapterFactory is IMorphoMarketV1AdapterFactory {
     /* IMMUTABLES */
 
-    address public immutable irm;
+    address public immutable adaptiveCurveIrm;
 
     /* STORAGE */
 
@@ -18,19 +18,19 @@ contract MorphoMarketV1AdapterFactory is IMorphoMarketV1AdapterFactory {
 
     /* CONSTRUCTOR */
 
-    /// @dev _irm must be the adaptive curve irm.
-    constructor(address _irm) {
-        irm = _irm;
-        emit CreateMorphoMarketV1AdapterFactory(irm);
+    constructor(address _adaptiveCurveIrm) {
+        adaptiveCurveIrm = _adaptiveCurveIrm;
+        emit CreateMorphoMarketV1AdapterFactory(adaptiveCurveIrm);
     }
 
     /* FUNCTIONS */
 
     function createMorphoMarketV1Adapter(address parentVault, address morpho) external returns (address) {
-        address _morphoMarketV1Adapter = address(new MorphoMarketV1Adapter{salt: bytes32(0)}(parentVault, morpho, irm));
+        address _morphoMarketV1Adapter =
+            address(new MorphoMarketV1Adapter{salt: bytes32(0)}(parentVault, morpho, adaptiveCurveIrm));
         morphoMarketV1Adapter[parentVault][morpho] = _morphoMarketV1Adapter;
         isMorphoMarketV1Adapter[_morphoMarketV1Adapter] = true;
-        emit CreateMorphoMarketV1Adapter(parentVault, morpho, irm, _morphoMarketV1Adapter);
+        emit CreateMorphoMarketV1Adapter(parentVault, morpho, adaptiveCurveIrm, _morphoMarketV1Adapter);
         return _morphoMarketV1Adapter;
     }
 }

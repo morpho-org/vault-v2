@@ -32,7 +32,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
     error SharePriceAboveOne();
     error TimelockNotExpired();
 
-    /* FUNCTIONS */
+    /* VIEW FUNCTIONS */
 
     function factory() external view returns (address);
     function parentVault() external view returns (address);
@@ -46,6 +46,8 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function newAllocation(bytes32 marketId) external view returns (uint256);
     function burnSharesExecutableAt(bytes32 id) external view returns (uint256);
     function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
+
+    /* NON-VIEW FUNCTIONS */
 
     function submitBurnShares(bytes32 id) external;
     function revokeBurnShares(bytes32 id) external;
