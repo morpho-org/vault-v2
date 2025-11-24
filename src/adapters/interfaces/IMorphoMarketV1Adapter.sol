@@ -5,11 +5,6 @@ pragma solidity >=0.5.0;
 import {IAdapter} from "../../interfaces/IAdapter.sol";
 import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
-struct MarketPosition {
-    uint128 supplyShares;
-    uint128 allocation;
-}
-
 interface IMorphoMarketV1Adapter is IAdapter {
     /* EVENTS */
 
@@ -18,8 +13,8 @@ interface IMorphoMarketV1Adapter is IAdapter {
     event SubmitBurnShares(bytes32 indexed id, uint256 executableAt);
     event RevokeBurnShares(bytes32 indexed id);
     event BurnShares(bytes32 indexed id, uint256 supplyShares);
-    event Allocate(bytes32 indexed marketId, int256 change, uint256 shares);
-    event Deallocate(bytes32 indexed marketId, int256 change, uint256 shares);
+    event Allocate(bytes32 indexed marketId, uint256 newAllocation, uint256 mintedShares);
+    event Deallocate(bytes32 indexed marketId, uint256 newAllocation, uint256 burnedShares);
 
     /* ERRORS */
 
@@ -39,11 +34,12 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function asset() external view returns (address);
     function morpho() external view returns (address);
     function marketIds(uint256 index) external view returns (bytes32);
-    function positions(bytes32 marketId) external view returns (uint128 supplyShares, uint128 allocation);
+    function supplyShares(bytes32 marketId) external view returns (uint256);
     function adapterId() external view returns (bytes32);
     function skimRecipient() external view returns (address);
     function marketIdsLength() external view returns (uint256);
-    function realAssets(bytes32 marketId) external view returns (uint256);
+    function allocation(MarketParams memory marketParams) external view returns (uint256);
+    function expectedSupplyAssets(bytes32 marketId) external view returns (uint256);
     function burnSharesExecutableAt(bytes32 id) external view returns (uint256);
     function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
 
