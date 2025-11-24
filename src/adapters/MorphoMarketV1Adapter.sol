@@ -183,10 +183,15 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     }
 
     function realAssets(bytes32 marketId) public view returns (uint256) {
-        (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
-            AdaptiveCurveIrmLib.expectedMarketBalances(morpho, marketId, adaptiveCurveIrm);
+        uint256 supplyShares = positions[marketId].supplyShares;
+        if (supplyShares == 0) {
+            return 0;
+        } else {
+            (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
+                AdaptiveCurveIrmLib.expectedMarketBalances(morpho, marketId, adaptiveCurveIrm);
 
-        return positions[marketId].supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
+            return positions[marketId].supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
+        }
     }
 
     /// @dev Returns adapter's ids.
