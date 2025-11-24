@@ -92,6 +92,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
         emit RevokeBurnShares(marketId);
     }
 
+    /// @dev Deallocate 0 from the vault after burning shares to update the allocation there.
     function burnShares(Id marketId) external {
         require(burnSharesExecutableAt[marketId] != 0, NotTimelocked());
         require(block.timestamp >= burnSharesExecutableAt[marketId], TimelockNotExpired());
