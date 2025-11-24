@@ -6,7 +6,7 @@ import "UtilityFunctions.spec";
 using Utils as Utils;
 
 methods {
-    function positions(bytes32) external returns (uint128, uint128) envfree;
+    function allocation(Morpho.MarketParams) external returns (uint256) envfree;
     function Utils.decodeMarketParams(bytes) external returns (Morpho.MarketParams) envfree;
 
     // Needed because linking fails.
@@ -41,15 +41,11 @@ rule sameChangeForAllocateAndDeallocateOnZeroAmount(env e, bytes data, bytes4 se
 // Check that allocate or deallocate cannot return a change that would make the current allocation negative.
 rule changeForAllocateOrDeallocateIsBoundedByAllocation(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
-    bytes32 marketId = Utils.id(marketParams);
-    uint256 allocation;
-    uint256 supplyShares;
-    (supplyShares, allocation) = positions(marketId);
 
     bytes32[] ids;
     int256 change;
 
     ids, change = allocateOrDeallocate(e, data, assets, selector, sender);
 
-    assert allocation + change >= 0;
+    assert allocation(marketParams) + change >= 0;
 }

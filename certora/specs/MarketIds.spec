@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 methods {
-    function positions(bytes32 marketId) external returns (uint128, uint128) envfree;
+    function supplyShares(bytes32 marketId) external returns (uint128) envfree;
 
     function realAssets(bytes32 marketId) internal returns (uint256) => summaryRealAssets(marketId);
 }
