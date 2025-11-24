@@ -10,6 +10,8 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    container:
+      image: mathisgd/certora-docker-19-21-26-28
 
     strategy:
       fail-fast: false
@@ -60,38 +62,6 @@ jobs:
         run: |
           file="certora/confs/${{ matrix.conf }}.conf"
           diff <(grep -v "//" "$file" | jq) <(grep -v "//" "$file")
-
-      - name: Install python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ">=3.10"
-
-      - name: Install certora
-        run: pip install certora-cli
-
-      - name: Install solc (0.8.19)
-        run: |
-          wget https://github.com/ethereum/solidity/releases/download/v0.8.19/solc-static-linux
-          chmod +x solc-static-linux
-          sudo mv solc-static-linux /usr/local/bin/solc-0.8.19
-
-      - name: Install solc (0.8.21)
-        run: |
-          wget https://github.com/ethereum/solidity/releases/download/v0.8.21/solc-static-linux
-          chmod +x solc-static-linux
-          sudo mv solc-static-linux /usr/local/bin/solc-0.8.21
-
-      - name: Install solc (0.8.26)
-        run: |
-          wget https://github.com/ethereum/solidity/releases/download/v0.8.26/solc-static-linux
-          chmod +x solc-static-linux
-          sudo mv solc-static-linux /usr/local/bin/solc-0.8.26
-
-      - name: Install solc (0.8.28)
-        run: |
-          wget https://github.com/ethereum/solidity/releases/download/v0.8.28/solc-static-linux
-          chmod +x solc-static-linux
-          sudo mv solc-static-linux /usr/local/bin/solc-0.8.28
 
       - name: Verify ${{ matrix.conf }}
         run: certoraRun certora/confs/${{ matrix.conf }}.conf
