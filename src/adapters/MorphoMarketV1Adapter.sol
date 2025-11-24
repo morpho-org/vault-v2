@@ -92,12 +92,14 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1AdapterStaticTyping {
         emit RevokeBurnShares(marketId);
     }
 
+    /// @dev Deallocate 0 from the vault after burning shares to update the allocation there.
     function burnShares(Id marketId) external {
         require(burnSharesExecutableAt[marketId] != 0, NotTimelocked());
         require(block.timestamp >= burnSharesExecutableAt[marketId], TimelockNotExpired());
         burnSharesExecutableAt[marketId] = 0;
+        uint256 supplySharesBefore = positions[marketId].supplyShares;
         positions[marketId].supplyShares = 0;
-        emit BurnShares(marketId);
+        emit BurnShares(marketId, supplySharesBefore);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
