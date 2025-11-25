@@ -346,9 +346,10 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
     }
 
     function ids(Obligation memory obligation) public view returns (bytes32[] memory) {
-        uint256 baseLength = 1 + obligation.collaterals.length * 2;
-        bytes32[] memory _ids = new bytes32[](baseLength + MAX_DURATIONS);
-        uint256 j = 0;
+        uint256[] memory durations = _durations.array();
+        bytes32[] memory _ids = new bytes32[](1 + obligation.collaterals.length * 2+ durations.length);
+
+        uint256 j;
         _ids[j++] = adapterId;
         for (uint256 i = 0; i < obligation.collaterals.length; i++) {
             address collateralToken = obligation.collaterals[i].token;
@@ -361,16 +362,11 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         }
         uint256 timeToMaturity = (obligation.maturity - block.timestamp);
         uint256 durationIdCount = 0;
-        for (uint256 i = 0; i < MAX_DURATIONS; i++) {
-            uint256 duration = _durations.get(i);
-
-            if (duration != 0 && timeToMaturity >= duration) {
+        for (uint256 i = 0; i < durations.length; i++) {
+            if (timeToMaturity >= durations[i]) {
                 durationIdCount++;
-                _ids[j++] = keccak256(abi.encode("duration", duration));
+                _ids[j++] = keccak256(abi.encode("duration", durations[i]));
             }
-        }
-        assembly ("memory-safe") {
-            mstore(_ids, add(baseLength, durationIdCount))
         }
         return _ids;
     }
