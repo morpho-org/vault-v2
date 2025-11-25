@@ -39,10 +39,10 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
     uint128 public currentGrowth;
     mapping(uint256 timestamp => Maturity) public _maturities;
     mapping(bytes32 obligationId => ObligationPosition) public _positions;
-    bytes32 public _durations;
+    bytes32 public packedDurations;
     /* CONSTRUCTOR */
 
-    constructor(address _parentVault, address _morphoV2) {
+    constructor(address _parentVault, address _morphoV2, uint32[8] memory _durations) {
         asset = IVaultV2(_parentVault).asset();
         parentVault = _parentVault;
         morphoV2 = _morphoV2;
@@ -51,6 +51,12 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
         firstMaturity = type(uint48).max;
         adapterId = keccak256(abi.encode("this", address(this)));
+
+        bytes32 _packedDurations;
+        for (uint i = 0; i < _durations.length; i++) {
+            _packedDurations = _packedDurations.set(i, _durations[i]);
+        }
+        packedDurations = _packedDurations;
     }
 
     /* GETTERS */
@@ -67,7 +73,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         uint256[] memory durationsArray = new uint256[](MAX_DURATIONS);
         uint256 durationsCount = 0;
         for (uint256 i = 0; i < MAX_DURATIONS; i++) {
-            uint256 duration = _durations.get(i);
+            uint256 duration = packedDurations.get(i);
             if (duration != 0) durationsArray[durationsCount++] = duration;
         }
         assembly ("memory-safe") {
@@ -91,35 +97,6 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         uint256 balance = IERC20(token).balanceOf(address(this));
         SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
         emit Skim(token, balance);
-    }
-
-    /* VAULT CURATOR FUNCTIONS */
-
-    /// @dev Adds a new duration to the adapter.
-    function addDuration(uint256 addedDuration) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        require(addedDuration != 0, IncorrectDuration());
-        uint256 freePosition = type(uint256).max;
-        for (uint256 i = 0; i < MAX_DURATIONS; i++) {
-            uint256 duration = _durations.get(i);
-            require(addedDuration != duration, NoDuplicates());
-            if (duration == 0 && freePosition == type(uint256).max) freePosition = i;
-        }
-        if (freePosition == type(uint256).max) revert MaxDurationsExceeded();
-        _durations = _durations.set(freePosition, addedDuration);
-        emit AddDuration(addedDuration);
-    }
-
-    /// @dev Future obligation that match this duration will no longer consume the duration cap in the vault.
-    function removeDuration(uint256 removedDuration) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        for (uint256 i = 0; i < MAX_DURATIONS; i++) {
-            if (_durations.get(i) == removedDuration) {
-                _durations = _durations.set(i, 0);
-                break;
-            }
-        }
-        emit RemoveDuration(removedDuration);
     }
 
     /* VAULT ALLOCATORS FUNCTIONS */
@@ -362,7 +339,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         uint256 timeToMaturity = (obligation.maturity - block.timestamp);
         uint256 durationIdCount = 0;
         for (uint256 i = 0; i < MAX_DURATIONS; i++) {
-            uint256 duration = _durations.get(i);
+            uint256 duration = packedDurations.get(i);
 
             if (duration != 0 && timeToMaturity >= duration) {
                 durationIdCount++;

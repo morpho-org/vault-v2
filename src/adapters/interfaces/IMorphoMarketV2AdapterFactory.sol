@@ -13,5 +13,5 @@ interface IMorphoMarketV2AdapterFactory {
 
     function morphoMarketV2Adapter(address parentVault, address morpho) external view returns (address);
     function isMorphoMarketV2Adapter(address account) external view returns (bool);
-    function createMorphoMarketV2Adapter(address parentVault, address morpho) external returns (address);
+    function createMorphoMarketV2Adapter(address parentVault, address morpho, uint32[8] memory _durations) external returns (address);
 }

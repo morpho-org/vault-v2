@@ -31,6 +31,7 @@ struct Step {
 contract MorphoMarketV2AdapterTest is Test {
     using stdStorage for StdStorage;
     using MathLib for uint256;
+    using DurationsLib for bytes32;
 
     MorphoV2 internal morphoV2;
     IMorphoMarketV2AdapterFactory internal factory;
@@ -87,7 +88,7 @@ contract MorphoMarketV2AdapterTest is Test {
         parentVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
         factory = new MorphoMarketV2AdapterFactory();
-        adapter = MorphoMarketV2Adapter(factory.createMorphoMarketV2Adapter(address(parentVault), address(morphoV2)));
+        adapter = MorphoMarketV2Adapter(factory.createMorphoMarketV2Adapter(address(parentVault), address(morphoV2), [uint32(100 days), 200 days, 300 days, 400 days, 500 days, 600 days, 700 days, 800 days]));
 
         storedCollaterals.push(
             Collateral({token: address(new ERC20Mock(18)), lltv: 0.8 ether, oracle: address(new OracleMock())})
@@ -490,94 +491,12 @@ contract MorphoMarketV2AdapterTest is Test {
 
     /* DURATIONS */
 
-    function testDurationsUpdate() public {
-        vm.startPrank(parentVault.curator());
-        vm.expectEmit();
-        emit IMorphoMarketV2Adapter.AddDuration(10);
-        adapter.addDuration(10);
-        assertEq(adapter.durations().length, 1);
-        assertEq(adapter.durations(), [uint256(10)]);
-
-        vm.expectEmit();
-        emit IMorphoMarketV2Adapter.RemoveDuration(10);
-        adapter.removeDuration(10);
-        assertEq(adapter.durations().length, 0);
-
-        vm.expectEmit();
-        emit IMorphoMarketV2Adapter.AddDuration(20);
-        adapter.addDuration(20);
-        assertEq(adapter.durations().length, 1);
-        assertEq(adapter.durations()[0], 20);
-
-        vm.expectEmit();
-        emit IMorphoMarketV2Adapter.AddDuration(1);
-        adapter.addDuration(1);
-        assertEq(adapter.durations().length, 2);
-        assertEq(adapter.durations()[0], 20);
-        assertEq(adapter.durations()[1], 1);
-
-        vm.expectEmit();
-        emit IMorphoMarketV2Adapter.RemoveDuration(20);
-        adapter.removeDuration(20);
-        assertEq(adapter.durations().length, 1);
-
-        adapter.addDuration(19);
-        adapter.addDuration(20);
-        adapter.addDuration(99);
-        adapter.addDuration(98);
-        adapter.addDuration(97);
-        adapter.addDuration(96);
-        adapter.addDuration(95);
-        assertEq(adapter.durations().length, 8);
-        assertEq(adapter.durations()[0], 19);
-        assertEq(adapter.durations()[1], 1);
-        assertEq(adapter.durations()[2], 20);
-        assertEq(adapter.durations()[3], 99);
-        assertEq(adapter.durations()[4], 98);
-        assertEq(adapter.durations()[5], 97);
-        assertEq(adapter.durations()[6], 96);
-        assertEq(adapter.durations()[7], 95);
-        adapter.removeDuration(95);
-        assertEq(adapter.durations().length, 7);
-        adapter.addDuration(94);
-        vm.expectRevert(IMorphoMarketV2Adapter.MaxDurationsExceeded.selector);
-        adapter.addDuration(2);
-        vm.stopPrank();
-    }
-
-    function testSetDurationsAccess(address sender, uint256 duration) public {
-        vm.assume(sender != parentVault.curator());
-        vm.prank(sender);
-        vm.expectRevert(IMorphoMarketV2Adapter.NotAuthorized.selector);
-        adapter.addDuration(duration);
-
-        vm.prank(sender);
-        vm.expectRevert(IMorphoMarketV2Adapter.NotAuthorized.selector);
-        adapter.removeDuration(duration);
-    }
-
-    function testAddDurationIncorrectOrDuplicate(bytes32 _durations, uint256 duplicated) public {
-        vm.assume(uint256(_durations) > type(uint16).max);
-        set_Durations(_durations);
-        uint256[] memory durationsArray = adapter.durations();
-        duplicated = bound(duplicated, 0, durationsArray.length - 1);
-        if (durationsArray[duplicated] == 0 || durationsArray[duplicated] > type(uint32).max) {
-            vm.prank(parentVault.curator());
-            vm.expectRevert(IMorphoMarketV2Adapter.IncorrectDuration.selector);
-            adapter.addDuration(durationsArray[duplicated]);
-        } else {
-            vm.prank(parentVault.curator());
-            vm.expectRevert(IMorphoMarketV2Adapter.NoDuplicates.selector);
-            adapter.addDuration(durationsArray[duplicated]);
-        }
-    }
-
-    function testDurationsGetter(bytes32 _durations) public {
-        set_Durations(_durations);
+    function testDurationsGetter(bytes32 durationsPacked) public {
+        setDurationsPacked(durationsPacked);
         uint256[] memory durationsArray = adapter.durations();
         uint256 arrayIndex = 0;
         for (uint256 i = 0; i < MAX_DURATIONS; i++) {
-            uint256 duration = uint256(uint32(bytes4(_durations << (32 * i))));
+            uint256 duration = uint256(uint32(bytes4(durationsPacked << (32 * i))));
             if (duration != 0) assertEq(durationsArray[arrayIndex++], duration);
         }
     }
@@ -591,9 +510,14 @@ contract MorphoMarketV2AdapterTest is Test {
         possibleDurations[2] = 300 days;
         possibleDurations[3] = 700 days;
         possibleDurations = vm.shuffle(possibleDurations);
-
         collateralCount = bound(collateralCount, 0, 5);
         durationsCount = bound(durationsCount, 0, 4);
+
+        bytes32 packedDurations;
+        for (uint256 i = 0; i < durationsCount; i++) {
+            packedDurations = packedDurations.set(i, possibleDurations[i]);
+        }
+        setDurationsPacked(packedDurations);
 
         Obligation memory obligation;
 
@@ -603,11 +527,6 @@ contract MorphoMarketV2AdapterTest is Test {
         }
         obligation.collaterals = storedCollaterals;
         obligation.maturity = bound(maturity, 1, 700 days);
-        vm.startPrank(parentVault.curator());
-        for (uint256 i = 0; i < durationsCount; i++) {
-            adapter.addDuration(possibleDurations[i]);
-        }
-        vm.stopPrank();
 
         bytes32[] memory ids = adapter.ids(obligation);
         assertEq(ids[0], adapter.adapterId());
@@ -651,8 +570,8 @@ contract MorphoMarketV2AdapterTest is Test {
         stdstore.target(address(adapter)).sig("_totalAssets()").checked_write(_totalAssets);
     }
 
-    function set_Durations(bytes32 _durations) internal {
-        stdstore.target(address(adapter)).sig("_durations()").checked_write(_durations);
+    function setDurationsPacked(bytes32 durationsPacked) internal {
+        stdstore.target(address(adapter)).sig("packedDurations()").checked_write(durationsPacked);
     }
 
     function removeCopies(uint256[] storage array) internal returns (uint256[] memory) {
