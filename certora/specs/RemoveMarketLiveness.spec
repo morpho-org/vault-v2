@@ -58,7 +58,7 @@ rule deallocatingWithZeroExpectedSupplyAssetsRemovesMarket(env e, bytes data, ui
 
     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
-    require MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId) == 0;
+    require MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId) == 0, "assume that the expected supply assets is left to zero";
 
     uint256 i;
     require i < MorphoMarketV1Adapter.marketIdsLength();
