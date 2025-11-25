@@ -61,7 +61,7 @@ rule canPutExpectedSupplyAssetsToZero(env e, bytes data) {
 // Check that a deallocation that leaves the expected supply assets to zero removes the market.
 rule deallocatingWithZeroExpectedSupplyAssetsRemovesMarket(env e, bytes data, uint256 assets) {
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
-    bytes32 marketId = Utils.id(marketParams);
+    Morpho.Id marketId = Utils.id(marketParams);
     require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM doesn't revert";
 
     uint256 marketIdsLength = MorphoMarketV1Adapter.marketIdsLength();
