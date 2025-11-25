@@ -28,8 +28,6 @@ methods {
     function _.expectedMarketBalances(address, Morpho.Id id) internal => summaryExpectedMarketBalances(id) expect (uint256, uint256, uint256, uint256);
 }
 
-persistent ghost uint256 ghostBorrowRate;
-
 function summarySupplyShares(Morpho.Id id, address user) returns uint256 {
     return Morpho.supplyShares(id, user);
 }
