@@ -11,20 +11,21 @@ methods {
     function _.supplyShares(address, Morpho.Id id, address user) internal => summarySupplyShares(id, user) expect uint256;
 
     function Morpho.supplyShares(Morpho.Id, address) external returns (uint256) envfree;
+    function Morpho.market(Morpho.Id) external returns (uint128, uint128, uint128, uint128, uint128, uint128) envfree;
     function Morpho.lastUpdate(Morpho.Id) external returns (uint256) envfree;
     function MorphoMarketV1Adapter.marketIdsLength() external returns (uint256) envfree;
     function MorphoMarketV1Adapter.marketIds(uint256) external returns (bytes32) envfree;
     function Utils.decodeMarketParams(bytes data) external returns (Morpho.MarketParams memory) envfree;
     function Utils.id(Morpho.MarketParams) external returns (Morpho.Id) envfree;
 
+    // To fix linking issues.
     function _.deallocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
-
-    // Todo: remove once it's linked to ERC20Mock.
     function SafeTransferLib.safeTransfer(address, address, uint256) internal => NONDET;
-    function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => ghostBorrowRate expect uint256;
-    function _.borrowRateView(Morpho.MarketParams, Morpho.Market) external => ghostBorrowRate expect uint256;
-
     function _.market(Morpho.Id) external => DISPATCHER(true);
+
+    // Assume that the IRM doesn't revert.
+    function _.expectedMarketBalances(Morpho.MarketParams memory marketParams) internal => summaryExpectedMarketBalances(Utils.id(marketParams)) expect (uint256, uint256, uint256, uint256);
+    function _.expectedMarketBalances(address, Morpho.Id id) internal => summaryExpectedMarketBalances(id) expect (uint256, uint256, uint256, uint256);
 }
 
 persistent ghost uint256 ghostBorrowRate;
@@ -33,17 +34,25 @@ function summarySupplyShares(Morpho.Id id, address user) returns uint256 {
     return Morpho.supplyShares(id, user);
 }
 
-// Check that it's possible to put the expected supply assets to zero, assuming that the IRM isn't reverting.
+function summaryExpectedMarketBalances(Morpho.Id id) returns (uint256, uint256, uint256, uint256) {
+    uint128 totalSupplyAssets;
+    uint128 totalSupplyShares;
+    uint128 totalBorrowAssets;
+    uint128 totalBorrowShares;
+    uint128 lastUpdate;
+    uint128 fee;
+    (totalSupplyAssets, totalSupplyShares, totalBorrowAssets, totalBorrowShares, lastUpdate, fee) = Morpho.market(id);
+    return (totalSupplyAssets, totalSupplyShares, totalBorrowAssets, totalBorrowShares);
+}
+
+// Check that it's possible to put the expected supply assets to zero, assuming that the IRM doesn't revert.
 // Together with deallocatingWithZeroExpectedSupplyAssetsRemovesMarket, this proves that it's possible to remove a market.
 rule canPutExpectedSupplyAssetsToZero(env e, bytes data) {
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
     Morpho.Id marketId = Utils.id(marketParams);
-    // require Morpho.feeRecipient != MorphoMarketV1Adapter, "sane assumption to simplify the amount of asset to remove";
-    require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM isn't reverting";
+    require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM doesn't revert";
+    // Assets to remove to leave the expected supply assets to zero, assuming that the adapter isn't the fee recipient.
     uint256 assets = MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId);
-
-    uint256 marketIdsLength = MorphoMarketV1Adapter.marketIdsLength();
-    require forall uint256 i. forall uint256 j. (i < j && j < marketIdsLength) => MorphoMarketV1Adapter.marketIds[i] != MorphoMarketV1Adapter.marketIds[j], "see distinctMarketIds";
 
     // Could also check that the deallocate call doesn't revert.
     deallocate(e, MorphoMarketV1Adapter, data, assets);
@@ -55,6 +64,9 @@ rule canPutExpectedSupplyAssetsToZero(env e, bytes data) {
 rule deallocatingWithZeroExpectedSupplyAssetsRemovesMarket(env e, bytes data, uint256 assets) {
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
     bytes32 marketId = Utils.id(marketParams);
+
+    uint256 marketIdsLength = MorphoMarketV1Adapter.marketIdsLength();
+    require forall uint256 i. forall uint256 j. (i < j && j < marketIdsLength) => MorphoMarketV1Adapter.marketIds[i] != MorphoMarketV1Adapter.marketIds[j], "see distinctMarketIds";
 
     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
