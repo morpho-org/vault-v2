@@ -3,13 +3,25 @@
 pragma solidity 0.8.28;
 
 import "../../src/libraries/ConstantsLib.sol";
+<<<<<<< HEAD
 import {MarketParamsLib, MarketParams, MorphoBalancesLib, IMorpho} from "../../src/adapters/MorphoMarketV1Adapter.sol";
+||||||| df99a41b
+=======
+import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
+import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {MorphoLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
+import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
+>>>>>>> origin/main
 
 interface IReturnFactory {
     function factory() external view returns (address);
 }
 
 contract Utils {
+    using MarketParamsLib for MarketParams;
+    using SharesMathLib for uint256;
+
     function toBytes4(bytes memory data) public pure returns (bytes4) {
         return bytes4(data);
     }
@@ -45,5 +57,21 @@ contract Utils {
         returns (uint256)
     {
         return MorphoBalancesLib.expectedSupplyAssets(IMorpho(morpho), marketParams, user);
+    }
+
+    function maxMaxRate() external pure returns (uint256) {
+        return MAX_MAX_RATE;
+    }
+
+    function id(MarketParams memory marketParams) external pure returns (Id) {
+        return MarketParamsLib.id(marketParams);
+    }
+
+    function adapterId(address adapter) external pure returns (bytes32) {
+        return keccak256(abi.encode("this", adapter));
+    }
+
+    function havocAll() external {
+        this.havocAll();
     }
 }
