@@ -6,9 +6,7 @@ using BeforeMinimumTimeChecker as BeforeMinimumTimeChecker;
 using NotSubmittedHarness as NotSubmittedHarness;
 using RevokeHarness as RevokeHarness;
 
-
 methods {
-
     function multicall(bytes[]) external => NONDET DELETE;
 
     // Vault getters
@@ -16,7 +14,7 @@ methods {
     function timelock(bytes4) external returns uint256 envfree;
     function executableAt(bytes) external returns uint256 envfree;
     function abdicated(bytes4) external returns bool envfree;
-    
+
     // Harness functions
     function TimelockManagerHelpers.getSelector(bytes) external returns bytes4 envfree;
     function TimelockManagerHelpers.isDecreaseTimelock(bytes) external returns bool envfree;
@@ -32,14 +30,14 @@ persistent ghost mapping(bytes4 => mathint) minDecreaseLock {
 hook Sstore executableAt[KEY bytes hookData] uint256 newValue (uint256 oldValue) {
     require hookData.length >= 36;
     bytes4 selector = TimelockManagerHelpers.getSelector(hookData);
-    
+
     // decreaseTimelock == 0x5c1a1a4f
     if (selector == to_bytes4(sig:decreaseTimelock(bytes4, uint256).selector)) {
         require hookData.length >= 68;
         bytes4 targetSelector;
         uint256 newDuration;
         targetSelector, newDuration = TimelockManagerHelpers.extractDecreaseTimelockArgs(hookData);
-        
+
         if (oldValue == 0 && newValue != 0 && minDecreaseLock[targetSelector] > newValue + newDuration) {
             minDecreaseLock[targetSelector] = newValue + newDuration;
         } else if (oldValue != 0 && newValue == 0) {
@@ -55,19 +53,19 @@ hook Sstore executableAt[KEY bytes hookData] uint256 newValue (uint256 oldValue)
 hook Sload uint256 value executableAt[KEY bytes hookData] {
     require hookData.length >= 36;
     bytes4 selector = TimelockManagerHelpers.getSelector(hookData);
-    
+
     // decreaseTimelock == 0x5c1a1a4f
     if (selector == to_bytes4(sig:decreaseTimelock(bytes4, uint256).selector)) {
         require hookData.length >= 68;
         bytes4 targetSelector;
         uint256 newDuration;
         targetSelector, newDuration = TimelockManagerHelpers.extractDecreaseTimelockArgs(hookData);
-        
+
         require value == 0 || to_mathint(value) + newDuration >= minDecreaseLock[targetSelector];
     }
 }
 
-definition functionTimelocked(method f) returns bool = 
+definition functionTimelocked(method f) returns bool =
     f.selector == sig:setIsAllocator(address, bool).selector ||
     f.selector == sig:setReceiveSharesGate(address).selector ||
     f.selector == sig:setSendSharesGate(address).selector ||
@@ -120,67 +118,67 @@ filtered {
     require executableAt(data) != 0;
     require data.length >= 36;
     bytes4 selector = TimelockManagerHelpers.getSelector(data);
-    
+
     // Compute earliest execution time before interaction
     mathint execAtValue = to_mathint(executableAt(data)) == 0 ? max_uint256 : to_mathint(executableAt(data));
     mathint directSubmitTime = require_uint256(e.block.timestamp + timelock(selector));
     mathint viaDecreaseTime = minDecreaseLock[selector];
     mathint earliestBefore = min3(execAtValue,directSubmitTime,viaDecreaseTime);
-    
+
     // Arbitrary function call (any state change)
     f(e_next, args);
-    
+
     // Compute earliest execution time after interaction
     mathint execAtValueAfter = to_mathint(executableAt(data)) == 0 ? max_uint256 : to_mathint(executableAt(data));
     mathint directSubmitTimeAfter = require_uint256(e_next.block.timestamp + timelock(selector));
     mathint viaDecreaseTimeAfter = minDecreaseLock[selector];
     mathint earliestAfter = min3(execAtValueAfter ,directSubmitTimeAfter,viaDecreaseTimeAfter);
-    
+
     assert earliestAfter >= earliestBefore;
 }
 
 // Submit correctly sets executableAt based on timelock
 rule submitSetsCorrectExecutableAt(env e, bytes data) {
     bytes4 selector = TimelockManagerHelpers.getSelector(data);
-    
+
     require e.msg.sender == curator();
     require executableAt(data) == 0;
-    
+
     uint256 expectedDelay = extractExpectedDelay(data);
-    
+
     uint256 timeBefore = e.block.timestamp;
     submit(e, data);
-    
+
     assert executableAt(data) == assert_uint256(timeBefore + expectedDelay), "executableAt must equal timestamp + appropriate timelock";
 }
 
 
 // Function must revert if called before submission
-rule cannotExecuteBeforeMinimumTime(env e,method fb,method f, calldataarg args) 
-    filtered { 
+rule cannotExecuteBeforeMinimumTime(env e,method fb,method f, calldataarg args)
+    filtered {
         fb -> fb.contract == BeforeMinimumTimeChecker && fb.isFallback,
         f -> functionTimelocked(f) && f.selector != sig:decreaseTimelock(bytes4, uint256).selector
     }
 {
     bytes4 selector = to_bytes4(f.selector);
     require !abdicated(selector);
-    
+
     // Check currentTime < min(time1, time2)
     fb(e, args);
-    
+
     f@withrevert(e, args);
     assert lastReverted, "Function must revert before minimum executable time";
 }
 
 // Abdicated functions cannot be called
 rule abdicatedFunctionsMustRevert(env e, method f, calldataarg args)
-filtered { 
+filtered {
     f -> functionTimelocked(f)
 }
 {
     bytes4 selector = to_bytes4(f.selector);
     require abdicated(selector);
-    
+
     f@withrevert(e, args);
     assert lastReverted, "Abdicated functions must always revert";
 }
@@ -194,7 +192,7 @@ rule mustRevertIfNotSubmitted(env e, method fb, method f, calldataarg args)
 {
     bytes4 selector = to_bytes4(f.selector);
     require !abdicated(selector);
-    
+
     // Fallback will check executableAt[msg.data] == 0
     fb(e, args);
 
@@ -205,15 +203,15 @@ rule mustRevertIfNotSubmitted(env e, method fb, method f, calldataarg args)
 
 // Function must revert if revoked
 rule revokePreventsFutureExecution(env e, method revokeFb, method f, calldataarg args)
-    filtered { 
+    filtered {
         revokeFb -> revokeFb.contract == RevokeHarness && revokeFb.isFallback,
         f -> functionTimelocked(f)
     }
-{    
+{
 
-    // Revoke using the RevokeHarness fallback 
+    // Revoke using the RevokeHarness fallback
     revokeFb(e, args);
-    
+
     // Verify that trying to call the function now fails
     f@withrevert(e, args);
     assert lastReverted, "Revoked data should revert";
