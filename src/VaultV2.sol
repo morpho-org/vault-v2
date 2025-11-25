@@ -39,9 +39,8 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). In order to protect against
 /// inflation attacks, the vault might need to be seeded with an initial deposit. See
 /// https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
-/// @dev If they make the rate increase by a large factor, donations and forceDeallocate penalties can be in part stolen
-/// by opportunistic depositors. Setting a low maxRate prevents that by making the donation/penalty distributed over a
-/// long period.
+/// @dev Donations and forceDeallocate penalties increase the rate, which can attract opportunistic depositors which
+/// will dilute interest. This fact can be mitigated by reducing the maxRate.
 ///
 /// CAPS
 /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
@@ -58,7 +57,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev The variable firstTotalAssets tracks the total assets after the first interest accrual of the transaction.
 /// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans. This mechanism makes the
 /// caps conservative and can generate false positives, notably for big deposits that go through the liquidity adapter.
-/// @dev Also used to accrue interest only once per transaction (except if the vault is empty, see "share price" above).
+/// @dev Also used to accrue interest only once per transaction (see the "share price" section).
 /// @dev Relative caps can still be manipulated by allocators (with short-term deposits), but it requires capital.
 /// @dev The behavior of firstTotalAssets is different when the vault has totalAssets=0, but it does not matter
 /// internally because in this case there are no investments to cap.
@@ -100,8 +99,8 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// LIQUIDITY ADAPTER
 /// @dev Liquidity is allocated to the liquidityAdapter on deposit/mint, and deallocated from the liquidityAdapter on
 /// withdraw/redeem if idle assets don't cover the withdrawal.
-/// @dev The liquidity adapter is useful on exit, so that exit liquidity is available in addition to the idle assets. But
-/// the same adapter/data is used for both entry and exit to have the property that in the general case looping
+/// @dev The liquidity adapter is useful on exit, so that exit liquidity is available in addition to the idle assets.
+/// But the same adapter/data is used for both entry and exit to have the property that in the general case looping
 /// supply-withdraw or withdraw-supply should not change the allocation.
 /// @dev If a cap (absolute or relative) associated with the ids returned by the liquidity adapter on the liquidity data
 /// is reached, deposit/mint will revert. In particular, when the vault is empty or almost empty, the relative cap check
@@ -127,6 +126,8 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// TIMELOCKS
 /// @dev The timelock duration of decreaseTimelock is the timelock duration of the function whose timelock is being
 /// decreased (e.g. the timelock of decreaseTimelock(addAdapter, ...) is timelock[addAdapter]).
+/// @dev It is still possible to submit changes of the timelock duration of decreaseTimelock, but it won't have any
+/// effect (and trying to execute this change will revert).
 /// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
 /// timelocked data can potentially be changed shortly afterwards.
 /// @dev If a function is abdicated, it cannot be called no matter its timelock and what executableAt[data] contains.
@@ -178,6 +179,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev No-ops are allowed.
 /// @dev NatSpec comments are included only when they bring clarity.
 /// @dev The contract uses transient storage.
+/// @dev View calls made by this contract should not rely on the executableAt values.
 /// @dev At creation, all settings are set to their default values. Notably, timelocks are zero which is useful to set
 /// up the vault quickly. Also, there are no gates so anybody can interact with the vault. To prevent that, the gates
 /// configuration can be batched with the vault creation.

@@ -1,4 +1,4 @@
-This folder contains the verification of the Vault v2 using CVL, Certora's Verification Language.
+This folder contains the verification of the Vault V2 using CVL, Certora's Verification Language.
 
 The core concepts can be found in the [README](../README.md) at the root of the repository.
 These properties have been verified using CVL.
@@ -64,7 +64,7 @@ Todo:
 
 ## Protection against common attack vectors
 
-Other common and known attack vectors are verified to not be possible on Vault v2.
+Other common and known attack vectors are verified to not be possible on Vault V2.
 
 ### Reentrancy
 
@@ -94,3 +94,7 @@ Install `certora-cli` package with `pip install certora-cli`.
 To verify specification files, pass to `certoraRun` the corresponding configuration file in the [`certora/confs`](confs) folder.
 It requires having set the `CERTORAKEY` environment variable to a valid Certora key.
 You can also pass additional arguments, notably to verify a specific rule.
+
+# Acknowledgments
+
+Some rules and invariants are derived from those written by the Chainsecurity team during their audit of this repository.

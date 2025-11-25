@@ -7,7 +7,7 @@ import "./BaseTest.sol";
 contract GatingTest is BaseTest {
     using MathLib for uint256;
 
-    uint256 internal MAX_TEST_ASSETS;
+    uint256 internal maxTestAssets;
 
     address gate;
     address sharesReceiver;
@@ -18,7 +18,7 @@ contract GatingTest is BaseTest {
     function setUp() public override {
         super.setUp();
 
-        MAX_TEST_ASSETS = 10 ** min(18 + underlyingToken.decimals(), 36);
+        maxTestAssets = 10 ** min(18 + underlyingToken.decimals(), 36);
 
         gate = makeAddr("gate");
 

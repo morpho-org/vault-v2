@@ -296,9 +296,7 @@ contract ERC20Test is BaseTest {
         vault.permit(owner, to, shares, deadline, v, r, s);
     }
 
-    function testPermitBadSpenderReverts(PermitInfo calldata p, address to, uint256 shares, address badSpender)
-        public
-    {
+    function testPermitBadSpenderReverts(PermitInfo calldata p, address to, uint256 shares, address badSpender) public {
         (address owner, uint256 privateKey, uint256 nonce, uint256 deadline) = _setupPermit(p);
         _setCurrentNonce(owner, nonce);
 
