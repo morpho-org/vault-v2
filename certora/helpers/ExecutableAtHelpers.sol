@@ -28,27 +28,27 @@ contract ExecutableAtHelpers {
     // TIMELOCKED FUNCTIONS - Match VaultV2 signatures
     // ============================================================================
 
-    function setIsAllocator(address account, bool newIsAllocator) external {
+    function setIsAllocator(address, bool) external view {
         checkTimelockConditions();
     }
 
-    function setReceiveSharesGate(address newReceiveSharesGate) external {
+    function setReceiveSharesGate(address) external view {
         checkTimelockConditions();
     }
 
-    function setSendSharesGate(address newSendSharesGate) external {
+    function setSendSharesGate(address) external view {
         checkTimelockConditions();
     }
 
-    function setReceiveAssetsGate(address newReceiveAssetsGate) external {
+    function setReceiveAssetsGate(address) external view {
         checkTimelockConditions();
     }
 
-    function setSendAssetsGate(address newSendAssetsGate) external {
+    function setSendAssetsGate(address) external view {
         checkTimelockConditions();
     }
 
-    function setAdapterRegistry(address newAdapterRegistry) external {
+    function setAdapterRegistry(address newAdapterRegistry) external view {
         checkTimelockConditions();
 
         // If setting a non-zero registry, it must include all existing adapters
@@ -61,34 +61,34 @@ contract ExecutableAtHelpers {
         }
     }
 
-    function addAdapter(address account) external {
+    function addAdapter(address account) external view {
         checkTimelockConditions();
 
         address registry = vault.adapterRegistry();
         require(registry == address(0) || IAdapterRegistry(registry).isInRegistry(account), "Adapter not in registry");
     }
 
-    function removeAdapter(address account) external {
+    function removeAdapter(address) external view {
         checkTimelockConditions();
     }
 
-    function increaseTimelock(bytes4 targetSelector, uint256 newDuration) external {
+    function increaseTimelock(bytes4 targetSelector, uint256 newDuration) external view {
         checkTimelockConditions();
         require(targetSelector != IVaultV2.decreaseTimelock.selector, "Cannot timelock decreaseTimelock");
         require(newDuration >= vault.timelock(targetSelector), "Timelock not increasing");
     }
 
-    function decreaseTimelock(bytes4 targetSelector, uint256 newDuration) external {
+    function decreaseTimelock(bytes4 targetSelector, uint256 newDuration) external view {
         checkTimelockConditions();
         require(targetSelector != IVaultV2.decreaseTimelock.selector, "Cannot timelock decreaseTimelock");
         require(newDuration <= vault.timelock(targetSelector), "Timelock not decreasing");
     }
 
-    function abdicate(bytes4 targetSelector) external {
+    function abdicate(bytes4) external view {
         checkTimelockConditions();
     }
 
-    function setPerformanceFee(uint256 newPerformanceFee) external {
+    function setPerformanceFee(uint256 newPerformanceFee) external view {
         checkTimelockConditions();
         require(block.timestamp >= vault.lastUpdate(), "Last update not set");
         require(block.timestamp <= vault.lastUpdate() + 315360000, "Time too far in future");
@@ -99,7 +99,7 @@ contract ExecutableAtHelpers {
         );
     }
 
-    function setManagementFee(uint256 newManagementFee) external {
+    function setManagementFee(uint256 newManagementFee) external view {
         checkTimelockConditions();
         require(block.timestamp >= vault.lastUpdate(), "Last update not set");
         require(block.timestamp <= vault.lastUpdate() + 315360000, "Time too far in future");
@@ -110,7 +110,7 @@ contract ExecutableAtHelpers {
         );
     }
 
-    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external {
+    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external view {
         checkTimelockConditions();
         require(block.timestamp >= vault.lastUpdate(), "Last update not set");
         require(block.timestamp <= vault.lastUpdate() + 315360000, "Time too far in future");
@@ -120,7 +120,7 @@ contract ExecutableAtHelpers {
         );
     }
 
-    function setManagementFeeRecipient(address newManagementFeeRecipient) external {
+    function setManagementFeeRecipient(address newManagementFeeRecipient) external view {
         checkTimelockConditions();
         require(block.timestamp >= vault.lastUpdate(), "Last update not set");
         require(block.timestamp <= vault.lastUpdate() + 315360000, "Time too far in future");
@@ -130,7 +130,7 @@ contract ExecutableAtHelpers {
         );
     }
 
-    function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external {
+    function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external view {
         checkTimelockConditions();
 
         // Check that new cap is actually increasing and fits in uint128
@@ -140,7 +140,7 @@ contract ExecutableAtHelpers {
         require(newAbsoluteCap <= type(uint128).max, "Cap exceeds uint128 max");
     }
 
-    function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external {
+    function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external view {
         checkTimelockConditions();
         require(newRelativeCap <= WAD, "Relative cap exceeds WAD (100%)");
 
@@ -150,7 +150,7 @@ contract ExecutableAtHelpers {
         require(newRelativeCap >= currentRelativeCap, "Relative cap not increasing");
     }
 
-    function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external {
+    function setForceDeallocatePenalty(address, uint256 newForceDeallocatePenalty) external view {
         checkTimelockConditions();
         require(newForceDeallocatePenalty <= MAX_FORCE_DEALLOCATE_PENALTY, "Penalty exceeds MAX");
     }

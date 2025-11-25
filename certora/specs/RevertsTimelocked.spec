@@ -39,7 +39,6 @@ definition functionTimelocked(method f) returns bool =
     f.selector == sig:increaseRelativeCap(bytes,uint256).selector ||
     f.selector == sig:setForceDeallocatePenalty(address,uint256).selector;
 
-
 // -- PARAMETRIC -- //
 
 rule parametricRevertCondition(env e, calldataarg args, method f)
@@ -88,12 +87,10 @@ filtered {
     }
 
     f@withrevert(e, args);
-    assert lastReverted, "When checker passes, morpho should revert";
+    assert lastReverted, "When checker passes, it should revert";
 }
 
-
 // -- PER FUNCTION -- //
-
 
 // setIsAllocator(address account, bool newIsAllocator)
 rule setIsAllocatorRevertCondition(env e, calldataarg args)

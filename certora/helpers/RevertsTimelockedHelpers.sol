@@ -20,75 +20,75 @@ contract RevertsTimelockedHelpers {
     // TIMELOCKED FUNCTIONS - Check revert conditions
     // ============================================================================
 
-    function setIsAllocator(address account, bool newIsAllocator) external {
+    function setIsAllocator(address, bool) external view {
         checkShouldRevert(IVaultV2.setIsAllocator.selector);
     }
 
-    function setReceiveSharesGate(address newReceiveSharesGate) external {
+    function setReceiveSharesGate(address) external view {
         checkShouldRevert(IVaultV2.setReceiveSharesGate.selector);
     }
 
-    function setSendSharesGate(address newSendSharesGate) external {
+    function setSendSharesGate(address) external view {
         checkShouldRevert(IVaultV2.setSendSharesGate.selector);
     }
 
-    function setReceiveAssetsGate(address newReceiveAssetsGate) external {
+    function setReceiveAssetsGate(address) external view {
         checkShouldRevert(IVaultV2.setReceiveAssetsGate.selector);
     }
 
-    function setSendAssetsGate(address newSendAssetsGate) external {
+    function setSendAssetsGate(address) external view {
         checkShouldRevert(IVaultV2.setSendAssetsGate.selector);
     }
 
-    function setAdapterRegistry(address newAdapterRegistry) external {
+    function setAdapterRegistry(address) external view {
         checkShouldRevert(IVaultV2.setAdapterRegistry.selector);
     }
 
-    function addAdapter(address account) external {
+    function addAdapter(address) external view {
         checkShouldRevert(IVaultV2.addAdapter.selector);
     }
 
-    function removeAdapter(address account) external {
+    function removeAdapter(address) external view {
         checkShouldRevert(IVaultV2.removeAdapter.selector);
     }
 
-    function increaseTimelock(bytes4 targetSelector, uint256 newDuration) external {
+    function increaseTimelock(bytes4, uint256) external view {
         checkShouldRevert(IVaultV2.increaseTimelock.selector);
     }
 
-    function decreaseTimelock(bytes4 targetSelector, uint256 newDuration) external {
+    function decreaseTimelock(bytes4, uint256) external view {
         checkShouldRevert(IVaultV2.decreaseTimelock.selector);
     }
 
-    function abdicate(bytes4 targetSelector) external {
+    function abdicate(bytes4) external view {
         checkShouldRevert(IVaultV2.abdicate.selector);
     }
 
-    function setPerformanceFee(uint256 newPerformanceFee) external {
+    function setPerformanceFee(uint256) external view {
         checkShouldRevert(IVaultV2.setPerformanceFee.selector);
     }
 
-    function setManagementFee(uint256 newManagementFee) external {
+    function setManagementFee(uint256) external view {
         checkShouldRevert(IVaultV2.setManagementFee.selector);
     }
 
-    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external {
+    function setPerformanceFeeRecipient(address) external view {
         checkShouldRevert(IVaultV2.setPerformanceFeeRecipient.selector);
     }
 
-    function setManagementFeeRecipient(address newManagementFeeRecipient) external {
+    function setManagementFeeRecipient(address) external view {
         checkShouldRevert(IVaultV2.setManagementFeeRecipient.selector);
     }
 
-    function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external {
+    function increaseAbsoluteCap(bytes memory, uint256) external view {
         checkShouldRevert(IVaultV2.increaseAbsoluteCap.selector);
     }
 
-    function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external {
+    function increaseRelativeCap(bytes memory, uint256) external view {
         checkShouldRevert(IVaultV2.increaseRelativeCap.selector);
     }
 
-    function setForceDeallocatePenalty(address adapter, uint256 newForceDeallocatePenalty) external {
+    function setForceDeallocatePenalty(address, uint256) external view {
         checkShouldRevert(IVaultV2.setForceDeallocatePenalty.selector);
     }
 }
