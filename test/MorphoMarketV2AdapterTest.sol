@@ -31,6 +31,7 @@ struct Step {
 contract MorphoMarketV2AdapterTest is Test {
     using stdStorage for StdStorage;
     using MathLib for uint256;
+    using DurationsLib for bytes32;
 
     MorphoV2 internal morphoV2;
     IMorphoMarketV2AdapterFactory internal factory;
@@ -556,9 +557,9 @@ contract MorphoMarketV2AdapterTest is Test {
         adapter.removeDuration(duration);
     }
 
-    function testAddDurationIncorrectOrDuplicate(bytes32 _durations, uint256 duplicated) public {
-        vm.assume(uint256(_durations) > type(uint16).max);
-        set_Durations(_durations);
+    function testAddDurationIncorrectOrDuplicate(bytes32 _durationsPacked, uint256 duplicated) public {
+        vm.assume(uint256(_durationsPacked) > type(uint16).max);
+        setDurationsPacked(_durationsPacked);
         uint256[] memory durationsArray = adapter.durations();
         duplicated = bound(duplicated, 0, durationsArray.length - 1);
         if (durationsArray[duplicated] == 0 || durationsArray[duplicated] > type(uint32).max) {
@@ -572,12 +573,12 @@ contract MorphoMarketV2AdapterTest is Test {
         }
     }
 
-    function testDurationsGetter(bytes32 _durations) public {
-        set_Durations(_durations);
+    function testDurationsGetter(bytes32 _durationsPacked) public {
+        setDurationsPacked(_durationsPacked);
         uint256[] memory durationsArray = adapter.durations();
         uint256 arrayIndex = 0;
         for (uint256 i = 0; i < MAX_DURATIONS; i++) {
-            uint256 duration = uint256(uint32(bytes4(_durations << (32 * i))));
+            uint256 duration = uint256(uint32(bytes4(_durationsPacked << (32 * i))));
             if (duration != 0) assertEq(durationsArray[arrayIndex++], duration);
         }
     }
@@ -651,8 +652,8 @@ contract MorphoMarketV2AdapterTest is Test {
         stdstore.target(address(adapter)).sig("_totalAssets()").checked_write(_totalAssets);
     }
 
-    function set_Durations(bytes32 _durations) internal {
-        stdstore.target(address(adapter)).sig("_durations()").checked_write(_durations);
+    function setDurationsPacked(bytes32 _durationsPacked) internal {
+        stdstore.target(address(adapter)).sig("durationsPacked()").checked_write(_durationsPacked);
     }
 
     function removeCopies(uint256[] storage array) internal returns (uint256[] memory) {

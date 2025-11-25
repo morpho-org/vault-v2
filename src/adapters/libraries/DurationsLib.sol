@@ -12,8 +12,6 @@ library DurationsLib {
 
     /* FUNCTIONS */
 
-    function array(bytes32 durations) internal pure returns (uint256[] memory) {}
-
     function get(bytes32 durations, uint256 index) internal pure returns (uint256 duration) {
         require(index < MAX_DURATIONS, InvalidIndex());
         assembly {

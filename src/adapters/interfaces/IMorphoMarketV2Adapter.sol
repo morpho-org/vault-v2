@@ -11,6 +11,8 @@ import {ICallbacks} from "lib/morpho-v2/src/interfaces/ICallbacks.sol";
 struct ObligationPosition {
     uint128 units;
     uint128 growth;
+    uint48 lastUpdate;
+    bytes32 lastDurationsPacked;
 }
 
 // Chain of maturities, each can represent multiple obligations.
