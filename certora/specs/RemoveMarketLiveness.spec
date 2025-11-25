@@ -24,8 +24,7 @@ methods {
     function _.market(Morpho.Id) external => DISPATCHER(true);
 
     // Assume that the IRM doesn't revert.
-    function _.expectedMarketBalances(Morpho.MarketParams memory marketParams) internal => summaryExpectedMarketBalances(Utils.id(marketParams)) expect (uint256, uint256, uint256, uint256);
-    function _.expectedMarketBalances(address, Morpho.Id id) internal => summaryExpectedMarketBalances(id) expect (uint256, uint256, uint256, uint256);
+    function _.expectedMarketBalances(address, Morpho.Id id, address) internal => summaryExpectedMarketBalances(id) expect (uint256, uint256, uint256, uint256);
 }
 
 function summarySupplyShares(Morpho.Id id, address user) returns uint256 {
@@ -49,6 +48,7 @@ rule canPutExpectedSupplyAssetsToZero(env e, bytes data) {
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
     Morpho.Id marketId = Utils.id(marketParams);
     require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM doesn't revert";
+
     // Assets to remove to leave the expected supply assets to zero, assuming that the adapter isn't the fee recipient.
     uint256 assets = MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId);
 
@@ -62,6 +62,7 @@ rule canPutExpectedSupplyAssetsToZero(env e, bytes data) {
 rule deallocatingWithZeroExpectedSupplyAssetsRemovesMarket(env e, bytes data, uint256 assets) {
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
     bytes32 marketId = Utils.id(marketParams);
+    require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM doesn't revert";
 
     uint256 marketIdsLength = MorphoMarketV1Adapter.marketIdsLength();
     require forall uint256 i. forall uint256 j. (i < j && j < marketIdsLength) => MorphoMarketV1Adapter.marketIds[i] != MorphoMarketV1Adapter.marketIds[j], "see distinctMarketIds";
