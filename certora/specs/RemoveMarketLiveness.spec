@@ -11,9 +11,11 @@ methods {
     function _.supplyShares(address, Morpho.Id id, address user) internal => summarySupplyShares(id, user) expect uint256;
 
     function Morpho.supplyShares(Morpho.Id, address) external returns (uint256) envfree;
-    function MorphoMarketV1Adapter.marketParamsListLength() external returns (uint256) envfree;
-    function MorphoMarketV1Adapter.marketParamsList(uint256) external returns (address, address, address, address, uint256) envfree;
+    function Morpho.lastUpdate(Morpho.Id) external returns (uint256) envfree;
+    function MorphoMarketV1Adapter.marketIdsLength() external returns (uint256) envfree;
+    function MorphoMarketV1Adapter.marketIds(uint256) external returns (bytes32) envfree;
     function Utils.decodeMarketParams(bytes data) external returns (Morpho.MarketParams memory) envfree;
+    function Utils.id(Morpho.MarketParams) external returns (Morpho.Id) envfree;
 
     function _.deallocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
 
@@ -31,39 +33,34 @@ function summarySupplyShares(Morpho.Id id, address user) returns uint256 {
     return Morpho.supplyShares(id, user);
 }
 
-rule canRemoveMarket(env e, bytes data) {
+// Check that it's possible to put the expected supply assets to zero, assuming that the IRM isn't reverting.
+// Together with deallocatingWithZeroExpectedSupplyAssetsRemovesMarket, this proves that it's possible to remove a market.
+rule canPutExpectedSupplyAssetsToZero(env e, bytes data) {
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
-    require Morpho.feeRecipient != MorphoMarketV1Adapter, "sane assumption to simplify the amount of asset to remove";
-    uint256 assets = Utils.expectedSupplyAssets(e, Morpho, marketParams, MorphoMarketV1Adapter);
+    Morpho.Id marketId = Utils.id(marketParams);
+    // require Morpho.feeRecipient != MorphoMarketV1Adapter, "sane assumption to simplify the amount of asset to remove";
+    require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM isn't reverting";
+    uint256 assets = MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId);
 
-    uint256 marketParamsListLength = MorphoMarketV1Adapter.marketParamsListLength();
-    require forall uint256 i. forall uint256 j. (i < j && j < marketParamsListLength) => (
-        MorphoMarketV1Adapter.marketParamsList[i].loanToken != MorphoMarketV1Adapter.marketParamsList[j].loanToken ||
-        MorphoMarketV1Adapter.marketParamsList[i].collateralToken != MorphoMarketV1Adapter.marketParamsList[j].collateralToken ||
-        MorphoMarketV1Adapter.marketParamsList[i].oracle != MorphoMarketV1Adapter.marketParamsList[j].oracle ||
-        MorphoMarketV1Adapter.marketParamsList[i].irm != MorphoMarketV1Adapter.marketParamsList[j].irm ||
-        MorphoMarketV1Adapter.marketParamsList[i].lltv != MorphoMarketV1Adapter.marketParamsList[j].lltv
-    ), "see distinctMarketParamsInList";
+    uint256 marketIdsLength = MorphoMarketV1Adapter.marketIdsLength();
+    require forall uint256 i. forall uint256 j. (i < j && j < marketIdsLength) => MorphoMarketV1Adapter.marketIds[i] != MorphoMarketV1Adapter.marketIds[j], "see distinctMarketIds";
 
     // Could also check that the deallocate call doesn't revert.
     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
-    assert Utils.expectedSupplyAssets(e, Morpho, marketParams, MorphoMarketV1Adapter) == 0;
+    assert MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId) == 0;
+}
+
+// Check that a deallocation that leaves the expected supply assets to zero removes the market.
+rule deallocatingWithZeroExpectedSupplyAssetsRemovesMarket(env e, bytes data, uint256 assets) {
+    Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
+    bytes32 marketId = Utils.id(marketParams);
+
+    deallocate(e, MorphoMarketV1Adapter, data, assets);
+
+    require MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId) == 0;
 
     uint256 i;
-    // Is this needed ?
-    require i < MorphoMarketV1Adapter.marketParamsListLength();
-    address loanToken;
-    address collateralToken;
-    address oracle;
-    address irm;
-    uint256 lltv;
-    (loanToken, collateralToken, oracle, irm, lltv) = MorphoMarketV1Adapter.marketParamsList(i);
-    assert (
-        loanToken != marketParams.loanToken ||
-        collateralToken != marketParams.collateralToken ||
-        oracle != marketParams.oracle ||
-        irm != marketParams.irm ||
-        lltv != marketParams.lltv
-    );
+    require i < MorphoMarketV1Adapter.marketIdsLength();
+    assert MorphoMarketV1Adapter.marketIds(i) != marketId;
 }
