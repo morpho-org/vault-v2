@@ -10,7 +10,7 @@ import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
-import {IMorphoMarketV2Adapter} from "../src/adapters/interfaces/IMorphoMarketV2Adapter.sol";
+import {IMorphoMarketV2Adapter, MAX_DURATIONS} from "../src/adapters/interfaces/IMorphoMarketV2Adapter.sol";
 import {IMorphoMarketV2AdapterFactory} from "../src/adapters/interfaces/IMorphoMarketV2AdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
 import {MathLib as MorphoV2MathLib} from "lib/morpho-v2/src/libraries/MathLib.sol";
@@ -19,7 +19,6 @@ import {Offer, Signature, Obligation, Collateral, Proof} from "../lib/morpho-v2/
 import {stdStorage, StdStorage} from "../lib/forge-std/src/Test.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
 import {ORACLE_PRICE_SCALE} from "../lib/morpho-blue/src/libraries/ConstantsLib.sol";
-import {DurationsLib, MAX_DURATIONS} from "../src/adapters/libraries/DurationsLib.sol";
 
 struct Step {
     uint256 assets;
@@ -31,7 +30,6 @@ struct Step {
 contract MorphoMarketV2AdapterTest is Test {
     using stdStorage for StdStorage;
     using MathLib for uint256;
-    using DurationsLib for bytes32;
 
     MorphoV2 internal morphoV2;
     IMorphoMarketV2AdapterFactory internal factory;
@@ -497,7 +495,7 @@ contract MorphoMarketV2AdapterTest is Test {
         emit IMorphoMarketV2Adapter.AddDuration(10);
         adapter.addDuration(10);
         assertEq(adapter.durations().length, 1);
-        assertEq(adapter.durations(), [uint256(10)]);
+        assertEq(adapter.durations()[0], 10);
 
         vm.expectEmit();
         emit IMorphoMarketV2Adapter.RemoveDuration(10);
@@ -557,30 +555,36 @@ contract MorphoMarketV2AdapterTest is Test {
         adapter.removeDuration(duration);
     }
 
-    function testAddDurationIncorrectOrDuplicate(bytes32 _durationsPacked, uint256 duplicated) public {
-        vm.assume(uint256(_durationsPacked) > type(uint16).max);
-        setDurationsPacked(_durationsPacked);
-        uint256[] memory durationsArray = adapter.durations();
-        duplicated = bound(duplicated, 0, durationsArray.length - 1);
-        if (durationsArray[duplicated] == 0 || durationsArray[duplicated] > type(uint32).max) {
-            vm.prank(parentVault.curator());
-            vm.expectRevert(IMorphoMarketV2Adapter.IncorrectDuration.selector);
-            adapter.addDuration(durationsArray[duplicated]);
-        } else {
-            vm.prank(parentVault.curator());
-            vm.expectRevert(IMorphoMarketV2Adapter.NoDuplicates.selector);
-            adapter.addDuration(durationsArray[duplicated]);
-        }
-    }
+    function testAddDurationIncorrectOrDuplicate() public {
+        vm.startPrank(parentVault.curator());
 
-    function testDurationsGetter(bytes32 _durationsPacked) public {
-        setDurationsPacked(_durationsPacked);
-        uint256[] memory durationsArray = adapter.durations();
-        uint256 arrayIndex = 0;
-        for (uint256 i = 0; i < MAX_DURATIONS; i++) {
-            uint256 duration = uint256(uint32(bytes4(_durationsPacked << (32 * i))));
-            if (duration != 0) assertEq(durationsArray[arrayIndex++], duration);
+        adapter.addDuration(1);
+        adapter.addDuration(100);
+        adapter.addDuration(12);
+        adapter.addDuration(99);
+        adapter.addDuration(101);
+        adapter.addDuration(102);
+        adapter.addDuration(2);
+        adapter.addDuration(103);
+        adapter.removeDuration(103);
+        adapter.removeDuration(102);
+        adapter.removeDuration(101);
+        uint256[] memory actualArray = adapter.durations();
+        uint256[5] memory expectedArray = [uint256(1), 100, 12, 99, 2];
+        assertEq(actualArray.length, expectedArray.length);
+        for (uint256 i = 0; i < actualArray.length; i++) {
+            assertEq(actualArray[i], expectedArray[i]);
         }
+
+        vm.expectRevert(IMorphoMarketV2Adapter.IncorrectDuration.selector);
+        adapter.addDuration(0);
+        vm.expectRevert(IMorphoMarketV2Adapter.IncorrectDuration.selector);
+        adapter.addDuration(uint256(type(uint32).max) + 1);
+        vm.expectRevert(IMorphoMarketV2Adapter.NoDuplicates.selector);
+        adapter.addDuration(1);
+        vm.expectRevert(IMorphoMarketV2Adapter.NoDuplicates.selector);
+        adapter.addDuration(2);
+        vm.stopPrank();
     }
 
     /* IDS */
@@ -652,10 +656,6 @@ contract MorphoMarketV2AdapterTest is Test {
         stdstore.target(address(adapter)).sig("_totalAssets()").checked_write(_totalAssets);
     }
 
-    function setDurationsPacked(bytes32 _durationsPacked) internal {
-        stdstore.target(address(adapter)).sig("durationsPacked()").checked_write(_durationsPacked);
-    }
-
     function removeCopies(uint256[] storage array) internal returns (uint256[] memory) {
         uint256[] memory sorted = vm.sort(array);
         uint256 numCopies = 0;
@@ -717,33 +717,5 @@ contract MorphoMarketV2AdapterTest is Test {
     /// @dev Returns the concatenation of x and y, sorted lexicographically.
     function sort(bytes32 x, bytes32 y) internal pure returns (bytes memory) {
         return x < y ? abi.encodePacked(x, y) : abi.encodePacked(y, x);
-    }
-
-    function assertEq(uint256[] memory left, uint256[1] memory right) internal pure {
-        require(left.length == right.length, "lengths don't match (1)");
-        for (uint256 i = 0; i < right.length; i++) {
-            assertEq(left[i], right[i], "durations[i]");
-        }
-    }
-
-    function assertEq(uint256[] memory left, uint256[2] memory right) internal pure {
-        require(left.length == right.length, "lengths don't match (2)");
-        for (uint256 i = 0; i < right.length; i++) {
-            assertEq(left[i], right[i], "durations[i]");
-        }
-    }
-
-    function assertEq(uint256[] memory left, uint256[3] memory right) internal pure {
-        require(left.length == right.length, "lengths don't match (3)");
-        for (uint256 i = 0; i < right.length; i++) {
-            assertEq(left[i], right[i], "durations[i]");
-        }
-    }
-
-    function assertEq(uint256[] memory left, uint256[8] memory right) internal pure {
-        require(left.length == right.length, "lengths don't match (10)");
-        for (uint256 i = 0; i < right.length; i++) {
-            assertEq(left[i], right[i], "durations[i]");
-        }
     }
 }

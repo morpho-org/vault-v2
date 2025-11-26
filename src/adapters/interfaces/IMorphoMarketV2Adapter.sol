@@ -7,12 +7,14 @@ import {IAdapter} from "../../interfaces/IAdapter.sol";
 import {Offer, Signature, Obligation, Collateral, Seizure} from "lib/morpho-v2/src/interfaces/IMorphoV2.sol";
 import {ICallbacks} from "lib/morpho-v2/src/interfaces/ICallbacks.sol";
 
+uint256 constant MAX_DURATIONS = 8;
+
 // Position in an obligation
 struct ObligationPosition {
     uint128 units;
     uint128 growth;
     uint48 lastUpdate;
-    bytes32 lastDurationsPacked;
+    uint32[8] durations;
 }
 
 // Chain of maturities, each can represent multiple obligations.
