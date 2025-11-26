@@ -53,6 +53,10 @@ contract Utils {
         return Id.wrap(_id);
     }
 
+    function unwrapId(Id _id) external pure returns (bytes32) {
+        return Id.unwrap(_id);
+    }
+
     function decodeMarketParams(bytes memory data) external pure returns (MarketParams memory) {
         return abi.decode(data, (MarketParams));
     }
