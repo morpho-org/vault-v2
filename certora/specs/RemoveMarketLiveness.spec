@@ -92,6 +92,7 @@ rule canDeallocateExpectedSupplyAssets(env e, bytes data) {
     assert !lastReverted;
 }
 
+// Check that deallocating expected supply assets puts the expected supply assets to zero.
 function canPutExpectedSupplyAssetsToZero(env e, bytes data) {
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
     Morpho.Id marketId = Utils.id(marketParams);
