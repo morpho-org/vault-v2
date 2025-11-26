@@ -24,7 +24,7 @@ methods {
     function _.market(Morpho.Id) external => DISPATCHER(true);
 
     // Assume that the IRM doesn't revert.
-    function _.expectedMarketBalances(address, Morpho.Id id, address) internal => summaryExpectedMarketBalances(id) expect (uint256, uint256, uint256, uint256);
+    function _.expectedMarketBalances(address, bytes32 id, address) internal => summaryExpectedMarketBalances(id) expect (uint256, uint256, uint256, uint256);
 }
 
 function summarySupplyShares(Morpho.Id id, address user) returns uint256 {
@@ -72,6 +72,6 @@ rule deallocatingWithZeroExpectedSupplyAssetsRemovesMarket(env e, bytes data, ui
     require MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId) == 0, "assume that the expected supply assets is left to zero";
 
     uint256 i;
-    require i < MorphoMarketV1Adapter.marketIdsLength();
+    require i < MorphoMarketV1Adapter.marketIdsLength(), "only check valid indices";
     assert MorphoMarketV1Adapter.marketIds(i) != marketId;
 }
