@@ -207,7 +207,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
             );
     }
 
-    /// @dev Can only be called from a buy callback where the adapter is the maker.
+    /// @dev Can be called by this adapter from a buy callback.
     function allocate(bytes memory data, uint256, bytes4, address vaultAllocator)
         external
         view
@@ -219,8 +219,8 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         }
     }
 
-    /// @dev Can be called from vault.deallocate from a sell callback where the adapter is the maker,
-    /// @dev or from vault.forceDeallocate to trigger a sell take by the adapter.
+    /// @dev Can be called by this adapter from a sell callback, a withdraw, or a loss realization.
+    /// @dev Can be called by a user through forceDeallocate to trigger a sell take by the adapter.
     function deallocate(bytes memory data, uint256 sellerAssets, bytes4 messageSig, address caller)
         external
         returns (bytes32[] memory, int256)
@@ -263,7 +263,6 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         require(offer.obligation.loanToken == asset, LoanAssetMismatch());
         require(offer.maker == address(this), IncorrectOwner());
         require(offer.callback == address(this), IncorrectCallbackAddress());
-        require(bytes32(offer.callbackData) != "forceDeallocate", IncorrectCallbackData());
         require(offer.start <= block.timestamp, IncorrectStart());
         // uint48.max is the list end pointer
         require(offer.obligation.maturity < type(uint48).max, IncorrectMaturity());
@@ -349,7 +348,8 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         bytes32 obligationId = _obligationId(obligation);
         require(msg.sender == address(morphoV2), NotMorphoV2());
         require(seller == address(this), NotSelf());
-        require(MorphoV2(morphoV2).debtOf(seller, obligationId) == 0, NoBorrowing());
+        require(MorphoV2(morphoV2).debtOf(address(this), obligationId) == 0, NoBorrowing());
+        accrueInterest();
 
         uint256 vaultRealAssets = IERC20(asset).balanceOf(address(parentVault));
         uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
@@ -357,13 +357,12 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
             vaultRealAssets += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
         }
         uint256 vaultBuffer = vaultRealAssets.zeroFloorSub(IVaultV2(parentVault).totalAssets());
-
-        uint256 _totalAssetsBefore = _totalAssets;
+        uint256 totalAssetsBefore = _totalAssets;
 
         ObligationPosition storage position = _positions[obligationId];
         selfDeallocate(obligation, position, -position.units.toInt256(), sellerAssets);
         removeUnits(obligation, position, soldObligationUnits);
-        require(vaultBuffer >= _totalAssetsBefore.zeroFloorSub(_totalAssets), BufferTooLow());
+        require(vaultBuffer >= totalAssetsBefore.zeroFloorSub(_totalAssets), BufferTooLow());
         selfDeallocate(obligation, position, position.units.toInt256(), 0);
     }
 
