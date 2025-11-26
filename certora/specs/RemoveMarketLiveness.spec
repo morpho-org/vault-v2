@@ -63,18 +63,17 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     return (ids, change);
 }
 
-// Check that it's possible to put the expected supply assets to zero, assuming that the IRM doesn't revert.
-// Together with deallocatingWithZeroExpectedSupplyAssetsRemovesMarket, this proves that it's possible to remove a market.
-rule canPutExpectedSupplyAssetsToZero(env e, bytes data) {
+// Check that it's possible deallocate expected supply assets, assuming that the IRM doesn't revert and that there is enough liquidity on the market.
+rule canDeallocateExpectedSupplyAssets(env e, bytes data) {
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
     Morpho.Id marketId = Utils.id(marketParams);
     bytes32 id = Utils.unwrapId(marketId);
     require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM doesn't revert";
 
-    // Assets to remove to leave the expected supply assets to zero, assuming that the adapter isn't the fee recipient.
     uint256 assets = MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId);
 
-    // Assumptions required to make the call go through.
+    require Morpho.totalSupplyAssets(marketId) - assets >= Morpho.totalBorrowAssets(marketId), "assume enough liquidity";
+
     require MorphoMarketV1Adapter.supplyShares(id) <= Morpho.supplyShares(marketId, MorphoMarketV1Adapter), "internal accounting of shares is less than actual held shares";
     require Morpho.supplyShares(marketId, MorphoMarketV1Adapter) <= Morpho.totalSupplyShares(marketId), "total supply shares is the sum of the market supply shares";
     require Morpho.supplyShares(marketId, MorphoMarketV1Adapter) < 2^128, "shares fit on 128 bits on Morpho";
@@ -87,9 +86,20 @@ rule canPutExpectedSupplyAssetsToZero(env e, bytes data) {
     require marketParams.irm == MorphoMarketV1Adapter.adaptiveCurveIrm(), "setup the call";
 
     deallocate@withrevert(e, MorphoMarketV1Adapter, data, assets);
-    assert !lastReverted;
 
-    // assert MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId) == 0;
+    assert !lastReverted;
+}
+
+function canPutExpectedSupplyAssetsToZero(env e, bytes data) {
+    Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
+    Morpho.Id marketId = Utils.id(marketParams);
+    require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM doesn't revert";
+
+    uint256 assets = MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId);
+
+    deallocate(e, MorphoMarketV1Adapter, data, assets);
+
+    assert MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId) == 0;
 }
 
 // Check that a deallocation that leaves the expected supply assets to zero removes the market.
@@ -103,7 +113,7 @@ rule deallocatingWithZeroExpectedSupplyAssetsRemovesMarket(env e, bytes data, ui
 
     deallocate(e, MorphoMarketV1Adapter, data, assets);
 
-    require MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId) == 0, "assume that the expected supply assets is left to zero";
+    require MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId) == 0, "assume that the expected supply assets is put to zero";
 
     uint256 i;
     require i < MorphoMarketV1Adapter.marketIdsLength(), "only check valid indices";
