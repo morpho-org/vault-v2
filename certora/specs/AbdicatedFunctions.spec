@@ -1,32 +1,28 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-using ERC20Standard as ERC20;
-using ERC20Helper as ERC20Helper;
-using MorphoMarketV1Adapter as MorphoMarketV1Adapter;
-using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
-
 methods {
-    function asset() external returns (address) envfree;
-    function balanceOf(address) external returns (uint256) envfree;
-    function canReceiveShares(address) external returns (bool) envfree;
-    function canSendShares(address) external returns (bool) envfree;
-    function canSendAssets(address) external returns (bool) envfree;
-    function canReceiveAssets(address) external returns (bool) envfree;
-    function isAdapter(address) external returns (bool) envfree;
-    function ERC20Helper.safeTransferFrom(address, address, address, uint256) external envfree;
+    function multicall(bytes[]) external => NONDET DELETE;
+    function abdicated(bytes4) external returns (bool) envfree;
 
-    function _.canSendShares(address user) external => ghostCanSendShares[user] expect(bool);
-    function _.canReceiveShares(address user) external => ghostCanReceiveShares[user] expect(bool);
-    function _.canSendAssets(address user) external => ghostCanSendAssets[user] expect(bool);
-    function _.canReceiveAssets(address user) external => ghostCanReceiveAssets[user] expect(bool);
-
-    function _.supply(MorphoMarketV1Adapter.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, bytes data) external => summaryMorphoMarketV1Supply(marketParams, assets, shares, onBehalf, data) expect(uint256, uint256) ALL;
-    function _.withdraw(MorphoMarketV1Adapter.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) external => summaryMorphoMarketV1Withdraw(marketParams, assets, shares, onBehalf, receiver) expect(uint256, uint256) ALL;
-
-    function _.allocate(bytes data, uint256 assets, bytes4, address) external => DISPATCHER(true);
-    function _.deallocate(bytes data, uint256 assets, bytes4, address) external => DISPATCHER(true);
-    function _.realAssets() external => DISPATCHER(true);
+    function receiveSharesGate() external returns (address) envfree;
+    function sendSharesGate() external returns (address) envfree;
+    function receiveAssetsGate() external returns (address) envfree;
+    function sendAssetsGate() external returns (address) envfree;
+    function adapterRegistry() external returns (address) envfree;
+    function isSentinel(address account) external returns (bool) envfree;
+    function isAllocator(address account) external returns (bool) envfree;
+    function adapters(uint256 index) external returns (address) envfree;
+    function isAdapter(address account) external returns (bool) envfree;
+    function absoluteCap(bytes32 id) external returns (uint256) envfree;
+    function relativeCap(bytes32 id) external returns (uint256) envfree;
+    function forceDeallocatePenalty(address adapter) external returns (uint256) envfree;
+    function timelock(bytes4 selector) external returns (uint256) envfree;
+    function abdicated(bytes4 selector) external returns (bool) envfree;
+    function performanceFee() external returns (uint96) envfree;
+    function performanceFeeRecipient() external returns (address) envfree;
+    function managementFee() external returns (uint96) envfree;
+    function managementFeeRecipient() external returns (address) envfree;
 }
 
 rule abdicatedFunctionsCantBeCalled(env e, method f, calldataarg args)
@@ -56,4 +52,176 @@ filtered {
     f@withrevert(e, args);
 
     assert lastReverted;
+}
+
+rule abdicatedCantBeDeabdicated(env e, method f, calldataarg args, bytes4 selector) {
+    require abdicated(selector);
+
+    f(e, args);
+
+    assert abdicated(selector);
+}
+
+/* ABDICATION PER FUNCTION */
+
+rule abdicateSetIsAllocator(env e, method f, calldataarg args, address account) {
+    bool abdicated = abdicated(to_bytes4(sig:setIsAllocator(address, bool).selector));
+    bool isAllocatorBefore = isAllocator(account);
+
+    f(e, args);
+
+    assert abdicated => isAllocator(account) == isAllocatorBefore;
+}
+
+rule abdicateAddAdapter(env e, method f, calldataarg args, address account) {
+    bool abdicated = abdicated(to_bytes4(sig:addAdapter(address).selector));
+    require !isAdapter(account);
+
+    f(e, args);
+
+    assert abdicated => !isAdapter(account);
+}
+
+rule abdicateRemoveAdapter(env e, method f, calldataarg args, address account) {
+    bool abdicated = abdicated(to_bytes4(sig:removeAdapter(address).selector));
+    require isAdapter(account);
+
+    f(e, args);
+
+    assert abdicated => isAdapter(account);
+}
+
+rule abdicateSetReceiveSharesGate(env e, method f, calldataarg args) {
+    bool abdicated = abdicated(to_bytes4(sig:setReceiveSharesGate(address).selector));
+    address receiveSharesGateBefore = receiveSharesGate();
+
+    f(e, args);
+
+    assert abdicated => receiveSharesGate() == receiveSharesGateBefore;
+}
+
+rule abdicateSetSendSharesGate(env e, method f, calldataarg args) {
+    bool abdicated = abdicated(to_bytes4(sig:setSendSharesGate(address).selector));
+    address sendSharesGateBefore = sendSharesGate();
+
+    f(e, args);
+
+    assert abdicated => sendSharesGate() == sendSharesGateBefore;
+}
+
+rule abdicateSetReceiveAssetsGate(env e, method f, calldataarg args) {
+    bool abdicated = abdicated(to_bytes4(sig:setReceiveAssetsGate(address).selector));
+    address receiveAssetsGateBefore = receiveAssetsGate();
+
+    f(e, args);
+
+    assert abdicated => receiveAssetsGate() == receiveAssetsGateBefore;
+}
+
+rule abdicateSetSendAssetsGate(env e, method f, calldataarg args) {
+    bool abdicated = abdicated(to_bytes4(sig:setSendAssetsGate(address).selector));
+    address sendAssetsGateBefore = sendAssetsGate();
+
+    f(e, args);
+
+    assert abdicated => sendAssetsGate() == sendAssetsGateBefore;
+}
+
+rule abdicateSetAdapterRegistry(env e, method f, calldataarg args) {
+    bool abdicated = abdicated(to_bytes4(sig:setAdapterRegistry(address).selector));
+    address adapterRegistryBefore = adapterRegistry();
+
+    f(e, args);
+
+    assert abdicated => adapterRegistry() == adapterRegistryBefore;
+}
+
+rule abdicateIncreaseAbsoluteCap(env e, method f, calldataarg args, bytes32 id) {
+    bool abdicated = abdicated(to_bytes4(sig:increaseAbsoluteCap(bytes, uint256).selector));
+    uint256 absoluteCapBefore = absoluteCap(id);
+
+    f(e, args);
+
+    assert abdicated => absoluteCap(id) <= absoluteCapBefore;
+}
+
+rule abdicateIncreaseRelativeCap(env e, method f, calldataarg args, bytes32 id) {
+    bool abdicated = abdicated(to_bytes4(sig:increaseRelativeCap(bytes, uint256).selector));
+    uint256 relativeCapBefore = relativeCap(id);
+
+    f(e, args);
+
+    assert abdicated => relativeCap(id) <= relativeCapBefore;
+}
+
+rule abdicateSetPerformanceFee(env e, method f, calldataarg args) {
+    bool abdicated = abdicated(to_bytes4(sig:setPerformanceFee(uint256).selector));
+    uint256 performanceFeeBefore = performanceFee();
+
+    f(e, args);
+
+    assert abdicated => performanceFee() == performanceFeeBefore;
+}
+
+rule abdicateSetManagementFee(env e, method f, calldataarg args) {
+    bool abdicated = abdicated(to_bytes4(sig:setManagementFee(uint256).selector));
+    uint256 managementFeeBefore = managementFee();
+
+    f(e, args);
+
+    assert abdicated => managementFee() == managementFeeBefore;
+}
+
+rule abdicateSetPerformanceFeeRecipient(env e, method f, calldataarg args) {
+    bool abdicated = abdicated(to_bytes4(sig:setPerformanceFeeRecipient(address).selector));
+    address performanceFeeRecipientBefore = performanceFeeRecipient();
+
+    f(e, args);
+
+    assert abdicated => performanceFeeRecipient() == performanceFeeRecipientBefore;
+}
+
+rule abdicateSetManagementFeeRecipient(env e, method f, calldataarg args) {
+    bool abdicated = abdicated(to_bytes4(sig:setManagementFeeRecipient(address).selector));
+    address managementFeeRecipientBefore = managementFeeRecipient();
+
+    f(e, args);
+
+    assert abdicated => managementFeeRecipient() == managementFeeRecipientBefore;
+}
+
+rule abdicateSetForceDeallocatePenalty(env e, method f, calldataarg args, address adapter) {
+    bool abdicated = abdicated(to_bytes4(sig:setForceDeallocatePenalty(address, uint256).selector));
+    uint256 forceDeallocatePenaltyBefore = forceDeallocatePenalty(adapter);
+
+    f(e, args);
+
+    assert abdicated => forceDeallocatePenalty(adapter) == forceDeallocatePenaltyBefore;
+}
+
+rule abdicateIncreaseTimelock(env e, method f, calldataarg args, bytes4 selector) {
+    bool abdicated = abdicated(to_bytes4(sig:increaseTimelock(bytes4, uint256).selector));
+    uint256 timelockBefore = timelock(selector);
+
+    f(e, args);
+
+    assert abdicated => timelock(selector) <= timelockBefore;
+}
+
+rule abdicateDecreaseTimelock(env e, method f, calldataarg args, bytes4 selector) {
+    bool abdicated = abdicated(to_bytes4(sig:decreaseTimelock(bytes4, uint256).selector));
+    uint256 timelockBefore = timelock(selector);
+
+    f(e, args);
+
+    assert abdicated => timelock(selector) >= timelockBefore;
+}
+
+rule abdicateAbdicate(env e, method f, calldataarg args, bytes4 selector) {
+    bool abdicated = abdicated(to_bytes4(sig:abdicate(bytes4).selector));
+    bool abdicatedBefore = abdicated(selector);
+
+    f(e, args);
+
+    assert abdicated => abdicated(selector) == abdicatedBefore;
 }
