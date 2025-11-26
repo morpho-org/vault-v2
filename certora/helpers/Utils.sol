@@ -49,6 +49,10 @@ contract Utils {
         return MarketParamsLib.id(marketParams);
     }
 
+    function wrapId(bytes32 _id) external pure returns (Id) {
+        return Id.wrap(_id);
+    }
+
     function decodeMarketParams(bytes memory data) external pure returns (MarketParams memory) {
         return abi.decode(data, (MarketParams));
     }
