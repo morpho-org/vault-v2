@@ -20,6 +20,7 @@ methods {
     // To fix linking issues.
     function _.deallocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
     function SafeTransferLib.safeTransfer(address, address, uint256) internal => NONDET;
+    function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
 
     // Assume that the IRM doesn't revert.
     function _.expectedMarketBalances(address, bytes32 id, address) internal => summaryExpectedMarketBalances(id) expect (uint256, uint256, uint256, uint256);
