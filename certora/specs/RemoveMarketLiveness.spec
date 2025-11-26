@@ -59,9 +59,9 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     ids, change = MorphoMarketV1Adapter.deallocate(e, data, assets, selector, sender);
     require ids.length == 3;
     // See distinctMarketV1Ids rule.
-    require ids[0] != ids[1];
-    require ids[0] != ids[2];
-    require ids[1] != ids[2];
+    require ids[0] != ids[1], "ack";
+    require ids[0] != ids[2], "ack";
+    require ids[1] != ids[2], "ack";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= max_int256(), "see allocationIsInt256";
     require currentContract.caps[ids[0]].allocation >= currentContract.caps[ids[2]].allocation, "adapter id allocation is a sum of market id allocation";
