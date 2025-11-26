@@ -13,6 +13,8 @@ methods {
     function Morpho.lastUpdate(Morpho.Id) external returns (uint256) envfree;
     function Morpho.supplyShares(Morpho.Id, address) external returns (uint256) envfree;
     function Morpho.totalSupplyShares(Morpho.Id) external returns (uint256) envfree;
+    function Morpho.totalSupplyAssets(Morpho.Id) external returns (uint256) envfree;
+    function Morpho.totalBorrowAssets(Morpho.Id) external returns (uint256) envfree;
     function MorphoMarketV1Adapter.asset() external returns (address) envfree;
     function MorphoMarketV1Adapter.adaptiveCurveIrm() external returns (address) envfree;
     function MorphoMarketV1Adapter.marketIdsLength() external returns (uint256) envfree;
