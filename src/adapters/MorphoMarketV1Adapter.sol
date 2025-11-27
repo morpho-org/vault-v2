@@ -114,8 +114,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
             uint256 supplyAssets = expectedSupplyAssets(marketId);
             bytes memory data = abi.encode(marketParams);
             IMorpho(morpho).supply(marketParams, supplyAssets, 0, movedSharesRecipient, data);
-
-            IMovedSharesRecipient(movedSharesRecipient).init(marketParams, supplyAssets);
         }
 
         uint256 supplySharesBefore = supplyShares[marketId];
@@ -126,7 +124,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     function onMorphoSupply(uint256 assets, bytes memory data) external {
         require(msg.sender == morpho, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+        (, uint256 receivedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
+        IMovedSharesRecipient(movedSharesRecipient).init(marketParams, receivedShares, assets);
     }
 
     function submitSetMovedSharesRecipient(address newMovedSharesRecipient) external {
