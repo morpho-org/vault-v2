@@ -56,7 +56,7 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     bytes32[] ids;
     int256 change;
     ids, change = MorphoMarketV1Adapter.deallocate(e, data, assets, selector, sender);
-    require ids.length == 3;
+    require ids.length == 3, "see IdsMorphoMarketV1Adapter";
     // See distinctMarketV1Ids rule.
     require ids[0] != ids[1], "ack";
     require ids[0] != ids[2], "ack";
