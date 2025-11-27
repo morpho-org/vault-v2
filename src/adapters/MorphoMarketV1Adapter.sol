@@ -108,6 +108,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
         if (movedSharesRecipient != address(0)) {
             require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+            require(IVaultV2(parentVault).firstTotalAssets() != 0, CannotBeLocked());
             lockedAtBlockNumber = block.number;
 
             MarketParams memory marketParams = IMorpho(morpho).idToMarketParams(Id.wrap(marketId));

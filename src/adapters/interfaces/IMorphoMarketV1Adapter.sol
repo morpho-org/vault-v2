@@ -8,8 +8,6 @@ import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol"
 interface IMorphoMarketV1Adapter is IAdapter {
     /* EVENTS */
 
-    error AlreadyMoved();
-    error MovedSharesRecipientNotSet();
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SubmitSetMovedSharesRecipient(address indexed newMovedSharesRecipient, uint256 executableAt);
     event RevokeSetMovedSharesRecipient(address movedSharesRecipient);
@@ -26,6 +24,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
     error AlreadyBurned();
     error AlreadyPending();
     error AlreadySet();
+    error CannotBeLocked();
     error IrmMismatch();
     error LoanAssetMismatch();
     error Locked();
