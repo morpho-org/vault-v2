@@ -148,7 +148,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         MarketParams memory marketParams = IMorpho(morpho).idToMarketParams(Id.wrap(marketId));
         uint256 supplyAssets = expectedSupplyAssets(marketId);
         bytes memory data = abi.encode(marketParams);
-        IMorpho(morpho).supply(marketParams, supplyAssets, 0, address(this), data);
+        IMorpho(morpho).supply(marketParams, supplyAssets, 0, movedSharesRecipient, data);
 
         uint256 supplySharesBefore = supplyShares[marketId];
         supplyShares[marketId] = 0;
@@ -158,7 +158,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     function onMorphoSupply(uint256 assets, bytes memory data) external {
         require(msg.sender == morpho, NotAuthorized());
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        IMorpho(morpho).withdraw(marketParams, assets, 0, movedSharesRecipient, address(this));
+        IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
