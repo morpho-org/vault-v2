@@ -60,6 +60,6 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function submitSetMovedSharesRecipient(address newMovedSharesRecipient) external;
     function revokeSetMovedSharesRecipient(address movedSharesRecipient) external;
     function setMovedSharesRecipient(address newMovedSharesRecipient) external;
-    function moveShares(bytes32 marketId) external;
+    function moveShares(MarketParams memory marketParams) external;
     function skim(address token) external;
 }

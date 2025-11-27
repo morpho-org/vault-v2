@@ -138,14 +138,14 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         emit SetMovedSharesRecipient(newMovedSharesRecipient);
     }
 
-    function moveShares(bytes32 marketId) external {
+    function moveShares(MarketParams memory marketParams) external {
+        bytes32 marketId = Id.unwrap(marketParams.id());
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         require(movedSharesRecipient != address(0), MovedSharesRecipientNotSet());
         require(blockNumberWhenMovedShares[marketId] == 0, AlreadyMoved());
         blockNumberWhenMovedShares[marketId] = block.number;
         lockedAtBlockNumber = block.number;
 
-        MarketParams memory marketParams = IMorpho(morpho).idToMarketParams(Id.wrap(marketId));
         uint256 supplyAssets = expectedSupplyAssets(marketId);
         bytes memory data = abi.encode(marketParams);
         IMorpho(morpho).supply(marketParams, supplyAssets, 0, movedSharesRecipient, data);
