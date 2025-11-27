@@ -45,6 +45,9 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     bytes32[] public marketIds;
     mapping(bytes32 marketId => uint256) public supplyShares;
     mapping(bytes32 marketId => uint256) public burnSharesExecutableAt;
+    uint256 public movedSharesRecipientExecutableAt;
+    address public movedSharesRecipient;
+    mapping(bytes32 marketId => uint256) public blockNumberWhenMovedShares;
 
     function marketIdsLength() external view returns (uint256) {
         return marketIds.length;
@@ -104,6 +107,49 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         uint256 supplySharesBefore = supplyShares[marketId];
         supplyShares[marketId] = 0;
         emit BurnShares(marketId, supplySharesBefore);
+    }
+
+    function submitSetMovedSharesRecipient(address newMovedSharesRecipient) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        require(movedSharesRecipientExecutableAt == 0, AlreadyPending());
+        movedSharesRecipientExecutableAt = block.timestamp + IVaultV2(parentVault).timelock(IVaultV2.removeAdapter.selector);
+        emit SubmitSetMovedSharesRecipient(movedSharesRecipientExecutableAt);
+    }
+
+    function revokeSetMovedSharesRecipient() external {
+        require(msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender), NotAuthorized());
+        require(movedSharesRecipientExecutableAt != 0, NotPending());
+        movedSharesRecipientExecutableAt = 0;
+        emit RevokeSetMovedSharesRecipient();
+    }
+
+    function setMovedSharesRecipient(address newMovedSharesRecipient) external {
+        require(movedSharesRecipientExecutableAt != 0, NotPending());
+        require(block.timestamp >= movedSharesRecipientExecutableAt, TimelockNotExpired());
+        movedSharesRecipientExecutableAt = 0;
+        movedSharesRecipient = newMovedSharesRecipient;
+        emit SetMovedSharesRecipient(newMovedSharesRecipient);
+    }
+
+    function moveShares(bytes32 marketId) external {
+        require(movedSharesRecipient != address(0), MovedSharesRecipientNotSet());
+        require(blockNumberWhenMovedShares[marketId] == 0, AlreadyMoved());
+        blockNumberWhenMovedShares[marketId] = block.number;
+
+        MarketParams memory marketParams = IMorpho(morpho).idToMarketParams(Id.wrap(marketId));
+        uint256 supplyAssets = expectedSupplyAssets(marketId);
+        bytes memory data = abi.encode(marketParams);
+        IMorpho(morpho).supply(marketParams, supplyAssets, 0, address(this), data);
+
+        uint256 supplySharesBefore = supplyShares[marketId];
+        supplyShares[marketId] = 0;
+        emit BurnShares(marketId, supplySharesBefore);
+    }
+
+    function onMorphoSupply(uint256 assets, bytes memory data) external {
+        require(msg.sender == morpho, NotAuthorized());
+        MarketParams memory marketParams = abi.decode(data, (MarketParams));
+        IMorpho(morpho).withdraw(marketParams, assets, 0, movedSharesRecipient, address(this));
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.

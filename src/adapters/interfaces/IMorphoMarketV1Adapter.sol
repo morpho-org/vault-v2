@@ -8,7 +8,12 @@ import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol"
 interface IMorphoMarketV1Adapter is IAdapter {
     /* EVENTS */
 
+    error AlreadyMoved();
+    error MovedSharesRecipientNotSet();
     event SetSkimRecipient(address indexed newSkimRecipient);
+    event SubmitSetMovedSharesRecipient(uint256 executableAt);
+    event RevokeSetMovedSharesRecipient();
+    event SetMovedSharesRecipient(address indexed newMovedSharesRecipient);
     event Skim(address indexed token, uint256 assets);
     event SubmitBurnShares(bytes32 indexed id, uint256 executableAt);
     event RevokeBurnShares(bytes32 indexed id);
@@ -18,7 +23,9 @@ interface IMorphoMarketV1Adapter is IAdapter {
 
     /* ERRORS */
 
+    error AlreadyBurned();
     error AlreadyPending();
+    error AlreadySet();
     error IrmMismatch();
     error LoanAssetMismatch();
     error NotAuthorized();
@@ -49,5 +56,9 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function revokeBurnShares(bytes32 id) external;
     function burnShares(bytes32 id) external;
     function setSkimRecipient(address newSkimRecipient) external;
+    function submitSetMovedSharesRecipient(address newMovedSharesRecipient) external;
+    function revokeSetMovedSharesRecipient() external;
+    function setMovedSharesRecipient(address newMovedSharesRecipient) external;
+    function moveShares(bytes32 marketId) external;
     function skim(address token) external;
 }
