@@ -14,6 +14,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
     event SubmitSetMovedSharesRecipient(address indexed newMovedSharesRecipient, uint256 executableAt);
     event RevokeSetMovedSharesRecipient(address movedSharesRecipient);
     event SetMovedSharesRecipient(address indexed newMovedSharesRecipient);
+    event MoveShares(bytes32 indexed marketId, uint256 sharesToMove);
     event Skim(address indexed token, uint256 assets);
     event SubmitBurnShares(bytes32 indexed id, uint256 executableAt);
     event RevokeBurnShares(bytes32 indexed id);
@@ -60,6 +61,6 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function submitSetMovedSharesRecipient(address newMovedSharesRecipient) external;
     function revokeSetMovedSharesRecipient(address movedSharesRecipient) external;
     function setMovedSharesRecipient(address newMovedSharesRecipient) external;
-    function moveShares(MarketParams memory marketParams) external;
+    function skimShares(MarketParams memory marketParams) external;
     function skim(address token) external;
 }
