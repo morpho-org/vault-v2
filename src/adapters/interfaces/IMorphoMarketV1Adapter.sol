@@ -28,6 +28,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
     error AlreadySet();
     error IrmMismatch();
     error LoanAssetMismatch();
+    error Locked();
     error NotAuthorized();
     error NotPending();
     error NotTimelocked();

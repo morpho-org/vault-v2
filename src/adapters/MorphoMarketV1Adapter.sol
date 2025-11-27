@@ -48,6 +48,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     mapping(address movedSharesRecipient => uint256) public movedSharesRecipientExecutableAt;
     address public movedSharesRecipient;
     mapping(bytes32 marketId => uint256) public blockNumberWhenMovedShares;
+    uint256 public lockedAtBlockNumber;
 
     function marketIdsLength() external view returns (uint256) {
         return marketIds.length;
@@ -142,6 +143,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(movedSharesRecipient != address(0), MovedSharesRecipientNotSet());
         require(blockNumberWhenMovedShares[marketId] == 0, AlreadyMoved());
         blockNumberWhenMovedShares[marketId] = block.number;
+        lockedAtBlockNumber = block.number;
 
         MarketParams memory marketParams = IMorpho(morpho).idToMarketParams(Id.wrap(marketId));
         uint256 supplyAssets = expectedSupplyAssets(marketId);
@@ -258,6 +260,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     }
 
     function realAssets() external view returns (uint256) {
+        require(block.number > lockedAtBlockNumber, Locked());
         uint256 _realAssets = 0;
         for (uint256 i = 0; i < marketIds.length; i++) {
             _realAssets += expectedSupplyAssets(marketIds[i]);
