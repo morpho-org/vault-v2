@@ -112,12 +112,18 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     function submitSetMovedSharesRecipient(address newMovedSharesRecipient) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         require(movedSharesRecipientExecutableAt[newMovedSharesRecipient] == 0, AlreadyPending());
-        movedSharesRecipientExecutableAt[newMovedSharesRecipient] = block.timestamp + IVaultV2(parentVault).timelock(IVaultV2.removeAdapter.selector);
-        emit SubmitSetMovedSharesRecipient(newMovedSharesRecipient, movedSharesRecipientExecutableAt[newMovedSharesRecipient]);
+        movedSharesRecipientExecutableAt[newMovedSharesRecipient] =
+            block.timestamp + IVaultV2(parentVault).timelock(IVaultV2.removeAdapter.selector);
+        emit SubmitSetMovedSharesRecipient(
+            newMovedSharesRecipient, movedSharesRecipientExecutableAt[newMovedSharesRecipient]
+        );
     }
 
     function revokeSetMovedSharesRecipient(address newMovedSharesRecipient) external {
-        require(msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender), NotAuthorized());
+        require(
+            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
         require(movedSharesRecipientExecutableAt[newMovedSharesRecipient] != 0, NotPending());
         movedSharesRecipientExecutableAt[newMovedSharesRecipient] = 0;
         emit RevokeSetMovedSharesRecipient(newMovedSharesRecipient);
