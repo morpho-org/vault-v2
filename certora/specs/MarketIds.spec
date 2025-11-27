@@ -1,36 +1,42 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 using Utils as Utils;
+using MorphoMarketV1Adapter as MorphoMarketV1Adapter;
 
 methods {
-    function allocation(MorphoMarketV1Adapter.MarketParams memory marketParams) internal returns (uint256) => summaryAllocation(marketParams);
+    function allocation(MorphoMarketV1Adapter.MarketParams memory marketParams) internal returns (uint256) => ghostAllocation[Utils.id(marketParams)];
 
-    function expectedSupplyAssets(bytes32 marketId) internal returns (uint256) => summaryExpectedSupplyAssets(marketId);
+    function allocate(bytes data, uint256 assets, bytes4, address) external returns (bytes32[] , int256) with (env e) => morphoMarketV1AdapterWrapperSummary(e, true, data, assets) ALL;
+    function deallocate(bytes data, uint256 assets, bytes4, address) external returns (bytes32[] , int256) with (env e) => morphoMarketV1AdapterWrapperSummary(e, false, data, assets) ALL;
 
     function Utils.id(MorphoMarketV1Adapter.MarketParams) external returns (MorphoMarketV1Adapter.Id) envfree;
+    function Utils.decodeMarketParams(bytes) external returns (MorphoMarketV1Adapter.MarketParams) envfree;
 }
-
-definition max_int256() returns int256 = (2 ^ 255) - 1;
 
 // Mimics the allocation in the vault corresponding to the function allocation of the MorphoMarketV1Adapter.
-ghost mapping (bytes32 => uint256) ghostAllocation;
+ghost mapping (MorphoMarketV1Adapter.Id => uint256) ghostAllocation;
 
-function summaryAllocation(MorphoMarketV1Adapter.MarketParams marketParams) returns uint256 {
-    return ghostAllocation[Utils.id(marketParams)];
-}
+function morphoMarketV1AdapterWrapperSummary(env e, bool isAllocateCall, bytes data, uint256 assets) returns (bytes32[], int256) {
+    bytes32[] ids;
+    int256 change;
 
-function summaryExpectedSupplyAssets(bytes32 marketId) returns uint256 {
-    uint256 newAllocation;
-    require newAllocation <= max_int256(), "see allocationIsInt256";
-    // Assumes that the allocation in the vault is newAllocation after allocate and deallocate.
-    // Safe because it is a corollary of allocateChangesAllocationOfIds, deallocateChangesAllocationOfIds and allocationIsInt256.
-    ghostAllocation[marketId] = newAllocation;
-    return newAllocation;
+    bytes4 selector;
+    address sender;
+    if (isAllocateCall) {
+        ids, change = allocate(e, data, assets, selector, sender);
+    } else {
+        ids, change = deallocate(e, data, assets, selector, sender);
+    }
+    MorphoMarketV1Adapter.MarketParams marketParams = Utils.decodeMarketParams(data);
+    MorphoMarketV1Adapter.Id marketId = Utils.id(marketParams);
+    // Safe require because it is the same computation as in the implementation `(int256(allocation) + change).toUint256()`, except for the cast of the allocation to int256 which is guaranteed to be safe by the rule allocationIsInt256.
+    ghostAllocation[marketId] = require_uint256(ghostAllocation[marketId] + change);
+    return (ids, change);
 }
 
 // Prove that if a market has no allocation, it is not in the market ids list.
 strong invariant marketIdsWithNoAllocationIsNotInMarketIds()
-    forall bytes32 marketId.
+    forall MorphoMarketV1Adapter.Id marketId.
     forall uint256 i. i < currentContract.marketIds.length => ghostAllocation[marketId] == 0 => currentContract.marketIds[i] != marketId
 {
     preserved {
