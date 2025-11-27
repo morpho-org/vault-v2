@@ -33,7 +33,6 @@ methods {
     function SafeTransferLib.safeTransfer(address, address, uint256) internal => NONDET;
     function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
 
-    // Assume that the allocation of the market from which to deallocate is positive.
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with (env e) => summaryDeallocate(e, data, assets, selector, sender) expect (bytes32[], int256);
 
     // Assume that the IRM doesn't revert.
