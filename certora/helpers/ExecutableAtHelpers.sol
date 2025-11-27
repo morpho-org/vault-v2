@@ -16,142 +16,115 @@ import {
 contract ExecutableAtHelpers {
     VaultV2 public vault;
 
-    function checkTimelockConditions() internal view {
+    function timelockFails() internal view returns (bool) {
         uint256 executableAtData = vault.executableAt(msg.data);
-        require(executableAtData != 0, "Data not submitted");
-        require(block.timestamp >= executableAtData, "Timelock not expired");
-        bytes4 selector = bytes4(msg.data);
-        require(!vault.abdicated(selector), "Function is abdicated");
+        bool dataNotSubmitted = executableAtData == 0;
+        bool timelockNotExpired = block.timestamp < executableAtData;
+        bool functionAbdicated = vault.abdicated(bytes4(msg.data));
+        return dataNotSubmitted || timelockNotExpired || functionAbdicated;
     }
 
-    // ============================================================================
-    // TIMELOCKED FUNCTIONS - Match VaultV2 signatures
-    // ============================================================================
-
-    function setIsAllocator(address, bool) external view {
-        checkTimelockConditions();
+    function setIsAllocator(address, bool) external view returns (bool) {
+        return timelockFails();
     }
 
-    function setReceiveSharesGate(address) external view {
-        checkTimelockConditions();
+    function setReceiveSharesGate(address) external view returns (bool) {
+        return timelockFails();
     }
 
-    function setSendSharesGate(address) external view {
-        checkTimelockConditions();
+    function setSendSharesGate(address) external view returns (bool) {
+        return timelockFails();
     }
 
-    function setReceiveAssetsGate(address) external view {
-        checkTimelockConditions();
+    function setReceiveAssetsGate(address) external view returns (bool) {
+        return timelockFails();
     }
 
-    function setSendAssetsGate(address) external view {
-        checkTimelockConditions();
+    function setSendAssetsGate(address) external view returns (bool) {
+        return timelockFails();
     }
 
-    function setAdapterRegistry(address newAdapterRegistry) external view {
-        checkTimelockConditions();
+    function setAdapterRegistry(address newAdapterRegistry) external view returns (bool revertCondition) {
+        revertCondition = timelockFails();
 
-        // If setting a non-zero registry, it must include all existing adapters
         if (newAdapterRegistry != address(0)) {
             uint256 adaptersLength = vault.adaptersLength();
             for (uint256 i = 0; i < adaptersLength; i++) {
                 address adapter = vault.adapters(i);
-                require(IAdapterRegistry(newAdapterRegistry).isInRegistry(adapter), "Adapter not in new registry");
+                revertCondition = revertCondition || !IAdapterRegistry(newAdapterRegistry).isInRegistry(adapter);
             }
         }
     }
 
-    function addAdapter(address account) external view {
-        checkTimelockConditions();
+    function addAdapter(address account) external view returns (bool revertCondition) {
+        revertCondition = timelockFails();
 
         address registry = vault.adapterRegistry();
-        require(registry == address(0) || IAdapterRegistry(registry).isInRegistry(account), "Adapter not in registry");
+        revertCondition = revertCondition || (registry != address(0) && !IAdapterRegistry(registry).isInRegistry(account));
     }
 
-    function removeAdapter(address) external view {
-        checkTimelockConditions();
+    function removeAdapter(address) external view returns (bool) {
+        return timelockFails();
     }
 
-    function increaseTimelock(bytes4 targetSelector, uint256 newDuration) external view {
-        checkTimelockConditions();
-        require(targetSelector != IVaultV2.decreaseTimelock.selector, "Cannot timelock decreaseTimelock");
-        require(newDuration >= vault.timelock(targetSelector), "Timelock not increasing");
+    function increaseTimelock(bytes4 targetSelector, uint256 newDuration) external view returns (bool revertCondition) {
+        revertCondition = timelockFails();
+        revertCondition = revertCondition || targetSelector == IVaultV2.decreaseTimelock.selector;
+        revertCondition = revertCondition || newDuration < vault.timelock(targetSelector);
     }
 
-    function decreaseTimelock(bytes4 targetSelector, uint256 newDuration) external view {
-        checkTimelockConditions();
-        require(targetSelector != IVaultV2.decreaseTimelock.selector, "Cannot timelock decreaseTimelock");
-        require(newDuration <= vault.timelock(targetSelector), "Timelock not decreasing");
+    function decreaseTimelock(bytes4 targetSelector, uint256 newDuration) external view returns (bool revertCondition) {
+        revertCondition = timelockFails();
+        revertCondition = revertCondition || targetSelector == IVaultV2.decreaseTimelock.selector;
+        revertCondition = revertCondition || newDuration > vault.timelock(targetSelector);
     }
 
-    function abdicate(bytes4) external view {
-        checkTimelockConditions();
+    function abdicate(bytes4) external view returns (bool) {
+        return timelockFails();
     }
 
-    function setPerformanceFee(uint256 newPerformanceFee) external view {
-        checkTimelockConditions();
-        require(block.timestamp >= vault.lastUpdate(), "Last update not set");
-        require(block.timestamp <= vault.lastUpdate() + 315360000, "Time too far in future");
-        require(newPerformanceFee <= MAX_PERFORMANCE_FEE, "Fee exceeds MAX_PERFORMANCE_FEE");
-        require(
-            vault.performanceFeeRecipient() != address(0) || newPerformanceFee == 0,
-            "Fee invariant broken: recipient must be set if fee > 0"
-        );
+    function setPerformanceFee(uint256 newPerformanceFee) external view returns (bool revertCondition) {
+        revertCondition = timelockFails();
+        revertCondition = revertCondition || newPerformanceFee > MAX_PERFORMANCE_FEE;
+        revertCondition = revertCondition || (vault.performanceFeeRecipient() == address(0) && newPerformanceFee > 0);
     }
 
-    function setManagementFee(uint256 newManagementFee) external view {
-        checkTimelockConditions();
-        require(block.timestamp >= vault.lastUpdate(), "Last update not set");
-        require(block.timestamp <= vault.lastUpdate() + 315360000, "Time too far in future");
-        require(newManagementFee <= MAX_MANAGEMENT_FEE, "Fee exceeds MAX_MANAGEMENT_FEE");
-        require(
-            vault.managementFeeRecipient() != address(0) || newManagementFee == 0,
-            "Fee invariant broken: recipient must be set if fee > 0"
-        );
+    function setManagementFee(uint256 newManagementFee) external view returns (bool revertCondition) {
+        revertCondition = timelockFails();
+        revertCondition = revertCondition || newManagementFee > MAX_MANAGEMENT_FEE;
+        revertCondition = revertCondition || (vault.managementFeeRecipient() == address(0) && newManagementFee > 0);
     }
 
-    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external view {
-        checkTimelockConditions();
-        require(block.timestamp >= vault.lastUpdate(), "Last update not set");
-        require(block.timestamp <= vault.lastUpdate() + 315360000, "Time too far in future");
-        require(
-            newPerformanceFeeRecipient != address(0) || vault.performanceFee() == 0,
-            "Fee invariant broken: recipient cannot be zero if fee > 0"
-        );
+    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external view returns (bool revertCondition) {
+        revertCondition = timelockFails();
+        revertCondition = revertCondition || newPerformanceFeeRecipient == address(0) && vault.performanceFee() > 0;
     }
 
-    function setManagementFeeRecipient(address newManagementFeeRecipient) external view {
-        checkTimelockConditions();
-        require(block.timestamp >= vault.lastUpdate(), "Last update not set");
-        require(block.timestamp <= vault.lastUpdate() + 315360000, "Time too far in future");
-        require(
-            newManagementFeeRecipient != address(0) || vault.managementFee() == 0,
-            "Fee invariant broken: recipient cannot be zero if fee > 0"
-        );
+    function setManagementFeeRecipient(address newManagementFeeRecipient) external view returns (bool revertCondition) {
+        revertCondition = timelockFails();
+        revertCondition = revertCondition || newManagementFeeRecipient == address(0) && vault.managementFee() > 0;
     }
 
-    function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external view {
-        checkTimelockConditions();
+    function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external view returns (bool revertCondition) {
+        revertCondition = timelockFails();
 
-        // Check that new cap is actually increasing and fits in uint128
         bytes32 id = keccak256(idData);
         uint256 currentAbsoluteCap = vault.absoluteCap(id);
-        require(newAbsoluteCap >= currentAbsoluteCap, "Absolute cap not increasing");
-        require(newAbsoluteCap <= type(uint128).max, "Cap exceeds uint128 max");
+        revertCondition = revertCondition || newAbsoluteCap < currentAbsoluteCap;
+        revertCondition = revertCondition || newAbsoluteCap > type(uint128).max;
     }
 
-    function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external view {
-        checkTimelockConditions();
-        require(newRelativeCap <= WAD, "Relative cap exceeds WAD (100%)");
+    function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external view returns (bool revertCondition) {
+        revertCondition = timelockFails();
+        revertCondition = revertCondition || newRelativeCap > WAD;
 
-        // Check that new cap is actually increasing
         bytes32 id = keccak256(idData);
         uint256 currentRelativeCap = vault.relativeCap(id);
-        require(newRelativeCap >= currentRelativeCap, "Relative cap not increasing");
+        revertCondition = revertCondition || newRelativeCap < currentRelativeCap;
     }
 
-    function setForceDeallocatePenalty(address, uint256 newForceDeallocatePenalty) external view {
-        checkTimelockConditions();
-        require(newForceDeallocatePenalty <= MAX_FORCE_DEALLOCATE_PENALTY, "Penalty exceeds MAX");
+    function setForceDeallocatePenalty(address, uint256 newForceDeallocatePenalty) external view returns (bool revertCondition) {
+        revertCondition = timelockFails();
+        revertCondition = revertCondition || newForceDeallocatePenalty > MAX_FORCE_DEALLOCATE_PENALTY;
     }
 }

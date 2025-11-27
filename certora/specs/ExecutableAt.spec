@@ -1,169 +1,159 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-// ExecutableAtHelpers.spec
-// This specification verifies that each individual timelocked function can be
-// successfully executed after the timelock period expires.
-//  Each rule:
-//   1. Uses the consolidated ExecutableAt helper that checks both timelock
-//      conditions and function-specific business logic constraints
-//   2. Verifies the function can execute when all conditions are met
-
 using ExecutableAtHelpers as ExecutableAtHelpers;
 
+// Check the revert conditions. Because the helper contract is called first, this specification doesn't catch trivial revert conditions like e.msg.value != 0.
+
 methods {
-    function VaultV2.accrueInterestView() internal returns (uint256, uint256, uint256) => accrueInterestViewSummary();
-    function _.isInRegistry(address) external => ALWAYS(true);
+    // Assume that interest accrual does not revert.
+    function VaultV2.accrueInterest() internal => NONDET;
+    // Assume that the registry is add-only.
+    function _.isInRegistry(address adapter) external => ghostIsInRegistry(adapter) expect bool;
 }
 
-function accrueInterestViewSummary() returns (uint256, uint256, uint256) {
-    return (currentContract._totalAssets, 0, 0);
-}
+ghost ghostIsInRegistry(address) returns bool;
 
-// ============================================================================
-// PER-FUNCTION RULES - WORKING SCENARIO
-// ============================================================================
-
-rule canExecuteSetIsAllocator(env e, calldataarg args)
+rule setIsAllocatorRevertConditions(env e, calldataarg args)
 {
-    ExecutableAtHelpers.setIsAllocator(e, args);
+    bool revertCondition = ExecutableAtHelpers.setIsAllocator(e, args);
 
     setIsAllocator@withrevert(e, args);
-    assert !lastReverted, "setIsAllocator should succeed after helper checks pass";
+    assert lastReverted <=> revertCondition;
 }
 
-rule canExecuteSetReceiveSharesGate(env e, calldataarg args)
+rule setReceiveSharesGateRevertConditions(env e, calldataarg args)
 {
-    ExecutableAtHelpers.setReceiveSharesGate(e, args);
+    bool revertCondition = ExecutableAtHelpers.setReceiveSharesGate(e, args);
 
     setReceiveSharesGate@withrevert(e, args);
-    assert !lastReverted, "setReceiveSharesGate should succeed after helper checks pass";
+    assert lastReverted <=> revertCondition;
 }
 
-rule canExecuteSetSendSharesGate(env e, calldataarg args)
+rule setSendSharesGateRevertConditions(env e, calldataarg args)
 {
-    ExecutableAtHelpers.setSendSharesGate(e, args);
+    bool revertCondition = ExecutableAtHelpers.setSendSharesGate(e, args);
 
     setSendSharesGate@withrevert(e, args);
-    assert !lastReverted, "setSendSharesGate should succeed after helper checks pass";
+    assert lastReverted <=> revertCondition;
 }
 
-rule canExecuteSetReceiveAssetsGate(env e, calldataarg args)
+rule setReceiveAssetsGateRevertConditions(env e, calldataarg args)
 {
-    ExecutableAtHelpers.setReceiveAssetsGate(e, args);
+    bool revertCondition = ExecutableAtHelpers.setReceiveAssetsGate(e, args);
 
     setReceiveAssetsGate@withrevert(e, args);
-    assert !lastReverted, "setReceiveAssetsGate should succeed after helper checks pass";
+    assert lastReverted <=> revertCondition;
 }
 
-rule canExecuteSetSendAssetsGate(env e, calldataarg args)
+rule setSendAssetsGateRevertConditions(env e, calldataarg args)
 {
-    ExecutableAtHelpers.setSendAssetsGate(e, args);
+    bool revertCondition = ExecutableAtHelpers.setSendAssetsGate(e, args);
 
     setSendAssetsGate@withrevert(e, args);
-    assert !lastReverted, "setSendAssetsGate should succeed after helper checks pass";
+    assert lastReverted <=> revertCondition;
 }
 
-rule canExecuteSetAdapterRegistry(env e, calldataarg args)
+rule setAdapterRegistryRevertConditions(env e, calldataarg args)
 {
-    ExecutableAtHelpers.setAdapterRegistry(e, args);
+    bool revertCondition = ExecutableAtHelpers.setAdapterRegistry(e, args);
 
     setAdapterRegistry@withrevert(e, args);
-    assert !lastReverted, "setAdapterRegistry should succeed after helper checks pass";
+    assert lastReverted <=> revertCondition;
 }
 
-rule canExecuteAddAdapter(env e, calldataarg args)
+rule addAdapterRevertConditions(env e, calldataarg args)
 {
-    ExecutableAtHelpers.addAdapter(e, args);
+    bool revertCondition = ExecutableAtHelpers.addAdapter(e, args);
 
     addAdapter@withrevert(e, args);
-    assert !lastReverted;
+    assert lastReverted <=> revertCondition;
 }
 
-rule canExecuteRemoveAdapter(env e, calldataarg args)
+rule removeAdapterRevertConditions(env e, calldataarg args)
 {
-    ExecutableAtHelpers.removeAdapter(e, args);
+    bool revertCondition = ExecutableAtHelpers.removeAdapter(e, args);
 
     removeAdapter@withrevert(e, args);
-    assert !lastReverted, "removeAdapter should succeed after helper checks pass";
+    assert lastReverted <=> revertCondition;
 }
 
-rule canExecuteIncreaseTimelock(env e, calldataarg args)
+rule increaseTimelockRevertConditions(env e, calldataarg args)
 {
-    ExecutableAtHelpers.increaseTimelock(e, args);
+    bool revertCondition = ExecutableAtHelpers.increaseTimelock(e, args);
 
     increaseTimelock@withrevert(e, args);
-    assert !lastReverted, "increaseTimelock should succeed after helper checks pass";
+    assert lastReverted <=> revertCondition;
 }
 
-rule canExecuteDecreaseTimelock(env e, calldataarg args)
+rule decreaseTimelockRevertConditions(env e, calldataarg args)
 {
-    ExecutableAtHelpers.decreaseTimelock(e, args);
+    bool revertCondition = ExecutableAtHelpers.decreaseTimelock(e, args);
 
     decreaseTimelock@withrevert(e, args);
-    assert !lastReverted, "decreaseTimelock should succeed after helper checks pass";
+    assert lastReverted <=> revertCondition;
 }
 
-rule canExecuteAbdicate(env e, calldataarg args)
+rule abdicatedRevertConditions(env e, calldataarg args)
 {
-    ExecutableAtHelpers.abdicate(e, args);
+    bool revertCondition = ExecutableAtHelpers.abdicate(e, args);
 
     abdicate@withrevert(e, args);
-    assert !lastReverted, "abdicate should succeed after helper checks pass";
+    assert lastReverted <=> revertCondition;
 }
 
-rule canExecuteIncreaseAbsoluteCap(env e, calldataarg args)
+rule increaseAbsoluteCapRevertConditions(env e, calldataarg args)
 {
-    ExecutableAtHelpers.increaseAbsoluteCap(e, args);
+    bool revertCondition = ExecutableAtHelpers.increaseAbsoluteCap(e, args);
 
     increaseAbsoluteCap@withrevert(e, args);
-    assert !lastReverted;
+    assert lastReverted <=> revertCondition;
 }
 
-rule canExecuteIncreaseRelativeCap(env e, calldataarg args)
+rule increaseRelativeCapRevertConditions(env e, calldataarg args)
 {
-    ExecutableAtHelpers.increaseRelativeCap(e, args);
+    bool revertCondition = ExecutableAtHelpers.increaseRelativeCap(e, args);
 
     increaseRelativeCap@withrevert(e, args);
-    assert !lastReverted;
+    assert lastReverted <=> revertCondition;
 }
 
-rule canExecuteSetForceDeallocatePenalty(env e, calldataarg args)
+rule setForceDeallocatePenaltyRevertConditions(env e, calldataarg args)
 {
-    ExecutableAtHelpers.setForceDeallocatePenalty(e, args);
+    bool revertCondition = ExecutableAtHelpers.setForceDeallocatePenalty(e, args);
 
     setForceDeallocatePenalty@withrevert(e, args);
-    assert !lastReverted, "setForceDeallocatePenalty should succeed after helper checks pass";
+    assert lastReverted <=> revertCondition;
 }
 
-rule canExecuteSetPerformanceFee(env e, calldataarg args)
+rule setPerformanceFeeRevertConditions(env e, calldataarg args)
 {
-    ExecutableAtHelpers.setPerformanceFee(e, args);
+    bool revertCondition = ExecutableAtHelpers.setPerformanceFee(e, args);
 
     setPerformanceFee@withrevert(e, args);
-    assert !lastReverted, "setPerformanceFee should succeed after helper checks pass";
+    assert lastReverted <=> revertCondition;
 }
 
-rule canExecuteSetManagementFee(env e, calldataarg args)
+rule setManagementFeeRevertConditions(env e, calldataarg args)
 {
-    ExecutableAtHelpers.setManagementFee(e, args);
+    bool revertCondition = ExecutableAtHelpers.setManagementFee(e, args);
 
     setManagementFee@withrevert(e, args);
-    assert !lastReverted, "setManagementFee should succeed after helper checks pass";
+    assert lastReverted <=> revertCondition;
 }
 
-rule canExecuteSetPerformanceFeeRecipient(env e, calldataarg args)
+rule setPerformanceFeeRecipientRevertConditions(env e, calldataarg args)
 {
-    ExecutableAtHelpers.setPerformanceFeeRecipient(e, args);
+    bool revertCondition = ExecutableAtHelpers.setPerformanceFeeRecipient(e, args);
 
     setPerformanceFeeRecipient@withrevert(e, args);
-    assert !lastReverted, "setPerformanceFeeRecipient should succeed after helper checks pass";
+    assert lastReverted <=> revertCondition;
 }
 
-rule canExecuteSetManagementFeeRecipient(env e, calldataarg args)
+rule setManagementFeeRecipientRevertConditions(env e, calldataarg args)
 {
-    ExecutableAtHelpers.setManagementFeeRecipient(e, args);
+    bool revertCondition = ExecutableAtHelpers.setManagementFeeRecipient(e, args);
 
     setManagementFeeRecipient@withrevert(e, args);
-    assert !lastReverted, "setManagementFeeRecipient should succeed after helper checks pass";
+    assert lastReverted <=> revertCondition;
 }

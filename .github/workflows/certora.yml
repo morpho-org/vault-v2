@@ -23,7 +23,6 @@ jobs:
           - ChangesMorphoMarketV1Adapter
           - ChangesMorphoVaultV1Adapter
           - ExchangeRate
-          - ExecutableAt
           - Gates
           - IdsMorphoMarketV1Adapter
           - IdsMorphoVaultV1Adapter
@@ -38,9 +37,8 @@ jobs:
           - Reentrancy
           - ReentrancyView
           - RelativeCaps
-          - RevertsTimelocked
+          - Reverts
           - SentinelLiveness
-          - Timelocks
           - TokensMorphoMarketV1Adapter
           - TokensMorphoVaultV1Adapter
           - TokensNoAdapter
