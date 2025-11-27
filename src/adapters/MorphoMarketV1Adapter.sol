@@ -45,7 +45,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     bytes32[] public marketIds;
     mapping(bytes32 marketId => uint256) public supplyShares;
     mapping(bytes32 marketId => uint256) public burnSharesExecutableAt;
-    uint256 public movedSharesRecipientExecutableAt;
+    mapping(address movedSharesRecipient => uint256) public movedSharesRecipientExecutableAt;
     address public movedSharesRecipient;
     mapping(bytes32 marketId => uint256) public blockNumberWhenMovedShares;
 
@@ -111,27 +111,28 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     function submitSetMovedSharesRecipient(address newMovedSharesRecipient) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        require(movedSharesRecipientExecutableAt == 0, AlreadyPending());
-        movedSharesRecipientExecutableAt = block.timestamp + IVaultV2(parentVault).timelock(IVaultV2.removeAdapter.selector);
-        emit SubmitSetMovedSharesRecipient(movedSharesRecipientExecutableAt);
+        require(movedSharesRecipientExecutableAt[newMovedSharesRecipient] == 0, AlreadyPending());
+        movedSharesRecipientExecutableAt[newMovedSharesRecipient] = block.timestamp + IVaultV2(parentVault).timelock(IVaultV2.removeAdapter.selector);
+        emit SubmitSetMovedSharesRecipient(newMovedSharesRecipient, movedSharesRecipientExecutableAt[newMovedSharesRecipient]);
     }
 
-    function revokeSetMovedSharesRecipient() external {
+    function revokeSetMovedSharesRecipient(address newMovedSharesRecipient) external {
         require(msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender), NotAuthorized());
-        require(movedSharesRecipientExecutableAt != 0, NotPending());
-        movedSharesRecipientExecutableAt = 0;
-        emit RevokeSetMovedSharesRecipient();
+        require(movedSharesRecipientExecutableAt[newMovedSharesRecipient] != 0, NotPending());
+        movedSharesRecipientExecutableAt[newMovedSharesRecipient] = 0;
+        emit RevokeSetMovedSharesRecipient(newMovedSharesRecipient);
     }
 
     function setMovedSharesRecipient(address newMovedSharesRecipient) external {
-        require(movedSharesRecipientExecutableAt != 0, NotPending());
-        require(block.timestamp >= movedSharesRecipientExecutableAt, TimelockNotExpired());
-        movedSharesRecipientExecutableAt = 0;
+        require(movedSharesRecipientExecutableAt[newMovedSharesRecipient] != 0, NotPending());
+        require(block.timestamp >= movedSharesRecipientExecutableAt[newMovedSharesRecipient], TimelockNotExpired());
+        movedSharesRecipientExecutableAt[newMovedSharesRecipient] = 0;
         movedSharesRecipient = newMovedSharesRecipient;
         emit SetMovedSharesRecipient(newMovedSharesRecipient);
     }
 
     function moveShares(bytes32 marketId) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         require(movedSharesRecipient != address(0), MovedSharesRecipientNotSet());
         require(blockNumberWhenMovedShares[marketId] == 0, AlreadyMoved());
         blockNumberWhenMovedShares[marketId] = block.number;

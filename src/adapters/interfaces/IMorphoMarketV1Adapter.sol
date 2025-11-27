@@ -11,8 +11,8 @@ interface IMorphoMarketV1Adapter is IAdapter {
     error AlreadyMoved();
     error MovedSharesRecipientNotSet();
     event SetSkimRecipient(address indexed newSkimRecipient);
-    event SubmitSetMovedSharesRecipient(uint256 executableAt);
-    event RevokeSetMovedSharesRecipient();
+    event SubmitSetMovedSharesRecipient(address indexed newMovedSharesRecipient, uint256 executableAt);
+    event RevokeSetMovedSharesRecipient(address movedSharesRecipient);
     event SetMovedSharesRecipient(address indexed newMovedSharesRecipient);
     event Skim(address indexed token, uint256 assets);
     event SubmitBurnShares(bytes32 indexed id, uint256 executableAt);
@@ -57,7 +57,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function burnShares(bytes32 id) external;
     function setSkimRecipient(address newSkimRecipient) external;
     function submitSetMovedSharesRecipient(address newMovedSharesRecipient) external;
-    function revokeSetMovedSharesRecipient() external;
+    function revokeSetMovedSharesRecipient(address movedSharesRecipient) external;
     function setMovedSharesRecipient(address newMovedSharesRecipient) external;
     function moveShares(bytes32 marketId) external;
     function skim(address token) external;
