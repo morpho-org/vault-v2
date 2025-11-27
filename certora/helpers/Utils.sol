@@ -45,12 +45,20 @@ contract Utils {
         return MAX_MAX_RATE;
     }
 
-    function decodeMarketParams(bytes memory data) external pure returns (MarketParams memory) {
-        return abi.decode(data, (MarketParams));
-    }
-
     function id(MarketParams memory marketParams) external pure returns (Id) {
         return MarketParamsLib.id(marketParams);
+    }
+
+    function wrapId(bytes32 _id) external pure returns (Id) {
+        return Id.wrap(_id);
+    }
+
+    function unwrapId(Id _id) external pure returns (bytes32) {
+        return Id.unwrap(_id);
+    }
+
+    function decodeMarketParams(bytes memory data) external pure returns (MarketParams memory) {
+        return abi.decode(data, (MarketParams));
     }
 
     function adapterId(address adapter) external pure returns (bytes32) {
