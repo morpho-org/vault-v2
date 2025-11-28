@@ -7,6 +7,8 @@ import "../../src/interfaces/IVaultV2.sol";
 
 contract EarliestTime {
     VaultV2 public vault;
+    uint256 public lastExecutableAt;
+    bytes4 public lastSelector;
 
     function getSelector(bytes memory data) public pure returns (bytes4) {
         require(data.length >= 4, "Data too short");
@@ -31,18 +33,7 @@ contract EarliestTime {
     }
 
     fallback() external {
-        bytes4 selector = bytes4(msg.data);
-        require(!vault.abdicated(selector), "Function is abdicated");
-
-        uint256 currentTime = block.timestamp;
-        uint256 currentTimelockValue = vault.timelock(selector);
-        require(currentTime + currentTimelockValue < type(uint256).max, "Overflow");
-        uint256 time1 = currentTime + currentTimelockValue;
-
-        uint256 alreadySubmittedTime = vault.executableAt(msg.data);
-        uint256 time2 = alreadySubmittedTime == 0 ? type(uint256).max : alreadySubmittedTime;
-
-        uint256 minTime = time1 < time2 ? time1 : time2;
-        require(currentTime < minTime, "Not before minimum time");
+        lastExecutableAt = vault.executableAt(msg.data);
+        lastSelector = bytes4(msg.data);
     }
 }

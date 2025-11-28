@@ -13,8 +13,8 @@ methods {
 }
 
 // Ghost to track the minimum possible execution time via decreaseTimelock path
-persistent ghost mapping(bytes4 => mathint) minDecreaseLock {
-    init_state axiom forall bytes4 selector. minDecreaseLock[selector] == max_uint256;
+persistent ghost mapping(bytes4 => mathint) minDecreaseTimelock {
+    init_state axiom forall bytes4 selector. minDecreaseTimelock[selector] == max_uint256;
 }
 
 // Hook on executableAt writes to track decreaseTimelock submissions
@@ -28,47 +28,33 @@ hook Sstore executableAt[KEY bytes hookData] uint256 newValue (uint256 oldValue)
         uint256 newDuration;
         targetSelector, newDuration = EarliestTime.extractDecreaseTimelockArgs(hookData);
 
-        if (oldValue == 0 && newValue != 0 && minDecreaseLock[targetSelector] > newValue + newDuration) {
-            minDecreaseLock[targetSelector] = newValue + newDuration;
+        if (oldValue == 0 && newValue != 0 && minDecreaseTimelock[targetSelector] > newValue + newDuration) {
+            minDecreaseTimelock[targetSelector] = newValue + newDuration;
         } else if (oldValue != 0 && newValue == 0) {
             // Revoke of decreaseTimelock: can only increase or stay same
             mathint newMinimum;
-            require newMinimum >= minDecreaseLock[targetSelector];
-            minDecreaseLock[targetSelector] = newMinimum;
+            require newMinimum >= minDecreaseTimelock[targetSelector];
+            minDecreaseTimelock[targetSelector] = newMinimum;
         }
     }
 }
 
-// Hook on executableAt reads to enforce consistency for decreaseTimelock
-hook Sload uint256 value executableAt[KEY bytes hookData] {
-    require hookData.length >= 36;
-    bytes4 selector = EarliestTime.getSelector(hookData);
-
-    // decreaseTimelock == 0x5c1a1a4f
-    if (selector == to_bytes4(sig:decreaseTimelock(bytes4, uint256).selector)) {
-        require hookData.length >= 68;
-        bytes4 targetSelector;
-        uint256 newDuration;
-        targetSelector, newDuration = EarliestTime.extractDecreaseTimelockArgs(hookData);
-
-        require value == 0 || to_mathint(value) + newDuration >= minDecreaseLock[targetSelector];
-    }
-}
-
-function min3(mathint a, mathint b, mathint c) returns mathint {
+function min(mathint a, mathint b, mathint c) returns mathint {
     mathint minAB = a < b ? a : b;
     return minAB < c ? minAB : c;
 }
 
-function earliestExecutionTime(env e, bytes data) returns mathint {
-    require data.length >= 36;
-    bytes4 selector = EarliestTime.getSelector(data);
+// Only call this function with fb the fallback method of the EarliestTime contract.
+function earliestExecutionTime(env e, method fb, calldataarg args) returns mathint {
+    fb(e, args);
+    bytes4 selector = EarliestTime.lastSelector;
+    uint256 executableAt = EarliestTime.lastExecutableAt;
 
-    mathint execAtValue = to_mathint(executableAt(data)) == 0 ? max_uint256 : to_mathint(executableAt(data));
-    mathint directSubmitTime = require_uint256(e.block.timestamp + timelock(selector));
-    mathint viaDecreaseTime = minDecreaseLock[selector];
+    mathint viaDirectExecution = to_mathint(executableAt) == 0 ? max_uint256 : to_mathint(executableAt);
+    mathint viaFreshSubmission = require_uint256(e.block.timestamp + timelock(selector));
+    mathint viaDecreaseTimelock = minDecreaseTimelock[selector];
 
-    return min3(execAtValue, directSubmitTime, viaDecreaseTime);
+    return min(viaDirectExecution, viaFreshSubmission, viaDecreaseTimelock);
 }
 
 // Similar to guardianUpdateTime from vault v1.
@@ -77,33 +63,31 @@ function earliestExecutionTime(env e, bytes data) returns mathint {
 // 2. Fresh submission at current time with timelock[selector]
 // 3. Execution after a pending decreaseTimelock takes effect
 // [BUG] Currently there is a bug on the prover for handling msg.data in the hook that's why decreaseTimelock is filtered
-rule earliestExecutionTimeIncreases(env e, env e_next, bytes data, method f, calldataarg args)
-filtered { f -> f.contract == currentContract && !f.isView && f.selector != sig:decreaseTimelock(bytes4, uint256).selector }
+rule earliestExecutionTimeIncreases(env e, env e_next, method f, calldataarg args, method fb)
+filtered {
+    fb -> fb.contract == EarliestTime && fb.isFallback,
+    f -> f.contract == currentContract && !f.isView && f.selector != sig:decreaseTimelock(bytes4, uint256).selector }
 {
     require e_next.block.timestamp >= e.block.timestamp;
-    require executableAt(data) != 0;
 
-    mathint earliestTimeBefore = earliestExecutionTime(e, data);
+    mathint earliestTimeBefore = earliestExecutionTime(e, fb, args);
 
     f(e_next, args);
 
-    mathint earliestTimeAfter = earliestExecutionTime(e_next, data);
+    mathint earliestTimeAfter = earliestExecutionTime(e_next, fb, args);
 
     assert earliestTimeAfter >= earliestTimeBefore;
 }
 
 // Function must revert if called before earliest execution time.
-rule cannotExecuteBeforeMinimumTime(env e, method fb, method f, calldataarg args)
+rule cannotExecuteBeforeMinimumTime(env e, method f, calldataarg args, method fb)
 filtered {
     fb -> fb.contract == EarliestTime && fb.isFallback,
     f -> functionIsTimelocked(f) && f.selector != sig:decreaseTimelock(bytes4, uint256).selector }
 {
-    bytes4 selector = to_bytes4(f.selector);
-    require !abdicated(selector);
+    mathint earliestTime = earliestExecutionTime(e, fb, args);
 
-    // Check currentTime < min(time1, time2)
-    fb(e, args);
-
+    require e.block.timestamp < earliestTime;
     f@withrevert(e, args);
-    assert lastReverted, "Function must revert before minimum executable time";
+    assert lastReverted;
 }
