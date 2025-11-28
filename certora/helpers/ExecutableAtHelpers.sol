@@ -60,7 +60,8 @@ contract ExecutableAtHelpers {
         revertCondition = timelockFails();
 
         address registry = vault.adapterRegistry();
-        revertCondition = revertCondition || (registry != address(0) && !IAdapterRegistry(registry).isInRegistry(account));
+        revertCondition =
+            revertCondition || (registry != address(0) && !IAdapterRegistry(registry).isInRegistry(account));
     }
 
     function removeAdapter(address) external view returns (bool) {
@@ -95,7 +96,11 @@ contract ExecutableAtHelpers {
         revertCondition = revertCondition || (vault.managementFeeRecipient() == address(0) && newManagementFee > 0);
     }
 
-    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient) external view returns (bool revertCondition) {
+    function setPerformanceFeeRecipient(address newPerformanceFeeRecipient)
+        external
+        view
+        returns (bool revertCondition)
+    {
         revertCondition = timelockFails();
         revertCondition = revertCondition || newPerformanceFeeRecipient == address(0) && vault.performanceFee() > 0;
     }
@@ -105,7 +110,11 @@ contract ExecutableAtHelpers {
         revertCondition = revertCondition || newManagementFeeRecipient == address(0) && vault.managementFee() > 0;
     }
 
-    function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap) external view returns (bool revertCondition) {
+    function increaseAbsoluteCap(bytes memory idData, uint256 newAbsoluteCap)
+        external
+        view
+        returns (bool revertCondition)
+    {
         revertCondition = timelockFails();
 
         bytes32 id = keccak256(idData);
@@ -114,7 +123,11 @@ contract ExecutableAtHelpers {
         revertCondition = revertCondition || newAbsoluteCap > type(uint128).max;
     }
 
-    function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap) external view returns (bool revertCondition) {
+    function increaseRelativeCap(bytes memory idData, uint256 newRelativeCap)
+        external
+        view
+        returns (bool revertCondition)
+    {
         revertCondition = timelockFails();
         revertCondition = revertCondition || newRelativeCap > WAD;
 
@@ -123,7 +136,11 @@ contract ExecutableAtHelpers {
         revertCondition = revertCondition || newRelativeCap < currentRelativeCap;
     }
 
-    function setForceDeallocatePenalty(address, uint256 newForceDeallocatePenalty) external view returns (bool revertCondition) {
+    function setForceDeallocatePenalty(address, uint256 newForceDeallocatePenalty)
+        external
+        view
+        returns (bool revertCondition)
+    {
         revertCondition = timelockFails();
         revertCondition = revertCondition || newForceDeallocatePenalty > MAX_FORCE_DEALLOCATE_PENALTY;
     }
