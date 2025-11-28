@@ -15,11 +15,19 @@ methods {
 
     // Assume that interest accrual does not revert.
     function accrueInterest() internal => NONDET;
-    // Assumption to be able to retrieve the returned value by adapter registry before it is called.
+    // Assumption to be able to retrieve the returned value by the corresponding contract before it is called.
     function _.isInRegistry(address adapter) external => ghostIsInRegistry(calledContract, adapter) expect(bool);
+    function _.canSendShares(address account) external => ghostCanSendShares(calledContract, account) expect(bool);
+    function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
+    function _.canSendAssets(address account) external => ghostCanSendAssets(calledContract, account) expect(bool);
+    function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
 }
 
 ghost ghostIsInRegistry(address, address) returns bool;
+ghost ghostCanSendShares(address, address) returns bool;
+ghost ghostCanReceiveShares(address, address) returns bool;
+ghost ghostCanSendAssets(address, address) returns bool;
+ghost ghostCanReceiveAssets(address, address) returns bool;
 
 rule timelockedFunctionsRevertConditions(env e, calldataarg args, method f)
 filtered { f -> f.contract == currentContract && functionIsTimelocked(f) } {
@@ -87,23 +95,23 @@ rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
     assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldOwner;
 }
 
-rule setNameRevertCondition(env e, string newName) {
+rule setNameInputValidation(env e, string newName) {
     address oldOwner = owner();
     setName@withrevert(e, newName);
-    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldOwner;
+    assert e.msg.value != 0 || e.msg.sender != oldOwner => lastReverted;
 }
 
-rule setSymbolRevertCondition(env e, string newSymbol) {
+rule setSymbolInputValidation(env e, string newSymbol) {
     address oldOwner = owner();
     setSymbol@withrevert(e, newSymbol);
-    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldOwner;
+    assert e.msg.value != 0 || e.msg.sender != oldOwner => lastReverted;
 }
 
-rule submitRevertCondition(env e, bytes data) {
+rule submitInputValidation(env e, bytes data) {
     address oldCurator = curator();
     uint256 executableAtData = executableAt(data);
     submit@withrevert(e, data);
-    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldCurator || executableAtData != 0;
+    assert e.msg.value != 0 || e.msg.sender != oldCurator || executableAtData != 0 => lastReverted;
 }
 
 rule revokeRevertCondition(env e, bytes data) {
@@ -154,10 +162,10 @@ function forceDeallocateInputValidation(env e, address adapter, bytes data, uint
     assert !adapterIsRegistered => lastReverted;
 }
 
-rule setLiquidityAdapterAndDataRevertCondition(env e, address newLiquidityAdapter, bytes newLiquidityData) {
+rule setLiquidityAdapterAndDataInputValidation(env e, address newLiquidityAdapter, bytes newLiquidityData) {
     bool callerIsAllocator = isAllocator(e.msg.sender);
     setLiquidityAdapterAndData@withrevert(e, newLiquidityAdapter, newLiquidityData);
-    assert lastReverted <=> e.msg.value != 0 || !callerIsAllocator;
+    assert e.msg.value != 0 || !callerIsAllocator => lastReverted;
 }
 
 rule setMaxRateRevertCondition(env e, uint256 newMaxRate) {
