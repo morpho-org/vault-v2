@@ -16,7 +16,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetSkimSharesRecipient(address indexed newSkimSharesRecipient);
     event Skim(address indexed token, uint256 assets);
-    event BurnShares(bytes32 indexed id, uint256 supplyShares);
+    event BurnShares(bytes32 indexed id, uint256 supplyShares, address skimSharesRecipient);
     event Allocate(bytes32 indexed marketId, uint256 newAllocation, uint256 mintedShares);
     event Deallocate(bytes32 indexed marketId, uint256 newAllocation, uint256 burnedShares);
 
@@ -25,6 +25,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
     error AlreadyBurned();
     error AlreadyPending();
     error AlreadySet();
+    error CannotBeLocked();
     error IrmMismatch();
     error LoanAssetMismatch();
     error Locked();

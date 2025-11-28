@@ -481,7 +481,7 @@ contract MorphoMarketV1AdapterTest is Test {
         skip(timelockDuration + bound(extraSkip, 0, 3650 days));
 
         vm.expectEmit();
-        emit IMorphoMarketV1Adapter.BurnShares(marketId, supplyShares);
+        emit IMorphoMarketV1Adapter.BurnShares(marketId, supplyShares, address(0));
         adapter.burnShares(marketId);
 
         vm.roll(block.number + 1);

@@ -12,6 +12,7 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {
     AdaptiveCurveIrmLib
 } from "../../lib/morpho-blue-irm/src/adaptive-curve-irm/libraries/periphery/AdaptiveCurveIrmLib.sol";
+import {IMovedSharesRecipient} from "./interfaces/IMovedSharesRecipient.sol";
 
 /// @dev Morpho Market V1 is also known as Morpho Blue.
 /// @dev This adapter must be used with Morpho Market V1 that are protected against inflation attacks with an initial
@@ -126,7 +127,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         lockedAtBlockNumber = block.number;
         supplyShares[marketId] = 0;
 
-        emit BurnShares(marketId, supplySharesBefore);
+        emit BurnShares(marketId, supplySharesBefore, skimSharesRecipient);
     }
 
     function onMorphoSupply(uint256, bytes memory data) external {
