@@ -44,7 +44,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     address public skimRecipient;
     bytes32[] public marketIds;
     mapping(bytes32 marketId => uint256) public supplyShares;
-    mapping(bytes32 marketId => uint256) public burnSharesExecutableAt;
+    mapping(bytes data => uint256) public executableAt;
 
     function marketIdsLength() external view returns (uint256) {
         return marketIds.length;
@@ -63,10 +63,43 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
 
+    function submit(bytes memory data) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        require(executableAt[data] == 0, AlreadyPending());
+        bytes4 selector = bytes4(data);
+        executableAt[data] = block.timestamp + IVaultV2(parentVault).timelock(selector);
+        emit Submit(selector, data, executableAt[data]);
+    }
+
+    function timelocked() internal {
+        require(executableAt[msg.data] != 0, NotPending());
+        require(block.timestamp >= executableAt[msg.data], TimelockNotExpired());
+        executableAt[msg.data] = 0;
+        emit Timelocked(bytes4(msg.data), msg.data);
+    }
+
+    function revoke(bytes memory data) external {
+        require(
+            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
+        require(executableAt[data] != 0, NotPending());
+        executableAt[data] = 0;
+        emit Revoke(bytes4(data), data);
+    }
+
     function setSkimRecipient(address newSkimRecipient) external {
-        require(msg.sender == IVaultV2(parentVault).owner(), NotAuthorized());
+        timelocked();
         skimRecipient = newSkimRecipient;
         emit SetSkimRecipient(newSkimRecipient);
+    }
+
+    /// @dev Deallocate 0 from the vault after burning shares to update the allocation there.
+    function burnShares(bytes32 marketId) external {
+        timelocked();
+        uint256 supplySharesBefore = supplyShares[marketId];
+        supplyShares[marketId] = 0;
+        emit BurnShares(marketId, supplySharesBefore);
     }
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
@@ -76,34 +109,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         uint256 balance = IERC20(token).balanceOf(address(this));
         SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
         emit Skim(token, balance);
-    }
-
-    function submitBurnShares(bytes32 marketId) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        require(burnSharesExecutableAt[marketId] == 0, AlreadyPending());
-        burnSharesExecutableAt[marketId] =
-            block.timestamp + IVaultV2(parentVault).timelock(IVaultV2.removeAdapter.selector);
-        emit SubmitBurnShares(marketId, burnSharesExecutableAt[marketId]);
-    }
-
-    function revokeBurnShares(bytes32 marketId) external {
-        require(
-            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
-            NotAuthorized()
-        );
-        require(burnSharesExecutableAt[marketId] != 0, NotPending());
-        burnSharesExecutableAt[marketId] = 0;
-        emit RevokeBurnShares(marketId);
-    }
-
-    /// @dev Deallocate 0 from the vault after burning shares to update the allocation there.
-    function burnShares(bytes32 marketId) external {
-        require(burnSharesExecutableAt[marketId] != 0, NotTimelocked());
-        require(block.timestamp >= burnSharesExecutableAt[marketId], TimelockNotExpired());
-        burnSharesExecutableAt[marketId] = 0;
-        uint256 supplySharesBefore = supplyShares[marketId];
-        supplyShares[marketId] = 0;
-        emit BurnShares(marketId, supplySharesBefore);
     }
 
     /// @dev Does not log anything because the ids (logged in the parent vault) are enough.

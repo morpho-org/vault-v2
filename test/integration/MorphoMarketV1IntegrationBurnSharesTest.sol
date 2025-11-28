@@ -7,6 +7,7 @@ import "./MorphoMarketV1IntegrationTest.sol";
 contract MorphoMarketV1IntegrationBurnSharesTest is MorphoMarketV1IntegrationTest {
     using MarketParamsLib for MarketParams;
 
+    /// forge-config: default.isolate = true
     function testBurnShares(uint256 assets) public {
         // Initial deposit
         assets = bound(assets, 1, MAX_TEST_ASSETS);
@@ -26,8 +27,10 @@ contract MorphoMarketV1IntegrationBurnSharesTest is MorphoMarketV1IntegrationTes
 
         // Burn shares at adapter level
         vm.prank(curator);
-        adapter.submitBurnShares(Id.unwrap(marketParams1.id()));
+        adapter.submit(abi.encodeCall(IMorphoMarketV1Adapter.burnShares, (Id.unwrap(marketParams1.id()))));
         adapter.burnShares(Id.unwrap(marketParams1.id()));
+
+        vm.roll(block.number + 1);
 
         // Ping adapter from vault
         vault.forceDeallocate(address(adapter), abi.encode(marketParams1), 0, address(this));

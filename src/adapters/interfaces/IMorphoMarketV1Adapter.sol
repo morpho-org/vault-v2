@@ -8,10 +8,11 @@ import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol"
 interface IMorphoMarketV1Adapter is IAdapter {
     /* EVENTS */
 
+    event Submit(bytes4 indexed selector, bytes data, uint256 executableAt);
+    event Revoke(bytes4 indexed selector, bytes data);
+    event Timelocked(bytes4 indexed selector, bytes data);
     event SetSkimRecipient(address indexed newSkimRecipient);
     event Skim(address indexed token, uint256 assets);
-    event SubmitBurnShares(bytes32 indexed id, uint256 executableAt);
-    event RevokeBurnShares(bytes32 indexed id);
     event BurnShares(bytes32 indexed id, uint256 supplyShares);
     event Allocate(bytes32 indexed marketId, uint256 newAllocation, uint256 mintedShares);
     event Deallocate(bytes32 indexed marketId, uint256 newAllocation, uint256 burnedShares);
@@ -23,7 +24,6 @@ interface IMorphoMarketV1Adapter is IAdapter {
     error LoanAssetMismatch();
     error NotAuthorized();
     error NotPending();
-    error NotTimelocked();
     error SharePriceAboveOne();
     error TimelockNotExpired();
 
@@ -40,14 +40,14 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function marketIdsLength() external view returns (uint256);
     function allocation(MarketParams memory marketParams) external view returns (uint256);
     function expectedSupplyAssets(bytes32 marketId) external view returns (uint256);
-    function burnSharesExecutableAt(bytes32 id) external view returns (uint256);
     function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
+    function executableAt(bytes memory data) external view returns (uint256);
 
     /* NON-VIEW FUNCTIONS */
 
-    function submitBurnShares(bytes32 id) external;
-    function revokeBurnShares(bytes32 id) external;
-    function burnShares(bytes32 id) external;
+    function submit(bytes memory data) external;
+    function revoke(bytes memory data) external;
     function setSkimRecipient(address newSkimRecipient) external;
+    function burnShares(bytes32 marketId) external;
     function skim(address token) external;
 }
