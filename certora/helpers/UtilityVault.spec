@@ -6,11 +6,6 @@ methods {
     function curator() external returns (address) envfree;
     function name() external returns (string) envfree;
     function symbol() external returns (string) envfree;
-    function setOwner(address) external envfree;
-    function setCurator(address) external envfree;
-    function setIsAllocator(address, bool) external envfree;
-    function setIsSentinel(address, bool) external envfree;
-    function setName(string) external envfree;
     function receiveSharesGate() external returns (address) envfree;
     function sendSharesGate() external returns (address) envfree;
     function receiveAssetsGate() external returns (address) envfree;
@@ -29,10 +24,19 @@ methods {
     function performanceFeeRecipient() external returns (address) envfree;
     function managementFee() external returns (uint96) envfree;
     function managementFeeRecipient() external returns (address) envfree;
+    function maxRate() external returns (uint64) envfree;
+    function balanceOf(address) external returns (uint256) envfree;
+    function totalSupply() external returns (uint256) envfree;
+    function allocation(bytes32 id) external returns (uint256) envfree;
     function canSendShares(address) external returns (bool) envfree;
     function canReceiveShares(address) external returns (bool) envfree;
     function canSendAssets(address) external returns (bool) envfree;
     function canReceiveAssets(address) external returns (bool) envfree;
+    function setOwner(address) external envfree;
+    function setCurator(address) external envfree;
+    function setIsAllocator(address, bool) external envfree;
+    function setIsSentinel(address, bool) external envfree;
+    function setName(string) external envfree;
 }
 
 definition functionIsTimelocked(method f) returns bool =
