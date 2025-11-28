@@ -12,8 +12,8 @@ import {
     MAX_FORCE_DEALLOCATE_PENALTY
 } from "../../src/libraries/ConstantsLib.sol";
 
-/// Helper verifying timelocked functions can execute when conditions are met
-contract ExecutableAtHelpers {
+/// Helper in getting revert conditions for timelocked functions.
+contract RevertCondition {
     VaultV2 public vault;
 
     function timelockFails() internal view returns (bool) {
