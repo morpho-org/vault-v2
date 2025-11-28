@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-import "../helpers/UtilityFunctionsVault.spec";
+import "../helpers/UtilityVault.spec";
 
 using RevertCondition as RevertCondition;
+using Utils as Utils;
 
 // Assumptions:
 // - Accrue interest is assumed to not revert.
 // - The helper contract is called first, so this specification can miss trivial revert conditions like e.msg.value != 0.
 
 methods {
+    function Utils.maxMaxRate() external returns (uint256) envfree;
+
     // Assume that interest accrual does not revert.
     function accrueInterest() internal => NONDET;
     // Assumption to be able to retrieve the returned value by adapter registry before it is called.
@@ -84,40 +87,43 @@ rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
     assert lastReverted <=> e.msg.value != 0 || e.msg.sender != account || newIsSentinel == wasSentinel;
 }
 
-rule setNameRevertCondition(env e, string memory newName) {
-    string memory oldName = name();
+rule setNameRevertCondition(env e, string newName) {
+    address oldOwner = owner();
     setName@withrevert(e, newName);
-    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldName || newName == oldName;
+    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldOwner;
 }
 
-rule setSymbolRevertCondition(env e, string memory newSymbol) {
-    string memory oldSymbol = symbol();
+rule setSymbolRevertCondition(env e, string newSymbol) {
+    address oldOwner = owner();
     setSymbol@withrevert(e, newSymbol);
-    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldSymbol || newSymbol == oldSymbol;
+    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldOwner;
 }
 
 rule submitRevertCondition(env e, bytes data) {
-    uint256 executableAt = executableAt(data);
+    address oldCurator = curator();
     submit@withrevert(e, data);
-    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != executableAt || executableAt != 0;
+    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldCurator;
 }
 
 rule revokeRevertCondition(env e, bytes data) {
-    uint256 executableAt = executableAt(data);
+    address oldCurator = curator();
+    bool isSentinel = isSentinel(e.msg.sender);
     revoke@withrevert(e, data);
-    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != executableAt || executableAt != 0;
+    assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != oldCurator && !isSentinel);
 }
 
 rule decreaseAbsoluteCapRevertCondition(env e, bytes idData, uint256 newAbsoluteCap) {
-    uint256 absoluteCap = absoluteCap(idData);
+    address oldCurator = curator();
+    bool isSentinel = isSentinel(e.msg.sender);
     decreaseAbsoluteCap@withrevert(e, idData, newAbsoluteCap);
-    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != absoluteCap || newAbsoluteCap == absoluteCap;
+    assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != oldCurator && !isSentinel);
 }
 
 rule decreaseRelativeCapRevertCondition(env e, bytes idData, uint256 newRelativeCap) {
-    uint256 relativeCap = relativeCap(idData);
+    address oldCurator = curator();
+    bool isSentinel = isSentinel(e.msg.sender);
     decreaseRelativeCap@withrevert(e, idData, newRelativeCap);
-    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != relativeCap || newRelativeCap == relativeCap;
+    assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != oldCurator && !isSentinel);
 }
 
 rule allocateInputValidation(env e, address adapter, bytes data, uint256 assets) {
@@ -137,6 +143,13 @@ rule deallocateInputValidation(env e, address adapter, bytes data, uint256 asset
     assert !callerIsAllocator || !callerIsSentinel || !adapterIsRegistered => lastReverted;
 }
 
+function forceDeallocateInputValidation(env e, address adapter, bytes data, uint256 assets, address onBehalf) {
+    bool adapterIsRegistered = isAdapter(adapter);
+
+    forceDeallocate@withrevert(e, adapter, data, assets, onBehalf);
+    assert !adapterIsRegistered => lastReverted;
+}
+
 rule setLiquidityAdapterAndDataRevertCondition(env e, address newLiquidityAdapter, bytes newLiquidityData) {
     bool callerIsAllocator = isAllocator(e.msg.sender);
     setLiquidityAdapterAndData@withrevert(e, newLiquidityAdapter, newLiquidityData);
@@ -145,22 +158,23 @@ rule setLiquidityAdapterAndDataRevertCondition(env e, address newLiquidityAdapte
 
 rule setMaxRateRevertCondition(env e, uint256 newMaxRate) {
     bool callerIsAllocator = isAllocator(e.msg.sender);
+    uint256 maxMaxRate = Utils.maxMaxRate();
     setMaxRate@withrevert(e, newMaxRate);
-    assert !callerIsAllocator <=> e.msg.value != 0 || newMaxRate > MAX_MAX_RATE;
+    assert !callerIsAllocator <=> e.msg.value != 0 || newMaxRate > maxMaxRate;
 }
 
-rule transferInputValidation(env e, address from, address to, uint256 shares) {
-    bool toIsZeroAddress = to == address(0);
+rule transferInputValidation(env e, address to, uint256 shares) {
+    bool toIsZeroAddress = to == 0;
     bool callerCanSendShares = canSendShares(e.msg.sender);
     bool toCanReceiveShares = canReceiveShares(to);
 
-    transfer@withrevert(e, from, to, shares);
+    transfer@withrevert(e, to, shares);
     assert !toIsZeroAddress || !callerCanSendShares || !toCanReceiveShares => lastReverted;
 }
 
 rule transferFromInputValidation(env e, address from, address to, uint256 shares) {
-    bool fromIsZeroAddress = from == address(0);
-    bool toIsZeroAddress = to == address(0);
+    bool fromIsZeroAddress = from == 0;
+    bool toIsZeroAddress = to == 0;
     bool fromCanSendShares = canSendShares(from);
     bool toCanReceiveShares = canReceiveShares(to);
 

@@ -1,30 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-import "../helper/UtilityFunctionsVault.spec";
+import "../helpers/UtilityVault.spec";
 
 methods {
     function multicall(bytes[]) external => NONDET DELETE;
-    function abdicated(bytes4) external returns (bool) envfree;
-
-    function receiveSharesGate() external returns (address) envfree;
-    function sendSharesGate() external returns (address) envfree;
-    function receiveAssetsGate() external returns (address) envfree;
-    function sendAssetsGate() external returns (address) envfree;
-    function adapterRegistry() external returns (address) envfree;
-    function isSentinel(address account) external returns (bool) envfree;
-    function isAllocator(address account) external returns (bool) envfree;
-    function adapters(uint256 index) external returns (address) envfree;
-    function isAdapter(address account) external returns (bool) envfree;
-    function absoluteCap(bytes32 id) external returns (uint256) envfree;
-    function relativeCap(bytes32 id) external returns (uint256) envfree;
-    function forceDeallocatePenalty(address adapter) external returns (uint256) envfree;
-    function timelock(bytes4 selector) external returns (uint256) envfree;
-    function abdicated(bytes4 selector) external returns (bool) envfree;
-    function performanceFee() external returns (uint96) envfree;
-    function performanceFeeRecipient() external returns (address) envfree;
-    function managementFee() external returns (uint96) envfree;
-    function managementFeeRecipient() external returns (address) envfree;
 }
 
 rule abdicatedFunctionsCantBeCalled(env e, method f, calldataarg args)
