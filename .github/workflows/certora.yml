@@ -22,6 +22,7 @@ jobs:
           - AllocationVaultV2
           - ChangesMorphoMarketV1Adapter
           - ChangesMorphoVaultV1Adapter
+          - EarliestTime
           - ExchangeRate
           - Gates
           - IdsMorphoMarketV1Adapter
