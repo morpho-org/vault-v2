@@ -32,11 +32,6 @@ methods {
     function canReceiveShares(address) external returns (bool) envfree;
     function canSendAssets(address) external returns (bool) envfree;
     function canReceiveAssets(address) external returns (bool) envfree;
-    function setOwner(address) external envfree;
-    function setCurator(address) external envfree;
-    function setIsAllocator(address, bool) external envfree;
-    function setIsSentinel(address, bool) external envfree;
-    function setName(string) external envfree;
 }
 
 definition functionIsTimelocked(method f) returns bool =

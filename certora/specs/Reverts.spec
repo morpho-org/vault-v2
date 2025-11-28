@@ -72,19 +72,19 @@ filtered { f -> f.contract == currentContract && functionIsTimelocked(f) } {
 rule setOwnerRevertCondition(env e, address newOwner) {
     address oldOwner = owner();
     setOwner@withrevert(e, newOwner);
-    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldOwner || newOwner == oldOwner;
+    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldOwner;
 }
 
 rule setCuratorRevertCondition(env e, address newCurator) {
-    address oldCurator = curator();
+    address oldOwner = owner();
     setCurator@withrevert(e, newCurator);
-    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldCurator || newCurator == oldCurator;
+    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldOwner;
 }
 
 rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
-    bool wasSentinel = isSentinel(account);
+    address oldOwner = owner();
     setIsSentinel@withrevert(e, account, newIsSentinel);
-    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != account || newIsSentinel == wasSentinel;
+    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldOwner;
 }
 
 rule setNameRevertCondition(env e, string newName) {
@@ -101,29 +101,33 @@ rule setSymbolRevertCondition(env e, string newSymbol) {
 
 rule submitRevertCondition(env e, bytes data) {
     address oldCurator = curator();
+    uint256 executableAtData = executableAt(data);
     submit@withrevert(e, data);
-    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldCurator;
+    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldCurator || executableAtData != 0;
 }
 
 rule revokeRevertCondition(env e, bytes data) {
     address oldCurator = curator();
     bool isSentinel = isSentinel(e.msg.sender);
+    uint256 executableAtData = executableAt(data);
     revoke@withrevert(e, data);
-    assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != oldCurator && !isSentinel);
+    assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != oldCurator && !isSentinel) || executableAtData == 0;
 }
 
 rule decreaseAbsoluteCapRevertCondition(env e, bytes idData, uint256 newAbsoluteCap) {
     address oldCurator = curator();
     bool isSentinel = isSentinel(e.msg.sender);
+    uint256 oldAbsoluteCap = absoluteCap(keccak256(idData));
     decreaseAbsoluteCap@withrevert(e, idData, newAbsoluteCap);
-    assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != oldCurator && !isSentinel);
+    assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != oldCurator && !isSentinel) || newAbsoluteCap > oldAbsoluteCap;
 }
 
 rule decreaseRelativeCapRevertCondition(env e, bytes idData, uint256 newRelativeCap) {
     address oldCurator = curator();
     bool isSentinel = isSentinel(e.msg.sender);
+    uint256 oldRelativeCap = relativeCap(keccak256(idData));
     decreaseRelativeCap@withrevert(e, idData, newRelativeCap);
-    assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != oldCurator && !isSentinel);
+    assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != oldCurator && !isSentinel) || newRelativeCap > oldRelativeCap;
 }
 
 rule allocateInputValidation(env e, address adapter, bytes data, uint256 assets) {
@@ -140,7 +144,7 @@ rule deallocateInputValidation(env e, address adapter, bytes data, uint256 asset
     bool adapterIsRegistered = isAdapter(adapter);
 
     deallocate@withrevert(e, adapter, data, assets);
-    assert !callerIsAllocator || !callerIsSentinel || !adapterIsRegistered => lastReverted;
+    assert !(callerIsAllocator || callerIsSentinel) || !adapterIsRegistered => lastReverted;
 }
 
 function forceDeallocateInputValidation(env e, address adapter, bytes data, uint256 assets, address onBehalf) {
@@ -153,14 +157,14 @@ function forceDeallocateInputValidation(env e, address adapter, bytes data, uint
 rule setLiquidityAdapterAndDataRevertCondition(env e, address newLiquidityAdapter, bytes newLiquidityData) {
     bool callerIsAllocator = isAllocator(e.msg.sender);
     setLiquidityAdapterAndData@withrevert(e, newLiquidityAdapter, newLiquidityData);
-    assert !callerIsAllocator <=> e.msg.value != 0 || !callerIsAllocator;
+    assert lastReverted <=> e.msg.value != 0 || !callerIsAllocator;
 }
 
 rule setMaxRateRevertCondition(env e, uint256 newMaxRate) {
     bool callerIsAllocator = isAllocator(e.msg.sender);
     uint256 maxMaxRate = Utils.maxMaxRate();
     setMaxRate@withrevert(e, newMaxRate);
-    assert !callerIsAllocator <=> e.msg.value != 0 || newMaxRate > maxMaxRate;
+    assert lastReverted <=> e.msg.value != 0 || !callerIsAllocator || newMaxRate > maxMaxRate;
 }
 
 rule transferInputValidation(env e, address to, uint256 shares) {
@@ -169,7 +173,7 @@ rule transferInputValidation(env e, address to, uint256 shares) {
     bool toCanReceiveShares = canReceiveShares(to);
 
     transfer@withrevert(e, to, shares);
-    assert !toIsZeroAddress || !callerCanSendShares || !toCanReceiveShares => lastReverted;
+    assert toIsZeroAddress || !callerCanSendShares || !toCanReceiveShares => lastReverted;
 }
 
 rule transferFromInputValidation(env e, address from, address to, uint256 shares) {
@@ -179,5 +183,5 @@ rule transferFromInputValidation(env e, address from, address to, uint256 shares
     bool toCanReceiveShares = canReceiveShares(to);
 
     transferFrom@withrevert(e, from, to, shares);
-    assert !fromIsZeroAddress || !toIsZeroAddress || !fromCanSendShares || !toCanReceiveShares => lastReverted;
+    assert fromIsZeroAddress || toIsZeroAddress || !fromCanSendShares || !toCanReceiveShares => lastReverted;
 }
