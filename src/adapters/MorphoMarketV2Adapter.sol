@@ -279,7 +279,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         require(prevMaturity < obligation.maturity, IncorrectHint());
         ObligationPosition storage position = _positions[obligationId];
 
-        selfDeallocate(obligation, position, -position.units.toInt256(), 0);
+        if (position.units > 0) selfDeallocate(obligation, position, -position.units.toInt256(), 0);
 
         accrueInterest();
 
