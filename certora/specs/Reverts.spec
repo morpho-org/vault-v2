@@ -6,16 +6,16 @@ import "../helpers/UtilityVault.spec";
 using RevertCondition as RevertCondition;
 using Utils as Utils;
 
-// Assumptions:
-// - Accrue interest is assumed to not revert.
-// - The helper contract is called first, so this specification can miss trivial revert conditions like e.msg.value != 0.
+// This specification checks either the revert condition or the input validation under which a function reverts.
+// Interest accrual is assumed to not revert.
 
 methods {
     function Utils.maxMaxRate() external returns (uint256) envfree;
 
-    // Assume that interest accrual does not revert.
+    // Assume that accrueInterest does not revert.
     function accrueInterest() internal => NONDET;
-    // Assumption to be able to retrieve the returned value by the corresponding contract before it is called.
+
+    // Trick to be able to retrieve the value returned by the corresponding contract before it is called, without the value changing between the retrieval and the call.
     function _.isInRegistry(address adapter) external => ghostIsInRegistry(calledContract, adapter) expect(bool);
     function _.canSendShares(address account) external => ghostCanSendShares(calledContract, account) expect(bool);
     function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
@@ -29,6 +29,7 @@ ghost ghostCanReceiveShares(address, address) returns bool;
 ghost ghostCanSendAssets(address, address) returns bool;
 ghost ghostCanReceiveAssets(address, address) returns bool;
 
+// The helper contract is called first, so this specification can miss trivial revert conditions like e.msg.value != 0.
 rule timelockedFunctionsRevertConditions(env e, calldataarg args, method f)
 filtered { f -> f.contract == currentContract && functionIsTimelocked(f) } {
     bool revertCondition;
@@ -78,64 +79,64 @@ filtered { f -> f.contract == currentContract && functionIsTimelocked(f) } {
 }
 
 rule setOwnerRevertCondition(env e, address newOwner) {
-    address oldOwner = owner();
+    address owner = owner();
     setOwner@withrevert(e, newOwner);
-    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldOwner;
+    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != owner;
 }
 
 rule setCuratorRevertCondition(env e, address newCurator) {
-    address oldOwner = owner();
+    address owner = owner();
     setCurator@withrevert(e, newCurator);
-    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldOwner;
+    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != owner;
 }
 
 rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
-    address oldOwner = owner();
+    address owner = owner();
     setIsSentinel@withrevert(e, account, newIsSentinel);
-    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != oldOwner;
+    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != owner;
 }
 
 rule setNameInputValidation(env e, string newName) {
-    address oldOwner = owner();
+    address owner = owner();
     setName@withrevert(e, newName);
-    assert e.msg.value != 0 || e.msg.sender != oldOwner => lastReverted;
+    assert e.msg.value != 0 || e.msg.sender != owner => lastReverted;
 }
 
 rule setSymbolInputValidation(env e, string newSymbol) {
-    address oldOwner = owner();
+    address owner = owner();
     setSymbol@withrevert(e, newSymbol);
-    assert e.msg.value != 0 || e.msg.sender != oldOwner => lastReverted;
+    assert e.msg.value != 0 || e.msg.sender != owner => lastReverted;
 }
 
 rule submitInputValidation(env e, bytes data) {
-    address oldCurator = curator();
+    address curator = curator();
     uint256 executableAtData = executableAt(data);
     submit@withrevert(e, data);
-    assert e.msg.value != 0 || e.msg.sender != oldCurator || executableAtData != 0 => lastReverted;
+    assert e.msg.value != 0 || e.msg.sender != curator || executableAtData != 0 => lastReverted;
 }
 
 rule revokeRevertCondition(env e, bytes data) {
-    address oldCurator = curator();
+    address curator = curator();
     bool isSentinel = isSentinel(e.msg.sender);
     uint256 executableAtData = executableAt(data);
     revoke@withrevert(e, data);
-    assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != oldCurator && !isSentinel) || executableAtData == 0;
+    assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != curator && !isSentinel) || executableAtData == 0;
 }
 
 rule decreaseAbsoluteCapRevertCondition(env e, bytes idData, uint256 newAbsoluteCap) {
-    address oldCurator = curator();
+    address curator = curator();
     bool isSentinel = isSentinel(e.msg.sender);
-    uint256 oldAbsoluteCap = absoluteCap(keccak256(idData));
+    uint256 absoluteCap = absoluteCap(keccak256(idData));
     decreaseAbsoluteCap@withrevert(e, idData, newAbsoluteCap);
-    assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != oldCurator && !isSentinel) || newAbsoluteCap > oldAbsoluteCap;
+    assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != curator && !isSentinel) || newAbsoluteCap > absoluteCap;
 }
 
 rule decreaseRelativeCapRevertCondition(env e, bytes idData, uint256 newRelativeCap) {
-    address oldCurator = curator();
+    address curator = curator();
     bool isSentinel = isSentinel(e.msg.sender);
-    uint256 oldRelativeCap = relativeCap(keccak256(idData));
+    uint256 relativeCap = relativeCap(keccak256(idData));
     decreaseRelativeCap@withrevert(e, idData, newRelativeCap);
-    assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != oldCurator && !isSentinel) || newRelativeCap > oldRelativeCap;
+    assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != curator && !isSentinel) || newRelativeCap > relativeCap;
 }
 
 rule allocateInputValidation(env e, address adapter, bytes data, uint256 assets) {
