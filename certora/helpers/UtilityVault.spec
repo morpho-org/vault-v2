@@ -19,6 +19,7 @@ methods {
     function relativeCap(bytes32 id) external returns (uint256) envfree;
     function forceDeallocatePenalty(address) external returns (uint256) envfree;
     function timelock(bytes4) external returns (uint256) envfree;
+    function executableAt(bytes data) external returns (uint256) envfree;
     function abdicated(bytes4) external returns (bool) envfree;
     function performanceFee() external returns (uint96) envfree;
     function performanceFeeRecipient() external returns (address) envfree;
