@@ -45,13 +45,15 @@ function min(mathint a, mathint b, mathint c) returns mathint {
 }
 
 // Only call this function with fb the fallback method of the EarliestTime contract.
-function earliestExecutionTime(env e, method fb, calldataarg args) returns mathint {
+function earliestExecutionTime(uint256 blockTimestamp, calldataarg args, method fb) returns mathint {
+    // Retrieve data from msg.data.
+    env e;
     fb(e, args);
     bytes4 selector = EarliestTime.lastSelector;
     uint256 executableAt = EarliestTime.lastExecutableAt;
 
     mathint viaDirectExecution = to_mathint(executableAt) == 0 ? max_uint256 : to_mathint(executableAt);
-    mathint viaFreshSubmission = require_uint256(e.block.timestamp + timelock(selector));
+    mathint viaFreshSubmission = require_uint256(blockTimestamp + timelock(selector));
     mathint viaDecreaseTimelock = minDecreaseTimelock[selector];
 
     return min(viaDirectExecution, viaFreshSubmission, viaDecreaseTimelock);
@@ -63,18 +65,19 @@ function earliestExecutionTime(env e, method fb, calldataarg args) returns mathi
 // 2. Fresh submission at current time with timelock[selector]
 // 3. Execution after a pending decreaseTimelock takes effect
 // [BUG] Currently there is a bug on the prover for handling msg.data in the hook that's why decreaseTimelock is filtered
-rule earliestExecutionTimeIncreases(env e, env e_next, method f, calldataarg args, method fb)
+rule earliestExecutionTimeIncreases(env e, method f, calldataarg args, calldataarg otherArgs, method fb)
 filtered {
     fb -> fb.contract == EarliestTime && fb.isFallback,
     f -> f.contract == currentContract && !f.isView && f.selector != sig:decreaseTimelock(bytes4, uint256).selector }
 {
-    require e_next.block.timestamp >= e.block.timestamp;
+    uint256 blockTimestampBefore;
+    require blockTimestampBefore <= e.block.timestamp, "ack";
 
-    mathint earliestTimeBefore = earliestExecutionTime(e, fb, args);
+    mathint earliestTimeBefore = earliestExecutionTime(blockTimestampBefore, otherArgs, fb);
 
-    f(e_next, args);
+    f(e, args);
 
-    mathint earliestTimeAfter = earliestExecutionTime(e_next, fb, args);
+    mathint earliestTimeAfter = earliestExecutionTime(e.block.timestamp, otherArgs, fb);
 
     assert earliestTimeAfter >= earliestTimeBefore;
 }
@@ -85,7 +88,10 @@ filtered {
     fb -> fb.contract == EarliestTime && fb.isFallback,
     f -> functionIsTimelocked(f) && f.selector != sig:decreaseTimelock(bytes4, uint256).selector }
 {
-    mathint earliestTime = earliestExecutionTime(e, fb, args);
+    uint256 blockTimestampBefore;
+    require blockTimestampBefore <= e.block.timestamp, "ack";
+
+    mathint earliestTime = earliestExecutionTime(blockTimestampBefore, args, fb);
 
     require e.block.timestamp < earliestTime;
     f@withrevert(e, args);
