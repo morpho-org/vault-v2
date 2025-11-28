@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-import "UtilityFunctions.spec";
+import "../helper/UtilityFunctionsVault.spec";
 
 methods {
     function multicall(bytes[]) external => NONDET DELETE;

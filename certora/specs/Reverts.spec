@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-import "UtilityFunctions.spec";
+import "../helpers/UtilityFunctionsVault.spec";
 
 using RevertCondition as RevertCondition;
 
@@ -12,16 +12,14 @@ using RevertCondition as RevertCondition;
 methods {
     // Assume that interest accrual does not revert.
     function accrueInterest() internal => NONDET;
-    // Assumption to be able to retrieve the adapter registry returned value before it is called.
-    function _.isInRegistry(address adapter) external => ghostIsInRegistry(calledContract, adapter) expect bool;
+    // Assumption to be able to retrieve the returned value by adapter registry before it is called.
+    function _.isInRegistry(address adapter) external => ghostIsInRegistry(calledContract, adapter) expect(bool);
 }
 
 ghost ghostIsInRegistry(address, address) returns bool;
 
 rule timelockedFunctionsRevertConditions(env e, calldataarg args, method f)
- filtered {
-    f -> f.contract == currentContract && functionTimelocked(f)
-} {
+filtered { f -> f.contract == currentContract && functionIsTimelocked(f) } {
     bool revertCondition;
     if (f.selector == sig:setIsAllocator(address, bool).selector) {
         revertCondition = RevertCondition.setIsAllocator(e, args);
@@ -53,11 +51,11 @@ rule timelockedFunctionsRevertConditions(env e, calldataarg args, method f)
         revertCondition = RevertCondition.setPerformanceFeeRecipient(e, args);
     } else if (f.selector == sig:setManagementFeeRecipient(address).selector) {
         revertCondition = RevertCondition.setManagementFeeRecipient(e, args);
-    } else if (f.selector == sig:increaseAbsoluteCap(bytes,uint256).selector) {
+    } else if (f.selector == sig:increaseAbsoluteCap(bytes, uint256).selector) {
         revertCondition = RevertCondition.increaseAbsoluteCap(e, args);
-    } else if (f.selector == sig:increaseRelativeCap(bytes,uint256).selector) {
+    } else if (f.selector == sig:increaseRelativeCap(bytes, uint256).selector) {
         revertCondition = RevertCondition.increaseRelativeCap(e, args);
-    } else if (f.selector == sig:setForceDeallocatePenalty(address,uint256).selector) {
+    } else if (f.selector == sig:setForceDeallocatePenalty(address, uint256).selector) {
         revertCondition = RevertCondition.setForceDeallocatePenalty(e, args);
     } else {
         revertCondition = false; // To silence a warning.
