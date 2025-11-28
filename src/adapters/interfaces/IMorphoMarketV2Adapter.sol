@@ -3,8 +3,7 @@
 pragma solidity >=0.5.0;
 
 import {IAdapter} from "../../interfaces/IAdapter.sol";
-// import {Id, MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
-import {Offer, Signature, Obligation, Collateral, Seizure} from "lib/morpho-v2/src/interfaces/IMorphoV2.sol";
+import {Obligation, Seizure} from "lib/morpho-v2/src/interfaces/IMorphoV2.sol";
 import {ICallbacks} from "lib/morpho-v2/src/interfaces/ICallbacks.sol";
 
 uint256 constant MAX_DURATIONS = 8;
@@ -13,7 +12,6 @@ uint256 constant MAX_DURATIONS = 8;
 struct ObligationPosition {
     uint128 units;
     uint128 growth;
-    uint48 lastUpdate;
     uint32[8] durations;
 }
 
@@ -81,6 +79,7 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
     function accrueInterestView() external view returns (uint48, uint128, uint256);
     function accrueInterest() external;
     function realizeLoss(Obligation memory obligation) external;
+    function syncDurations(Obligation memory obligation) external;
     function allocate(bytes memory data, uint256 assets, bytes4, address vaultAllocator)
         external
         returns (bytes32[] memory, int256);

@@ -13,6 +13,9 @@ contract VaultV2Mock {
     mapping(address => bool) public isAllocator;
     mapping(address => bool) public isSentinel;
     mapping(bytes32 => uint256) public allocation;
+    uint256 public totalAssets;
+    uint256 public adaptersLength;
+    address[] public adapters;
 
     constructor(address _asset, address _owner, address _curator, address _allocator, address _sentinel) {
         asset = _asset;
@@ -43,5 +46,17 @@ contract VaultV2Mock {
         }
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
         return (ids, change);
+    }
+
+    function setTotalAssets(uint256 newTotalAssets) external {
+        totalAssets = newTotalAssets;
+    }
+
+    function setAdaptersLength(uint256 newAdaptersLength) external {
+        adaptersLength = newAdaptersLength;
+    }
+
+    function setAdapters(address[] memory newAdapters) external {
+        adapters = newAdapters;
     }
 }

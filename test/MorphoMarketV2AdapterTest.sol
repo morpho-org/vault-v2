@@ -9,15 +9,12 @@ import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
-import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
-import {IMorphoMarketV2Adapter, MAX_DURATIONS} from "../src/adapters/interfaces/IMorphoMarketV2Adapter.sol";
+import {IMorphoMarketV2Adapter} from "../src/adapters/interfaces/IMorphoMarketV2Adapter.sol";
 import {IMorphoMarketV2AdapterFactory} from "../src/adapters/interfaces/IMorphoMarketV2AdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
-import {MathLib as MorphoV2MathLib} from "lib/morpho-v2/src/libraries/MathLib.sol";
 import {MorphoV2} from "../lib/morpho-v2/src/MorphoV2.sol";
 import {Offer, Signature, Obligation, Collateral, Proof} from "../lib/morpho-v2/src/interfaces/IMorphoV2.sol";
 import {stdStorage, StdStorage} from "../lib/forge-std/src/Test.sol";
-import {stdError} from "../lib/forge-std/src/StdError.sol";
 import {ORACLE_PRICE_SCALE} from "../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 
 struct Step {
@@ -66,7 +63,7 @@ contract MorphoMarketV2AdapterTest is Test {
     uint256 internal expectedAddedGrowth;
     uint256 internal expectedAddedAssets;
 
-    function setUp() public {
+    function setUp() public virtual {
         owner = makeAddr("owner");
         curator = makeAddr("curator");
         (signerAllocator, signerAllocatorPrivateKey) = makeAddrAndKey("signerAllocator");
