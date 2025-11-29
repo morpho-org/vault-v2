@@ -222,4 +222,6 @@ contract MorphoMarketV2AdapterAllocationUpdateTest is MorphoMarketV2AdapterTest 
         assertEq(parentVault.allocation(durationId(1 days)), 0, "1 day");
         assertEq(parentVault.allocation(durationId(2 weeks)), 0.5e18, "2 weeks");
     }
+
+    // TODO force deallocate test
 }
