@@ -536,7 +536,7 @@ contract MorphoMarketV2AdapterTest is Test {
         adapter.removeDuration(95);
         assertEq(adapter.durations().length, 7);
         adapter.addDuration(94);
-        vm.expectRevert(IMorphoMarketV2Adapter.MaxDurationsExceeded.selector);
+        vm.expectRevert(IMorphoMarketV2Adapter.TooManyDurations.selector);
         adapter.addDuration(2);
         vm.stopPrank();
     }
@@ -577,9 +577,9 @@ contract MorphoMarketV2AdapterTest is Test {
         adapter.addDuration(0);
         vm.expectRevert(IMorphoMarketV2Adapter.IncorrectDuration.selector);
         adapter.addDuration(uint256(type(uint32).max) + 1);
-        vm.expectRevert(IMorphoMarketV2Adapter.NoDuplicates.selector);
+        vm.expectRevert(IMorphoMarketV2Adapter.DurationAlreadyExists.selector);
         adapter.addDuration(1);
-        vm.expectRevert(IMorphoMarketV2Adapter.NoDuplicates.selector);
+        vm.expectRevert(IMorphoMarketV2Adapter.DurationAlreadyExists.selector);
         adapter.addDuration(2);
         vm.stopPrank();
     }

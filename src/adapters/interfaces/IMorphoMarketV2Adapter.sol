@@ -6,13 +6,11 @@ import {IAdapter} from "../../interfaces/IAdapter.sol";
 import {Obligation, Seizure} from "lib/morpho-v2/src/interfaces/IMorphoV2.sol";
 import {ICallbacks} from "lib/morpho-v2/src/interfaces/ICallbacks.sol";
 
-uint256 constant MAX_DURATIONS = 8;
-
 // Position in an obligation
 struct ObligationPosition {
     uint128 units;
     uint128 growth;
-    uint32[8] durations;
+    bytes32 durations;
 }
 
 // Chain of maturities, each can represent multiple obligations.
@@ -32,8 +30,8 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
 
     /* ERRORS */
 
-    error BelowMinRate();
     error BufferTooLow();
+    error DurationAlreadyExists();
     error IncorrectCallbackAddress();
     error IncorrectCallbackData();
     error IncorrectCollateralSet();
@@ -50,14 +48,13 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
     error IncorrectStart();
     error IncorrectUnits();
     error LoanAssetMismatch();
-    error MaxDurationsExceeded();
     error NoBorrowing();
-    error NoDuplicates();
     error NotAuthorized();
     error NotMorphoV2();
     error NotSelf();
     error PriceBelowOne();
     error SelfAllocationOnly();
+    error TooManyDurations();
 
     /* FUNCTIONS */
 
