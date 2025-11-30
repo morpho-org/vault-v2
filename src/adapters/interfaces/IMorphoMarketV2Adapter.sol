@@ -12,7 +12,6 @@ uint256 constant MAX_DURATIONS = 8;
 struct ObligationPosition {
     uint128 units;
     uint128 growth;
-    uint32[8] durations;
 }
 
 // Chain of maturities, each can represent multiple obligations.
@@ -20,6 +19,8 @@ struct ObligationPosition {
 struct Maturity {
     uint128 growthLostAtMaturity;
     uint48 nextMaturity;
+    uint256 units;
+    uint32[8] durations;
 }
 
 interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
@@ -34,6 +35,7 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
 
     error BelowMinRate();
     error BufferTooLow();
+    error DurationNotFound();
     error IncorrectCallbackAddress();
     error IncorrectCallbackData();
     error IncorrectCollateralSet();
@@ -79,7 +81,6 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
     function accrueInterestView() external view returns (uint48, uint128, uint256);
     function accrueInterest() external;
     function realizeLoss(Obligation memory obligation) external;
-    function syncDurations(Obligation memory obligation) external;
     function allocate(bytes memory data, uint256 assets, bytes4, address vaultAllocator)
         external
         returns (bytes32[] memory, int256);
