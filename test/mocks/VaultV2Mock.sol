@@ -16,6 +16,7 @@ contract VaultV2Mock {
     uint256 public totalAssets;
     uint256 public adaptersLength;
     address[] public adapters;
+    uint256 public _timelock;
 
     constructor(address _asset, address _owner, address _curator, address _allocator, address _sentinel) {
         asset = _asset;
@@ -23,6 +24,7 @@ contract VaultV2Mock {
         curator = _curator;
         isAllocator[_allocator] = true;
         isSentinel[_sentinel] = true;
+        _timelock = 1 days;
     }
 
     function accrueInterest() public {}
@@ -58,5 +60,13 @@ contract VaultV2Mock {
 
     function setAdapters(address[] memory newAdapters) external {
         adapters = newAdapters;
+    }
+
+    function setTimelock(uint256 newTimelock) external {
+        _timelock = newTimelock;
+    }
+
+    function timelock(bytes4) external view returns (uint256) {
+        return _timelock;
     }
 }

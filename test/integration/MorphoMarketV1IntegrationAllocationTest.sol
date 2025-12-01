@@ -27,8 +27,8 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket1);
         assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), initialInMarket1);
-        assertEq(vault.allocation(keccak256(expectedIdData1[2])), initialInMarket1);
-        assertEq(vault.allocation(keccak256(expectedIdData2[2])), 0);
+        assertEq(vault.allocation(expectedIds1[2]), initialInMarket1);
+        assertEq(vault.allocation(expectedIds2[2]), 0);
     }
 
     function testDeallocateLessThanAllocated(uint256 assets) public {
@@ -41,7 +41,7 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket1 - assets);
         assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), initialInMarket1 - assets);
-        assertEq(vault.allocation(keccak256(expectedIdData1[2])), initialInMarket1 - assets);
+        assertEq(vault.allocation(expectedIds1[2]), initialInMarket1 - assets);
     }
 
     function testDeallocateMoreThanAllocated(uint256 assets) public {
@@ -81,8 +81,8 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
         assertEq(underlyingToken.balanceOf(address(adapter)), 0);
         assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket1 + assets);
         assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), initialInMarket1 + assets);
-        assertEq(vault.allocation(keccak256(expectedIdData1[2])), initialInMarket1 + assets);
-        assertEq(vault.allocation(keccak256(expectedIdData2[2])), 0);
+        assertEq(vault.allocation(expectedIds1[2]), initialInMarket1 + assets);
+        assertEq(vault.allocation(expectedIds2[2]), 0);
     }
 
     function testAllocateLessThanIdleToMarket2(uint256 assets) public {
@@ -96,8 +96,8 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
         assertEq(underlyingToken.balanceOf(address(morpho)), initialInMarket1 + assets);
         assertEq(morpho.expectedSupplyAssets(marketParams1, address(adapter)), initialInMarket1);
         assertEq(morpho.expectedSupplyAssets(marketParams2, address(adapter)), assets);
-        assertEq(vault.allocation(keccak256(expectedIdData1[2])), initialInMarket1);
-        assertEq(vault.allocation(keccak256(expectedIdData2[2])), assets);
+        assertEq(vault.allocation(expectedIds1[2]), initialInMarket1);
+        assertEq(vault.allocation(expectedIds2[2]), assets);
     }
 
     function testAllocateMoreThanIdle(uint256 assets) public {
@@ -111,7 +111,7 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
     function testAllocateNoDuplicateMarket() public {
         deal(address(underlyingToken), allocator, initialInMarket1);
 
-        assertEq(adapter.marketParamsListLength(), 1, "incorrectly set up market list");
+        assertEq(adapter.marketIdsLength(), 1, "incorrectly set up market id list");
 
         oracle.setPrice(1e36);
 
@@ -138,6 +138,22 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
         vm.prank(allocator);
         vault.allocate(address(adapter), abi.encode(marketParams1), 1);
 
-        assertEq(adapter.marketParamsListLength(), 1, "duplicate market in market list");
+        assertEq(adapter.marketIdsLength(), 1, "duplicate market in market id list");
+    }
+
+    function testAllocateWithSlippage() public {
+        // Increase rate by borrowing.
+        deal(address(collateralToken), borrower, type(uint256).max);
+        vm.startPrank(borrower);
+        collateralToken.approve(address(morpho), type(uint256).max);
+        morpho.supplyCollateral(marketParams1, 2 * initialInMarket1, borrower, hex"");
+        morpho.borrow(marketParams1, initialInMarket1, 0, borrower, borrower);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 60 * 60 * 24 * 365 * 200); //200 years
+
+        vm.prank(allocator);
+        vm.expectRevert(IMorphoMarketV1Adapter.SharePriceAboveOne.selector);
+        vault.allocate(address(adapter), abi.encode(marketParams1), 100);
     }
 }
