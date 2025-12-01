@@ -34,6 +34,7 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
 
     error BelowMinRate();
     error BufferTooLow();
+    error DurationAlreadyExists();
     error IncorrectCallbackAddress();
     error IncorrectCallbackData();
     error IncorrectCollateralSet();
@@ -50,14 +51,13 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
     error IncorrectStart();
     error IncorrectUnits();
     error LoanAssetMismatch();
-    error MaxDurationsExceeded();
     error NoBorrowing();
-    error NoDuplicates();
     error NotAuthorized();
     error NotMorphoV2();
     error NotSelf();
     error PriceBelowOne();
     error SelfAllocationOnly();
+    error TooManyDurations();
 
     /* FUNCTIONS */
 
