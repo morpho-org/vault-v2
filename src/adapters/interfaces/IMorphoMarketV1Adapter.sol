@@ -9,8 +9,8 @@ interface IMorphoMarketV1Adapter is IAdapter {
     /* EVENTS */
 
     event Submit(bytes4 indexed selector, bytes data, uint256 executableAt);
-    event Revoke(bytes4 indexed selector, bytes data);
-    event Timelocked(bytes4 indexed selector, bytes data);
+    event Revoke(address indexed sender, bytes4 indexed selector, bytes data);
+    event Accept(bytes4 indexed selector, bytes data);
     event SetSkimRecipient(address indexed newSkimRecipient);
     event Skim(address indexed token, uint256 assets);
     event BurnShares(bytes32 indexed id, uint256 supplyShares);
@@ -23,10 +23,10 @@ interface IMorphoMarketV1Adapter is IAdapter {
     error AlreadyPending();
     error IrmMismatch();
     error LoanAssetMismatch();
-    error NotAuthorized();
     error NotPending();
     error SharePriceAboveOne();
     error TimelockNotExpired();
+    error Unauthorized();
 
     /* VIEW FUNCTIONS */
 
