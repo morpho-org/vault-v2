@@ -21,7 +21,7 @@ import {IMorphoMarketV1AdapterV2Factory} from "../src/adapters/interfaces/IMorph
 import {MathLib} from "../src/libraries/MathLib.sol";
 import {IAdaptiveCurveIrm} from "../lib/morpho-blue-irm/src/adaptive-curve-irm/interfaces/IAdaptiveCurveIrm.sol";
 
-contract MorphoMarketV1AdapterTest is Test {
+contract MorphoMarketV1AdapterV2Test is Test {
     using MorphoBalancesLib for IMorpho;
     using MarketParamsLib for MarketParams;
     using MathLib for uint256;
@@ -181,7 +181,7 @@ contract MorphoMarketV1AdapterTest is Test {
         assertEq(adapter.marketIdsLength(), 0, "Incorrect number of market params");
     }
 
-    function testFactoryCreateMorphoMarketV1Adapter() public {
+    function testFactoryCreateMorphoMarketV1AdapterV2() public {
         address newParentVaultAddr =
             address(new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0)));
 
