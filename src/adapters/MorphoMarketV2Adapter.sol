@@ -75,7 +75,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
     }
 
     function ids(Obligation memory obligation) external view returns (bytes32[] memory) {
-        return _ids(obligation, syncedDurations(obligation.maturity));
+        return _ids(obligation, matchingDurations(obligation.maturity));
     }
 
     /* SKIM FUNCTIONS */
@@ -313,7 +313,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
             }
         }
 
-        position.durations = syncedDurations(obligation.maturity);
+        position.durations = matchingDurations(obligation.maturity);
         IVaultV2(parentVault)
             .allocate(
                 address(this), abi.encode(_ids(obligation, position.durations), position.units.toInt256()), buyerAssets
@@ -353,7 +353,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         ObligationPosition storage position = _positions[_obligationId(obligation)];
         selfDeallocate(obligation, position.durations, position.units, 0);
 
-        position.durations = syncedDurations(obligation.maturity);
+        position.durations = matchingDurations(obligation.maturity);
         IVaultV2(parentVault)
             .allocate(address(this), abi.encode(_ids(obligation, position.durations), position.units.toInt256()), 0);
     }
@@ -383,7 +383,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         return keccak256(abi.encode(obligation));
     }
 
-    function syncedDurations(uint256 maturity) internal view returns (bytes32) {
+    function matchingDurations(uint256 maturity) internal view returns (bytes32) {
         bytes32 _packedDurations = packedDurations;
         uint256 timeToMaturity = maturity.zeroFloorSub(block.timestamp);
         for (uint256 i = 0; i < MAX_DURATIONS; i++) {
