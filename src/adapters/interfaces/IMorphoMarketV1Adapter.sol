@@ -19,6 +19,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
 
     /* ERRORS */
 
+    error Abdicated();
     error AlreadyPending();
     error IrmMismatch();
     error LoanAssetMismatch();
