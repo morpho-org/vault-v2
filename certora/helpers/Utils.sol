@@ -45,19 +45,6 @@ contract Utils {
         return MAX_MAX_RATE;
     }
 
-    function expectedSupplyAssets(IMorpho morpho, MarketParams memory marketParams, address user)
-        external
-        view
-        returns (uint256)
-    {
-        Id marketId = marketParams.id();
-        uint256 supplyShares = morpho.position(marketId, user).supplyShares;
-        (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
-            MorphoBalancesLib.expectedMarketBalances(morpho, marketParams);
-
-        return supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
-    }
-
     function encodeMarketParams(MarketParams memory marketParams) external pure returns (bytes memory) {
         return abi.encode(marketParams);
     }
