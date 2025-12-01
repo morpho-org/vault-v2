@@ -21,9 +21,9 @@ interface IMorphoMarketV1Adapter is IAdapter {
 
     error Abdicated();
     error AlreadyPending();
+    error DataNotTimelocked();
     error IrmMismatch();
     error LoanAssetMismatch();
-    error NotPending();
     error SharePriceAboveOne();
     error TimelockNotExpired();
     error Unauthorized();

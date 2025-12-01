@@ -221,7 +221,7 @@ contract MorphoMarketV1AdapterTest is Test {
     function testSetSkimRecipientNotTimelocked(address newRecipient) public {
         vm.assume(newRecipient != address(0));
 
-        vm.expectRevert(IMorphoMarketV1Adapter.NotPending.selector);
+        vm.expectRevert(IMorphoMarketV1Adapter.DataNotTimelocked.selector);
         adapter.setSkimRecipient(newRecipient);
     }
 
@@ -415,7 +415,7 @@ contract MorphoMarketV1AdapterTest is Test {
 
     function testRevokeBurnSharesNotPending(bytes32 _marketId) public {
         vm.prank(curator);
-        vm.expectRevert(IMorphoMarketV1Adapter.NotPending.selector);
+        vm.expectRevert(IMorphoMarketV1Adapter.DataNotTimelocked.selector);
         adapter.revoke(abi.encodeCall(IMorphoMarketV1Adapter.burnShares, (_marketId)));
     }
 
@@ -451,7 +451,7 @@ contract MorphoMarketV1AdapterTest is Test {
     }
 
     function testBurnSharesNotTimelocked(bytes32 _marketId) public {
-        vm.expectRevert(IMorphoMarketV1Adapter.NotPending.selector);
+        vm.expectRevert(IMorphoMarketV1Adapter.DataNotTimelocked.selector);
         adapter.burnShares(_marketId);
     }
 
