@@ -77,6 +77,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     function timelocked() internal {
         require(executableAt[msg.data] != 0, NotPending());
         require(block.timestamp >= executableAt[msg.data], TimelockNotExpired());
+        require(!IVaultV2(parentVault).abdicated(bytes4(msg.data)), ErrorsLib.Abdicated());
         executableAt[msg.data] = 0;
         emit Timelocked(bytes4(msg.data), msg.data);
     }
