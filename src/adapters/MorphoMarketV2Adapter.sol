@@ -112,8 +112,8 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
                 placed = true;
             }
         }
-        if (!placed) revert TooManyDurations();
         packedDurations = _packedDurations;
+        if (!placed) revert TooManyDurations();
 
         emit AddDuration(addedDuration);
     }
