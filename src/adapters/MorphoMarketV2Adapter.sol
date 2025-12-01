@@ -9,7 +9,7 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMorphoMarketV2Adapter, ObligationPosition, Maturity, IAdapter} from "./interfaces/IMorphoMarketV2Adapter.sol";
-import {DurationsLib, MAX_DURATIONS} from "../libraries/DurationsLib.sol";
+import {DurationsLib, MAX_DURATIONS} from "./libraries/DurationsLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest separately for each obligation.
 /// @dev Losses are immdiately accounted minus a discount applied to the remaining interest to be earned, in proportion
