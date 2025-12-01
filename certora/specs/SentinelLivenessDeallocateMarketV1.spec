@@ -24,12 +24,12 @@ methods {
     function ERC20.transferFrom(address, address, uint256) external returns (bool) => NONDET;
 
     // Assume that expectedSupplyAssets doesn't revert on market v1.
-    function _.expectedSupplyAssets(address morpho, MorphoMarketV1Adapter.MarketParams memory marketParams, address user) internal => summaryExpectedSupplyAssets(morpho, marketParams, user) expect uint256;
+    function MorphoMarketV1Adapter.expectedSupplyAssets(bytes32 marketId) internal returns (uint256) => summaryExpectedSupplyAssets(marketId);
 }
 
-function summaryExpectedSupplyAssets(address morpho, MorphoMarketV1Adapter.MarketParams marketParams, address user) returns (uint256) {
+function summaryExpectedSupplyAssets(bytes32 marketId) returns uint256 {
     uint256 assets;
-    require assets <= max_int256(), "assume that expectedSupplyAssets returns a value bounded by max_int256";
+    require assets <= max_int256(), "safe because market v1 stores the total supply assets of the market in a uint128";
     return assets;
 }
 
@@ -55,7 +55,7 @@ function morphoMarketV1AdapterDeallocateWrapper(address adapter, env e, bytes da
 // Check that a sentinel can deallocate, assuming that:
 // - the adapter has positive allocations on all ids,
 // - the adapter's withdraw call succeeds,
-// - expectedSupplyAssets doesn't revert and returns a value bounded by max_int256.
+// - expectedSupplyAssets doesn't revert
 // - the change doesn't overflow int256 on any id.
 rule sentinelCanDeallocate(env e, address adapter, bytes data, uint256 assets) {
     require e.block.timestamp < 2 ^ 63, "safe because it corresponds to a time very far in the future";
