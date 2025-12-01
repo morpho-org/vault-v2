@@ -248,7 +248,7 @@ contract AccrueInterestTest is BaseTest {
         assertEq(vault.totalAssets(), MathLib.min(deposit + donation, maxTotalAssets));
     }
 
-    // on purpose not isolated.
+    /// forge-config: default.isolate = false
     function testFirstTotalAssets(uint256 interest, uint256 deposit, uint256 elapsed) public {
         deposit = bound(deposit, 0, maxTestAssets);
         elapsed = bound(elapsed, 0, 10 * 365 days);
