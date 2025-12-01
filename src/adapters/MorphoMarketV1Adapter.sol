@@ -26,6 +26,7 @@ import {
 /// @dev Markets get removed from the marketIds when the allocation is zero, but it doesn't mean that the adapter has
 /// zero shares on the market.
 /// @dev This adapter can only be used for markets with the adaptive curve irm.
+/// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MarketParamsLib for MarketParams;
     using SharesMathLib for uint256;
