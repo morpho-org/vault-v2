@@ -50,10 +50,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     bytes32[] public marketIds;
     mapping(bytes32 marketId => uint256) public supplyShares;
 
-    // Shares skimming.
-    address public skimSharesRecipient;
-    uint256 public lockedAtBlockNumber;
-
     function marketIdsLength() external view returns (uint256) {
         return marketIds.length;
     }
@@ -102,38 +98,12 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         emit SetSkimRecipient(newSkimRecipient);
     }
 
-    function setSkimSharesRecipient(address newSkimSharesRecipient) external {
-        timelocked();
-        skimSharesRecipient = newSkimSharesRecipient;
-        emit SetSkimSharesRecipient(newSkimSharesRecipient);
-    }
-
     /// @dev Deallocate 0 from the vault after burning shares to update the allocation there.
     function burnShares(bytes32 marketId) external {
         timelocked();
-        require(IVaultV2(parentVault).firstTotalAssets() == 0, "already interacted with the vault in the tx");
-
-        MarketParams memory marketParams = IMorpho(morpho).idToMarketParams(Id.wrap(marketId));
         uint256 supplySharesBefore = supplyShares[marketId];
-
-        if (skimSharesRecipient != address(0)) {
-            (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
-                AdaptiveCurveIrmLib.expectedMarketBalances(morpho, marketId, adaptiveCurveIrm);
-            uint256 supplyAssets = supplySharesBefore.toAssetsDown(totalSupplyAssets, totalSupplyShares);
-            bytes memory data = abi.encode(marketParams, supplySharesBefore);
-            IMorpho(morpho).supply(marketParams, supplyAssets, 0, skimSharesRecipient, data);
-        }
-
-        lockedAtBlockNumber = block.number;
         supplyShares[marketId] = 0;
-
-        emit BurnShares(marketId, supplySharesBefore, skimSharesRecipient);
-    }
-
-    function onMorphoSupply(uint256, bytes memory data) external {
-        require(msg.sender == morpho, NotAuthorized());
-        (MarketParams memory marketParams, uint256 sharesToMove) = abi.decode(data, (MarketParams, uint256));
-        IMorpho(morpho).withdraw(marketParams, 0, sharesToMove, address(this), address(this));
+        emit BurnShares(marketId, supplySharesBefore);
     }
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
@@ -244,7 +214,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     }
 
     function realAssets() external view returns (uint256) {
-        require(block.number > lockedAtBlockNumber, Locked());
         uint256 _realAssets = 0;
         for (uint256 i = 0; i < marketIds.length; i++) {
             _realAssets += expectedSupplyAssets(marketIds[i]);
