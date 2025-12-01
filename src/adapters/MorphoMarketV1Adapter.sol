@@ -111,7 +111,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         emit BurnShares(marketId, supplySharesBefore);
     }
 
-    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the change in allocation.
     function allocate(bytes memory data, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
@@ -138,7 +137,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         return (ids(marketParams), int256(newAllocation) - int256(oldAllocation));
     }
 
-    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the change in allocation.
     function deallocate(bytes memory data, uint256 assets, bytes4, address)
         external
