@@ -22,6 +22,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
 
     /* ERRORS */
 
+    error Abdicated();
     error AlreadyBurned();
     error AlreadyPending();
     error AlreadySet();
