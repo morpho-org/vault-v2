@@ -64,7 +64,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     }
 
     function submit(bytes memory data) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        require(msg.sender == IVaultV2(parentVault).curator(), Unauthorized());
         require(executableAt[data] == 0, AlreadyPending());
         bytes4 selector = bytes4(data);
         executableAt[data] = block.timestamp + IVaultV2(parentVault).timelock(selector);
@@ -75,17 +75,17 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(executableAt[msg.data] != 0, NotPending());
         require(block.timestamp >= executableAt[msg.data], TimelockNotExpired());
         executableAt[msg.data] = 0;
-        emit Timelocked(bytes4(msg.data), msg.data);
+        emit Accept(bytes4(msg.data), msg.data);
     }
 
     function revoke(bytes memory data) external {
         require(
             msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
-            NotAuthorized()
+            Unauthorized()
         );
         require(executableAt[data] != 0, NotPending());
         executableAt[data] = 0;
-        emit Revoke(bytes4(data), data);
+        emit Revoke(msg.sender, bytes4(data), data);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -105,7 +105,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
     /// @dev This is useful to handle rewards that the adapter has earned.
     function skim(address token) external {
-        require(msg.sender == skimRecipient, NotAuthorized());
+        require(msg.sender == skimRecipient, Unauthorized());
         uint256 balance = IERC20(token).balanceOf(address(this));
         SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
         emit Skim(token, balance);
@@ -115,7 +115,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     /// @dev Returns the ids of the allocation and the change in allocation.
     function allocate(bytes memory data, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        require(msg.sender == parentVault, NotAuthorized());
+        require(msg.sender == parentVault, Unauthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
         require(marketParams.irm == adaptiveCurveIrm, IrmMismatch());
         bytes32 marketId = Id.unwrap(marketParams.id());
@@ -145,7 +145,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         returns (bytes32[] memory, int256)
     {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        require(msg.sender == parentVault, NotAuthorized());
+        require(msg.sender == parentVault, Unauthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
         require(marketParams.irm == adaptiveCurveIrm, IrmMismatch());
         bytes32 marketId = Id.unwrap(marketParams.id());

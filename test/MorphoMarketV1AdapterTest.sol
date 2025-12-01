@@ -103,13 +103,13 @@ contract MorphoMarketV1AdapterTest is Test {
 
     function testAllocateNotAuthorizedReverts(uint256 assets) public {
         assets = _boundAssets(assets);
-        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1Adapter.Unauthorized.selector);
         adapter.allocate(abi.encode(marketParams), assets, bytes4(0), address(0));
     }
 
     function testDeallocateNotAuthorizedReverts(uint256 assets) public {
         assets = _boundAssets(assets);
-        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1Adapter.Unauthorized.selector);
         adapter.deallocate(abi.encode(marketParams), assets, bytes4(0), address(0));
     }
 
@@ -227,7 +227,7 @@ contract MorphoMarketV1AdapterTest is Test {
 
     function testSetSkimRecipientNotAuthorized(address newRecipient, address caller) public {
         vm.assume(caller != curator);
-        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1Adapter.Unauthorized.selector);
         vm.prank(caller);
         adapter.submit(abi.encodeCall(IMorphoMarketV1Adapter.setSkimRecipient, (newRecipient)));
     }
@@ -257,7 +257,7 @@ contract MorphoMarketV1AdapterTest is Test {
 
     function testSkimNotAuthorized(address caller, address token) public {
         vm.assume(caller != recipient);
-        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1Adapter.Unauthorized.selector);
         vm.prank(caller);
         adapter.skim(token);
     }
@@ -278,7 +278,7 @@ contract MorphoMarketV1AdapterTest is Test {
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
         assertEq(token.balanceOf(recipient), assets, "Recipient did not receive tokens");
 
-        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1Adapter.Unauthorized.selector);
         adapter.skim(address(token));
     }
 
@@ -375,7 +375,7 @@ contract MorphoMarketV1AdapterTest is Test {
     function testSubmitBurnSharesNotAuthorized(address caller, bytes32 _marketId) public {
         vm.assume(caller != curator);
         vm.prank(caller);
-        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1Adapter.Unauthorized.selector);
         adapter.submit(abi.encode(IMorphoMarketV1Adapter.burnShares.selector, abi.encode(_marketId)));
     }
 
@@ -409,7 +409,7 @@ contract MorphoMarketV1AdapterTest is Test {
         vm.assume(caller != sentinel);
 
         vm.prank(caller);
-        vm.expectRevert(IMorphoMarketV1Adapter.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1Adapter.Unauthorized.selector);
         adapter.revoke(abi.encodeCall(IMorphoMarketV1Adapter.burnShares, (_marketId)));
     }
 
@@ -428,7 +428,7 @@ contract MorphoMarketV1AdapterTest is Test {
         vm.prank(curator);
         vm.expectEmit();
         emit IMorphoMarketV1Adapter.Revoke(
-            IMorphoMarketV1Adapter.burnShares.selector, abi.encodeCall(IMorphoMarketV1Adapter.burnShares, (_marketId))
+            curator, IMorphoMarketV1Adapter.burnShares.selector, abi.encodeCall(IMorphoMarketV1Adapter.burnShares, (_marketId))
         );
         adapter.revoke(abi.encodeCall(IMorphoMarketV1Adapter.burnShares, (_marketId)));
 
@@ -439,7 +439,7 @@ contract MorphoMarketV1AdapterTest is Test {
         vm.prank(sentinel);
         vm.expectEmit();
         emit IMorphoMarketV1Adapter.Revoke(
-            IMorphoMarketV1Adapter.burnShares.selector, abi.encodeCall(IMorphoMarketV1Adapter.burnShares, (_marketId))
+            sentinel, IMorphoMarketV1Adapter.burnShares.selector, abi.encodeCall(IMorphoMarketV1Adapter.burnShares, (_marketId))
         );
         adapter.revoke(abi.encodeCall(IMorphoMarketV1Adapter.burnShares, (_marketId)));
 
