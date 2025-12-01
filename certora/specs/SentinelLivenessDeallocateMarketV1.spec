@@ -63,6 +63,7 @@ rule sentinelCanDeallocate(env e, address adapter, bytes data, uint256 assets) {
 
     MorphoMarketV1Adapter.MarketParams marketParams;
     require marketParams.loanToken == MorphoMarketV1Adapter.asset(), "setup call to have the correct loan token";
+    require marketParams.irm == MorphoMarketV1Adapter.adaptiveCurveIrm(), "setup call to have the correct IRM";
     require data == Utils.encodeMarketParams(marketParams), "setup call to have the correct data";
     require isAdapter(adapter), "setup call to be performed on a valid adapter";
     require isSentinel(e.msg.sender), "setup call to be performed by a sentinel";
