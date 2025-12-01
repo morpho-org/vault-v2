@@ -12,14 +12,16 @@ methods {
     function isSentinel(address) external returns (bool) envfree;
     function Utils.decodeMarketParams(bytes) external returns (MorphoMarketV1Adapter.MarketParams) envfree;
     function Utils.encodeMarketParams(MorphoMarketV1Adapter.MarketParams) external returns (bytes) envfree;
+    function Utils.id(MorphoMarketV1Adapter.MarketParams) external returns (MorphoMarketV1Adapter.Id) envfree;
     function MorphoMarketV1Adapter.allocation(MorphoMarketV1Adapter.MarketParams) external returns (uint256) envfree;
     function MorphoMarketV1Adapter.asset() external returns (address) envfree;
     function MorphoMarketV1Adapter.adaptiveCurveIrm() external returns (address) envfree;
+    function MorphoMarketV1Adapter.supplyShares(bytes32) external returns (uint256) envfree;
 
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => morphoMarketV1AdapterDeallocateWrapper(calledContract, e, data, assets, selector, sender) expect(bytes32[], int256);
 
     // Assume that the adapter's withdraw call succeeds.
-    function _.withdraw(MorphoMarketV1Adapter.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) external => NONDET;
+    function _.withdraw(MorphoMarketV1Adapter.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) external => summaryWithdraw(marketParams, assets, shares, onBehalf, receiver) expect (uint256, uint256);
 
     // Transfers should not revert because market v1 sends back tokens to the adapter on withdraw.
     function ERC20.transferFrom(address, address, uint256) external returns (bool) => NONDET;
@@ -34,6 +36,13 @@ function summaryExpectedSupplyAssets(bytes32 marketId) returns uint256 {
     return assets;
 }
 
+function summaryWithdraw(MorphoMarketV1Adapter.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) returns (uint256, uint256) {
+    uint256 assetsWithdrawn;
+    uint256 sharesWithdrawn;
+    MorphoMarketV1Adapter.Id marketId = Utils.id(marketParams);
+    require sharesWithdrawn <= MorphoMarketV1Adapter.supplyShares(marketId), "internal accounting of shares is less than actual held shares";
+    return (assetsWithdrawn, sharesWithdrawn);
+}
 
 function morphoMarketV1AdapterDeallocateWrapper(address adapter, env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
     MorphoMarketV1Adapter.MarketParams marketParams = Utils.decodeMarketParams(data);
