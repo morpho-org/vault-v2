@@ -428,7 +428,9 @@ contract MorphoMarketV1AdapterTest is Test {
         vm.prank(curator);
         vm.expectEmit();
         emit IMorphoMarketV1Adapter.Revoke(
-            curator, IMorphoMarketV1Adapter.burnShares.selector, abi.encodeCall(IMorphoMarketV1Adapter.burnShares, (_marketId))
+            curator,
+            IMorphoMarketV1Adapter.burnShares.selector,
+            abi.encodeCall(IMorphoMarketV1Adapter.burnShares, (_marketId))
         );
         adapter.revoke(abi.encodeCall(IMorphoMarketV1Adapter.burnShares, (_marketId)));
 
@@ -439,7 +441,9 @@ contract MorphoMarketV1AdapterTest is Test {
         vm.prank(sentinel);
         vm.expectEmit();
         emit IMorphoMarketV1Adapter.Revoke(
-            sentinel, IMorphoMarketV1Adapter.burnShares.selector, abi.encodeCall(IMorphoMarketV1Adapter.burnShares, (_marketId))
+            sentinel,
+            IMorphoMarketV1Adapter.burnShares.selector,
+            abi.encodeCall(IMorphoMarketV1Adapter.burnShares, (_marketId))
         );
         adapter.revoke(abi.encodeCall(IMorphoMarketV1Adapter.burnShares, (_marketId)));
 
