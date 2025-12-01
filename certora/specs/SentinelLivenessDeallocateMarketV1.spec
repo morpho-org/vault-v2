@@ -14,6 +14,7 @@ methods {
     function Utils.encodeMarketParams(MorphoMarketV1Adapter.MarketParams) external returns (bytes) envfree;
     function MorphoMarketV1Adapter.allocation(MorphoMarketV1Adapter.MarketParams) external returns (uint256) envfree;
     function MorphoMarketV1Adapter.asset() external returns (address) envfree;
+    function MorphoMarketV1Adapter.adaptiveCurveIrm() external returns (address) envfree;
 
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => morphoMarketV1AdapterDeallocateWrapper(calledContract, e, data, assets, selector, sender) expect(bytes32[], int256);
 
