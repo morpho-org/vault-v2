@@ -42,19 +42,16 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
 
     /* STORAGE */
 
-    // Timelocks.
-    mapping(bytes data => uint256) public executableAt;
-
-    // General.
     address public skimRecipient;
     bytes32[] public marketIds;
     mapping(bytes32 marketId => uint256) public supplyShares;
+    mapping(bytes data => uint256) public executableAt;
 
     function marketIdsLength() external view returns (uint256) {
         return marketIds.length;
     }
 
-    /* FUNCTIONS */
+    /* CONSTRUCTOR */
 
     constructor(address _parentVault, address _morpho, address _adaptiveCurveIrm) {
         factory = msg.sender;
@@ -66,6 +63,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         SafeERC20Lib.safeApprove(asset, _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
+
+    /* TIMELOCKS */
 
     function submit(bytes memory data) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
@@ -91,6 +90,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         executableAt[data] = 0;
         emit Revoke(bytes4(data), data);
     }
+
+    /* FUNCTIONS */
 
     function setSkimRecipient(address newSkimRecipient) external {
         timelocked();
