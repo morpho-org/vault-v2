@@ -7,7 +7,7 @@ import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsL
 import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IMorphoMarketV1Adapter} from "./interfaces/IMorphoMarketV1Adapter.sol";
+import {IMorphoMarketV1AdapterV2} from "./interfaces/IMorphoMarketV1AdapterV2.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {
     AdaptiveCurveIrmLib
@@ -27,7 +27,14 @@ import {
 /// zero shares on the market.
 /// @dev This adapter can only be used for markets with the adaptive curve irm.
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
-contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
+/// @dev Donated shares are lost forever.
+///
+/// BURN SHARES
+/// @dev When submitting burnShares, it's recommended to put the caps of the market to zero to avoid losing more.
+/// @dev Burning shares takes time, so reactive depositors might be able to exit before the share price reduction.
+/// @dev It is possible to burn the shares of a market whose IRM reverts.
+/// @dev Burnt shares are lost forever.
+contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     using MarketParamsLib for MarketParams;
     using SharesMathLib for uint256;
 
@@ -51,7 +58,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         return marketIds.length;
     }
 
-    /* FUNCTIONS */
+    /* CONSTRUCTOR */
 
     constructor(address _parentVault, address _morpho, address _adaptiveCurveIrm) {
         factory = msg.sender;
@@ -63,6 +70,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         SafeERC20Lib.safeApprove(asset, _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
+
+    /* TIMELOCKS */
 
     function submit(bytes calldata data) external {
         require(msg.sender == IVaultV2(parentVault).curator(), Unauthorized());
@@ -91,19 +100,25 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         emit Revoke(msg.sender, bytes4(data), data);
     }
 
-    function setSkimRecipient(address newSkimRecipient) external {
+    /* TIMELOCKED FUNCTIONS */
+
+    /// @dev Function name to avoid selector clash with other adapters.
+    function morphoMarketV1AdapterV2SetSkimRecipient(address newSkimRecipient) external {
         timelocked();
         skimRecipient = newSkimRecipient;
         emit SetSkimRecipient(newSkimRecipient);
     }
 
+    /// @dev Function name to avoid selector clash with other adapters.
     /// @dev Deallocate 0 from the vault after burning shares to update the allocation there.
-    function burnShares(bytes32 marketId) external {
+    function morphoMarketV1AdapterV2BurnShares(bytes32 marketId) external {
         timelocked();
         uint256 supplySharesBefore = supplyShares[marketId];
         supplyShares[marketId] = 0;
         emit BurnShares(marketId, supplySharesBefore);
     }
+
+    /* OTHER FUNCTIONS */
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
     /// @dev This is useful to handle rewards that the adapter has earned.
@@ -114,7 +129,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         emit Skim(token, balance);
     }
 
-    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the change in allocation.
     function allocate(bytes memory data, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
@@ -141,7 +155,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         return (ids(marketParams), int256(newAllocation) - int256(oldAllocation));
     }
 
-    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the change in allocation.
     function deallocate(bytes memory data, uint256 assets, bytes4, address)
         external
