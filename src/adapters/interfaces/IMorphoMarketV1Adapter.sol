@@ -19,7 +19,6 @@ interface IMorphoMarketV1Adapter is IAdapter {
 
     /* ERRORS */
 
-    error AlreadyPending();
     error DataNotTimelocked();
     error IrmMismatch();
     error LoanAssetMismatch();
@@ -41,12 +40,9 @@ interface IMorphoMarketV1Adapter is IAdapter {
     function allocation(MarketParams memory marketParams) external view returns (uint256);
     function expectedSupplyAssets(bytes32 marketId) external view returns (uint256);
     function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
-    function executableAt(bytes memory data) external view returns (uint256);
 
     /* NON-VIEW FUNCTIONS */
 
-    function submit(bytes memory data) external;
-    function revoke(bytes memory data) external;
     function setSkimRecipient(address newSkimRecipient) external;
     function burnShares(bytes32 marketId) external;
     function skim(address token) external;

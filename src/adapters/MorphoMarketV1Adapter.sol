@@ -45,7 +45,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     address public skimRecipient;
     bytes32[] public marketIds;
     mapping(bytes32 marketId => uint256) public supplyShares;
-    mapping(bytes data => uint256) public executableAt;
 
     function marketIdsLength() external view returns (uint256) {
         return marketIds.length;
@@ -64,29 +63,12 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
 
-    function submit(bytes calldata data) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), Unauthorized());
-        require(executableAt[data] == 0, AlreadyPending());
-        bytes4 selector = bytes4(data);
-        executableAt[data] = block.timestamp + IVaultV2(parentVault).timelock(selector);
-        emit Submit(selector, data, executableAt[data]);
-    }
-
     function timelocked() internal {
-        require(executableAt[msg.data] != 0, DataNotTimelocked());
-        require(block.timestamp >= executableAt[msg.data], TimelockNotExpired());
-        executableAt[msg.data] = 0;
+        uint256 executableAt = IVaultV2(parentVault).executableAt(msg.data);
+        require(executableAt != 0, DataNotTimelocked());
+        require(block.timestamp >= executableAt, TimelockNotExpired());
+        IVaultV2(parentVault).revoke(msg.data);
         emit Accept(bytes4(msg.data), msg.data);
-    }
-
-    function revoke(bytes calldata data) external {
-        require(
-            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
-            Unauthorized()
-        );
-        require(executableAt[data] != 0, DataNotTimelocked());
-        executableAt[data] = 0;
-        emit Revoke(msg.sender, bytes4(data), data);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {

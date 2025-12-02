@@ -14,6 +14,7 @@ contract VaultV2Mock {
     mapping(bytes32 => uint256) public allocation;
     uint256 public _timelock;
     uint256 public firstTotalAssets;
+    mapping(bytes => uint256) public executableAt;
 
     constructor(address _asset, address _owner, address _curator, address _allocator, address _sentinel) {
         asset = _asset;
@@ -58,5 +59,13 @@ contract VaultV2Mock {
 
     function setFirstTotalAssets(uint256 newFirstTotalAssets) external {
         firstTotalAssets = newFirstTotalAssets;
+    }
+
+    function submit(bytes memory data) external {
+        executableAt[data] = block.timestamp + _timelock;
+    }
+
+    function revoke(bytes memory data) external {
+        executableAt[data] = 0;
     }
 }

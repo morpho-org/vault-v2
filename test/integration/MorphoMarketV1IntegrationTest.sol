@@ -122,5 +122,8 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
 
         deal(address(underlyingToken), address(this), type(uint256).max);
         underlyingToken.approve(address(vault), type(uint256).max);
+
+        vm.prank(owner);
+        vault.setIsSentinel(address(adapter), true);
     }
 }
