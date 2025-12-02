@@ -7,7 +7,7 @@ import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsL
 import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IMorphoMarketV1Adapter} from "./interfaces/IMorphoMarketV1Adapter.sol";
+import {IMorphoMarketV1AdapterV2} from "./interfaces/IMorphoMarketV1AdapterV2.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {
     AdaptiveCurveIrmLib
@@ -34,7 +34,7 @@ import {
 /// @dev Burning shares takes time, so reactive depositors might be able to exit before the share price reduction.
 /// @dev It is possible to burn the shares of a market whose IRM reverts.
 /// @dev Burnt shares are lost forever.
-contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
+contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     using MarketParamsLib for MarketParams;
     using SharesMathLib for uint256;
 
