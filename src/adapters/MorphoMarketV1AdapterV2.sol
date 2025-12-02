@@ -52,6 +52,11 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     address public skimRecipient;
     bytes32[] public marketIds;
     mapping(bytes32 marketId => uint256) public supplyShares;
+
+    /* TIMELOCKS */
+
+    mapping(bytes4 selector => uint256) public timelock;
+    mapping(bytes4 selector => bool) public abdicated;
     mapping(bytes data => uint256) public executableAt;
 
     function marketIdsLength() external view returns (uint256) {
@@ -77,7 +82,11 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         require(msg.sender == IVaultV2(parentVault).curator(), Unauthorized());
         require(executableAt[data] == 0, AlreadyPending());
         bytes4 selector = bytes4(data);
-        executableAt[data] = block.timestamp + IVaultV2(parentVault).timelock(selector);
+
+        uint256 _timelock = selector == IMorphoMarketV1AdapterV2.decreaseTimelock.selector
+            ? timelock[bytes4(data[4:8])]
+            : timelock[selector];
+        executableAt[data] = block.timestamp + _timelock;
         emit Submit(selector, data, executableAt[data]);
     }
 
@@ -100,10 +109,37 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         emit Revoke(msg.sender, bytes4(data), data);
     }
 
+    /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
+    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
+    /// executableAt.
+    function increaseTimelock(bytes4 selector, uint256 newDuration) external {
+        timelocked();
+        require(selector != IMorphoMarketV1AdapterV2.decreaseTimelock.selector, AutomaticallyTimelocked());
+        require(newDuration >= timelock[selector], TimelockNotIncreasing());
+
+        timelock[selector] = newDuration;
+        emit IncreaseTimelock(selector, newDuration);
+    }
+
+    function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
+        timelocked();
+        require(selector != IMorphoMarketV1AdapterV2.decreaseTimelock.selector, AutomaticallyTimelocked());
+        require(newDuration <= timelock[selector], TimelockNotDecreasing());
+
+        timelock[selector] = newDuration;
+        emit DecreaseTimelock(selector, newDuration);
+    }
+
+    function abdicate(bytes4 selector) external {
+        timelocked();
+        abdicated[selector] = true;
+        emit Abdicate(selector);
+    }
+
     /* TIMELOCKED FUNCTIONS */
 
     /// @dev Function name to avoid selector clash with other adapters.
-    function morphoMarketV1AdapterV2SetSkimRecipient(address newSkimRecipient) external {
+    function setSkimRecipient(address newSkimRecipient) external {
         timelocked();
         skimRecipient = newSkimRecipient;
         emit SetSkimRecipient(newSkimRecipient);
@@ -111,7 +147,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
     /// @dev Function name to avoid selector clash with other adapters.
     /// @dev Deallocate 0 from the vault after burning shares to update the allocation there.
-    function morphoMarketV1AdapterV2BurnShares(bytes32 marketId) external {
+    function burnShares(bytes32 marketId) external {
         timelocked();
         uint256 supplySharesBefore = supplyShares[marketId];
         supplyShares[marketId] = 0;
