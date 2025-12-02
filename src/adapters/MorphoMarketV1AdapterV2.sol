@@ -69,7 +69,7 @@ contract MorphoMarketV1AdapterV2 is TimelockedAdapter, IMorphoMarketV1AdapterV2 
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
 
-    /* CURATOR FUNCTIONS */
+    /* TIMELOCKED FUNCTIONS */
 
     function setSkimRecipient(address newSkimRecipient) external {
         timelocked();
@@ -95,6 +95,8 @@ contract MorphoMarketV1AdapterV2 is TimelockedAdapter, IMorphoMarketV1AdapterV2 
         SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
         emit Skim(token, balance);
     }
+
+    /* ALLOCATION FUNCTIONS */
 
     /// @dev Returns the ids of the allocation and the change in allocation.
     function allocate(bytes memory data, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
