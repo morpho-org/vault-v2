@@ -5,13 +5,13 @@ pragma solidity 0.8.28;
 import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
-import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IMorphoMarketV1AdapterV2} from "./interfaces/IMorphoMarketV1AdapterV2.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {
     AdaptiveCurveIrmLib
 } from "../../lib/morpho-blue-irm/src/adaptive-curve-irm/libraries/periphery/AdaptiveCurveIrmLib.sol";
+import {TimelockedAdapter, IVaultV2} from "./TimelockedAdapter.sol";
 
 /// @dev Morpho Market V1 is also known as Morpho Blue.
 /// @dev This adapter must be used with Morpho Market V1 that are protected against inflation attacks with an initial
@@ -34,24 +34,17 @@ import {
 /// @dev Burning shares takes time, so reactive depositors might be able to exit before the share price reduction.
 /// @dev It is possible to burn the shares of a market whose IRM reverts.
 /// @dev Burnt shares are lost forever.
-contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
+contract MorphoMarketV1AdapterV2 is TimelockedAdapter, IMorphoMarketV1AdapterV2 {
     using MarketParamsLib for MarketParams;
     using SharesMathLib for uint256;
 
     /* IMMUTABLES */
 
     address public immutable factory;
-    address public immutable parentVault;
     address public immutable asset;
     address public immutable morpho;
     bytes32 public immutable adapterId;
     address public immutable adaptiveCurveIrm;
-
-    /* TIMELOCKS RELATED STORAGE */
-
-    mapping(bytes4 selector => uint256) public timelock;
-    mapping(bytes4 selector => bool) public abdicated;
-    mapping(bytes data => uint256) public executableAt;
 
     /* OTHER STORAGE */
 
@@ -61,9 +54,8 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
     /* CONSTRUCTOR */
 
-    constructor(address _parentVault, address _morpho, address _adaptiveCurveIrm) {
+    constructor(address _parentVault, address _morpho, address _adaptiveCurveIrm) TimelockedAdapter(_parentVault) {
         factory = msg.sender;
-        parentVault = _parentVault;
         morpho = _morpho;
         asset = IVaultV2(_parentVault).asset();
         adapterId = keccak256(abi.encode("this", address(this)));
@@ -72,70 +64,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
 
-    /* TIMELOCKS FUNCTIONS */
-
-    /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block
-    /// timestamp.
-    function submit(bytes calldata data) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), Unauthorized());
-        require(executableAt[data] == 0, DataAlreadyPending());
-
-        bytes4 selector = bytes4(data);
-        uint256 _timelock = selector == IMorphoMarketV1AdapterV2.decreaseTimelock.selector
-            ? timelock[bytes4(data[4:8])]
-            : timelock[selector];
-        executableAt[data] = block.timestamp + _timelock;
-        emit Submit(selector, data, executableAt[data]);
-    }
-
-    function timelocked() internal {
-        bytes4 selector = bytes4(msg.data);
-        require(executableAt[msg.data] != 0, DataNotTimelocked());
-        require(block.timestamp >= executableAt[msg.data], TimelockNotExpired());
-        require(!abdicated[selector], Abdicated());
-        executableAt[msg.data] = 0;
-        emit Accept(selector, msg.data);
-    }
-
-    function revoke(bytes calldata data) external {
-        require(
-            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
-            Unauthorized()
-        );
-        require(executableAt[data] != 0, DataNotTimelocked());
-        executableAt[data] = 0;
-        bytes4 selector = bytes4(data);
-        emit Revoke(msg.sender, selector, data);
-    }
-
     /* CURATOR FUNCTIONS */
-
-    /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
-    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
-    /// executableAt.
-    function increaseTimelock(bytes4 selector, uint256 newDuration) external {
-        timelocked();
-        require(selector != IMorphoMarketV1AdapterV2.decreaseTimelock.selector, AutomaticallyTimelocked());
-        require(newDuration >= timelock[selector], TimelockNotIncreasing());
-
-        timelock[selector] = newDuration;
-        emit IncreaseTimelock(selector, newDuration);
-    }
-
-    function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
-        timelocked();
-        require(selector != IMorphoMarketV1AdapterV2.decreaseTimelock.selector, AutomaticallyTimelocked());
-        require(newDuration <= timelock[selector], TimelockNotDecreasing());
-
-        timelock[selector] = newDuration;
-        emit DecreaseTimelock(selector, newDuration);
-    }
-
-    function abdicate(bytes4 selector) external {
-        timelocked();
-        abdicated[selector] = true;
-        emit Abdicate(selector);
-    }
 
     function setSkimRecipient(address newSkimRecipient) external {
         timelocked();
