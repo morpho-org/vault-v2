@@ -4,10 +4,10 @@ pragma solidity ^0.8.0;
 
 import "../BaseTest.sol";
 
-import {MorphoMarketV1Adapter} from "../../src/adapters/MorphoMarketV1Adapter.sol";
-import {MorphoMarketV1AdapterFactory} from "../../src/adapters/MorphoMarketV1AdapterFactory.sol";
-import {IMorphoMarketV1AdapterFactory} from "../../src/adapters/interfaces/IMorphoMarketV1AdapterFactory.sol";
-import {IMorphoMarketV1Adapter} from "../../src/adapters/interfaces/IMorphoMarketV1Adapter.sol";
+import {MorphoMarketV1AdapterV2} from "../../src/adapters/MorphoMarketV1AdapterV2.sol";
+import {MorphoMarketV1AdapterV2Factory} from "../../src/adapters/MorphoMarketV1AdapterV2Factory.sol";
+import {IMorphoMarketV1AdapterV2Factory} from "../../src/adapters/interfaces/IMorphoMarketV1AdapterV2Factory.sol";
+import {IMorphoMarketV1AdapterV2} from "../../src/adapters/interfaces/IMorphoMarketV1AdapterV2.sol";
 
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 import {OracleMock} from "../../lib/morpho-blue/src/mocks/OracleMock.sol";
@@ -24,8 +24,8 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
     MarketParams internal marketParams1;
     MarketParams internal marketParams2;
 
-    IMorphoMarketV1AdapterFactory internal factory;
-    IMorphoMarketV1Adapter internal adapter;
+    IMorphoMarketV1AdapterV2Factory internal factory;
+    IMorphoMarketV1AdapterV2 internal adapter;
 
     bytes[] internal expectedIdData1;
     bytes[] internal expectedIdData2;
@@ -77,8 +77,8 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
 
         /* VAULT SETUP */
 
-        factory = new MorphoMarketV1AdapterFactory(address(irm));
-        adapter = IMorphoMarketV1Adapter(factory.createMorphoMarketV1Adapter(address(vault), address(morpho)));
+        factory = new MorphoMarketV1AdapterV2Factory(address(irm));
+        adapter = IMorphoMarketV1AdapterV2(factory.createMorphoMarketV1AdapterV2(address(vault), address(morpho)));
 
         expectedIdData1 = new bytes[](3);
         expectedIdData1[0] = abi.encode("this", address(adapter));
