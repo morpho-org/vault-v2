@@ -26,6 +26,7 @@ interface ITimelockedAdapter {
 
     /* VIEW FUNCTIONS */
 
+    function parentVault() external view returns (address);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
     function executableAt(bytes memory data) external view returns (uint256);
