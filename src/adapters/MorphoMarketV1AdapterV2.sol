@@ -82,10 +82,12 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     }
 
     function timelocked() internal {
+        bytes4 selector = bytes4(msg.data);
         require(executableAt[msg.data] != 0, DataNotTimelocked());
         require(block.timestamp >= executableAt[msg.data], TimelockNotExpired());
+        require(!IVaultV2(parentVault).abdicated(selector), Abdicated());
         executableAt[msg.data] = 0;
-        emit Accept(bytes4(msg.data), msg.data);
+        emit Accept(selector, msg.data);
     }
 
     function revoke(bytes calldata data) external {

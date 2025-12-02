@@ -526,4 +526,19 @@ contract MorphoMarketV1AdapterV2Test is Test {
         );
         assertEq(adapter.realAssets(), 0, "realAssets");
     }
+
+    function testAbdicated() public {
+        parentVault.setAbdicated(IMorphoMarketV1AdapterV2.morphoMarketV1AdapterV2BurnShares.selector, true);
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.morphoMarketV1AdapterV2BurnShares, (marketId)));
+
+        vm.warp(
+            block.timestamp + parentVault.timelock(IMorphoMarketV1AdapterV2.morphoMarketV1AdapterV2BurnShares.selector)
+        );
+
+        vm.expectRevert(IMorphoMarketV1AdapterV2.Abdicated.selector);
+        vm.prank(curator);
+        adapter.morphoMarketV1AdapterV2BurnShares(marketId);
+    }
 }
