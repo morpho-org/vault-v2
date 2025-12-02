@@ -72,6 +72,12 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
 
+    /* GETTERS */
+
+    function marketIdsLength() external view returns (uint256) {
+        return marketIds.length;
+    }
+
     /* TIMELOCKS FUNCTIONS */
 
     /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block
@@ -231,10 +237,6 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     }
 
     /* VIEW FUNCTIONS */
-
-    function marketIdsLength() external view returns (uint256) {
-        return marketIds.length;
-    }
 
     /// @dev Returns the expected supply assets of the market, taking into account the internal shares accounting.
     function expectedSupplyAssets(bytes32 marketId) public view returns (uint256) {
