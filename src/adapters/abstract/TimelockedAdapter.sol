@@ -10,7 +10,7 @@ abstract contract TimelockedAdapter is ITimelockedAdapter {
 
     address public immutable parentVault;
 
-    /* TIMELOCKS RELATED STORAGE */
+    /* STORAGE */
 
     mapping(bytes4 selector => uint256) public timelock;
     mapping(bytes4 selector => bool) public abdicated;
@@ -57,7 +57,7 @@ abstract contract TimelockedAdapter is ITimelockedAdapter {
         emit Revoke(msg.sender, selector, data);
     }
 
-    /* CURATOR FUNCTIONS */
+    /* TIMELOCKED FUNCTIONS */
 
     /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
     /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
