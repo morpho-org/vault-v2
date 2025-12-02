@@ -26,10 +26,10 @@ import {
 /// @dev Markets get removed from the marketIds when the allocation is zero, but it doesn't mean that the adapter has
 /// zero shares on the market.
 /// @dev This adapter can only be used for markets with the adaptive curve irm.
-/// @dev Shares received through supplies on behalf are lost forever.
+/// @dev Donated shares are lost forever.
 ///
 /// BURN SHARES
-/// @dev When submitting burnShares, it's recommended to put the caps of the market to zero to avoid loosing more.
+/// @dev When submitting burnShares, it's recommended to put the caps of the market to zero to avoid losing more.
 /// @dev Burning shares takes time, so reactive depositors might be able to exit before the share price reduction.
 /// @dev It is possible to burn the shares of a market whose IRM reverts.
 /// @dev Burnt shares are lost forever.
