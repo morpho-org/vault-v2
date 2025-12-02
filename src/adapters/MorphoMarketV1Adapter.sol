@@ -58,7 +58,7 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         return marketIds.length;
     }
 
-    /* FUNCTIONS */
+    /* CONSTRUCTOR */
 
     constructor(address _parentVault, address _morpho, address _adaptiveCurveIrm) {
         factory = msg.sender;
@@ -70,6 +70,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         SafeERC20Lib.safeApprove(asset, _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
+
+    /* TIMELOCKS */
 
     function submit(bytes calldata data) external {
         require(msg.sender == IVaultV2(parentVault).curator(), Unauthorized());
@@ -96,6 +98,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         emit Revoke(msg.sender, bytes4(data), data);
     }
 
+    /* TIMELOCKED FUNCTIONS */
+
     function setSkimRecipient(address newSkimRecipient) external {
         timelocked();
         skimRecipient = newSkimRecipient;
@@ -109,6 +113,8 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         supplyShares[marketId] = 0;
         emit BurnShares(marketId, supplySharesBefore);
     }
+
+    /* OTHER FUNCTIONS */
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
     /// @dev This is useful to handle rewards that the adapter has earned.

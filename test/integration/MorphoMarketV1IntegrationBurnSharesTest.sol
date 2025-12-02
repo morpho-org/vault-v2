@@ -30,8 +30,6 @@ contract MorphoMarketV1IntegrationBurnSharesTest is MorphoMarketV1IntegrationTes
         adapter.submit(abi.encodeCall(IMorphoMarketV1Adapter.burnShares, (Id.unwrap(marketParams1.id()))));
         adapter.burnShares(Id.unwrap(marketParams1.id()));
 
-        vm.roll(block.number + 1);
-
         // Ping adapter from vault
         vault.forceDeallocate(address(adapter), abi.encode(marketParams1), 0, address(this));
 

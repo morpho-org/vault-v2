@@ -493,8 +493,6 @@ contract MorphoMarketV1AdapterTest is Test {
         emit IMorphoMarketV1Adapter.BurnShares(marketId, supplyShares);
         adapter.burnShares(marketId);
 
-        vm.roll(block.number + 1);
-
         supplyShares = adapter.supplyShares(marketId);
         allocation = adapter.allocation(marketParams);
         assertEq(supplyShares, 0, "shares");
