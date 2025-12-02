@@ -47,21 +47,17 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     bytes32 public immutable adapterId;
     address public immutable adaptiveCurveIrm;
 
-    /* STORAGE */
-
-    address public skimRecipient;
-    bytes32[] public marketIds;
-    mapping(bytes32 marketId => uint256) public supplyShares;
-
-    /* TIMELOCKS */
+    /* TIMELOCKS RELATED STORAGE */
 
     mapping(bytes4 selector => uint256) public timelock;
     mapping(bytes4 selector => bool) public abdicated;
     mapping(bytes data => uint256) public executableAt;
 
-    function marketIdsLength() external view returns (uint256) {
-        return marketIds.length;
-    }
+    /* OTHER STORAGE */
+
+    address public skimRecipient;
+    bytes32[] public marketIds;
+    mapping(bytes32 marketId => uint256) public supplyShares;
 
     /* CONSTRUCTOR */
 
@@ -76,7 +72,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
 
-    /* TIMELOCKS */
+    /* TIMELOCKS RELATED FUNCTIONS */
 
     /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block
     /// timestamp.
@@ -234,6 +230,10 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     }
 
     /* VIEW FUNCTIONS */
+
+    function marketIdsLength() external view returns (uint256) {
+        return marketIds.length;
+    }
 
     /// @dev Returns the expected supply assets of the market, taking into account the internal shares accounting.
     function expectedSupplyAssets(bytes32 marketId) public view returns (uint256) {
