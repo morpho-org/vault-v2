@@ -11,7 +11,7 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {
     AdaptiveCurveIrmLib
 } from "../../lib/morpho-blue-irm/src/adaptive-curve-irm/libraries/periphery/AdaptiveCurveIrmLib.sol";
-import {TimelockedAdapter, IVaultV2} from "./TimelockedAdapter.sol";
+import {TimelockedAdapter, IVaultV2} from "./abstract/TimelockedAdapter.sol";
 
 /// @dev Morpho Market V1 is also known as Morpho Blue.
 /// @dev This adapter must be used with Morpho Market V1 that are protected against inflation attacks with an initial
