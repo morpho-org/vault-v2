@@ -251,13 +251,22 @@ contract MorphoMarketV1AdapterV2Test is Test {
         adapter.setSkimRecipient(newRecipient);
     }
 
-    function testSetSkimRecipient(address newRecipient) public {
+    function testSetSkimRecipient(address newRecipient, uint256 timelockDuration) public {
         vm.assume(newRecipient != address(0));
+        timelockDuration = bound(timelockDuration, 0, 3650 days);
+
+        vm.prank(curator);
+        adapter.submit(
+            abi.encodeCall(
+                IMorphoMarketV1AdapterV2.increaseTimelock,
+                (IMorphoMarketV1AdapterV2.setSkimRecipient.selector, timelockDuration)
+            )
+        );
+        adapter.increaseTimelock(IMorphoMarketV1AdapterV2.setSkimRecipient.selector, timelockDuration);
+
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.setSkimRecipient, (newRecipient)));
-
-        vm.warp(block.timestamp + parentVault.timelock(IMorphoMarketV1AdapterV2.setSkimRecipient.selector));
-
+        skip(timelockDuration);
         vm.expectEmit();
         emit IMorphoMarketV1AdapterV2.SetSkimRecipient(newRecipient);
         adapter.setSkimRecipient(newRecipient);
@@ -540,17 +549,17 @@ contract MorphoMarketV1AdapterV2Test is Test {
     }
 
     function testAbdicated() public {
-        parentVault.setAbdicated(IMorphoMarketV1AdapterV2.morphoMarketV1AdapterV2BurnShares.selector, true);
+        vm.prank(curator);
+        adapter.submit(
+            abi.encodeCall(IMorphoMarketV1AdapterV2.abdicate, (IMorphoMarketV1AdapterV2.burnShares.selector))
+        );
+        adapter.abdicate(IMorphoMarketV1AdapterV2.burnShares.selector);
 
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.morphoMarketV1AdapterV2BurnShares, (marketId)));
-
-        vm.warp(
-            block.timestamp + parentVault.timelock(IMorphoMarketV1AdapterV2.morphoMarketV1AdapterV2BurnShares.selector)
-        );
+        adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (marketId)));
 
         vm.expectRevert(IMorphoMarketV1AdapterV2.Abdicated.selector);
         vm.prank(curator);
-        adapter.morphoMarketV1AdapterV2BurnShares(marketId);
+        adapter.burnShares(marketId);
     }
 }
