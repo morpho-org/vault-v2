@@ -52,6 +52,11 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     address public skimRecipient;
     bytes32[] public marketIds;
     mapping(bytes32 marketId => uint256) public supplyShares;
+
+    /* TIMELOCKS */
+
+    mapping(bytes4 selector => uint256) public timelock;
+    mapping(bytes4 selector => bool) public abdicated;
     mapping(bytes data => uint256) public executableAt;
 
     function marketIdsLength() external view returns (uint256) {
@@ -77,7 +82,11 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(msg.sender == IVaultV2(parentVault).curator(), Unauthorized());
         require(executableAt[data] == 0, AlreadyPending());
         bytes4 selector = bytes4(data);
-        executableAt[data] = block.timestamp + IVaultV2(parentVault).timelock(selector);
+
+        uint256 _timelock = selector == IMorphoMarketV1Adapter.decreaseTimelock.selector
+            ? timelock[bytes4(data[4:8])]
+            : timelock[selector];
+        executableAt[data] = block.timestamp + _timelock;
         emit Submit(selector, data, executableAt[data]);
     }
 
@@ -96,6 +105,33 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         require(executableAt[data] != 0, DataNotTimelocked());
         executableAt[data] = 0;
         emit Revoke(msg.sender, bytes4(data), data);
+    }
+
+    /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
+    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
+    /// executableAt.
+    function increaseTimelock(bytes4 selector, uint256 newDuration) external {
+        timelocked();
+        require(selector != IMorphoMarketV1Adapter.decreaseTimelock.selector, AutomaticallyTimelocked());
+        require(newDuration >= timelock[selector], TimelockNotIncreasing());
+
+        timelock[selector] = newDuration;
+        emit IncreaseTimelock(selector, newDuration);
+    }
+
+    function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
+        timelocked();
+        require(selector != IMorphoMarketV1Adapter.decreaseTimelock.selector, AutomaticallyTimelocked());
+        require(newDuration <= timelock[selector], TimelockNotDecreasing());
+
+        timelock[selector] = newDuration;
+        emit DecreaseTimelock(selector, newDuration);
+    }
+
+    function abdicate(bytes4 selector) external {
+        timelocked();
+        abdicated[selector] = true;
+        emit Abdicate(selector);
     }
 
     /* TIMELOCKED FUNCTIONS */

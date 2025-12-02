@@ -11,6 +11,9 @@ interface IMorphoMarketV1Adapter is IAdapter {
     event Submit(bytes4 indexed selector, bytes data, uint256 executableAt);
     event Revoke(address indexed sender, bytes4 indexed selector, bytes data);
     event Accept(bytes4 indexed selector, bytes data);
+    event Abdicate(bytes4 indexed selector);
+    event IncreaseTimelock(bytes4 indexed selector, uint256 newDuration);
+    event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event SetSkimRecipient(address indexed newSkimRecipient);
     event Skim(address indexed token, uint256 assets);
     event BurnShares(bytes32 indexed marketId, uint256 supplyShares);
@@ -20,11 +23,14 @@ interface IMorphoMarketV1Adapter is IAdapter {
     /* ERRORS */
 
     error AlreadyPending();
+    error AutomaticallyTimelocked();
     error DataNotTimelocked();
     error IrmMismatch();
     error LoanAssetMismatch();
     error SharePriceAboveOne();
+    error TimelockNotDecreasing();
     error TimelockNotExpired();
+    error TimelockNotIncreasing();
     error Unauthorized();
 
     /* VIEW FUNCTIONS */
@@ -47,6 +53,9 @@ interface IMorphoMarketV1Adapter is IAdapter {
 
     function submit(bytes memory data) external;
     function revoke(bytes memory data) external;
+    function increaseTimelock(bytes4 selector, uint256 newDuration) external;
+    function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
+    function abdicate(bytes4 selector) external;
     function morphoMarketV1AdapterV2SetSkimRecipient(address newSkimRecipient) external;
     function morphoMarketV1AdapterV2BurnShares(bytes32 marketId) external;
     function skim(address token) external;
