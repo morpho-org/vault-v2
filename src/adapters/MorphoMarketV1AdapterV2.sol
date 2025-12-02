@@ -72,7 +72,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
 
-    /* TIMELOCKS RELATED FUNCTIONS */
+    /* TIMELOCKS FUNCTIONS */
 
     /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block
     /// timestamp.
@@ -108,6 +108,8 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         emit Revoke(msg.sender, selector, data);
     }
 
+    /* CURATOR FUNCTIONS */
+
     /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
     /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
     /// executableAt.
@@ -134,8 +136,6 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         abdicated[selector] = true;
         emit Abdicate(selector);
     }
-
-    /* TIMELOCKED FUNCTIONS */
 
     function setSkimRecipient(address newSkimRecipient) external {
         timelocked();
