@@ -5,7 +5,7 @@ pragma solidity >=0.5.0;
 import {IAdapter} from "../../interfaces/IAdapter.sol";
 import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
-interface IMorphoMarketV1Adapter is IAdapter {
+interface IMorphoMarketV1AdapterV2 is IAdapter {
     /* EVENTS */
 
     event Submit(bytes4 indexed selector, bytes data, uint256 executableAt);
