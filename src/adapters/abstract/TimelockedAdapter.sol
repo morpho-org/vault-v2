@@ -5,7 +5,6 @@ pragma solidity >=0.8.28;
 import {IVaultV2} from "../../interfaces/IVaultV2.sol";
 import {ITimelockedAdapter} from "../../interfaces/ITimelockedAdapter.sol";
 
-
 /// @dev This abstract adapter implements vault curator-only functions with adjustable timelocks.
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 abstract contract TimelockedAdapter is ITimelockedAdapter {
