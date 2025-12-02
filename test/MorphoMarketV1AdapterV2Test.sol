@@ -87,10 +87,6 @@ contract MorphoMarketV1AdapterV2Test is Test {
 
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.setSkimRecipient, (recipient)));
-        // vm.warp(
-        //     block.timestamp
-        //         + adapter.timelock(IMorphoMarketV1AdapterV2.setSkimRecipient.selector)
-        // );
         adapter.setSkimRecipient(recipient);
     }
 
