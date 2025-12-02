@@ -78,9 +78,9 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     /// timestamp.
     function submit(bytes calldata data) external {
         require(msg.sender == IVaultV2(parentVault).curator(), Unauthorized());
-        require(executableAt[data] == 0, AlreadyPending());
-        bytes4 selector = bytes4(data);
+        require(executableAt[data] == 0, DataAlreadyPending());
 
+        bytes4 selector = bytes4(data);
         uint256 _timelock = selector == IMorphoMarketV1AdapterV2.decreaseTimelock.selector
             ? timelock[bytes4(data[4:8])]
             : timelock[selector];

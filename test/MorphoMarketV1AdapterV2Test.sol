@@ -402,7 +402,7 @@ contract MorphoMarketV1AdapterV2Test is Test {
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (_marketId)));
 
-        vm.expectRevert(IMorphoMarketV1AdapterV2.AlreadyPending.selector);
+        vm.expectRevert(IMorphoMarketV1AdapterV2.DataAlreadyPending.selector);
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (_marketId)));
     }
