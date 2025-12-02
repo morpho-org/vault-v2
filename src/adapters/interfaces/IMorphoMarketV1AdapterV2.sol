@@ -47,6 +47,8 @@ interface IMorphoMarketV1AdapterV2 is IAdapter {
     function allocation(MarketParams memory marketParams) external view returns (uint256);
     function expectedSupplyAssets(bytes32 marketId) external view returns (uint256);
     function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
+    function timelock(bytes4 selector) external view returns (uint256);
+    function abdicated(bytes4 selector) external view returns (bool);
     function executableAt(bytes memory data) external view returns (uint256);
 
     /* NON-VIEW FUNCTIONS */
@@ -56,7 +58,7 @@ interface IMorphoMarketV1AdapterV2 is IAdapter {
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicate(bytes4 selector) external;
-    function morphoMarketV1AdapterV2SetSkimRecipient(address newSkimRecipient) external;
-    function morphoMarketV1AdapterV2BurnShares(bytes32 marketId) external;
+    function setSkimRecipient(address newSkimRecipient) external;
+    function burnShares(bytes32 marketId) external;
     function skim(address token) external;
 }
