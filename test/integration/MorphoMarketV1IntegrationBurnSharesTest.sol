@@ -7,7 +7,6 @@ import "./MorphoMarketV1IntegrationTest.sol";
 contract MorphoMarketV1IntegrationBurnSharesTest is MorphoMarketV1IntegrationTest {
     using MarketParamsLib for MarketParams;
 
-    /// forge-config: default.isolate = true
     function testBurnShares(uint256 assets) public {
         // Initial deposit
         assets = bound(assets, 1, MAX_TEST_ASSETS);

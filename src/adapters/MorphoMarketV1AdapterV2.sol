@@ -104,7 +104,8 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         );
         require(executableAt[data] != 0, DataNotTimelocked());
         executableAt[data] = 0;
-        emit Revoke(msg.sender, bytes4(data), data);
+        bytes4 selector = bytes4(data);
+        emit Revoke(msg.sender, selector, data);
     }
 
     /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
