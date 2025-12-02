@@ -47,7 +47,7 @@ interface IMorphoMarketV1Adapter is IAdapter {
 
     function submit(bytes memory data) external;
     function revoke(bytes memory data) external;
-    function setSkimRecipient(address newSkimRecipient) external;
-    function burnShares(bytes32 marketId) external;
+    function morphoMarketV1AdapterV2SetSkimRecipient(address newSkimRecipient) external;
+    function morphoMarketV1AdapterV2BurnShares(bytes32 marketId) external;
     function skim(address token) external;
 }

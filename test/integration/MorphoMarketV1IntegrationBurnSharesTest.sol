@@ -27,8 +27,10 @@ contract MorphoMarketV1IntegrationBurnSharesTest is MorphoMarketV1IntegrationTes
 
         // Burn shares at adapter level
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMorphoMarketV1Adapter.burnShares, (Id.unwrap(marketParams1.id()))));
-        adapter.burnShares(Id.unwrap(marketParams1.id()));
+        adapter.submit(
+            abi.encodeCall(IMorphoMarketV1Adapter.morphoMarketV1AdapterV2BurnShares, (Id.unwrap(marketParams1.id())))
+        );
+        adapter.morphoMarketV1AdapterV2BurnShares(Id.unwrap(marketParams1.id()));
 
         // Ping adapter from vault
         vault.forceDeallocate(address(adapter), abi.encode(marketParams1), 0, address(this));
