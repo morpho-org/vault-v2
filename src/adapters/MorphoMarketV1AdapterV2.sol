@@ -51,6 +51,12 @@ contract MorphoMarketV1AdapterV2 is TimelockedAdapter, IMorphoMarketV1AdapterV2 
     bytes32[] public marketIds;
     mapping(bytes32 marketId => uint256) public supplyShares;
 
+    /* GETTERS */
+
+    function marketIdsLength() external view returns (uint256) {
+        return marketIds.length;
+    }
+
     /* CONSTRUCTOR */
 
     constructor(address _parentVault, address _morpho, address _adaptiveCurveIrm) TimelockedAdapter(_parentVault) {
@@ -61,12 +67,6 @@ contract MorphoMarketV1AdapterV2 is TimelockedAdapter, IMorphoMarketV1AdapterV2 
         adaptiveCurveIrm = _adaptiveCurveIrm;
         SafeERC20Lib.safeApprove(asset, _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
-    }
-
-    /* GETTERS */
-
-    function marketIdsLength() external view returns (uint256) {
-        return marketIds.length;
     }
 
     /* CURATOR FUNCTIONS */
