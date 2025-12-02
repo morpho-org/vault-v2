@@ -3,7 +3,7 @@
 pragma solidity >=0.8.28;
 
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {ITimelockedAdapter} from "./interfaces/ITimelockedAdapter.sol";
+import {ITimelockedAdapter} from "../interfaces/ITimelockedAdapter.sol";
 
 abstract contract TimelockedAdapter is ITimelockedAdapter {
     /* IMMUTABLES */

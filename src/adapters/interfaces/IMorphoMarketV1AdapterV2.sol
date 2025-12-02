@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity >=0.5.0;
 
-import {ITimelockedAdapter} from "./ITimelockedAdapter.sol";
+import {ITimelockedAdapter} from "../../interfaces/ITimelockedAdapter.sol";
 import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 interface IMorphoMarketV1AdapterV2 is ITimelockedAdapter {
