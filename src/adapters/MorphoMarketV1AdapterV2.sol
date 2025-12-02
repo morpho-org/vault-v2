@@ -140,14 +140,12 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
     /* TIMELOCKED FUNCTIONS */
 
-    /// @dev Function name to avoid selector clash with other adapters.
     function setSkimRecipient(address newSkimRecipient) external {
         timelocked();
         skimRecipient = newSkimRecipient;
         emit SetSkimRecipient(newSkimRecipient);
     }
 
-    /// @dev Function name to avoid selector clash with other adapters.
     /// @dev Deallocate 0 from the vault after burning shares to update the allocation there.
     function burnShares(bytes32 marketId) external {
         timelocked();
