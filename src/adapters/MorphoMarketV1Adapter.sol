@@ -27,6 +27,13 @@ import {
 /// zero shares on the market.
 /// @dev This adapter can only be used for markets with the adaptive curve irm.
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
+/// @dev Donated shares are lost forever.
+///
+/// BURN SHARES
+/// @dev When submitting burnShares, it's recommended to put the caps of the market to zero to avoid losing more.
+/// @dev Burning shares takes time, so reactive depositors might be able to exit before the share price reduction.
+/// @dev It is possible to burn the shares of a market whose IRM reverts.
+/// @dev Burnt shares are lost forever.
 contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
     using MarketParamsLib for MarketParams;
     using SharesMathLib for uint256;
@@ -112,7 +119,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         emit Skim(token, balance);
     }
 
-    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the change in allocation.
     function allocate(bytes memory data, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
@@ -139,7 +145,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         return (ids(marketParams), int256(newAllocation) - int256(oldAllocation));
     }
 
-    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the change in allocation.
     function deallocate(bytes memory data, uint256 assets, bytes4, address)
         external
