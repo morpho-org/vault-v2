@@ -493,8 +493,6 @@ contract MorphoMarketV1AdapterTest is Test {
         emit IMorphoMarketV1Adapter.BurnShares(marketId, supplyShares);
         adapter.burnShares(marketId);
 
-        vm.roll(block.number + 1);
-
         supplyShares = adapter.supplyShares(marketId);
         allocation = adapter.allocation(marketParams);
         assertEq(supplyShares, 0, "shares");
@@ -505,5 +503,18 @@ contract MorphoMarketV1AdapterTest is Test {
             "executable at"
         );
         assertEq(adapter.realAssets(), 0, "realAssets");
+    }
+
+    function testAbdicated() public {
+        parentVault.setAbdicated(IMorphoMarketV1Adapter.burnShares.selector, true);
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMorphoMarketV1Adapter.burnShares, (marketId)));
+
+        vm.warp(block.timestamp + parentVault.timelock(IMorphoMarketV1Adapter.burnShares.selector));
+
+        vm.expectRevert(IMorphoMarketV1Adapter.Abdicated.selector);
+        vm.prank(curator);
+        adapter.burnShares(marketId);
     }
 }
