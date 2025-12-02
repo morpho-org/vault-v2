@@ -83,7 +83,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         require(executableAt[data] == 0, AlreadyPending());
         bytes4 selector = bytes4(data);
 
-        uint256 _timelock = selector == IMorphoMarketV1Adapter.decreaseTimelock.selector
+        uint256 _timelock = selector == IMorphoMarketV1AdapterV2.decreaseTimelock.selector
             ? timelock[bytes4(data[4:8])]
             : timelock[selector];
         executableAt[data] = block.timestamp + _timelock;
@@ -112,7 +112,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     /// executableAt.
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
-        require(selector != IMorphoMarketV1Adapter.decreaseTimelock.selector, AutomaticallyTimelocked());
+        require(selector != IMorphoMarketV1AdapterV2.decreaseTimelock.selector, AutomaticallyTimelocked());
         require(newDuration >= timelock[selector], TimelockNotIncreasing());
 
         timelock[selector] = newDuration;
@@ -121,7 +121,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
-        require(selector != IMorphoMarketV1Adapter.decreaseTimelock.selector, AutomaticallyTimelocked());
+        require(selector != IMorphoMarketV1AdapterV2.decreaseTimelock.selector, AutomaticallyTimelocked());
         require(newDuration <= timelock[selector], TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
