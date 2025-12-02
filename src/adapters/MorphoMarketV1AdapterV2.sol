@@ -78,6 +78,8 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
     /* TIMELOCKS */
 
+    /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block
+    /// timestamp.
     function submit(bytes calldata data) external {
         require(msg.sender == IVaultV2(parentVault).curator(), Unauthorized());
         require(executableAt[data] == 0, AlreadyPending());

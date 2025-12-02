@@ -139,8 +139,6 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// ).
 /// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist, argument
 /// encoding is wrong, function' conditions are not met, etc.).
-/// @dev Adapters might reuse the timelocks mappings for their own timelocked functions. Make sure to avoid function
-/// signature clashes between their timelocked functions.
 ///
 /// ABDICATION
 /// @dev When a timelocked function is abdicated, it can't be called anymore.

@@ -13,8 +13,6 @@ contract VaultV2Mock {
     mapping(address => bool) public isSentinel;
     mapping(bytes32 => uint256) public allocation;
     uint256 public _timelock;
-    uint256 public firstTotalAssets;
-    mapping(bytes4 => bool) public abdicated;
 
     constructor(address _asset, address _owner, address _curator, address _allocator, address _sentinel) {
         asset = _asset;
@@ -57,11 +55,4 @@ contract VaultV2Mock {
         return _timelock;
     }
 
-    function setFirstTotalAssets(uint256 newFirstTotalAssets) external {
-        firstTotalAssets = newFirstTotalAssets;
-    }
-
-    function setAbdicated(bytes4 selector, bool newAbdicated) external {
-        abdicated[selector] = newAbdicated;
-    }
 }
