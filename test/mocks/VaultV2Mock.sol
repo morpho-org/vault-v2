@@ -54,5 +54,4 @@ contract VaultV2Mock {
     function timelock(bytes4) external view returns (uint256) {
         return _timelock;
     }
-
 }
