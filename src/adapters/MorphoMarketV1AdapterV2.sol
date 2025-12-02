@@ -64,6 +64,12 @@ contract MorphoMarketV1AdapterV2 is TimelockedAdapter, IMorphoMarketV1AdapterV2 
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
 
+    /* GETTERS */
+
+    function marketIdsLength() external view returns (uint256) {
+        return marketIds.length;
+    }
+
     /* CURATOR FUNCTIONS */
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -160,10 +166,6 @@ contract MorphoMarketV1AdapterV2 is TimelockedAdapter, IMorphoMarketV1AdapterV2 
     }
 
     /* VIEW FUNCTIONS */
-
-    function marketIdsLength() external view returns (uint256) {
-        return marketIds.length;
-    }
 
     /// @dev Returns the expected supply assets of the market, taking into account the internal shares accounting.
     function expectedSupplyAssets(bytes32 marketId) public view returns (uint256) {
