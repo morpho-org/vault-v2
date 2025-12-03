@@ -29,6 +29,9 @@ import {
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev Donated shares are lost forever.
 ///
+/// TIMELOCKS
+/// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
+///
 /// BURN SHARES
 /// @dev When submitting burnShares, it's recommended to put the caps of the market to zero to avoid losing more.
 /// @dev Burning shares takes time, so reactive depositors might be able to exit before the share price reduction.
