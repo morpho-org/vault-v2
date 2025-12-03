@@ -156,7 +156,7 @@ rule deallocateInputValidation(env e, address adapter, bytes data, uint256 asset
     assert !(callerIsAllocator || callerIsSentinel) || !adapterIsRegistered => lastReverted;
 }
 
-function forceDeallocateInputValidation(env e, address adapter, bytes data, uint256 assets, address onBehalf) {
+rule forceDeallocateInputValidation(env e, address adapter, bytes data, uint256 assets, address onBehalf) {
     bool adapterIsRegistered = isAdapter(adapter);
 
     forceDeallocate@withrevert(e, adapter, data, assets, onBehalf);
