@@ -48,7 +48,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// the corresponding markets.
 /// @dev The caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
 /// @dev Relative caps are "soft" in the sense that they are not checked on exit.
-/// @dev Caps can be exceeded because of interest.
+/// @dev Caps can be exceeded because of interest and donations in adapters (if adapters do not prevent them).
 /// @dev The relative cap is relative to firstTotalAssets, not realAssets.
 /// @dev The relative cap unit is WAD.
 /// @dev To track allocations using events, use the Allocate and Deallocate events only.
