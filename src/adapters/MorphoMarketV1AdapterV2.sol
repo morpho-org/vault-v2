@@ -59,6 +59,12 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     bytes32[] public marketIds;
     mapping(bytes32 marketId => uint256) public supplyShares;
 
+    /* GETTERS */
+
+    function marketIdsLength() external view returns (uint256) {
+        return marketIds.length;
+    }
+
     /* CONSTRUCTOR */
 
     constructor(address _parentVault, address _morpho, address _adaptiveCurveIrm) {
@@ -70,12 +76,6 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         adaptiveCurveIrm = _adaptiveCurveIrm;
         SafeERC20Lib.safeApprove(asset, _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
-    }
-
-    /* GETTERS */
-
-    function marketIdsLength() external view returns (uint256) {
-        return marketIds.length;
     }
 
     /* TIMELOCKS FUNCTIONS */
@@ -114,7 +114,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         emit Revoke(msg.sender, selector, data);
     }
 
-    /* TIMELOCKED FUNCTIONS */
+    /* CURATOR FUNCTIONS */
 
     /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
     /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
