@@ -114,7 +114,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         emit Revoke(msg.sender, selector, data);
     }
 
-    /* CURATOR FUNCTIONS */
+    /* TIMELOCKED FUNCTIONS */
 
     /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
     /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
