@@ -6,9 +6,6 @@ using MorphoMarketV1AdapterV2 as MorphoMarketV1AdapterV2;
 methods {
     function allocation(MorphoMarketV1AdapterV2.MarketParams memory marketParams) internal returns (uint256) => ghostAllocation[Utils.id(marketParams)];
 
-    function allocate(bytes data, uint256 assets, bytes4, address) external returns (bytes32[] , int256) with (env e) => morphoMarketV1AdapterWrapperSummary(e, true, data, assets) ALL;
-    function deallocate(bytes data, uint256 assets, bytes4, address) external returns (bytes32[] , int256) with (env e) => morphoMarketV1AdapterWrapperSummary(e, false, data, assets) ALL;
-
     function Utils.id(MorphoMarketV1AdapterV2.MarketParams) external returns (MorphoMarketV1AdapterV2.Id) envfree;
     function Utils.decodeMarketParams(bytes) external returns (MorphoMarketV1AdapterV2.MarketParams) envfree;
 }
@@ -48,6 +45,7 @@ filtered {
     }
 }
 
+// Rule to be able to summarize allocate and deallocate calls.
 rule marketIdsWithNoAllocationIsNotInMarketIdsAllocateAndDeallocate(env e, bytes data, uint256 assets) {
     require forall MorphoMarketV1AdapterV2.Id marketId.
     forall uint256 i. i < currentContract.marketIds.length => ghostAllocation[marketId] == 0 => currentContract.marketIds[i] != marketId;
@@ -71,6 +69,7 @@ filtered {
     }
 }
 
+// Rule to be able to summarize allocate and deallocate calls.
 rule distinctMarketIdsInListAllocateAndDeallocate(env e, bytes data, uint256 assets) {
     require forall uint256 i. forall uint256 j. i < j => j < currentContract.marketIds.length => currentContract.marketIds[j] != currentContract.marketIds[i];
 
