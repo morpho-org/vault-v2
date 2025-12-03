@@ -20,7 +20,7 @@ Morpho Vaults V2 must set and abdicate the [Morpho Registry](https://docs.morpho
 
 The following adapters are currently available:
 
-- [Morpho Market V1 Adapter](./src/adapters/MorphoMarketV1Adapter.sol).
+- [Morpho Market V1 Adapter V2](./src/adapters/MorphoMarketV1AdapterV2.sol).
 - [Morpho Vault V1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
 - Morpho Market V2 Adapter. WIP
 
