@@ -45,6 +45,7 @@ interface IMorphoMarketV1AdapterV2 is IAdapter {
     function adapterId() external view returns (bytes32);
     function skimRecipient() external view returns (address);
     function marketIdsLength() external view returns (uint256);
+    function adaptiveCurveIrm() external view returns (address);
     function allocation(MarketParams memory marketParams) external view returns (uint256);
     function expectedSupplyAssets(bytes32 marketId) external view returns (uint256);
     function ids(MarketParams memory marketParams) external view returns (bytes32[] memory);
