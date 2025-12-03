@@ -50,7 +50,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     bytes32 public immutable adapterId;
     address public immutable adaptiveCurveIrm;
 
-    /* TIMELOCKS RELATED STORAGE */
+    /* TIMELOCKS STORAGE */
 
     mapping(bytes4 selector => uint256) public timelock;
     mapping(bytes4 selector => bool) public abdicated;
@@ -140,6 +140,9 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         emit DecreaseTimelock(selector, newDuration);
     }
 
+    /// @dev This function requires great caution because it will irreversibly disable submit for a selector.
+    /// @dev Existing pending operations submitted before increasing a timelock can not be executed at the initial
+    /// executableAt.
     function abdicate(bytes4 selector) external {
         timelocked();
         abdicated[selector] = true;
