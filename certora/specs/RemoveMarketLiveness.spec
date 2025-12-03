@@ -21,7 +21,9 @@ methods {
     function MorphoMarketV1Adapter.marketIds(uint256) external returns (bytes32) envfree;
     function MorphoMarketV1Adapter.allocation(Morpho.MarketParams) external returns (uint256) envfree;
     function MorphoMarketV1Adapter.supplyShares(bytes32) external returns (uint256) envfree;
+    function MorphoMarketV1Adapter.adapterId() external returns (bytes32) envfree;
     function Utils.decodeMarketParams(bytes data) external returns (Morpho.MarketParams memory) envfree;
+    function Utils.adapterId(address) external returns (bytes32) envfree;
     function Utils.id(Morpho.MarketParams) external returns (Morpho.Id) envfree;
     function Utils.wrapId(bytes32) external returns (Morpho.Id) envfree;
     function Utils.unwrapId(Morpho.Id) external returns (bytes32) envfree;
@@ -56,11 +58,7 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     bytes32[] ids;
     int256 change;
     ids, change = MorphoMarketV1Adapter.deallocate(e, data, assets, selector, sender);
-    require ids.length == 3, "see IdsMorphoMarketV1Adapter";
-    // See distinctMarketV1Ids rule.
-    require ids[0] != ids[1], "ack";
-    require ids[0] != ids[2], "ack";
-    require ids[1] != ids[2], "ack";
+    require MorphoMarketV1Adapter.adapterId() == Utils.adapterId(MorphoMarketV1Adapter), "see valueOfAdapterId";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation < 2^20 * 2^128, "market v1 fits total supply assets on 128 bits, and assume at most 2^20 markets";
     require change < 2^128, "market v1 fits total supply assets on 128 bits";
