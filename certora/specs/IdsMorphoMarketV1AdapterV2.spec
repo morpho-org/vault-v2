@@ -7,15 +7,15 @@ using Utils as Utils;
 
 methods {
     function adapterId() external returns (bytes32) envfree;
-    function ids(MorphoMarketV1Adapter.MarketParams) external returns (bytes32[]) envfree;
+    function ids(MorphoMarketV1AdapterV2.MarketParams) external returns (bytes32[]) envfree;
 
     function Utils.havocAll() external envfree => HAVOC_ALL;
     function Utils.adapterId(address) external returns (bytes32) envfree;
-    function Utils.decodeMarketParams(bytes) external returns(MorphoMarketV1Adapter.MarketParams) envfree;
+    function Utils.decodeMarketParams(bytes) external returns(MorphoMarketV1AdapterV2.MarketParams) envfree;
 }
 
 // Show that ids() is a function that only depend on its input. It will be used as the reference id list in other rules.
-rule adapterAlwaysReturnsTheSameIDsForSameData(MorphoMarketV1Adapter.MarketParams marketParams) {
+rule adapterAlwaysReturnsTheSameIDsForSameData(MorphoMarketV1AdapterV2.MarketParams marketParams) {
   bytes32[] idsPre = ids(marketParams);
 
   Utils.havocAll();
@@ -31,7 +31,7 @@ rule adapterAlwaysReturnsTheSameIDsForSameData(MorphoMarketV1Adapter.MarketParam
 
 // Show that the ids returned on allocate or deallocate match the reference id list.
 rule matchingIdsOnAllocateOrDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) {
-  MorphoMarketV1Adapter.MarketParams marketParams = Utils.decodeMarketParams(data);
+  MorphoMarketV1AdapterV2.MarketParams marketParams = Utils.decodeMarketParams(data);
 
   bytes32[] ids;
   ids, _ = allocateOrDeallocate(e, data, assets, selector, sender);
@@ -47,7 +47,7 @@ rule matchingIdsOnAllocateOrDeallocate(env e, bytes data, uint256 assets, bytes4
 invariant valueOfAdapterId()
   adapterId() == Utils.adapterId(currentContract);
 
-rule distinctMarketV1Ids(MorphoMarketV1Adapter.MarketParams marketParams) {
+rule distinctMarketV1Ids(MorphoMarketV1AdapterV2.MarketParams marketParams) {
   bytes32[] ids = ids(marketParams);
 
   requireInvariant valueOfAdapterId();

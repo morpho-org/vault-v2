@@ -26,7 +26,7 @@ Vaults can set an adapter registry to constrain which adapter they can have and 
 
 The following adapters are currently available:
 
-- [Morpho Market V1 Adapter](./src/adapters/MorphoMarketV1Adapter.sol).
+- [Morpho Market V1 Adapter V2](./src/adapters/MorphoMarketV1AdapterV2.sol).
   This adapter allocates to any Morpho Market V1, under the constraints of the [caps](#caps).
 - [Morpho Vault V1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
   This adapter allocates to a fixed Morpho Vault V1 (V1.0 and V1.1), under the constraints of the [caps](#caps).
