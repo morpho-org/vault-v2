@@ -14,7 +14,7 @@ Vaults allocate assets to underlying protocols via separate contracts called ada
 They hold positions on behalf of the vault.
 Adapters are also used to know how much these investments are worth (interest and loss realization).
 
-The adapter registry is useful to constrain which adapter a vault can have and add.
+An [adapter registry](https://github.com/morpho-org/vault-v2/blob/main/src/VaultV2.sol#L89-L97) is used to constrain which adapter a vault can have and add.
 This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure that a vault will forever supply into adapters authorized by a given registry.
 Morpho Vaults V2 must set and abdicate the [Morpho Registry](https://docs.morpho.org/curate/concepts/adapter-registry/#the-morpho-registry).
 
@@ -68,13 +68,6 @@ Note that the only friction to deallocating an adapter with a 0% penalty is the 
 Non-custodial guarantees come from [in-kind redemptions](#in-kind-redemptions-with-forcedeallocate) and [timelocks](#curator-timelocks).
 These mechanisms ensure users that they can always withdraw their assets before any critical configuration change takes effect (if the right timelocks are not zero).
 
-### ERC-4626 compliance
-
-Vault V2 is [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) and [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) compliant.
-
-> [!WARNING]
-> The vault has a non-conventional behaviour on max functions (`maxDeposit`, `maxMint`, `maxWithdraw`, `maxRedeem`): they always return zero.
-
 ### Gates
 
 Vaults V2 can use external gate contracts to control share transfer, vault asset deposit, and vault asset withdrawal.
@@ -114,6 +107,13 @@ Each fee goes to its respective recipient set by the curator.
 
 - **Sentinel(s)**: The sentinel role can be used to be able to derisk quickly a vault.
   They are able to revoke pending actions, deallocate funds to idle and decrease caps.
+
+### ERC-4626 compliance
+
+Vault V2 is [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) and [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) compliant.
+
+> [!WARNING]
+> The vault has a non-conventional behaviour on max functions (`maxDeposit`, `maxMint`, `maxWithdraw`, `maxRedeem`): they always return zero.
 
 ## Developers
 
