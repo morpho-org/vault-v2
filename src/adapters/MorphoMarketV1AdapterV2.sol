@@ -7,7 +7,7 @@ import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsL
 import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IMorphoMarketV1Adapter} from "./interfaces/IMorphoMarketV1Adapter.sol";
+import {IMorphoMarketV1AdapterV2} from "./interfaces/IMorphoMarketV1AdapterV2.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {
     AdaptiveCurveIrmLib
@@ -26,7 +26,14 @@ import {
 /// @dev Markets get removed from the marketIds when the allocation is zero, but it doesn't mean that the adapter has
 /// zero shares on the market.
 /// @dev This adapter can only be used for markets with the adaptive curve irm.
-contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
+/// @dev Donated shares are lost forever.
+///
+/// BURN SHARES
+/// @dev When submitting burnShares, it's recommended to put the caps of the market to zero to avoid losing more.
+/// @dev Burning shares takes time, so reactive depositors might be able to exit before the share price reduction.
+/// @dev It is possible to burn the shares of a market whose IRM reverts.
+/// @dev Burnt shares are lost forever.
+contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     using MarketParamsLib for MarketParams;
     using SharesMathLib for uint256;
 
@@ -106,7 +113,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         emit BurnShares(marketId, supplySharesBefore);
     }
 
-    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the allocation and the change in allocation.
     function allocate(bytes memory data, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
@@ -133,7 +139,6 @@ contract MorphoMarketV1Adapter is IMorphoMarketV1Adapter {
         return (ids(marketParams), int256(newAllocation) - int256(oldAllocation));
     }
 
-    /// @dev Does not log anything because the ids (logged in the parent vault) are enough.
     /// @dev Returns the ids of the deallocation and the change in allocation.
     function deallocate(bytes memory data, uint256 assets, bytes4, address)
         external
