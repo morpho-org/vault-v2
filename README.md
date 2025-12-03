@@ -16,7 +16,6 @@ Adapters are also used to know how much these investments are worth (interest an
 
 An [adapter registry](https://github.com/morpho-org/vault-v2/blob/main/src/VaultV2.sol#L89-L97) is used to constrain which adapters a vault can have and add.
 This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure that a vault will forever supply into adapters authorized by a given registry.
-Morpho Vaults V2 must set and abdicate the [Morpho Registry](https://docs.morpho.org/curate/concepts/adapter-registry/#the-morpho-registry).
 
 The following adapters are currently available:
 
