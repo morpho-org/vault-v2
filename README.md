@@ -14,7 +14,7 @@ Vaults allocate assets to underlying protocols via separate contracts called ada
 They hold positions on behalf of the vault.
 Adapters are also used to know how much these investments are worth (interest and loss realization).
 
-An [adapter registry](https://github.com/morpho-org/vault-v2/blob/main/src/VaultV2.sol#L89-L97) is used to constrain which adapter a vault can have and add.
+An [adapter registry](https://github.com/morpho-org/vault-v2/blob/main/src/VaultV2.sol#L89-L97) is used to constrain which adapters a vault can have and add.
 This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure that a vault will forever supply into adapters authorized by a given registry.
 Morpho Vaults V2 must set and abdicate the [Morpho Registry](https://docs.morpho.org/curate/concepts/adapter-registry/#the-morpho-registry).
 
@@ -29,7 +29,7 @@ The following adapters are currently available:
 The funds allocation of the vault is constrained by an id-based caps system.
 An id is an abstract identifier for a common risk factor of some positions (a collateral, an oracle, a protocol, etc.).
 Allocation on markets with a common id is limited by absolute caps and relative caps.
-Note that relative caps are "soft" because they are not checked on withdrawals, they only constrain new allocations.
+Relative caps only constrain allocations, so they can be exceeded because of withdrawals from the vault.
 
 ### Liquidity
 
