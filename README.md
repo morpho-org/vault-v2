@@ -1,7 +1,7 @@
 # Vault V2
 
 Vaults V2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets into different markets.
-Depositors of Vault V2 earn from the underlying protocols without having to actively manage their position.
+Depositors of Vault V2 earn from the underlying markets without having to actively manage their position.
 The curation of deposited assets is handled by a set of different roles (owner, curator and allocators).
 The [VaultV2Factory](./src/VaultV2Factory.sol) deploys instances of Vaults V2.
 All the contracts are immutable.
@@ -10,7 +10,7 @@ All the contracts are immutable.
 
 ### Adapters
 
-Vaults allocate assets to underlying protocols via separate contracts called adapters.
+Vaults allocate assets to underlying markets via separate contracts called adapters.
 They hold positions on behalf of the vault.
 Adapters are also used to know how much these investments are worth (interest and loss realization).
 
@@ -100,7 +100,7 @@ Each fee goes to its respective recipient set by the curator.
   All actions are timelockable except decreasing absolute and relative caps.
   Only one address can have this role.
 
-- **Allocator(s)**: The allocators' role is to handle the vault's allocation in and out of underlying protocols (with the enabled adapters, and within the caps set by the curator).
+- **Allocator(s)**: The allocators' role is to handle the vault's allocation in and out of underlying markets (with the enabled adapters, and within the caps set by the curator).
   They also set the [liquidity adapter](#liquidity) and [max rate](#max-rate).
   They are notably responsible for the vault's performance and liquidity.
 
