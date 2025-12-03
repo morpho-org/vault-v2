@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-using MorphoMarketV1Adapter as MorphoMarketV1Adapter;
+using MorphoMarketV1AdapterV2 as MorphoMarketV1AdapterV2;
 using MorphoHarness as Morpho;
 using Utils as Utils;
 
@@ -15,13 +15,13 @@ methods {
     function Morpho.totalSupplyShares(Morpho.Id) external returns (uint256) envfree;
     function Morpho.totalSupplyAssets(Morpho.Id) external returns (uint256) envfree;
     function Morpho.totalBorrowAssets(Morpho.Id) external returns (uint256) envfree;
-    function MorphoMarketV1Adapter.asset() external returns (address) envfree;
-    function MorphoMarketV1Adapter.adaptiveCurveIrm() external returns (address) envfree;
-    function MorphoMarketV1Adapter.marketIdsLength() external returns (uint256) envfree;
-    function MorphoMarketV1Adapter.marketIds(uint256) external returns (bytes32) envfree;
-    function MorphoMarketV1Adapter.allocation(Morpho.MarketParams) external returns (uint256) envfree;
-    function MorphoMarketV1Adapter.supplyShares(bytes32) external returns (uint256) envfree;
-    function MorphoMarketV1Adapter.adapterId() external returns (bytes32) envfree;
+    function MorphoMarketV1AdapterV2.asset() external returns (address) envfree;
+    function MorphoMarketV1AdapterV2.adaptiveCurveIrm() external returns (address) envfree;
+    function MorphoMarketV1AdapterV2.marketIdsLength() external returns (uint256) envfree;
+    function MorphoMarketV1AdapterV2.marketIds(uint256) external returns (bytes32) envfree;
+    function MorphoMarketV1AdapterV2.allocation(Morpho.MarketParams) external returns (uint256) envfree;
+    function MorphoMarketV1AdapterV2.supplyShares(bytes32) external returns (uint256) envfree;
+    function MorphoMarketV1AdapterV2.adapterId() external returns (bytes32) envfree;
     function Utils.decodeMarketParams(bytes data) external returns (Morpho.MarketParams memory) envfree;
     function Utils.adapterId(address) external returns (bytes32) envfree;
     function Utils.id(Morpho.MarketParams) external returns (Morpho.Id) envfree;
@@ -57,8 +57,8 @@ function summaryExpectedMarketBalances(bytes32 id) returns (uint256, uint256, ui
 function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
     bytes32[] ids;
     int256 change;
-    ids, change = MorphoMarketV1Adapter.deallocate(e, data, assets, selector, sender);
-    require MorphoMarketV1Adapter.adapterId() == Utils.adapterId(MorphoMarketV1Adapter), "see valueOfAdapterId";
+    ids, change = MorphoMarketV1AdapterV2.deallocate(e, data, assets, selector, sender);
+    require MorphoMarketV1AdapterV2.adapterId() == Utils.adapterId(MorphoMarketV1AdapterV2), "see valueOfAdapterId";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation < 2^20 * 2^128, "market v1 fits total supply assets on 128 bits, and assume at most 2^20 markets";
     require change < 2^128, "market v1 fits total supply assets on 128 bits";
@@ -74,23 +74,23 @@ rule canDeallocateExpectedSupplyAssets(env e, bytes data) {
     bytes32 id = Utils.unwrapId(marketId);
     require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM doesn't revert";
 
-    uint256 assets = MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId);
+    uint256 assets = MorphoMarketV1AdapterV2.expectedSupplyAssets(e, marketId);
 
     require Morpho.totalSupplyAssets(marketId) - assets >= Morpho.totalBorrowAssets(marketId), "assume enough liquidity";
 
-    require MorphoMarketV1Adapter.allocation(marketParams) <= max_int256(), "see allocationIsInt256";
-    require MorphoMarketV1Adapter.supplyShares(id) <= Morpho.supplyShares(marketId, MorphoMarketV1Adapter), "internal accounting of shares is less than actual held shares";
-    require Morpho.supplyShares(marketId, MorphoMarketV1Adapter) <= Morpho.totalSupplyShares(marketId), "total supply shares is the sum of the market supply shares";
-    require Morpho.supplyShares(marketId, MorphoMarketV1Adapter) < 2^128, "shares fit on 128 bits on Morpho";
+    require MorphoMarketV1AdapterV2.allocation(marketParams) <= max_int256(), "see allocationIsInt256";
+    require MorphoMarketV1AdapterV2.supplyShares(id) <= Morpho.supplyShares(marketId, MorphoMarketV1AdapterV2), "internal accounting of shares is less than actual held shares";
+    require Morpho.supplyShares(marketId, MorphoMarketV1AdapterV2) <= Morpho.totalSupplyShares(marketId), "total supply shares is the sum of the market supply shares";
+    require Morpho.supplyShares(marketId, MorphoMarketV1AdapterV2) < 2^128, "shares fit on 128 bits on Morpho";
     require assets < 10^32, "safe because market v1 specifies that loan tokens should have less than 1e32 total supply";
     require Morpho.lastUpdate(marketId) != 0, "assume the market is created";
-    require isAdapter(MorphoMarketV1Adapter), "assume the adapter is enabled";
+    require isAdapter(MorphoMarketV1AdapterV2), "assume the adapter is enabled";
     require isSentinel(e.msg.sender) || isAllocator(e.msg.sender), "setup the call";
     require e.msg.value == 0, "setup the call";
-    require marketParams.loanToken == MorphoMarketV1Adapter.asset(), "setup the call";
-    require marketParams.irm == MorphoMarketV1Adapter.adaptiveCurveIrm(), "setup the call";
+    require marketParams.loanToken == MorphoMarketV1AdapterV2.asset(), "setup the call";
+    require marketParams.irm == MorphoMarketV1AdapterV2.adaptiveCurveIrm(), "setup the call";
 
-    deallocate@withrevert(e, MorphoMarketV1Adapter, data, assets);
+    deallocate@withrevert(e, MorphoMarketV1AdapterV2, data, assets);
 
     assert !lastReverted;
 }
@@ -101,11 +101,11 @@ rule canPutExpectedSupplyAssetsToZero(env e, bytes data) {
     Morpho.Id marketId = Utils.id(marketParams);
     require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM doesn't revert";
 
-    uint256 assets = MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId);
+    uint256 assets = MorphoMarketV1AdapterV2.expectedSupplyAssets(e, marketId);
 
-    deallocate(e, MorphoMarketV1Adapter, data, assets);
+    deallocate(e, MorphoMarketV1AdapterV2, data, assets);
 
-    assert MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId) == 0;
+    assert MorphoMarketV1AdapterV2.expectedSupplyAssets(e, marketId) == 0;
 }
 
 // Check that a deallocation that leaves the expected supply assets to zero removes the market.
@@ -114,14 +114,14 @@ rule deallocatingWithZeroExpectedSupplyAssetsRemovesMarket(env e, bytes data, ui
     Morpho.Id marketId = Utils.id(marketParams);
     require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM doesn't revert";
 
-    uint256 marketIdsLength = MorphoMarketV1Adapter.marketIdsLength();
-    require forall uint256 i. forall uint256 j. (i < j && j < marketIdsLength) => MorphoMarketV1Adapter.marketIds[i] != MorphoMarketV1Adapter.marketIds[j], "see distinctMarketIds";
+    uint256 marketIdsLength = MorphoMarketV1AdapterV2.marketIdsLength();
+    require forall uint256 i. forall uint256 j. (i < j && j < marketIdsLength) => MorphoMarketV1AdapterV2.marketIds[i] != MorphoMarketV1AdapterV2.marketIds[j], "see distinctMarketIds";
 
-    deallocate(e, MorphoMarketV1Adapter, data, assets);
+    deallocate(e, MorphoMarketV1AdapterV2, data, assets);
 
-    require MorphoMarketV1Adapter.expectedSupplyAssets(e, marketId) == 0, "assume that the expected supply assets is put to zero";
+    require MorphoMarketV1AdapterV2.expectedSupplyAssets(e, marketId) == 0, "assume that the expected supply assets is put to zero";
 
     uint256 i;
-    require i < MorphoMarketV1Adapter.marketIdsLength(), "only check valid indices";
-    assert MorphoMarketV1Adapter.marketIds(i) != marketId;
+    require i < MorphoMarketV1AdapterV2.marketIdsLength(), "only check valid indices";
+    assert MorphoMarketV1AdapterV2.marketIds(i) != marketId;
 }
