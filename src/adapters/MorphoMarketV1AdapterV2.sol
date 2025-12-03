@@ -26,7 +26,11 @@ import {
 /// @dev Markets get removed from the marketIds when the allocation is zero, but it doesn't mean that the adapter has
 /// zero shares on the market.
 /// @dev This adapter can only be used for markets with the adaptive curve irm.
+/// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev Donated shares are lost forever.
+///
+/// TIMELOCKS
+/// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 ///
 /// BURN SHARES
 /// @dev When submitting burnShares, it's recommended to put the caps of the market to zero to avoid losing more.
@@ -46,18 +50,25 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     bytes32 public immutable adapterId;
     address public immutable adaptiveCurveIrm;
 
-    /* STORAGE */
+    /* TIMELOCKS STORAGE */
+
+    mapping(bytes4 selector => uint256) public timelock;
+    mapping(bytes4 selector => bool) public abdicated;
+    mapping(bytes data => uint256) public executableAt;
+
+    /* OTHER STORAGE */
 
     address public skimRecipient;
     bytes32[] public marketIds;
     mapping(bytes32 marketId => uint256) public supplyShares;
-    mapping(bytes32 marketId => uint256) public burnSharesExecutableAt;
+
+    /* GETTERS */
 
     function marketIdsLength() external view returns (uint256) {
         return marketIds.length;
     }
 
-    /* FUNCTIONS */
+    /* CONSTRUCTOR */
 
     constructor(address _parentVault, address _morpho, address _adaptiveCurveIrm) {
         factory = msg.sender;
@@ -70,53 +81,103 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
 
+    /* TIMELOCKS FUNCTIONS */
+
+    /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block
+    /// timestamp.
+    function submit(bytes calldata data) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), Unauthorized());
+        require(executableAt[data] == 0, DataAlreadyPending());
+
+        bytes4 selector = bytes4(data);
+        uint256 _timelock = selector == IMorphoMarketV1AdapterV2.decreaseTimelock.selector
+            ? timelock[bytes4(data[4:8])]
+            : timelock[selector];
+        executableAt[data] = block.timestamp + _timelock;
+        emit Submit(selector, data, executableAt[data]);
+    }
+
+    function timelocked() internal {
+        bytes4 selector = bytes4(msg.data);
+        require(executableAt[msg.data] != 0, DataNotTimelocked());
+        require(block.timestamp >= executableAt[msg.data], TimelockNotExpired());
+        require(!abdicated[selector], Abdicated());
+        executableAt[msg.data] = 0;
+        emit Accept(selector, msg.data);
+    }
+
+    function revoke(bytes calldata data) external {
+        require(
+            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
+            Unauthorized()
+        );
+        require(executableAt[data] != 0, DataNotTimelocked());
+        executableAt[data] = 0;
+        bytes4 selector = bytes4(data);
+        emit Revoke(msg.sender, selector, data);
+    }
+
+    /* CURATOR FUNCTIONS */
+
+    /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
+    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
+    /// executableAt.
+    function increaseTimelock(bytes4 selector, uint256 newDuration) external {
+        timelocked();
+        require(selector != IMorphoMarketV1AdapterV2.decreaseTimelock.selector, AutomaticallyTimelocked());
+        require(newDuration >= timelock[selector], TimelockNotIncreasing());
+
+        timelock[selector] = newDuration;
+        emit IncreaseTimelock(selector, newDuration);
+    }
+
+    function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
+        timelocked();
+        require(selector != IMorphoMarketV1AdapterV2.decreaseTimelock.selector, AutomaticallyTimelocked());
+        require(newDuration <= timelock[selector], TimelockNotDecreasing());
+
+        timelock[selector] = newDuration;
+        emit DecreaseTimelock(selector, newDuration);
+    }
+
+    /// @dev This function requires great caution because it will irreversibly disable submit for a selector.
+    /// @dev Existing pending operations submitted before increasing a timelock can not be executed at the initial
+    /// executableAt.
+    function abdicate(bytes4 selector) external {
+        timelocked();
+        abdicated[selector] = true;
+        emit Abdicate(selector);
+    }
+
     function setSkimRecipient(address newSkimRecipient) external {
-        require(msg.sender == IVaultV2(parentVault).owner(), NotAuthorized());
+        timelocked();
         skimRecipient = newSkimRecipient;
         emit SetSkimRecipient(newSkimRecipient);
     }
 
-    /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
-    /// @dev This is useful to handle rewards that the adapter has earned.
-    function skim(address token) external {
-        require(msg.sender == skimRecipient, NotAuthorized());
-        uint256 balance = IERC20(token).balanceOf(address(this));
-        SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
-        emit Skim(token, balance);
-    }
-
-    function submitBurnShares(bytes32 marketId) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        require(burnSharesExecutableAt[marketId] == 0, AlreadyPending());
-        burnSharesExecutableAt[marketId] =
-            block.timestamp + IVaultV2(parentVault).timelock(IVaultV2.removeAdapter.selector);
-        emit SubmitBurnShares(marketId, burnSharesExecutableAt[marketId]);
-    }
-
-    function revokeBurnShares(bytes32 marketId) external {
-        require(
-            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
-            NotAuthorized()
-        );
-        require(burnSharesExecutableAt[marketId] != 0, NotPending());
-        burnSharesExecutableAt[marketId] = 0;
-        emit RevokeBurnShares(marketId);
-    }
-
     /// @dev Deallocate 0 from the vault after burning shares to update the allocation there.
     function burnShares(bytes32 marketId) external {
-        require(burnSharesExecutableAt[marketId] != 0, NotTimelocked());
-        require(block.timestamp >= burnSharesExecutableAt[marketId], TimelockNotExpired());
-        burnSharesExecutableAt[marketId] = 0;
+        timelocked();
         uint256 supplySharesBefore = supplyShares[marketId];
         supplyShares[marketId] = 0;
         emit BurnShares(marketId, supplySharesBefore);
     }
 
+    /* OTHER FUNCTIONS */
+
+    /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
+    /// @dev This is useful to handle rewards that the adapter has earned.
+    function skim(address token) external {
+        require(msg.sender == skimRecipient, Unauthorized());
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
+        emit Skim(token, balance);
+    }
+
     /// @dev Returns the ids of the allocation and the change in allocation.
     function allocate(bytes memory data, uint256 assets, bytes4, address) external returns (bytes32[] memory, int256) {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        require(msg.sender == parentVault, NotAuthorized());
+        require(msg.sender == parentVault, Unauthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
         require(marketParams.irm == adaptiveCurveIrm, IrmMismatch());
         bytes32 marketId = Id.unwrap(marketParams.id());
@@ -145,7 +206,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         returns (bytes32[] memory, int256)
     {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
-        require(msg.sender == parentVault, NotAuthorized());
+        require(msg.sender == parentVault, Unauthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
         require(marketParams.irm == adaptiveCurveIrm, IrmMismatch());
         bytes32 marketId = Id.unwrap(marketParams.id());

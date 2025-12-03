@@ -84,6 +84,10 @@ contract MorphoMarketV1AdapterV2Test is Test {
         expectedIds[0] = keccak256(abi.encode("this", address(adapter)));
         expectedIds[1] = keccak256(abi.encode("collateralToken", marketParams.collateralToken));
         expectedIds[2] = keccak256(abi.encode("this/marketParams", address(adapter), marketParams));
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.setSkimRecipient, (recipient)));
+        adapter.setSkimRecipient(recipient);
     }
 
     function _boundAssets(uint256 assets) internal pure returns (uint256) {
@@ -98,13 +102,13 @@ contract MorphoMarketV1AdapterV2Test is Test {
 
     function testAllocateNotAuthorizedReverts(uint256 assets) public {
         assets = _boundAssets(assets);
-        vm.expectRevert(IMorphoMarketV1AdapterV2.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1AdapterV2.Unauthorized.selector);
         adapter.allocate(abi.encode(marketParams), assets, bytes4(0), address(0));
     }
 
     function testDeallocateNotAuthorizedReverts(uint256 assets) public {
         assets = _boundAssets(assets);
-        vm.expectRevert(IMorphoMarketV1AdapterV2.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1AdapterV2.Unauthorized.selector);
         adapter.deallocate(abi.encode(marketParams), assets, bytes4(0), address(0));
     }
 
@@ -213,16 +217,56 @@ contract MorphoMarketV1AdapterV2Test is Test {
         assertTrue(factory.isMorphoMarketV1AdapterV2(newAdapter), "Adapter not tracked correctly");
     }
 
-    function testSetSkimRecipient(address newRecipient, address caller) public {
+    function testSetSkimRecipientNotTimelocked(address newRecipient) public {
         vm.assume(newRecipient != address(0));
-        vm.assume(caller != address(0));
-        vm.assume(caller != owner);
 
-        vm.prank(caller);
-        vm.expectRevert(IMorphoMarketV1AdapterV2.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1AdapterV2.DataNotTimelocked.selector);
         adapter.setSkimRecipient(newRecipient);
+    }
 
-        vm.prank(owner);
+    function testSetSkimRecipientNotAuthorized(address newRecipient, address caller) public {
+        vm.assume(caller != curator);
+        vm.expectRevert(IMorphoMarketV1AdapterV2.Unauthorized.selector);
+        vm.prank(caller);
+        adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.setSkimRecipient, (newRecipient)));
+    }
+
+    function testSetSkimRecipientTimelockNotExpired(address newRecipient, uint256 timelockDuration) public {
+        vm.assume(newRecipient != address(0));
+        timelockDuration = bound(timelockDuration, 1, 3650 days);
+
+        vm.prank(curator);
+        adapter.submit(
+            abi.encodeCall(
+                IMorphoMarketV1AdapterV2.increaseTimelock,
+                (IMorphoMarketV1AdapterV2.setSkimRecipient.selector, timelockDuration)
+            )
+        );
+        adapter.increaseTimelock(IMorphoMarketV1AdapterV2.setSkimRecipient.selector, timelockDuration);
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.setSkimRecipient, (newRecipient)));
+
+        vm.expectRevert(IMorphoMarketV1AdapterV2.TimelockNotExpired.selector);
+        adapter.setSkimRecipient(newRecipient);
+    }
+
+    function testSetSkimRecipient(address newRecipient, uint256 timelockDuration) public {
+        vm.assume(newRecipient != address(0));
+        timelockDuration = bound(timelockDuration, 0, 3650 days);
+
+        vm.prank(curator);
+        adapter.submit(
+            abi.encodeCall(
+                IMorphoMarketV1AdapterV2.increaseTimelock,
+                (IMorphoMarketV1AdapterV2.setSkimRecipient.selector, timelockDuration)
+            )
+        );
+        adapter.increaseTimelock(IMorphoMarketV1AdapterV2.setSkimRecipient.selector, timelockDuration);
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.setSkimRecipient, (newRecipient)));
+        skip(timelockDuration);
         vm.expectEmit();
         emit IMorphoMarketV1AdapterV2.SetSkimRecipient(newRecipient);
         adapter.setSkimRecipient(newRecipient);
@@ -230,13 +274,17 @@ contract MorphoMarketV1AdapterV2Test is Test {
         assertEq(adapter.skimRecipient(), newRecipient, "Skim recipient not set correctly");
     }
 
+    function testSkimNotAuthorized(address caller, address token) public {
+        vm.assume(caller != recipient);
+        vm.expectRevert(IMorphoMarketV1AdapterV2.Unauthorized.selector);
+        vm.prank(caller);
+        adapter.skim(token);
+    }
+
     function testSkim(uint256 assets) public {
         assets = _boundAssets(assets);
 
         ERC20Mock token = new ERC20Mock(18);
-
-        vm.prank(owner);
-        adapter.setSkimRecipient(recipient);
 
         deal(address(token), address(adapter), assets);
         assertEq(token.balanceOf(address(adapter)), assets, "Adapter did not receive tokens");
@@ -249,7 +297,7 @@ contract MorphoMarketV1AdapterV2Test is Test {
         assertEq(token.balanceOf(address(adapter)), 0, "Tokens not skimmed from adapter");
         assertEq(token.balanceOf(recipient), assets, "Recipient did not receive tokens");
 
-        vm.expectRevert(IMorphoMarketV1AdapterV2.NotAuthorized.selector);
+        vm.expectRevert(IMorphoMarketV1AdapterV2.Unauthorized.selector);
         adapter.skim(address(token));
     }
 
@@ -346,30 +394,43 @@ contract MorphoMarketV1AdapterV2Test is Test {
     function testSubmitBurnSharesNotAuthorized(address caller, bytes32 _marketId) public {
         vm.assume(caller != curator);
         vm.prank(caller);
-        vm.expectRevert(IMorphoMarketV1AdapterV2.NotAuthorized.selector);
-        adapter.submitBurnShares(_marketId);
+        vm.expectRevert(IMorphoMarketV1AdapterV2.Unauthorized.selector);
+        adapter.submit(abi.encode(IMorphoMarketV1AdapterV2.burnShares.selector, abi.encode(_marketId)));
     }
 
     function testSubmitBurnSharesAlreadyPending(bytes32 _marketId) public {
         vm.prank(curator);
-        adapter.submitBurnShares(_marketId);
+        adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (_marketId)));
 
-        vm.expectRevert(IMorphoMarketV1AdapterV2.AlreadyPending.selector);
+        vm.expectRevert(IMorphoMarketV1AdapterV2.DataAlreadyPending.selector);
         vm.prank(curator);
-        adapter.submitBurnShares(_marketId);
+        adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (_marketId)));
     }
 
-    function testSubmitBurnShares(bytes32 _marketId) public {
-        vm.expectEmit();
-        emit IMorphoMarketV1AdapterV2.SubmitBurnShares(
-            _marketId, block.timestamp + parentVault.timelock(IVaultV2.removeAdapter.selector)
-        );
+    function testSubmitBurnShares(bytes32 _marketId, uint256 timelockDuration) public {
+        timelockDuration = bound(timelockDuration, 1, 3650 days);
+
         vm.prank(curator);
-        adapter.submitBurnShares(_marketId);
+        adapter.submit(
+            abi.encodeCall(
+                IMorphoMarketV1AdapterV2.increaseTimelock,
+                (IMorphoMarketV1AdapterV2.burnShares.selector, timelockDuration)
+            )
+        );
+        adapter.increaseTimelock(IMorphoMarketV1AdapterV2.burnShares.selector, timelockDuration);
+        vm.expectEmit();
+        emit IMorphoMarketV1AdapterV2.Submit(
+            IMorphoMarketV1AdapterV2.burnShares.selector,
+            abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (_marketId)),
+            block.timestamp + adapter.timelock(IMorphoMarketV1AdapterV2.burnShares.selector)
+        );
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (_marketId)));
 
         assertEq(
-            adapter.burnSharesExecutableAt(_marketId),
-            block.timestamp + parentVault.timelock(IVaultV2.removeAdapter.selector)
+            adapter.executableAt(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (_marketId))),
+            block.timestamp + adapter.timelock(IMorphoMarketV1AdapterV2.burnShares.selector)
         );
     }
 
@@ -378,41 +439,49 @@ contract MorphoMarketV1AdapterV2Test is Test {
         vm.assume(caller != sentinel);
 
         vm.prank(caller);
-        vm.expectRevert(IMorphoMarketV1AdapterV2.NotAuthorized.selector);
-        adapter.revokeBurnShares(_marketId);
+        vm.expectRevert(IMorphoMarketV1AdapterV2.Unauthorized.selector);
+        adapter.revoke(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (_marketId)));
     }
 
     function testRevokeBurnSharesNotPending(bytes32 _marketId) public {
         vm.prank(curator);
-        vm.expectRevert(IMorphoMarketV1AdapterV2.NotPending.selector);
-        adapter.revokeBurnShares(_marketId);
+        vm.expectRevert(IMorphoMarketV1AdapterV2.DataNotTimelocked.selector);
+        adapter.revoke(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (_marketId)));
     }
 
     function testRevokeBurnShares(bytes32 _marketId) public {
         vm.prank(curator);
-        adapter.submitBurnShares(_marketId);
+        adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (_marketId)));
 
         uint256 snap = vm.snapshotState();
 
         vm.prank(curator);
         vm.expectEmit();
-        emit IMorphoMarketV1AdapterV2.RevokeBurnShares(_marketId);
-        adapter.revokeBurnShares(_marketId);
+        emit IMorphoMarketV1AdapterV2.Revoke(
+            curator,
+            IMorphoMarketV1AdapterV2.burnShares.selector,
+            abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (_marketId))
+        );
+        adapter.revoke(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (_marketId)));
 
-        assertEq(adapter.burnSharesExecutableAt(_marketId), 0);
+        assertEq(adapter.executableAt(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (_marketId))), 0);
 
         vm.revertToStateAndDelete(snap);
 
         vm.prank(sentinel);
         vm.expectEmit();
-        emit IMorphoMarketV1AdapterV2.RevokeBurnShares(_marketId);
-        adapter.revokeBurnShares(_marketId);
+        emit IMorphoMarketV1AdapterV2.Revoke(
+            sentinel,
+            IMorphoMarketV1AdapterV2.burnShares.selector,
+            abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (_marketId))
+        );
+        adapter.revoke(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (_marketId)));
 
-        assertEq(adapter.burnSharesExecutableAt(_marketId), 0);
+        assertEq(adapter.executableAt(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (_marketId))), 0);
     }
 
     function testBurnSharesNotTimelocked(bytes32 _marketId) public {
-        vm.expectRevert(IMorphoMarketV1AdapterV2.NotTimelocked.selector);
+        vm.expectRevert(IMorphoMarketV1AdapterV2.DataNotTimelocked.selector);
         adapter.burnShares(_marketId);
     }
 
@@ -421,10 +490,17 @@ contract MorphoMarketV1AdapterV2Test is Test {
     {
         timelockDuration = bound(timelockDuration, 1, 3650 days);
 
-        parentVault.setTimelock(timelockDuration);
+        vm.prank(curator);
+        adapter.submit(
+            abi.encodeCall(
+                IMorphoMarketV1AdapterV2.increaseTimelock,
+                (IMorphoMarketV1AdapterV2.burnShares.selector, timelockDuration)
+            )
+        );
+        adapter.increaseTimelock(IMorphoMarketV1AdapterV2.burnShares.selector, timelockDuration);
 
         vm.prank(curator);
-        adapter.submitBurnShares(_marketId);
+        adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (_marketId)));
 
         skip(bound(skipDuration, 0, timelockDuration - 1));
 
@@ -443,10 +519,18 @@ contract MorphoMarketV1AdapterV2Test is Test {
         assertGt(allocation, 0);
 
         timelockDuration = bound(timelockDuration, 0, 3650 days);
-        parentVault.setTimelock(timelockDuration);
 
         vm.prank(curator);
-        adapter.submitBurnShares(marketId);
+        adapter.submit(
+            abi.encodeCall(
+                IMorphoMarketV1AdapterV2.increaseTimelock,
+                (IMorphoMarketV1AdapterV2.burnShares.selector, timelockDuration)
+            )
+        );
+        adapter.increaseTimelock(IMorphoMarketV1AdapterV2.burnShares.selector, timelockDuration);
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (marketId)));
 
         skip(timelockDuration + bound(extraSkip, 0, 3650 days));
 
@@ -458,7 +542,24 @@ contract MorphoMarketV1AdapterV2Test is Test {
         allocation = adapter.allocation(marketParams);
         assertEq(supplyShares, 0, "shares");
         assertEq(allocation, assets, "allocation");
-        assertEq(adapter.burnSharesExecutableAt(marketId), 0, "executable at");
+        assertEq(
+            adapter.executableAt(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (marketId))), 0, "executable at"
+        );
         assertEq(adapter.realAssets(), 0, "realAssets");
+    }
+
+    function testAbdicated() public {
+        vm.prank(curator);
+        adapter.submit(
+            abi.encodeCall(IMorphoMarketV1AdapterV2.abdicate, (IMorphoMarketV1AdapterV2.burnShares.selector))
+        );
+        adapter.abdicate(IMorphoMarketV1AdapterV2.burnShares.selector);
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (marketId)));
+
+        vm.expectRevert(IMorphoMarketV1AdapterV2.Abdicated.selector);
+        vm.prank(curator);
+        adapter.burnShares(marketId);
     }
 }
