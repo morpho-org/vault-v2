@@ -1,10 +1,8 @@
 # Vault V2
 
-Morpho Vaults V2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets Morpho Market V1, Morpho Market V2, and Morpho Vault V1.
+Morpho Vaults V2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets into Morpho Market V1, Morpho Market V2, and Morpho Vault V1.
 Depositors of Vault V2 earn from the underlying protocols without having to actively manage their position.
-Management of deposited assets is the responsibility of a set of different roles (owner, curator and allocators).
-
-[Vault V2](./src/VaultV2.sol) is [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) and [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) compliant.
+The curation of deposited assets is handled by a set of different roles (owner, curator and allocators).
 The [VaultV2Factory](./src/VaultV2Factory.sol) deploys instances of Vaults V2.
 All the contracts are immutable.
 
@@ -12,25 +10,24 @@ All the contracts are immutable.
 
 ### Adapters
 
-Vaults can allocate assets to underlying protocols and markets via separate contracts called adapters.
+Vaults allocate assets to underlying protocols via separate contracts called adapters.
 They hold positions on behalf of the vault.
 Adapters are also used to know how much these investments are worth (interest and loss realization).
 
-Vaults can set an adapter registry to constrain which adapter they can have and add. This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure that a vault will forever supply into adapters authorized by a given registry. Morpho Vaults must abdicate the [Morpho Registry](https://docs.morpho.org/curate/concepts/adapter-registry/#the-morpho-registry).
+The adapter registry is useful to constrain which adapter a vault can have and add.
+This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure that a vault will forever supply into adapters authorized by a given registry.
+Morpho Vaults V2 must set and abdicate the [Morpho Registry](https://docs.morpho.org/curate/concepts/adapter-registry/#the-morpho-registry).
 
 The following adapters are currently available:
 
 - [Morpho Market V1 Adapter](./src/adapters/MorphoMarketV1Adapter.sol).
-  This adapter allocates to any Morpho Market V1, under the constraints of the [caps](#caps).
 - [Morpho Vault V1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
-  This adapter allocates to a fixed Morpho Vault V1 (V1.0 and V1.1), under the constraints of the [caps](#caps).
-  Note that using this adapter with vaults other than Morpho Vaults V1 has not been audited.
 - Morpho Market V2 Adapter. WIP
 
 ### Caps
 
 The funds allocation of the vault is constrained by an id-based caps system.
-An id is an abstract identifier for a common risk factor of some markets (a collateral, an oracle, a protocol, etc.).
+An id is an abstract identifier for a common risk factor of some positions (a collateral, an oracle, a protocol, etc.).
 Allocation on markets with a common id is limited by absolute caps and relative caps.
 Note that relative caps are "soft" because they are not checked on withdrawals, they only constrain new allocations.
 
@@ -70,6 +67,13 @@ Note that the only friction to deallocating an adapter with a 0% penalty is the 
 
 Non-custodial guarantees come from [in-kind redemptions](#in-kind-redemptions-with-forcedeallocate) and [timelocks](#curator-timelocks).
 These mechanisms ensure users that they can always withdraw their assets before any critical configuration change takes effect (if the right timelocks are not zero).
+
+### ERC-4626 compliance
+
+Vault V2 is [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) and [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) compliant.
+
+> [!WARNING]
+> The vault has a non-conventional behaviour on max functions (`maxDeposit`, `maxMint`, `maxWithdraw`, `maxRedeem`): they always return zero.
 
 ### Gates
 
