@@ -1,16 +1,8 @@
 # Vault V2
 
-> [!NOTE]
-> Vault V2 instances are distinguished between:
->
-> - **Morpho Vaults**: Vault V2 with the Morpho registry (link to be added) abdicated. Learn more about Morpho Vaults and their benefits here (link to be added).
-> - **Basic Vaults**: Vault V2 that can supply to any protocol. They don't get all the Morpho Vaults benefits. In particular, Vault V2 has been developed and audited only in the context of the Morpho Market V1 and Morpho Vault V1 adapters.
-
-Vault V2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets to any protocols, including Morpho Market V1, Morpho Market V2, and Morpho Vault V1.
-Depositors of Vault V2 earn from the underlying protocols without having to actively manage their position.
-Management of deposited assets is the responsibility of a set of different roles (owner, curator and allocators).
-
-[Vault V2](./src/VaultV2.sol) is [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) and [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) compliant.
+Vaults V2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets into different markets.
+Depositors of Vault V2 earn from the underlying markets without having to actively manage their position.
+The curation of deposited assets is handled by a set of different roles (owner, curator and allocators).
 The [VaultV2Factory](./src/VaultV2Factory.sol) deploys instances of Vaults V2.
 All the contracts are immutable.
 
@@ -18,27 +10,25 @@ All the contracts are immutable.
 
 ### Adapters
 
-Vaults can allocate assets to arbitrary protocols and markets via separate contracts called adapters.
+Vaults allocate assets to underlying markets via separate contracts called adapters.
 They hold positions on behalf of the vault.
 Adapters are also used to know how much these investments are worth (interest and loss realization).
 
-Vaults can set an adapter registry to constrain which adapter they can have and add. This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure that a vault will forever supply into adapters authorized by a given registry. See for example the Morpho Registry (link to be added).
+An [adapter registry](https://github.com/morpho-org/vault-v2/blob/main/src/VaultV2.sol#L89-L97) is used to constrain which adapters a vault can have and add.
+This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure that a vault will forever supply into adapters authorized by a given registry.
 
 The following adapters are currently available:
 
 - [Morpho Market V1 Adapter V2](./src/adapters/MorphoMarketV1AdapterV2.sol).
-  This adapter allocates to any Morpho Market V1, under the constraints of the [caps](#caps).
 - [Morpho Vault V1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
-  This adapter allocates to a fixed Morpho Vault V1 (V1.0 and V1.1), under the constraints of the [caps](#caps).
-  Note that using this adapter with vaults other than Morpho Vaults V1 has not been audited.
 - Morpho Market V2 Adapter. WIP
 
 ### Caps
 
 The funds allocation of the vault is constrained by an id-based caps system.
-An id is an abstract identifier for a common risk factor of some markets (a collateral, an oracle, a protocol, etc.).
+An id is an abstract identifier for a common risk factor of some positions (a collateral, an oracle, a protocol, etc.).
 Allocation on markets with a common id is limited by absolute caps and relative caps.
-Note that relative caps are "soft" because they are not checked on withdrawals, they only constrain new allocations.
+Relative caps only constrain allocations, so they can be exceeded because of withdrawals from the vault.
 
 ### Liquidity
 
@@ -110,12 +100,19 @@ Each fee goes to its respective recipient set by the curator.
   All actions are timelockable except decreasing absolute and relative caps.
   Only one address can have this role.
 
-- **Allocator(s)**: The allocators' role is to handle the vault's allocation in and out of underlying protocols (with the enabled adapters, and within the caps set by the curator).
+- **Allocator(s)**: The allocators' role is to handle the vault's allocation in and out of underlying markets (with the enabled adapters, and within the caps set by the curator).
   They also set the [liquidity adapter](#liquidity) and [max rate](#max-rate).
   They are notably responsible for the vault's performance and liquidity.
 
 - **Sentinel(s)**: The sentinel role can be used to be able to derisk quickly a vault.
   They are able to revoke pending actions, deallocate funds to idle and decrease caps.
+
+### ERC-4626 compliance
+
+Vault V2 is [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) and [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612) compliant.
+
+> [!WARNING]
+> The vault has a non-conventional behaviour on max functions (`maxDeposit`, `maxMint`, `maxWithdraw`, `maxRedeem`): they always return zero.
 
 ## Developers
 
