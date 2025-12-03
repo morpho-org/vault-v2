@@ -1,6 +1,6 @@
 # Vault V2
 
-Morpho Vaults V2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets into Morpho Market V1, Morpho Market V2, and Morpho Vault V1.
+Vaults V2 enables anyone to create [non-custodial](#non-custodial-guarantees) vaults that allocate assets into different markets.
 Depositors of Vault V2 earn from the underlying protocols without having to actively manage their position.
 The curation of deposited assets is handled by a set of different roles (owner, curator and allocators).
 The [VaultV2Factory](./src/VaultV2Factory.sol) deploys instances of Vaults V2.
