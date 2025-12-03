@@ -14,12 +14,13 @@ methods {
 // Note: the key is a market id, not the adapter id corresponding to the market params.
 ghost mapping (MorphoMarketV1AdapterV2.Id => uint256) ghostAllocation;
 
-function morphoMarketV1AdapterWrapperSummary(env e, bool isAllocateCall, bytes data, uint256 assets) returns (bytes32[], int256) {
+function morphoMarketV1AdapterWrapperSummary(env e, bytes data, uint256 assets) returns (bytes32[], int256) {
     bytes32[] ids;
     int256 change;
 
     bytes4 selector;
     address sender;
+    bool isAllocateCall;
     if (isAllocateCall) {
         ids, change = allocate(e, data, assets, selector, sender);
     } else {
@@ -39,19 +40,15 @@ strong invariant marketIdsWithNoAllocationIsNotInMarketIds()
 filtered {
     f -> f.selector != sig:allocate(bytes, uint256, bytes4, address).selector && f.selector != sig:deallocate(bytes, uint256, bytes4, address).selector
 }
-{
-    preserved {
-        requireInvariant distinctMarketIdsInList();
-    }
-}
 
 // Rule to be able to summarize allocate and deallocate calls.
 rule marketIdsWithNoAllocationIsNotInMarketIdsAllocateAndDeallocate(env e, bytes data, uint256 assets) {
     require forall MorphoMarketV1AdapterV2.Id marketId.
     forall uint256 i. i < currentContract.marketIds.length => ghostAllocation[marketId] == 0 => currentContract.marketIds[i] != marketId;
 
-    bool isAllocateCall;
-    morphoMarketV1AdapterWrapperSummary(e, isAllocateCall, data, assets);
+    requireInvariant distinctMarketIdsInList();
+
+    morphoMarketV1AdapterWrapperSummary(e, data, assets);
 
     assert forall MorphoMarketV1AdapterV2.Id marketId.
     forall uint256 i. i < currentContract.marketIds.length => ghostAllocation[marketId] == 0 => currentContract.marketIds[i] != marketId;
@@ -63,18 +60,14 @@ strong invariant distinctMarketIdsInList()
 filtered {
     f -> f.selector != sig:allocate(bytes, uint256, bytes4, address).selector && f.selector != sig:deallocate(bytes, uint256, bytes4, address).selector
 }
-{
-    preserved {
-        requireInvariant marketIdsWithNoAllocationIsNotInMarketIds();
-    }
-}
 
 // Rule to be able to summarize allocate and deallocate calls.
 rule distinctMarketIdsInListAllocateAndDeallocate(env e, bytes data, uint256 assets) {
     require forall uint256 i. forall uint256 j. i < j => j < currentContract.marketIds.length => currentContract.marketIds[j] != currentContract.marketIds[i];
 
-    bool isAllocateCall;
-    morphoMarketV1AdapterWrapperSummary(e, isAllocateCall, data, assets);
+    requireInvariant marketIdsWithNoAllocationIsNotInMarketIds();
+
+    morphoMarketV1AdapterWrapperSummary(e, data, assets);
 
     assert forall uint256 i. forall uint256 j. i < j => j < currentContract.marketIds.length => currentContract.marketIds[j] != currentContract.marketIds[i];
 }
