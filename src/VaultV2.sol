@@ -2,13 +2,14 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.28;
 
-import {IVaultV2, IERC20, Caps} from "./interfaces/IVaultV2.sol";
+import {IERC20} from "./interfaces/IERC20.sol";
+import {IVaultV2, Caps} from "./interfaces/IVaultV2.sol";
 import {IAdapter} from "./interfaces/IAdapter.sol";
 import {IAdapterRegistry} from "./interfaces/IAdapterRegistry.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
-import "./libraries/ConstantsLib.sol";
+import "./libraries/ConstantsLib.sol"; // forge-lint: disable-line(unaliased-plain-import)
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
@@ -258,6 +259,7 @@ contract VaultV2 is IVaultV2 {
         return newTotalAssets;
     }
 
+    /// forge-lint: disable-next-line(mixed-case-function)
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
         return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
     }
