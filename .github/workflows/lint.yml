@@ -20,4 +20,4 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: Run forge lint
-        run: forge lint
+        run: forge lint --deny notes
