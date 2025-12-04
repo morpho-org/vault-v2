@@ -77,8 +77,8 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
 
         /* VAULT SETUP */
 
-        factory = new MorphoMarketV1AdapterV2Factory(address(irm));
-        adapter = IMorphoMarketV1AdapterV2(factory.createMorphoMarketV1AdapterV2(address(vault), address(morpho)));
+        factory = new MorphoMarketV1AdapterV2Factory(address(morpho), address(irm));
+        adapter = IMorphoMarketV1AdapterV2(factory.createMorphoMarketV1AdapterV2(address(vault)));
 
         expectedIdData1 = new bytes[](3);
         expectedIdData1[0] = abi.encode("this", address(adapter));
