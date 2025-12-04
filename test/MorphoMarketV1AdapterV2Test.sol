@@ -77,8 +77,8 @@ contract MorphoMarketV1AdapterV2Test is Test {
         morpho.createMarket(marketParams);
         marketId = Id.unwrap(marketParams.id());
         parentVault = new VaultV2Mock(address(loanToken), owner, curator, address(0), sentinel);
-        factory = new MorphoMarketV1AdapterV2Factory(address(irm));
-        adapter = IMorphoMarketV1AdapterV2(factory.createMorphoMarketV1AdapterV2(address(parentVault), address(morpho)));
+        factory = new MorphoMarketV1AdapterV2Factory(address(morpho), address(irm));
+        adapter = IMorphoMarketV1AdapterV2(factory.createMorphoMarketV1AdapterV2(address(parentVault)));
 
         expectedIds = new bytes32[](3);
         expectedIds[0] = keccak256(abi.encode("this", address(adapter)));
@@ -190,16 +190,17 @@ contract MorphoMarketV1AdapterV2Test is Test {
             address(new VaultV2Mock(address(loanToken), owner, address(0), address(0), address(0)));
 
         bytes32 initCodeHash = keccak256(
-            abi.encodePacked(type(MorphoMarketV1AdapterV2).creationCode, abi.encode(newParentVaultAddr, morpho, irm))
+            abi.encodePacked(
+                type(MorphoMarketV1AdapterV2).creationCode,
+                abi.encode(newParentVaultAddr, address(morpho), address(irm))
+            )
         );
         address expectedNewAdapter =
             address(uint160(uint256(keccak256(abi.encodePacked(uint8(0xff), factory, bytes32(0), initCodeHash)))));
         vm.expectEmit();
-        emit IMorphoMarketV1AdapterV2Factory.CreateMorphoMarketV1AdapterV2(
-            newParentVaultAddr, address(morpho), address(irm), expectedNewAdapter
-        );
+        emit IMorphoMarketV1AdapterV2Factory.CreateMorphoMarketV1AdapterV2(newParentVaultAddr, expectedNewAdapter);
 
-        address newAdapter = factory.createMorphoMarketV1AdapterV2(newParentVaultAddr, address(morpho));
+        address newAdapter = factory.createMorphoMarketV1AdapterV2(newParentVaultAddr);
 
         expectedIds[0] = keccak256(abi.encode("this", address(newAdapter)));
 
@@ -209,11 +210,7 @@ contract MorphoMarketV1AdapterV2Test is Test {
         assertEq(IMorphoMarketV1AdapterV2(newAdapter).asset(), address(loanToken), "Incorrect asset");
         assertEq(IMorphoMarketV1AdapterV2(newAdapter).morpho(), address(morpho), "Incorrect morpho");
         assertEq(IMorphoMarketV1AdapterV2(newAdapter).adapterId(), expectedIds[0], "Incorrect adapterId");
-        assertEq(
-            factory.morphoMarketV1AdapterV2(newParentVaultAddr, address(morpho)),
-            newAdapter,
-            "Adapter not tracked correctly"
-        );
+        assertEq(factory.morphoMarketV1AdapterV2(newParentVaultAddr), newAdapter, "Adapter not tracked correctly");
         assertTrue(factory.isMorphoMarketV1AdapterV2(newAdapter), "Adapter not tracked correctly");
     }
 
