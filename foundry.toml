@@ -11,13 +11,12 @@ wrap_comments = true
 
 [lint]
 exclude_lints = [
-    "unsafe-typecast",
-    "erc20-unchecked-transfer",
     "screaming-snake-case-immutable",
-    "unaliased-plain-import",
-    "unused-import",
-    "asm-keccak256",
-    "mixed-case-function",
+    "unsafe-typecast",
+    "asm-keccak256"
+]
+ignore = [
+    'test/**/*.sol'
 ]
 
 [profile.no_via_ir]
