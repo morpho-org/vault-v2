@@ -29,9 +29,7 @@ hook Sstore executableAt[KEY bytes hookData] uint256 newValue (uint256 oldValue)
         if (oldValue == 0 && newValue != 0 && minDecreaseTimelock[targetSelector] > newValue + newDuration) {
             minDecreaseTimelock[targetSelector] = newValue + newDuration;
         } else if (oldValue != 0 && newValue == 0) {
-            mathint newMinimum;
-            require newMinimum >= minDecreaseTimelock[targetSelector], "revoke of decreaseTimelock cannot decrease execution time";
-            minDecreaseTimelock[targetSelector] = newMinimum;
+            minDecreaseTimelock[targetSelector] = max_uint256;
         }
     }
 }
