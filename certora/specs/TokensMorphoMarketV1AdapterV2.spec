@@ -10,15 +10,16 @@ methods {
 
     function ERC20.balanceOf(address, address) external returns uint256 envfree;
 
-    function _.transfer(address, uint256) external => DISPATCHER;
-    function _.transferFrom(address, address, uint256) external => DISPATCHER;
-    function _.balanceOf(address) external => DISPATCHER;
+    // Assume that the ERC20 is either ERC20NoRevert or ERC20Standard or ERC20USDT.
+    function _.transfer(address, uint256) external => DISPATCHER(true);
+    function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
+    function _.balanceOf(address) external => DISPATCHER(true);
 
-    // Required to avoid explicit linking for performance reasons.
     function _.accrueInterest(MorphoHarness.MarketParams) external => DISPATCHER;
     function _.supply(MorphoHarness.MarketParams, uint256, uint256, address, bytes) external => DISPATCHER;
     function _.withdraw(MorphoHarness.MarketParams, uint256, uint256, address, address) external => DISPATCHER;
 
+    // Simplify setup, which is safe because they should change tokens balances.
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => NONDET;
     function _.canSendAssets(address) external => NONDET;
     function _.canReceiveAssets(address) external => NONDET;

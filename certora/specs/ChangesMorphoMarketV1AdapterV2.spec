@@ -9,7 +9,6 @@ methods {
     function allocation(Morpho.MarketParams) external returns (uint256) envfree;
     function Utils.decodeMarketParams(bytes) external returns (Morpho.MarketParams) envfree;
 
-    // Needed because linking fails.
     function _.transfer(address, uint256) external => DISPATCHER;
     function _.transferFrom(address, address, uint256) external => DISPATCHER;
 
