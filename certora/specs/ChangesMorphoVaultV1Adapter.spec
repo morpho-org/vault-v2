@@ -11,8 +11,8 @@ methods {
     function MetaMorphoV1_1.totalSupply() external returns (uint256) envfree;
 
     // Needed because linking fails.
-    function _.transfer(address, uint256) external => DISPATCHER(true);
-    function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
+    function _.transfer(address, uint256) external => DISPATCHER;
+    function _.transferFrom(address, address, uint256) external => DISPATCHER;
     function MetaMorphoV1_1._accruedFeeAndAssets() internal returns (uint256, uint256, uint256) => constantAccrueFeeAndAssets();
 
     function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => CONSTANT;

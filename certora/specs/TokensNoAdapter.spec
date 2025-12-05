@@ -8,9 +8,9 @@ methods {
 
     function ERC20.balanceOf(address, address) external returns uint256 envfree;
 
-    function _.transfer(address, uint256) external => DISPATCHER(true);
-    function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
-    function _.balanceOf(address) external => DISPATCHER(true);
+    function _.transfer(address, uint256) external => DISPATCHER;
+    function _.transferFrom(address, address, uint256) external => DISPATCHER;
+    function _.balanceOf(address) external => DISPATCHER;
 }
 
 // Check balances change on deposit.

@@ -25,17 +25,17 @@ methods {
     function Math.mulDiv(uint256 x, uint256 y, uint256 denominator) internal returns (uint256) => mulDivSummary(x, y, denominator);
     function _.supplyShares(address, MorphoHarness.Id id, address user) internal => summarySupplyShares(id, user) expect uint256;
 
-    function _.transfer(address, uint256) external => DISPATCHER(true);
-    function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
-    function _.balanceOf(address) external => DISPATCHER(true);
+    function _.transfer(address, uint256) external => DISPATCHER;
+    function _.transferFrom(address, address, uint256) external => DISPATCHER;
+    function _.balanceOf(address) external => DISPATCHER;
 
-    function _.market(MorphoHarness.Id) external => DISPATCHER(true);
-    function _.idToMarketParams(MorphoHarness.Id) external => DISPATCHER(true);
-    function _.position(MorphoHarness.Id, address) external => DISPATCHER(true);
-    function _.supplyShares(MorphoHarness.Id, address) external => DISPATCHER(true);
-    function _.accrueInterest(MorphoHarness.MarketParams) external => DISPATCHER(true);
-    function _.supply(MorphoHarness.MarketParams, uint256, uint256, address, bytes) external => DISPATCHER(true);
-    function _.withdraw(MorphoHarness.MarketParams, uint256, uint256, address, address) external => DISPATCHER(true);
+    function _.market(MorphoHarness.Id) external => DISPATCHER;
+    function _.idToMarketParams(MorphoHarness.Id) external => DISPATCHER;
+    function _.position(MorphoHarness.Id, address) external => DISPATCHER;
+    function _.supplyShares(MorphoHarness.Id, address) external => DISPATCHER;
+    function _.accrueInterest(MorphoHarness.MarketParams) external => DISPATCHER;
+    function _.supply(MorphoHarness.MarketParams, uint256, uint256, address, bytes) external => DISPATCHER;
+    function _.withdraw(MorphoHarness.MarketParams, uint256, uint256, address, address) external => DISPATCHER;
 }
 
 function mulDivSummary(uint256 x, uint256 y, uint256 denominator) returns uint256 {

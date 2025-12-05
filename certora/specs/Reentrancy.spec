@@ -11,8 +11,8 @@ methods {
 
     function _.accrueInterest(MorphoMarketV1AdapterV2.MarketParams) external => ignoredCallVoidSummary() expect void;
 
-    function _.allocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
-    function _.deallocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
+    function _.allocate(bytes, uint256, bytes4, address) external => DISPATCHER;
+    function _.deallocate(bytes, uint256, bytes4, address) external => DISPATCHER;
 
     function _.supply(MorphoMarketV1AdapterV2.MarketParams, uint256, uint256, address, bytes) external => ignoredCallUintPairSummary() expect (uint256, uint256);
     function _.withdraw(MorphoMarketV1AdapterV2.MarketParams, uint256, uint256, address, address) external => ignoredCallUintPairSummary() expect (uint256, uint256);

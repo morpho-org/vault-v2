@@ -6,7 +6,7 @@ methods {
     function isMorphoVaultV1Adapter(address) external returns bool envfree;
 
     function Utils.factory(address) external returns address envfree;
-    function _.factory() external => DISPATCHER(true);
+    function _.factory() external => DISPATCHER;
 }
 
 strong invariant genuineAdaptersReturnTheFactory(address adapter)

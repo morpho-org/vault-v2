@@ -19,15 +19,15 @@ methods {
     function _.withdraw(MetaMorpho.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) external with (env e)
         => summaryWithdraw(e, marketParams, assets, shares, onBehalf, receiver) expect (uint256, uint256) ALL;
 
-    function _.transfer(address, uint256) external => DISPATCHER(true);
-    function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
-    function _.balanceOf(address) external => DISPATCHER(true);
+    function _.transfer(address, uint256) external => DISPATCHER;
+    function _.transferFrom(address, address, uint256) external => DISPATCHER;
+    function _.balanceOf(address) external => DISPATCHER;
 
     // Required to avoid explicit linking for performance reasons.
-    function _.supplyShares(MorphoHarness.Id, address) external => DISPATCHER(true);
-    function _.deposit(uint256, address) external => DISPATCHER(true);
-    function _.withdraw(uint256, address, address) external => DISPATCHER(true);
-    function _.accrueInterest(MorphoHarness.MarketParams) external => DISPATCHER(true);
+    function _.supplyShares(MorphoHarness.Id, address) external => DISPATCHER;
+    function _.deposit(uint256, address) external => DISPATCHER;
+    function _.withdraw(uint256, address, address) external => DISPATCHER;
+    function _.accrueInterest(MorphoHarness.MarketParams) external => DISPATCHER;
 
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => NONDET;
     function _.canSendAssets(address) external => NONDET;

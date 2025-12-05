@@ -15,8 +15,8 @@ methods {
     function _.canSendAssets(address user) external =>  ghostCanSendAssets[user] expect bool;
     function _.canReceiveAssets(address user) external => ghostCanReceiveAssets[user] expect bool;
 
-    function _.transfer(address, uint256) external => DISPATCHER(true);
-    function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
+    function _.transfer(address, uint256) external => DISPATCHER;
+    function _.transferFrom(address, address, uint256) external => DISPATCHER;
 }
 
 persistent ghost mapping(address => bool) ghostCanSendShares;
