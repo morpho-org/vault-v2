@@ -11,16 +11,16 @@ import {IMorphoMarketV1Adapter} from "../../src/adapters/interfaces/IMorphoMarke
 
 import {ORACLE_PRICE_SCALE} from "../../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 import {OracleMock} from "../../lib/morpho-blue/src/mocks/OracleMock.sol";
-import {IrmMock} from "../../lib/morpho-blue/src/mocks/IrmMock.sol";
 import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
 import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {IAdaptiveCurveIrm} from "../../lib/morpho-blue-irm/src/adaptive-curve-irm/interfaces/IAdaptiveCurveIrm.sol";
 
 contract MorphoMarketV1IntegrationTest is BaseTest {
     IMorpho internal morpho;
     ERC20Mock internal collateralToken;
     OracleMock internal oracle;
-    IrmMock internal irm;
+    IAdaptiveCurveIrm internal irm;
     MarketParams internal marketParams1;
     MarketParams internal marketParams2;
 
@@ -29,6 +29,8 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
 
     bytes[] internal expectedIdData1;
     bytes[] internal expectedIdData2;
+    bytes32[] internal expectedIds1;
+    bytes32[] internal expectedIds2;
 
     uint256 internal constant MIN_TEST_ASSETS = 10;
     uint256 internal constant MAX_TEST_ASSETS = 1e24;
@@ -41,9 +43,10 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
         address morphoOwner = makeAddr("MorphoOwner");
         morpho = IMorpho(deployCode("Morpho.sol", abi.encode(morphoOwner)));
 
+        irm = IAdaptiveCurveIrm(deployCode("AdaptiveCurveIrm.sol", abi.encode(address(morpho))));
+
         collateralToken = new ERC20Mock(18);
         oracle = new OracleMock();
-        irm = new IrmMock();
 
         oracle.setPrice(ORACLE_PRICE_SCALE);
 
@@ -74,18 +77,28 @@ contract MorphoMarketV1IntegrationTest is BaseTest {
 
         /* VAULT SETUP */
 
-        factory = new MorphoMarketV1AdapterFactory();
-        adapter = MorphoMarketV1Adapter(factory.createMorphoMarketV1Adapter(address(vault), address(morpho)));
+        factory = new MorphoMarketV1AdapterFactory(address(irm));
+        adapter = IMorphoMarketV1Adapter(factory.createMorphoMarketV1Adapter(address(vault), address(morpho)));
 
         expectedIdData1 = new bytes[](3);
         expectedIdData1[0] = abi.encode("this", address(adapter));
         expectedIdData1[1] = abi.encode("collateralToken", marketParams1.collateralToken);
         expectedIdData1[2] = abi.encode("this/marketParams", address(adapter), marketParams1);
 
+        expectedIds1 = new bytes32[](3);
+        expectedIds1[0] = keccak256(expectedIdData1[0]);
+        expectedIds1[1] = keccak256(expectedIdData1[1]);
+        expectedIds1[2] = keccak256(expectedIdData1[2]);
+
         expectedIdData2 = new bytes[](3);
         expectedIdData2[0] = abi.encode("this", address(adapter));
         expectedIdData2[1] = abi.encode("collateralToken", marketParams2.collateralToken);
         expectedIdData2[2] = abi.encode("this/marketParams", address(adapter), marketParams2);
+
+        expectedIds2 = new bytes32[](3);
+        expectedIds2[0] = keccak256(expectedIdData2[0]);
+        expectedIds2[1] = keccak256(expectedIdData2[1]);
+        expectedIds2[2] = keccak256(expectedIdData2[2]);
 
         vm.prank(curator);
         vault.submit(abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
