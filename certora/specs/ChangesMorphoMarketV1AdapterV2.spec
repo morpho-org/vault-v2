@@ -10,8 +10,8 @@ methods {
     function Utils.decodeMarketParams(bytes) external returns (Morpho.MarketParams) envfree;
 
     // Needed because linking fails.
-    function _.transfer(address, uint256) external => DISPATCHER(true);
-    function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
+    function _.transfer(address, uint256) external => DISPATCHER;
+    function _.transferFrom(address, address, uint256) external => DISPATCHER;
 
     function _.borrowRateView(bytes32, Morpho.Market memory, address) internal => constantBorrowRate expect(uint256);
     function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect(uint256);
