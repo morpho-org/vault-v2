@@ -63,7 +63,7 @@ function earliestExecutionTime(uint256 blockTimestamp, bytes4 selector, uint256 
 // [BUG] Currently there is a bug on the prover for handling msg.data in the hook that's why decreaseTimelock is filtered
 rule earliestExecutionTimeIncreases(env e, method f, calldataarg args)
 filtered {
-    f -> f.selector != sig:decreaseTimelock(bytes4, uint256).selector
+    f -> f.contract == currentContract && f.selector != sig:decreaseTimelock(bytes4, uint256).selector
 }
 {
     bytes data;
