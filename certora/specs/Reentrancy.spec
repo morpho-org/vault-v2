@@ -5,7 +5,7 @@ using MorphoMarketV1AdapterV2 as MorphoMarketV1AdapterV2;
 using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
 
 methods {
-    function multicall(bytes[]) external => NONDET DELETE;
+    function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
     function isAdapter(address) external returns bool envfree;
 

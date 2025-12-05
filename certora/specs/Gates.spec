@@ -4,6 +4,8 @@
 using ERC20Standard as ERC20;
 
 methods {
+    function multicall(bytes[]) external => HAVOC_ALL DELETE;
+
     function balanceOf(address) external returns uint256 envfree;
     function canReceiveShares(address) external returns bool envfree;
     function canSendShares(address) external returns bool envfree;
@@ -36,9 +38,7 @@ hook Sstore ERC20.balanceOf[KEY address user] uint256 newBalance (uint256 oldBal
 }
 
 // Check that the balance of shares may only decrease when a given user can't receive shares.
-rule cantReceiveShares(env e, method f, calldataarg args, address user) filtered {
-    f -> f.selector != sig:multicall(bytes[]).selector
-}{
+rule cantReceiveShares(env e, method f, calldataarg args, address user) {
     require (!canReceiveShares(user), "setup gating");
 
     uint256 sharesBefore = balanceOf(user);
@@ -49,9 +49,7 @@ rule cantReceiveShares(env e, method f, calldataarg args, address user) filtered
 }
 
 // Check that the balance of shares may only increase when a given user can't send shares.
-rule cantSendShares(env e, method f, calldataarg args, address user, uint256 shares) filtered {
-    f -> f.selector != sig:multicall(bytes[]).selector
-}{
+rule cantSendShares(env e, method f, calldataarg args, address user, uint256 shares) {
     require (!canSendShares(user), "setup gating");
 
     uint256 sharesBefore = balanceOf(user);
@@ -63,9 +61,7 @@ rule cantSendShares(env e, method f, calldataarg args, address user, uint256 sha
 
 // Check that transfers initiated from the vault, assuming the vault is not reentred, may only increase the balance of a given user when he can't send, and similarly the balance may only decrease when he can't receive.
 // Doesn't verify that the adapters themselves don't break the gate properties.
-rule cantSendAssetsAndCantReceiveAssets(env e, method f, calldataarg args, address user) filtered {
-    f -> f.selector != sig:multicall(bytes[]).selector
-}{
+rule cantSendAssetsAndCantReceiveAssets(env e, method f, calldataarg args, address user) {
     require (user != currentContract, "gates are not checked for the vault itself");
     require (!currentContract.isAdapter[user], "gates are not checked for the adapters");
 
