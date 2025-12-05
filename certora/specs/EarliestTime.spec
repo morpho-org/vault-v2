@@ -19,12 +19,9 @@ persistent ghost mapping(bytes4 => mathint) minDecreaseTimelock {
 
 // Hook on executableAt writes to track decreaseTimelock submissions
 hook Sstore executableAt[KEY bytes hookData] uint256 newValue (uint256 oldValue) {
-    // Todo: is this needed?
-    require hookData.length >= 36;
     bytes4 selector = EarliestTime.getSelector(hookData);
 
     if (selector == to_bytes4(sig:decreaseTimelock(bytes4, uint256).selector)) {
-        require hookData.length >= 68;
         bytes4 targetSelector;
         uint256 newDuration;
         targetSelector, newDuration = EarliestTime.extractDecreaseTimelockArgs(hookData);
@@ -44,10 +41,13 @@ function min(mathint a, mathint b, mathint c) returns mathint {
     return minAB < c ? minAB : c;
 }
 
-// Only call this function with fb the fallback method of the EarliestTime contract.
-function earliestExecutionTime(uint256 blockTimestamp, bytes msgData) returns mathint {
-    bytes4 selector = EarliestTime.getSelector(msgData);
-    uint256 executableAt = executableAt(msgData);
+function earliestExecutionTimeFromData(uint256 blockTimestamp, bytes data) returns mathint {
+    bytes4 selector = EarliestTime.getSelector(data);
+    uint256 executableAt = executableAt(data);
+    return earliestExecutionTime(blockTimestamp, selector, executableAt);
+}
+
+function earliestExecutionTime(uint256 blockTimestamp, bytes4 selector, uint256 executableAt) returns mathint {
     mathint viaDirectExecution = to_mathint(executableAt) == 0 ? max_uint256 : to_mathint(executableAt);
     mathint viaFreshSubmission = require_uint256(blockTimestamp + timelock(selector));
     mathint viaDecreaseTimelock = minDecreaseTimelock[selector];
@@ -61,32 +61,41 @@ function earliestExecutionTime(uint256 blockTimestamp, bytes msgData) returns ma
 // 2. Fresh submission at current time with timelock[selector]
 // 3. Execution after a pending decreaseTimelock takes effect
 // [BUG] Currently there is a bug on the prover for handling msg.data in the hook that's why decreaseTimelock is filtered
-rule earliestExecutionTimeIncreases(env e, bytes msgData)
+rule earliestExecutionTimeIncreases(env e, method f, calldataarg args)
+filtered {
+    f -> f.selector != sig:decreaseTimelock(bytes4, uint256).selector
+}
 {
+    bytes data;
     uint256 blockTimestampBefore;
-    require blockTimestampBefore <= e.block.timestamp, "ack";
+    require blockTimestampBefore <= e.block.timestamp, "timestamps are not decreasing";
 
-    mathint earliestTimeBefore = earliestExecutionTime(blockTimestampBefore, msgData);
+    mathint earliestTimeBefore = earliestExecutionTimeFromData(blockTimestampBefore, data);
 
-    submit(e, msgData);
+    f(e, args);
 
-    mathint earliestTimeAfter = earliestExecutionTime(e.block.timestamp, msgData);
+    mathint earliestTimeAfter = earliestExecutionTimeFromData(e.block.timestamp, data);
 
     assert earliestTimeAfter >= earliestTimeBefore;
 }
 
 // Function must revert if called before earliest execution time.
-// rule cannotExecuteBeforeMinimumTime(env e, method f, calldataarg args, method fb)
-// filtered {
-//     fb -> fb.contract == EarliestTime && fb.isFallback,
-//     f -> functionIsTimelocked(f) && f.selector != sig:decreaseTimelock(bytes4, uint256).selector }
-// {
-//     uint256 blockTimestampBefore;
-//     require blockTimestampBefore <= e.block.timestamp, "ack";
+rule cannotExecuteBeforeMinimumTime(env e, method f, calldataarg args, method fb)
+filtered {
+    fb -> fb.contract == EarliestTime && fb.isFallback,
+    f -> functionIsTimelocked(f) && f.selector != sig:decreaseTimelock(bytes4, uint256).selector }
+{
+    uint256 blockTimestampBefore;
+    require blockTimestampBefore <= e.block.timestamp, "timestamps are not decreasing";
 
-//     mathint earliestTime = earliestExecutionTime(blockTimestampBefore, args, fb);
+    // Retrieve the last selector and executableAt from the fallback call.
+    fb(e, args);
+    bytes4 selector = EarliestTime.lastSelector;
+    uint256 executableAt = EarliestTime.lastExecutableAt;
 
-//     require e.block.timestamp < earliestTime;
-//     f@withrevert(e, args);
-//     assert lastReverted;
-// }
+    mathint earliestTime = earliestExecutionTime(blockTimestampBefore, selector, executableAt);
+
+    require e.block.timestamp < earliestTime, "assume the call happens before the earliest execution time";
+    f@withrevert(e, args);
+    assert lastReverted;
+}
