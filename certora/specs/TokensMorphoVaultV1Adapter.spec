@@ -19,16 +19,17 @@ methods {
     function _.withdraw(MetaMorpho.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) external with (env e)
         => summaryWithdraw(e, marketParams, assets, shares, onBehalf, receiver) expect (uint256, uint256) ALL;
 
+    // Assume that the ERC20 is either ERC20NoRevert or ERC20Standard or ERC20USDT.
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
     function _.balanceOf(address) external => DISPATCHER(true);
 
-    // Required to avoid explicit linking for performance reasons.
-    function _.supplyShares(MorphoHarness.Id, address) external => DISPATCHER(true);
-    function _.deposit(uint256, address) external => DISPATCHER(true);
-    function _.withdraw(uint256, address, address) external => DISPATCHER(true);
-    function _.accrueInterest(MorphoHarness.MarketParams) external => DISPATCHER(true);
+    function _.supplyShares(MorphoHarness.Id, address) external => DISPATCHER;
+    function _.deposit(uint256, address) external => DISPATCHER;
+    function _.withdraw(uint256, address, address) external => DISPATCHER;
+    function _.accrueInterest(MorphoHarness.MarketParams) external => DISPATCHER;
 
+    // Simplify setup, which is safe because they should change tokens balances.
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => NONDET;
     function _.canSendAssets(address) external => NONDET;
     function _.canReceiveAssets(address) external => NONDET;

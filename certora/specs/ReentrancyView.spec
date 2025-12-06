@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Morpho Association
 
 methods {
-    function multicall(bytes[]) external => NONDET DELETE;
+    function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
     function _.realAssets() external => ignoredUintStaticcall() expect(uint256);
 

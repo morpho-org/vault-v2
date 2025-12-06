@@ -4,7 +4,7 @@
 using Utils as Utils;
 
 methods {
-    function multicall(bytes[]) external => NONDET DELETE;
+    function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
     function allocation(bytes32) external returns uint256 envfree;
     function owner() external returns (address) envfree;
