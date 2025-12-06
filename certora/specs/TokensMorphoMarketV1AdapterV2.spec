@@ -19,7 +19,7 @@ methods {
     function _.supply(MorphoHarness.MarketParams, uint256, uint256, address, bytes) external => DISPATCHER;
     function _.withdraw(MorphoHarness.MarketParams, uint256, uint256, address, address) external => DISPATCHER;
 
-    // Simplify setup, which is safe because they should change tokens balances.
+    // Simplify setup, which is safe because they should not change token balances.
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => NONDET;
     function _.canSendAssets(address) external => NONDET;
     function _.canReceiveAssets(address) external => NONDET;

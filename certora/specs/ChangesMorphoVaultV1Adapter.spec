@@ -10,7 +10,7 @@ methods {
     function MetaMorphoV1_1.balanceOf(address) external returns (uint256) envfree;
     function MetaMorphoV1_1.totalSupply() external returns (uint256) envfree;
 
-    // Needed for performance reasons.
+    // Needed because linking fails.
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
 
