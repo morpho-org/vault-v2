@@ -108,7 +108,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         ObligationPosition storage position = _positions[_obligationId(obligation)];
 
         deallocateExpiredDurations(obligation, position);
-        removeUnits(obligation, position, withdrawn);
+        removeUnits(obligation.maturity, position, withdrawn);
         selfDeallocate(ids(obligation), withdrawn, withdrawn);
     }
 
@@ -183,7 +183,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         ObligationPosition storage position = _positions[obligationId];
         uint256 lostUnits = position.units - remainingUnits;
         deallocateExpiredDurations(obligation, position);
-        removeUnits(obligation, position, lostUnits);
+        removeUnits(obligation.maturity, position, lostUnits);
         selfDeallocate(ids(obligation), lostUnits, 0);
     }
 
@@ -224,7 +224,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
 
             ObligationPosition storage position = _positions[obligationId];
             deallocateExpiredDurations(offer.obligation, position);
-            removeUnits(offer.obligation, position, deallocated);
+            removeUnits(offer.obligation.maturity, position, deallocated);
             return (ids(offer.obligation), -deallocated.toInt256());
         } else {
             require(caller == address(this), SelfAllocationOnly());
@@ -281,6 +281,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
 
         position.units += obligationUnits.toUint128();
 
+        // Insert the maturity in the list if needed
         uint48 nextMaturity;
         if (prevMaturity == 0) {
             nextMaturity = firstMaturity;
@@ -325,7 +326,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
 
         ObligationPosition storage position = _positions[obligationId];
         deallocateExpiredDurations(obligation, position);
-        removeUnits(obligation, position, soldObligationUnits);
+        removeUnits(obligation.maturity, position, soldObligationUnits);
         selfDeallocate(ids(obligation), soldObligationUnits, sellerAssets);
 
         uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(address(parentVault));
@@ -345,17 +346,16 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
     /* INTERNAL FUNCTIONS */
 
     /// @dev The total assets can go up after removing units to compensate for the rounded up lost growth.
-    function removeUnits(Obligation memory obligation, ObligationPosition storage position, uint256 removedUnits)
-        internal
-    {
+    function removeUnits(uint256 maturity, ObligationPosition storage position, uint256 removedUnits) internal {
         accrueInterest();
 
-        if (obligation.maturity > block.timestamp) {
-            uint256 timeToMaturity = obligation.maturity - block.timestamp;
+        if (maturity > block.timestamp) {
+            uint256 timeToMaturity = maturity - block.timestamp;
             uint128 removedGrowth = uint256(position.growth).mulDivUp(removedUnits, position.units).toUint128();
-            _maturities[obligation.maturity].growthLostAtMaturity -= removedGrowth;
+            _maturities[maturity].growthLostAtMaturity -= removedGrowth;
             // Do not cleanup the linked list if we end up at 0 growth.
             position.growth -= removedGrowth;
+            currentGrowth -= removedGrowth;
             _totalAssets = _totalAssets + (removedGrowth * timeToMaturity) - removedUnits;
         } else {
             _totalAssets -= removedUnits;
