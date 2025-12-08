@@ -10,7 +10,7 @@ import {ICallbacks} from "lib/morpho-v2/src/interfaces/ICallbacks.sol";
 struct ObligationPosition {
     uint128 units;
     uint128 growth;
-    bytes32 durations;
+    uint48 lastUpdate;
 }
 
 // Chain of maturities, each can represent multiple obligations.
@@ -67,16 +67,15 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
     function maturities(uint256 date) external view returns (Maturity memory);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
-    function addDuration(uint256 duration) external;
-    function removeDuration(uint256 duration) external;
     function durations() external view returns (uint256[] memory);
+    function durationsLength() external view returns (uint256);
+    function deallocateExpiredDurations(Obligation memory obligation) external;
     function withdraw(Obligation memory obligation, uint256 units, uint256 shares) external;
     function ids(Obligation memory obligation) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
     function accrueInterestView() external view returns (uint48, uint128, uint256);
     function accrueInterest() external;
     function realizeLoss(Obligation memory obligation) external;
-    function syncDurations(Obligation memory obligation) external;
     function allocate(bytes memory data, uint256 assets, bytes4, address vaultAllocator)
         external
         returns (bytes32[] memory, int256);

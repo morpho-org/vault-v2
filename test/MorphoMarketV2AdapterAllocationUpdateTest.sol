@@ -70,93 +70,55 @@ contract MorphoMarketV2AdapterAllocationUpdateTest is MorphoMarketV2AdapterTest 
         morphoV2.take(assets, 0, 0, 0, taker, offer, proof([offer]), sign([offer], signerAllocator), address(0), "");
     }
 
-    function durationId(uint32 duration) internal pure returns (bytes32) {
+    function durationId(uint256 duration) internal pure returns (bytes32) {
         return keccak256(abi.encode("duration", duration));
     }
 
-    function testExactDuration(uint32 duration) public {
-        duration = uint32(bound(duration, 1, type(uint32).max));
-        vm.prank(curator);
-        adapter.addDuration(duration);
+    function testExactDuration(uint32 durationIndex) public {
+        durationIndex = uint32(bound(durationIndex, 0, adapter.durationsLength() - 1));
+        uint256 duration = adapter.durations()[durationIndex];
         buy(duration, 1e18);
         assertEq(parentVault.allocation(durationId(duration)), 1e18);
     }
 
-    function testExitDuration(uint32 duration, uint256 timeToMaturity, uint256 extraSkip) public {
-        duration = uint32(bound(duration, 1, type(uint32).max));
+    function testExitDuration(uint256 durationIndex, uint256 timeToMaturity, uint256 extraSkip) public {
+        durationIndex = bound(durationIndex, 0, adapter.durationsLength() - 1);
+        uint256 duration = adapter.durations()[durationIndex];
         timeToMaturity = bound(timeToMaturity, duration, type(uint32).max);
         extraSkip = bound(extraSkip, 1, 10 * 365 days);
 
-        vm.prank(curator);
-        adapter.addDuration(duration);
         Offer memory offer = buy(timeToMaturity, 1e18);
         assertEq(parentVault.allocation(durationId(duration)), 1e18);
 
         skip(timeToMaturity - duration + extraSkip);
 
-        adapter.syncDurations(offer.obligation);
+        adapter.deallocateExpiredDurations(offer.obligation);
 
         assertEq(parentVault.allocation(durationId(duration)), 0);
     }
 
-    function testAddDuration(uint32 duration, uint256 timeToMaturity) public {
-        duration = uint32(bound(duration, 1, type(uint32).max));
+    function testRepeatDeallocateExpiredDurations(uint256 durationIndex, uint256 timeToMaturity, uint256 skipAmount)
+        public
+    {
+        durationIndex = bound(durationIndex, 0, adapter.durationsLength() - 1);
+        uint256 duration = adapter.durations()[durationIndex];
         timeToMaturity = bound(timeToMaturity, duration, type(uint32).max);
-        Offer memory offer = buy(timeToMaturity, 1e18);
-        assertEq(parentVault.allocation(durationId(duration)), 0);
-
-        vm.prank(curator);
-        adapter.addDuration(duration);
-        adapter.syncDurations(offer.obligation);
-
-        assertEq(parentVault.allocation(durationId(duration)), 1e18);
-    }
-
-    function testRemoveDuration(uint32 duration, uint256 timeToMaturity) public {
-        duration = uint32(bound(duration, 1, type(uint32).max));
-        vm.prank(curator);
-        adapter.addDuration(duration);
-
-        timeToMaturity = bound(timeToMaturity, duration, type(uint32).max);
-        Offer memory offer = buy(timeToMaturity, 1e18);
-        assertEq(parentVault.allocation(durationId(duration)), 1e18);
-
-        vm.prank(curator);
-        adapter.removeDuration(duration);
-        assertEq(parentVault.allocation(durationId(duration)), 1e18);
-
-        adapter.syncDurations(offer.obligation);
-
-        assertEq(parentVault.allocation(durationId(duration)), 0);
-    }
-
-    function testRepeatSync(uint32 duration, uint32 timeToMaturity, uint256 skipAmount) public {
-        duration = uint32(bound(duration, 1, type(uint32).max));
-        vm.prank(curator);
-        adapter.addDuration(duration);
-        skipAmount = bound(skipAmount, 0, uint256(duration) * 2);
+        skipAmount = bound(skipAmount, 0, duration * 2);
 
         Offer memory offer = buy(timeToMaturity, 1e18);
         skip(skipAmount);
-        adapter.syncDurations(offer.obligation);
+        adapter.deallocateExpiredDurations(offer.obligation);
         uint256 savedAllocation = parentVault.allocation(durationId(duration));
-        adapter.syncDurations(offer.obligation);
+        adapter.deallocateExpiredDurations(offer.obligation);
         assertEq(parentVault.allocation(durationId(duration)), savedAllocation);
     }
 
     function testUpdateOnRealizeLoss() public {
-        vm.prank(curator);
-        adapter.addDuration(1 weeks);
-        vm.prank(curator);
-        adapter.addDuration(2 weeks);
-        Offer memory offer = buy(2 weeks, 1e18);
-        assertEq(parentVault.allocation(durationId(1 weeks)), 1e18, "1 week, before");
-        assertEq(parentVault.allocation(durationId(2 weeks)), 1e18, "2 weeks, before");
+        Offer memory offer = buy(7 days, 1e18);
+        assertEq(parentVault.allocation(durationId(1 days)), 1e18, "1 week, before");
+        assertEq(parentVault.allocation(durationId(7 days)), 1e18, "2 weeks, before");
 
         skip(1);
-
-        vm.prank(curator);
-        adapter.addDuration(1 days);
 
         Oracle(offer.obligation.collaterals[0].oracle).setPrice(0);
         morphoV2.liquidate(offer.obligation, new Seizure[](0), taker, "");
@@ -168,24 +130,16 @@ contract MorphoMarketV2AdapterAllocationUpdateTest is MorphoMarketV2AdapterTest 
                 MorphoV2(morphoV2).totalUnits(obligationId) + 1, MorphoV2(morphoV2).totalShares(obligationId) + 1
             );
 
-        assertEq(parentVault.allocation(durationId(1 days)), 0, "1 day");
-        assertEq(parentVault.allocation(durationId(1 weeks)), remainingUnits, "1 week");
-        assertEq(parentVault.allocation(durationId(2 weeks)), remainingUnits, "2 weeks");
+        assertEq(parentVault.allocation(durationId(1 days)), remainingUnits, "1 day");
+        assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
     }
 
     function testUpdateOnWithdraw() public {
-        vm.prank(curator);
-        adapter.addDuration(1 weeks);
-        vm.prank(curator);
-        adapter.addDuration(2 weeks);
-        Offer memory offer = buy(2 weeks, 1e18);
-        assertEq(parentVault.allocation(durationId(1 weeks)), 1e18, "1 week, before");
-        assertEq(parentVault.allocation(durationId(2 weeks)), 1e18, "2 weeks, before");
+        Offer memory offer = buy(7 days, 1e18);
+        assertEq(parentVault.allocation(durationId(1 days)), 1e18, "1 day, before");
+        assertEq(parentVault.allocation(durationId(7 days)), 1e18, "7 days, before");
 
-        skip(2 weeks);
-
-        vm.prank(curator);
-        adapter.addDuration(1 days);
+        skip(7 days);
 
         vm.prank(taker);
         morphoV2.repay(offer.obligation, 1e18, taker);
@@ -193,23 +147,15 @@ contract MorphoMarketV2AdapterAllocationUpdateTest is MorphoMarketV2AdapterTest 
         adapter.withdraw(offer.obligation, 0.5e18, 0);
 
         assertEq(parentVault.allocation(durationId(1 days)), 0, "1 day");
-        assertEq(parentVault.allocation(durationId(1 weeks)), 0.5e18, "1 week");
-        assertEq(parentVault.allocation(durationId(2 weeks)), 0.5e18, "2 weeks");
+        assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
     }
 
     function testUpdateOnSell() public {
-        vm.prank(curator);
-        adapter.addDuration(1 weeks);
-        vm.prank(curator);
-        adapter.addDuration(2 weeks);
-        Offer memory offer = buy(2 weeks, 1e18);
-        assertEq(parentVault.allocation(durationId(1 weeks)), 1e18, "1 week, before");
-        assertEq(parentVault.allocation(durationId(2 weeks)), 1e18, "2 weeks, before");
+        Offer memory offer = buy(7 days, 1e18);
+        assertEq(parentVault.allocation(durationId(1 days)), 1e18, "1 day, before");
+        assertEq(parentVault.allocation(durationId(7 days)), 1e18, "7 days, before");
 
         skip(1);
-
-        vm.prank(curator);
-        adapter.addDuration(1 days);
 
         parentVault.setTotalAssets(1e18);
         parentVault.setAdaptersLength(1);
@@ -218,9 +164,8 @@ contract MorphoMarketV2AdapterAllocationUpdateTest is MorphoMarketV2AdapterTest 
         parentVault.setAdapters(adapters);
         sell(offer.obligation, 0.5e18);
 
-        assertEq(parentVault.allocation(durationId(1 weeks)), 0.5e18, "1 week");
-        assertEq(parentVault.allocation(durationId(1 days)), 0, "1 day");
-        assertEq(parentVault.allocation(durationId(2 weeks)), 0.5e18, "2 weeks");
+        assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day");
+        assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
     }
 
     // TODO force deallocate test

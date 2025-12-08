@@ -486,116 +486,12 @@ contract MorphoMarketV2AdapterTest is Test {
 
     /* DURATIONS */
 
-    function testDurationsUpdate() public {
-        vm.startPrank(parentVault.curator());
-        vm.expectEmit();
-        emit IMorphoMarketV2Adapter.AddDuration(10);
-        adapter.addDuration(10);
-        assertEq(adapter.durations().length, 1);
-        assertEq(adapter.durations()[0], 10);
-
-        vm.expectEmit();
-        emit IMorphoMarketV2Adapter.RemoveDuration(10);
-        adapter.removeDuration(10);
-        assertEq(adapter.durations().length, 0);
-
-        vm.expectEmit();
-        emit IMorphoMarketV2Adapter.AddDuration(20);
-        adapter.addDuration(20);
-        assertEq(adapter.durations().length, 1);
-        assertEq(adapter.durations()[0], 20);
-
-        vm.expectEmit();
-        emit IMorphoMarketV2Adapter.AddDuration(1);
-        adapter.addDuration(1);
-        assertEq(adapter.durations().length, 2);
-        assertEq(adapter.durations()[0], 20);
-        assertEq(adapter.durations()[1], 1);
-
-        vm.expectEmit();
-        emit IMorphoMarketV2Adapter.RemoveDuration(20);
-        adapter.removeDuration(20);
-        assertEq(adapter.durations().length, 1);
-
-        adapter.addDuration(19);
-        adapter.addDuration(20);
-        adapter.addDuration(99);
-        adapter.addDuration(98);
-        adapter.addDuration(97);
-        adapter.addDuration(96);
-        adapter.addDuration(95);
-        assertEq(adapter.durations().length, 8);
-        assertEq(adapter.durations()[0], 19);
-        assertEq(adapter.durations()[1], 1);
-        assertEq(adapter.durations()[2], 20);
-        assertEq(adapter.durations()[3], 99);
-        assertEq(adapter.durations()[4], 98);
-        assertEq(adapter.durations()[5], 97);
-        assertEq(adapter.durations()[6], 96);
-        assertEq(adapter.durations()[7], 95);
-        adapter.removeDuration(95);
-        assertEq(adapter.durations().length, 7);
-        adapter.addDuration(94);
-        vm.expectRevert(IMorphoMarketV2Adapter.TooManyDurations.selector);
-        adapter.addDuration(2);
-        vm.stopPrank();
-    }
-
-    function testSetDurationsAccess(address sender, uint256 duration) public {
-        vm.assume(sender != parentVault.curator());
-        vm.prank(sender);
-        vm.expectRevert(IMorphoMarketV2Adapter.NotAuthorized.selector);
-        adapter.addDuration(duration);
-
-        vm.prank(sender);
-        vm.expectRevert(IMorphoMarketV2Adapter.NotAuthorized.selector);
-        adapter.removeDuration(duration);
-    }
-
-    function testAddDurationIncorrectOrDuplicate() public {
-        vm.startPrank(parentVault.curator());
-
-        adapter.addDuration(1);
-        adapter.addDuration(100);
-        adapter.addDuration(12);
-        adapter.addDuration(99);
-        adapter.addDuration(101);
-        adapter.addDuration(102);
-        adapter.addDuration(2);
-        adapter.addDuration(103);
-        adapter.removeDuration(103);
-        adapter.removeDuration(102);
-        adapter.removeDuration(101);
-        uint256[] memory actualArray = adapter.durations();
-        uint256[5] memory expectedArray = [uint256(1), 100, 12, 99, 2];
-        assertEq(actualArray.length, expectedArray.length);
-        for (uint256 i = 0; i < actualArray.length; i++) {
-            assertEq(actualArray[i], expectedArray[i]);
-        }
-
-        vm.expectRevert(IMorphoMarketV2Adapter.IncorrectDuration.selector);
-        adapter.addDuration(0);
-        vm.expectRevert(IMorphoMarketV2Adapter.IncorrectDuration.selector);
-        adapter.addDuration(uint256(type(uint32).max) + 1);
-        vm.expectRevert(IMorphoMarketV2Adapter.DurationAlreadyExists.selector);
-        adapter.addDuration(1);
-        vm.expectRevert(IMorphoMarketV2Adapter.DurationAlreadyExists.selector);
-        adapter.addDuration(2);
-        vm.stopPrank();
-    }
+    // Add constructor tests
 
     /* IDS */
 
-    function testIds(uint256 collateralCount, uint256 durationsCount, uint256 maturity) public {
-        uint256[] memory possibleDurations = new uint256[](4);
-        possibleDurations[0] = 1 days;
-        possibleDurations[1] = 10 days;
-        possibleDurations[2] = 300 days;
-        possibleDurations[3] = 700 days;
-        possibleDurations = vm.shuffle(possibleDurations);
-
+    function testIds(uint256 collateralCount, uint256 maturity) public view {
         collateralCount = bound(collateralCount, 0, 5);
-        durationsCount = bound(durationsCount, 0, 4);
 
         Obligation memory obligation;
 
@@ -605,11 +501,6 @@ contract MorphoMarketV2AdapterTest is Test {
         }
         obligation.collaterals = storedCollaterals;
         obligation.maturity = bound(maturity, 1, 700 days);
-        vm.startPrank(parentVault.curator());
-        for (uint256 i = 0; i < durationsCount; i++) {
-            adapter.addDuration(possibleDurations[i]);
-        }
-        vm.stopPrank();
 
         bytes32[] memory ids = adapter.ids(obligation);
         assertEq(ids[0], adapter.adapterId());
@@ -628,13 +519,13 @@ contract MorphoMarketV2AdapterTest is Test {
             );
         }
 
-        uint256[] memory durationsArray = adapter.durations();
+        uint256[] memory durations = adapter.durations();
         uint256 durationIdCount = 0;
-        for (uint256 i = 0; i < durationsArray.length; i++) {
-            if ((obligation.maturity - block.timestamp) >= durationsArray[i]) {
+        for (uint256 i = 0; i < durations.length; i++) {
+            if ((obligation.maturity - block.timestamp) >= durations[i]) {
                 assertEq(
                     ids[1 + obligation.collaterals.length * 2 + durationIdCount],
-                    keccak256(abi.encode("duration", durationsArray[i]))
+                    keccak256(abi.encode("duration", durations[i]))
                 );
                 durationIdCount++;
             }
