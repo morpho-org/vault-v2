@@ -299,7 +299,8 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
             _maturities[obligation.maturity].growthLostAtMaturity -= removedGrowth;
             _positions[obligationId].growth -= removedGrowth;
             _positions[obligationId].units -= removedUnits.toUint128();
-            _totalAssets = _totalAssets + (removedGrowth * timeToMaturity) - removedUnits;
+            currentGrowth -= removedGrowth;
+            _totalAssets = _totalAssets + (removedUnits - (removedGrowth * timeToMaturity));
         } else {
             _totalAssets -= removedUnits;
             _positions[obligationId].units -= removedUnits.toUint128();
