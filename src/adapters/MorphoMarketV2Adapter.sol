@@ -417,6 +417,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
             maturity.growthLostAtMaturity -= removedGrowth;
             // Do not cleanup the linked list if we end up at 0 growth.
             position.growth -= removedGrowth;
+            currentGrowth -= removedGrowth;
             _totalAssets = _totalAssets + (removedGrowth * timeToMaturity) - removedUnits;
         } else {
             _totalAssets -= removedUnits;
