@@ -433,8 +433,8 @@ contract MorphoMarketV1AdapterTest is Test {
 
     function testBurnShares(uint256 timelockDuration, uint256 extraSkip) public {
         uint256 assets = _boundAssets(1000);
-        deal(address(loanToken), address(adapter), assets);
-        parentVault.allocateMocked(address(adapter), abi.encode(marketParams), assets);
+        deal(address(loanToken), address(parentVault), assets);
+        parentVault.allocate(address(adapter), abi.encode(marketParams), assets);
 
         uint256 supplyShares = adapter.supplyShares(marketId);
         uint256 allocation = adapter.allocation(marketParams);
