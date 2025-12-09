@@ -18,6 +18,16 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
+      - name: Cache Foundry artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.foundry
+            ./cache
+            ./out
+          key: ${{ runner.os }}-foundry-${{ github.head_ref || github.ref_name }}
+          restore-keys: ${{ runner.os }}-foundry-
+
       - name: Run forge fmt
         run: forge fmt --check
 
@@ -31,6 +41,16 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
+      - name: Cache Foundry artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.foundry
+            ./cache
+            ./out
+          key: ${{ runner.os }}-foundry-${{ github.head_ref || github.ref_name }}
+          restore-keys: ${{ runner.os }}-foundry-
+
       - name: Run forge lint
         run: forge lint --deny notes
 
@@ -43,6 +63,16 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Cache Foundry artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.foundry
+            ./cache
+            ./out
+          key: ${{ runner.os }}-foundry-${{ github.head_ref || github.ref_name }}
+          restore-keys: ${{ runner.os }}-foundry-
 
       - name: Run forge build
         run: forge build --force --sizes
@@ -64,6 +94,16 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Cache Foundry artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.foundry
+            ./cache
+            ./out
+          key: ${{ runner.os }}-foundry-${{ github.head_ref || github.ref_name }}
+          restore-keys: ${{ runner.os }}-foundry-
 
       - name: Run forge tests with a ${{ matrix.decimals }} decimals underlying asset
         run: if [ ${{ matrix.isolate }} = true ]; then forge test -vvv --isolate; else forge test -vvv; fi
