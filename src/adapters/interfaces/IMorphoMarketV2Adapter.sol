@@ -6,18 +6,13 @@ import {IAdapter} from "../../interfaces/IAdapter.sol";
 import {Obligation, Seizure} from "lib/morpho-v2/src/interfaces/IMorphoV2.sol";
 import {ICallbacks} from "lib/morpho-v2/src/interfaces/ICallbacks.sol";
 
-// Position in an obligation
-struct ObligationPosition {
-    uint128 units;
-    uint128 growth;
-    uint48 lastUpdate;
-}
-
 // Chain of maturities, each can represent multiple obligations.
 // nextMaturity is type(uint48).max if no next maturity
-struct Maturity {
-    uint128 growthLostAtMaturity;
+struct MaturityData {
+    uint128 units;
+    uint128 growth;
     uint48 nextMaturity;
+    uint48 lastUpdate;
 }
 
 interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
@@ -63,8 +58,8 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
     function firstMaturity() external view returns (uint48);
     function currentGrowth() external view returns (uint128);
     function adapterId() external view returns (bytes32);
-    function positions(bytes32 obligationId) external view returns (ObligationPosition memory);
-    function maturities(uint256 date) external view returns (Maturity memory);
+    function units(bytes32 obligationId) external view returns (uint256);
+    function maturities(uint256 date) external view returns (MaturityData memory);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);

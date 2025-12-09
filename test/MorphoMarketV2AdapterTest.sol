@@ -3,7 +3,7 @@
 pragma solidity ^0.8.0;
 
 import "../lib/forge-std/src/Test.sol";
-import {MorphoMarketV2Adapter, Maturity, ObligationPosition} from "../src/adapters/MorphoMarketV2Adapter.sol";
+import {MorphoMarketV2Adapter, MaturityData} from "../src/adapters/MorphoMarketV2Adapter.sol";
 import {MorphoMarketV2AdapterFactory} from "../src/adapters/MorphoMarketV2AdapterFactory.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
@@ -56,7 +56,7 @@ contract MorphoMarketV2AdapterTest is Test {
     Step[] internal steps01;
 
     // Expected values after setting up obligations
-    mapping(bytes32 obligationId => ObligationPosition) expectedPositions;
+    mapping(bytes32 obligationId => uint256) expectedUnits;
     mapping(uint256 timestamp => uint256) expectedMaturityGrowths;
     uint256[] internal expectedPositionsList;
     uint256[] internal expectedMaturitiesList;
@@ -187,13 +187,12 @@ contract MorphoMarketV2AdapterTest is Test {
         uint256 duration = offer.obligation.maturity - vm.getBlockTimestamp();
         uint256 newGrowth = totalInterest / duration;
         assertEq(adapter.currentGrowth(), newGrowth, "currentGrowth");
-        Maturity memory maturity = adapter.maturities(offer.obligation.maturity);
-        assertEq(maturity.growthLostAtMaturity, newGrowth, "growthLostAtMaturity");
-        assertEq(maturity.nextMaturity, type(uint48).max, "nextMaturity");
+        MaturityData memory maturityData = adapter.maturities(offer.obligation.maturity);
+        assertEq(maturityData.growth, newGrowth, "growth");
+        assertEq(maturityData.nextMaturity, type(uint48).max, "nextMaturity");
 
-        ObligationPosition memory position = adapter.positions(_obligationId(offer.obligation));
-        assertEq(position.growth, newGrowth, "growth");
-        assertEq(position.units, assets + totalInterest, "units");
+        uint256 actualUnits = adapter.units(_obligationId(offer.obligation));
+        assertEq(actualUnits, assets + totalInterest, "units");
     }
 
     /* RATIFICATION */
@@ -351,18 +350,17 @@ contract MorphoMarketV2AdapterTest is Test {
             morphoV2.supplyCollateral(offer.obligation, address(storedCollaterals[0].token), 1_000e18, taker);
             morphoV2.supplyCollateral(offer.obligation, address(storedCollaterals[1].token), 1_000e18, taker);
 
-            ObligationPosition memory positionBefore = adapter.positions(obligationId);
+            uint256 unitsBefore = adapter.units(obligationId);
             morphoV2.take(
                 step.assets, 0, 0, 0, taker, offer, proof([offer]), sign([offer], signerAllocator), address(0), ""
             );
             vm.stopPrank();
 
-            assertEq(adapter.positions(obligationId).units, positionBefore.units + units, "setup: units 1");
+            assertEq(adapter.units(obligationId), unitsBefore + units, "setup: units 1");
 
-            expectedPositions[obligationId].units += units.toUint128();
-            expectedPositions[obligationId].growth += actualGrowth.toUint128();
+            expectedUnits[obligationId] += units;
+            expectedMaturityGrowths[step.maturity] += actualGrowth;
             if (timeToMaturity > 0) {
-                expectedMaturityGrowths[step.maturity] += actualGrowth.toUint128();
                 expectedAddedGrowth += actualGrowth.toUint128();
             }
             expectedAddedAssets += step.assets + zeroPeriodGain;
@@ -394,9 +392,9 @@ contract MorphoMarketV2AdapterTest is Test {
         // Check maturities growth and linked list structure
         for (uint256 i = 0; i < expectedMaturitiesList.length; i++) {
             assertEq(
-                adapter.maturities(expectedMaturitiesList[i]).growthLostAtMaturity,
+                adapter.maturities(expectedMaturitiesList[i]).growth,
                 expectedMaturityGrowths[expectedMaturitiesList[i]],
-                "growthLostAtMaturity"
+                "growth"
             );
             if (i == expectedMaturitiesList.length - 1) {
                 assertEq(
@@ -414,10 +412,7 @@ contract MorphoMarketV2AdapterTest is Test {
         // Check positions growth and size
         for (uint256 i = 0; i < expectedPositionsList.length; i++) {
             bytes32 obligationId = bytes32(expectedPositionsList[i]);
-            ObligationPosition memory position = adapter.positions(obligationId);
-            ObligationPosition memory expectedPosition = expectedPositions[obligationId];
-            assertEq(position.growth, expectedPosition.growth, "growth");
-            assertEq(position.units, expectedPosition.units, "units");
+            assertEq(adapter.units(obligationId), expectedUnits[obligationId], "units");
         }
     }
 
