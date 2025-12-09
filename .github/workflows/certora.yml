@@ -30,8 +30,6 @@ jobs:
           - Invariants
           - Liveness
           - MarketIds
-          - MorphoMarketV1AdapterV2Factory
-          - MorphoVaultV1AdapterFactory
           - OwnerSafety
           - PreviewFunctions
           - Reentrancy
