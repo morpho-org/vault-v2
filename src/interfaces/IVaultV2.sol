@@ -2,7 +2,6 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity >=0.5.0;
 
-import {IERC20} from "./IERC20.sol";
 import {IERC4626} from "./IERC4626.sol";
 import {IERC2612} from "./IERC2612.sol";
 
