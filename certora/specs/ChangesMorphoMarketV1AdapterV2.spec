@@ -15,7 +15,6 @@ methods {
 
     function _.borrowRateView(bytes32, Morpho.Market memory, address) internal => constantBorrowRate expect(uint256);
     function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect(uint256);
-    function _.borrowRateView(Morpho.MarketParams, Morpho.Market) external => constantBorrowRate expect(uint256);
 
     function Utils.id(Morpho.MarketParams) external returns (Morpho.Id) envfree;
 }

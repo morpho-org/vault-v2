@@ -16,7 +16,6 @@ methods {
 
     function _.borrowRateView(bytes32, MorphoHarness.Market memory, address) internal => constantBorrowRate expect(uint256);
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
-    function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
 
     function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoMarketV1AdapterV2WrapperSummary(e, true, data, assets, bs, a) expect(bytes32[], int256);
     function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoMarketV1AdapterV2WrapperSummary(e, false, data, assets, bs, a) expect(bytes32[], int256);
@@ -86,7 +85,7 @@ rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
 
     MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
     uint256 expected = MorphoMarketV1AdapterV2.expectedSupplyAssets(e, Utils.id(marketParams));
-    require expected < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
+    require expected < 2 ^ 128, "see expectedSupplyAssetsIsBounded invariant";
 
     assert MorphoMarketV1AdapterV2.allocation(marketParams) == expected;
 }
@@ -124,7 +123,7 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
 
     MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
     uint256 expected = MorphoMarketV1AdapterV2.expectedSupplyAssets(e, Utils.id(marketParams));
-    require expected < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
+    require expected < 2 ^ 128, "see expectedSupplyAssetsIsBounded invariant";
 
     assert MorphoMarketV1AdapterV2.allocation(marketParams) == expected;
 }
