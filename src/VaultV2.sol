@@ -2,13 +2,14 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.28;
 
-import {IVaultV2, IERC20, Caps} from "./interfaces/IVaultV2.sol";
+import {IERC20} from "./interfaces/IERC20.sol";
+import {IVaultV2, Caps} from "./interfaces/IVaultV2.sol";
 import {IAdapter} from "./interfaces/IAdapter.sol";
 import {IAdapterRegistry} from "./interfaces/IAdapterRegistry.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
-import "./libraries/ConstantsLib.sol";
+import "./libraries/ConstantsLib.sol"; // forge-lint: disable-line(unaliased-plain-import)
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
@@ -258,6 +259,7 @@ contract VaultV2 is IVaultV2 {
         return newTotalAssets;
     }
 
+    /// forge-lint: disable-next-item(mixed-case-function)
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
         return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
     }
@@ -298,6 +300,7 @@ contract VaultV2 is IVaultV2 {
         lastUpdate = uint64(block.timestamp);
         uint256 assetDecimals = IERC20(_asset).decimals();
         uint256 decimalOffset = uint256(18).zeroFloorSub(assetDecimals);
+        // forge-lint: disable-next-item(unsafe-typecast) safe because assetDecimals + decimalOffset <= 18.
         decimals = uint8(assetDecimals + decimalOffset);
         virtualShares = 10 ** decimalOffset;
         emit EventsLib.Constructor(_owner, _asset);
@@ -343,7 +346,9 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(executableAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(data);
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the second bytes4.
         uint256 _timelock =
             selector == IVaultV2.decreaseTimelock.selector ? timelock[bytes4(data[4:8])] : timelock[selector];
         executableAt[data] = block.timestamp + _timelock;
@@ -363,6 +368,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(executableAt[data] != 0, ErrorsLib.DataNotTimelocked());
         executableAt[data] = 0;
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(data);
         emit EventsLib.Revoke(msg.sender, selector, data);
     }
@@ -477,7 +483,7 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        // Safe because 2**96 > MAX_PERFORMANCE_FEE.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because 2**96 > MAX_PERFORMANCE_FEE.
         performanceFee = uint96(newPerformanceFee);
         emit EventsLib.SetPerformanceFee(newPerformanceFee);
     }
@@ -489,7 +495,7 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        // Safe because 2**96 > MAX_MANAGEMENT_FEE.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because 2**96 > MAX_MANAGEMENT_FEE.
         managementFee = uint96(newManagementFee);
         emit EventsLib.SetManagementFee(newManagementFee);
     }
@@ -528,7 +534,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(newAbsoluteCap <= caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotDecreasing());
 
-        // Safe because newAbsoluteCap <= absoluteCap < 2**128.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because newAbsoluteCap <= absoluteCap < 2**128.
         caps[id].absoluteCap = uint128(newAbsoluteCap);
         emit EventsLib.DecreaseAbsoluteCap(msg.sender, id, idData, newAbsoluteCap);
     }
@@ -539,7 +545,7 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
         require(newRelativeCap >= caps[id].relativeCap, ErrorsLib.RelativeCapNotIncreasing());
 
-        // Safe because WAD < 2**128.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because WAD < 2**128.
         caps[id].relativeCap = uint128(newRelativeCap);
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
@@ -549,7 +555,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(newRelativeCap <= caps[id].relativeCap, ErrorsLib.RelativeCapNotDecreasing());
 
-        // Safe because WAD < 2**128.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because WAD < 2**128.
         caps[id].relativeCap = uint128(newRelativeCap);
         emit EventsLib.DecreaseRelativeCap(msg.sender, id, idData, newRelativeCap);
     }
@@ -628,7 +634,7 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        // Safe because newMaxRate <= MAX_MAX_RATE < 2**64-1.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because newMaxRate <= MAX_MAX_RATE < 2**64-1.
         maxRate = uint64(newMaxRate);
         emit EventsLib.SetMaxRate(newMaxRate);
     }
