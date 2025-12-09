@@ -305,7 +305,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         }
 
         IVaultV2(parentVault)
-            .allocate(address(this), abi.encode(ids(obligation), position.units.toInt256()), buyerAssets);
+            .allocate(address(this), abi.encode(ids(obligation), obligationUnits.toInt256()), buyerAssets);
     }
 
     function onSell(
