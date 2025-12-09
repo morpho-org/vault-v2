@@ -8,7 +8,34 @@ on:
   workflow_dispatch:
 
 jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Run forge fmt
+        run: forge fmt --check
+
+  sizes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Run forge build
+        run: forge build --force --sizes
+
   test:
+    needs: sizes
     strategy:
       fail-fast: true
       matrix:
@@ -24,9 +51,6 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
-
-      - name: Run forge fmt
-        run: forge fmt --check
 
       - name: Run forge tests with a ${{ matrix.decimals }} decimals underlying asset
         run: if [ ${{ matrix.isolate }} = true ]; then forge test -vvv --isolate; else forge test -vvv; fi
