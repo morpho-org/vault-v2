@@ -10,9 +10,10 @@ methods {
 
     function MorphoMarketV1AdapterV2.ids(MorphoHarness.MarketParams) external returns (bytes32[]) envfree;
     function MorphoMarketV1AdapterV2.allocation(MorphoHarness.MarketParams) external returns (uint256) envfree;
-
+    function MorphoMarketV1.totalSupplyShares(MorphoHarness.Id) external returns (uint256) envfree;
     function Utils.decodeMarketParams(bytes) external returns (MorphoHarness.MarketParams) envfree;
     function Utils.id(MorphoHarness.MarketParams) external returns (MorphoHarness.Id) envfree;
+    function Utils.wrapId(bytes32) external returns (MorphoHarness.Id) envfree;
 
     function _.borrowRateView(bytes32, MorphoHarness.Market memory, address) internal => constantBorrowRate expect(uint256);
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
@@ -126,4 +127,21 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
     require expected < 2 ^ 128, "see expectedSupplyAssetsIsBounded invariant";
 
     assert MorphoMarketV1AdapterV2.allocation(marketParams) == expected;
+}
+
+
+invariant expectedSupplyAssetsIsBounded(env e, bytes32 marketId)
+    MorphoMarketV1AdapterV2.expectedSupplyAssets(e, marketId) < 2 ^ 128
+filtered {
+    f -> f.contract == MorphoMarketV1AdapterV2 || f.contract == MorphoMarketV1
+}
+{ preserved {
+    requireInvariant supplySharesIsBounded(marketId);
+  }
+}
+
+invariant supplySharesIsBounded(bytes32 marketId)
+    MorphoMarketV1AdapterV2.supplyShares[marketId] <= MorphoMarketV1.totalSupplyShares(Utils.wrapId(marketId))
+filtered {
+    f -> f.contract == MorphoMarketV1AdapterV2 || f.contract == MorphoMarketV1
 }
