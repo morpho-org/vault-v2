@@ -26,6 +26,12 @@ methods {
 
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
+
+    function _.onMorphoSupply(uint256, bytes) external => NONDET;
+    function _.onMorphoRepay(uint256, bytes) external => NONDET;
+    function _.onMorphoSupplyCollateral(uint256, bytes) external => NONDET;
+    function _.onMorphoLiquidate(uint256, bytes) external => NONDET;
+    function _.onMorphoFlashLoan(uint256, bytes) external => NONDET;
 }
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
@@ -129,19 +135,19 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
     assert MorphoMarketV1AdapterV2.allocation(marketParams) == expected;
 }
 
-
 invariant expectedSupplyAssetsIsBounded(env e, bytes32 marketId)
     MorphoMarketV1AdapterV2.expectedSupplyAssets(e, marketId) < 2 ^ 128
-filtered {
-    f -> f.contract == MorphoMarketV1AdapterV2 || f.contract == MorphoMarketV1
-}
-{ preserved {
-    requireInvariant supplySharesIsBounded(marketId);
-  }
-}
 
-invariant supplySharesIsBounded(bytes32 marketId)
+    filtered { f -> f.contract == MorphoMarketV1AdapterV2 || f.contract == MorphoMarketV1 } {
+        preserved {
+            requireInvariant adapterSupplySharesIsLessThanTotalSupplyShares(marketId);
+        }
+    }
+
+invariant adapterSupplySharesIsLessThanActualSupplyShares(bytes32 marketId)
+    MorphoMarketV1AdapterV2.supplyShares[marketId] <= MorphoMarketV1.supplyShares(Utils.wrapId(marketId), MorphoMarketV1AdapterV2);
+
+invariant adapterSupplySharesIsLessThanTotalSupplyShares(bytes32 marketId)
     MorphoMarketV1AdapterV2.supplyShares[marketId] <= MorphoMarketV1.totalSupplyShares(Utils.wrapId(marketId))
-filtered {
-    f -> f.contract == MorphoMarketV1AdapterV2 || f.contract == MorphoMarketV1
-}
+
+    filtered { f -> f.contract == MorphoMarketV1AdapterV2 || f.contract == MorphoMarketV1 }
