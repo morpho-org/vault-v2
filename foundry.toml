@@ -12,7 +12,6 @@ wrap_comments = true
 [lint]
 exclude_lints = [
     "screaming-snake-case-immutable",
-    "unsafe-typecast",
     "asm-keccak256"
 ]
 ignore = [
