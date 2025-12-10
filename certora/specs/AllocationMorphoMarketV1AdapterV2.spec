@@ -29,6 +29,7 @@ methods {
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
 
+    // Assume no callback, the full proof can be recovered inductively.
     function _.onMorphoSupply(uint256, bytes) external => NONDET;
     function _.onMorphoRepay(uint256, bytes) external => NONDET;
     function _.onMorphoSupplyCollateral(uint256, bytes) external => NONDET;
