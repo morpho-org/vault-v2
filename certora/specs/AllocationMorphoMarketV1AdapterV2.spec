@@ -94,7 +94,7 @@ rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
 
     MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
     uint256 expected = MorphoMarketV1AdapterV2.expectedSupplyAssets(e, Utils.id(marketParams));
-    require expected < 2 ^ 128, "see expectedSupplyAssetsIsBounded invariant";
+    require expected < 2 ^ 128, "see rule expectedSupplyAssetsIsBounded";
 
     assert MorphoMarketV1AdapterV2.allocation(marketParams) == expected;
 }
@@ -132,7 +132,7 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
 
     MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
     uint256 expected = MorphoMarketV1AdapterV2.expectedSupplyAssets(e, Utils.id(marketParams));
-    require expected < 2 ^ 128, "see expectedSupplyAssetsIsBounded invariant";
+    require expected < 2 ^ 128, "see rule expectedSupplyAssetsIsBounded";
 
     assert MorphoMarketV1AdapterV2.allocation(marketParams) == expected;
 }
