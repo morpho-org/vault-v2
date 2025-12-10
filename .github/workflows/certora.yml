@@ -17,20 +17,20 @@ jobs:
       matrix:
         conf:
           - AbdicatedFunctions
-          - AllocationMorphoMarketV1Adapter
+          - AllocationMorphoMarketV1AdapterV2
           - AllocationMorphoVaultV1Adapter
           - AllocationVaultV2
-          - ChangesMorphoMarketV1Adapter
+          - ChangesMorphoMarketV1AdapterV2
           - ChangesMorphoVaultV1Adapter
           - ExchangeRate
           - Gates
-          - IdsMorphoMarketV1Adapter
+          - IdsMorphoMarketV1AdapterV2
           - IdsMorphoVaultV1Adapter
           - Immutability
           - Invariants
           - Liveness
           - MarketIds
-          - MorphoMarketV1AdapterFactory
+          - MorphoMarketV1AdapterV2Factory
           - MorphoVaultV1AdapterFactory
           - OwnerSafety
           - PreviewFunctions
@@ -40,7 +40,7 @@ jobs:
           - SentinelLiveness
           - SentinelLivenessDeallocateMarketV1
           - SentinelLivenessDeallocateVaultV1
-          - TokensMorphoMarketV1Adapter
+          - TokensMorphoMarketV1AdapterV2
           - TokensMorphoVaultV1Adapter
           - TokensNoAdapter
           - TotalAssetsChange
