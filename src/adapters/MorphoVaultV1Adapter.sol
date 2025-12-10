@@ -36,7 +36,7 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     /* FUNCTIONS */
 
     constructor(address _parentVault, address _morphoVaultV1) {
-        factory = msg.sender;
+        factory = address(1);
         parentVault = _parentVault;
         morphoVaultV1 = _morphoVaultV1;
         adapterId = keccak256(abi.encode("this", address(this)));
