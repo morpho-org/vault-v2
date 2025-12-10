@@ -57,7 +57,6 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         uint256 currentDuration;
         for (uint256 i = 0; i < _durations.length; i++) {
             require(_durations[i] > currentDuration, IncorrectDuration());
-            require(_durations[i] <= type(uint32).max, IncorrectDuration());
             currentDuration = _durations[i];
             _packedDurations = _packedDurations.set(i, _durations[i]);
         }
@@ -102,7 +101,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
 
     /* VAULT ALLOCATORS FUNCTIONS */
 
-    function withdraw(Obligation memory obligation, uint256 withdrawn, uint256 shares) external {
+    function withdrawToVault(Obligation memory obligation, uint256 withdrawn, uint256 shares) external {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
         (, shares) = MorphoV2(morphoV2).withdraw(obligation, withdrawn, shares, address(this));
 
@@ -197,6 +196,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         returns (bytes32[] memory, int256)
     {
         require(caller == address(this), SelfAllocationOnly());
+        // Return exactly the data passed to the function.
         assembly ("memory-safe") {
             return(add(data, 32), mload(data))
         }
@@ -224,6 +224,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
             return (ids(offer.obligation), -deallocated.toInt256());
         } else {
             require(caller == address(this), SelfAllocationOnly());
+            // Return exactly the data passed to the function.
             assembly ("memory-safe") {
                 return(add(data, 32), mload(data))
             }

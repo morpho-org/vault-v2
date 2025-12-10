@@ -144,7 +144,7 @@ contract MorphoMarketV2AdapterAllocationUpdateTest is MorphoMarketV2AdapterTest 
         vm.prank(taker);
         morphoV2.repay(offer.obligation, 1e18, taker);
         vm.prank(signerAllocator);
-        adapter.withdraw(offer.obligation, 0.5e18, 0);
+        adapter.withdrawToVault(offer.obligation, 0.5e18, 0);
 
         assertEq(parentVault.allocation(durationId(1 days)), 0, "1 day");
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");

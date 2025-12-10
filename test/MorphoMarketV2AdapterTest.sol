@@ -63,6 +63,8 @@ contract MorphoMarketV2AdapterTest is Test {
     uint256 internal expectedAddedGrowth;
     uint256 internal expectedAddedAssets;
 
+    uint256[] internal allDurations = [1 days, 7 days, 30 days, 90 days, 180 days];
+
     function setUp() public virtual {
         owner = makeAddr("owner");
         curator = makeAddr("curator");
@@ -82,7 +84,7 @@ contract MorphoMarketV2AdapterTest is Test {
 
         parentVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
-        factory = new MorphoMarketV2AdapterFactory();
+        factory = new MorphoMarketV2AdapterFactory(allDurations);
         adapter = MorphoMarketV2Adapter(factory.createMorphoMarketV2Adapter(address(parentVault), address(morphoV2)));
 
         storedCollaterals.push(
