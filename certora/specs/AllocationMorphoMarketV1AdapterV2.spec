@@ -11,6 +11,8 @@ methods {
     function MorphoMarketV1AdapterV2.ids(MorphoHarness.MarketParams) external returns (bytes32[]) envfree;
     function MorphoMarketV1AdapterV2.allocation(MorphoHarness.MarketParams) external returns (uint256) envfree;
     function MorphoMarketV1.totalSupplyShares(MorphoHarness.Id) external returns (uint256) envfree;
+    function MorphoMarketV1.supplyShares(MorphoHarness.Id, address) external returns (uint256) envfree;
+    function MorphoMarketV1.isAuthorized(address, address) external returns (bool) envfree;
     function Utils.decodeMarketParams(bytes) external returns (MorphoHarness.MarketParams) envfree;
     function Utils.id(MorphoHarness.MarketParams) external returns (MorphoHarness.Id) envfree;
     function Utils.wrapId(bytes32) external returns (MorphoHarness.Id) envfree;
@@ -135,19 +137,19 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
     assert MorphoMarketV1AdapterV2.allocation(marketParams) == expected;
 }
 
-invariant expectedSupplyAssetsIsBounded(env e, bytes32 marketId)
-    MorphoMarketV1AdapterV2.expectedSupplyAssets(e, marketId) < 2 ^ 128
+rule expectedSupplyAssetsIsBounded(env e, bytes32 marketId) {
+    requireInvariant adapterSupplySharesIsLessThanActualSupplyShares(marketId);
+    require MorphoMarketV1.supplyShares(Utils.wrapId(marketId), MorphoMarketV1AdapterV2) < MorphoMarketV1.totalSupplyShares(Utils.wrapId(marketId)), "total supply shares is the sum of all the supply shares";
 
-    filtered { f -> f.contract == MorphoMarketV1AdapterV2 || f.contract == MorphoMarketV1 } {
-        preserved {
-            requireInvariant adapterSupplySharesIsLessThanTotalSupplyShares(marketId);
-        }
-    }
+    assert MorphoMarketV1AdapterV2.expectedSupplyAssets(e, marketId) < 2 ^ 128;
+}
 
 invariant adapterSupplySharesIsLessThanActualSupplyShares(bytes32 marketId)
-    MorphoMarketV1AdapterV2.supplyShares[marketId] <= MorphoMarketV1.supplyShares(Utils.wrapId(marketId), MorphoMarketV1AdapterV2);
-
-invariant adapterSupplySharesIsLessThanTotalSupplyShares(bytes32 marketId)
-    MorphoMarketV1AdapterV2.supplyShares[marketId] <= MorphoMarketV1.totalSupplyShares(Utils.wrapId(marketId))
-
-    filtered { f -> f.contract == MorphoMarketV1AdapterV2 || f.contract == MorphoMarketV1 }
+    MorphoMarketV1AdapterV2.supplyShares[marketId] <= MorphoMarketV1.supplyShares(Utils.wrapId(marketId), MorphoMarketV1AdapterV2)
+filtered { f -> f.contract == MorphoMarketV1AdapterV2 || f.contract == MorphoMarketV1 }
+{
+    preserved MorphoMarketV1.withdraw(MorphoHarness.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) with (env e) {
+        require e.msg.sender != MorphoMarketV1AdapterV2, "the adapter is not an EOA";
+        require !MorphoMarketV1.isAuthorized(MorphoMarketV1AdapterV2, e.msg.sender), "the adapter does not call setAuthorization and it cannot sign an authorization";
+    }
+}
