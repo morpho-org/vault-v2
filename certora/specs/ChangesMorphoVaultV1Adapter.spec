@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-import "UtilityFunctions.spec";
+import "../helpers/UtilityAdapters.spec";
 
 using MetaMorphoV1_1 as vaultV1;
 
