@@ -4,10 +4,10 @@ pragma solidity ^0.8.0;
 import {Test} from "../../lib/forge-std/src/Test.sol";
 import {SymTest} from "../../lib/morpho-blue/lib/halmos-cheatcodes/src/SymTest.sol";
 
-import {IVaultV2Factory} from "../../src/interfaces/IVaultV2Factory.sol";
+//import {IVaultV2Factory} from "../../src/interfaces/IVaultV2Factory.sol";
 import "../../src/interfaces/IVaultV2.sol";
 
-import {VaultV2Factory} from "../../src/VaultV2Factory.sol";
+//import {VaultV2Factory} from "../../src/VaultV2Factory.sol";
 import "../../src/VaultV2.sol";
 
 import {ERC20Mock} from "../mocks/ERC20Mock.sol";
@@ -15,7 +15,7 @@ import {ERC20Mock} from "../mocks/ERC20Mock.sol";
 /// @custom:halmos --solver-timeout-assertion 0
 contract VaultAccessControlHalmosTest is SymTest, Test {
     ERC20Mock internal underlyingToken;
-    IVaultV2Factory internal vaultFactory;
+    //IVaultV2Factory internal vaultFactory;
     IVaultV2 vault;
 
     address internal owner;
