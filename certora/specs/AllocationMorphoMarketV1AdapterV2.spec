@@ -21,11 +21,11 @@ methods {
     function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoMarketV1AdapterV2WrapperSummary(e, true, data, assets, bs, a) expect(bytes32[], int256);
     function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoMarketV1AdapterV2WrapperSummary(e, false, data, assets, bs, a) expect(bytes32[], int256);
 
-    function _.position(MorphoHarness.Id, address) external => DISPATCHER(true);
-    function _.market(MorphoHarness.Id) external => DISPATCHER(true);
+    function _.position(MorphoHarness.Id, address) external => DISPATCHER;
+    function _.market(MorphoHarness.Id) external => DISPATCHER;
 
-    function _.transfer(address, uint256) external => DISPATCHER(true);
-    function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
+    function _.transfer(address, uint256) external => DISPATCHER;
+    function _.transferFrom(address, address, uint256) external => DISPATCHER;
 }
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
