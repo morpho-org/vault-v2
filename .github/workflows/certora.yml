@@ -38,6 +38,7 @@ jobs:
           - ReentrancyView
           - RelativeCaps
           - RemoveMarketLiveness
+          - Reverts
           - SentinelLiveness
           - SentinelLivenessDeallocateMarketV1
           - SentinelLivenessDeallocateVaultV1
