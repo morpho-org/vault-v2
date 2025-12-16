@@ -13,6 +13,7 @@ definition MAX_UINT256() returns uint256 = 0xffffffffffffffffffffffffffffffff;
 
 methods {
     function Utils.maxMaxRate() external returns (uint256) envfree;
+    function Utils.toBytes4(bytes) external returns bytes4 envfree;
 
     // Assume that accrueInterest does not revert.
     function accrueInterest() internal => NONDET;
@@ -113,7 +114,8 @@ rule setSymbolInputValidation(env e, string newSymbol) {
 rule submitInputValidation(env e, bytes data) {
     address curator = curator();
     uint256 executableAtData = executableAt(data);
-    require forall bytes4 selector. e.block.timestamp + timelock[selector] <= MAX_UINT256(); // To avoid overflow in the executableAt check.
+    
+    require e.block.timestamp + timelock(Utils.toBytes4(data)) <= MAX_UINT256(); // To avoid overflow in the executableAt check.
 
     submit@withrevert(e, data);
     assert e.msg.value != 0 || e.msg.sender != curator || executableAtData != 0 <=> lastReverted;
