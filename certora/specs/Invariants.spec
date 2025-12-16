@@ -1,30 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
+import "../helpers/UtilityVault.spec";
+
 using Utils as Utils;
 
 methods {
     function multicall(bytes[]) external => NONDET DELETE;
-
-    function allocation(bytes32) external returns uint256 envfree;
-    function owner() external returns (address) envfree;
-    function curator() external returns (address) envfree;
-    function adapterRegistry() external returns (address) envfree;
-    function isSentinel(address) external returns (bool) envfree;
-    function lastUpdate() external returns (uint64) envfree;
-    function totalSupply() external returns (uint256) envfree;
-    function performanceFee() external returns (uint96) envfree;
-    function performanceFeeRecipient() external returns (address) envfree;
-    function managementFee() external returns (uint96) envfree;
-    function managementFeeRecipient() external returns (address) envfree;
-    function forceDeallocatePenalty(address) external returns (uint256) envfree;
-    function absoluteCap(bytes32 id) external returns (uint256) envfree;
-    function relativeCap(bytes32 id) external returns (uint256) envfree;
-    function maxRate() external returns (uint64) envfree;
-    function allocation(bytes32 id) external returns (uint256) envfree;
-    function timelock(bytes4 selector) external returns (uint256) envfree;
-    function isAdapter(address adapter) external returns (bool) envfree;
-    function balanceOf(address) external returns (uint256) envfree;
 
     function _.isInRegistry(address adapter) external => ghostIsInRegistry[calledContract][adapter] expect(bool);
 
