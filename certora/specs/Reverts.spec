@@ -14,6 +14,7 @@ definition MAX_UINT256() returns uint256 = 0xffffffffffffffffffffffffffffffff;
 methods {
     function Utils.maxMaxRate() external returns (uint256) envfree;
     function Utils.toBytes4(bytes) external returns bytes4 envfree;
+    function Utils.toSelectorBytes4(bytes) external returns bytes4 envfree;
 
     // Assume that accrueInterest does not revert.
     function accrueInterest() internal => NONDET;
@@ -115,6 +116,7 @@ rule submitInputValidation(env e, bytes data) {
     address curator = curator();
     uint256 executableAtData = executableAt(data);
     
+    require e.block.timestamp + timelock(Utils.toSelectorBytes4(data)) <= MAX_UINT256();
     require e.block.timestamp + timelock(Utils.toBytes4(data)) <= MAX_UINT256(); // To avoid overflow in the executableAt check.
 
     submit@withrevert(e, data);
