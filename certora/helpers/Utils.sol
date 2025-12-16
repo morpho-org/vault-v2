@@ -57,6 +57,14 @@ contract Utils {
         return MarketParamsLib.id(marketParams);
     }
 
+    function wrapId(bytes32 _id) external pure returns (Id) {
+        return Id.wrap(_id);
+    }
+
+    function unwrapId(Id _id) external pure returns (bytes32) {
+        return Id.unwrap(_id);
+    }
+
     function adapterId(address adapter) external pure returns (bytes32) {
         return keccak256(abi.encode("this", adapter));
     }
