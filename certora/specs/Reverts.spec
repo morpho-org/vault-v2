@@ -113,7 +113,7 @@ rule setSymbolInputValidation(env e, string newSymbol) {
 rule submitInputValidation(env e, bytes data) {
     address curator = curator();
     uint256 executableAtData = executableAt(data);
-    //require e.block.timestamp + timelock[bytes4(data[4:8])] <= MAX_UINT256(); // To avoid overflow in the executableAt check.
+    require forall bytes4 selector. e.block.timestamp + timelock[selector] <= MAX_UINT256(); // To avoid overflow in the executableAt check.
 
     submit@withrevert(e, data);
     assert e.msg.value != 0 || e.msg.sender != curator || executableAtData != 0 <=> lastReverted;
