@@ -6,6 +6,8 @@ import "../helpers/UtilityVault.spec";
 using RevertCondition as RevertCondition;
 using Utils as Utils;
 
+definition MAX_UINT256() returns uint256 = 0xffffffffffffffffffffffffffffffff;
+
 // This specification checks either the revert condition or the input validation under which a function reverts.
 // Interest accrual is assumed to not revert.
 
@@ -99,20 +101,22 @@ rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
 rule setNameInputValidation(env e, string newName) {
     address owner = owner();
     setName@withrevert(e, newName);
-    assert e.msg.value != 0 || e.msg.sender != owner => lastReverted;
+    assert e.msg.value != 0 || e.msg.sender != owner <=> lastReverted;
 }
 
 rule setSymbolInputValidation(env e, string newSymbol) {
     address owner = owner();
     setSymbol@withrevert(e, newSymbol);
-    assert e.msg.value != 0 || e.msg.sender != owner => lastReverted;
+    assert e.msg.value != 0 || e.msg.sender != owner <=> lastReverted;
 }
 
 rule submitInputValidation(env e, bytes data) {
     address curator = curator();
     uint256 executableAtData = executableAt(data);
+    //require e.block.timestamp + timelock[bytes4(data[4:8])] <= MAX_UINT256(); // To avoid overflow in the executableAt check.
+
     submit@withrevert(e, data);
-    assert e.msg.value != 0 || e.msg.sender != curator || executableAtData != 0 => lastReverted;
+    assert e.msg.value != 0 || e.msg.sender != curator || executableAtData != 0 <=> lastReverted;
 }
 
 rule revokeRevertCondition(env e, bytes data) {
@@ -144,7 +148,7 @@ rule allocateInputValidation(env e, address adapter, bytes data, uint256 assets)
     bool adapterIsRegistered = isAdapter(adapter);
 
     allocate@withrevert(e, adapter, data, assets);
-    assert !callerIsAllocator || !adapterIsRegistered => lastReverted;
+    assert !callerIsAllocator || !adapterIsRegistered <=> lastReverted;
 }
 
 rule deallocateInputValidation(env e, address adapter, bytes data, uint256 assets) {
@@ -153,20 +157,20 @@ rule deallocateInputValidation(env e, address adapter, bytes data, uint256 asset
     bool adapterIsRegistered = isAdapter(adapter);
 
     deallocate@withrevert(e, adapter, data, assets);
-    assert !(callerIsAllocator || callerIsSentinel) || !adapterIsRegistered => lastReverted;
+    assert !(callerIsAllocator || callerIsSentinel) || !adapterIsRegistered <=> lastReverted;
 }
 
 rule forceDeallocateInputValidation(env e, address adapter, bytes data, uint256 assets, address onBehalf) {
     bool adapterIsRegistered = isAdapter(adapter);
 
     forceDeallocate@withrevert(e, adapter, data, assets, onBehalf);
-    assert !adapterIsRegistered => lastReverted;
+    assert !adapterIsRegistered <=> lastReverted;
 }
 
 rule setLiquidityAdapterAndDataInputValidation(env e, address newLiquidityAdapter, bytes newLiquidityData) {
     bool callerIsAllocator = isAllocator(e.msg.sender);
     setLiquidityAdapterAndData@withrevert(e, newLiquidityAdapter, newLiquidityData);
-    assert e.msg.value != 0 || !callerIsAllocator => lastReverted;
+    assert e.msg.value != 0 || !callerIsAllocator <=> lastReverted;
 }
 
 rule setMaxRateRevertCondition(env e, uint256 newMaxRate) {
@@ -180,9 +184,12 @@ rule transferInputValidation(env e, address to, uint256 shares) {
     bool toIsZeroAddress = to == 0;
     bool callerCanSendShares = canSendShares(e.msg.sender);
     bool toCanReceiveShares = canReceiveShares(to);
+    
+    require shares + balanceOf(to) <= MAX_UINT256(); // To avoid overflow in the balanceOf check.
+    require shares <= balanceOf(e.msg.sender); // To avoid underflow in the balanceOf check.
 
     transfer@withrevert(e, to, shares);
-    assert toIsZeroAddress || !callerCanSendShares || !toCanReceiveShares => lastReverted;
+    assert toIsZeroAddress || !callerCanSendShares || !toCanReceiveShares || e.msg.value != 0 <=> lastReverted;
 }
 
 rule transferFromInputValidation(env e, address from, address to, uint256 shares) {
@@ -191,6 +198,10 @@ rule transferFromInputValidation(env e, address from, address to, uint256 shares
     bool fromCanSendShares = canSendShares(from);
     bool toCanReceiveShares = canReceiveShares(to);
 
+    require shares + balanceOf(to) <= MAX_UINT256(); // To avoid overflow in the balanceOf check.
+    require shares <= balanceOf(e.msg.sender); // To avoid underflow in the balanceOf check.
+    require e.msg.sender != from => (shares <= allowance(from, e.msg.sender)); // To avoid underflow in the allowance check.
+
     transferFrom@withrevert(e, from, to, shares);
-    assert fromIsZeroAddress || toIsZeroAddress || !fromCanSendShares || !toCanReceiveShares => lastReverted;
+    assert fromIsZeroAddress || toIsZeroAddress || !fromCanSendShares || !toCanReceiveShares || e.msg.value != 0 <=> lastReverted;
 }
