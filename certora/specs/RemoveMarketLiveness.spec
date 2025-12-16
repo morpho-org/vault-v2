@@ -25,18 +25,18 @@ methods {
     function Utils.id(Morpho.MarketParams) external returns (Morpho.Id) envfree;
     function Utils.wrapId(bytes32) external returns (Morpho.Id) envfree;
     function Utils.unwrapId(Morpho.Id) external returns (bytes32) envfree;
-    function isAdapter(address) external returns bool envfree;
-    function isAllocator(address) external returns bool envfree;
-    function isSentinel(address) external returns bool envfree;
+    function isAdapter(address) external returns (bool) envfree;
+    function isAllocator(address) external returns (bool) envfree;
+    function isSentinel(address) external returns (bool) envfree;
 
-    // To fix linking issues.
+    // To simplify linking that should be done in the vault, as well as in Morpho.
     function SafeTransferLib.safeTransfer(address, address, uint256) internal => NONDET;
     function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
 
-    function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with (env e) => summaryDeallocate(e, data, assets, selector, sender) expect (bytes32[], int256);
+    function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryDeallocate(e, data, assets, selector, sender) expect(bytes32[], int256);
 
     // Assume that the IRM doesn't revert.
-    function _.expectedMarketBalances(address, bytes32 id, address) internal => summaryExpectedMarketBalances(id) expect (uint256, uint256, uint256, uint256);
+    function _.expectedMarketBalances(address, bytes32 id, address) internal => summaryExpectedMarketBalances(id) expect(uint256, uint256, uint256, uint256);
 }
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
@@ -48,7 +48,7 @@ function summaryExpectedMarketBalances(bytes32 id) returns (uint256, uint256, ui
     uint128 totalBorrowShares;
     uint128 lastUpdate;
     uint128 fee;
-    (totalSupplyAssets, totalSupplyShares, totalBorrowAssets, totalBorrowShares, lastUpdate, fee) = Morpho.market(Utils.wrapId(id));
+    totalSupplyAssets, totalSupplyShares, totalBorrowAssets, totalBorrowShares, lastUpdate, fee = Morpho.market(Utils.wrapId(id));
     return (totalSupplyAssets, totalSupplyShares, totalBorrowAssets, totalBorrowShares);
 }
 
@@ -57,13 +57,14 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     int256 change;
     ids, change = MorphoMarketV1AdapterV2.deallocate(e, data, assets, selector, sender);
     require ids.length == 3, "see IdsMorphoMarketV1Adapter";
+
     // See distinctMarketV1Ids rule.
     require ids[0] != ids[1], "ack";
     require ids[0] != ids[2], "ack";
     require ids[1] != ids[2], "ack";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation < 2^20 * 2^128, "market v1 fits total supply assets on 128 bits, and assume at most 2^20 markets";
-    require change < 2^128, "market v1 fits total supply assets on 128 bits";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation < 2 ^ 20 * 2 ^ 128, "market v1 fits total supply assets on 128 bits, and assume at most 2^20 markets";
+    require change < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
     require currentContract.caps[ids[0]].allocation >= currentContract.caps[ids[2]].allocation, "adapter id allocation is a sum of market id allocation";
     require currentContract.caps[ids[1]].allocation >= currentContract.caps[ids[2]].allocation, "collateral token id allocation is a sum of market id allocation";
     return (ids, change);
@@ -83,8 +84,8 @@ rule canDeallocateExpectedSupplyAssets(env e, bytes data) {
     require MorphoMarketV1AdapterV2.allocation(marketParams) <= max_int256(), "see allocationIsInt256";
     require MorphoMarketV1AdapterV2.supplyShares(id) <= Morpho.supplyShares(marketId, MorphoMarketV1AdapterV2), "internal accounting of shares is less than actual held shares";
     require Morpho.supplyShares(marketId, MorphoMarketV1AdapterV2) <= Morpho.totalSupplyShares(marketId), "total supply shares is the sum of the market supply shares";
-    require Morpho.supplyShares(marketId, MorphoMarketV1AdapterV2) < 2^128, "shares fit on 128 bits on Morpho";
-    require assets < 10^32, "safe because market v1 specifies that loan tokens should have less than 1e32 total supply";
+    require Morpho.supplyShares(marketId, MorphoMarketV1AdapterV2) < 2 ^ 128, "shares fit on 128 bits on Morpho";
+    require assets < 10 ^ 32, "safe because market v1 specifies that loan tokens should have less than 1e32 total supply";
     require Morpho.lastUpdate(marketId) != 0, "assume the market is created";
     require isAdapter(MorphoMarketV1AdapterV2), "assume the adapter is enabled";
     require isSentinel(e.msg.sender) || isAllocator(e.msg.sender), "setup the call";
@@ -124,6 +125,5 @@ rule deallocatingWithZeroExpectedSupplyAssetsRemovesMarket(env e, bytes data, ui
     require MorphoMarketV1AdapterV2.expectedSupplyAssets(e, marketId) == 0, "assume that the expected supply assets is put to zero";
 
     uint256 i;
-    require i < MorphoMarketV1AdapterV2.marketIdsLength(), "only check valid indices";
     assert MorphoMarketV1AdapterV2.marketIds(i) != marketId;
 }
