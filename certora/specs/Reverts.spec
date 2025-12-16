@@ -199,7 +199,7 @@ rule transferFromInputValidation(env e, address from, address to, uint256 shares
     bool toCanReceiveShares = canReceiveShares(to);
 
     require shares + balanceOf(to) <= MAX_UINT256(); // To avoid overflow in the balanceOf check.
-    require shares <= balanceOf(e.msg.sender); // To avoid underflow in the balanceOf check.
+    require shares <= balanceOf(from); // To avoid underflow in the balanceOf check.
     require e.msg.sender != from => (shares <= allowance(from, e.msg.sender)); // To avoid underflow in the allowance check.
 
     transferFrom@withrevert(e, from, to, shares);
