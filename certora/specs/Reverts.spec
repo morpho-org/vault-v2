@@ -109,9 +109,8 @@ rule setNameInputValidation(env e, string newName) {
 
 rule setSymbolInputValidation(env e, string newSymbol) {
     address owner = owner();
-    require newSymbol.length > 32;
     setSymbol@withrevert(e, newSymbol);
-    assert e.msg.value != 0 || e.msg.sender != owner <=> lastReverted;
+    assert (e.msg.value != 0 || e.msg.sender != owner) <=> lastReverted;
 }
 
 rule submitInputValidation(env e, bytes data) {
