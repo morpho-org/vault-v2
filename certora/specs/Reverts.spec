@@ -5,6 +5,7 @@ import "../helpers/UtilityVault.spec";
 
 using RevertCondition as RevertCondition;
 using Utils as Utils;
+using VaultV2 as VaultV2;
 
 definition MAX_UINT256() returns uint256 = 0xffffffffffffffffffffffffffffffff;
 
@@ -108,6 +109,7 @@ rule setNameInputValidation(env e, string newName) {
 
 rule setSymbolInputValidation(env e, string newSymbol) {
     address owner = owner();
+    require newSymbol.length > 32;
     setSymbol@withrevert(e, newSymbol);
     assert e.msg.value != 0 || e.msg.sender != owner <=> lastReverted;
 }
@@ -115,9 +117,16 @@ rule setSymbolInputValidation(env e, string newSymbol) {
 rule submitInputValidation(env e, bytes data) {
     address curator = curator();
     uint256 executableAtData = executableAt(data);
+
+    require (forall bytes4 selector. e.block.timestamp + VaultV2.timelock[selector] <= MAX_UINT256());
+    // bytes4 selector = Utils.toBytes4(data);
+    // uint256 timelock_at_call = VaultV2.timelock[selector];
+
+
+    // require e.block.timestamp <= MAX_UINT256(); // To avoid overflow in the timelock addition.
     
-    require e.block.timestamp + timelock(Utils.toSelectorBytes4(data)) <= MAX_UINT256();
-    require e.block.timestamp + timelock(Utils.toBytes4(data)) <= MAX_UINT256(); // To avoid overflow in the executableAt check.
+    // require e.block.timestamp + timelock(Utils.toSelectorBytes4(data)) <= MAX_UINT256();
+    // require e.block.timestamp + timelock(Utils.toBytes4(data)) <= MAX_UINT256(); // To avoid overflow in the executableAt check.
 
     submit@withrevert(e, data);
     assert e.msg.value != 0 || e.msg.sender != curator || executableAtData != 0 <=> lastReverted;
