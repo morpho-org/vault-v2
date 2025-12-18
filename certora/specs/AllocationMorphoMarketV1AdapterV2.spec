@@ -23,11 +23,11 @@ methods {
     function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoMarketV1AdapterV2WrapperSummary(e, true, data, assets, bs, a) expect(bytes32[], int256);
     function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoMarketV1AdapterV2WrapperSummary(e, false, data, assets, bs, a) expect(bytes32[], int256);
 
-    function _.position(MorphoHarness.Id, address) external => DISPATCHER(true);
-    function _.market(MorphoHarness.Id) external => DISPATCHER(true);
+    function _.position(MorphoHarness.Id, address) external => DISPATCHER;
+    function _.market(MorphoHarness.Id) external => DISPATCHER;
 
-    function _.transfer(address, uint256) external => DISPATCHER(true);
-    function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
+    function _.transfer(address, uint256) external => DISPATCHER;
+    function _.transferFrom(address, address, uint256) external => DISPATCHER;
 
     // Assume no callback, the full proof can be recovered inductively.
     function _.onMorphoSupply(uint256, bytes) external => NONDET;
@@ -147,10 +147,9 @@ rule expectedSupplyAssetsIsBounded(env e, bytes32 marketId) {
 
 invariant adapterSupplySharesIsLessThanActualSupplyShares(bytes32 marketId)
     MorphoMarketV1AdapterV2.supplyShares[marketId] <= MorphoMarketV1.supplyShares(Utils.wrapId(marketId), MorphoMarketV1AdapterV2)
-filtered { f -> f.contract == MorphoMarketV1AdapterV2 || f.contract == MorphoMarketV1 }
-{
-    preserved MorphoMarketV1.withdraw(MorphoHarness.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) with (env e) {
-        require e.msg.sender != MorphoMarketV1AdapterV2, "the adapter is not an EOA";
-        require !MorphoMarketV1.isAuthorized(MorphoMarketV1AdapterV2, e.msg.sender), "the adapter does not call setAuthorization and it cannot sign an authorization";
+    filtered { f -> f.contract == MorphoMarketV1AdapterV2 || f.contract == MorphoMarketV1 } {
+        preserved MorphoMarketV1.withdraw(MorphoHarness.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) with (env e) {
+            require e.msg.sender != MorphoMarketV1AdapterV2, "the adapter is not an EOA";
+            require !MorphoMarketV1.isAuthorized(MorphoMarketV1AdapterV2, e.msg.sender), "the adapter does not call setAuthorization and it cannot sign an authorization";
+        }
     }
-}

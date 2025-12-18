@@ -89,7 +89,9 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         require(msg.sender == IVaultV2(parentVault).curator(), Unauthorized());
         require(executableAt[data] == 0, DataAlreadyPending());
 
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(data);
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the second bytes4.
         uint256 _timelock = selector == IMorphoMarketV1AdapterV2.decreaseTimelock.selector
             ? timelock[bytes4(data[4:8])]
             : timelock[selector];
@@ -113,6 +115,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         );
         require(executableAt[data] != 0, DataNotTimelocked());
         executableAt[data] = 0;
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(data);
         emit Revoke(msg.sender, selector, data);
     }
@@ -141,8 +144,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     }
 
     /// @dev This function requires great caution because it will irreversibly disable submit for a selector.
-    /// @dev Existing pending operations submitted before increasing a timelock can not be executed at the initial
-    /// executableAt.
+    /// @dev Existing pending operations submitted before abdicating can not be executed at the initial executableAt.
     function abdicate(bytes4 selector) external {
         timelocked();
         abdicated[selector] = true;
@@ -195,8 +197,8 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
         emit Allocate(marketId, newAllocation, mintedShares);
 
-        // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
-        // max total assets of the vault.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because Market V1 bounds the total supply of the
+        // underlying token, and allocation is less than the max total assets of the vault.
         return (ids(marketParams), int256(newAllocation) - int256(oldAllocation));
     }
 
@@ -223,8 +225,8 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
         emit Deallocate(marketId, newAllocation, burnedShares);
 
-        // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
-        // max total assets of the vault.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because Market V1 bounds the total supply of the
+        // underlying token, and allocation is less than the max total assets of the vault.
         return (ids(marketParams), int256(newAllocation) - int256(oldAllocation));
     }
 

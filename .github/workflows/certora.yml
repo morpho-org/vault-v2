@@ -30,15 +30,16 @@ jobs:
           - Invariants
           - Liveness
           - MarketIds
-          - MorphoMarketV1AdapterV2Factory
-          - MorphoVaultV1AdapterFactory
           - OwnerSafety
           - PreviewFunctions
           - Reentrancy
           - ReentrancyView
           - RelativeCaps
           - RemoveMarketLiveness
+          - Reverts
           - SentinelLiveness
+          - SentinelLivenessDeallocateMarketV1
+          - SentinelLivenessDeallocateVaultV1
           - TokensMorphoMarketV1AdapterV2
           - TokensMorphoVaultV1Adapter
           - TokensNoAdapter
@@ -52,7 +53,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
 
       - name: Install Jq
         uses: sergeysova/jq-action@v2

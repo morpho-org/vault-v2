@@ -5,22 +5,17 @@ pragma solidity >=0.5.0;
 interface IMorphoMarketV1AdapterV2Factory {
     /* EVENTS */
 
-    event CreateMorphoMarketV1AdapterV2Factory(address indexed adaptiveCurveIrm);
-
-    event CreateMorphoMarketV1AdapterV2(
-        address indexed parentVault,
-        address indexed morpho,
-        address adaptiveCurveIrm,
-        address indexed morphoMarketV1AdapterV2
-    );
+    event CreateMorphoMarketV1AdapterV2Factory(address indexed morpho, address indexed adaptiveCurveIrm);
+    event CreateMorphoMarketV1AdapterV2(address indexed parentVault, address indexed morphoMarketV1AdapterV2);
 
     /* VIEW FUNCTIONS */
 
+    function morpho() external view returns (address);
     function adaptiveCurveIrm() external view returns (address);
+    function morphoMarketV1AdapterV2(address parentVault) external view returns (address);
+    function isMorphoMarketV1AdapterV2(address account) external view returns (bool);
 
     /* NON-VIEW FUNCTIONS */
 
-    function morphoMarketV1AdapterV2(address parentVault, address morpho) external view returns (address);
-    function isMorphoMarketV1AdapterV2(address account) external view returns (bool);
-    function createMorphoMarketV1AdapterV2(address parentVault, address morpho) external returns (address);
+    function createMorphoMarketV1AdapterV2(address parentVault) external returns (address);
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-import "UtilityFunctions.spec";
+import "../helpers/UtilityAdapters.spec";
 
 using MetaMorphoV1_1 as vaultV1;
 
@@ -13,6 +13,7 @@ methods {
     // Needed because linking fails.
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
+
     function MetaMorphoV1_1._accruedFeeAndAssets() internal returns (uint256, uint256, uint256) => constantAccrueFeeAndAssets();
 
     function _.borrowRate(Morpho.MarketParams, Morpho.Market) external => CONSTANT;
