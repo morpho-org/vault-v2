@@ -7,15 +7,15 @@ using RevertCondition as RevertCondition;
 using Utils as Utils;
 using VaultV2 as VaultV2;
 
-definition MAX_UINT256() returns uint256 = 0xffffffffffffffffffffffffffffffff;
+definition MAX_UINT256() returns uint256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
 // This specification checks either the revert condition or the input validation under which a function reverts.
 // Interest accrual is assumed to not revert.
 
 methods {
     function Utils.maxMaxRate() external returns (uint256) envfree;
-    function Utils.toBytes4(bytes) external returns bytes4 envfree;
-    function Utils.toSelectorBytes4(bytes) external returns bytes4 envfree;
+    //function Utils.toBytes4(bytes) external returns bytes4 envfree;
+    //function Utils.toSelectorBytes4(bytes) external returns bytes4 envfree;
 
     // Assume that accrueInterest does not revert.
     function accrueInterest() internal => NONDET;
@@ -118,9 +118,10 @@ rule submitInputValidation(env e, bytes data) {
     address curator = curator();
     uint256 executableAtData = executableAt(data);
 
-    require (forall bytes4 selector. e.block.timestamp + VaultV2.timelock[selector] <= MAX_UINT256());
-    // bytes4 selector = Utils.toBytes4(data);
-    // uint256 timelock_at_call = VaultV2.timelock[selector];
+    require e.block.timestamp <= 0xffffffffffffffffffffffffffffffff; // To avoid overflow in the timelock addition.
+    require (forall bytes4 selector. VaultV2.timelock[selector] <= 0xffffffffffffffffffffffffffffffff);
+    //bytes4 selector = Utils.toBytes4(data);
+    //uint256 timelock_at_call = VaultV2.timelock[selector];
 
 
     // require e.block.timestamp <= MAX_UINT256(); // To avoid overflow in the timelock addition.
