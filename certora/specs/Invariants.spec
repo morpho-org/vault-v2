@@ -6,7 +6,7 @@ import "../helpers/UtilityVault.spec";
 using Utils as Utils;
 
 methods {
-    function multicall(bytes[]) external => NONDET DELETE;
+    function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
     function _.isInRegistry(address adapter) external => ghostIsInRegistry[calledContract][adapter] expect(bool);
 

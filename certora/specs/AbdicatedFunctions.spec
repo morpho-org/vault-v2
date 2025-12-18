@@ -4,14 +4,10 @@
 import "../helpers/UtilityVault.spec";
 
 methods {
-    function multicall(bytes[]) external => NONDET DELETE;
+    function multicall(bytes[]) external => HAVOC_ALL DELETE;
 }
 
-rule abdicatedFunctionsCantBeCalled(env e, method f, calldataarg args)
-filtered {
-    f -> functionIsTimelocked(f)
-}
-{
+rule abdicatedFunctionsCantBeCalled(env e, method f, calldataarg args) filtered { f -> functionIsTimelocked(f) } {
     require abdicated(to_bytes4(f.selector));
 
     f@withrevert(e, args);

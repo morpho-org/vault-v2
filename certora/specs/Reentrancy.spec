@@ -5,12 +5,13 @@ using MorphoMarketV1AdapterV2 as MorphoMarketV1AdapterV2;
 using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
 
 methods {
-    function multicall(bytes[]) external => NONDET DELETE;
+    function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
     function isAdapter(address) external returns bool envfree;
 
     function _.accrueInterest(MorphoMarketV1AdapterV2.MarketParams) external => ignoredCallVoidSummary() expect void;
 
+    // Assume that adapters are either MorphoMarketV1AdapterV2 or MorphoVaultV1Adapter.
     function _.allocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
     function _.deallocate(bytes, uint256, bytes4, address) external => DISPATCHER(true);
 
