@@ -10,13 +10,15 @@ methods {
 
     function MorphoMarketV1AdapterV2.ids(MorphoHarness.MarketParams) external returns (bytes32[]) envfree;
     function MorphoMarketV1AdapterV2.allocation(MorphoHarness.MarketParams) external returns (uint256) envfree;
-
+    function MorphoMarketV1.totalSupplyShares(MorphoHarness.Id) external returns (uint256) envfree;
+    function MorphoMarketV1.supplyShares(MorphoHarness.Id, address) external returns (uint256) envfree;
+    function MorphoMarketV1.isAuthorized(address, address) external returns (bool) envfree;
     function Utils.decodeMarketParams(bytes) external returns (MorphoHarness.MarketParams) envfree;
     function Utils.id(MorphoHarness.MarketParams) external returns (MorphoHarness.Id) envfree;
+    function Utils.wrapId(bytes32) external returns (MorphoHarness.Id) envfree;
 
     function _.borrowRateView(bytes32, MorphoHarness.Market memory, address) internal => constantBorrowRate expect(uint256);
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
-    function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
 
     function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoMarketV1AdapterV2WrapperSummary(e, true, data, assets, bs, a) expect(bytes32[], int256);
     function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoMarketV1AdapterV2WrapperSummary(e, false, data, assets, bs, a) expect(bytes32[], int256);
@@ -24,8 +26,18 @@ methods {
     function _.position(MorphoHarness.Id, address) external => DISPATCHER;
     function _.market(MorphoHarness.Id) external => DISPATCHER;
 
-    function _.transfer(address, uint256) external => DISPATCHER;
-    function _.transferFrom(address, address, uint256) external => DISPATCHER;
+    // Assume no reentrancy by requiring known token implementations and no callbacks.
+    // This is sound because the full proof can be recovered by induction over the number of reentrancy calls.
+    // The base case is when there is no reentrancy, which is what this specification file proves.
+
+    function _.transfer(address, uint256) external => DISPATCHER(true);
+    function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
+
+    function _.onMorphoSupply(uint256, bytes) external => NONDET;
+    function _.onMorphoRepay(uint256, bytes) external => NONDET;
+    function _.onMorphoSupplyCollateral(uint256, bytes) external => NONDET;
+    function _.onMorphoLiquidate(uint256, bytes) external => NONDET;
+    function _.onMorphoFlashLoan(uint256, bytes) external => NONDET;
 }
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
@@ -86,7 +98,7 @@ rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
 
     MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
     uint256 expected = MorphoMarketV1AdapterV2.expectedSupplyAssets(e, Utils.id(marketParams));
-    require expected < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
+    require expected < 2 ^ 128, "see rule expectedSupplyAssetsIsBounded";
 
     assert MorphoMarketV1AdapterV2.allocation(marketParams) == expected;
 }
@@ -124,7 +136,23 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
 
     MorphoHarness.MarketParams marketParams = Utils.decodeMarketParams(data);
     uint256 expected = MorphoMarketV1AdapterV2.expectedSupplyAssets(e, Utils.id(marketParams));
-    require expected < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
+    require expected < 2 ^ 128, "see rule expectedSupplyAssetsIsBounded";
 
     assert MorphoMarketV1AdapterV2.allocation(marketParams) == expected;
 }
+
+rule expectedSupplyAssetsIsBounded(env e, bytes32 marketId) {
+    requireInvariant adapterSupplySharesIsLessThanActualSupplyShares(marketId);
+    require MorphoMarketV1.supplyShares(Utils.wrapId(marketId), MorphoMarketV1AdapterV2) < MorphoMarketV1.totalSupplyShares(Utils.wrapId(marketId)), "total supply shares is the sum of all the supply shares";
+
+    assert MorphoMarketV1AdapterV2.expectedSupplyAssets(e, marketId) < 2 ^ 128;
+}
+
+invariant adapterSupplySharesIsLessThanActualSupplyShares(bytes32 marketId)
+    MorphoMarketV1AdapterV2.supplyShares[marketId] <= MorphoMarketV1.supplyShares(Utils.wrapId(marketId), MorphoMarketV1AdapterV2)
+    filtered { f -> f.contract == MorphoMarketV1AdapterV2 || f.contract == MorphoMarketV1 } {
+        preserved MorphoMarketV1.withdraw(MorphoHarness.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) with (env e) {
+            require e.msg.sender != MorphoMarketV1AdapterV2, "the adapter is not an EOA";
+            require !MorphoMarketV1.isAuthorized(MorphoMarketV1AdapterV2, e.msg.sender), "the adapter does not call setAuthorization and it cannot sign an authorization";
+        }
+    }
