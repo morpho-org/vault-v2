@@ -26,11 +26,13 @@ methods {
     function _.position(MorphoHarness.Id, address) external => DISPATCHER;
     function _.market(MorphoHarness.Id) external => DISPATCHER;
 
-    // Optimistic dispatch, the full proof can be recovered inductively.
+    // Assume no reentrancy by requiring known token implementations and no callbacks.
+    // This is sound because the full proof can be recovered by induction over the number of reentrancy calls.
+    // The base case is when there is no reentrancy, which is what this specification file proves.
+
     function _.transfer(address, uint256) external => DISPATCHER(true);
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
 
-    // Assume no callback, the full proof can be recovered inductively.
     function _.onMorphoSupply(uint256, bytes) external => NONDET;
     function _.onMorphoRepay(uint256, bytes) external => NONDET;
     function _.onMorphoSupplyCollateral(uint256, bytes) external => NONDET;
