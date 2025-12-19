@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
+import "../helpers/UtilityVault.spec";
+
 using MorphoMarketV1AdapterV2 as MorphoMarketV1AdapterV2;
 using MorphoHarness as Morpho;
 using Utils as Utils;
@@ -25,9 +27,6 @@ methods {
     function Utils.id(Morpho.MarketParams) external returns (Morpho.Id) envfree;
     function Utils.wrapId(bytes32) external returns (Morpho.Id) envfree;
     function Utils.unwrapId(Morpho.Id) external returns (bytes32) envfree;
-    function isAdapter(address) external returns (bool) envfree;
-    function isAllocator(address) external returns (bool) envfree;
-    function isSentinel(address) external returns (bool) envfree;
 
     // To simplify linking that should be done in the vault, as well as in Morpho.
     function SafeTransferLib.safeTransfer(address, address, uint256) internal => NONDET;
