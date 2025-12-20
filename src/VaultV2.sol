@@ -34,6 +34,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 ///
 /// SHARE PRICE
 /// @dev The share price can go down if the vault incurs some losses.
+/// @dev To get some additional bounds on the share price upon interactions, a check must be performed on top.
 /// @dev Interest/loss are accounted only once per transaction (at the first interaction with the vault).
 /// @dev Donations increase the share price but not faster than the maxRate.
 /// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). In order to protect against
