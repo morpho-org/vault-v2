@@ -33,8 +33,8 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// because flashloan-based shorting is prevented as interests and losses are only accounted once per transaction.
 ///
 /// SHARE PRICE
-/// @dev The share price can go down if the vault incurs some losses. Users might want to perform slippage checks upon
-/// withdraw/redeem via an other contract.
+/// @dev The share price can go down if the vault incurs some losses.
+/// @dev To get some additional bounds on the share price upon interactions, a check must be performed on top.
 /// @dev Interest/loss are accounted only once per transaction (at the first interaction with the vault).
 /// @dev Donations increase the share price but not faster than the maxRate.
 /// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). In order to protect against
