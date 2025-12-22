@@ -26,9 +26,12 @@ methods {
     function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
     function _.canSendAssets(address account) external => ghostCanSendAssets(calledContract, account) expect(bool);
     function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
-}
 
-ghost ghostIsInRegistry(address, address) returns bool;
+    // summaries for allocation and deallocation in adapters
+    function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external;
+    }
+
+ghost ghostIsInRegistry(address, address) returns bool;    
 ghost ghostCanSendShares(address, address) returns bool;
 ghost ghostCanReceiveShares(address, address) returns bool;
 ghost ghostCanSendAssets(address, address) returns bool;
@@ -107,7 +110,7 @@ rule setNameInputValidation(env e, string newName) {
     assert e.msg.value != 0 || e.msg.sender != owner <=> lastReverted;
 }
 
-rule setSymbolInputValidation(env e, string newSymbol) {
+rule setSymbolInputValidation(env e, calldataarg newSymbol) {
     address owner = owner();
     setSymbol@withrevert(e, newSymbol);
     assert (e.msg.value != 0 || e.msg.sender != owner) <=> lastReverted;
@@ -119,15 +122,7 @@ rule submitInputValidation(env e, bytes data) {
 
     require e.block.timestamp <= 0xffffffffffffffffffffffffffffffff; // To avoid overflow in the timelock addition.
     require (forall bytes4 selector. VaultV2.timelock[selector] <= 0xffffffffffffffffffffffffffffffff);
-    //bytes4 selector = Utils.toBytes4(data);
-    //uint256 timelock_at_call = VaultV2.timelock[selector];
-
-
-    // require e.block.timestamp <= MAX_UINT256(); // To avoid overflow in the timelock addition.
     
-    // require e.block.timestamp + timelock(Utils.toSelectorBytes4(data)) <= MAX_UINT256();
-    // require e.block.timestamp + timelock(Utils.toBytes4(data)) <= MAX_UINT256(); // To avoid overflow in the executableAt check.
-
     submit@withrevert(e, data);
     assert e.msg.value != 0 || e.msg.sender != curator || executableAtData != 0 <=> lastReverted;
 }
@@ -137,7 +132,7 @@ rule revokeRevertCondition(env e, bytes data) {
     bool isSentinel = isSentinel(e.msg.sender);
     uint256 executableAtData = executableAt(data);
     revoke@withrevert(e, data);
-    assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != curator && !isSentinel) || executableAtData == 0;
+    assert e.msg.value != 0 || (e.msg.sender != curator && !isSentinel) || executableAtData == 0 <=>lastReverted;
 }
 
 rule decreaseAbsoluteCapRevertCondition(env e, bytes idData, uint256 newAbsoluteCap) {
@@ -161,7 +156,7 @@ rule allocateInputValidation(env e, address adapter, bytes data, uint256 assets)
     bool adapterIsRegistered = isAdapter(adapter);
 
     allocate@withrevert(e, adapter, data, assets);
-    assert !callerIsAllocator || !adapterIsRegistered <=> lastReverted;
+    assert !callerIsAllocator || !adapterIsRegistered || e.msg.value != 0 <=> lastReverted;
 }
 
 rule deallocateInputValidation(env e, address adapter, bytes data, uint256 assets) {
@@ -170,7 +165,7 @@ rule deallocateInputValidation(env e, address adapter, bytes data, uint256 asset
     bool adapterIsRegistered = isAdapter(adapter);
 
     deallocate@withrevert(e, adapter, data, assets);
-    assert !(callerIsAllocator || callerIsSentinel) || !adapterIsRegistered <=> lastReverted;
+    assert !(callerIsAllocator || callerIsSentinel) || !adapterIsRegistered || e.msg.value != 0 <=> lastReverted;
 }
 
 rule forceDeallocateInputValidation(env e, address adapter, bytes data, uint256 assets, address onBehalf) {
