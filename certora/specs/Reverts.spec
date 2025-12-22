@@ -28,7 +28,8 @@ methods {
     function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
 
     // summaries for allocation and deallocation in adapters
-    function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external;
+    function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external => summaryDeallocate(data, assets, selector, sender) expect(bytes32[], int256);
+    function _.safeTransferFrom(address token, address from, address to, uint256 value) internal => NONDET;
     }
 
 ghost ghostIsInRegistry(address, address) returns bool;    
@@ -36,6 +37,12 @@ ghost ghostCanSendShares(address, address) returns bool;
 ghost ghostCanReceiveShares(address, address) returns bool;
 ghost ghostCanSendAssets(address, address) returns bool;
 ghost ghostCanReceiveAssets(address, address) returns bool;
+
+function summaryDeallocate(bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
+    
+    return ([], 0);
+
+}
 
 // The helper contract is called first, so this specification can miss trivial revert conditions like e.msg.value != 0.
 rule timelockedFunctionsRevertConditions(env e, calldataarg args, method f)
