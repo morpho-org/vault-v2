@@ -8,6 +8,10 @@ contract ERC20Helper {
         return IERC20(token).balanceOf(user);
     }
 
+    function allowance(address token, address owner, address spender) external view returns (uint256) {
+        return IERC20(token).allowance(owner, spender);
+    }
+
     function totalSupply(address token) external view returns (uint256) {
         return IERC20(token).totalSupply();
     }
