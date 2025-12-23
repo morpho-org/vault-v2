@@ -279,7 +279,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Useful for EOAs to batch admin calls.
     /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do
     /// the multicall themselves.
-    function multicall(bytes[] calldata data) external {
+    function multicall (bytes[] calldata data) external {
         for (uint256 i = 0; i < data.length; i++) {
             (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
             if (!success) {
@@ -594,6 +594,32 @@ contract VaultV2 is IVaultV2 {
         require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         deallocateInternal(adapter, data, assets);
     }
+
+    
+    function bar(address adapter, bytes memory data, uint256 assets)
+        internal
+        returns (bytes32[] memory)
+    {
+        require(isAdapter[adapter], ErrorsLib.NotAdapter());
+
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
+
+        for (uint256 i; i < ids.length; i++) {
+            Caps storage _caps = caps[ids[i]];
+            require(_caps.allocation > 0, ErrorsLib.ZeroAllocation());
+            _caps.allocation = (int256(_caps.allocation) + change).toUint256();
+        }
+
+        SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
+        emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, change);
+        return ids;
+    }    
+    
+    function foo(address adapter, bytes memory data, uint256 assets) external {
+        require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.Unauthorized());
+        bytes32[] memory ids = bar(adapter, data, assets);
+    }
+
 
     function deallocateInternal(address adapter, bytes memory data, uint256 assets)
         internal
