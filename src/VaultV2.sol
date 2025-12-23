@@ -134,7 +134,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev If a function is abdicated, it cannot be called no matter its timelock and what executableAt[data] contains.
 /// Otherwise, the minimum time in which a function can be called is the following:
 /// min(
-///     timelock[selector],
+///     block.timestamp +timelock[selector],
 ///     executableAt[selector::_],
 ///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock
 /// ).
