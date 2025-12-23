@@ -49,7 +49,6 @@ ghost ghostCanReceiveAssets(address, address) returns bool;
 function summaryDeallocate(bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
     
     return ([], 0);
-
 }
 
 // The helper contract is called first, so this specification can miss trivial revert conditions like e.msg.value != 0.
