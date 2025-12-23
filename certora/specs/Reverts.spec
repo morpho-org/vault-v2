@@ -183,15 +183,6 @@ rule deallocateInputValidation(env e, address adapter, bytes data, uint256 asset
     assert !(callerIsAllocator || callerIsSentinel) || !adapterIsRegistered || e.msg.value != 0 <=> lastReverted;
 }
 
-rule fooInputValidation(env e, address adapter, bytes data, uint256 assets) {
-    bool callerIsAllocator = isAllocator(e.msg.sender);
-    bool callerIsSentinel = isSentinel(e.msg.sender);
-    bool adapterIsRegistered = isAdapter(adapter);
-
-    foo@withrevert(e, adapter, data, assets);
-    assert !(callerIsAllocator || callerIsSentinel) || e.msg.value != 0 <=> lastReverted;
-}
-
 rule forceDeallocateInputValidation(env e, address adapter, bytes data, uint256 assets, address onBehalf) {
     bool adapterIsRegistered = isAdapter(adapter);
 
