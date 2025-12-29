@@ -6,6 +6,8 @@ import "../helpers/UtilityVault.spec";
 using RevertCondition as RevertCondition;
 using Utils as Utils;
 using VaultV2 as VaultV2;
+using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
+
 
 definition MAX_UINT256() returns uint256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
@@ -27,11 +29,15 @@ methods {
     function _.canSendAssets(address account) external => ghostCanSendAssets(calledContract, account) expect(bool);
     function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
 
+    function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoVaultV1AdapterWrapperSummary(e, true, data, assets, bs, a) expect(bytes32[], int256);
+    function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoVaultV1AdapterWrapperSummary(e, false, data, assets, bs, a) expect(bytes32[], int256);
     // summaries for allocation and deallocation in adapters
-    function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external => summaryDeallocate(data, assets, selector, sender) expect(bytes32[], int256);
+    //function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external => summaryDeallocate(data, assets, selector, sender) expect(bytes32[], int256);
     //function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external => ghostSummaryDeallocate(data, assets, selector, sender) expect(bytes32[], int256);
-        
+
+    function _.safeTransfer(address to, uint256 shares) internal => NONDET;    
     function _.safeTransferFrom(address token, address from, address to, uint256 value) internal => NONDET;
+    
     }
 
 ghost ghostIsInRegistry(address, address) returns bool;    
@@ -40,16 +46,36 @@ ghost ghostCanReceiveShares(address, address) returns bool;
 ghost ghostCanSendAssets(address, address) returns bool;
 ghost ghostCanReceiveAssets(address, address) returns bool;
 
+
+//persistent ghost int256 ghostChange;
+
+// Wrapper to record change returned by the adapter.
+function morphoVaultV1AdapterWrapperSummary(env e, bool isAllocateCall, bytes data, uint256 assets, bytes4 bs, address a) returns (bytes32[], int256) {
+    bytes32[] ids;
+    int256 change;
+
+    if (isAllocateCall) {
+        ids, change = MorphoVaultV1Adapter.allocate(e, data, assets, bs, a);
+    } else {
+        ids, change = MorphoVaultV1Adapter.deallocate(e, data, assets, bs, a);
+    }
+
+    //ghostChange = change;
+    return (ids, change);
+}
+
 //ghost ghostSummaryDeallocateBytes(bytes, uint256, bytes4, address) returns bytes32[] {
     
 //    axiom forall bytes data. forall uint256 assets. forall bytes4 selector. forall address sender. ghostSummaryDeallocateBytes(data, assets, selector, sender).length == 0;
 // }
 
 
-function summaryDeallocate(bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
+// function summaryDeallocate(bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
     
-    return ([], 0);
-}
+//     return ([], 0);
+// }
+
+
 
 // The helper contract is called first, so this specification can miss trivial revert conditions like e.msg.value != 0.
 rule timelockedFunctionsRevertConditions(env e, calldataarg args, method f)
@@ -177,6 +203,7 @@ rule deallocateInputValidation(env e, address adapter, bytes data, uint256 asset
     bool callerIsAllocator = isAllocator(e.msg.sender);
     bool callerIsSentinel = isSentinel(e.msg.sender);
     bool adapterIsRegistered = isAdapter(adapter);
+    require (forall bytes32 id. VaultV2.caps[id].allocation>0);
 
     deallocate@withrevert(e, adapter, data, assets);
     assert !(callerIsAllocator || callerIsSentinel) || !adapterIsRegistered || e.msg.value != 0 <=> lastReverted;
