@@ -5,12 +5,19 @@ import "../helpers/UtilityVault.spec";
 
 using RevertCondition as RevertCondition;
 using Utils as Utils;
+using VaultV2 as VaultV2;
+using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
+
+
+definition MAX_UINT256() returns uint256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
 // This specification checks either the revert condition or the input validation under which a function reverts.
 // Interest accrual is assumed to not revert.
 
 methods {
     function Utils.maxMaxRate() external returns (uint256) envfree;
+    //function Utils.toBytes4(bytes) external returns bytes4 envfree;
+    //function Utils.toSelectorBytes4(bytes) external returns bytes4 envfree;
 
     // Assume that accrueInterest does not revert.
     function accrueInterest() internal => NONDET;
@@ -21,13 +28,54 @@ methods {
     function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
     function _.canSendAssets(address account) external => ghostCanSendAssets(calledContract, account) expect(bool);
     function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
-}
 
-ghost ghostIsInRegistry(address, address) returns bool;
+    function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoVaultV1AdapterWrapperSummary(e, true, data, assets, bs, a) expect(bytes32[], int256);
+    function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoVaultV1AdapterWrapperSummary(e, false, data, assets, bs, a) expect(bytes32[], int256);
+    // summaries for allocation and deallocation in adapters
+    //function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external => summaryDeallocate(data, assets, selector, sender) expect(bytes32[], int256);
+    //function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external => ghostSummaryDeallocate(data, assets, selector, sender) expect(bytes32[], int256);
+
+    function _.safeTransfer(address to, uint256 shares) internal => NONDET;    
+    function _.safeTransferFrom(address token, address from, address to, uint256 value) internal => NONDET;
+    
+    }
+
+ghost ghostIsInRegistry(address, address) returns bool;    
 ghost ghostCanSendShares(address, address) returns bool;
 ghost ghostCanReceiveShares(address, address) returns bool;
 ghost ghostCanSendAssets(address, address) returns bool;
 ghost ghostCanReceiveAssets(address, address) returns bool;
+
+
+//persistent ghost int256 ghostChange;
+
+// Wrapper to record change returned by the adapter.
+function morphoVaultV1AdapterWrapperSummary(env e, bool isAllocateCall, bytes data, uint256 assets, bytes4 bs, address a) returns (bytes32[], int256) {
+    bytes32[] ids;
+    int256 change;
+
+    if (isAllocateCall) {
+        ids, change = MorphoVaultV1Adapter.allocate(e, data, assets, bs, a);
+    } else {
+        ids, change = MorphoVaultV1Adapter.deallocate(e, data, assets, bs, a);
+    }
+
+    //ghostChange = change;
+    return (ids, change);
+}
+
+//ghost ghostSummaryDeallocateBytes(bytes, uint256, bytes4, address) returns bytes32[] {
+    
+//    axiom forall bytes data. forall uint256 assets. forall bytes4 selector. forall address sender. ghostSummaryDeallocateBytes(data, assets, selector, sender).length == 0;
+// }
+
+
+// function summaryDeallocate(bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
+    
+//     return ([], 0);
+// }
+
+
 
 // The helper contract is called first, so this specification can miss trivial revert conditions like e.msg.value != 0.
 rule timelockedFunctionsRevertConditions(env e, calldataarg args, method f)
@@ -99,20 +147,24 @@ rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
 rule setNameInputValidation(env e, string newName) {
     address owner = owner();
     setName@withrevert(e, newName);
-    assert e.msg.value != 0 || e.msg.sender != owner => lastReverted;
+    assert e.msg.value != 0 || e.msg.sender != owner <=> lastReverted;
 }
 
-rule setSymbolInputValidation(env e, string newSymbol) {
+rule setSymbolInputValidation(env e, calldataarg newSymbol) {
     address owner = owner();
     setSymbol@withrevert(e, newSymbol);
-    assert e.msg.value != 0 || e.msg.sender != owner => lastReverted;
+    assert (e.msg.value != 0 || e.msg.sender != owner) <=> lastReverted;
 }
 
 rule submitInputValidation(env e, bytes data) {
     address curator = curator();
     uint256 executableAtData = executableAt(data);
+
+    require e.block.timestamp <= 0xffffffffffffffffffffffffffffffff; // To avoid overflow in the timelock addition.
+    require (forall bytes4 selector. VaultV2.timelock[selector] <= 0xffffffffffffffffffffffffffffffff);
+    
     submit@withrevert(e, data);
-    assert e.msg.value != 0 || e.msg.sender != curator || executableAtData != 0 => lastReverted;
+    assert e.msg.value != 0 || e.msg.sender != curator || executableAtData != 0 <=> lastReverted;
 }
 
 rule revokeRevertCondition(env e, bytes data) {
@@ -120,7 +172,7 @@ rule revokeRevertCondition(env e, bytes data) {
     bool isSentinel = isSentinel(e.msg.sender);
     uint256 executableAtData = executableAt(data);
     revoke@withrevert(e, data);
-    assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != curator && !isSentinel) || executableAtData == 0;
+    assert e.msg.value != 0 || (e.msg.sender != curator && !isSentinel) || executableAtData == 0 <=>lastReverted;
 }
 
 rule decreaseAbsoluteCapRevertCondition(env e, bytes idData, uint256 newAbsoluteCap) {
@@ -144,29 +196,30 @@ rule allocateInputValidation(env e, address adapter, bytes data, uint256 assets)
     bool adapterIsRegistered = isAdapter(adapter);
 
     allocate@withrevert(e, adapter, data, assets);
-    assert !callerIsAllocator || !adapterIsRegistered => lastReverted;
+    assert !callerIsAllocator || !adapterIsRegistered || e.msg.value != 0 <=> lastReverted;
 }
 
 rule deallocateInputValidation(env e, address adapter, bytes data, uint256 assets) {
     bool callerIsAllocator = isAllocator(e.msg.sender);
     bool callerIsSentinel = isSentinel(e.msg.sender);
     bool adapterIsRegistered = isAdapter(adapter);
+    require (forall bytes32 id. VaultV2.caps[id].allocation>0);
 
     deallocate@withrevert(e, adapter, data, assets);
-    assert !(callerIsAllocator || callerIsSentinel) || !adapterIsRegistered => lastReverted;
+    assert !(callerIsAllocator || callerIsSentinel) || !adapterIsRegistered || e.msg.value != 0 <=> lastReverted;
 }
 
 rule forceDeallocateInputValidation(env e, address adapter, bytes data, uint256 assets, address onBehalf) {
     bool adapterIsRegistered = isAdapter(adapter);
 
     forceDeallocate@withrevert(e, adapter, data, assets, onBehalf);
-    assert !adapterIsRegistered => lastReverted;
+    assert !adapterIsRegistered <=> lastReverted;
 }
 
 rule setLiquidityAdapterAndDataInputValidation(env e, address newLiquidityAdapter, bytes newLiquidityData) {
     bool callerIsAllocator = isAllocator(e.msg.sender);
     setLiquidityAdapterAndData@withrevert(e, newLiquidityAdapter, newLiquidityData);
-    assert e.msg.value != 0 || !callerIsAllocator => lastReverted;
+    assert e.msg.value != 0 || !callerIsAllocator <=> lastReverted;
 }
 
 rule setMaxRateRevertCondition(env e, uint256 newMaxRate) {
@@ -180,9 +233,12 @@ rule transferInputValidation(env e, address to, uint256 shares) {
     bool toIsZeroAddress = to == 0;
     bool callerCanSendShares = canSendShares(e.msg.sender);
     bool toCanReceiveShares = canReceiveShares(to);
+    
+    require shares + balanceOf(to) <= MAX_UINT256(); // To avoid overflow in the balanceOf check.
+    require shares <= balanceOf(e.msg.sender); // To avoid underflow in the balanceOf check.
 
     transfer@withrevert(e, to, shares);
-    assert toIsZeroAddress || !callerCanSendShares || !toCanReceiveShares => lastReverted;
+    assert toIsZeroAddress || !callerCanSendShares || !toCanReceiveShares || e.msg.value != 0 <=> lastReverted;
 }
 
 rule transferFromInputValidation(env e, address from, address to, uint256 shares) {
@@ -191,6 +247,10 @@ rule transferFromInputValidation(env e, address from, address to, uint256 shares
     bool fromCanSendShares = canSendShares(from);
     bool toCanReceiveShares = canReceiveShares(to);
 
+    require shares + balanceOf(to) <= MAX_UINT256(); // To avoid overflow in the balanceOf check.
+    require shares <= balanceOf(from); // To avoid underflow in the balanceOf check.
+    require e.msg.sender != from => (shares <= allowance(from, e.msg.sender)); // To avoid underflow in the allowance check.
+
     transferFrom@withrevert(e, from, to, shares);
-    assert fromIsZeroAddress || toIsZeroAddress || !fromCanSendShares || !toCanReceiveShares => lastReverted;
+    assert fromIsZeroAddress || toIsZeroAddress || !fromCanSendShares || !toCanReceiveShares || e.msg.value != 0 <=> lastReverted;
 }

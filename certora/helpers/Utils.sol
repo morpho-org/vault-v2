@@ -21,6 +21,17 @@ contract Utils {
         return bytes4(data);
     }
 
+    function toSelectorBytes4(bytes memory data) public pure returns (bytes4) {
+        require(data.length >= 8, "data too short");
+        return bytes4(bytes.concat(
+            data[4],
+            data[5],
+            data[6],
+            data[7])
+        );
+        
+    }
+
     function wad() external pure returns (uint256) {
         return WAD;
     }
