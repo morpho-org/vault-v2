@@ -6,6 +6,8 @@ import "../helpers/UtilityVault.spec";
 using RevertCondition as RevertCondition;
 using Utils as Utils;
 
+definition MAX_UINT256() returns uint256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+
 // This specification checks either the revert condition or the input validation under which a function reverts.
 // Interest accrual is assumed to not revert.
 
@@ -176,21 +178,29 @@ rule setMaxRateRevertCondition(env e, uint256 newMaxRate) {
     assert lastReverted <=> e.msg.value != 0 || !callerIsAllocator || newMaxRate > maxMaxRate;
 }
 
-rule transferInputValidation(env e, address to, uint256 shares) {
+rule transferRevertCondition(env e, address to, uint256 shares) {
     bool toIsZeroAddress = to == 0;
     bool callerCanSendShares = canSendShares(e.msg.sender);
     bool toCanReceiveShares = canReceiveShares(to);
 
+    require shares + balanceOf(to) <= MAX_UINT256(); // To avoid overflow in the balanceOf check.
+    require shares <= balanceOf(e.msg.sender); // To avoid underflow in the balanceOf check.
+
     transfer@withrevert(e, to, shares);
-    assert toIsZeroAddress || !callerCanSendShares || !toCanReceiveShares => lastReverted;
+    assert toIsZeroAddress || !callerCanSendShares || !toCanReceiveShares || e.msg.value != 0 <=> lastReverted;
 }
 
-rule transferFromInputValidation(env e, address from, address to, uint256 shares) {
+rule transferFromRevertCondition(env e, address from, address to, uint256 shares) {
     bool fromIsZeroAddress = from == 0;
     bool toIsZeroAddress = to == 0;
     bool fromCanSendShares = canSendShares(from);
     bool toCanReceiveShares = canReceiveShares(to);
+    bool sharesLessEqualAllowance = e.msg.sender != from => (shares <= allowance(from, e.msg.sender)); // To avoid underflow in the allowance check.
+
+    require shares + balanceOf(to) <= MAX_UINT256(); // To avoid overflow in the balanceOf check.
+    require shares <= balanceOf(e.msg.sender); // To avoid underflow in the balanceOf check.
+    require shares <= balanceOf(from); // To avoid underflow in the balanceOf check.
 
     transferFrom@withrevert(e, from, to, shares);
-    assert fromIsZeroAddress || toIsZeroAddress || !fromCanSendShares || !toCanReceiveShares => lastReverted;
+    assert fromIsZeroAddress || toIsZeroAddress || !fromCanSendShares || !toCanReceiveShares || !sharesLessEqualAllowance || e.msg.value != 0  <=> lastReverted;
 }
