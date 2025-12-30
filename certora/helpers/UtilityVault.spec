@@ -33,6 +33,7 @@ methods {
     function canReceiveShares(address) external returns (bool) envfree;
     function canSendAssets(address) external returns (bool) envfree;
     function canReceiveAssets(address) external returns (bool) envfree;
+    function allowance(address owner, address spender) external returns (uint256) envfree;
 }
 
 definition functionIsTimelocked(method f) returns bool =
