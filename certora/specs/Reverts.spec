@@ -195,7 +195,7 @@ rule transferFromRevertCondition(env e, address from, address to, uint256 shares
     bool toIsZeroAddress = to == 0;
     bool fromCanSendShares = canSendShares(from);
     bool toCanReceiveShares = canReceiveShares(to);
-    bool sharesLessEqualAllowance = e.msg.sender != from => (shares <= allowance(from, e.msg.sender)); // To avoid underflow in the allowance check.
+    bool sharesLessEqualAllowance = e.msg.sender != from => (shares <= allowance(from, e.msg.sender)); // msg.sender should have enough allowance.
 
     require shares + balanceOf(to) <= MAX_UINT256(); // To avoid overflow in the balanceOf check.
     require shares <= balanceOf(e.msg.sender); // To avoid underflow in the balanceOf check.
