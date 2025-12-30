@@ -182,7 +182,7 @@ rule transferRevertCondition(env e, address to, uint256 shares) {
     bool toIsZeroAddress = to == 0;
     bool callerCanSendShares = canSendShares(e.msg.sender);
     bool toCanReceiveShares = canReceiveShares(to);
-    bool balanceWontOverflow = to != e.msg.sender =>shares + balanceOf(to) <= MAX_UINT256();
+    bool balanceWontOverflow = to != e.msg.sender => shares + balanceOf(to) <= MAX_UINT256();
     bool balanceWontUnderflow = shares <= balanceOf(e.msg.sender);
 
     transfer@withrevert(e, to, shares);
@@ -195,7 +195,7 @@ rule transferFromRevertCondition(env e, address from, address to, uint256 shares
     bool fromCanSendShares = canSendShares(from);
     bool toCanReceiveShares = canReceiveShares(to);
     bool sufficientAllowance = e.msg.sender != from => (shares <= allowance(from, e.msg.sender));
-    bool balanceWontOverflow = to != from =>shares + balanceOf(to) <= MAX_UINT256();
+    bool balanceWontOverflow = to != from => shares + balanceOf(to) <= MAX_UINT256();
     bool balanceWontUnderflow = shares <= balanceOf(from);
     
     transferFrom@withrevert(e, from, to, shares);
