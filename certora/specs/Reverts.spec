@@ -11,6 +11,7 @@ using Utils as Utils;
 
 methods {
     function Utils.maxMaxRate() external returns (uint256) envfree;
+    function Utils.getStringLength(string s) external returns (uint256) envfree;
 
     // Assume that accrueInterest does not revert.
     function accrueInterest() internal => NONDET;
@@ -96,16 +97,24 @@ rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
     assert lastReverted <=> e.msg.value != 0 || e.msg.sender != owner;
 }
 
-rule setNameInputValidation(env e, string newName) {
+rule setNameRevertCondition(env e, string newName) {
     address owner = owner();
+
+    bool oldStringIsBounded = (Utils.getStringLength(name()) <= 1000);
+    bool newStringIsBounded = (Utils.getStringLength(newName) <= 1000);
+
     setName@withrevert(e, newName);
-    assert e.msg.value != 0 || e.msg.sender != owner => lastReverted;
+    assert (e.msg.value != 0 || e.msg.sender != owner || !oldStringIsBounded || !newStringIsBounded) <=> lastReverted;
 }
 
-rule setSymbolInputValidation(env e, string newSymbol) {
+rule setSymbolRevertCondition(env e, string newSymbol) {
     address owner = owner();
+
+    bool oldStringIsBounded = (Utils.getStringLength(symbol()) <= 1000);
+    bool newStringIsBounded = (Utils.getStringLength(newSymbol) <= 1000);
+
     setSymbol@withrevert(e, newSymbol);
-    assert e.msg.value != 0 || e.msg.sender != owner => lastReverted;
+    assert (e.msg.value != 0 || e.msg.sender != owner || !oldStringIsBounded || !newStringIsBounded) <=> lastReverted;
 }
 
 rule submitInputValidation(env e, bytes data) {
