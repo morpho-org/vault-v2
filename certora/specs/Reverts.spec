@@ -5,7 +5,7 @@ import "../helpers/UtilityVault.spec";
 
 using RevertCondition as RevertCondition;
 using Utils as Utils;
-using MorphoMarketV1AdapterV2 as MorphoMarketV1AdapterV2;
+using VaultV2 as VaultV2;
 
 // This specification checks either the revert condition or the input validation under which a function reverts.
 // Interest accrual is assumed to not revert.
@@ -37,6 +37,7 @@ function summaryDeallocateInternal(env e, address adapter, bytes data, uint256 a
     bytes32[] ids;
     int256 change;
     require ids.length == 3, "see IdsMorphoMarketV1Adapter";
+    require(VaultV2.isAdapter[adapter]);
 
     // See distinctMarketV1Ids rule.
     require ids[0] != ids[1], "ack";
