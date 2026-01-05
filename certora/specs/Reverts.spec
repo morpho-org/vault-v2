@@ -5,6 +5,7 @@ import "../helpers/UtilityVault.spec";
 
 using RevertCondition as RevertCondition;
 using Utils as Utils;
+using MorphoMarketV1AdapterV2 as MorphoMarketV1AdapterV2;
 
 // This specification checks either the revert condition or the input validation under which a function reverts.
 // Interest accrual is assumed to not revert.
@@ -22,6 +23,8 @@ methods {
     function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
     function _.canSendAssets(address account) external => ghostCanSendAssets(calledContract, account) expect(bool);
     function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
+    function _.deallocateInternal(address adapter, bytes memory data, uint256 assets) internal with (env e) => summaryDeallocateInternal(e, adapter, data, assets) expect bytes32[] memory;
+
 }
 
 ghost ghostIsInRegistry(address, address) returns bool;
@@ -29,6 +32,23 @@ ghost ghostCanSendShares(address, address) returns bool;
 ghost ghostCanReceiveShares(address, address) returns bool;
 ghost ghostCanSendAssets(address, address) returns bool;
 ghost ghostCanReceiveAssets(address, address) returns bool;
+
+function summaryDeallocateInternal(env e, address adapter, bytes data, uint256 assets) returns bytes32[] {
+    bytes32[] ids;
+    int256 change;
+    require ids.length == 3, "see IdsMorphoMarketV1Adapter";
+
+    // See distinctMarketV1Ids rule.
+    require ids[0] != ids[1], "ack";
+    require ids[0] != ids[2], "ack";
+    require ids[1] != ids[2], "ack";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation < 2 ^ 20 * 2 ^ 128, "market v1 fits total supply assets on 128 bits, and assume at most 2^20 markets";
+    require change < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
+    require currentContract.caps[ids[0]].allocation >= currentContract.caps[ids[2]].allocation, "adapter id allocation is a sum of market id allocation";
+    require currentContract.caps[ids[1]].allocation >= currentContract.caps[ids[2]].allocation, "collateral token id allocation is a sum of market id allocation";
+    return ids;
+}
 
 // The helper contract is called first, so this specification can miss trivial revert conditions like e.msg.value != 0.
 rule timelockedFunctionsRevertConditions(env e, calldataarg args, method f)
@@ -156,13 +176,13 @@ rule allocateInputValidation(env e, address adapter, bytes data, uint256 assets)
     assert !callerIsAllocator || !adapterIsRegistered => lastReverted;
 }
 
-rule deallocateInputValidation(env e, address adapter, bytes data, uint256 assets) {
+rule deallocateRevertCondition(env e, address adapter, bytes data, uint256 assets) {
     bool callerIsAllocator = isAllocator(e.msg.sender);
     bool callerIsSentinel = isSentinel(e.msg.sender);
     bool adapterIsRegistered = isAdapter(adapter);
 
     deallocate@withrevert(e, adapter, data, assets);
-    assert !(callerIsAllocator || callerIsSentinel) || !adapterIsRegistered => lastReverted;
+    assert !(callerIsAllocator || callerIsSentinel) || !adapterIsRegistered || e.msg.value !=0 <=> lastReverted;
 }
 
 rule forceDeallocateInputValidation(env e, address adapter, bytes data, uint256 assets, address onBehalf) {
