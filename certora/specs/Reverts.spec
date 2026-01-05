@@ -23,7 +23,7 @@ methods {
     function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
     function _.canSendAssets(address account) external => ghostCanSendAssets(calledContract, account) expect(bool);
     function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
-    function _.deallocateInternal(address adapter, bytes memory data, uint256 assets) internal with (env e) => summaryDeallocateInternal(e, adapter, data, assets) expect bytes32[] memory;
+    function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with (env e) => summaryDeallocate(e, data, assets, selector, sender) expect (bytes32[] memory, int256);
 
 }
 
@@ -33,22 +33,18 @@ ghost ghostCanReceiveShares(address, address) returns bool;
 ghost ghostCanSendAssets(address, address) returns bool;
 ghost ghostCanReceiveAssets(address, address) returns bool;
 
-function summaryDeallocateInternal(env e, address adapter, bytes data, uint256 assets) returns bytes32[] {
+function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
     bytes32[] ids;
     int256 change;
     require ids.length == 3, "see IdsMorphoMarketV1Adapter";
-    require(VaultV2.isAdapter[adapter]);
 
-    // See distinctMarketV1Ids rule.
-    require ids[0] != ids[1], "ack";
-    require ids[0] != ids[2], "ack";
-    require ids[1] != ids[2], "ack";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation < 2 ^ 20 * 2 ^ 128, "market v1 fits total supply assets on 128 bits, and assume at most 2^20 markets";
-    require change < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
-    require currentContract.caps[ids[0]].allocation >= currentContract.caps[ids[2]].allocation, "adapter id allocation is a sum of market id allocation";
-    require currentContract.caps[ids[1]].allocation >= currentContract.caps[ids[2]].allocation, "collateral token id allocation is a sum of market id allocation";
-    return ids;
+    //require ids[0] != ids[1], "ack";
+    //require ids[0] != ids[2], "ack";
+    //require ids[1] != ids[2], "ack";
+    //require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
+    //require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation < 2 ^ 20 * 2 ^ 128, "market v1 fits total supply assets on 128 bits, and assume at most 2^20 markets";
+    //require change < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
+    return (ids, change);
 }
 
 // The helper contract is called first, so this specification can miss trivial revert conditions like e.msg.value != 0.
@@ -130,8 +126,10 @@ rule setNameRevertCondition(env e, string newName) {
 
 rule setSymbolRevertCondition(env e, string newSymbol) {
     address owner = owner();
-
-    bool oldStringIsBounded = (Utils.getStringLength(symbol()) <= 1000);
+    uint256 len = Utils.getStringLength@withrevert(symbol());
+    assert lastReverted == false;
+    bool oldStringIsBounded = (Utils.getStringLength@withrevert(symbol()) <= 1000);
+    
     bool newStringIsBounded = (Utils.getStringLength(newSymbol) <= 1000);
 
     setSymbol@withrevert(e, newSymbol);
