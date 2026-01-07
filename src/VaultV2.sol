@@ -130,7 +130,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev It is still possible to submit changes of the timelock duration of decreaseTimelock, but it won't have any
 /// effect (and trying to execute this change will revert).
 /// @dev If a function is abdicated, it cannot be called no matter its timelock and what executableAt[data] contains.
-/// Otherwise, the minimum time in which a function can be called is the following:
+/// Otherwise, the minimum time at which a function can be called is the following:
 /// min(
 ///     block.timestamp + timelock[selector],
 ///     executableAt[selector::_],
