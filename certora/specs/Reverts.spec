@@ -23,7 +23,7 @@ methods {
     function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
     function _.canSendAssets(address account) external => ghostCanSendAssets(calledContract, account) expect(bool);
     function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
-    function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with (env e) => summaryDeallocate(e, data, assets, selector, sender) expect (bytes32[] memory, int256);
+    function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with (env e) => summaryDeallocate(e, data, assets, selector, sender) expect (bytes32[], int256);
 
 }
 
@@ -116,24 +116,22 @@ rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
 
 rule setNameRevertCondition(env e, string newName) {
     address owner = owner();
-
-    bool oldStringIsBounded = (Utils.getStringLength(name()) <= 1000);
-    bool newStringIsBounded = (Utils.getStringLength(newName) <= 1000);
+    Utils.getStringLength@withrevert(name());
+    assert !lastReverted;
 
     setName@withrevert(e, newName);
-    assert (e.msg.value != 0 || e.msg.sender != owner || !oldStringIsBounded || !newStringIsBounded) <=> lastReverted;
+    
+    assert (e.msg.value != 0 || e.msg.sender != owner) <=> lastReverted;
 }
 
 rule setSymbolRevertCondition(env e, string newSymbol) {
     address owner = owner();
-    uint256 len = Utils.getStringLength@withrevert(symbol());
-    assert lastReverted == false;
-    bool oldStringIsBounded = (Utils.getStringLength@withrevert(symbol()) <= 1000);
-    
-    bool newStringIsBounded = (Utils.getStringLength(newSymbol) <= 1000);
+    uint256 len_symbol = Utils.getStringLength@withrevert(symbol());
+    assert !lastReverted;
 
     setSymbol@withrevert(e, newSymbol);
-    assert (e.msg.value != 0 || e.msg.sender != owner || !oldStringIsBounded || !newStringIsBounded) <=> lastReverted;
+    
+    assert (e.msg.value != 0 || e.msg.sender != owner) <=> lastReverted;
 }
 
 rule submitInputValidation(env e, bytes data) {
