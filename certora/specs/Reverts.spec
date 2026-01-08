@@ -116,7 +116,7 @@ rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
 
 rule setNameRevertCondition(env e, string newName) {
     address owner = owner();
-    Utils.getStringLength@withrevert(name());
+    uint256 len_name = Utils.getStringLength@withrevert(name());
     assert !lastReverted;
 
     setName@withrevert(e, newName);
