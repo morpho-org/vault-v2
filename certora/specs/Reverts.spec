@@ -116,7 +116,7 @@ rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
 
 rule setNameRevertCondition(env e, string newName) {
     address owner = owner();
-    uint256 len_name = Utils.getStringLength@withrevert(name());
+    Utils.getStringLength@withrevert(name());
     assert !lastReverted;
 
     setName@withrevert(e, newName);
@@ -126,7 +126,7 @@ rule setNameRevertCondition(env e, string newName) {
 
 rule setSymbolRevertCondition(env e, string newSymbol) {
     address owner = owner();
-    uint256 len_symbol = Utils.getStringLength@withrevert(symbol());
+    Utils.getStringLength@withrevert(symbol());
     assert !lastReverted;
 
     setSymbol@withrevert(e, newSymbol);
