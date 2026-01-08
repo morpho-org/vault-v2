@@ -5,12 +5,14 @@ import "../helpers/UtilityVault.spec";
 
 using RevertCondition as RevertCondition;
 using Utils as Utils;
+using VaultV2 as VaultV2;
 
 // This specification checks either the revert condition or the input validation under which a function reverts.
 // Interest accrual is assumed to not revert.
 
 methods {
     function Utils.maxMaxRate() external returns (uint256) envfree;
+    function Utils.getStringLength(string s) external returns (uint256) envfree;
 
     // Assume that accrueInterest does not revert.
     function accrueInterest() internal => NONDET;
@@ -21,6 +23,8 @@ methods {
     function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
     function _.canSendAssets(address account) external => ghostCanSendAssets(calledContract, account) expect(bool);
     function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
+    function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with (env e) => summaryDeallocate(e, data, assets, selector, sender) expect (bytes32[], int256);
+
 }
 
 ghost ghostIsInRegistry(address, address) returns bool;
@@ -28,6 +32,20 @@ ghost ghostCanSendShares(address, address) returns bool;
 ghost ghostCanReceiveShares(address, address) returns bool;
 ghost ghostCanSendAssets(address, address) returns bool;
 ghost ghostCanReceiveAssets(address, address) returns bool;
+
+function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
+    bytes32[] ids;
+    int256 change;
+    require ids.length == 3, "see IdsMorphoMarketV1Adapter";
+
+    //require ids[0] != ids[1], "ack";
+    //require ids[0] != ids[2], "ack";
+    //require ids[1] != ids[2], "ack";
+    //require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
+    //require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation < 2 ^ 20 * 2 ^ 128, "market v1 fits total supply assets on 128 bits, and assume at most 2^20 markets";
+    //require change < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
+    return (ids, change);
+}
 
 // The helper contract is called first, so this specification can miss trivial revert conditions like e.msg.value != 0.
 rule timelockedFunctionsRevertConditions(env e, calldataarg args, method f)
@@ -96,16 +114,24 @@ rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
     assert lastReverted <=> e.msg.value != 0 || e.msg.sender != owner;
 }
 
-rule setNameInputValidation(env e, string newName) {
+rule setNameRevertCondition(env e, string newName) {
     address owner = owner();
+    Utils.getStringLength@withrevert(name());
+    assert !lastReverted;
+
     setName@withrevert(e, newName);
-    assert e.msg.value != 0 || e.msg.sender != owner => lastReverted;
+    
+    assert (e.msg.value != 0 || e.msg.sender != owner) <=> lastReverted;
 }
 
-rule setSymbolInputValidation(env e, string newSymbol) {
+rule setSymbolRevertCondition(env e, string newSymbol) {
     address owner = owner();
+    Utils.getStringLength@withrevert(symbol());
+    assert !lastReverted;
+
     setSymbol@withrevert(e, newSymbol);
-    assert e.msg.value != 0 || e.msg.sender != owner => lastReverted;
+    
+    assert (e.msg.value != 0 || e.msg.sender != owner) <=> lastReverted;
 }
 
 rule submitInputValidation(env e, bytes data) {
@@ -147,13 +173,13 @@ rule allocateInputValidation(env e, address adapter, bytes data, uint256 assets)
     assert !callerIsAllocator || !adapterIsRegistered => lastReverted;
 }
 
-rule deallocateInputValidation(env e, address adapter, bytes data, uint256 assets) {
+rule deallocateRevertCondition(env e, address adapter, bytes data, uint256 assets) {
     bool callerIsAllocator = isAllocator(e.msg.sender);
     bool callerIsSentinel = isSentinel(e.msg.sender);
     bool adapterIsRegistered = isAdapter(adapter);
 
     deallocate@withrevert(e, adapter, data, assets);
-    assert !(callerIsAllocator || callerIsSentinel) || !adapterIsRegistered => lastReverted;
+    assert !(callerIsAllocator || callerIsSentinel) || !adapterIsRegistered || e.msg.value !=0 <=> lastReverted;
 }
 
 rule forceDeallocateInputValidation(env e, address adapter, bytes data, uint256 assets, address onBehalf) {

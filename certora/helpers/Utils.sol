@@ -21,6 +21,10 @@ contract Utils {
         return bytes4(data);
     }
 
+    function getStringLength(string memory s) external pure returns (uint256) {
+        return bytes(s).length;
+    }
+
     function wad() external pure returns (uint256) {
         return WAD;
     }
