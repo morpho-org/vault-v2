@@ -21,6 +21,7 @@ hook Sload uint128 readValue _totalAssets {
     }
 }
 
+// Check that, except in accrueInterest, the variable _totalAssets is never read before being updated.
 rule totalAssetsIsUpToDate(env e, method f, calldataarg args) filtered { f -> !f.isView } {
     require !totalAssetsUpdated, "setup the ghost state";
     require !totalAssetsReadBeforeUpdated, "setup the ghost state";
