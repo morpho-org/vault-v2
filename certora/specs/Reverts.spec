@@ -23,14 +23,17 @@ methods {
     function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
     function _.canSendAssets(address account) external => ghostCanSendAssets(calledContract, account) expect(bool);
     function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
-    function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with (env e) => summaryDeallocate(e, data, assets, selector, sender) expect (bytes32[], int256);
-
+    function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryDeallocate(e, data, assets, selector, sender) expect(bytes32[], int256);
 }
 
 ghost ghostIsInRegistry(address, address) returns bool;
+
 ghost ghostCanSendShares(address, address) returns bool;
+
 ghost ghostCanReceiveShares(address, address) returns bool;
+
 ghost ghostCanSendAssets(address, address) returns bool;
+
 ghost ghostCanReceiveAssets(address, address) returns bool;
 
 function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
@@ -48,8 +51,7 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
 }
 
 // The helper contract is called first, so this specification can miss trivial revert conditions like e.msg.value != 0.
-rule timelockedFunctionsRevertConditions(env e, calldataarg args, method f)
-filtered { f -> f.contract == currentContract && functionIsTimelocked(f) } {
+rule timelockedFunctionsRevertConditions(env e, calldataarg args, method f) filtered { f -> f.contract == currentContract && functionIsTimelocked(f) } {
     bool revertCondition;
     if (f.selector == sig:setIsAllocator(address, bool).selector) {
         revertCondition = RevertCondition.setIsAllocator(e, args);
@@ -120,7 +122,7 @@ rule setNameRevertCondition(env e, string newName) {
     assert !lastReverted;
 
     setName@withrevert(e, newName);
-    
+
     assert (e.msg.value != 0 || e.msg.sender != owner) <=> lastReverted;
 }
 
@@ -130,7 +132,7 @@ rule setSymbolRevertCondition(env e, string newSymbol) {
     assert !lastReverted;
 
     setSymbol@withrevert(e, newSymbol);
-    
+
     assert (e.msg.value != 0 || e.msg.sender != owner) <=> lastReverted;
 }
 
@@ -179,7 +181,7 @@ rule deallocateRevertCondition(env e, address adapter, bytes data, uint256 asset
     bool adapterIsRegistered = isAdapter(adapter);
 
     deallocate@withrevert(e, adapter, data, assets);
-    assert !(callerIsAllocator || callerIsSentinel) || !adapterIsRegistered || e.msg.value !=0 <=> lastReverted;
+    assert !(callerIsAllocator || callerIsSentinel) || !adapterIsRegistered || e.msg.value != 0 <=> lastReverted;
 }
 
 rule forceDeallocateInputValidation(env e, address adapter, bytes data, uint256 assets, address onBehalf) {
