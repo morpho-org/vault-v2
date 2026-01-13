@@ -44,6 +44,7 @@ jobs:
           - TokensMorphoVaultV1Adapter
           - TokensNoAdapter
           - TotalAssetsChange
+          - TotalAssetsIsUpToDate
 
     steps:
       - uses: actions/checkout@v4
