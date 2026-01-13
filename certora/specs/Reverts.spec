@@ -26,14 +26,17 @@ methods {
 }
 
 ghost ghostIsInRegistry(address, address) returns bool;
+
 ghost ghostCanSendShares(address, address) returns bool;
+
 ghost ghostCanReceiveShares(address, address) returns bool;
+
 ghost ghostCanSendAssets(address, address) returns bool;
+
 ghost ghostCanReceiveAssets(address, address) returns bool;
 
 // The helper contract is called first, so this specification can miss trivial revert conditions like e.msg.value != 0.
-rule timelockedFunctionsRevertConditions(env e, calldataarg args, method f)
-filtered { f -> f.contract == currentContract && functionIsTimelocked(f) } {
+rule timelockedFunctionsRevertConditions(env e, calldataarg args, method f) filtered { f -> f.contract == currentContract && functionIsTimelocked(f) } {
     bool revertCondition;
     if (f.selector == sig:setIsAllocator(address, bool).selector) {
         revertCondition = RevertCondition.setIsAllocator(e, args);
@@ -197,7 +200,7 @@ rule transferFromRevertCondition(env e, address from, address to, uint256 shares
     bool sufficientAllowance = e.msg.sender != from => (shares <= allowance(from, e.msg.sender));
     bool balanceWontOverflow = to != from => shares + balanceOf(to) <= MAX_UINT256();
     bool balanceWontUnderflow = shares <= balanceOf(from);
-    
+
     transferFrom@withrevert(e, from, to, shares);
-    assert fromIsZeroAddress || toIsZeroAddress || !fromCanSendShares || !toCanReceiveShares || !sufficientAllowance || !balanceWontOverflow || !balanceWontUnderflow || e.msg.value != 0  <=> lastReverted;
+    assert fromIsZeroAddress || toIsZeroAddress || !fromCanSendShares || !toCanReceiveShares || !sufficientAllowance || !balanceWontOverflow || !balanceWontUnderflow || e.msg.value != 0 <=> lastReverted;
 }
