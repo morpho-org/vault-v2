@@ -4,7 +4,6 @@ pragma solidity 0.8.28;
 
 import {MorphoMarketV2Adapter} from "./MorphoMarketV2Adapter.sol";
 import {IMorphoMarketV2AdapterFactory} from "./interfaces/IMorphoMarketV2AdapterFactory.sol";
-import {DurationsLib, MAX_DURATIONS} from "./libraries/DurationsLib.sol";
 
 contract MorphoMarketV2AdapterFactory is IMorphoMarketV2AdapterFactory {
     /* STORAGE */

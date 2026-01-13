@@ -20,36 +20,24 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
 
     event SetSkimRecipient(address indexed newSkimRecipient);
     event Skim(address indexed token, uint256 assets);
-    event AddDuration(uint256 duration);
-    event RemoveDuration(uint256 duration);
 
     /* ERRORS */
 
     error BufferTooLow();
-    error DurationAlreadyExists();
     error IncorrectCallbackAddress();
-    error IncorrectCallbackData();
-    error IncorrectCollateralSet();
     error IncorrectDuration();
-    error IncorrectExpiry();
     error IncorrectHint();
     error IncorrectMaturity();
-    error IncorrectMinTimeToMaturity();
     error IncorrectOffer();
     error IncorrectOwner();
-    error IncorrectProof();
-    error IncorrectSignature();
     error IncorrectSigner();
     error IncorrectStart();
-    error IncorrectUnits();
     error LoanAssetMismatch();
     error NoBorrowing();
     error NotAuthorized();
     error NotMorphoV2();
     error NotSelf();
-    error PriceBelowOne();
     error SelfAllocationOnly();
-    error TooManyDurations();
 
     /* FUNCTIONS */
 

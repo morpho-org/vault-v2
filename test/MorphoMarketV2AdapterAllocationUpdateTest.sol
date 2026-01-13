@@ -70,6 +70,30 @@ contract MorphoMarketV2AdapterAllocationUpdateTest is MorphoMarketV2AdapterTest 
         morphoV2.take(assets, 0, 0, 0, taker, offer, proof([offer]), sign([offer], signerAllocator), address(0), "");
     }
 
+    function forceDeallocate(Obligation memory obligation, uint256 assets) internal {
+        (address buyer, uint256 buyerPrivateKey) = makeAddrAndKey("buyer");
+        privateKey[buyer] = buyerPrivateKey;
+
+        Offer memory offer = storedOffer;
+        offer.obligation = obligation;
+        offer.buy = true;
+        offer.maker = buyer;
+        offer.startPrice = 1e18;
+        offer.expiryPrice = 1e18;
+        offer.assets = assets;
+        offer.expiry = block.timestamp;
+        offer.callback = address(0);
+        offer.ratifier = address(0);
+        offer.group = bytes32(vm.randomUint());
+
+        deal(address(loanToken), buyer, assets);
+        vm.prank(buyer);
+        loanToken.approve(address(morphoV2), type(uint256).max);
+
+        bytes memory data = abi.encode(offer, proof([offer]), sign([offer]));
+        parentVault.forceDeallocate(address(adapter), data, assets, address(this));
+    }
+
     function durationId(uint256 duration) internal pure returns (bytes32) {
         return keccak256(abi.encode("duration", duration));
     }
@@ -168,5 +192,16 @@ contract MorphoMarketV2AdapterAllocationUpdateTest is MorphoMarketV2AdapterTest 
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
     }
 
-    // TODO force deallocate test
+    function testUpdateOnForceDeallocate() public {
+        Offer memory offer = buy(7 days, 1e18);
+        assertEq(parentVault.allocation(durationId(1 days)), 1e18, "1 day, before");
+        assertEq(parentVault.allocation(durationId(7 days)), 1e18, "7 days, before");
+
+        skip(1);
+
+        forceDeallocate(offer.obligation, 0.5e18);
+
+        assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day");
+        assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
+    }
 }
