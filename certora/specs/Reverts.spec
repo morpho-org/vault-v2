@@ -24,6 +24,8 @@ methods {
     function _.canSendAssets(address account) external => ghostCanSendAssets(calledContract, account) expect(bool);
     function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryDeallocate(e, data, assets, selector, sender) expect(bytes32[], int256);
+
+    function SafeERC20Lib.safeTransferFrom(address token, address from, address to, uint256 value) internal => summarySafeTransferFrom(token, from, to, value);
 }
 
 ghost ghostIsInRegistry(address, address) returns bool;
@@ -41,13 +43,25 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     int256 change;
     require ids.length == 3, "see IdsMorphoMarketV1Adapter";
 
-    //require ids[0] != ids[1], "ack";
-    //require ids[0] != ids[2], "ack";
-    //require ids[1] != ids[2], "ack";
-    //require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
-    //require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation < 2 ^ 20 * 2 ^ 128, "market v1 fits total supply assets on 128 bits, and assume at most 2^20 markets";
-    //require change < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
+    require ids[0] != ids[1], "ack";
+    require ids[0] != ids[2], "ack";
+    require ids[1] != ids[2], "ack";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation < 2 ^ 20 * 2 ^ 128, "market v1 fits total supply assets on 128 bits, and assume at most 2^20 markets";
+    require change < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
+    require change >= 0;
     return (ids, change);
+}
+
+function summarySafeTransferFrom(address token, address from, address to, uint256 amount) {
+    if (from == currentContract) {
+        // Safe require because the reference implementation would revert.
+        balance[token] = require_uint256(balance[token] - amount);
+    }
+    if (to == currentContract) {
+        // Safe require because the reference implementation would revert.
+        balance[token] = require_uint256(balance[token] + amount);
+    }
 }
 
 // The helper contract is called first, so this specification can miss trivial revert conditions like e.msg.value != 0.
