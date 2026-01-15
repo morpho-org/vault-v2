@@ -59,7 +59,7 @@ function summaryAllocate(env e, bytes data, uint256 assets, bytes4 selector, add
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= 2 ^ 255 - 1, "updating allocation reverts";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].absoluteCap > 0, "assume that the absolute cap is positive";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= currentContract.caps[ids[i]].absoluteCap, "assume that the absolute cap is positive";
-    require forall uint256 i. i < ids.length => (currentContract.caps[ids[i]].relativeCap == Utils.wad() || currentContract.caps[ids[i]].allocation <= firstTotalAssets.libmuldivdown(currentContract.caps[ids[i]].relativeCap, Utils.wad())), "assume that the relative cap is positive";
+    require forall uint256 i. i < ids.length => (currentContract.caps[ids[i]].relativeCap == Utils.wad() || currentContract.caps[ids[i]].allocation <= currentContract.firstTotalAsset.Utils.libmuldivdown(currentContract.caps[ids[i]].relativeCap, Utils.wad())), "assume that the relative cap is positive";
     return (ids, change);
 }
 
