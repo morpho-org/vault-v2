@@ -15,6 +15,7 @@ methods {
     function Utils.getStringLength(string s) external returns (uint256) envfree;
     function Utils.wad() external returns (uint256) envfree;
     function Utils.libMulDivDown(uint256 x, uint256 y, uint256 d) external returns (uint256) envfree;
+    function currentContract.firstTotalAssets() external returns (uint256) envfree;
 
     // Assume that accrueInterest does not revert.
     function accrueInterest() internal => NONDET;
@@ -59,7 +60,10 @@ function summaryAllocate(env e, bytes data, uint256 assets, bytes4 selector, add
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= 2 ^ 255 - 1, "updating allocation reverts";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].absoluteCap > 0, "assume that the absolute cap is positive";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= currentContract.caps[ids[i]].absoluteCap, "assume that the absolute cap is positive";
-    require forall uint256 i. i < ids.length => (currentContract.caps[ids[i]].relativeCap == Utils.wad() || currentContract.caps[ids[i]].allocation <= currentContract.firstTotalAsset.Utils.libmuldivdown(currentContract.caps[ids[i]].relativeCap, Utils.wad())), "assume that the relative cap is positive";
+    require(currentContract.caps[ids[0]].relativeCap == Utils.wad() || currentContract.caps[ids[0]].allocation <= Utils.libMulDivDown(currentContract.firstTotalAssets(), currentContract.caps[ids[0]].relativeCap, Utils.wad())), "assume that the relative cap is positive";
+    require(currentContract.caps[ids[1]].relativeCap == Utils.wad() || currentContract.caps[ids[1]].allocation <= Utils.libMulDivDown(currentContract.firstTotalAssets(), currentContract.caps[ids[1]].relativeCap, Utils.wad())), "assume that the relative cap is positive";
+    require(currentContract.caps[ids[2]].relativeCap == Utils.wad() || currentContract.caps[ids[2]].allocation <= Utils.libMulDivDown(currentContract.firstTotalAssets(), currentContract.caps[ids[2]].relativeCap, Utils.wad())), "assume that the relative cap is positive";
+
     return (ids, change);
 }
 
