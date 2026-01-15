@@ -6,7 +6,6 @@ import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMorphoVaultV1AdapterFactory} from "../adapters/interfaces/IMorphoVaultV1AdapterFactory.sol";
 
 contract FeeVaultFactory {
-
     /// @dev Creates a VaultV2 with abdicated curator functions and MorphoVaultV1Adapter as liquidity adapter.
     /// @dev The caller must be the owner. The function sets the curator to the owner and prepares all configuration.
     /// @param owner The owner of the vault.
@@ -31,7 +30,8 @@ contract FeeVaultFactory {
         vaultInstance.setCurator(owner);
 
         // Create the MorphoVaultV1Adapter
-        address morphoVaultV1Adapter = IMorphoVaultV1AdapterFactory(morphoVaultV1AdapterFactory).createMorphoVaultV1Adapter(newVaultV2, morphoVaultV2);
+        address morphoVaultV1Adapter = IMorphoVaultV1AdapterFactory(morphoVaultV1AdapterFactory)
+            .createMorphoVaultV1Adapter(newVaultV2, morphoVaultV2);
 
         // Submit: Add adapter
         bytes memory addAdapterData = abi.encodeCall(IVaultV2.addAdapter, (morphoVaultV1Adapter));
@@ -44,7 +44,8 @@ contract FeeVaultFactory {
         vaultInstance.setIsAllocator(owner, true);
 
         // Set liquidity data
-        bytes memory setLiquidityAdapterAndDataData = abi.encodeCall(IVaultV2.setLiquidityAdapterAndData, (morphoVaultV1Adapter, hex""));
+        bytes memory setLiquidityAdapterAndDataData =
+            abi.encodeCall(IVaultV2.setLiquidityAdapterAndData, (morphoVaultV1Adapter, hex""));
         vaultInstance.submit(setLiquidityAdapterAndDataData);
         vaultInstance.setLiquidityAdapterAndData(morphoVaultV1Adapter, hex"");
 
