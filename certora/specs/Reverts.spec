@@ -6,7 +6,7 @@ import "../helpers/UtilityVault.spec";
 using RevertCondition as RevertCondition;
 using Utils as Utils;
 
-definition MAX_UINT256() returns uint256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+//definition MAX_UINT256() returns uint256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
 // This specification checks either the revert condition or the input validation under which a function reverts.
 // Interest accrual is assumed to not revert.
@@ -185,7 +185,7 @@ rule transferRevertCondition(env e, address to, uint256 shares) {
     bool toIsZeroAddress = to == 0;
     bool callerCanSendShares = canSendShares(e.msg.sender);
     bool toCanReceiveShares = canReceiveShares(to);
-    bool boundedBalance = to != e.msg.sender => shares + balanceOf(to) <= MAX_UINT256();
+    bool boundedBalance = to != e.msg.sender => shares + balanceOf(to) <= max_uint256;
     bool sufficientBalance = shares <= balanceOf(e.msg.sender);
 
     transfer@withrevert(e, to, shares);
@@ -198,7 +198,7 @@ rule transferFromRevertCondition(env e, address from, address to, uint256 shares
     bool fromCanSendShares = canSendShares(from);
     bool toCanReceiveShares = canReceiveShares(to);
     bool sufficientAllowance = e.msg.sender != from => (shares <= allowance(from, e.msg.sender));
-    bool boundedBalance = to != from => shares + balanceOf(to) <= MAX_UINT256();
+    bool boundedBalance = to != from => shares + balanceOf(to) <= max_uint256;
     bool sufficientBalance = shares <= balanceOf(from);
 
     transferFrom@withrevert(e, from, to, shares);
