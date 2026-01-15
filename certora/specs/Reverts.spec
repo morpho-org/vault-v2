@@ -6,8 +6,6 @@ import "../helpers/UtilityVault.spec";
 using RevertCondition as RevertCondition;
 using Utils as Utils;
 
-//definition MAX_UINT256() returns uint256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
-
 // This specification checks either the revert condition or the input validation under which a function reverts.
 // Interest accrual is assumed to not revert.
 
