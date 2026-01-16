@@ -3,11 +3,24 @@
 pragma solidity 0.8.28;
 
 import "../../src/libraries/ConstantsLib.sol";
-import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
-import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
-import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
-import {MorphoLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
-import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
+import {
+    IMorpho,
+    MarketParams,
+    Id
+} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {
+    MarketParamsLib
+} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
+import {
+    MorphoBalancesLib
+} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {
+    MorphoLib
+} from "../../lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
+import {
+    SharesMathLib
+} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
+import {MathLib} from "../../src/libraries/MathLib.sol";
 
 interface IReturnFactory {
     function factory() external view returns (address);
@@ -21,12 +34,16 @@ contract Utils {
         return bytes4(data);
     }
 
-    function getStringLength(string memory s) external pure returns (uint256) {
-        return bytes(s).length;
-    }
-
     function wad() external pure returns (uint256) {
         return WAD;
+    }
+
+    function libMulDivDown(
+        uint256 x,
+        uint256 y,
+        uint256 d
+    ) external pure returns (uint256) {
+        return MathLib.mulDivDown(x, y, d);
     }
 
     function maxPerformanceFee() external pure returns (uint256) {
@@ -49,11 +66,15 @@ contract Utils {
         return MAX_MAX_RATE;
     }
 
-    function encodeMarketParams(MarketParams memory marketParams) external pure returns (bytes memory) {
+    function encodeMarketParams(
+        MarketParams memory marketParams
+    ) external pure returns (bytes memory) {
         return abi.encode(marketParams);
     }
 
-    function decodeMarketParams(bytes memory data) external pure returns (MarketParams memory) {
+    function decodeMarketParams(
+        bytes memory data
+    ) external pure returns (MarketParams memory) {
         return abi.decode(data, (MarketParams));
     }
 

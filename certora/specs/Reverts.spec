@@ -5,17 +5,17 @@ import "../helpers/UtilityVault.spec";
 
 using RevertCondition as RevertCondition;
 using Utils as Utils;
-using VaultV2 as VaultV2;
 
 // This specification checks either the revert condition or the input validation under which a function reverts.
 // Interest accrual is assumed to not revert.
 
 methods {
     function Utils.maxMaxRate() external returns (uint256) envfree;
-    function Utils.getStringLength(string s) external returns (uint256) envfree;
     function Utils.wad() external returns (uint256) envfree;
     function Utils.libMulDivDown(uint256 x, uint256 y, uint256 d) external returns (uint256) envfree;
     function currentContract.firstTotalAssets() external returns (uint256) envfree;
+    function currentContract.liquidityAdapter() external returns (address) envfree;
+    function currentContract.liquidityData() external returns (bytes) envfree;
 
     // Assume that accrueInterest does not revert.
     function accrueInterest() internal => NONDET;
@@ -159,8 +159,7 @@ rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
 
 rule setNameRevertCondition(env e, string newName) {
     address owner = owner();
-    Utils.getStringLength@withrevert(name());
-    assert !lastReverted;
+    name();
 
     setName@withrevert(e, newName);
 
@@ -169,8 +168,7 @@ rule setNameRevertCondition(env e, string newName) {
 
 rule setSymbolRevertCondition(env e, string newSymbol) {
     address owner = owner();
-    Utils.getStringLength@withrevert(symbol());
-    assert !lastReverted;
+    symbol();
 
     setSymbol@withrevert(e, newSymbol);
 
@@ -232,10 +230,12 @@ rule forceDeallocateInputValidation(env e, address adapter, bytes data, uint256 
     assert !adapterIsRegistered => lastReverted;
 }
 
-rule setLiquidityAdapterAndDataInputValidation(env e, address newLiquidityAdapter, bytes newLiquidityData) {
+rule setLiquidityAdapterAndDataRevertCondition(env e, address newLiquidityAdapter, bytes newLiquidityData) {
+    liquidityAdapter();
+    liquidityData();
     bool callerIsAllocator = isAllocator(e.msg.sender);
     setLiquidityAdapterAndData@withrevert(e, newLiquidityAdapter, newLiquidityData);
-    assert e.msg.value != 0 || !callerIsAllocator => lastReverted;
+    assert e.msg.value != 0 || !callerIsAllocator <=> lastReverted;
 }
 
 rule setMaxRateRevertCondition(env e, uint256 newMaxRate) {
