@@ -7,6 +7,21 @@ import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMorphoVaultV1AdapterFactory} from "../adapters/interfaces/IMorphoVaultV1AdapterFactory.sol";
 import {MAX_MAX_RATE, WAD} from "../libraries/ConstantsLib.sol";
 
+/// @title FeeWrapperDeployer
+/// @notice Example deployer for a VaultV2 "fee wrapper" that charges fees on top of an existing vault ("child vault").
+/// This configuration creates a VaultV2 that wraps an existing vault and allows
+/// the owner to charge performance and/or management fees on top of it. Users deposit into the fee
+/// wrapper, which automatically routes funds to the underlying vault.
+/// The underlying vault is fixed and cannot be changed after deployment.
+///
+/// @dev This is an example of how to configure a fee wrapper VaultV2, not the only way to configure one.
+///
+/// FIXED:
+/// - addAdapter, removeAdapter, setAdapterRegistry: ABDICATED
+/// - Single MorphoVaultV1Adapter pointing to the underlying vault, set as liquidity adapter
+///
+/// CONFIGURABLE:
+/// - Fees (performance/management), timelocks, caps, sentinels, allocators, gates, max rate, name/symbol
 contract FeeWrapperDeployer {
     /// @dev Creates a fee wrapper VaultV2.
     /// @dev Returns the address of the fee wrapper vault.
