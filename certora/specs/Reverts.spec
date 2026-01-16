@@ -33,6 +33,7 @@ methods {
     function _.canSendAssets(address account) external => ghostCanSendAssets(calledContract, account) expect(bool);
     function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryDeallocate(e, data, assets, selector, sender) expect(bytes32[], int256);
+    function _.allocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryAllocate(e, data, assets, selector, sender) expect(bytes32[], int256);
 }
 
 ghost ghostIsInRegistry(address, address) returns bool;
@@ -54,15 +55,21 @@ function summaryAllocate(env e, bytes data, uint256 assets, bytes4 selector, add
     require ids[0] != ids[2], "ack";
     require ids[1] != ids[2], "ack";
 
+    require currentContract.firstTotalAssets() * currentContract.caps[ids[0]].relativeCap <= max_uint256, "multiplication overflows";
+    require currentContract.firstTotalAssets() * currentContract.caps[ids[1]].relativeCap <= max_uint256, "multiplication overflows";
+    require currentContract.firstTotalAssets() * currentContract.caps[ids[2]].relativeCap <= max_uint256, "multiplication overflows";
+
+    // CVL does not allow function calls within quantifiers, hence explicitly listed here.
+    require(currentContract.caps[ids[0]].relativeCap == Utils.wad() || currentContract.caps[ids[0]].allocation + change <= Utils.libMulDivDown(currentContract.firstTotalAssets(), currentContract.caps[ids[0]].relativeCap, Utils.wad())), "assume allocation respects relative cap";
+    require(currentContract.caps[ids[1]].relativeCap == Utils.wad() || currentContract.caps[ids[1]].allocation + change <= Utils.libMulDivDown(currentContract.firstTotalAssets(), currentContract.caps[ids[1]].relativeCap, Utils.wad())), "assume allocation respects relative cap";
+    require(currentContract.caps[ids[2]].relativeCap == Utils.wad() || currentContract.caps[ids[2]].allocation + change <= Utils.libMulDivDown(currentContract.firstTotalAssets(), currentContract.caps[ids[2]].relativeCap, Utils.wad())), "assume allocation respects relative cap";
+
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= 2 ^ 255 - 1, "casting from uint256 to int256 reverts";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "casting from int256 to uint256";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= 2 ^ 255 - 1, "updating allocation reverts";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= currentContract.caps[ids[i]].absoluteCap, "updating allocation reverts";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].absoluteCap > 0, "assume that the absolute cap is positive";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= currentContract.caps[ids[i]].absoluteCap, "assume that the absolute cap is positive";
-    require(currentContract.caps[ids[0]].relativeCap == Utils.wad() || currentContract.caps[ids[0]].allocation <= Utils.libMulDivDown(currentContract.firstTotalAssets(), currentContract.caps[ids[0]].relativeCap, Utils.wad())), "assume that the relative cap is positive";
-    require(currentContract.caps[ids[1]].relativeCap == Utils.wad() || currentContract.caps[ids[1]].allocation <= Utils.libMulDivDown(currentContract.firstTotalAssets(), currentContract.caps[ids[1]].relativeCap, Utils.wad())), "assume that the relative cap is positive";
-    require(currentContract.caps[ids[2]].relativeCap == Utils.wad() || currentContract.caps[ids[2]].allocation <= Utils.libMulDivDown(currentContract.firstTotalAssets(), currentContract.caps[ids[2]].relativeCap, Utils.wad())), "assume that the relative cap is positive";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= currentContract.caps[ids[i]].absoluteCap, "assume that allocation respects absolute cap";
 
     return (ids, change);
 }
