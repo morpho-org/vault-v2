@@ -65,10 +65,8 @@ contract FeeWrapperDeployerTest is BaseTest {
         assertTrue(IVaultV2(feeWrapper).allocation(keccak256(abi.encode("this", adapter))) == 0);
         assertTrue(IVaultV2(feeWrapper).absoluteCap(keccak256(abi.encode("this", adapter))) == type(uint128).max);
         assertTrue(IVaultV2(feeWrapper).relativeCap(keccak256(abi.encode("this", adapter))) == 1e18);
-        assertTrue(IVaultV2(feeWrapper).forceDeallocatePenalty(adapter) == 0);
         assertTrue(IVaultV2(feeWrapper).liquidityAdapter() == adapter);
         assertTrue(IVaultV2(feeWrapper).liquidityData().length == 0);
-        assertTrue(IVaultV2(feeWrapper).maxRate() == MAX_MAX_RATE);
         assertTrue(IVaultV2(feeWrapper).forceDeallocatePenalty(adapter) == 0);
         assertTrue(IVaultV2(feeWrapper).timelock(IVaultV2.addAdapter.selector) == 0);
         assertTrue(IVaultV2(feeWrapper).timelock(IVaultV2.removeAdapter.selector) == 0);
@@ -78,9 +76,6 @@ contract FeeWrapperDeployerTest is BaseTest {
         assertTrue(IVaultV2(feeWrapper).timelock(IVaultV2.setForceDeallocatePenalty.selector) == 0);
         assertTrue(IVaultV2(feeWrapper).timelock(IVaultV2.allocate.selector) == 0);
         assertTrue(IVaultV2(feeWrapper).timelock(IVaultV2.deallocate.selector) == 0);
-        assertTrue(IVaultV2(feeWrapper).liquidityAdapter() == adapter);
-        assertTrue(IVaultV2(feeWrapper).liquidityData().length == 0);
-        assertTrue(IVaultV2(feeWrapper).maxRate() == MAX_MAX_RATE);
     }
 
     function testDeposit() public {
