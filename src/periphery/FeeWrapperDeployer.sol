@@ -56,9 +56,6 @@ contract FeeWrapperDeployer {
         IVaultV2(vault).submit(abi.encodeCall(IVaultV2.abdicate, (IVaultV2.removeAdapter.selector)));
         IVaultV2(vault).abdicate(IVaultV2.removeAdapter.selector);
 
-        IVaultV2(vault).submit(abi.encodeCall(IVaultV2.abdicate, (IVaultV2.setAdapterRegistry.selector)));
-        IVaultV2(vault).abdicate(IVaultV2.setAdapterRegistry.selector);
-
         // Optional: increase cap, set allocator, and liquidity market, max rate.
 
         IVaultV2(vault).submit(abi.encodeCall(IVaultV2.setIsAllocator, (address(this), true)));

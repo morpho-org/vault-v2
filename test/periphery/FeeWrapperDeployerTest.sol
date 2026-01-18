@@ -44,7 +44,6 @@ contract FeeWrapperDeployerTest is BaseTest {
         // assert the mandatory config.
         assertTrue(IVaultV2(feeWrapper).abdicated(IVaultV2.addAdapter.selector));
         assertTrue(IVaultV2(feeWrapper).abdicated(IVaultV2.removeAdapter.selector));
-        assertTrue(IVaultV2(feeWrapper).abdicated(IVaultV2.setAdapterRegistry.selector));
 
         // assert rest of the config
         assertTrue(IVaultV2(feeWrapper).owner() == owner);
