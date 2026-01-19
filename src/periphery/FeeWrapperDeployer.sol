@@ -49,7 +49,7 @@ contract FeeWrapperDeployer {
         IVaultV2(vault).submit(abi.encodeCall(IVaultV2.addAdapter, (morphoVaultV1Adapter)));
         IVaultV2(vault).addAdapter(morphoVaultV1Adapter);
 
-        // Abdicate addAdapter, removeAdapter, setAdapterRegistry.
+        // Abdicate addAdapter, removeAdapter.
 
         IVaultV2(vault).submit(abi.encodeCall(IVaultV2.abdicate, (IVaultV2.addAdapter.selector)));
         IVaultV2(vault).abdicate(IVaultV2.addAdapter.selector);
