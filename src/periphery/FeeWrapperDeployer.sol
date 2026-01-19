@@ -7,7 +7,6 @@ import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMorphoVaultV1AdapterFactory} from "../adapters/interfaces/IMorphoVaultV1AdapterFactory.sol";
 import {MAX_MAX_RATE, WAD} from "../libraries/ConstantsLib.sol";
 
-/// @title FeeWrapperDeployer
 /// @notice Example deployer for a VaultV2 "fee wrapper" that charges fees on top of an existing vault ("child vault").
 /// This configuration creates a VaultV2 that wraps an existing vault and allows
 /// the owner to charge performance and/or management fees on top of it. Users deposit into the fee
