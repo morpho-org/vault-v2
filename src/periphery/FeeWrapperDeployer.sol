@@ -17,11 +17,12 @@ import {MAX_MAX_RATE, WAD} from "../libraries/ConstantsLib.sol";
 /// @dev This is an example of how to configure a fee wrapper VaultV2, not the only way to configure one.
 ///
 /// FIXED:
-/// - addAdapter, removeAdapter, setAdapterRegistry: ABDICATED
-/// - Single MorphoVaultV1Adapter pointing to the underlying vault, set as liquidity adapter
+/// - addAdapter, removeAdapter: ABDICATED
+/// - Single MorphoVaultV1Adapter pointing to the underlying vault
 ///
 /// CONFIGURABLE:
-/// - Fees (performance/management), timelocks, caps, sentinels, allocators, gates, max rate, name/symbol
+/// - Fees (performance/management), timelocks, caps, sentinels, allocators, gates, max rate, name/symbol, liquidity
+/// market, registry, owner, curator, penalties
 contract FeeWrapperDeployer {
     /// @dev Creates a fee wrapper VaultV2.
     /// @dev Returns the address of the fee wrapper vault.
