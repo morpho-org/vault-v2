@@ -12,8 +12,6 @@ methods {
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal => summaryExit(assets, shares, receiver, onBehalf);
 }
 
-persistent ghost bool entered;
-
 persistent ghost uint256 assetsEnter;
 
 persistent ghost uint256 sharesEnter;
@@ -21,17 +19,10 @@ persistent ghost uint256 sharesEnter;
 persistent ghost address onBehalfEnter;
 
 function summaryEnter(uint256 assets, uint256 shares, address onBehalf) {
-    if (entered) {
-        assert assets == assetsEnter && shares == sharesEnter && onBehalf == onBehalfEnter;
-    } else {
-        entered = true;
-        assetsEnter = assets;
-        sharesEnter = shares;
-        onBehalfEnter = onBehalf;
-    }
+    assetsEnter = assets;
+    sharesEnter = shares;
+    onBehalfEnter = onBehalf;
 }
-
-persistent ghost bool exited;
 
 persistent ghost uint256 assetsExit;
 
@@ -42,43 +33,44 @@ persistent ghost address receiverExit;
 persistent ghost address onBehalfExit;
 
 function summaryExit(uint256 assets, uint256 shares, address receiver, address onBehalf) {
-    if (exited) {
-        assert assets == assetsExit && shares == sharesExit && receiver == receiverExit && onBehalf == onBehalfExit;
-    } else {
-        exited = true;
-        assetsExit = assets;
-        sharesExit = shares;
-        receiverExit = receiver;
-        onBehalfExit = onBehalf;
-    }
+    assetsExit = assets;
+    sharesExit = shares;
+    receiverExit = receiver;
+    onBehalfExit = onBehalf;
 }
 
 rule depositMintEquivalence(env e, address onBehalf) {
     uint256 assetsInput;
     uint256 sharesInput;
 
-    storage init = lastStorage;
-
     uint256 sharesOutput = deposit(e, assetsInput, onBehalf);
-    storage afterDeposit = lastStorage;
+    address onBehalfDeposit = onBehalfEnter;
+    uint256 assetsDeposit = assetsEnter;
+    uint256 sharesDeposit = sharesEnter;
 
-    uint256 assetsOutput = mint(e, sharesInput, onBehalf) at init;
-    storage afterMint = lastStorage;
+    uint256 assetsOutput = mint(e, sharesInput, onBehalf);
+    address onBehalfMint = onBehalfExit;
+    uint256 assetsMint = assetsExit;
+    uint256 sharesMint = sharesExit;
 
-    assert sharesOutput == sharesInput && assetsOutput == assetsInput => afterDeposit == afterMint;
+    assert sharesOutput == sharesInput && assetsOutput == assetsInput => onBehalfDeposit == onBehalfMint && assetsDeposit == assetsMint && sharesDeposit == sharesMint;
 }
 
 rule withdrawRedeemEquivalence(env e, uint256 assets, address receiver, address onBehalf) {
     uint256 assetsInput;
     uint256 sharesInput;
 
-    storage init = lastStorage;
-
     uint256 sharesOutput = withdraw(e, assetsInput, receiver, onBehalf);
-    storage afterWithdraw = lastStorage;
+    address receiverWithdraw = receiverExit;
+    address onBehalfWithdraw = onBehalfExit;
+    uint256 assetsWithdraw = assetsExit;
+    uint256 sharesWithdraw = sharesExit;
 
-    uint256 assetsOutput = redeem(e, sharesInput, receiver, onBehalf) at init;
-    storage afterRedeem = lastStorage;
+    uint256 assetsOutput = redeem(e, sharesInput, receiver, onBehalf);
+    address receiverRedeem = receiverExit;
+    address onBehalfRedeem = onBehalfExit;
+    uint256 assetsRedeem = assetsExit;
+    uint256 sharesRedeem = sharesExit;
 
-    assert sharesOutput == sharesInput && assetsOutput == assetsInput => afterWithdraw == afterRedeem;
+    assert sharesOutput == sharesInput && assetsOutput == assetsInput => receiverWithdraw == receiverRedeem && onBehalfWithdraw == onBehalfRedeem && assetsWithdraw == assetsRedeem && sharesWithdraw == sharesRedeem;
 }
