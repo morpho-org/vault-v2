@@ -66,10 +66,10 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     require ids[0] != ids[2], "ack";
     require ids[1] != ids[2], "ack";
 
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume allocation is positive";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= 2 ^ 255 - 1, "assume allocation is small enough to cast to int256";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "see changeForAllocateOrDeallocateIsBoundedByAllocation";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= 2 ^ 255 - 1, "updating allocation reverts";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= 2 ^ 255 - 1, "assume updated allocation is small enough to cast to int256";
 
     return (ids, change);
 }
