@@ -49,7 +49,7 @@ function summaryAllocate(env e, bytes data, uint256 assets, bytes4 selector, add
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= 2 ^ 255 - 1, "assume allocation is small enough to cast to int256";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "see changeForAllocateOrDeallocateIsBoundedByAllocation";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= currentContract.caps[ids[i]].absoluteCap, "assume updated allocation respects absolute cap";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].absoluteCap > 0, "assume that the absolute cap is positive";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].absoluteCap > 0, "assume the absolute cap is positive";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= currentContract.caps[ids[i]].absoluteCap, "assume allocation respects absolute cap";
 
     return (ids, change);
