@@ -17,7 +17,7 @@ methods {
     // Assume that accrueInterest does not revert.
     function accrueInterest() internal => NONDET;
 
-    // Assume that SafeERC20Lib.safeTransferFrom does not revert.
+    // Assume that SafeERC20Lib.safeTransfer does not revert.
     function SafeERC20Lib.safeTransfer(address token, address to, uint256 value) internal => NONDET;
 
     // Assume that SafeERC20Lib.safeTransferFrom does not revert.
