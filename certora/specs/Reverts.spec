@@ -11,20 +11,10 @@ using Utils as Utils;
 
 methods {
     function Utils.maxMaxRate() external returns (uint256) envfree;
-    function Utils.wad() external returns (uint256) envfree;
-    function Utils.libMulDivDown(uint256 x, uint256 y, uint256 d) external returns (uint256) envfree;
-    function currentContract.firstTotalAssets() external returns (uint256) envfree;
-    function currentContract.liquidityAdapter() external returns (address) envfree;
     function currentContract.liquidityData() external returns (bytes) envfree;
 
     // Assume that accrueInterest does not revert.
     function accrueInterest() internal => NONDET;
-
-    // Assume that SafeERC20Lib.safeTransferFrom does not revert.
-    function SafeERC20Lib.safeTransfer(address token, address to, uint256 value) internal => NONDET;
-
-    // Assume that SafeERC20Lib.safeTransferFrom does not revert.
-    function SafeERC20Lib.safeTransferFrom(address token, address from, address to, uint256 value) internal => NONDET;
 
     // Trick to be able to retrieve the value returned by the corresponding contract before it is called, without the value changing between the retrieval and the call.
     function _.isInRegistry(address adapter) external => ghostIsInRegistry(calledContract, adapter) expect(bool);
@@ -32,8 +22,6 @@ methods {
     function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
     function _.canSendAssets(address account) external => ghostCanSendAssets(calledContract, account) expect(bool);
     function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
-    function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryDeallocate(e, data, assets, selector, sender) expect(bytes32[], int256);
-    function _.allocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryAllocate(e, data, assets, selector, sender) expect(bytes32[], int256);
 }
 
 ghost ghostIsInRegistry(address, address) returns bool;
@@ -45,51 +33,6 @@ ghost ghostCanReceiveShares(address, address) returns bool;
 ghost ghostCanSendAssets(address, address) returns bool;
 
 ghost ghostCanReceiveAssets(address, address) returns bool;
-
-function summaryAllocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
-    bytes32[] ids;
-    int256 change;
-    require ids.length == 3, "see IdsMorphoMarketV1Adapter";
-
-    require ids[0] != ids[1], "ack";
-    require ids[0] != ids[2], "ack";
-    require ids[1] != ids[2], "ack";
-
-    require currentContract.firstTotalAssets() * currentContract.caps[ids[0]].relativeCap <= max_uint256, "multiplication overflows";
-    require currentContract.firstTotalAssets() * currentContract.caps[ids[1]].relativeCap <= max_uint256, "multiplication overflows";
-    require currentContract.firstTotalAssets() * currentContract.caps[ids[2]].relativeCap <= max_uint256, "multiplication overflows";
-
-    // CVL does not allow function calls within quantifiers, hence explicitly listed here.
-    require(currentContract.caps[ids[0]].relativeCap == Utils.wad() || currentContract.caps[ids[0]].allocation + change <= Utils.libMulDivDown(currentContract.firstTotalAssets(), currentContract.caps[ids[0]].relativeCap, Utils.wad())), "assume allocation respects relative cap";
-    require(currentContract.caps[ids[1]].relativeCap == Utils.wad() || currentContract.caps[ids[1]].allocation + change <= Utils.libMulDivDown(currentContract.firstTotalAssets(), currentContract.caps[ids[1]].relativeCap, Utils.wad())), "assume allocation respects relative cap";
-    require(currentContract.caps[ids[2]].relativeCap == Utils.wad() || currentContract.caps[ids[2]].allocation + change <= Utils.libMulDivDown(currentContract.firstTotalAssets(), currentContract.caps[ids[2]].relativeCap, Utils.wad())), "assume allocation respects relative cap";
-
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= 2 ^ 255 - 1, "casting from uint256 to int256 reverts";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "casting from int256 to uint256";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= currentContract.caps[ids[i]].absoluteCap, "updating allocation reverts";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].absoluteCap > 0, "assume that the absolute cap is positive";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= currentContract.caps[ids[i]].absoluteCap, "assume that allocation respects absolute cap";
-
-    return (ids, change);
-}
-
-function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
-    bytes32[] ids;
-    int256 change;
-    require ids.length == 3, "see IdsMorphoMarketV1Adapter";
-
-    require ids[0] != ids[1], "ack";
-    require ids[0] != ids[2], "ack";
-    require ids[1] != ids[2], "ack";
-
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= 2 ^ 255 - 1, "casting from uint256 to int256 reverts";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "casting from int256 to uint256";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= 2 ^ 255 - 1, "updating allocation reverts";
-
-    return (ids, change);
-}
 
 // The helper contract is called first, so this specification can miss trivial revert conditions like e.msg.value != 0.
 rule timelockedFunctionsRevertConditions(env e, calldataarg args, method f) filtered { f -> f.contract == currentContract && functionIsTimelocked(f) } {
@@ -206,23 +149,6 @@ rule decreaseRelativeCapRevertCondition(env e, bytes idData, uint256 newRelative
     assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != curator && !isSentinel) || newRelativeCap > relativeCap;
 }
 
-rule allocateRevertCondition(env e, address adapter, bytes data, uint256 assets) {
-    bool callerIsAllocator = isAllocator(e.msg.sender);
-    bool adapterIsRegistered = isAdapter(adapter);
-
-    allocate@withrevert(e, adapter, data, assets);
-    assert !callerIsAllocator || !adapterIsRegistered || e.msg.value != 0 <=> lastReverted;
-}
-
-rule deallocateRevertCondition(env e, address adapter, bytes data, uint256 assets) {
-    bool callerIsAllocator = isAllocator(e.msg.sender);
-    bool callerIsSentinel = isSentinel(e.msg.sender);
-    bool adapterIsRegistered = isAdapter(adapter);
-
-    deallocate@withrevert(e, adapter, data, assets);
-    assert !(callerIsAllocator || callerIsSentinel) || !adapterIsRegistered || e.msg.value != 0 <=> lastReverted;
-}
-
 rule forceDeallocateInputValidation(env e, address adapter, bytes data, uint256 assets, address onBehalf) {
     bool adapterIsRegistered = isAdapter(adapter);
 
@@ -231,7 +157,6 @@ rule forceDeallocateInputValidation(env e, address adapter, bytes data, uint256 
 }
 
 rule setLiquidityAdapterAndDataRevertCondition(env e, address newLiquidityAdapter, bytes newLiquidityData) {
-    liquidityAdapter();
     liquidityData();
     bool callerIsAllocator = isAllocator(e.msg.sender);
     setLiquidityAdapterAndData@withrevert(e, newLiquidityAdapter, newLiquidityData);
