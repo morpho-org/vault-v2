@@ -37,18 +37,17 @@ function summaryAllocate(env e, bytes data, uint256 assets, bytes4 selector, add
     require ids[1] != ids[2], "ack";
 
     // CVL does not allow function calls within quantifiers, hence explicitly listed here.
-    require currentContract.firstTotalAssets() * currentContract.caps[ids[0]].relativeCap <= max_uint256, "multiplication overflows";
-    require currentContract.firstTotalAssets() * currentContract.caps[ids[1]].relativeCap <= max_uint256, "multiplication overflows";
-    require currentContract.firstTotalAssets() * currentContract.caps[ids[2]].relativeCap <= max_uint256, "multiplication overflows";
+    require currentContract.firstTotalAssets() * currentContract.caps[ids[0]].relativeCap <= max_uint256, "assume firstTotalASsets is bounded by max_uint256/WAD";
+    require currentContract.firstTotalAssets() * currentContract.caps[ids[1]].relativeCap <= max_uint256, "assume firstTotalASsets is bounded by max_uint256/WAD";
+    require currentContract.firstTotalAssets() * currentContract.caps[ids[2]].relativeCap <= max_uint256, "assume firstTotalASsets is bounded by max_uint256/WAD";
 
     // CVL does not allow function calls within quantifiers, hence explicitly listed here.
     require(currentContract.caps[ids[0]].relativeCap == Utils.wad() || currentContract.caps[ids[0]].allocation + change <= Utils.libMulDivDown(currentContract.firstTotalAssets(), currentContract.caps[ids[0]].relativeCap, Utils.wad())), "assume allocation respects relative cap";
     require(currentContract.caps[ids[1]].relativeCap == Utils.wad() || currentContract.caps[ids[1]].allocation + change <= Utils.libMulDivDown(currentContract.firstTotalAssets(), currentContract.caps[ids[1]].relativeCap, Utils.wad())), "assume allocation respects relative cap";
     require(currentContract.caps[ids[2]].relativeCap == Utils.wad() || currentContract.caps[ids[2]].allocation + change <= Utils.libMulDivDown(currentContract.firstTotalAssets(), currentContract.caps[ids[2]].relativeCap, Utils.wad())), "assume allocation respects relative cap";
 
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= 2 ^ 255 - 1, "casting from uint256 to int256 reverts";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "casting from int256 to uint256";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= 2 ^ 255 - 1, "assume allocation is small enough to cast to int256";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "see changeForAllocateOrDeallocateIsBoundedByAllocation";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= currentContract.caps[ids[i]].absoluteCap, "updating allocation reverts";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].absoluteCap > 0, "assume that the absolute cap is positive";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= currentContract.caps[ids[i]].absoluteCap, "assume that allocation respects absolute cap";
@@ -59,6 +58,8 @@ function summaryAllocate(env e, bytes data, uint256 assets, bytes4 selector, add
 function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
     bytes32[] ids;
     int256 change;
+
+    // assume MarketV1Adapter. The rule similarly holds for VaultV1Adapter with ids.length == 1.
     require ids.length == 3, "see IdsMorphoMarketV1Adapter";
 
     require ids[0] != ids[1], "ack";
@@ -66,8 +67,8 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     require ids[1] != ids[2], "ack";
 
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= 2 ^ 255 - 1, "casting from uint256 to int256 reverts";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "casting from int256 to uint256";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= 2 ^ 255 - 1, "assume allocation is small enough to cast to int256";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "see changeForAllocateOrDeallocateIsBoundedByAllocation";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= 2 ^ 255 - 1, "updating allocation reverts";
 
     return (ids, change);
