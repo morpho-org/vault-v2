@@ -49,9 +49,9 @@ rule depositMintEquivalence(env e, address onBehalf) {
     uint256 sharesDeposit = sharesEnter;
 
     uint256 assetsOutput = mint(e, sharesInput, onBehalf);
-    address onBehalfMint = onBehalfExit;
-    uint256 assetsMint = assetsExit;
-    uint256 sharesMint = sharesExit;
+    address onBehalfMint = onBehalfEnter;
+    uint256 assetsMint = assetsEnter;
+    uint256 sharesMint = sharesEnter;
 
     assert sharesOutput == sharesInput && assetsOutput == assetsInput => onBehalfDeposit == onBehalfMint && assetsDeposit == assetsMint && sharesDeposit == sharesMint;
 }
