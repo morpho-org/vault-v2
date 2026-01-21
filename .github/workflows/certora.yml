@@ -23,6 +23,7 @@ jobs:
           - ChangesMorphoMarketV1AdapterV2
           - ChangesMorphoVaultV1Adapter
           - EarliestTime
+          - EntrypointEquivalence
           - ExchangeRate
           - Gates
           - IdsMorphoMarketV1AdapterV2
