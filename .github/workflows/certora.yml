@@ -22,6 +22,7 @@ jobs:
           - AllocationVaultV2
           - ChangesMorphoMarketV1AdapterV2
           - ChangesMorphoVaultV1Adapter
+          - EarliestTime
           - EntrypointEquivalence
           - ExchangeRate
           - Gates
@@ -45,6 +46,7 @@ jobs:
           - TokensMorphoVaultV1Adapter
           - TokensNoAdapter
           - TotalAssetsChange
+          - TotalAssetsIsUpToDate
 
     steps:
       - uses: actions/checkout@v4

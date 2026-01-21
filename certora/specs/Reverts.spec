@@ -24,14 +24,17 @@ methods {
 }
 
 ghost ghostIsInRegistry(address, address) returns bool;
+
 ghost ghostCanSendShares(address, address) returns bool;
+
 ghost ghostCanReceiveShares(address, address) returns bool;
+
 ghost ghostCanSendAssets(address, address) returns bool;
+
 ghost ghostCanReceiveAssets(address, address) returns bool;
 
 // The helper contract is called first, so this specification can miss trivial revert conditions like e.msg.value != 0.
-rule timelockedFunctionsRevertConditions(env e, calldataarg args, method f)
-filtered { f -> f.contract == currentContract && functionIsTimelocked(f) } {
+rule timelockedFunctionsRevertConditions(env e, calldataarg args, method f) filtered { f -> f.contract == currentContract && functionIsTimelocked(f) } {
     bool revertCondition;
     if (f.selector == sig:setIsAllocator(address, bool).selector) {
         revertCondition = RevertCondition.setIsAllocator(e, args);
@@ -176,21 +179,26 @@ rule setMaxRateRevertCondition(env e, uint256 newMaxRate) {
     assert lastReverted <=> e.msg.value != 0 || !callerIsAllocator || newMaxRate > maxMaxRate;
 }
 
-rule transferInputValidation(env e, address to, uint256 shares) {
+rule transferRevertCondition(env e, address to, uint256 shares) {
     bool toIsZeroAddress = to == 0;
     bool callerCanSendShares = canSendShares(e.msg.sender);
     bool toCanReceiveShares = canReceiveShares(to);
+    bool boundedBalance = to != e.msg.sender => shares + balanceOf(to) <= max_uint256;
+    bool sufficientBalance = shares <= balanceOf(e.msg.sender);
 
     transfer@withrevert(e, to, shares);
-    assert toIsZeroAddress || !callerCanSendShares || !toCanReceiveShares => lastReverted;
+    assert toIsZeroAddress || !callerCanSendShares || !toCanReceiveShares || e.msg.value != 0 || !boundedBalance || !sufficientBalance <=> lastReverted;
 }
 
-rule transferFromInputValidation(env e, address from, address to, uint256 shares) {
+rule transferFromRevertCondition(env e, address from, address to, uint256 shares) {
     bool fromIsZeroAddress = from == 0;
     bool toIsZeroAddress = to == 0;
     bool fromCanSendShares = canSendShares(from);
     bool toCanReceiveShares = canReceiveShares(to);
+    bool sufficientAllowance = e.msg.sender != from => (shares <= allowance(from, e.msg.sender));
+    bool boundedBalance = to != from => shares + balanceOf(to) <= max_uint256;
+    bool sufficientBalance = shares <= balanceOf(from);
 
     transferFrom@withrevert(e, from, to, shares);
-    assert fromIsZeroAddress || toIsZeroAddress || !fromCanSendShares || !toCanReceiveShares => lastReverted;
+    assert fromIsZeroAddress || toIsZeroAddress || !fromCanSendShares || !toCanReceiveShares || !sufficientAllowance || !boundedBalance || !sufficientBalance || e.msg.value != 0 <=> lastReverted;
 }
