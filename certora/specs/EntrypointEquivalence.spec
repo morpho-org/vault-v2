@@ -2,12 +2,6 @@
 // Copyright (c) 2025 Morpho Association
 
 methods {
-    // Assume that those calls produce deterministic results.
-    function _.canSendShares(address) external => CONSTANT;
-    function _.canSendAssets(address) external => CONSTANT;
-    function _.canReceiveShares(address) external => CONSTANT;
-    function _.canReceiveAssets(address) external => CONSTANT;
-
     function enter(uint256 assets, uint256 shares, address onBehalf) internal => summaryEnter(assets, shares, onBehalf);
     function exit(uint256 assets, uint256 shares, address receiver, address onBehalf) internal => summaryExit(assets, shares, receiver, onBehalf);
 }
