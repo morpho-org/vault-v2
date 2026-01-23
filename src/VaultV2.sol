@@ -620,6 +620,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Whether newLiquidityAdapter is an adapter is checked in allocate/deallocate.
+    /// @dev newLiquidityData is indexed in the event so it cannot be read from logs.
     function setLiquidityAdapterAndData(address newLiquidityAdapter, bytes memory newLiquidityData) external {
         require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         liquidityAdapter = newLiquidityAdapter;
