@@ -3,23 +3,11 @@
 pragma solidity 0.8.28;
 
 import "../../src/libraries/ConstantsLib.sol";
-import {
-    IMorpho,
-    MarketParams,
-    Id
-} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
-import {
-    MarketParamsLib
-} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
-import {
-    MorphoBalancesLib
-} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
-import {
-    MorphoLib
-} from "../../lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
-import {
-    SharesMathLib
-} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
+import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
+import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
+import {MorphoLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
+import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {MathLib} from "../../src/libraries/MathLib.sol";
 
 interface IReturnFactory {
@@ -34,16 +22,12 @@ contract Utils {
         return bytes4(data);
     }
 
-    function wad() external pure returns (uint256) {
-        return WAD;
+    function libMulDivDown(uint256 x, uint256 y,uint256 d) external pure returns (uint256) {
+        return MathLib.mulDivDown(x, y, d);
     }
 
-    function libMulDivDown(
-        uint256 x,
-        uint256 y,
-        uint256 d
-    ) external pure returns (uint256) {
-        return MathLib.mulDivDown(x, y, d);
+    function wad() external pure returns (uint256) {
+        return WAD;
     }
 
     function maxPerformanceFee() external pure returns (uint256) {

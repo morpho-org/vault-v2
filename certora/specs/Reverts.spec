@@ -11,7 +11,7 @@ using Utils as Utils;
 
 methods {
     function Utils.maxMaxRate() external returns (uint256) envfree;
-    function currentContract.liquidityData() external returns (bytes) envfree;
+    function liquidityData() external returns (bytes) envfree;
 
     // Assume that accrueInterest does not revert.
     function accrueInterest() internal => NONDET;
