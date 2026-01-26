@@ -38,7 +38,7 @@ function summaryAllocate(env e, bytes data, uint256 assets, bytes4 selector, add
     require ids[1] != ids[2], "specification requires addapters to return unique ids";
 
     require currentContract.firstTotalAssets() < 2 ^ 20 * 2 ^ 128, "market v1 fits total supply assets on 128 bits, and assume at most 2^20 markets";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].relativeCap < 2^108, "assume relative cap is bounded";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].relativeCap < 2 ^ 108, "assume relative cap is bounded";
 
     // CVL does not allow function calls within quantifiers, hence explicitly listed here.
     require(currentContract.caps[ids[0]].relativeCap == Utils.wad() || currentContract.caps[ids[0]].allocation + change <= Utils.libMulDivDown(currentContract.firstTotalAssets(), currentContract.caps[ids[0]].relativeCap, Utils.wad())), "assume allocation respects relative cap";
