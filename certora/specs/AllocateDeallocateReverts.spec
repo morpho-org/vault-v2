@@ -9,7 +9,6 @@ using Utils as Utils;
 // accrueInterest, safeTransfer and safeTransferFrom are assumed to not revert.
 
 methods {
-    function Utils.maxMaxRate() external returns (uint256) envfree;
     function Utils.wad() external returns (uint256) envfree;
     function Utils.libMulDivDown(uint256 x, uint256 y, uint256 d) external returns (uint256) envfree;
     function firstTotalAssets() external returns (uint256) envfree;
@@ -38,7 +37,8 @@ function summaryAllocate(env e, bytes data, uint256 assets, bytes4 selector, add
     require ids[0] != ids[2], "specification requires addapters to return unique ids";
     require ids[1] != ids[2], "specification requires addapters to return unique ids";
 
-    require currentContract.firstTotalAssets() <= 2 ^ 20 * 2 ^ 128, "market v1 fits total supply assets on 128 bits, and assume at most 2^20 markets";
+    require currentContract.firstTotalAssets() < 2 ^ 20 * 2 ^ 128, "market v1 fits total supply assets on 128 bits, and assume at most 2^20 markets";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].relativeCap < 2^108, "assume relative cap is bounded";
 
     // CVL does not allow function calls within quantifiers, hence explicitly listed here.
     require(currentContract.caps[ids[0]].relativeCap == Utils.wad() || currentContract.caps[ids[0]].allocation + change <= Utils.libMulDivDown(currentContract.firstTotalAssets(), currentContract.caps[ids[0]].relativeCap, Utils.wad())), "assume allocation respects relative cap";
@@ -76,7 +76,8 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
 // The rule states a result of the form P => (Q <=> lastReverted), where
 // P is the post-conditions for adapter's allocate to ensure Vault's allocate doe not revert. Specifically, the adapter returns market ids such that:
 // - market ids are unique and of length 3 (for MarketV1Adapter). Similar result holds for VaultV1Adapter with ids length 1.
-// - each market's allocation respects its relative and absolute caps after accounting for the change in allocation due to the allocate call
+// - each market's allocation respects its relative and absolute caps after accounting for the change in allocation due to the allocate call.
+// - relativeCap is bounded by 2^108 for each id.
 // Q are the revert-conditions.
 rule allocateRevertCondition(env e, address adapter, bytes data, uint256 assets) {
     bool callerIsAllocator = isAllocator(e.msg.sender);
