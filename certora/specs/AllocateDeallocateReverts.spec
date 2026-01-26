@@ -73,6 +73,11 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     return (ids, change);
 }
 
+// The rule states a result of the form P => (Q <=> lastReverted), where
+// P is the post-conditions for adapter's allocate to ensure Vault's allocate doe not revert. Specifically, the adapter returns market ids such that:
+// - market ids are unique and of length 3 (for MarketV1Adapter). Similar result holds for VaultV1Adapter with ids length 1.
+// - each market's allocation respects its relative and absolute caps after accounting for the change in allocation due to the allocate call
+// Q are the revert-conditions.
 rule allocateRevertCondition(env e, address adapter, bytes data, uint256 assets) {
     bool callerIsAllocator = isAllocator(e.msg.sender);
     bool adapterIsRegistered = isAdapter(adapter);
@@ -81,6 +86,11 @@ rule allocateRevertCondition(env e, address adapter, bytes data, uint256 assets)
     assert !callerIsAllocator || !adapterIsRegistered || e.msg.value != 0 <=> lastReverted;
 }
 
+// The rule states a result of the form P => (Q <=> lastReverted), where
+// P is the post-conditions for adapter's deallocate to ensure Vault's deallocate doe not revert. Specifically, the adapter returns market ids such that:
+// - market ids are unique and of length 3 (for MarketV1Adapter). Similar result holds for VaultV1Adapter with ids length 1.
+// - each market's allocation is positive
+// Q are the revert-conditions.
 rule deallocateRevertCondition(env e, address adapter, bytes data, uint256 assets) {
     bool callerIsAllocator = isAllocator(e.msg.sender);
     bool callerIsSentinel = isSentinel(e.msg.sender);
