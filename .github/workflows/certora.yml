@@ -17,7 +17,7 @@ jobs:
       matrix:
         conf:
           - AbdicatedFunctions
-          - AllocateDeallocateInputInvalidation
+          - AllocateDeallocateInputValidation
           - AllocateDeallocateReverts
           - AllocationMorphoMarketV1AdapterV2
           - AllocationMorphoVaultV1Adapter
