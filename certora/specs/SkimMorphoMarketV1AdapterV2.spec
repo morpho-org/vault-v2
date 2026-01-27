@@ -3,9 +3,11 @@
 
 using MorphoMarketV1AdapterV2 as MorphoMarketV1AdapterV2;
 using MorphoHarness as MorphoMarketV1;
+using VaultV2 as VaultV2;
+using RevertCondition as RevertCondition;
 
 methods {
-
+  function VaultV2.curator() external returns (address) envfree;
   function MorphoMarketV1AdapterV2.skimRecipient() external returns (address) envfree;
 
   // Assume that skim transfers do not revert.
@@ -20,11 +22,20 @@ persistent ghost uint256 constantBorrowRate;
 
 rule skimDoesNotAffectAccounting(env e, address token) {
 
-  require e.msg.sender == MorphoMarketV1AdapterV2.skimRecipient();
-  uint256 realAssetsBefore = MorphoMarketV1AdapterV2.realAssets(e);
+  require e.msg.sender == skimRecipient();
+  uint256 realAssetsBefore = realAssets(e);
 
-  MorphoMarketV1AdapterV2.skim(e, token);
+  skim(e, token);
 
-  uint256 realAssetsAfter = MorphoMarketV1AdapterV2.realAssets(e);
+  uint256 realAssetsAfter = realAssets(e);
   assert realAssetsAfter == realAssetsBefore;
+}
+
+rule setSkimRecipientRevertCondition(env e, address newRecipient) {
+
+  skimRecipient();
+  bool senderIsCurator = e.msg.sender == VaultV2curator();
+  bool timeLockFailed = RevertCondition.timelockFailsMarketV1Adapter(e);
+  setSkimRecipient@withrevert(e, newRecipient);
+  assert e.msg.value != 0 || timeLockFailed <=> lastReverted;
 }
