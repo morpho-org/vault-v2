@@ -31,11 +31,11 @@ function summaryAllocate(env e, bytes data, uint256 assets, bytes4 selector, add
     int256 change;
 
     // Assume length 3 for simplicity. This covers MarketV1Adapter and the rule similarly holds for VaultV1Adapter with ids.length == 1.
-    require ids.length == 3, "for simplicity, assume a fixed number of 3 markets";
+    require ids.length == 3, "for simplicity, assume a fixed number of markets: 3";
 
-    require ids[0] != ids[1], "specification requires addapters to return unique ids";
-    require ids[0] != ids[2], "specification requires addapters to return unique ids";
-    require ids[1] != ids[2], "specification requires addapters to return unique ids";
+    require ids[0] != ids[1], "specification requires adapters to return unique ids";
+    require ids[0] != ids[2], "specification requires adapters to return unique ids";
+    require ids[1] != ids[2], "specification requires adapters to return unique ids";
 
     require currentContract.firstTotalAssets() < 2 ^ 20 * 2 ^ 128, "market v1 fits total supply assets on 128 bits, and assume at most 2^20 markets";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].relativeCap < 2 ^ 108, "see relativeCapBound invariant";
@@ -46,7 +46,7 @@ function summaryAllocate(env e, bytes data, uint256 assets, bytes4 selector, add
     require(currentContract.caps[ids[2]].relativeCap == Utils.wad() || currentContract.caps[ids[2]].allocation + change <= Utils.libMulDivDown(currentContract.firstTotalAssets(), currentContract.caps[ids[2]].relativeCap, Utils.wad())), "assume allocation respects relative cap";
 
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= 2 ^ 255 - 1, "see allocationIsInt256";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].absoluteCap > 0, "specification disallows allocating from an adapter if one of absolute cap is zero";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].absoluteCap > 0, "specification disallows allocating from an adapter if one of the absolute cap is zero";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "see changeForAllocateOrDeallocateIsBoundedByAllocation";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= currentContract.caps[ids[i]].absoluteCap, "assume updated allocation respects absolute cap";
 
@@ -58,12 +58,11 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     int256 change;
 
     // assume MarketV1Adapter. The rule similarly holds for VaultV1Adapter with ids.length == 1.
-    require ids.length == 3, "for simplicity, assume a fixed number of 3 markets";
+    require ids.length == 3, "for simplicity, assume a fixed number of markets: 3";
 
-    require ids[0] != ids[1], "specification requires addapters to return unique ids";
-    require ids[0] != ids[2], "specification requires addapters to return unique ids";
-    require ids[1] != ids[2], "specification requires addapters to return unique ids";
-
+    require ids[0] != ids[1], "specification requires adapters to return unique ids";
+    require ids[0] != ids[2], "specification requires adapters to return unique ids";
+    require ids[1] != ids[2], "specification requires adapters to return unique ids";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "specification disallows deallocating from an adapter with zero allocation";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= 2 ^ 255 - 1, "see allocationIsInt256 invariant";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "see changeForAllocateOrDeallocateIsBoundedByAllocation";
@@ -78,7 +77,7 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
 // - each market's allocation respects its relative and absolute caps after accounting for the change in allocation due to the allocate call.
 // - relativeCap is bounded by 2^108 for each id.
 // - absoluteCap is positive for each id.
-// Q are the revert-conditions.
+// Q are the revert conditions.
 rule allocateRevertCondition(env e, address adapter, bytes data, uint256 assets) {
     bool callerIsAllocator = isAllocator(e.msg.sender);
     bool adapterIsRegistered = isAdapter(adapter);
@@ -88,10 +87,10 @@ rule allocateRevertCondition(env e, address adapter, bytes data, uint256 assets)
 }
 
 // The rule states a result of the form P => (Q <=> lastReverted), where
-// P is the post-conditions for adapter's deallocate to ensure Vault's deallocate doe not revert. Specifically, the adapter returns market ids such that:
+// P is the post-conditions for adapter's deallocate to ensure Vault's deallocate does not revert. Specifically, the adapter returns market ids such that:
 // - market ids are unique, the proof is done on length 3 for simplicity.
 // - each market's allocation is positive
-// Q are the revert-conditions.
+// Q are the revert conditions.
 rule deallocateRevertCondition(env e, address adapter, bytes data, uint256 assets) {
     bool callerIsAllocator = isAllocator(e.msg.sender);
     bool callerIsSentinel = isSentinel(e.msg.sender);

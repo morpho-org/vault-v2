@@ -17,7 +17,7 @@ function summaryAllocate(env e, bytes data, uint256 assets, bytes4 selector, add
     bytes32[] ids;
     int256 change;
 
-    // Assume adapter does violates the requirement of positive absoluteCap.
+    // Assume the adapter violates the requirement of positive absoluteCap.
     require exists uint256 i. i < ids.length && ! (currentContract.caps[ids[i]].absoluteCap > 0), "assume absolute cap is not positive";
 
     return (ids, change);
@@ -27,7 +27,7 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     bytes32[] ids;
     int256 change;
 
-    // Assume adapter does violates the requirement of positive allocation.
+    // Assume the adapter violates the requirement of positive allocation.
     require exists uint256 i. i < ids.length && ! (currentContract.caps[ids[i]].allocation > 0), "assume allocation is not positive";
 
     return (ids, change);
