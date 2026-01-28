@@ -34,7 +34,7 @@ rule skimDoesNotAffectAccounting(env e, address token) {
 rule setSkimRecipientRevertCondition(env e, address newRecipient) {
 
   skimRecipient();
-  bool senderIsCurator = e.msg.sender == VaultV2curator();
+
   bool timeLockFailed = RevertCondition.timelockFailsMarketV1Adapter(e);
   setSkimRecipient@withrevert(e, newRecipient);
   assert e.msg.value != 0 || timeLockFailed <=> lastReverted;
