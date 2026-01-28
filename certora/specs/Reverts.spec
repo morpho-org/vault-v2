@@ -11,6 +11,7 @@ using Utils as Utils;
 
 methods {
     function Utils.maxMaxRate() external returns (uint256) envfree;
+    function liquidityData() external returns (bytes) envfree;
 
     // Assume that accrueInterest does not revert.
     function accrueInterest() internal => NONDET;
@@ -99,16 +100,22 @@ rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
     assert lastReverted <=> e.msg.value != 0 || e.msg.sender != owner;
 }
 
-rule setNameInputValidation(env e, string newName) {
+rule setNameRevertCondition(env e, string newName) {
     address owner = owner();
+    name();
+
     setName@withrevert(e, newName);
-    assert e.msg.value != 0 || e.msg.sender != owner => lastReverted;
+
+    assert (e.msg.value != 0 || e.msg.sender != owner) <=> lastReverted;
 }
 
-rule setSymbolInputValidation(env e, string newSymbol) {
+rule setSymbolRevertCondition(env e, string newSymbol) {
     address owner = owner();
+    symbol();
+
     setSymbol@withrevert(e, newSymbol);
-    assert e.msg.value != 0 || e.msg.sender != owner => lastReverted;
+
+    assert (e.msg.value != 0 || e.msg.sender != owner) <=> lastReverted;
 }
 
 rule submitInputValidation(env e, bytes data) {
@@ -142,23 +149,6 @@ rule decreaseRelativeCapRevertCondition(env e, bytes idData, uint256 newRelative
     assert lastReverted <=> e.msg.value != 0 || (e.msg.sender != curator && !isSentinel) || newRelativeCap > relativeCap;
 }
 
-rule allocateInputValidation(env e, address adapter, bytes data, uint256 assets) {
-    bool callerIsAllocator = isAllocator(e.msg.sender);
-    bool adapterIsRegistered = isAdapter(adapter);
-
-    allocate@withrevert(e, adapter, data, assets);
-    assert !callerIsAllocator || !adapterIsRegistered => lastReverted;
-}
-
-rule deallocateInputValidation(env e, address adapter, bytes data, uint256 assets) {
-    bool callerIsAllocator = isAllocator(e.msg.sender);
-    bool callerIsSentinel = isSentinel(e.msg.sender);
-    bool adapterIsRegistered = isAdapter(adapter);
-
-    deallocate@withrevert(e, adapter, data, assets);
-    assert !(callerIsAllocator || callerIsSentinel) || !adapterIsRegistered => lastReverted;
-}
-
 rule forceDeallocateInputValidation(env e, address adapter, bytes data, uint256 assets, address onBehalf) {
     bool adapterIsRegistered = isAdapter(adapter);
 
@@ -166,10 +156,11 @@ rule forceDeallocateInputValidation(env e, address adapter, bytes data, uint256 
     assert !adapterIsRegistered => lastReverted;
 }
 
-rule setLiquidityAdapterAndDataInputValidation(env e, address newLiquidityAdapter, bytes newLiquidityData) {
+rule setLiquidityAdapterAndDataRevertCondition(env e, address newLiquidityAdapter, bytes newLiquidityData) {
+    liquidityData();
     bool callerIsAllocator = isAllocator(e.msg.sender);
     setLiquidityAdapterAndData@withrevert(e, newLiquidityAdapter, newLiquidityData);
-    assert e.msg.value != 0 || !callerIsAllocator => lastReverted;
+    assert e.msg.value != 0 || !callerIsAllocator <=> lastReverted;
 }
 
 rule setMaxRateRevertCondition(env e, uint256 newMaxRate) {
