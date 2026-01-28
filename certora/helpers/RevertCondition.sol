@@ -28,11 +28,16 @@ contract RevertCondition {
     }
 
     function timelockFailsMarketV1Adapter() internal view returns (bool) {
+        bytes4 selector = bytes4(msg.data);
         uint256 executableAtData = adapter.executableAt(msg.data);
         bool dataNotSubmitted = executableAtData == 0;
         bool timelockNotExpired = block.timestamp < executableAtData;
         bool functionAbdicated = adapter.abdicated(bytes4(msg.data));
         return dataNotSubmitted || timelockNotExpired || functionAbdicated;
+    }
+
+    function setSkimRecipient(address) external view returns (bool) {
+        return timelockFailsMarketV1Adapter();
     }
 
     function setIsAllocator(address, bool) external view returns (bool) {
