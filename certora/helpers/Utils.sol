@@ -22,7 +22,7 @@ contract Utils {
         return bytes4(data);
     }
 
-    function libMulDivDown(uint256 x, uint256 y,uint256 d) external pure returns (uint256) {
+    function libMulDivDown(uint256 x, uint256 y, uint256 d) external pure returns (uint256) {
         return MathLib.mulDivDown(x, y, d);
     }
 
@@ -50,7 +50,7 @@ contract Utils {
         return MAX_MAX_RATE;
     }
 
-    function encodeMarketParams( MarketParams memory marketParams) external pure returns (bytes memory) {
+    function encodeMarketParams(MarketParams memory marketParams) external pure returns (bytes memory) {
         return abi.encode(marketParams);
     }
 
