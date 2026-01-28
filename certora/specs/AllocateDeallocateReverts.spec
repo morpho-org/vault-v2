@@ -71,11 +71,11 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     return (ids, change);
 }
 
+// We assume accrueInterest, SafeERC20Lib.safeTransfer and SafeERC20Lib.safeTransferFrom do not revert.
 // The rule states a result of the form P => (Q <=> lastReverted), where
 // P is the post-conditions for adapter's allocate to ensure Vault's allocate does not revert. Specifically, the adapter returns market ids such that:
 // - market ids are unique, the proof is done on length 3 for simplicity.
 // - each market's allocation respects its relative and absolute caps after accounting for the change in allocation due to the allocate call.
-// - relativeCap is bounded by 2^108 for each id.
 // - absoluteCap is positive for each id.
 // Q are the revert conditions.
 rule allocateRevertCondition(env e, address adapter, bytes data, uint256 assets) {
@@ -86,6 +86,7 @@ rule allocateRevertCondition(env e, address adapter, bytes data, uint256 assets)
     assert !callerIsAllocator || !adapterIsRegistered || e.msg.value != 0 <=> lastReverted;
 }
 
+// We assume accrueInterest, SafeERC20Lib.safeTransfer and SafeERC20Lib.safeTransferFrom do not revert.
 // The rule states a result of the form P => (Q <=> lastReverted), where
 // P is the post-conditions for adapter's deallocate to ensure Vault's deallocate does not revert. Specifically, the adapter returns market ids such that:
 // - market ids are unique, the proof is done on length 3 for simplicity.

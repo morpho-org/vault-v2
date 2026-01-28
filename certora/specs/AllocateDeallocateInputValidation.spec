@@ -3,8 +3,6 @@
 
 import "../helpers/UtilityVault.spec";
 
-using Utils as Utils;
-
 // This specification checks that interaction is prevented from unknown markets.
 
 methods {
@@ -34,17 +32,12 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
 }
 
 rule allocateInputValidation(env e, address adapter, bytes data, uint256 assets) {
-    bool callerIsAllocator = isAllocator(e.msg.sender);
-    bool adapterIsRegistered = isAdapter(adapter);
 
     allocate@withrevert(e, adapter, data, assets);
     assert lastReverted;
 }
 
 rule deallocateInputValidation(env e, address adapter, bytes data, uint256 assets) {
-    bool callerIsAllocator = isAllocator(e.msg.sender);
-    bool callerIsSentinel = isSentinel(e.msg.sender);
-    bool adapterIsRegistered = isAdapter(adapter);
 
     deallocate@withrevert(e, adapter, data, assets);
     assert lastReverted;
