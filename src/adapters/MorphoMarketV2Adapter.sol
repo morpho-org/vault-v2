@@ -12,7 +12,7 @@ import {IMorphoMarketV2Adapter, MaturityData, IAdapter} from "./interfaces/IMorp
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest separately for each obligation.
-/// @dev Losses are immdiately accounted minus a discount applied to the remaining interest to be earned, in proportion
+/// @dev Losses are immediately accounted minus a discount applied to the remaining interest to be earned, in proportion
 /// to the relative sizes of the loss and the adapter's position in the obligation hit by the loss.
 /// @dev The adapter must have the allocator role in its parent vault to be able to buy & sell obligations.
 contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
@@ -213,6 +213,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
                 abi.decode(data, (Offer, Proof, Signature));
             require(offer.buy && offer.obligation.loanToken == asset && offer.startPrice == 1e18, IncorrectOffer());
 
+            // Already in a deallocate call so we skip the onSell callback and return the deallocation here.
             (,, uint256 deallocated,) = MorphoV2(morphoV2)
                 .take(0, sellerAssets, 0, 0, address(this), offer, proof, signature, address(0), hex"");
 
@@ -346,7 +347,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
             // Do not cleanup the linked list if we end up at 0 growth.
             maturityData.growth -= removedGrowth;
             currentGrowth -= removedGrowth;
-            _totalAssets = _totalAssets + (removedUnits - (removedGrowth * timeToMaturity));
+            _totalAssets = _totalAssets + (removedGrowth * timeToMaturity) - removedUnits;
         } else {
             _totalAssets -= removedUnits;
         }

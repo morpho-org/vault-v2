@@ -48,6 +48,7 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
     function adapterId() external view returns (bytes32);
     function units(bytes32 obligationId) external view returns (uint256);
     function maturities(uint256 date) external view returns (MaturityData memory);
+    function skimRecipient() external view returns (address);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);
