@@ -17,7 +17,7 @@ import {
 /// Helper in getting revert conditions for timelocked functions.
 contract RevertCondition {
     VaultV2 public vault;
-    MorphoMarketV1AdapterV2 public adapter;
+    MorphoMarketV1AdapterV2 public marketV1adapter;
 
     function timelockFails() internal view returns (bool) {
         uint256 executableAtData = vault.executableAt(msg.data);
@@ -28,11 +28,10 @@ contract RevertCondition {
     }
 
     function timelockFailsMarketV1Adapter() internal view returns (bool) {
-        bytes4 selector = bytes4(msg.data);
-        uint256 executableAtData = adapter.executableAt(msg.data);
+        uint256 executableAtData = marketV1adapter.executableAt(msg.data);
         bool dataNotSubmitted = executableAtData == 0;
         bool timelockNotExpired = block.timestamp < executableAtData;
-        bool functionAbdicated = adapter.abdicated(bytes4(msg.data));
+        bool functionAbdicated = marketV1adapter.abdicated(bytes4(msg.data));
         return dataNotSubmitted || timelockNotExpired || functionAbdicated;
     }
 
