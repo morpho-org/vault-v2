@@ -57,6 +57,10 @@ contract Utils {
         return MarketParamsLib.id(marketParams);
     }
 
+    function libId(MarketParams memory marketParams) external pure returns (Id) {
+        return marketParams.id();
+    }
+
     function wrapId(bytes32 _id) external pure returns (Id) {
         return Id.wrap(_id);
     }
