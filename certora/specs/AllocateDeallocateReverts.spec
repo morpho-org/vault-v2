@@ -26,6 +26,7 @@ methods {
     function _.allocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryAllocate(e, data, assets, selector, sender) expect(bytes32[], int256);
 }
 
+// Checks the post-conditions P required in the rule allocateRevertCondition.
 function summaryAllocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
     bytes32[] ids;
     int256 change;
@@ -53,6 +54,7 @@ function summaryAllocate(env e, bytes data, uint256 assets, bytes4 selector, add
     return (ids, change);
 }
 
+// Checks the post-conditions P required in the rule deallocateRevertCondition.
 function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
     bytes32[] ids;
     int256 change;
