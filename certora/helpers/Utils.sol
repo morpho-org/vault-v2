@@ -8,6 +8,7 @@ import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsL
 import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 import {MorphoLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoLib.sol";
 import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
+import {MathLib} from "../../src/libraries/MathLib.sol";
 
 interface IReturnFactory {
     function factory() external view returns (address);
@@ -19,6 +20,10 @@ contract Utils {
 
     function toBytes4(bytes memory data) public pure returns (bytes4) {
         return bytes4(data);
+    }
+
+    function libMulDivDown(uint256 x, uint256 y, uint256 d) external pure returns (uint256) {
+        return MathLib.mulDivDown(x, y, d);
     }
 
     function wad() external pure returns (uint256) {
