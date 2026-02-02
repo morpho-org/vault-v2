@@ -20,7 +20,7 @@ methods {
 
 persistent ghost uint256 constantBorrowRate;
 
-rule skimDoesNotAffectAccounting(env e, address token) {
+rule skimDoesNotAffectAccountingMarketV1Adapter(env e, address token) {
 
   require e.msg.sender == skimRecipient();
   uint256 realAssetsBefore = realAssets(e);
@@ -31,7 +31,7 @@ rule skimDoesNotAffectAccounting(env e, address token) {
   assert realAssetsAfter == realAssetsBefore;
 }
 
-rule setSkimRecipientRevertCondition(env e, address newRecipient) {
+rule setSkimRecipientRevertConditionMarketV1Adapter(env e, address newRecipient) {
 
   bool revertCondition = RevertCondition.setSkimRecipient(e, newRecipient);
   setSkimRecipient@withrevert(e, newRecipient);
