@@ -10,7 +10,6 @@ methods {
   function VaultV2.curator() external returns (address) envfree;
   function MorphoMarketV1AdapterV2.skimRecipient() external returns (address) envfree;
 
-  // Assume that skim transfers do not revert.
   function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
 
   // assume adaptiveIRM rate is not changed by skim.
