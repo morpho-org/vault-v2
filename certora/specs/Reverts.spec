@@ -102,6 +102,7 @@ rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
 
 rule setNameRevertCondition(env e, string newName) {
     address owner = owner();
+    // String stored in name can be malformed, so we just call the getter to ensure that the encoding is correct.
     name();
 
     setName@withrevert(e, newName);
@@ -111,6 +112,7 @@ rule setNameRevertCondition(env e, string newName) {
 
 rule setSymbolRevertCondition(env e, string newSymbol) {
     address owner = owner();
+    // String stored in symbol can be malformed, so we just call the getter to ensure that the encoding is correct.
     symbol();
 
     setSymbol@withrevert(e, newSymbol);
@@ -157,6 +159,7 @@ rule forceDeallocateInputValidation(env e, address adapter, bytes data, uint256 
 }
 
 rule setLiquidityAdapterAndDataRevertCondition(env e, address newLiquidityAdapter, bytes newLiquidityData) {
+    // Bytes stored in liquidityData can be malformed, so we just call the getter to ensure that the encoding is correct.
     liquidityData();
     bool callerIsAllocator = isAllocator(e.msg.sender);
     setLiquidityAdapterAndData@withrevert(e, newLiquidityAdapter, newLiquidityData);

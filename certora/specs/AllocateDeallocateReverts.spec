@@ -32,7 +32,7 @@ function summaryAllocate(env e, bytes data, uint256 assets, bytes4 selector, add
     int256 change;
 
     // Assume length 3 for simplicity. This covers MarketV1Adapter and the rule similarly holds for VaultV1Adapter with ids.length == 1.
-    require ids.length == 3, "for simplicity, assume a fixed number of markets: 3";
+    require ids.length == 3, "for simplicity, assume a fixed number of ids";
 
     require ids[0] != ids[1], "specification requires adapters to return unique ids";
     require ids[0] != ids[2], "specification requires adapters to return unique ids";
@@ -60,7 +60,7 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     int256 change;
 
     // assume MarketV1Adapter. The rule similarly holds for VaultV1Adapter with ids.length == 1.
-    require ids.length == 3, "for simplicity, assume a fixed number of markets: 3";
+    require ids.length == 3, "for simplicity, assume a fixed number of ids";
 
     require ids[0] != ids[1], "specification requires adapters to return unique ids";
     require ids[0] != ids[2], "specification requires adapters to return unique ids";
