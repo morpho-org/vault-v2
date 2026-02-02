@@ -12,6 +12,9 @@ methods {
   function _.idToMarketParams(MetaMorphoHarness.Id id) external => summaryIdToMarketParams(id) expect MetaMorphoHarness.MarketParams ALL;
   function Utils.libId(MetaMorphoHarness.MarketParams) external returns(MetaMorphoHarness.Id) envfree;
 
+  function _.balanceOf(address) external => DISPATCHER(true);
+  function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
+
 }
 
 ghost ghostExpectedSupply(address, address, address, address, uint256, address) returns uint256;
@@ -28,7 +31,7 @@ function summaryIdToMarketParams(MetaMorphoHarness.Id id) returns MetaMorphoHarn
     return marketParams;
 }
 
-rule skimDoesNotAffectAccounting(env e, address token) {
+rule skimDoesNotAffectAccountingVaultV1Adapter(env e, address token) {
 
   require e.msg.sender == MorphoVaultV1Adapter.skimRecipient();
   uint256 realAssetsBefore = MorphoVaultV1Adapter.realAssets(e);
