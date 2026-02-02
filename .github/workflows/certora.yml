@@ -42,6 +42,8 @@ jobs:
           - SentinelLiveness
           - SentinelLivenessDeallocateMarketV1
           - SentinelLivenessDeallocateVaultV1
+          - SkimMorphoMarketV1AdapterV2
+          - SkimMorphoVaultV1Adapter
           - TokensMorphoMarketV1AdapterV2
           - TokensMorphoVaultV1Adapter
           - TokensNoAdapter
