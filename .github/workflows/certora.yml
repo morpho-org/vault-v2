@@ -100,6 +100,9 @@ jobs:
           chmod +x solc-static-linux
           sudo mv solc-static-linux /usr/local/bin/solc-0.8.28
 
+      - name: Apply munging
+        run: make -C lib/metamorpho/certora munged
+
       - name: Verify ${{ matrix.conf }}
         run: certoraRun certora/confs/${{ matrix.conf }}.conf
         env:
