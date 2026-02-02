@@ -4,9 +4,11 @@
 using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
 using MetaMorphoHarness as MorphoVaultV1;
 using Utils as Utils;
+using VaultV2 as VaultV2;
 
 methods {
 
+  function VaultV2.owner() external returns (address) envfree;
   function MorphoVaultV1Adapter.skimRecipient() external returns (address) envfree;
   function _.expectedSupplyAssets(MorphoHarness.MarketParams marketParams, address user) external => summaryExpectedSupplyAssets(marketParams, user) expect (uint256);
   function _.idToMarketParams(MetaMorphoHarness.Id id) external => summaryIdToMarketParams(id) expect MetaMorphoHarness.MarketParams ALL;
@@ -40,4 +42,11 @@ rule skimDoesNotAffectAccountingVaultV1Adapter(env e, address token) {
 
   uint256 realAssetsAfter = MorphoVaultV1Adapter.realAssets(e);
   assert realAssetsAfter == realAssetsBefore;
+}
+
+rule setSkimRecipientRevertConditionVaultV1Adapter(env e, address newRecipient) {
+
+  bool revertCondition = e.msg.sender == VaultV2.owner();
+  MorphoVaultV1Adapter.setSkimRecipient@withrevert(e, newRecipient);
+  assert revertCondition <=> lastReverted;
 }
