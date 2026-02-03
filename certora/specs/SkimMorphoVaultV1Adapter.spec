@@ -7,16 +7,14 @@ using MetaMorphoHarness as MorphoVaultV1;
 using Utils as Utils;
 
 methods {
-
-  // Env free functions
+  // Env free functions.
   function VaultV2.owner() external returns (address) envfree;
   function MorphoVaultV1Adapter.skimRecipient() external returns (address) envfree;
   function Utils.libId(MetaMorphoHarness.MarketParams) external returns(MetaMorphoHarness.Id) envfree;
 
-  // Summaries
+  // Summaries.
   function _.expectedSupplyAssets(MorphoHarness.MarketParams marketParams, address user) external => summaryExpectedSupplyAssets(marketParams, user) expect (uint256);
   function _.idToMarketParams(MetaMorphoHarness.Id id) external => summaryIdToMarketParams(id) expect MetaMorphoHarness.MarketParams ALL;
-
 
   //assume safeTransfer does not revert.
   function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
@@ -32,15 +30,13 @@ function summaryExpectedSupplyAssets(MorphoHarness.MarketParams marketParams, ad
 function summaryIdToMarketParams(MetaMorphoHarness.Id id) returns MetaMorphoHarness.MarketParams {
     MetaMorphoHarness.MarketParams marketParams;
 
-    // See hashOfMarketParamsOf in Morpho-Blue ConsistentState.spec
     // We assume the marketd interacted with is created and present in the mapping.
-    require Utils.libId(marketParams) == id;
+    require (Utils.libId(marketParams) == id, "see hashOfMarketParamsOf in Morpho-Blue ConsistentState.spec");
 
     return marketParams;
 }
 
 rule skimDoesNotAffectAccountingVaultV1Adapter(env e, address token) {
-  require e.msg.sender == MorphoVaultV1Adapter.skimRecipient();
   uint256 realAssetsBefore = MorphoVaultV1Adapter.realAssets(e);
 
   MorphoVaultV1Adapter.skim(e, token);

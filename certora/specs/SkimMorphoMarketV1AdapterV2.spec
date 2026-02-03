@@ -7,6 +7,7 @@ using VaultV2 as VaultV2;
 using RevertCondition as RevertCondition;
 
 methods {
+  // Env free functions.
   function VaultV2.curator() external returns (address) envfree;
   function MorphoMarketV1AdapterV2.skimRecipient() external returns (address) envfree;
 
@@ -14,8 +15,8 @@ methods {
   function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
   function _.balanceOf(address) external => DISPATCHER(true);
 
+  //Summaries.
   function _.borrowRateView(bytes32, MorphoHarness.Market memory, address) internal => constantBorrowRate expect(uint256);
-
 }
 
 // assume adaptiveIRM rate is not changed by skim.
