@@ -5,10 +5,6 @@ using MorphoHarness as MorphoMarketV1;
 using RevertCondition as RevertCondition;
 
 methods {
-  // Env free functions.
-  function VaultV2.curator() external returns (address) envfree;
-  function MorphoMarketV1AdapterV2.skimRecipient() external returns (address) envfree;
-
   //assume safeTransfer does not revert.
   function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
   function _.balanceOf(address) external => DISPATCHER(true);

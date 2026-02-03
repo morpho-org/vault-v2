@@ -8,7 +8,7 @@ using Utils as Utils;
 
 methods {
   function VaultV2.owner() external returns (address) envfree;
-  function Utils.libId(MetaMorphoHarness.MarketParams) external returns(MetaMorphoHarness.Id) envfree;
+  function Utils.id(MetaMorphoHarness.MarketParams) external returns(MetaMorphoHarness.Id) envfree;
 
   // Summaries.
   function _.expectedSupplyAssets(MorphoHarness.MarketParams marketParams, address user) external => summaryExpectedSupplyAssets(marketParams, user) expect (uint256);
@@ -29,7 +29,7 @@ function summaryIdToMarketParams(MetaMorphoHarness.Id id) returns MetaMorphoHarn
     MetaMorphoHarness.MarketParams marketParams;
 
     // We assume the marketd interacted with is created and present in the mapping.
-    require (Utils.libId(marketParams) == id, "see hashOfMarketParamsOf in Morpho-Blue ConsistentState.spec");
+    require (Utils.id(marketParams) == id, "see hashOfMarketParamsOf in Morpho-Blue ConsistentState.spec");
 
     return marketParams;
 }
