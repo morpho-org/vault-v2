@@ -7,9 +7,7 @@ using MetaMorphoHarness as MorphoVaultV1;
 using Utils as Utils;
 
 methods {
-  // Env free functions.
   function VaultV2.owner() external returns (address) envfree;
-  function MorphoVaultV1Adapter.skimRecipient() external returns (address) envfree;
   function Utils.libId(MetaMorphoHarness.MarketParams) external returns(MetaMorphoHarness.Id) envfree;
 
   // Summaries.
