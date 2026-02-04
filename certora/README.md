@@ -9,27 +9,16 @@ We first give a [high-level description](#high-level-description) of the verific
 Vault V2 enables anyone to create non-custodial vaults that allocate assets into different markets via adapters.
 Depositors earn from the underlying markets without having to actively manage their position.
 
-## ERC20 tokens and transfers
+# Getting started
 
-Vault V2 relies on the fact that the underlying asset respects the ERC20 standard.
-In particular, in case of a transfer, it is assumed that the balance of the vault increases or decreases (depending if it's the recipient or the sender) of the amount transferred.
+Install `certora-cli` package with `pip install certora-cli`.
+To verify specification files, pass to `certoraRun` the corresponding configuration file in the [`certora/confs`](confs) folder.
+It requires having set the `CERTORAKEY` environment variable to a valid Certora key.
+You can also pass additional arguments, notably to verify a specific rule.
+For example, at the root of the repository:
 
-The verification is done for the most common implementations of the ERC20 standard, for which we distinguish three different implementations:
-
-- Standard compliant versions that revert in case of insufficient funds or insufficient allowance.
-- Standard compliant versions that do not revert (and return false instead).
-- Non-standard implementations like USDT which omit the return value.
-
-The file [TokensNoAdapter.spec](specs/TokensNoAdapter.spec) checks that token balances change as expected on deposit and withdraw operations.
-
-```solidity
-rule depositTokenChange(env e, uint256 assets, address receiver) {
-    // ...
-    deposit(e, assets, receiver);
-    // ...
-    assert assert_uint256(balanceVaultV2After - balanceVaultV2Before) == assets;
-    assert assert_uint256(balanceSenderBefore - balanceSenderAfter) == assets;
-}
+```
+certoraRun certora/confs/Invariants.conf --rule totalSupplyIsSumOfBalances
 ```
 
 ## Adapters and allocations
@@ -185,6 +174,29 @@ rule abdicatedCantBeDeabdicated(env e, method f, calldataarg args, bytes4 select
 }
 ```
 
+## ERC20 tokens and transfers
+
+Vault V2 relies on the fact that the underlying asset respects the ERC20 standard.
+In particular, in case of a transfer, it is assumed that the balance of the vault increases or decreases (depending if it's the recipient or the sender) of the amount transferred.
+
+The verification is done for the most common implementations of the ERC20 standard, for which we distinguish three different implementations:
+
+- Standard compliant versions that revert in case of insufficient funds or insufficient allowance.
+- Standard compliant versions that do not revert (and return false instead).
+- Non-standard implementations like USDT which omit the return value.
+
+The file [TokensNoAdapter.spec](specs/TokensNoAdapter.spec) checks that token balances change as expected on deposit and withdraw operations.
+
+```solidity
+rule depositTokenChange(env e, uint256 assets, address receiver) {
+    // ...
+    deposit(e, assets, receiver);
+    // ...
+    assert assert_uint256(balanceVaultV2After - balanceVaultV2Before) == assets;
+    assert assert_uint256(balanceSenderBefore - balanceSenderAfter) == assets;
+}
+```
+
 ## Other safety properties
 
 ### Invariants and ranges
@@ -324,18 +336,6 @@ Notably, this includes:
 - [ERC20Helper.sol](helpers/ERC20Helper.sol) for handling ERC20 balance queries.
 - [Utils.sol](helpers/Utils.sol) for utility functions and constants.
 - [UtilityVault.spec](helpers/UtilityVault.spec) and [UtilityAdapters.spec](helpers/UtilityAdapters.spec) for common specification helpers.
-
-# Getting started
-
-Install `certora-cli` package with `pip install certora-cli`.
-To verify specification files, pass to `certoraRun` the corresponding configuration file in the [`certora/confs`](confs) folder.
-It requires having set the `CERTORAKEY` environment variable to a valid Certora key.
-You can also pass additional arguments, notably to verify a specific rule.
-For example, at the root of the repository:
-
-```
-certoraRun certora/confs/Invariants.conf --rule totalSupplyIsSumOfBalances
-```
 
 # Acknowledgments
 
