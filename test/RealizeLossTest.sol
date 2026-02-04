@@ -141,6 +141,7 @@ contract RealizeLossTest is BaseTest {
         adapter.setLoss(expectedLoss);
 
         // Realize the loss.
+        vm.prank(allocator);
         vault.forceDeallocate(address(adapter), hex"", 0, address(this)); // TODO: with an amount.
         assertEq(
             vault.allocation(expectedIds[0]), deposit - expectedLoss, "allocation should have decreased by the loss"

@@ -23,6 +23,7 @@ library ErrorsLib {
     error InvalidSigner();
     error MaxRateTooHigh();
     error NoCode();
+    error NoRevoker();
     error NotAdapter();
     error NotInAdapterRegistry();
     error PenaltyTooHigh();

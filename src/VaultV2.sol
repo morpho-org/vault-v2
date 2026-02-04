@@ -239,6 +239,8 @@ contract VaultV2 is IVaultV2 {
     mapping(bytes4 selector => uint256) public timelock;
     mapping(bytes4 selector => bool) public abdicated;
     mapping(bytes data => uint256) public executableAt;
+    uint256 public pendingActions;
+    uint256 public sentinelCount;
 
     /* FEES STORAGE */
 
@@ -315,12 +317,24 @@ contract VaultV2 is IVaultV2 {
 
     function setCurator(address newCurator) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
+        if (newCurator == address(0) && pendingActions > 0) {
+            require(sentinelCount > 0, ErrorsLib.NoRevoker());
+        }
         curator = newCurator;
         emit EventsLib.SetCurator(newCurator);
     }
 
     function setIsSentinel(address account, bool newIsSentinel) external {
         require(msg.sender == owner, ErrorsLib.Unauthorized());
+        bool wasSentinel = isSentinel[account];
+        if (newIsSentinel != wasSentinel) {
+            if (newIsSentinel) {
+                sentinelCount += 1;
+            } else {
+                require(!(pendingActions > 0 && curator == address(0) && sentinelCount == 1), ErrorsLib.NoRevoker());
+                sentinelCount -= 1;
+            }
+        }
         isSentinel[account] = newIsSentinel;
         emit EventsLib.SetIsSentinel(account, newIsSentinel);
     }
@@ -351,6 +365,7 @@ contract VaultV2 is IVaultV2 {
         uint256 _timelock =
             selector == IVaultV2.decreaseTimelock.selector ? timelock[bytes4(data[4:8])] : timelock[selector];
         executableAt[data] = block.timestamp + _timelock;
+        pendingActions += 1;
         emit EventsLib.Submit(selector, data, executableAt[data]);
     }
 
@@ -360,6 +375,7 @@ contract VaultV2 is IVaultV2 {
         require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
         require(!abdicated[selector], ErrorsLib.Abdicated());
         executableAt[msg.data] = 0;
+        pendingActions -= 1;
         emit EventsLib.Accept(selector, msg.data);
     }
 
@@ -367,6 +383,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(executableAt[data] != 0, ErrorsLib.DataNotTimelocked());
         executableAt[data] = 0;
+        pendingActions -= 1;
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(data);
         emit EventsLib.Revoke(msg.sender, selector, data);
@@ -831,9 +848,15 @@ contract VaultV2 is IVaultV2 {
         external
         returns (uint256)
     {
+        uint256 penalty = forceDeallocatePenalty[adapter];
+        if (penalty == 0) {
+            require(isAllocator[msg.sender] || isSentinel[msg.sender], ErrorsLib.Unauthorized());
+        }
+
+        accrueInterest();
         bytes32[] memory ids = deallocateInternal(adapter, data, assets);
-        uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
-        uint256 penaltyShares = withdraw(penaltyAssets, address(this), onBehalf);
+        uint256 penaltyAssets = assets.mulDivUp(penalty, WAD);
+        uint256 penaltyShares = penaltyAssets == 0 ? 0 : withdraw(penaltyAssets, address(this), onBehalf);
         emit EventsLib.ForceDeallocate(msg.sender, adapter, assets, onBehalf, ids, penaltyAssets);
         return penaltyShares;
     }

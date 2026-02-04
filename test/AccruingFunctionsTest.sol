@@ -38,6 +38,7 @@ contract AccruingFunctionsTest is BaseTest {
         skip(1);
         vm.expectEmit(false, false, false, false);
         emit EventsLib.AccrueInterest(0, 0, 0, 0);
+        vm.prank(allocator);
         vault.forceDeallocate(address(adapter), hex"", 0, address(this));
     }
 

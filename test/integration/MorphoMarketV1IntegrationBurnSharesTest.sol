@@ -30,6 +30,7 @@ contract MorphoMarketV1IntegrationBurnSharesTest is MorphoMarketV1IntegrationTes
         adapter.burnShares(Id.unwrap(marketParams1.id()));
 
         // Ping adapter from vault
+        vm.prank(allocator);
         vault.forceDeallocate(address(adapter), abi.encode(marketParams1), 0, address(this));
 
         assertEq(vault.allocation(expectedIds1[0]), assets, "market1 0 after");

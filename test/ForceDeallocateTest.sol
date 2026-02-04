@@ -47,13 +47,22 @@ contract ForceDeallocateTest is BaseTest {
 
         uint256 penaltyAssets = deallocated.mulDivUp(forceDeallocatePenalty, WAD);
         uint256 expectedShares = shares - vault.previewWithdraw(penaltyAssets);
+        // When penalty is 0, forceDeallocate requires allocator/sentinel access
+        if (forceDeallocatePenalty == 0) {
+            vm.prank(allocator);
+        }
         vm.expectEmit();
         emit EventsLib.ForceDeallocate(
-            address(this), address(adapter), deallocated, address(this), expectedIds, penaltyAssets
+            forceDeallocatePenalty == 0 ? allocator : address(this),
+            address(adapter),
+            deallocated,
+            address(this),
+            expectedIds,
+            penaltyAssets
         );
         uint256 withdrawnShares = vault.forceDeallocate(address(adapter), hex"", deallocated, address(this));
         assertEq(adapter.recordedSelector(), IVaultV2.forceDeallocate.selector, "selector");
-        assertEq(adapter.recordedSender(), address(this), "sender");
+        assertEq(adapter.recordedSender(), forceDeallocatePenalty == 0 ? allocator : address(this), "sender");
         assertEq(shares - expectedShares, withdrawnShares, "withdrawnShares");
         assertEq(underlyingToken.balanceOf(address(adapter)), supplied - deallocated, "balanceOf(adapter)");
         assertEq(underlyingToken.balanceOf(address(vault)), deallocated, "balanceOf(vault)");
