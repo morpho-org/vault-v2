@@ -28,6 +28,7 @@ jobs:
           configurations: |-
             certora/confs/AllocateDeallocateReverts.conf
           solc-versions: 0.8.28
+          debug-level: 1
           certora-key: ${{ secrets.CERTORAKEY }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
