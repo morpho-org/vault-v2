@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
       - name: Submit verification jobs to Certora Prover
         uses: Certora/certora-run-action@v2
