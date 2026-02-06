@@ -14,7 +14,6 @@ jobs:
     permissions:
       contents: read
       statuses: write
-      pull-requests: write
       id-token: write
 
     steps:
