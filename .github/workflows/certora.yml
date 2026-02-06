@@ -8,57 +8,19 @@ on:
   workflow_dispatch:
 
 jobs:
-  verify:
+  submit:
     runs-on: ubuntu-latest
 
-    strategy:
-      fail-fast: false
-
-      matrix:
-        conf:
-          - AbdicatedFunctions
-          - AllocateDeallocateInputValidation
-          - AllocateDeallocateReverts
-          - AllocationMorphoMarketV1AdapterV2
-          - AllocationMorphoVaultV1Adapter
-          - AllocationVaultV2
-          - ChangesMorphoMarketV1AdapterV2
-          - ChangesMorphoVaultV1Adapter
-          - EarliestTime
-          - EntrypointEquivalence
-          - ExchangeRate
-          - Gates
-          - IdsMorphoMarketV1AdapterV2
-          - IdsMorphoVaultV1Adapter
-          - Immutability
-          - Invariants
-          - Liveness
-          - MarketIds
-          - OwnerSafety
-          - PreviewFunctions
-          - Reentrancy
-          - ReentrancyView
-          - RelativeCaps
-          - RemoveMarketLiveness
-          - Reverts
-          - SentinelLiveness
-          - SentinelLivenessDeallocateMarketV1
-          - SentinelLivenessDeallocateVaultV1
-          - TokensMorphoMarketV1AdapterV2
-          - TokensMorphoVaultV1Adapter
-          - TokensNoAdapter
-          - TotalAssetsChange
-          - TotalAssetsIsUpToDate
+    permissions:
+      contents: read
+      statuses: write
+      id-token: write
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v6
         with:
           submodules: recursive
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
 
       - name: Install Jq
         uses: sergeysova/jq-action@v2
@@ -68,39 +30,49 @@ jobs:
           file="certora/confs/${{ matrix.conf }}.conf"
           diff <(grep -v "//" "$file" | jq) <(grep -v "//" "$file")
 
-      - name: Install python
-        uses: actions/setup-python@v5
+      - name: Submit verification jobs to Certora Prover
+        uses: Certora/certora-run-action@v2
         with:
-          python-version: ">=3.10"
-
-      - name: Install certora
-        run: pip install certora-cli
-
-      - name: Install solc (0.8.19)
-        run: |
-          wget https://github.com/ethereum/solidity/releases/download/v0.8.19/solc-static-linux
-          chmod +x solc-static-linux
-          sudo mv solc-static-linux /usr/local/bin/solc-0.8.19
-
-      - name: Install solc (0.8.21)
-        run: |
-          wget https://github.com/ethereum/solidity/releases/download/v0.8.21/solc-static-linux
-          chmod +x solc-static-linux
-          sudo mv solc-static-linux /usr/local/bin/solc-0.8.21
-
-      - name: Install solc (0.8.26)
-        run: |
-          wget https://github.com/ethereum/solidity/releases/download/v0.8.26/solc-static-linux
-          chmod +x solc-static-linux
-          sudo mv solc-static-linux /usr/local/bin/solc-0.8.26
-
-      - name: Install solc (0.8.28)
-        run: |
-          wget https://github.com/ethereum/solidity/releases/download/v0.8.28/solc-static-linux
-          chmod +x solc-static-linux
-          sudo mv solc-static-linux /usr/local/bin/solc-0.8.28
-
-      - name: Verify ${{ matrix.conf }}
-        run: certoraRun certora/confs/${{ matrix.conf }}.conf
+          configurations: |-
+            certora/confs/AbdicatedFunctions.conf
+            certora/confs/AllocateDeallocateInputValidation.conf
+            certora/confs/AllocateDeallocateReverts.conf
+            certora/confs/AllocationMorphoMarketV1AdapterV2.conf
+            certora/confs/AllocationMorphoVaultV1Adapter.conf
+            certora/confs/AllocationVaultV2.conf
+            certora/confs/ChangesMorphoMarketV1AdapterV2.conf
+            certora/confs/ChangesMorphoVaultV1Adapter.conf
+            certora/confs/EarliestTime.conf
+            certora/confs/EntrypointEquivalence.conf
+            certora/confs/ExchangeRate.conf
+            certora/confs/Gates.conf
+            certora/confs/IdsMorphoMarketV1AdapterV2.conf
+            certora/confs/IdsMorphoVaultV1Adapter.conf
+            certora/confs/Immutability.conf
+            certora/confs/Invariants.conf
+            certora/confs/Liveness.conf
+            certora/confs/MarketIds.conf
+            certora/confs/OwnerSafety.conf
+            certora/confs/PreviewFunctions.conf
+            certora/confs/Reentrancy.conf
+            certora/confs/ReentrancyView.conf
+            certora/confs/RelativeCaps.conf
+            certora/confs/RemoveMarketLiveness.conf
+            certora/confs/Reverts.conf
+            certora/confs/SentinelLiveness.conf
+            certora/confs/SentinelLivenessDeallocateMarketV1.conf
+            certora/confs/SentinelLivenessDeallocateVaultV1.conf
+            certora/confs/TokensMorphoMarketV1AdapterV2.conf
+            certora/confs/TokensMorphoVaultV1Adapter.conf
+            certora/confs/TokensNoAdapter.conf
+            certora/confs/TotalAssetsChange.conf
+            certora/confs/TotalAssetsIsUpToDate.conf
+          solc-versions: |-
+            0.8.19
+            0.8.21
+            0.8.26
+            0.8.28
+          debug-level: 1
+          certora-key: ${{ secrets.CERTORAKEY }}
         env:
-          CERTORAKEY: ${{ secrets.CERTORAKEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
