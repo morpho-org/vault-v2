@@ -22,12 +22,56 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install Jq
+        uses: sergeysova/jq-action@v2
+
+      - name: Run Certora Config Linter
+        run: |
+          file="certora/confs/${{ matrix.conf }}.conf"
+          diff <(grep -v "//" "$file" | jq) <(grep -v "//" "$file")
+
       - name: Submit verification jobs to Certora Prover
         uses: Certora/certora-run-action@v2
         with:
           configurations: |-
+            certora/confs/AbdicatedFunctions.conf
+            certora/confs/AllocateDeallocateInputValidation.conf
             certora/confs/AllocateDeallocateReverts.conf
-          solc-versions: 0.8.28
+            certora/confs/AllocationMorphoMarketV1AdapterV2.conf
+            certora/confs/AllocationMorphoVaultV1Adapter.conf
+            certora/confs/AllocationVaultV2.conf
+            certora/confs/ChangesMorphoMarketV1AdapterV2.conf
+            certora/confs/ChangesMorphoVaultV1Adapter.conf
+            certora/confs/EarliestTime.conf
+            certora/confs/EntrypointEquivalence.conf
+            certora/confs/ExchangeRate.conf
+            certora/confs/Gates.conf
+            certora/confs/IdsMorphoMarketV1AdapterV2.conf
+            certora/confs/IdsMorphoVaultV1Adapter.conf
+            certora/confs/Immutability.conf
+            certora/confs/Invariants.conf
+            certora/confs/Liveness.conf
+            certora/confs/MarketIds.conf
+            certora/confs/OwnerSafety.conf
+            certora/confs/PreviewFunctions.conf
+            certora/confs/Reentrancy.conf
+            certora/confs/ReentrancyView.conf
+            certora/confs/RelativeCaps.conf
+            certora/confs/RemoveMarketLiveness.conf
+            certora/confs/Reverts.conf
+            certora/confs/SentinelLiveness.conf
+            certora/confs/SentinelLivenessDeallocateMarketV1.conf
+            certora/confs/SentinelLivenessDeallocateVaultV1.conf
+            certora/confs/TokensMorphoMarketV1AdapterV2.conf
+            certora/confs/TokensMorphoVaultV1Adapter.conf
+            certora/confs/TokensNoAdapter.conf
+            certora/confs/TotalAssetsChange.conf
+            certora/confs/TotalAssetsIsUpToDate.conf
+          solc-versions: |-
+            0.8.19
+            0.8.21
+            0.8.26
+            0.8.28
           debug-level: 1
           certora-key: ${{ secrets.CERTORAKEY }}
         env:
