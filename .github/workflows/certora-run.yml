@@ -27,5 +27,6 @@ jobs:
           configurations: |-
             certora/confs/AbdicatedFunctions.conf
           solc-versions: 0.8.28
-          job-name: "Certora Run"
           certora-key: ${{ secrets.CERTORAKEY }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
