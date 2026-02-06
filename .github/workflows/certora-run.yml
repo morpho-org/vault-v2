@@ -1,0 +1,31 @@
+name: Certora Run
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      statuses: write
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Submit verification jobs to Certora Prover
+        uses: Certora/certora-run-action@v2
+        with:
+          configurations: |-
+            certora/confs/AbdicatedFunctions.conf
+          solc-versions: 0.8.28
+          job-name: "Certora Run"
+          certora-key: ${{ secrets.CERTORAKEY }}
