@@ -1,4 +1,4 @@
-name: Certora Run
+name: Certora
 
 on:
   push:
@@ -27,6 +27,8 @@ jobs:
           configurations: |-
             certora/confs/AbdicatedFunctions.conf
           solc-versions: 0.8.28
+          debug-level: 3
+          comment-fail-only: false
           certora-key: ${{ secrets.CERTORAKEY }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
