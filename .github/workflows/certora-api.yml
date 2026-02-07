@@ -1,0 +1,25 @@
+name: Certora API
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        required: true
+        description: |
+          The Certora API command to execute. Options are:
+          - `cancel <group_id>`: Cancel all jobs in the specified group.
+          - `refresh <group_id>`: Refresh the status of all jobs in the specified group.
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  certora-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: Certora/certora-run-action/api@v2
+        with:
+          certora-command: ${{ github.event.inputs.command }}
+          server: production
