@@ -16,8 +16,10 @@ methods {
 
   //assume safeTransfer does not revert.
   function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
-  function _.balanceOf(address) external => DISPATCHER(true);
+  function _.balanceOf(address account) external => ghostBalanceOf(calledContract, account) expect(uint256);
 }
+
+ghost ghostBalanceOf(address, address) returns uint256;
 
 ghost ghostExpectedSupply(address, address, address, address, uint256, address) returns uint256;
 

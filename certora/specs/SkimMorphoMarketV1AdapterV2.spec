@@ -5,13 +5,15 @@ using MorphoHarness as MorphoMarketV1;
 using RevertCondition as RevertCondition;
 
 methods {
-  //assume safeTransfer does not revert.
+
   function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
-  function _.balanceOf(address) external => DISPATCHER(true);
+  function _.balanceOf(address account) external => ghostBalanceOf(calledContract, account) expect(uint256);
 
   // Assume adaptiveIRM rate is not changed by skim.
   function _.borrowRateView(bytes32, MorphoHarness.Market memory, address) internal => constantBorrowRate expect(uint256);
 }
+
+ghost ghostBalanceOf(address, address) returns uint256;
 
 persistent ghost uint256 constantBorrowRate;
 
