@@ -15,16 +15,31 @@ methods {
   function _.idToMarketParams(MetaMorphoHarness.Id id) external => summaryIdToMarketParams(id) expect MetaMorphoHarness.MarketParams ALL;
 
   //assume safeTransfer does not revert.
-  function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
+  function SafeERC20Lib.safeTransfer(address token, address to, uint256 value) internal => summarySafeTransferFrom(token, executingContract, to, value);
   function _.balanceOf(address account) external => ghostBalanceOf(calledContract, account) expect(uint256);
 }
 
 ghost ghostBalanceOf(address, address) returns uint256;
 
+persistent ghost mapping(address => mathint) balance {
+    init_state axiom (forall address token. balance[token] == 0);
+}
+
 ghost ghostExpectedSupply(address, address, address, address, uint256, address) returns uint256;
 
 function summaryExpectedSupplyAssets(MorphoHarness.MarketParams marketParams, address user) returns uint256 {
     return ghostExpectedSupply(marketParams.loanToken, marketParams.collateralToken, marketParams.oracle, marketParams.irm, marketParams.lltv, user);
+}
+
+function summarySafeTransferFrom(address token, address from, address to, uint256 amount) {
+    if (from == currentContract) {
+        // Safe require because the reference implementation would revert.
+        balance[token] = require_uint256(balance[token] - amount);
+    }
+    if (to == currentContract) {
+        // Safe require because the reference implementation would revert.
+        balance[token] = require_uint256(balance[token] + amount);
+    }
 }
 
 function summaryIdToMarketParams(MetaMorphoHarness.Id id) returns MetaMorphoHarness.MarketParams {
