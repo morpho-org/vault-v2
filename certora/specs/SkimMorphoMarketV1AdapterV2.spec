@@ -6,8 +6,8 @@ using RevertCondition as RevertCondition;
 
 methods {
 
-  function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
-  function _.balanceOf(address account) external => ghostBalanceOf(calledContract, account) expect(uint256);
+  function SafeERC20Lib.safeTransfer(address token, address to, uint256 value) internal => summarySafeTransferFrom(token, executingContract, to, value);
+  function _.balanceOf(address account) external => summaryBalanceOf(calledContract, account) expect(uint256);
 
   // Assume adaptiveIRM rate is not changed by skim.
   function _.borrowRateView(bytes32, MorphoHarness.Market memory, address) internal => constantBorrowRate expect(uint256);
