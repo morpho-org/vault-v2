@@ -15,13 +15,18 @@ methods {
   function _.idToMarketParams(MetaMorphoHarness.Id id) external => summaryIdToMarketParams(id) expect MetaMorphoHarness.MarketParams ALL;
 
   function SafeERC20Lib.safeTransfer(address token, address to, uint256 value) internal => summarySafeTransferFrom(token, executingContract, to, value);
-  function _.balanceOf(address account) external => ghostBalanceOf(calledContract, account) expect(uint256);
+  function _.balanceOf(address account) external => summaryBalanceOf(calledContract, account) expect(uint256);
 }
 
 ghost ghostBalanceOf(address, address) returns uint256;
 
-persistent ghost mapping(address => mathint) balance {
-    init_state axiom (forall address token. balance[token] == 0);
+persistent ghost mapping(address => uint256) adapterBalanceOf;
+
+function summaryBalanceOf(address token, address account) returns uint256 {
+    if (account == MorphoVaultV1Adapter) {
+        return adapterBalanceOf[token];
+    }
+    return ghostBalanceOf(token, account);
 }
 
 ghost ghostExpectedSupply(address, address, address, address, uint256, address) returns uint256;
@@ -33,11 +38,11 @@ function summaryExpectedSupplyAssets(MorphoHarness.MarketParams marketParams, ad
 function summarySafeTransferFrom(address token, address from, address to, uint256 amount) {
     if (from == MorphoVaultV1Adapter) {
         // Safe require because the reference implementation would revert.
-        balance[token] = require_uint256(balance[token] - amount);
+        adapterBalanceOf[token] = require_uint256(adapterBalanceOf[token] - amount);
     }
     if (to == MorphoVaultV1Adapter) {
         // Safe require because the reference implementation would revert.
-        balance[token] = require_uint256(balance[token] + amount);
+        adapterBalanceOf[token] = require_uint256(adapterBalanceOf[token] + amount);
     }
 }
 
