@@ -27,6 +27,7 @@ methods {
     function Utils.id(Morpho.MarketParams) external returns (Morpho.Id) envfree;
     function Utils.wrapId(bytes32) external returns (Morpho.Id) envfree;
     function Utils.unwrapId(Morpho.Id) external returns (bytes32) envfree;
+    function Utils.encodeMarketParams(Morpho.MarketParams) external returns (bytes memory) envfree;
 
     // To simplify linking that should be done in the vault, as well as in Morpho.
     function SafeTransferLib.safeTransfer(address, address, uint256) internal => NONDET;
@@ -125,4 +126,25 @@ rule deallocatingWithZeroExpectedSupplyAssetsRemovesMarket(env e, bytes data, ui
 
     uint256 i;
     assert MorphoMarketV1AdapterV2.marketIds(i) != marketId;
+}
+
+rule canForceDeallocate(env e, address adapter, bytes data, uint256 assets, address onBehalf) {
+    // Timestamp constraints.
+    require e.block.timestamp < 2 ^ 63;
+    require e.block.timestamp >= currentContract.lastUpdate;
+
+    // IRM doesn't revert
+    Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
+    Morpho.Id marketId = Utils.id(marketParams);
+    require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM doesn't revert";
+    require marketParams.loanToken == MorphoMarketV1AdapterV2.asset(), "require loan token to be the adapter's asset";
+
+    // Adapter is registered.
+    require isAdapter(adapter);
+
+    require e.msg.value == 0;
+
+    forceDeallocate@withrevert(e, adapter, data, assets, onBehalf);
+
+    assert !lastReverted;
 }
