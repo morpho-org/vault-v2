@@ -137,7 +137,8 @@ rule canForceDeallocate(env e, address adapter, bytes data, uint256 assets, addr
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
     Morpho.Id marketId = Utils.id(marketParams);
     require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM doesn't revert";
-    require marketParams.loanToken == MorphoMarketV1AdapterV2.asset(), "require loan token to be the adapter's asset";
+    require marketParams.loanToken == MorphoMarketV1AdapterV2.asset(), "rset up the call";
+    require marketParams.irm == MorphoMarketV1AdapterV2.adaptiveCurveIrm(), "setup the call";
 
     // Adapter is registered.
     require isAdapter(adapter);
