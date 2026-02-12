@@ -15,7 +15,7 @@ methods {
   function _.idToMarketParams(MetaMorphoHarness.Id id) external => summaryIdToMarketParams(id) expect MetaMorphoHarness.MarketParams ALL;
 
   function SafeERC20Lib.safeTransfer(address token, address to, uint256 value) internal => summarySafeTransferFrom(token, executingContract, to, value);
-  function _.balanceOf(address account) external => summaryBalanceOf(calledContract, account) expect(uint256);
+  function _.balanceOf(address account) external => summaryBalanceOf(calledContract, account) expect(uint256) ALL;
 }
 
 ghost ghostBalanceOf(address, address) returns uint256;
