@@ -28,11 +28,11 @@ methods {
     function Utils.wrapId(bytes32) external returns (Morpho.Id) envfree;
     function Utils.unwrapId(Morpho.Id) external returns (bytes32) envfree;
     function Utils.encodeMarketParams(Morpho.MarketParams) external returns (bytes memory) envfree;
-    //function _.expectedSupplyAssets(bytes32) external => NONDET ALL;
 
     // To simplify linking that should be done in the vault, as well as in Morpho.
     function SafeTransferLib.safeTransfer(address, address, uint256) internal => NONDET;
     function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
+    function _.balanceOf(address) external => NONDET;
 
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryDeallocate(e, data, assets, selector, sender) expect(bytes32[], int256);
 
@@ -129,7 +129,7 @@ rule deallocatingWithZeroExpectedSupplyAssetsRemovesMarket(env e, bytes data, ui
     assert MorphoMarketV1AdapterV2.marketIds(i) != marketId;
 }
 
-rule canForceDeallocate(env e, address adapter, bytes data, uint256 assets, address onBehalf) {
+rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf) {
     // Timestamp constraints.
     require e.block.timestamp < 2 ^ 63;
     require e.block.timestamp >= currentContract.lastUpdate;
@@ -140,18 +140,11 @@ rule canForceDeallocate(env e, address adapter, bytes data, uint256 assets, addr
     bytes32 id = Utils.unwrapId(marketId);
 
     require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM doesn't revert";
-    //require Morpho.lastUpdate(marketId) != 0, "assume market created";
+    require Morpho.lastUpdate(marketId) != 0, "assume market created";
+
     //require (e.block.timestamp !=0, "assume market last update is not in the future");
     require marketParams.loanToken == MorphoMarketV1AdapterV2.asset(), "rset up the call";
     require marketParams.irm == MorphoMarketV1AdapterV2.adaptiveCurveIrm(), "setup the call";
-    require Morpho.totalSupplyAssets(marketId) - assets >= Morpho.totalBorrowAssets(marketId), "assume enough liquidity";
-
-    require MorphoMarketV1AdapterV2.allocation(marketParams) <= max_int256(), "see allocationIsInt256";
-    require MorphoMarketV1AdapterV2.supplyShares(id) <= Morpho.supplyShares(marketId, MorphoMarketV1AdapterV2), "internal accounting of shares is less than actual held shares";
-    require Morpho.supplyShares(marketId, MorphoMarketV1AdapterV2) <= Morpho.totalSupplyShares(marketId), "total supply shares is the sum of the market supply shares";
-    require Morpho.supplyShares(marketId, MorphoMarketV1AdapterV2) < 2 ^ 128, "shares fit on 128 bits on Morpho";
-    require assets < 10 ^ 32, "safe because market v1 specifies that loan tokens should have less than 1e32 total supply";
-    require isAdapter(MorphoMarketV1AdapterV2), "assume the adapter is enabled";
 
     // Adapter is registered.
     require isAdapter(adapter);
@@ -159,20 +152,22 @@ rule canForceDeallocate(env e, address adapter, bytes data, uint256 assets, addr
     require e.msg.value == 0;
 
     // Gate checks for the withdraw inside forceDeallocate
-    require canSendShares(onBehalf);
-    require canReceiveAssets(currentContract);
+    require currentContract.canSendShares(onBehalf);
+    require currentContract.canReceiveAssets(currentContract);
 
     // Compute penaltyAssets = mulDivUp(assets, forceDeallocatePenalty[adapter], WAD)
-    uint256 penaltyAssets = require_uint256((to_mathint(assets) * to_mathint(forceDeallocatePenalty(adapter)) + 10 ^ 18 - 1) / 10 ^ 18);
+    uint256 penaltyAssets = require_uint256((10 ^ 18 - 1) / 10 ^ 18);
 
     // onBehalf has enough shares to cover the penalty
     uint256 penaltyShares = previewWithdraw(e, penaltyAssets);
     require balanceOf(onBehalf) >= penaltyShares;
 
+    require(currentContract.firstTotalAssets != 0, "assume that interest has been accrued");
+
     // Allowance: either msg.sender == onBehalf, or sufficient allowance
     require e.msg.sender == onBehalf || allowance(onBehalf, e.msg.sender) >= penaltyShares;
 
-    forceDeallocate@withrevert(e, adapter, data, assets, onBehalf);
+    forceDeallocate@withrevert(e, adapter, data, 0, onBehalf);
 
     assert !lastReverted;
 }
