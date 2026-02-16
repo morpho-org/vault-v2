@@ -56,7 +56,7 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     /// @dev This is useful to handle rewards that the adapter has earned.
     function skim(address token) external {
         require(msg.sender == skimRecipient, NotAuthorized());
-        //require(token != morphoVaultV1, CannotSkimMorphoVaultV1Shares());
+        require(token != morphoVaultV1, CannotSkimMorphoVaultV1Shares());
         uint256 balance = IERC20(token).balanceOf(address(this));
         SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
         emit Skim(token, balance);
