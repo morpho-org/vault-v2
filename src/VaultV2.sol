@@ -40,9 +40,10 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). In order to protect against
 /// inflation attacks, the vault might need to be seeded with an initial deposit. See
 /// https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
-/// @dev Adapters may incur small dust losses due to rounding errors. If repeated, these could potentially lead to an
-/// abnormal deflation of the share price. To mitigate this risk, the vault should be seeded with a sufficient amount of
-/// assets to ensure that each interaction results in very small relative changes to the share price.
+/// @dev Adapters may incur small dust losses due to rounding errors. If repeated, and the vault has very few assets,
+/// these could potentially lead to an abnormal deflation of the share price. To mitigate this risk, the vault should be
+/// seeded with a sufficient amount of assets to ensure that each interaction results in very small relative changes to
+/// the share price.
 /// @dev Donations and forceDeallocate penalties increase the rate, which can attract opportunistic depositors which
 /// will dilute interest. This fact can be mitigated by reducing the maxRate.
 ///
