@@ -7,17 +7,17 @@ using RevertCondition as RevertCondition;
 
 methods {
 
-  // Assume the adaptive IRM borrow rate is constant, since skim does not interact with borrowing
-  // and accrueInterest should not depend on the skim operation.
-  function _.borrowRateView(bytes32, MorphoHarness.Market memory, address) internal => constantBorrowRate expect(uint256);
+    // Assume the adaptive IRM borrow rate is constant, since skim does not interact with borrowing
+    // and accrueInterest should not depend on the skim operation.
+    function _.borrowRateView(bytes32, MorphoHarness.Market memory, address) internal => CONSTANT;
 
-  // safeTransfer summarised to track the adapter's token balances in a ghost mapping,
-  // avoiding the need to model full ERC20 contracts.
-  function SafeERC20Lib.safeTransfer(address token, address to, uint256 value) internal => summarySafeTransferFrom(token, executingContract, to, value);
+    // safeTransfer summarised to track the adapter's token balances in a ghost mapping,
+    // avoiding the need to model full ERC20 contracts.
+    function SafeERC20Lib.safeTransfer(address token, address to, uint256 value) internal => summarySafeTransferFrom(token, executingContract, to, value);
 
-  // balanceOf sumamrised to return the adapter's ghost-tracked balance when queried for the adapter,
-  // and an uninterpreted ghost value otherwise.
-  function _.balanceOf(address account) external => summaryBalanceOf(calledContract, account) expect(uint256) ALL;
+    // balanceOf sumamrised to return the adapter's ghost-tracked balance when queried for the adapter,
+    // and an uninterpreted ghost value otherwise.
+    function _.balanceOf(address account) external => summaryBalanceOf(calledContract, account) expect(uint256) ALL;
 }
 
 // Uninterpreted function for balanceOf of any contract other than the adapter.
@@ -46,18 +46,15 @@ function summarySafeTransferFrom(address token, address from, address to, uint25
     }
 }
 
-// Constant ghost for the borrow rate returned by the adaptive IRM.
-persistent ghost uint256 constantBorrowRate;
-
 // Verifies that calling skim does not change the adapter's accounting (realAssets) and
 // skim only transfers tokens already held by the adapter to skimRecipient.
 rule skimDoesNotAffectAccountingMarketV1Adapter(env e, address token) {
-  uint256 realAssetsBefore = realAssets(e);
+    uint256 realAssetsBefore = realAssets(e);
 
-  skim(e, token);
+    skim(e, token);
 
-  uint256 realAssetsAfter = realAssets(e);
-  assert realAssetsAfter == realAssetsBefore;
+    uint256 realAssetsAfter = realAssets(e);
+    assert realAssetsAfter == realAssetsBefore;
 }
 
 // Verifies that setSkimRecipient reverts if and only if the timelock conditions are not met:
@@ -67,9 +64,9 @@ rule skimDoesNotAffectAccountingMarketV1Adapter(env e, address token) {
 // See timelockFailsMarketV1Adapter() in "../helpers/RevertCondition.sol"
 // The helper contract is called first, so this specification can miss trivial revert conditions like e.msg.value != 0.
 rule setSkimRecipientRevertConditionMarketV1Adapter(env e, address newRecipient) {
-  bool revertCondition = RevertCondition.setSkimRecipient(e, newRecipient);
+    bool revertCondition = RevertCondition.setSkimRecipient(e, newRecipient);
 
-  setSkimRecipient@withrevert(e, newRecipient);
+    setSkimRecipient@withrevert(e, newRecipient);
 
-  assert revertCondition <=> lastReverted;
+    assert revertCondition <=> lastReverted;
 }
