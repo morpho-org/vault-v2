@@ -38,6 +38,7 @@ function summaryBalanceOf(address token, address account) returns uint256 {
     if (account == MorphoVaultV1Adapter) {
         return adapterBalanceOf[token];
     }
+
     // Retrun a non-deterministic value for non-adapter accounts
     uint256 balance;
     return balance;
