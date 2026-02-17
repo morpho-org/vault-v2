@@ -38,7 +38,9 @@ function summaryBalanceOf(address token, address account) returns uint256 {
     if (account == MorphoVaultV1Adapter) {
         return adapterBalanceOf[token];
     }
-    return ghostBalanceOf(token, account);
+    // Retrun a non-deterministic value for non-adapter accounts
+    uint256 balance;
+    return balance;
 }
 
 // Uninterpreted function for the expected supply assets of a market, destructured by market params fields
