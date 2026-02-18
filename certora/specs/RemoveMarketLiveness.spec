@@ -28,17 +28,36 @@ methods {
     function Utils.wrapId(bytes32) external returns (Morpho.Id) envfree;
     function Utils.unwrapId(Morpho.Id) external returns (bytes32) envfree;
     function Utils.encodeMarketParams(Morpho.MarketParams) external returns (bytes memory) envfree;
+    function asset() external returns (address) envfree;
+
 
     // To simplify linking that should be done in the vault, as well as in Morpho.
     function SafeTransferLib.safeTransfer(address, address, uint256) internal => NONDET;
     function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
-    function _.balanceOf(address) external => NONDET;
+    function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
+    //function _.balanceOf(address) external => NONDET;
+    // NONDET summary does not work as sometimes
+    function _.balanceOf(address account) external => ghostBalanceOf(calledContract, account) expect(uint256);
+
 
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryDeallocate(e, data, assets, selector, sender) expect(bytes32[], int256);
 
     // Assume that the IRM doesn't revert.
     function _.expectedMarketBalances(address, bytes32 id, address) internal => summaryExpectedMarketBalances(id) expect(uint256, uint256, uint256, uint256);
+
+    function MorphoMarketV1AdapterV2.expectedSupplyAssets(bytes32 marketId) internal returns (uint256) => summaryExpectedSupplyAssets(marketId);
+    function VaultV2.allocation(bytes32 id) external returns (uint256) => summaryAllocation(id);
+
+    function _.canSendShares(address account) external => ghostCanSendShares(calledContract, account) expect(bool);
+    function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
 }
+
+ghost ghostCanSendShares(address, address) returns bool;
+
+ghost ghostCanReceiveAssets(address, address) returns bool;
+
+ghost ghostBalanceOf(address, address) returns uint256;
+
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
 
@@ -52,6 +71,19 @@ function summaryExpectedMarketBalances(bytes32 id) returns (uint256, uint256, ui
     totalSupplyAssets, totalSupplyShares, totalBorrowAssets, totalBorrowShares, lastUpdate, fee = Morpho.market(Utils.wrapId(id));
     return (totalSupplyAssets, totalSupplyShares, totalBorrowAssets, totalBorrowShares);
 }
+
+function summaryExpectedSupplyAssets(bytes32 id) returns uint256 {
+    uint256 assets;
+    require assets <= max_int256(), "safe because market v1 stores the total supply assets of the market in a uint128";
+    return assets;
+}
+
+function summaryAllocation(bytes32 id) returns uint256 {
+    uint256 allocation;
+    require allocation <= max_int256(), "allocationIsInt256";
+    return allocation;
+}
+
 
 function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
     bytes32[] ids;
@@ -68,6 +100,8 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     require change < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
     require currentContract.caps[ids[0]].allocation >= currentContract.caps[ids[2]].allocation, "adapter id allocation is a sum of market id allocation";
     require currentContract.caps[ids[1]].allocation >= currentContract.caps[ids[2]].allocation, "collateral token id allocation is a sum of market id allocation";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "see changeForAllocateOrDeallocateIsBoundedByAllocation";
+
     return (ids, change);
 }
 
@@ -152,20 +186,25 @@ rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf
     require e.msg.value == 0;
 
     // Gate checks for the withdraw inside forceDeallocate
-    require currentContract.canSendShares(onBehalf);
-    require currentContract.canReceiveAssets(currentContract);
+    require canSendShares(onBehalf);
+    require canReceiveAssets(currentContract);
 
     // Compute penaltyAssets = mulDivUp(assets, forceDeallocatePenalty[adapter], WAD)
     uint256 penaltyAssets = require_uint256((10 ^ 18 - 1) / 10 ^ 18);
 
     // onBehalf has enough shares to cover the penalty
     uint256 penaltyShares = previewWithdraw(e, penaltyAssets);
-    require balanceOf(onBehalf) >= penaltyShares;
+    //require balanceOf(onBehalf) >= penaltyShares;
 
     require(currentContract.firstTotalAssets != 0, "assume that interest has been accrued");
 
     // Allowance: either msg.sender == onBehalf, or sufficient allowance
     require e.msg.sender == onBehalf || allowance(onBehalf, e.msg.sender) >= penaltyShares;
+
+    require(onBehalf != 0, "onBehalf cannot be the zero address");
+
+    require currentContract.asset() != currentContract;
+
 
     forceDeallocate@withrevert(e, adapter, data, 0, onBehalf);
 
