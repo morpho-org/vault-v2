@@ -165,10 +165,6 @@ rule deallocatingWithZeroExpectedSupplyAssetsRemovesMarket(env e, bytes data, ui
 }
 
 rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf) {
-    // Timestamp constraints.
-    //require e.block.timestamp < 2 ^ 63;
-    //require e.block.timestamp >= currentContract.lastUpdate;
-
     // IRM doesn't revert
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
     Morpho.Id marketId = Utils.id(marketParams);
@@ -177,7 +173,6 @@ rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf
     require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM doesn't revert";
     require Morpho.lastUpdate(marketId) != 0, "assume market created";
 
-    //require (e.block.timestamp !=0, "assume market last update is not in the future");
     require marketParams.loanToken == MorphoMarketV1AdapterV2.asset(), "rset up the call";
     require marketParams.irm == MorphoMarketV1AdapterV2.adaptiveCurveIrm(), "setup the call";
 
