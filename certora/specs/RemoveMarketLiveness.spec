@@ -189,22 +189,12 @@ rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf
     require canSendShares(onBehalf);
     require canReceiveAssets(currentContract);
 
-    // Compute penaltyAssets = mulDivUp(assets, forceDeallocatePenalty[adapter], WAD)
-    uint256 penaltyAssets = require_uint256((10 ^ 18 - 1) / 10 ^ 18);
-
-    // onBehalf has enough shares to cover the penalty
-    uint256 penaltyShares = previewWithdraw(e, penaltyAssets);
-    //require balanceOf(onBehalf) >= penaltyShares;
-
     require(currentContract.firstTotalAssets != 0, "assume that interest has been accrued");
 
     // Allowance: either msg.sender == onBehalf, or sufficient allowance
-    require e.msg.sender == onBehalf || allowance(onBehalf, e.msg.sender) >= penaltyShares;
+//    require e.msg.sender == onBehalf || allowance(onBehalf, e.msg.sender) >= penaltyShares;
 
     require(onBehalf != 0, "onBehalf cannot be the zero address");
-
-    require currentContract.asset() != currentContract;
-
 
     forceDeallocate@withrevert(e, adapter, data, 0, onBehalf);
 
