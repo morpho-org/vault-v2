@@ -29,6 +29,7 @@ methods {
     function Utils.unwrapId(Morpho.Id) external returns (bytes32) envfree;
     function Utils.encodeMarketParams(Morpho.MarketParams) external returns (bytes memory) envfree;
     function asset() external returns (address) envfree;
+    function virtualShares() external returns (uint256) envfree;
 
 
     // To simplify linking that should be done in the vault, as well as in Morpho.
@@ -165,8 +166,8 @@ rule deallocatingWithZeroExpectedSupplyAssetsRemovesMarket(env e, bytes data, ui
 
 rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf) {
     // Timestamp constraints.
-    require e.block.timestamp < 2 ^ 63;
-    require e.block.timestamp >= currentContract.lastUpdate;
+    //require e.block.timestamp < 2 ^ 63;
+    //require e.block.timestamp >= currentContract.lastUpdate;
 
     // IRM doesn't revert
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
@@ -187,14 +188,14 @@ rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf
 
     // Gate checks for the withdraw inside forceDeallocate
     require canSendShares(onBehalf);
-    require canReceiveAssets(currentContract);
+    //require canReceiveAssets(currentContract);
+    require totalSupply() + virtualShares() <= max_uint256;
 
     require(currentContract.firstTotalAssets != 0, "assume that interest has been accrued");
 
-    // Allowance: either msg.sender == onBehalf, or sufficient allowance
-//    require e.msg.sender == onBehalf || allowance(onBehalf, e.msg.sender) >= penaltyShares;
-
     require(onBehalf != 0, "onBehalf cannot be the zero address");
+
+    require currentContract.asset() != currentContract;
 
     forceDeallocate@withrevert(e, adapter, data, 0, onBehalf);
 
