@@ -29,9 +29,10 @@ methods {
     function virtualShares() external returns (uint256) envfree;
     function lastUpdate() external returns (uint64) envfree;
 
-    // To simplify linking that should be done in the vault, as well as in Morpho.
+    // transfers don't revert.
     function SafeTransferLib.safeTransfer(address, address, uint256) internal => NONDET;
     function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
+    function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
 
     function _.balanceOf(address account) external => summaryBalanceOf() expect(uint256);
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryDeallocate(e, data, assets, selector, sender) expect(bytes32[], int256);
@@ -77,8 +78,6 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation < 2 ^ 20 * 2 ^ 128, "market v1 fits total supply assets on 128 bits, and assume at most 2^20 markets";
     require change < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
-    //require currentContract.caps[ids[0]].allocation >= currentContract.caps[ids[2]].allocation, "adapter id allocation is a sum of market id allocation";
-    //require currentContract.caps[ids[1]].allocation >= currentContract.caps[ids[2]].allocation, "collateral token id allocation is a sum of market id allocation";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "see changeForAllocateOrDeallocateIsBoundedByAllocation";
 
     return (ids, change);
@@ -89,9 +88,6 @@ rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
     Morpho.Id marketId = Utils.id(marketParams);
     bytes32 id = Utils.unwrapId(marketId);
-
-    //require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM doesn't revert";
-    //require Morpho.lastUpdate(marketId) != 0, "assume market created";
 
     // Adapter is registered.
     require isAdapter(adapter);
@@ -105,8 +101,6 @@ rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf
 
     require(onBehalf != 0, "onBehalf cannot be the zero address");
     require(currentContract.lastUpdate() == e.block.timestamp, "assume interest has been accrued at the Vault level");
-    //require marketParams.loanToken == MorphoMarketV1AdapterV2.asset(), "set up the call";
-    //require marketParams.irm == MorphoMarketV1AdapterV2.adaptiveCurveIrm(), "setup the call";
 
     forceDeallocate@withrevert(e, adapter, data, 0, onBehalf);
 
