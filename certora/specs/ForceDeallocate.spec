@@ -36,7 +36,7 @@ methods {
 
     function _.balanceOf(address account) external => summaryBalanceOf() expect(uint256);
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryDeallocate(e, data, assets, selector, sender) expect(bytes32[], int256);
-
+    function _.realAssets() external => summaryRealAssets() expect(uint256);
     function _.canSendShares(address account) external => ghostCanSendShares(calledContract, account) expect(bool);
     function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
     function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
@@ -56,6 +56,12 @@ function summaryBalanceOf() returns uint256 {
     uint256 balance;
     require balance < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; vault balance is less than totalAssets";
     return balance;
+}
+
+function summaryRealAssets() returns uint256 {
+    uint256 realAssets;
+    require realAssets < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; realAssets from each adater is less than totalAssets";
+    return realAssets;
 }
 
 function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
