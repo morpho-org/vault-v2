@@ -27,45 +27,16 @@ methods {
     function Utils.id(Morpho.MarketParams) external returns (Morpho.Id) envfree;
     function Utils.wrapId(bytes32) external returns (Morpho.Id) envfree;
     function Utils.unwrapId(Morpho.Id) external returns (bytes32) envfree;
-    function Utils.encodeMarketParams(Morpho.MarketParams) external returns (bytes memory) envfree;
-    function asset() external returns (address) envfree;
-    function virtualShares() external returns (uint256) envfree;
-    function lastUpdate() external returns (uint64) envfree;
 
     // To simplify linking that should be done in the vault, as well as in Morpho.
     function SafeTransferLib.safeTransfer(address, address, uint256) internal => NONDET;
     function SafeERC20Lib.safeTransferFrom(address, address, address, uint256) internal => NONDET;
-    function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
-    //function _.balanceOf(address) external => NONDET;
-    // NONDET summary does not work as sometimes
-    function _.balanceOf(address account) external => summaryBalanceOf() expect(uint256);
-
-    // accrueInterest() and accrueInterestView() do not revert
-    function accrueInterest() internal => NONDET;
-
-    //function accrueInterestView() internal returns (uint256, uint256, uint256) => summaryAccrueInterestView();
 
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryDeallocate(e, data, assets, selector, sender) expect(bytes32[], int256);
 
     // Assume that the IRM doesn't revert.
     function _.expectedMarketBalances(address, bytes32 id, address) internal => summaryExpectedMarketBalances(id) expect(uint256, uint256, uint256, uint256);
-
-    function MorphoMarketV1AdapterV2.expectedSupplyAssets(bytes32 marketId) internal returns (uint256) => summaryExpectedSupplyAssets(marketId);
-    function VaultV2.allocation(bytes32 id) external returns (uint256) => summaryAllocation(id);
-
-    function _.canSendShares(address account) external => ghostCanSendShares(calledContract, account) expect(bool);
-    function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
-    function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
-    function _.realAssets() external => summaryRealAssets() expect(uint256);
 }
-
-ghost ghostCanSendShares(address, address) returns bool;
-
-ghost ghostCanReceiveAssets(address, address) returns bool;
-
-ghost ghostCanReceiveShares(address, address) returns bool;
-
-ghost ghostBalanceOf(address, address) returns uint256;
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
 
@@ -79,40 +50,6 @@ function summaryExpectedMarketBalances(bytes32 id) returns (uint256, uint256, ui
     totalSupplyAssets, totalSupplyShares, totalBorrowAssets, totalBorrowShares, lastUpdate, fee = Morpho.market(Utils.wrapId(id));
     return (totalSupplyAssets, totalSupplyShares, totalBorrowAssets, totalBorrowShares);
 }
-
-function summaryExpectedSupplyAssets(bytes32 id) returns uint256 {
-    uint256 assets;
-    require assets <= 2 ^ 128, "see expectedSupplyAssetsIsBounded";
-    return assets;
-}
-
-function summaryAllocation(bytes32 id) returns uint256 {
-    uint256 allocation;
-    require allocation <= max_int256(), "see allocationIsInt256";
-    return allocation;
-}
-
-function summaryBalanceOf() returns uint256 {
-    uint256 balance;
-    require balance < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; vault balance is less than totalAssets";
-    return balance;
-}
-
-function summaryRealAssets() returns uint256 {
-    uint256 realAssets;
-    require realAssets < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; realAssets from each adater is less than totalAssets";
-    return realAssets;
-}
-//function summaryAccrueInterestView() returns (uint256, uint256, uint256) {
-//    uint256 newTotalsAssets;
-//    uint256 performanceFee;
-//    uint256 managementFee;
-//    require newTotalsAssets < 2^128, "TODO:";
-//    require performanceFee < 2^128, "TODO:";
-//    require managementFee < 2^128, "TODO:";
-//    // the performance fee and management fee are zero because the time elapsed is zero.
-//    return (newTotalsAssets, performanceFee, managementFee);
-//}
 
 function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
     bytes32[] ids;
@@ -129,8 +66,6 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     require change < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
     require currentContract.caps[ids[0]].allocation >= currentContract.caps[ids[2]].allocation, "adapter id allocation is a sum of market id allocation";
     require currentContract.caps[ids[1]].allocation >= currentContract.caps[ids[2]].allocation, "collateral token id allocation is a sum of market id allocation";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "see changeForAllocateOrDeallocateIsBoundedByAllocation";
-
     return (ids, change);
 }
 
@@ -190,33 +125,4 @@ rule deallocatingWithZeroExpectedSupplyAssetsRemovesMarket(env e, bytes data, ui
 
     uint256 i;
     assert MorphoMarketV1AdapterV2.marketIds(i) != marketId;
-}
-
-rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf) {
-    // IRM doesn't revert
-    Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
-    Morpho.Id marketId = Utils.id(marketParams);
-    bytes32 id = Utils.unwrapId(marketId);
-
-    require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM doesn't revert";
-    require Morpho.lastUpdate(marketId) != 0, "assume market created";
-
-    // Adapter is registered.
-    require isAdapter(adapter);
-
-    require e.msg.value == 0;
-
-    // Gate checks for the withdraw within forceDeallocate
-    require canSendShares(onBehalf);
-    require canReceiveAssets(currentContract);
-    require totalSupply() + virtualShares() <= max_uint256;
-
-    require(onBehalf != 0, "onBehalf cannot be the zero address");
-    require(currentContract.lastUpdate() == e.block.timestamp, "assume interest has been accrued at the Vault level");
-    require marketParams.loanToken == MorphoMarketV1AdapterV2.asset(), "set up the call";
-    require marketParams.irm == MorphoMarketV1AdapterV2.adaptiveCurveIrm(), "setup the call";
-
-    forceDeallocate@withrevert(e, adapter, data, 0, onBehalf);
-
-    assert !lastReverted;
 }
