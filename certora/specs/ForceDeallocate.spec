@@ -40,7 +40,6 @@ methods {
     function _.canSendShares(address account) external => ghostCanSendShares(calledContract, account) expect(bool);
     function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
     function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
-    function _.realAssets() external => summaryRealAssets() expect(uint256);
 }
 
 ghost ghostCanSendShares(address, address) returns bool;
@@ -57,12 +56,6 @@ function summaryBalanceOf() returns uint256 {
     uint256 balance;
     require balance < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; vault balance is less than totalAssets";
     return balance;
-}
-
-function summaryRealAssets() returns uint256 {
-    uint256 realAssets;
-    require realAssets < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; realAssets from each adater is less than totalAssets";
-    return realAssets;
 }
 
 function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
@@ -84,10 +77,6 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
 }
 
 rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf) {
-    // IRM doesn't revert
-    Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
-    Morpho.Id marketId = Utils.id(marketParams);
-    bytes32 id = Utils.unwrapId(marketId);
 
     // Adapter is registered.
     require isAdapter(adapter);
