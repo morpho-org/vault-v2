@@ -40,6 +40,11 @@ methods {
     // NONDET summary does not work as sometimes
     function _.balanceOf(address account) external => ghostBalanceOf(calledContract, account) expect(uint256);
 
+    // accrueInterest() and accrueInterestView() do not revert
+    function accrueInterest() internal => NONDET;
+
+    function accrueInterestView() internal => NONDET;
+
 
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryDeallocate(e, data, assets, selector, sender) expect(bytes32[], int256);
 
@@ -173,9 +178,6 @@ rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf
     require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM doesn't revert";
     require Morpho.lastUpdate(marketId) != 0, "assume market created";
 
-    require marketParams.loanToken == MorphoMarketV1AdapterV2.asset(), "rset up the call";
-    require marketParams.irm == MorphoMarketV1AdapterV2.adaptiveCurveIrm(), "setup the call";
-
     // Adapter is registered.
     require isAdapter(adapter);
 
@@ -186,11 +188,14 @@ rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf
     //require canReceiveAssets(currentContract);
     require totalSupply() + virtualShares() <= max_uint256;
 
-    require(currentContract.firstTotalAssets != 0, "assume that interest has been accrued");
+    //require(currentContract.firstTotalAssets != 0, "assume that interest has been accrued");
 
     require(onBehalf != 0, "onBehalf cannot be the zero address");
 
-    require currentContract.asset() != currentContract;
+    require marketParams.loanToken == MorphoMarketV1AdapterV2.asset(), "set up the call";
+    require marketParams.irm == MorphoMarketV1AdapterV2.adaptiveCurveIrm(), "setup the call";
+
+    //require currentContract.asset() != currentContract;
 
     forceDeallocate@withrevert(e, adapter, data, 0, onBehalf);
 
