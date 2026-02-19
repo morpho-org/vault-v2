@@ -30,7 +30,7 @@ methods {
     function Utils.encodeMarketParams(Morpho.MarketParams) external returns (bytes memory) envfree;
     function asset() external returns (address) envfree;
     function virtualShares() external returns (uint256) envfree;
-
+    function lastUpdate() external returns (uint64) envfree;
 
     // To simplify linking that should be done in the vault, as well as in Morpho.
     function SafeTransferLib.safeTransfer(address, address, uint256) internal => NONDET;
@@ -38,13 +38,12 @@ methods {
     function SafeERC20Lib.safeTransfer(address, address, uint256) internal => NONDET;
     //function _.balanceOf(address) external => NONDET;
     // NONDET summary does not work as sometimes
-    function _.balanceOf(address account) external => ghostBalanceOf(calledContract, account) expect(uint256);
+    function _.balanceOf(address account) external => summaryBalanceOf() expect(uint256);
 
     // accrueInterest() and accrueInterestView() do not revert
     function accrueInterest() internal => NONDET;
 
-    function accrueInterestView() internal => NONDET;
-
+    //function accrueInterestView() internal returns (uint256, uint256, uint256) => summaryAccrueInterestView();
 
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryDeallocate(e, data, assets, selector, sender) expect(bytes32[], int256);
 
@@ -56,14 +55,17 @@ methods {
 
     function _.canSendShares(address account) external => ghostCanSendShares(calledContract, account) expect(bool);
     function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
+    function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
+    function _.realAssets() external => summaryRealAssets() expect(uint256);
 }
 
 ghost ghostCanSendShares(address, address) returns bool;
 
 ghost ghostCanReceiveAssets(address, address) returns bool;
 
-ghost ghostBalanceOf(address, address) returns uint256;
+ghost ghostCanReceiveShares(address, address) returns bool;
 
+ghost ghostBalanceOf(address, address) returns uint256;
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
 
@@ -80,16 +82,37 @@ function summaryExpectedMarketBalances(bytes32 id) returns (uint256, uint256, ui
 
 function summaryExpectedSupplyAssets(bytes32 id) returns uint256 {
     uint256 assets;
-    require assets <= max_int256(), "safe because market v1 stores the total supply assets of the market in a uint128";
+    require assets <= 2 ^ 128, "see expectedSupplyAssetsIsBounded";
     return assets;
 }
 
 function summaryAllocation(bytes32 id) returns uint256 {
     uint256 allocation;
-    require allocation <= max_int256(), "allocationIsInt256";
+    require allocation <= max_int256(), "see allocationIsInt256";
     return allocation;
 }
 
+function summaryBalanceOf() returns uint256 {
+    uint256 balance;
+    require balance < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; vault balance is less than totalAssets";
+    return balance;
+}
+
+function summaryRealAssets() returns uint256 {
+    uint256 realAssets;
+    require realAssets < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; realAssets from each adater is less than totalAssets";
+    return realAssets;
+}
+//function summaryAccrueInterestView() returns (uint256, uint256, uint256) {
+//    uint256 newTotalsAssets;
+//    uint256 performanceFee;
+//    uint256 managementFee;
+//    require newTotalsAssets < 2^128, "TODO:";
+//    require performanceFee < 2^128, "TODO:";
+//    require managementFee < 2^128, "TODO:";
+//    // the performance fee and management fee are zero because the time elapsed is zero.
+//    return (newTotalsAssets, performanceFee, managementFee);
+//}
 
 function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
     bytes32[] ids;
@@ -183,19 +206,15 @@ rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf
 
     require e.msg.value == 0;
 
-    // Gate checks for the withdraw inside forceDeallocate
+    // Gate checks for the withdraw within forceDeallocate
     require canSendShares(onBehalf);
-    //require canReceiveAssets(currentContract);
+    require canReceiveAssets(currentContract);
     require totalSupply() + virtualShares() <= max_uint256;
 
-    //require(currentContract.firstTotalAssets != 0, "assume that interest has been accrued");
-
     require(onBehalf != 0, "onBehalf cannot be the zero address");
-
+    require(currentContract.lastUpdate() == e.block.timestamp, "assume interest has been accrued at the Vault level");
     require marketParams.loanToken == MorphoMarketV1AdapterV2.asset(), "set up the call";
     require marketParams.irm == MorphoMarketV1AdapterV2.adaptiveCurveIrm(), "setup the call";
-
-    //require currentContract.asset() != currentContract;
 
     forceDeallocate@withrevert(e, adapter, data, 0, onBehalf);
 
