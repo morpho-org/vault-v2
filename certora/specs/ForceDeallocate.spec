@@ -77,7 +77,8 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     return (ids, change);
 }
 
-// Verifies the liveness property that `forceDeallocate()` can be called with assets=0 with the following pre-conditions:
+// forceDeallocate with assets=0 triggers the adapter to update the allocation tracking in caps.
+// This rule verifies the liveness property that `forceDeallocate()` can be called with assets=0 with the following pre-conditions:
 //   1. The adapter is registered in the vault.
 //   2. No ETH is sent with the call.
 //   3. The `onBehalf` address passes the sendShares gate check.
