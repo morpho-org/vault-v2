@@ -44,6 +44,8 @@ jobs:
           - SentinelLiveness
           - SentinelLivenessDeallocateMarketV1
           - SentinelLivenessDeallocateVaultV1
+          - SkimMorphoMarketV1AdapterV2
+          - SkimMorphoVaultV1Adapter
           - TokensMorphoMarketV1AdapterV2
           - TokensMorphoVaultV1Adapter
           - TokensNoAdapter
@@ -99,6 +101,9 @@ jobs:
           wget https://github.com/ethereum/solidity/releases/download/v0.8.28/solc-static-linux
           chmod +x solc-static-linux
           sudo mv solc-static-linux /usr/local/bin/solc-0.8.28
+
+      - name: Apply munging
+        run: make -C lib/metamorpho/certora munged
 
       - name: Verify ${{ matrix.conf }}
         run: certoraRun certora/confs/${{ matrix.conf }}.conf
