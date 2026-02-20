@@ -26,29 +26,23 @@ methods {
     function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
 }
 
-// Whether `account` is allowed to send shares from `contract`'s perspective.
 ghost ghostCanSendShares(address, address) returns bool;
 
-// Whether `account` is allowed to receive assets from `contract`'s perspective.
 ghost ghostCanReceiveAssets(address, address) returns bool;
 
-// Whether `account` is allowed to receive shares from `contract`'s perspective.
 ghost ghostCanReceiveShares(address, address) returns bool;
-
-// Ghost used to track per-(token, account) balances when needed by summaries.
-ghost ghostBalanceOf(address, address) returns uint256;
 
 // Maximum signed 256-bit integer, used to bound int256 return values.
 definition max_int256() returns int256 = (2 ^ 255) - 1;
 
-// Returns an unconstrained value bounded by 2^128.
+// Returns a value bounded by 2^128.
 function summaryBalanceOf() returns uint256 {
     uint256 balance;
     require balance < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; vault balance is less than totalAssets";
     return balance;
 }
 
-// Returns an unconstrained value bounded by 2^128
+// Returns a value bounded by 2^128
 function summaryRealAssets() returns uint256 {
     uint256 realAssets;
     require realAssets < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; realAssets from each adater is less than totalAssets";
