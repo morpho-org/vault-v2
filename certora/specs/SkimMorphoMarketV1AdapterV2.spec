@@ -31,7 +31,9 @@ function summaryBalanceOf(address token, address account) returns uint256 {
     if (account == MorphoMarketV1AdapterV2) {
         return adapterBalanceOf[token];
     }
-    return ghostBalanceOf(token, account);
+    // Retrun a non-deterministic value for non-adapter accounts
+    uint256 balance;
+    return balance;
 }
 
 // Models safeTransfer by updating the adapter's ghost balances on sends/receives.
