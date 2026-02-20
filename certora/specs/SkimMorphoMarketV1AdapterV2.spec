@@ -31,6 +31,7 @@ function summaryBalanceOf(address token, address account) returns uint256 {
     if (account == MorphoMarketV1AdapterV2) {
         return adapterBalanceOf[token];
     }
+
     // Retrun a non-deterministic value for non-adapter accounts
     uint256 balance;
     return balance;
