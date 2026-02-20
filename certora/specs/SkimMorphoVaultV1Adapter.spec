@@ -10,9 +10,9 @@ methods {
     function VaultV2.owner() external returns (address) envfree;
     function Utils.id(MetaMorphoHarness.MarketParams) external returns (MetaMorphoHarness.Id) envfree;
 
-    // expectedSupplyAssets summarised as an uninterpreted ghost. Avoids modeling the
-    // full Morpho Blue interest accrual logic.
-    function _.expectedSupplyAssets(MetaMorphoHarness.MarketParams marketParams, address user) external => summaryExpectedSupplyAssets(marketParams, user) expect(uint256);
+    // expectedSupplyAssets summarised as an uninterpreted ghost. Avoids modeling the full Morpho Blue interest accrual logic.
+    // Returns an uninterpreted value for expectedSupplyAssets, parameterized by market params fields and user.
+    function _.expectedSupplyAssets(MetaMorphoHarness.MarketParams marketParams, address user) external => ghostExpectedSupply(marketParams.loanToken, marketParams.collateralToken, marketParams.oracle, marketParams.irm, marketParams.lltv, user) expect(uint256);
 
     // idToMarketParams summarised to return market params that are constrained to hash of the
     // given ID, ensuring consistency between Ids and their corresponding market params.
@@ -44,14 +44,8 @@ function summaryBalanceOf(address token, address account) returns uint256 {
     return balance;
 }
 
-// Uninterpreted function for the expected supply assets of a market, destructured by market params fields
-// so the prover can reason about each field independently.
+// Uninterpreted function for the expected supply assets.
 ghost ghostExpectedSupply(address, address, address, address, uint256, address) returns uint256;
-
-// Returns an uninterpreted value for expectedSupplyAssets, parameterized by market params fields and user.
-function summaryExpectedSupplyAssets(MetaMorphoHarness.MarketParams marketParams, address user) returns uint256 {
-    return ghostExpectedSupply(marketParams.loanToken, marketParams.collateralToken, marketParams.oracle, marketParams.irm, marketParams.lltv, user);
-}
 
 // Models safeTransfer by updating the adapter's ghost token balances on sends/receives.
 function summarySafeTransferFrom(address token, address from, address to, uint256 amount) {
