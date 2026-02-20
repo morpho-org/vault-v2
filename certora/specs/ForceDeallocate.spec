@@ -20,10 +20,7 @@ methods {
     // `realAssets` is summarized to a bounded value; see summaryRealAssets.
     function _.realAssets() external => summaryRealAssets() expect(uint256);
 
-    // Gate checks are modeled as ghost functions, giving the prover full
-    // freedom to explore all combinations of permission outcomes per
-    // (contract, account) pair without constraining them to a specific
-    // implementation.
+    // Trick to be able to retrieve the value returned by the corresponding contract before it is called, without the value changing between the retrieval and the call.
     function _.canSendShares(address account) external => ghostCanSendShares(calledContract, account) expect(bool);
     function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
     function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
