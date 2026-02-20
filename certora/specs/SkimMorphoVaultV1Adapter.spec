@@ -31,7 +31,7 @@ methods {
 ghost ghostBalanceOf(address, address) returns uint256;
 
 // Tracks the adapter's token balances across transfers.
-persistent ghost mapping(address => uint256) adapterBalanceOf;
+ghost mapping(address => uint256) adapterBalanceOf;
 
 // Returns the ghost-tracked balance for the adapter, and an uninterpreted value for all other accounts.
 function summaryBalanceOf(address token, address account) returns uint256 {
