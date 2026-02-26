@@ -12,9 +12,18 @@ using Utils as Utils;
 methods {
     function Utils.maxMaxRate() external returns (uint256) envfree;
     function liquidityData() external returns (bytes) envfree;
+    function lastUpdate() external returns (uint64) envfree;
+    function totalSupply() external returns (uint256) envfree;
+    function virtualShares() external returns (uint256) envfree;
+    function managementFee() external returns (uint96) envfree;
+
 
     // Assume that accrueInterest does not revert.
     function accrueInterest() internal => NONDET;
+    // `balanceOf` is summarized to a bounded value.
+    function _.balanceOf(address account) external => summaryBalanceOf() expect(uint256);
+
+    function _.realAssets() external => summaryRealAssets() expect(uint256);
 
     // Trick to be able to retrieve the value returned by the corresponding contract before it is called, without the value changing between the retrieval and the call.
     function _.isInRegistry(address adapter) external => ghostIsInRegistry(calledContract, adapter) expect(bool);
@@ -33,6 +42,19 @@ ghost ghostCanReceiveShares(address, address) returns bool;
 ghost ghostCanSendAssets(address, address) returns bool;
 
 ghost ghostCanReceiveAssets(address, address) returns bool;
+
+function summaryBalanceOf() returns uint256 {
+    uint256 balance;
+    require balance < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; vault balance is less than totalAssets";
+    return balance;
+}
+
+// Returns a value bounded by 2^128
+function summaryRealAssets() returns uint256 {
+    uint256 realAssets;
+    require realAssets < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; realAssets from each adater is less than totalAssets";
+    return realAssets;
+}
 
 // The helper contract is called first, so this specification can miss trivial revert conditions like e.msg.value != 0.
 rule timelockedFunctionsRevertConditions(env e, calldataarg args, method f) filtered { f -> f.contract == currentContract && functionIsTimelocked(f) } {
@@ -195,4 +217,20 @@ rule transferFromRevertCondition(env e, address from, address to, uint256 shares
 
     transferFrom@withrevert(e, from, to, shares);
     assert fromIsZeroAddress || toIsZeroAddress || !fromCanSendShares || !toCanReceiveShares || !sufficientAllowance || !boundedBalance || !sufficientBalance || e.msg.value != 0 <=> lastReverted;
+}
+
+rule accrueInterestViewRevertCondition(env e) {
+
+    require(e.block.timestamp < 2 ^ 64, "timestamps are currently less than 2^64");
+    require(e.block.timestamp >= currentContract.lastUpdate(), "current block timestamp should be greater than or equal to lastUpdate");
+    require(e.block.timestamp - currentContract.lastUpdate() < 315569260, "current block timestamp should be <10 years from lastUpdate");
+    require e.msg.value == 0;
+    require(totalSupply() < 2 ^ 117, "totalSupply is bounded by 2 ^ 128");
+    require(virtualShares() < 2 ^ 117, "virtualShares is bounded by 2 ^ 128");
+    require(managementFee() < 2^ 31);
+    require(performanceFee() < 2^ 35); //35
+
+    accrueInterestView@withrevert(e);
+
+    assert lastReverted == false;
 }
