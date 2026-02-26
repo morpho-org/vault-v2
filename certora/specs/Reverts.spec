@@ -223,12 +223,12 @@ rule accrueInterestViewRevertCondition(env e) {
 
     require(e.block.timestamp < 2 ^ 64, "timestamps are currently less than 2^64");
     require(e.block.timestamp >= currentContract.lastUpdate(), "current block timestamp should be greater than or equal to lastUpdate");
-    require(e.block.timestamp - currentContract.lastUpdate() < 315569260, "current block timestamp should be <10 years from lastUpdate");
+    require(e.block.timestamp - currentContract.lastUpdate() < 31556926, "current block timestamp should be <10 years from lastUpdate");
     require e.msg.value == 0;
-    require(totalSupply() < 2 ^ 117, "totalSupply is bounded by 2 ^ 128");
-    require(virtualShares() < 2 ^ 117, "virtualShares is bounded by 2 ^ 128");
-    require(managementFee() < 2^ 31);
-    require(performanceFee() < 2^ 35); //35
+    require(totalSupply() < 2 ^ 128, "totalSupply is bounded by 2 ^ 128");
+    require(virtualShares() < 2 ^ 61, "virtualShares is bounded by 2 ^ 128");
+    require(managementFee() < 2^ 35);
+    require(performanceFee() < 2^ 59); //35
 
     accrueInterestView@withrevert(e);
 
