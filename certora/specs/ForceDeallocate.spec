@@ -29,11 +29,14 @@ methods {
     // Trick to be able to retrieve the value returned by the corresponding contract before it is called, without the value changing between the retrieval and the call.
     function _.canSendShares(address account) external => ghostCanSendShares(calledContract, account) expect(bool);
     function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
+    function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
 }
 
 ghost ghostCanSendShares(address, address) returns bool;
 
 ghost ghostCanReceiveAssets(address, address) returns bool;
+
+ghost ghostCanReceiveShares(address, address) returns bool;
 
 // Maximum signed 256-bit integer, used to bound int256 return values.
 definition max_int256() returns int256 = (2 ^ 255) - 1;
@@ -102,7 +105,7 @@ rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf
     // forceDeallocate is non-payable.
     require e.msg.value == 0, "setup the call";
 
-    // gate checks that withdraw within forceDeallocate will not revert.
+    // gate checks to ensure that withdraw within forceDeallocate will not revert.
     require canSendShares(onBehalf);
     require canReceiveAssets(currentContract);
 
