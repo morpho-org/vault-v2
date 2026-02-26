@@ -51,7 +51,7 @@ function summaryBalanceOf() returns uint256 {
 // Returns a value bounded by 2^128
 function summaryRealAssets() returns uint256 {
     uint256 realAssets;
-    require realAssets < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; realAssets from each adater is less than totalAssets";
+    require realAssets < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; realAssets from each adapter is less than totalAssets";
     return realAssets;
 }
 
@@ -60,8 +60,8 @@ function summaryAccrueInterestView() returns (uint256, uint256, uint256) {
     uint256 performanceFeeShares;
     uint256 managementFeeShares;
     require newTotalAssets < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; newTotalAssets from accrueInterest is less than totalAssets";
-    require performanceFeeShares < 2 ^ 128, "TODO; maybe this can be relaxed";
-    require managementFeeShares < 2 ^ 128, "TODO; maybe this can be relaxed";
+    require performanceFeeShares < 2 ^ 128, "TODO: can be proved from performanecFee bound";
+    require managementFeeShares < 2 ^ 128, "TODO: can be proved from managementFee bound";
     return (newTotalAssets, performanceFeeShares, managementFeeShares);
 }
 
@@ -88,7 +88,7 @@ function summaryDeallocate(bytes data, uint256 assets, bytes4 selector, address 
 }
 
 hook Sload uint256 balance balanceOf[KEY address addr] {
-    require balance < 2 ^ 128;
+    require balance < 2 ^ 128, "totalAssets is bounded by 2 ^ 128";
 }
 
 // forceDeallocate with assets=0 triggers the adapter to update the allocation tracking in caps.
