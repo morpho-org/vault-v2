@@ -17,9 +17,9 @@ methods {
     function virtualShares() external returns (uint256) envfree;
     function managementFee() external returns (uint96) envfree;
 
-
     // Assume that accrueInterest does not revert.
     function accrueInterest() internal => NONDET;
+
     // `balanceOf` is summarized to a bounded value.
     function _.balanceOf(address account) external => summaryBalanceOf() expect(uint256);
 
@@ -49,10 +49,11 @@ function summaryBalanceOf() returns uint256 {
     return balance;
 }
 
-// Returns a value bounded by 2^128
+// Returns a value bounded by 2^126.
+// sum of realAssets of each adapter should be bounded by 2 ^ 128; Since loop_iter is 3, we bound each real assets by 2 ^ 126 to avoid overflow when summing them.
 function summaryRealAssets() returns uint256 {
     uint256 realAssets;
-    require realAssets < 2 ^ 126, "totalAssets is bounded by 2 ^ 128; realAssets from each adater is less than totalAssets";
+    require realAssets < 2 ^ 126;
     return realAssets;
 }
 
@@ -124,6 +125,7 @@ rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
 
 rule setNameRevertCondition(env e, string newName) {
     address owner = owner();
+
     // String stored in name can be malformed, so we just call the getter to ensure that the encoding is correct.
     name();
 
@@ -134,6 +136,7 @@ rule setNameRevertCondition(env e, string newName) {
 
 rule setSymbolRevertCondition(env e, string newSymbol) {
     address owner = owner();
+
     // String stored in symbol can be malformed, so we just call the getter to ensure that the encoding is correct.
     symbol();
 
@@ -220,17 +223,15 @@ rule transferFromRevertCondition(env e, address from, address to, uint256 shares
 }
 
 rule accrueInterestViewRevertCondition(env e) {
-
     require(e.block.timestamp < 2 ^ 64, "timestamps are currently less than 2^64");
     require(e.block.timestamp >= currentContract.lastUpdate(), "current block timestamp should be greater than or equal to lastUpdate");
-    require((e.block.timestamp - currentContract.lastUpdate())* managementFee() < 2 ^ 58, "current block timestamp should be <10 years from lastUpdate");
     require e.msg.value == 0;
     require(totalSupply() < 2 ^ 128, "totalSupply is bounded by 2 ^ 128");
-    require(virtualShares() < 2 ^ 61, "virtualShares is bounded by 2 ^ 128");
-    require(performanceFee() < 2 ^ 58);
+    require(virtualShares() < 2 ^ 60, "virtualShares is bounded by 10**18");
+    require(performanceFee() < 2 ^ 58), "see PerformanceFeeBounded invariant in Invariants.spec";
+    require(managementFee() < 2 ^ 30), "see ManagementFeeBounded invariant in Invariants.spec";
+    require(e.block.timestamp - currentContract.lastUpdate() < 2 ^ 28, "current block timestamp should be <10 years from lastUpdate");
 
     accrueInterestView@withrevert(e);
-
-    // assert lastReverted <=> !timestampsAreBounded || !timestampIsGreaterThanLastUpdate || !timestampIsLessThan10YearsFromLastUpdate || !msgValueIsZero || !totalSupplyIsBounded || !virtualSharesAreBounded || !managementFeeIsBounded || !performanceFeeIsBounded;
-    assert lastReverted == false;
+    assert !lastReverted;
 }
