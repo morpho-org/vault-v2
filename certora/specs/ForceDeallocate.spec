@@ -96,7 +96,7 @@ hook Sload uint256 balance balanceOf[KEY address addr] {
 //   1. The `onBehalf` address passes the sendShares gate check.
 //   2. The vault itself passes the receiveAssets gate check.
 //   3. Total shares do not overflow uint256 when virtual shares are included.
-//   4. `accrueInterest()` does not revert. The revert conditions for accrueInterest are specced in Reverts.spec.
+//   4. `accrueInterest()` does not revert. See the accrueInterestViewRevertConditions in Reverts.spec.
 rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf) {
 
     // the adapter must be registered in the vault.
