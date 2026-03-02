@@ -23,7 +23,7 @@ methods {
     // `realAssets` is summarized to a bounded value; see summaryRealAssets.
     function _.realAssets() external => summaryRealAssets() expect(uint256);
 
-    // `accrueInterest` is assumed to not revert; TODO: prove seaprately in Reverts.spec.
+    // `accrueInterest` is assumed to not revert; Check the rule accrueInterestRevertConditions in Reverts.spec.
     function accrueInterestView() internal returns (uint256, uint256, uint256) => summaryAccrueInterestView();
 
     // Trick to be able to retrieve the value returned by the corresponding contract before it is called, without the value changing between the retrieval and the call.
