@@ -52,7 +52,7 @@ function summaryBalanceOf() returns uint256 {
 // Returns a value bounded by 2^128
 function summaryRealAssets() returns uint256 {
     uint256 realAssets;
-    require realAssets < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; realAssets from each adater is less than totalAssets";
+    require realAssets < 2 ^ 126, "totalAssets is bounded by 2 ^ 128; realAssets from each adater is less than totalAssets";
     return realAssets;
 }
 
@@ -223,14 +223,14 @@ rule accrueInterestViewRevertCondition(env e) {
 
     require(e.block.timestamp < 2 ^ 64, "timestamps are currently less than 2^64");
     require(e.block.timestamp >= currentContract.lastUpdate(), "current block timestamp should be greater than or equal to lastUpdate");
-    require(e.block.timestamp - currentContract.lastUpdate() < 31556926, "current block timestamp should be <10 years from lastUpdate");
+    require((e.block.timestamp - currentContract.lastUpdate())* managementFee() < 2 ^ 58, "current block timestamp should be <10 years from lastUpdate");
     require e.msg.value == 0;
     require(totalSupply() < 2 ^ 128, "totalSupply is bounded by 2 ^ 128");
     require(virtualShares() < 2 ^ 61, "virtualShares is bounded by 2 ^ 128");
-    require(managementFee() < 2^ 35);
-    require(performanceFee() < 2^ 59); //35
+    require(performanceFee() < 2 ^ 58);
 
     accrueInterestView@withrevert(e);
 
+    // assert lastReverted <=> !timestampsAreBounded || !timestampIsGreaterThanLastUpdate || !timestampIsLessThan10YearsFromLastUpdate || !msgValueIsZero || !totalSupplyIsBounded || !virtualSharesAreBounded || !managementFeeIsBounded || !performanceFeeIsBounded;
     assert lastReverted == false;
 }
