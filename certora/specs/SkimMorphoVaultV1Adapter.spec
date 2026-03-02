@@ -27,9 +27,6 @@ methods {
     function _.balanceOf(address account) external => summaryBalanceOf(calledContract, account) expect(uint256) ALL;
 }
 
-// Uninterpreted function for balanceOf of any contract other than the adapter.
-ghost ghostBalanceOf(address, address) returns uint256;
-
 // Tracks the adapter's token balances across transfers.
 ghost mapping(address => uint256) adapterBalanceOf;
 
