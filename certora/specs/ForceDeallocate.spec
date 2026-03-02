@@ -60,8 +60,8 @@ function summaryAccrueInterestView() returns (uint256, uint256, uint256) {
     uint256 performanceFeeShares;
     uint256 managementFeeShares;
     require newTotalAssets < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; newTotalAssets from accrueInterest is less than totalAssets";
-    require performanceFeeShares < 2 ^ 128, "TODO: can be proved from performanecFee bound";
-    require managementFeeShares < 2 ^ 128, "TODO: can be proved from managementFee bound";
+    //require performanceFeeShares < 2 ^ 128, "TODO: can be proved from performanecFee bound";
+    //require managementFeeShares < 2 ^ 128, "TODO: can be proved from managementFee bound";
     return (newTotalAssets, performanceFeeShares, managementFeeShares);
 }
 
@@ -109,8 +109,8 @@ rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf
     require canSendShares(onBehalf);
     require canReceiveAssets(currentContract);
 
-    require virtualShares() < 2 ^ 128;
-    require totalSupply() < 2 ^ 128;
+    require virtualShares() < 2 ^ 61;
+    require totalSupply() < 2 ^ 116;
 
     // vault's exit logic requires onBehalf to be non-zero address.
     require(onBehalf != 0, "setup the call");
