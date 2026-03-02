@@ -60,8 +60,8 @@ function summaryAccrueInterestView() returns (uint256, uint256, uint256) {
     uint256 performanceFeeShares;
     uint256 managementFeeShares;
     require newTotalAssets < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; newTotalAssets from accrueInterest is less than totalAssets";
-    //require performanceFeeShares < 2 ^ 128, "TODO: can be proved from performanecFee bound";
-    //require managementFeeShares < 2 ^ 128, "TODO: can be proved from managementFee bound";
+    require performanceFeeShares < 2 ^ 245, "see accrueInterestViewRevertConditions in Reverts.spec";
+    require managementFeeShares < 2 ^ 245, "see accrueInterestViewRevertConditions in Reverts.spec";
     return (newTotalAssets, performanceFeeShares, managementFeeShares);
 }
 
