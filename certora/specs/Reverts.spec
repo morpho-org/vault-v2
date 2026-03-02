@@ -223,14 +223,14 @@ rule transferFromRevertCondition(env e, address from, address to, uint256 shares
 }
 
 rule accrueInterestViewRevertCondition(env e) {
-    require(e.block.timestamp < 2 ^ 64, "timestamps are currently less than 2^64");
+    require(e.block.timestamp < 2 ^ 64, "timestamps are currently less than 2 ^ 64");
     require(e.block.timestamp >= currentContract.lastUpdate(), "current block timestamp should be greater than or equal to lastUpdate");
     require e.msg.value == 0;
     require(totalSupply() < 2 ^ 128, "totalSupply is bounded by 2 ^ 128");
-    require(virtualShares() < 2 ^ 60, "virtualShares is bounded by 10**18");
+    require(virtualShares() < 2 ^ 60, "virtualShares is bounded by 10 ^ 18");
     require(performanceFee() < 2 ^ 58), "see PerformanceFeeBounded invariant in Invariants.spec";
     require(managementFee() < 2 ^ 30), "see ManagementFeeBounded invariant in Invariants.spec";
-    require(e.block.timestamp - currentContract.lastUpdate() < 2 ^ 28, "current block timestamp should be <10 years from lastUpdate");
+    require(e.block.timestamp - currentContract.lastUpdate() < 2 ^ 28, "current block timestamp should be < 10 years from lastUpdate");
 
     accrueInterestView@withrevert(e);
     assert !lastReverted;
