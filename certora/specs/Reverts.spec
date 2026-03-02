@@ -231,6 +231,14 @@ rule accrueInterestViewRevertCondition(env e) {
     require(managementFee() < 5 * 10 ^ 16 / (365 * 24 * 3600), "see ManagementFeeBounded invariant in Invariants.spec");
     require(e.block.timestamp - currentContract.lastUpdate() < 2 ^ 28, "current block timestamp should be < 10 years from lastUpdate");
 
-    accrueInterestView@withrevert(e);
+    uint256 newTotalAssets;
+    uint256 performanceFeeShares;
+    uint256 managementFeeShares;
+    (newTotalAssets, performanceFeeShares, managementFeeShares) = accrueInterestView@withrevert(e);
+
+    //accrueInterestView@withrevert(e);
     assert !lastReverted;
+    assert newTotalAssets < 2 ^ 135, "newTotalAssets is not bounded";
+    //assert performanceFeeShares < 2 ^ 128, "performanceFeeShares not bounded";
+    //assert managementFeeShares < 2 ^ 128, "managementFeeShares not bounded";
 }
