@@ -60,7 +60,7 @@ rule accrueInterestViewRevertCondition(env e) {
     require(performanceFee() < Utils.maxPerformanceFee(), "see PerformanceFeeBound invariant in Invariants.spec; bounded by 0.5 * 10 ^ 18");
     require(managementFee() < Utils.maxManagementFee(), "see ManagementFeeBound invariant in Invariants.spec;  bounded by 0.05 * 10 ^ 18 / 365 days");
     require(e.block.timestamp - currentContract.lastUpdate() < 10 * 365 * 24 * 60 * 60, "current block timestamp should be < 10 years from lastUpdate");
-    require(currentContract._totalAssets < 2 ^ 116, "totalAssets is bounded by 10 ^ 35");
+    require(currentContract._totalAssets < 10 ^ 35, "totalAssets is bounded by 10 ^ 35");
     require(maxRate() < Utils.maxMaxRate(), "see maxRateBound invariant in Invariants.spec; maxRate is bounded by 2 * 10 ^ 18 / 365 days");
 
     uint256 newTotalAssets;
@@ -77,8 +77,8 @@ rule accrueInterestViewRevertCondition(env e) {
 rule accrueInterestRevertCondition(env e) {
     require(e.msg.value == 0, "setup the call");
     require(e.block.timestamp >= currentContract.lastUpdate(), "block timestamps are guaranteed to be non-decreasing");
-    require(totalSupply() < 2 ^ 128, "totalSupply is bounded by 2 ^ 128");
-    require(virtualShares() < 10 ^ 18, "virtualShares is bounded by 10 ^ 18");
+    require(totalSupply() < 10 ^ 35, "totalSupply is bounded by 10 ^ 35");
+    require(virtualShares() <= 10 ^ 18, "see virtualSharesBound invariant in Invariants.spec; virtualShares is bounded by 10 ^ 18");
     require(performanceFee() < Utils.maxPerformanceFee(), "see PerformanceFeeBound invariant in Invariants.spec; bounded by 0.5 * 10 ^ 18");
     require(managementFee() < Utils.maxManagementFee(), "see ManagementFeeBound invariant in Invariants.spec;  bounded by 0.05 * 10 ^ 18 / 365 days");
     require(e.block.timestamp - currentContract.lastUpdate() < 10 * 365 * 24 * 60 * 60, "current block timestamp should be < 10 years from lastUpdate");
