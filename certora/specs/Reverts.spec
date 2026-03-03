@@ -231,7 +231,7 @@ rule accrueInterestViewRevertCondition(env e) {
     require(virtualShares() < 10 ^ 18, "virtualShares is bounded by 10 ^ 18");
     require(performanceFee() < Utils.maxPerformanceFee(), "see PerformanceFeeBound invariant in Invariants.spec; bounded by 0.5 * 10 ^ 18");
     require(managementFee() < Utils.maxManagementFee(), "see ManagementFeeBound invariant in Invariants.spec;  bounded by 0.05 * 10 ^ 18 / 365 days");
-    require(e.block.timestamp - currentContract.lastUpdate() < 2 ^ 28, "current block timestamp should be < 10 years from lastUpdate");
+    require(e.block.timestamp - currentContract.lastUpdate() < 10 * 365 * 24 * 60 * 60, "current block timestamp should be < 10 years from lastUpdate");
     require(currentContract._totalAssets < 2 ^ 116, "totalAssets is bounded by 10 ^ 35");
     require(maxRate() < Utils.maxMaxRate(), "see maxRateBound invariant in Invariants.spec; maxRate is bounded by 2 * 10 ^ 18 / 365 days");
 
