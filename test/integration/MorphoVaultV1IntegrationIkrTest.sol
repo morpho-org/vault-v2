@@ -98,7 +98,6 @@ contract MorphoVaultV1IntegrationIkrTest is MorphoVaultV1IntegrationTest {
         morphoVaultV1.setSupplyQueue(emptySupplyQueue);
 
         uint256 deallocatedAssets = optimalDeallocateAssets(assets);
-        vm.assume(deallocatedAssets > 0);
 
         // Simulate a flashloan.
         deal(address(underlyingToken), address(this), deallocatedAssets);

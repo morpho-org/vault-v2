@@ -65,7 +65,6 @@ contract MorphoMarketV1IntegrationIkrTest is MorphoMarketV1IntegrationTest {
         setUpAssets(assets);
 
         uint256 deallocatedAssets = optimalDeallocateAssets(assets);
-        vm.assume(deallocatedAssets > 0);
 
         // Normal withdraw fails
         vm.prank(allocator);
