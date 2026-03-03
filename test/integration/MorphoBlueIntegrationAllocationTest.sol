@@ -2,9 +2,9 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MorphoMarketV1IntegrationTest.sol";
+import "./MorphoBlueIntegrationTest.sol";
 
-contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTest {
+contract MorphoBlueIntegrationAllocationTest is MorphoBlueIntegrationTest {
     using MorphoBalancesLib for IMorpho;
 
     address internal immutable borrower = makeAddr("borrower");
@@ -153,7 +153,7 @@ contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTes
         vm.warp(block.timestamp + 60 * 60 * 24 * 365 * 200); //200 years
 
         vm.prank(allocator);
-        vm.expectRevert(IMorphoMarketV1AdapterV2.SharePriceAboveOne.selector);
+        vm.expectRevert(IMorphoBlueAdapterV2.SharePriceAboveOne.selector);
         vault.allocate(address(adapter), abi.encode(marketParams1), 100);
     }
 }

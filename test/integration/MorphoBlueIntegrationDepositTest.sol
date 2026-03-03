@@ -2,9 +2,9 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MorphoMarketV1IntegrationTest.sol";
+import "./MorphoBlueIntegrationTest.sol";
 
-contract MorphoMarketV1IntegrationDepositTest is MorphoMarketV1IntegrationTest {
+contract MorphoBlueIntegrationDepositTest is MorphoBlueIntegrationTest {
     using MorphoBalancesLib for IMorpho;
 
     function testDepositNoLiquidityAdapter(uint256 assets) public {

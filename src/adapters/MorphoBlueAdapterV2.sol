@@ -7,7 +7,7 @@ import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsL
 import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IMorphoMarketV1AdapterV2} from "./interfaces/IMorphoMarketV1AdapterV2.sol";
+import {IMorphoBlueAdapterV2} from "./interfaces/IMorphoBlueAdapterV2.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {
     AdaptiveCurveIrmLib
@@ -37,7 +37,7 @@ import {
 /// @dev Burning shares takes time, so reactive depositors might be able to exit before the share price reduction.
 /// @dev It is possible to burn the shares of a market whose IRM reverts.
 /// @dev Burnt shares are lost forever.
-contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
+contract MorphoBlueAdapterV2 is IMorphoBlueAdapterV2 {
     using MarketParamsLib for MarketParams;
     using SharesMathLib for uint256;
 
@@ -92,7 +92,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(data);
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the second bytes4.
-        uint256 _timelock = selector == IMorphoMarketV1AdapterV2.decreaseTimelock.selector
+        uint256 _timelock = selector == IMorphoBlueAdapterV2.decreaseTimelock.selector
             ? timelock[bytes4(data[4:8])]
             : timelock[selector];
         executableAt[data] = block.timestamp + _timelock;
@@ -127,7 +127,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     /// executableAt.
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
-        require(selector != IMorphoMarketV1AdapterV2.decreaseTimelock.selector, AutomaticallyTimelocked());
+        require(selector != IMorphoBlueAdapterV2.decreaseTimelock.selector, AutomaticallyTimelocked());
         require(newDuration >= timelock[selector], TimelockNotIncreasing());
 
         timelock[selector] = newDuration;
@@ -136,7 +136,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
-        require(selector != IMorphoMarketV1AdapterV2.decreaseTimelock.selector, AutomaticallyTimelocked());
+        require(selector != IMorphoBlueAdapterV2.decreaseTimelock.selector, AutomaticallyTimelocked());
         require(newDuration <= timelock[selector], TimelockNotDecreasing());
 
         timelock[selector] = newDuration;

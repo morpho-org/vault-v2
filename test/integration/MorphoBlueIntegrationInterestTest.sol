@@ -2,9 +2,9 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MorphoMarketV1IntegrationTest.sol";
+import "./MorphoBlueIntegrationTest.sol";
 
-contract MorphoMarketV1IntegrationInterestTest is MorphoMarketV1IntegrationTest {
+contract MorphoBlueIntegrationInterestTest is MorphoBlueIntegrationTest {
     using MorphoBalancesLib for IMorpho;
     using MathLib for uint256;
 
