@@ -16,14 +16,11 @@ methods {
     function SafeERC20Lib.safeTransfer(address token, address to, uint256 value) internal => summarySafeTransferFrom(token, executingContract, to, value);
 
     // balanceOf summarised to return the adapter's ghost-tracked balance when queried for the adapter,
-    // and an non-deterministic value otherwise.
+    // and a non-deterministic value otherwise.
     function _.balanceOf(address account) external => summaryBalanceOf(calledContract, account) expect(uint256) ALL;
 }
 
-// Tracks the adapter's token balances across transfers.
-ghost mapping(address => uint256) adapterBalanceOf;
-
-// Returns the ghost-tracked balance for the adapter, and an non-deterministic value for all other accounts.
+// Returns the ghost-tracked balance for the adapter, and a non-deterministic value for all other accounts.
 function summaryBalanceOf(address token, address account) returns uint256 {
     if (account == MorphoMarketV1AdapterV2) {
         return adapterBalanceOf[token];
