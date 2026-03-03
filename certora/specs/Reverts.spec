@@ -226,7 +226,7 @@ rule transferFromRevertCondition(env e, address from, address to, uint256 shares
 
 rule accrueInterestViewRevertCondition(env e) {
     require(e.msg.value == 0, "setup the call");
-    require(e.block.timestamp >= currentContract.lastUpdate(), "current block timestamp should be greater than or equal to lastUpdate");
+    require(e.block.timestamp >= currentContract.lastUpdate(), "block timestamps are guaranteed to be non-decreasing");
     require(totalSupply() < 2 ^ 128, "totalSupply is bounded by 2 ^ 128");
     require(virtualShares() < 10 ^ 18, "virtualShares is bounded by 10 ^ 18");
     require(performanceFee() < Utils.maxPerformanceFee(), "see PerformanceFeeBound invariant in Invariants.spec; bounded by 0.5 * 10 ^ 18");
