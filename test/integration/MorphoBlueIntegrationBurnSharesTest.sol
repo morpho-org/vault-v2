@@ -2,9 +2,9 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MorphoMarketV1IntegrationTest.sol";
+import "./MorphoBlueIntegrationTest.sol";
 
-contract MorphoMarketV1IntegrationBurnSharesTest is MorphoMarketV1IntegrationTest {
+contract MorphoBlueIntegrationBurnSharesTest is MorphoBlueIntegrationTest {
     using MarketParamsLib for MarketParams;
 
     function testBurnShares(uint256 assets) public {
@@ -26,7 +26,7 @@ contract MorphoMarketV1IntegrationBurnSharesTest is MorphoMarketV1IntegrationTes
 
         // Burn shares at adapter level
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMorphoMarketV1AdapterV2.burnShares, (Id.unwrap(marketParams1.id()))));
+        adapter.submit(abi.encodeCall(IMorphoBlueAdapterV2.burnShares, (Id.unwrap(marketParams1.id()))));
         adapter.burnShares(Id.unwrap(marketParams1.id()));
 
         // Ping adapter from vault

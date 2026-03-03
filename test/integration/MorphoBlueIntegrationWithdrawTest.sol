@@ -2,9 +2,9 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MorphoMarketV1IntegrationTest.sol";
+import "./MorphoBlueIntegrationTest.sol";
 
-contract MorphoMarketV1IntegrationWithdrawTest is MorphoMarketV1IntegrationTest {
+contract MorphoBlueIntegrationWithdrawTest is MorphoBlueIntegrationTest {
     using MorphoBalancesLib for IMorpho;
 
     address internal immutable receiver = makeAddr("receiver");

@@ -19,7 +19,7 @@ This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure t
 
 The following adapters are currently available:
 
-- [Morpho Market V1 Adapter V2](./src/adapters/MorphoMarketV1AdapterV2.sol).
+- [Morpho Blue Adapter V2](./src/adapters/MorphoBlueAdapterV2.sol).
 - [Morpho Vault V1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
 - Morpho Market V2 Adapter. WIP
 

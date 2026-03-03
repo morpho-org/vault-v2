@@ -12,7 +12,9 @@ wrap_comments = true
 [lint]
 exclude_lints = [
     "screaming-snake-case-immutable",
-    "asm-keccak256"
+    "asm-keccak256",
+    "mixed-case-function",
+    "mixed-case-variable"
 ]
 ignore = [
     'test/**/*.sol'
