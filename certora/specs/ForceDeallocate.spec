@@ -92,6 +92,7 @@ hook Sload uint256 balance balanceOf[KEY address addr] {
 }
 
 // forceDeallocate with assets=0 triggers the adapter to update the allocation tracking in caps.
+// We assmume the token is ERC30Standard.
 // This rule verifies the liveness property that `forceDeallocate()` can be called with assets=0 with the following pre-conditions:
 //   1. The `onBehalf` address passes the sendShares gate check.
 //   2. The vault itself passes the receiveAssets gate check.
@@ -109,14 +110,14 @@ rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf
     require canSendShares(onBehalf);
     require canReceiveAssets(currentContract);
 
-    require virtualShares() < 2 ^ 61;
-    require totalSupply() < 2 ^ 116;
+    require virtualShares() < 2 ^ 60, "virtual shares are are bounded by 10 ^ 18;";
+    require totalSupply() < 2 ^ 116, "totalSupply is bounded by 10 ^ 35;";
 
     // vault's exit logic requires onBehalf to be non-zero address.
     require(onBehalf != 0, "setup the call");
     require(performanceFeeRecipient() != 0, "setup the call");
     require(managementFeeRecipient() != 0, "setup the call");
-    require(currentContract.asset == token, "asset set as an ERC20 token");
+    require(currentContract.asset == token, "asset set as an ERC20Standard token");
 
     // call forceDeallocate with zero requested assets.
     forceDeallocate@withrevert(e, adapter, data, 0, onBehalf);
