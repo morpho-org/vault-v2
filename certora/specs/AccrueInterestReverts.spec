@@ -21,6 +21,7 @@ methods {
     // `balanceOf` is summarized to a bounded value.
     function _.balanceOf(address account) external => summaryBalanceOf() expect(uint256);
 
+    // `realAssets` is summarized to a bounded value.
     function _.realAssets() external => summaryRealAssets() expect(uint256);
 
     // Trick to be able to retrieve the value returned by the corresponding contract before it is called, without the value changing between the retrieval and the call.
