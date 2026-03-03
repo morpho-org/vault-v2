@@ -53,14 +53,18 @@ function summaryRealAssets() returns uint256 {
 }
 
 rule accrueInterestViewRevertCondition(env e) {
+
+    // explicit assumptions required for the rule.
+    require(currentContract._totalAssets < 10 ^ 35, "totalAssets is bounded by 10 ^ 35");
+    require(totalSupply() < 10 ^ 35, "totalSupply is assumed to be less than 10 ^ 35");
+    require(e.block.timestamp - currentContract.lastUpdate() < 10 * 365 * 24 * 60 * 60, "time elapsed is assumed to be < 10 years");
+
+    // Call set-up and proven invariants
     require(e.msg.value == 0, "setup the call");
     require(e.block.timestamp >= currentContract.lastUpdate(), "block timestamps are guaranteed to be non-decreasing");
-    require(totalSupply() < 10 ^ 35, "totalSupply is assumed to be less than 10 ^ 35");
-    require(virtualShares() < 10 ^ 18, "virtualShares is bounded by 10 ^ 18");
+    require(virtualShares() <= 10 ^ 18, "see virtualSharesBound invariant in Invariants.spec; virtualShares is bounded by 10 ^ 18");
     require(performanceFee() < Utils.maxPerformanceFee(), "see PerformanceFeeBound invariant in Invariants.spec; bounded by 0.5 * 10 ^ 18");
     require(managementFee() < Utils.maxManagementFee(), "see ManagementFeeBound invariant in Invariants.spec;  bounded by 0.05 * 10 ^ 18 / 365 days");
-    require(e.block.timestamp - currentContract.lastUpdate() < 10 * 365 * 24 * 60 * 60, "current block timestamp should be < 10 years from lastUpdate");
-    require(currentContract._totalAssets < 10 ^ 35, "totalAssets is bounded by 10 ^ 35");
     require(maxRate() < Utils.maxMaxRate(), "see maxRateBound invariant in Invariants.spec; maxRate is bounded by 2 * 10 ^ 18 / 365 days");
 
     uint256 newTotalAssets;
@@ -75,20 +79,23 @@ rule accrueInterestViewRevertCondition(env e) {
 }
 
 rule accrueInterestRevertCondition(env e) {
+
+    // explicit assumptions required for the rule.
+    require(currentContract._totalAssets < 10 ^ 35, "totalAssets is bounded by 10 ^ 35");
+    require(totalSupply() < 10 ^ 35, "totalSupply is assumed to be less than 10 ^ 35");
+    require(e.block.timestamp - currentContract.lastUpdate() < 10 * 365 * 24 * 60 * 60, "current block timestamp should be < 10 years from lastUpdate");
+    require(balanceOf(performanceFeeRecipient()) < 2 ^ 256 - 2 ^ 236, "balance of performance fee recipient should be less than 2 ^ 255 - max performanceFeeShare; see accrueInterestViewRevertCondition");
+    require(balanceOf(managementFeeRecipient()) < 2 ^ 256 - 2 ^ 236, "balance of management fee recipient should be less than 2 ^ 255 - max managementFeeShare; see accrueInterestViewRevertCondition");
+
+    // Call set-up and already proven invariants
     require(e.msg.value == 0, "setup the call");
+    require(performanceFeeRecipient() != 0, "setup the call");
+    require(managementFeeRecipient() != 0, "setup the call");
     require(e.block.timestamp >= currentContract.lastUpdate(), "block timestamps are guaranteed to be non-decreasing");
-    require(totalSupply() < 10 ^ 35, "totalSupply is bounded by 10 ^ 35");
     require(virtualShares() <= 10 ^ 18, "see virtualSharesBound invariant in Invariants.spec; virtualShares is bounded by 10 ^ 18");
     require(performanceFee() < Utils.maxPerformanceFee(), "see PerformanceFeeBound invariant in Invariants.spec; bounded by 0.5 * 10 ^ 18");
     require(managementFee() < Utils.maxManagementFee(), "see ManagementFeeBound invariant in Invariants.spec;  bounded by 0.05 * 10 ^ 18 / 365 days");
-    require(e.block.timestamp - currentContract.lastUpdate() < 10 * 365 * 24 * 60 * 60, "current block timestamp should be < 10 years from lastUpdate");
-    require(currentContract._totalAssets < 2 ^ 116, "totalAssets is bounded by 10 ^ 35");
     require(maxRate() < Utils.maxMaxRate(), "see maxRateBound invariant in Invariants.spec; maxRate is bounded by 2 * 10 ^ 18 / 365 days");
-    require(performanceFeeRecipient() != 0, "performance fee recipient should not be the zero address");
-    require(managementFeeRecipient() != 0, "management fee recipient should not be the zero address");
-
-    require(balanceOf(performanceFeeRecipient()) < 2 ^ 256 - 2 ^ 236, "balance of performance fee recipient should be less than 2 ^ 255 - max performanceFeeShare; see accrueInterestViewRevertCondition");
-    require(balanceOf(managementFeeRecipient()) < 2 ^ 256 - 2 ^ 236, "balance of management fee recipient should be less than 2 ^ 255 - max managementFeeShare; see accrueInterestViewRevertCondition");
 
     accrueInterest@withrevert(e);
 
