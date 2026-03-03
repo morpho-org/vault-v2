@@ -16,6 +16,7 @@ methods {
     function totalSupply() external returns (uint256) envfree;
     function virtualShares() external returns (uint256) envfree;
     function managementFee() external returns (uint96) envfree;
+    function totalAssets() external returns (uint256) envfree;
 
     // Assume that accrueInterest does not revert.
     function accrueInterest() internal => NONDET;
@@ -230,6 +231,7 @@ rule accrueInterestViewRevertCondition(env e) {
     require(performanceFee() < 5 * 10 ^ 17, "see PerformanceFeeBounded invariant in Invariants.spec");
     require(managementFee() < 5 * 10 ^ 16 / (365 * 24 * 3600), "see ManagementFeeBounded invariant in Invariants.spec");
     require(e.block.timestamp - currentContract.lastUpdate() < 2 ^ 28, "current block timestamp should be < 10 years from lastUpdate");
+    require(totalAssets() < 2 ^ 116, "totalAssets is bounded by 10 ^ 35");
 
     uint256 newTotalAssets;
     uint256 performanceFeeShares;
@@ -239,6 +241,6 @@ rule accrueInterestViewRevertCondition(env e) {
     //accrueInterestView@withrevert(e);
     assert !lastReverted;
     assert newTotalAssets < 2 ^ 135, "newTotalAssets is not bounded";
-    assert performanceFeeShares < 2 ^ 245, "performanceFeeShares not bounded";
-    assert managementFeeShares < 2 ^ 245, "managementFeeShares not bounded";
+    assert performanceFeeShares < 2 ^ 245, "performanceFeeShares is not bounded";
+    assert managementFeeShares < 2 ^ 245, "managementFeeShares is not bounded";
 }
