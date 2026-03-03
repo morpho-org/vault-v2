@@ -11,12 +11,13 @@ using Utils as Utils;
 
 methods {
     function Utils.maxMaxRate() external returns (uint256) envfree;
+    function Utils.maxPerformanceFee() external returns (uint256) envfree;
+    function Utils.maxManagementFee() external returns (uint256) envfree;
     function liquidityData() external returns (bytes) envfree;
     function lastUpdate() external returns (uint64) envfree;
     function totalSupply() external returns (uint256) envfree;
     function virtualShares() external returns (uint256) envfree;
     function managementFee() external returns (uint96) envfree;
-    function totalAssets() external returns (uint256) envfree;
 
     // Assume that accrueInterest does not revert.
     function accrueInterest() internal => NONDET;
@@ -228,10 +229,11 @@ rule accrueInterestViewRevertCondition(env e) {
     require(e.block.timestamp >= currentContract.lastUpdate(), "current block timestamp should be greater than or equal to lastUpdate");
     require(totalSupply() < 2 ^ 128, "totalSupply is bounded by 2 ^ 128");
     require(virtualShares() < 10 ^ 18, "virtualShares is bounded by 10 ^ 18");
-    require(performanceFee() < 5 * 10 ^ 17, "see PerformanceFeeBounded invariant in Invariants.spec");
-    require(managementFee() < 5 * 10 ^ 16 / (365 * 24 * 3600), "see ManagementFeeBounded invariant in Invariants.spec");
+    require(performanceFee() < Utils.maxPerformanceFee(), "see PerformanceFeeBound invariant in Invariants.spec; bounded by 0.5 * 10 ^ 18");
+    require(managementFee() < Utils.maxManagementFee(), "see ManagementFeeBound invariant in Invariants.spec;  bounded by 0.05 * 10 ^ 18 / 365 days");
     require(e.block.timestamp - currentContract.lastUpdate() < 2 ^ 28, "current block timestamp should be < 10 years from lastUpdate");
-    require(totalAssets() < 2 ^ 116, "totalAssets is bounded by 10 ^ 35");
+    require(currentContract._totalAssets < 2 ^ 116, "totalAssets is bounded by 10 ^ 35");
+    require(maxRate() < Utils.maxMaxRate(), "see maxRateBound invariant in Invariants.spec; maxRate is bounded by 2 * 10 ^ 18 / 365 days");
 
     uint256 newTotalAssets;
     uint256 performanceFeeShares;
@@ -240,7 +242,7 @@ rule accrueInterestViewRevertCondition(env e) {
 
     //accrueInterestView@withrevert(e);
     assert !lastReverted;
-    assert newTotalAssets < 2 ^ 135, "newTotalAssets is not bounded";
+    assert newTotalAssets < 2 ^ 128, "newTotalAssets is not bounded";
     assert performanceFeeShares < 2 ^ 245, "performanceFeeShares is not bounded";
     assert managementFeeShares < 2 ^ 245, "managementFeeShares is not bounded";
 }
