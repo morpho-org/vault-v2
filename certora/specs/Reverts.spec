@@ -240,9 +240,8 @@ rule accrueInterestViewRevertCondition(env e) {
     uint256 managementFeeShares;
     (newTotalAssets, performanceFeeShares, managementFeeShares) = accrueInterestView@withrevert(e);
 
-    //accrueInterestView@withrevert(e);
     assert !lastReverted;
-    assert newTotalAssets < 2 ^ 128, "newTotalAssets is not bounded";
-    assert performanceFeeShares < 2 ^ 245, "performanceFeeShares is not bounded";
-    assert managementFeeShares < 2 ^ 245, "managementFeeShares is not bounded";
+    assert newTotalAssets < 2 ^ 128;
+    assert performanceFeeShares < 2 ^ 245;
+    assert managementFeeShares < 2 ^ 245;
 }
