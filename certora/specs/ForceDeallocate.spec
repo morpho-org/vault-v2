@@ -3,22 +3,13 @@
 
 import "../helpers/UtilityVault.spec";
 
-using ERC20Standard as token;
-
 methods {
     function virtualShares() external returns (uint256) envfree;
     function performanceFeeRecipient() external returns (address) envfree;
     function managementFeeRecipient() external returns (address) envfree;
 
-    // TODO
-    function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
-    function _.transfer(address, uint256) external => DISPATCHER(true);
-
     // `balanceOf` is assumed to not revert and summarized to a bounded value.
     function _.balanceOf(address account) external => summaryBalanceOf() expect(uint256) ALL;
-
-    // `realAssets` is assumed to not revert and summarized to a bounded value.
-    function _.realAssets() external => summaryRealAssets() expect(uint256);
 
     // Adapter's `deallocate` is assumed to not revert when called and returns 3 distinct ids, with post-conditions on the returned ids and change as specified in summaryDeallocate.
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external => summaryDeallocate(data, assets, selector, sender) expect(bytes32[], int256);
@@ -29,14 +20,11 @@ methods {
     // Trick to be able to retrieve the value returned by the corresponding contract before it is called, without the value changing between the retrieval and the call.
     function _.canSendShares(address account) external => ghostCanSendShares(calledContract, account) expect(bool);
     function _.canReceiveAssets(address account) external => ghostCanReceiveAssets(calledContract, account) expect(bool);
-    function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
 }
 
 ghost ghostCanSendShares(address, address) returns bool;
 
 ghost ghostCanReceiveAssets(address, address) returns bool;
-
-ghost ghostCanReceiveShares(address, address) returns bool;
 
 // Maximum signed 256-bit integer, used to bound int256 return values.
 definition max_int256() returns int256 = (2 ^ 255) - 1;
@@ -46,13 +34,6 @@ function summaryBalanceOf() returns uint256 {
     uint256 balance;
     require balance < 10 ^ 35, "totalAssets is assumed to be bounded by 10 ^ 35; vault balance is less than totalAssets";
     return balance;
-}
-
-// Returns a value bounded by 10 ^ 35.
-function summaryRealAssets() returns uint256 {
-    uint256 realAssets;
-    require realAssets < 10 ^ 35, "totalAssets is assumed to be bounded by 10 ^ 35; realAssets from each adapter is less than totalAssets";
-    return realAssets;
 }
 
 // The invariant newTotalAssets < 10 ^ 35 does not actually hold. This is an explicit assumption required.
@@ -102,9 +83,7 @@ hook Sload uint256 balance balanceOf[KEY address addr] {
 //   3. Total shares do not overflow uint256 when virtual shares are included.
 //   4. `accrueInterestView()` does not revert. See the accrueInterestViewRevertConditions in Reverts.spec.
 rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf) {
-
     require e.msg.value == 0, "set up the call: forceDeallocate is non-payable";
-
     require isAdapter(adapter), "the adapter must be registered in the vault";
     require onBehalf != 0, "exit requires onBehalf to be non-zero address";
 
@@ -112,7 +91,6 @@ rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf
     require canSendShares(onBehalf), "onBehalf must pass canSendShares check";
     require canReceiveAssets(currentContract), "vault must pass canReceiveAssets check";
 
-    require currentContract.asset == token, "asset must be an ERC20Standard token";
     require performanceFeeRecipient() != 0, "performance fee recipient is non-zero address";
     require managementFeeRecipient() != 0, "management fee recipient is non-zero address";
 
