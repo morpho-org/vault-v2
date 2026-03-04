@@ -41,7 +41,7 @@ ghost ghostCanReceiveAssets(address, address) returns bool;
 
 function summaryBalanceOf() returns uint256 {
     uint256 balance;
-    require balance < 2 ^ 128, "totalAssets is bounded by 2 ^ 128; vault balance is less than totalAssets";
+    require balance < 10 ^ 35, "totalAssets is bounded by 10 ^ 35; vault balance is less than totalAssets";
     return balance;
 }
 
