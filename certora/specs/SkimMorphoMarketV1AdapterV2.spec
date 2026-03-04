@@ -20,6 +20,9 @@ methods {
     function _.balanceOf(address account) external => summaryBalanceOf(calledContract, account) expect(uint256) ALL;
 }
 
+// Tracks the adapter's token balances across transfers.
+ghost mapping(address => uint256) adapterBalanceOf;
+
 // Returns the ghost-tracked balance for the adapter, and a non-deterministic value for all other accounts.
 function summaryBalanceOf(address token, address account) returns uint256 {
     if (account == MorphoMarketV1AdapterV2) {
