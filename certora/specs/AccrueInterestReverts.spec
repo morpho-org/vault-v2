@@ -23,7 +23,7 @@ methods {
 
     // Trick to be able to retrieve the value returned by the corresponding contract before it is called, without the value changing between the retrieval and the call.
     function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
- }
+}
 
 ghost ghostCanReceiveShares(address, address) returns bool;
 
@@ -62,9 +62,10 @@ rule accrueInterestViewRevertCondition(env e) {
     uint256 newTotalAssets;
     uint256 performanceFeeShares;
     uint256 managementFeeShares;
-    (newTotalAssets, performanceFeeShares, managementFeeShares) = accrueInterestView@withrevert(e);
+    newTotalAssets, performanceFeeShares, managementFeeShares = accrueInterestView@withrevert(e);
 
     assert !lastReverted;
+
     // Guarantees on returned values of accrueInterestView.
     assert newTotalAssets < 2 ^ 128;
     assert performanceFeeShares < 2 ^ 236;
