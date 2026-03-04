@@ -76,7 +76,7 @@ hook Sload uint256 balance balanceOf[KEY address addr] {
 }
 
 // forceDeallocate with assets=0 triggers the adapter to update the allocation tracking in caps.
-// We assume the token is ERC20Standard.
+// We assume the asset token is ERC20Standard.
 // This rule verifies the liveness property that `forceDeallocate()` can be called with assets=0 with the following pre-conditions:
 //   1. The `onBehalf` address passes the sendShares gate check.
 //   2. The vault itself passes the receiveAssets gate check.
