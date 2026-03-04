@@ -273,6 +273,7 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
             maturityData.growth += gainedGrowth;
             currentGrowth += gainedGrowth;
         } else {
+            // No need to update past growth to zero since it won't be read again.
             _totalAssets += obligationUnits;
         }
 
@@ -280,25 +281,27 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         _units[obligationId] += obligationUnits.toUint128();
 
         // Insert the maturity in the list if needed
-        uint48 nextMaturity;
-        if (prevMaturity == 0) {
-            nextMaturity = firstMaturity;
-        } else {
-            nextMaturity = _maturities[prevMaturity].nextMaturity;
-            require(nextMaturity > 0, IncorrectHint());
-        }
-
-        while (nextMaturity < obligation.maturity) {
-            prevMaturity = nextMaturity;
-            nextMaturity = _maturities[prevMaturity].nextMaturity;
-        }
-
-        if (nextMaturity > obligation.maturity) {
-            _maturities[obligation.maturity].nextMaturity = nextMaturity;
+        if (obligation.maturity >= block.timestamp) {
+            uint48 nextMaturity;
             if (prevMaturity == 0) {
-                firstMaturity = obligation.maturity.toUint48();
+                nextMaturity = firstMaturity;
             } else {
-                _maturities[prevMaturity].nextMaturity = obligation.maturity.toUint48();
+                nextMaturity = _maturities[prevMaturity].nextMaturity;
+                require(nextMaturity > 0, IncorrectHint());
+            }
+
+            while (nextMaturity < obligation.maturity) {
+                prevMaturity = nextMaturity;
+                nextMaturity = _maturities[prevMaturity].nextMaturity;
+            }
+
+            if (nextMaturity > obligation.maturity) {
+                _maturities[obligation.maturity].nextMaturity = nextMaturity;
+                if (prevMaturity == 0) {
+                    firstMaturity = obligation.maturity.toUint48();
+                } else {
+                    _maturities[prevMaturity].nextMaturity = obligation.maturity.toUint48();
+                }
             }
         }
 

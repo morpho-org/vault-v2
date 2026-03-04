@@ -197,6 +197,68 @@ contract MorphoMarketV2AdapterTest is Test {
         assertEq(actualUnits, assets + totalInterest, "units");
     }
 
+    function testBuyAtPastMaturityWithExistingGrowth() public {
+        Offer memory offer = storedOffer;
+        uint256 maturity = offer.obligation.maturity;
+
+        vm.startPrank(taker);
+        IERC20(storedCollaterals[0].token).approve(address(morphoV2), type(uint256).max);
+        IERC20(storedCollaterals[1].token).approve(address(morphoV2), type(uint256).max);
+        deal(storedCollaterals[0].token, taker, 10_000e18);
+        deal(storedCollaterals[1].token, taker, 10_000e18);
+        morphoV2.supplyCollateral(offer.obligation, address(storedCollaterals[0].token), 10_000e18, taker);
+        morphoV2.supplyCollateral(offer.obligation, address(storedCollaterals[1].token), 10_000e18, taker);
+        vm.stopPrank();
+
+        // Step 1: Buy at maturity M (future)
+        uint256 assets1 = 1e18;
+        offer.assets = assets1;
+        offer.callback = address(adapter);
+        offer.callbackData = abi.encode(0);
+
+        vm.prank(taker);
+        morphoV2.take(assets1, 0, 0, 0, taker, offer, proof([offer]), sign([offer], signerAllocator), address(0), "");
+
+        uint256 units1 = assets1 * 1e18 / offer.startPrice;
+        uint256 timeToMaturity = maturity - block.timestamp;
+        uint128 growth1 = uint128((units1 - assets1) / timeToMaturity);
+        assertGt(growth1, 0, "growth should be nonzero");
+        assertEq(adapter.currentGrowth(), growth1, "currentGrowth after buy1");
+
+        // Step 2: Advance time past maturity M
+        skip(timeToMaturity + 1);
+        assertGt(block.timestamp, maturity, "should be past maturity");
+
+        // Step 3: Trigger accrueInterest so the walk subtracts growth from currentGrowth
+        adapter.accrueInterest();
+        assertEq(adapter.currentGrowth(), 0, "currentGrowth after accrual should be 0");
+        assertEq(adapter.firstMaturity(), type(uint48).max, "firstMaturity should be sentinel");
+        uint256 totalAssetsAfterAccrual = adapter._totalAssets();
+
+        // Step 4: Buy again at the SAME (now past) maturity M
+        uint256 assets2 = 0.5e18;
+        Offer memory offer2 = offer;
+        offer2.assets = assets2;
+        offer2.startPrice = 1e18;
+        offer2.group = bytes32(uint256(1));
+        offer2.start = block.timestamp;
+        offer2.expiry = block.timestamp + 1;
+
+        vm.prank(taker);
+        morphoV2.take(assets2, 0, 0, 0, taker, offer2, proof([offer2]), sign([offer2], signerAllocator), address(0), "");
+
+        uint256 units2 = assets2 * 1e18 / offer2.startPrice;
+        assertEq(units2, assets2, "units2 should equal assets2 at price 1e18");
+
+        // Step 5: Verify realAssets is correct
+        assertEq(adapter.currentGrowth(), 0, "currentGrowth should still be 0 after past-maturity buy");
+        assertEq(adapter._totalAssets(), totalAssetsAfterAccrual + units2, "_totalAssets after buy2");
+        assertEq(adapter.realAssets(), totalAssetsAfterAccrual + units2, "realAssets after buy2");
+
+        // Stale growth remains in storage but is harmless — M is not re-inserted into the linked list
+        assertEq(adapter.firstMaturity(), type(uint48).max, "past maturity not re-inserted into list");
+    }
+
     /* RATIFICATION */
 
     function _ratificationSetup() internal returns (Offer memory offer) {
