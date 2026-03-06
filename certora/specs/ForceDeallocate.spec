@@ -46,6 +46,8 @@ function summaryAccrueInterestView() returns (uint256, uint256, uint256) {
     require newTotalAssets < 10 ^ 35, "totalAssets is bounded 10 ^ 35";
     require performanceFeeShares < 2 ^ 236, "see accrueInterestViewRevertConditions in Reverts.spec";
     require managementFeeShares < 2 ^ 236, "see accrueInterestViewRevertConditions in Reverts.spec";
+    require (performanceFee() != 0 || performanceFeeShares == 0);
+    require (managementFee() != 0 || managementFeeShares == 0);
     return (newTotalAssets, performanceFeeShares, managementFeeShares);
 }
 
@@ -75,6 +77,12 @@ hook Sload uint256 balance balanceOf[KEY address addr] {
     require balance < 10 ^ 35, "totalAssets is bounded by 10 ^ 35";
 }
 
+strong invariant performanceFeeRecipientSetWhenPerformanceFeeIsSet()
+    performanceFee() != 0 => performanceFeeRecipient() != 0;
+
+strong invariant managementFeeRecipientSetWhenManagementFeeIsSet()
+    managementFee() != 0 => managementFeeRecipient() != 0;
+
 // forceDeallocate with assets=0 triggers the adapter to update the allocation tracking in caps.
 // We assume the asset token is ERC20Standard.
 // This rule verifies the liveness property that `forceDeallocate()` can be called with assets=0 with the following pre-conditions:
@@ -91,8 +99,8 @@ rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf
     require canSendShares(onBehalf), "onBehalf must pass canSendShares check";
     require canReceiveAssets(currentContract), "vault must pass canReceiveAssets check";
 
-    require performanceFeeRecipient() != 0, "performance fee recipient is non-zero address";
-    require managementFeeRecipient() != 0, "management fee recipient is non-zero address";
+    requireInvariant performanceFeeRecipientSetWhenPerformanceFeeIsSet();
+    requireInvariant managementFeeRecipientSetWhenManagementFeeIsSet();
 
     require virtualShares() <= 10 ^ 18, "See virtualSharesBounds in Invariants.spec";
     require totalSupply() < 10 ^ 35, "assume totalSupply is bounded by 10 ^ 35";
