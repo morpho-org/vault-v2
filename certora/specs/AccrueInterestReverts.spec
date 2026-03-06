@@ -43,7 +43,8 @@ function summaryRealAssets() returns uint256 {
 
 // This rule captures the conditions under which accrueInterestView does not revert.
 // Assumes balanceOf and realAssets do not revert and return values bounded by 10 ^ 35.
-// Also shows that the returned values are bounded.
+// Shows that the returned values are bounded.
+// Shows that performanceFee == 0 => performanceFeeShares == 0 and managementFee == 0 => managementFeeShares == 0
 rule accrueInterestViewRevertCondition(env e) {
 
     // explicit assumptions required for the rule.
@@ -70,6 +71,8 @@ rule accrueInterestViewRevertCondition(env e) {
     assert newTotalAssets < 2 ^ 128;
     assert performanceFeeShares < 2 ^ 236;
     assert managementFeeShares < 2 ^ 236;
+    assert performanceFee() != 0 || performanceFeeShares == 0;
+    assert managementFee() != 0 || managementFeeShares == 0;
 }
 
 // This rule captures the conditions under which accrueInterest does not revert.
