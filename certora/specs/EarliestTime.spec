@@ -28,7 +28,7 @@ hook Sstore executableAt[KEY bytes hookData] uint256 newValue (uint256 oldValue)
         bytes4 targetSelector;
         uint256 newDuration;
         targetSelector, newDuration = EarliestTime.extractDecreaseTimelockArgs(hookData);
-
+    
         if (oldValue == 0 && newValue != 0 && minDecreaseTimelock[targetSelector] > newValue + newDuration) {
             minDecreaseTimelock[targetSelector] = newValue + newDuration;
         } else if (oldValue != 0 && newValue == 0) {
@@ -62,13 +62,7 @@ function earliestExecutionTime(uint256 blockTimestamp, bytes4 selector, uint256 
 // 2. Fresh submission at current time with timelock[selector]
 // 3. Execution after a pending decreaseTimelock takes effect
 // decreaseTimelock is handled in a dedicated rule below (see earliestExecutionTimeIncreasesDecreaseTimelock)
-rule earliestExecutionTimeIncreases(env e, method f, calldataarg args)
-filtered {
-    f -> f.contract == currentContract
-      && f.selector != sig:decreaseTimelock(bytes4, uint256).selector
-      && !f.isView
-}
-{
+rule earliestExecutionTimeIncreases(env e, method f, calldataarg args) filtered { f -> f.contract == currentContract && f.selector != sig:decreaseTimelock(bytes4, uint256).selector && !f.isView } {
     bytes data;
     uint256 blockTimestampBefore;
     require blockTimestampBefore <= e.block.timestamp, "timestamps are not decreasing";
@@ -96,20 +90,13 @@ filtered {
 // We assert that both verifiable after-paths (direct execution, fresh submission) are >= earliestBefore.
 // The third after-path (minDecreaseTimelock for remaining pending ops) is >= earliestBefore
 // by the argument that removing an element from a min can only increase it.
-rule earliestExecutionTimeIncreasesDecreaseTimelock(env e, method f, method fb, calldataarg args)
-filtered {
-    fb -> fb.contract == Checker && fb.isFallback,
-    f -> f.contract == currentContract
-      && f.selector == sig:decreaseTimelock(bytes4, uint256).selector
-}
-{
+rule earliestExecutionTimeIncreasesDecreaseTimelock(env e, bytes4 selector, uint256 newTimelock) {
     bytes data;
     uint256 blockTimestampBefore;
     require blockTimestampBefore <= e.block.timestamp, "timestamps are not decreasing";
 
     // Capture executableAt[msg.data] before execution via fallback.
-    fb(e, args);
-    uint256 execAtOfOp = Checker.lastExecAt();
+    uint256 execAtOfOp = Checker.decreaseTimelock(e, selector, newTimelock);
 
     // Read before-state values directly from contract storage.
     bytes4 dataSelector = EarliestTime.getSelector(data);
@@ -120,7 +107,7 @@ filtered {
     mathint viaFreshBefore = require_uint256(blockTimestampBefore + timelockBefore);
 
     // Execute decreaseTimelock.
-    f(e, args);
+    decreaseTimelock(e, selector, newTimelock);
 
     // Read after-state: timelockAfter = newDuration when dataSelector == targetSelector,
     // or unchanged when dataSelector != targetSelector.
@@ -130,16 +117,14 @@ filtered {
     // When timelockAfter < timelockBefore, the timelock was decreased meaning
     // dataSelector == targetSelector and timelockAfter == newDuration.
     // The pending operation gives bound: execAtOfOp + timelockAfter.
-    mathint viaDecreaseBefore = (timelockAfter < timelockBefore && execAtOfOp != 0)
-        ? to_mathint(execAtOfOp) + to_mathint(timelockAfter)
-        : max_uint256;
+    mathint viaDecreaseBefore = (timelockAfter < timelockBefore && execAtOfOp != 0) ? to_mathint(execAtOfOp) + to_mathint(timelockAfter) : max_uint256;
 
     mathint earliestBefore = min(viaDirectBefore, viaFreshBefore, viaDecreaseBefore);
 
     // The timelocked() function enforces block.timestamp >= executableAt[msg.data].
     // The checker read execAtOfOp = vault.executableAt(msg.data) with the same msg.data.
     // The prover can't link these reads across contracts, so we add the constraint explicitly.
-    // This is sound: if timelocked() doesn't hold, the call reverts (and we called f without @withrevert).
+    // This is sound: if timelocked() doesn't hold, the call reverts (and we called decreaseTimelock without @withrevert).
     require to_mathint(e.block.timestamp) >= to_mathint(execAtOfOp);
 
     uint256 execAtDataAfter = executableAt(data);
@@ -154,8 +139,8 @@ filtered {
 rule cannotExecuteBeforeMinimumTime(env e, method f, calldataarg args, method fb)
 filtered {
     fb -> fb.contract == EarliestTime && fb.isFallback,
-    f -> functionIsTimelocked(f) && f.selector != sig:decreaseTimelock(bytes4, uint256).selector }
-{
+    f -> functionIsTimelocked(f) && f.selector != sig:decreaseTimelock(bytes4, uint256).selector
+} {
     uint256 blockTimestampBefore;
     require blockTimestampBefore <= e.block.timestamp, "timestamps are not decreasing";
 
