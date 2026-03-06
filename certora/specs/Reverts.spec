@@ -13,7 +13,7 @@ methods {
     function Utils.maxMaxRate() external returns (uint256) envfree;
     function liquidityData() external returns (bytes) envfree;
 
-    // Assume that accrueInterest does not revert.
+    // Assume that accrueInterest does not revert. The revert conditions for accrueInterest are checked in AccrueInterestReverts.spec.
     function accrueInterest() internal => NONDET;
 
     // Trick to be able to retrieve the value returned by the corresponding contract before it is called, without the value changing between the retrieval and the call.
