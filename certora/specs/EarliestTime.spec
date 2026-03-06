@@ -25,11 +25,13 @@ hook Sstore executableAt[KEY bytes hookData] uint256 newValue (uint256 oldValue)
         bytes4 targetSelector;
         uint256 newDuration;
         targetSelector, newDuration = EarliestTime.extractDecreaseTimelockArgs(hookData);
-
         if (oldValue == 0 && newValue != 0 && minDecreaseTimelock[targetSelector] > newValue + newDuration) {
             minDecreaseTimelock[targetSelector] = newValue + newDuration;
         } else if (oldValue != 0 && newValue == 0) {
-            minDecreaseTimelock[targetSelector] = max_uint256;
+            // Revoke of decreaseTimelock : can only increase or stay same
+            mathint newMinimum;
+            require newMinimum >= minDecreaseTimelock[targetSelector];
+            minDecreaseTimelock[targetSelector] = newMinimum;
         }
     }
 }
@@ -59,11 +61,7 @@ function earliestExecutionTime(uint256 blockTimestamp, bytes4 selector, uint256 
 // 2. Fresh submission at current time with timelock[selector]
 // 3. Execution after a pending decreaseTimelock takes effect
 // [BUG] Currently there is a bug on the prover for handling msg.data in the hook that's why decreaseTimelock is filtered
-rule earliestExecutionTimeIncreases(env e, method f, calldataarg args)
-filtered {
-    f -> f.contract == currentContract && f.selector != sig:decreaseTimelock(bytes4, uint256).selector
-}
-{
+rule earliestExecutionTimeIncreases(env e, method f, calldataarg args) filtered { f -> f.contract == currentContract && f.selector != sig:decreaseTimelock(bytes4, uint256).selector } {
     bytes data;
     uint256 blockTimestampBefore;
     require blockTimestampBefore <= e.block.timestamp, "timestamps are not decreasing";
@@ -81,8 +79,8 @@ filtered {
 rule cannotExecuteBeforeMinimumTime(env e, method f, calldataarg args, method fb)
 filtered {
     fb -> fb.contract == EarliestTime && fb.isFallback,
-    f -> functionIsTimelocked(f) && f.selector != sig:decreaseTimelock(bytes4, uint256).selector }
-{
+    f -> functionIsTimelocked(f) && f.selector != sig:decreaseTimelock(bytes4, uint256).selector
+} {
     uint256 blockTimestampBefore;
     require blockTimestampBefore <= e.block.timestamp, "timestamps are not decreasing";
 
