@@ -13,7 +13,7 @@ contract DecreaseTimelockChecker {
 
     uint256 public lastExecAt;
 
-    fallback() external payable {
-        lastExecAt = vault.executableAt(msg.data);
+    function decreaseTimelock(bytes4 selector, uint256) external view returns (uint256) {
+        return vault.executableAt(msg.data);
     }
 }
