@@ -48,6 +48,24 @@ hook Sstore executableAt[KEY bytes hookData] uint256 newValue (uint256 oldValue)
     }
 }
 
+// Hook on executableAt writes to track decreaseTimelock submissions
+hook Sload uint256 value executableAt[KEY bytes hookData] {
+    bytes4 selector = EarliestTime.getSelector(hookData);
+
+    if (selector == to_bytes4(sig:decreaseTimelock(bytes4, uint256).selector)) {
+        bytes4 targetSelector;
+        uint256 newDuration;
+        targetSelector, newDuration = EarliestTime.extractDecreaseTimelockArgs(hookData);
+        requireInvariant minimumCorrectlyTracked(targetSelector);
+
+        if (value > 0) {
+            require decreaseTimelockEET[targetSelector][hookData] == value + newDuration, "ghost mirror";
+        } else {
+            require decreaseTimelockEET[targetSelector][hookData] == max_uint256, "ghost mirror";
+        }
+    }
+}
+
 function min(mathint a, mathint b, mathint c) returns mathint {
     mathint minAB = a < b ? a : b;
     return minAB < c ? minAB : c;
@@ -82,10 +100,8 @@ filtered {
 }
 {
     bytes data;
-    bytes4 selector = EarliestTime.getSelector(data);
     uint256 blockTimestampBefore;
     require blockTimestampBefore <= e.block.timestamp, "timestamps are not decreasing";
-    requireInvariant minimumCorrectlyTracked(selector);
 
     mathint earliestTimeBefore = earliestExecutionTimeFromData(blockTimestampBefore, data);
 
