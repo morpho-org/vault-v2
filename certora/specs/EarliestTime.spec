@@ -17,15 +17,18 @@ persistent ghost mapping(bytes4 => mathint) minDecreaseTimelock {
     init_state axiom forall bytes4 selector. minDecreaseTimelock[selector] == max_uint256;
 }
 // Ghost to track the minimum possible execution time for every possible submission
-persistent ghost mapping(bytes4 => mapping(bytes => mathint)) decreaseTimelockEET {
-    init_state axiom forall bytes4 selector.  forall bytes data. decreaseTimelockEET[selector][data] == max_uint256;
+persistent ghost mapping(bytes4 => mapping(bytes32 => mathint)) decreaseTimelockEET {
+    init_state axiom forall bytes4 selector.  forall bytes32 hash. decreaseTimelockEET[selector][hash] == max_uint256;
 }
 
 definition minimumIsLowerBound(bytes4 selector) returns bool =
-    forall bytes data. minDecreaseTimelock[selector] <= decreaseTimelockEET[selector][data];
+    forall bytes32 hash. minDecreaseTimelock[selector] <= decreaseTimelockEET[selector][hash];
 
 definition minimumIsAchievable(bytes4 selector) returns bool =
-    exists bytes data. minDecreaseTimelock[selector] == decreaseTimelockEET[selector][data];
+    exists bytes32 hash. minDecreaseTimelock[selector] == decreaseTimelockEET[selector][hash];
+
+definition earliestTimeFromValueDuration(uint256 value, uint256 duration) returns mathint =
+    value > 0 ? value + duration : max_uint256;
 
 // Hook on executableAt writes to track decreaseTimelock submissions
 hook Sstore executableAt[KEY bytes hookData] uint256 newValue (uint256 oldValue) {
@@ -36,14 +39,10 @@ hook Sstore executableAt[KEY bytes hookData] uint256 newValue (uint256 oldValue)
         uint256 newDuration;
         targetSelector, newDuration = EarliestTime.extractDecreaseTimelockArgs(hookData);
 
-        if (newValue > 0) {
-            decreaseTimelockEET[targetSelector][hookData] = newValue + newDuration;
-        } else {
-            decreaseTimelockEET[targetSelector][hookData] = max_uint256;
-        }
-        bytes newMinimumWitness;
+        decreaseTimelockEET[targetSelector][keccak256(hookData)] = earliestTimeFromValueDuration(newValue, newDuration);
+        bytes32 newMinimumWitness;
         mathint newMinimum = decreaseTimelockEET[targetSelector][newMinimumWitness];
-        require forall bytes data. newMinimum <= decreaseTimelockEET[targetSelector][data], "Witness can be chosen for the minimum.";
+        require forall bytes32 hash. newMinimum <= decreaseTimelockEET[targetSelector][hash], "Witness can be chosen for the minimum.";
         minDecreaseTimelock[targetSelector] = newMinimum;
     }
 }
@@ -56,13 +55,9 @@ hook Sload uint256 value executableAt[KEY bytes hookData] {
         bytes4 targetSelector;
         uint256 newDuration;
         targetSelector, newDuration = EarliestTime.extractDecreaseTimelockArgs(hookData);
-        requireInvariant minimumCorrectlyTracked(targetSelector);
 
-        if (value > 0) {
-            require decreaseTimelockEET[targetSelector][hookData] == value + newDuration, "ghost mirror";
-        } else {
-            require decreaseTimelockEET[targetSelector][hookData] == max_uint256, "ghost mirror";
-        }
+        requireInvariant minimumCorrectlyTracked(targetSelector);
+        require decreaseTimelockEET[targetSelector][keccak256(hookData)] == earliestTimeFromValueDuration(value, newDuration), "ghost mirror";
     }
 }
 
