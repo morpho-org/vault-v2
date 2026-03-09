@@ -4,6 +4,8 @@
 import "../helpers/UtilityVault.spec";
 
 methods {
+    function multicall(bytes[]) external => HAVOC_ALL DELETE;
+
     function virtualShares() external returns (uint256) envfree;
     function performanceFeeRecipient() external returns (address) envfree;
     function managementFeeRecipient() external returns (address) envfree;
