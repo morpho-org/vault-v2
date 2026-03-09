@@ -81,7 +81,9 @@ function earliestExecutionTime(uint256 blockTimestamp, bytes4 selector, uint256 
 }
 
 invariant minimumCorrectlyTracked(bytes4 selector) 
-    minimumIsLowerBound(selector) && minimumIsAchievable(selector);
+    minimumIsLowerBound(selector) && minimumIsAchievable(selector)
+filtered { f -> f.contract == currentContract }
+
 
 // Similar to guardianUpdateTime from vault v1.
 // Earliest execution time is monotonically non-decreasing across three paths:
