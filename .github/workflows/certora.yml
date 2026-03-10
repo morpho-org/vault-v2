@@ -31,7 +31,8 @@ jobs:
           diff <(grep -v "//" "$file" | jq) <(grep -v "//" "$file")
 
       - name: Submit verification jobs to Certora Prover
-        uses: Certora/certora-run-action@v2
+        uses: Certora/certora-run-action@main
+        gh-reviews: never
         with:
           configurations: |-
             certora/confs/AbdicatedFunctions.conf
