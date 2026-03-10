@@ -84,8 +84,8 @@ rule accrueInterestRevertCondition(env e) {
     require(currentContract._totalAssets < 10 ^ 35, "totalAssets is bounded by 10 ^ 35");
     require(totalSupply() < 10 ^ 35, "totalSupply is assumed to be less than 10 ^ 35");
     require(e.block.timestamp - currentContract.lastUpdate() < 10 * 365 * 24 * 60 * 60, "current block timestamp should be < 10 years from lastUpdate");
-    require(balanceOf(performanceFeeRecipient()) < 2 ^ 256 - 2 ^ 236, "balance of performance fee recipient should be less than 2 ^ 255 - max performanceFeeShare; see accrueInterestViewRevertCondition");
-    require(balanceOf(managementFeeRecipient()) < 2 ^ 256 - 2 ^ 236, "balance of management fee recipient should be less than 2 ^ 255 - max managementFeeShare; see accrueInterestViewRevertCondition");
+    require(balanceOf(performanceFeeRecipient()) < 2 ^ 256 - 2 ^ 236, "balance of performance fee recipient should be less than 2 ^ 256 - max performanceFeeShare; see accrueInterestViewRevertCondition");
+    require(balanceOf(managementFeeRecipient()) < 2 ^ 256 - 2 ^ 236, "balance of management fee recipient should be less than 2 ^ 256 - max managementFeeShare; see accrueInterestViewRevertCondition");
 
     // Call set-up and proven invariants
     require(e.msg.value == 0, "setup the call");
