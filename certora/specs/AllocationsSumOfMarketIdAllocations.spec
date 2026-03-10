@@ -60,6 +60,15 @@ function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, addr
     require allocation(ids[1]) == 0 || ghostIsCollateralId[ids[1]];
     require allocation(ids[2]) == 0 || ghostIsMarketId[ids[2]];
 
+    // Adapter and collateral ids are not market ids; prevents spurious hook updates when caps[ids[0/1]].allocation is stored.
+    require !ghostIsMarketId[ids[0]], "see distinctMarketV1Ids";
+    require !ghostIsMarketId[ids[1]], "see distinctMarketV1Ids";
+
+    // If this market was already registered, its adapter and collateral mappings must be consistent with the current call.
+    // Justified by adapterAlwaysReturnsTheSameIDsForSameData: ids() is a pure function of market params.
+    require !ghostIsMarketId[ids[2]] || ghostMarketToAdapterId[ids[2]] == ids[0], "see adapterAlwaysReturnsTheSameIDsForSameData";
+    require !ghostIsMarketId[ids[2]] || ghostMarketToCollateralId[ids[2]] == ids[1], "see adapterAlwaysReturnsTheSameIDsForSameData";
+
     ghostIsMarketId[ids[2]] = true;
     ghostMarketToAdapterId[ids[2]] = ids[0];
     ghostMarketToCollateralId[ids[2]] = ids[1];
