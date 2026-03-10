@@ -21,7 +21,8 @@ methods {
     // `realAssets` is assumed to not revert and summarized to a bounded value.
     function _.realAssets() external => summaryRealAssets() expect(uint256);
 
-    // Trick to be able to retrieve the value returned by the corresponding contract before it is called, without the value changing between the retrieval and the call.
+    // Trick to be able to retrieve the value returned by the corresponding contract before it is called,
+    // without the value changing between the retrieval and the call.
     function _.canReceiveShares(address account) external => ghostCanReceiveShares(calledContract, account) expect(bool);
 }
 
