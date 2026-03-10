@@ -63,6 +63,8 @@ jobs:
             certora/confs/SentinelLiveness.conf
             certora/confs/SentinelLivenessDeallocateMarketV1.conf
             certora/confs/SentinelLivenessDeallocateVaultV1.conf
+            certora/confs/SkimMorphoMarketV1AdapterV2.conf
+            certora/confs/SkimMorphoVaultV1Adapter.conf
             certora/confs/TokensMorphoMarketV1AdapterV2.conf
             certora/confs/TokensMorphoVaultV1Adapter.conf
             certora/confs/TokensNoAdapter.conf
