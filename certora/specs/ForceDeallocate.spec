@@ -48,8 +48,8 @@ function summaryAccrueInterestView() returns (uint256, uint256, uint256) {
     require newTotalAssets < 10 ^ 35, "totalAssets is bounded 10 ^ 35";
     require performanceFeeShares < 2 ^ 236, "see accrueInterestViewRevertConditions in Reverts.spec";
     require managementFeeShares < 2 ^ 236, "see accrueInterestViewRevertConditions in Reverts.spec";
-    require(performanceFee() != 0 || performanceFeeShares == 0);
-    require(managementFee() != 0 || managementFeeShares == 0);
+    require(performanceFee() != 0 || performanceFeeShares == 0), "see accrueInterestViewRevertConditions in AccrueInterestReverts.spec";
+    require(managementFee() != 0 || managementFeeShares == 0), "see accrueInterestViewRevertConditions in AccrueInterestReverts.spec";
     return (newTotalAssets, performanceFeeShares, managementFeeShares);
 }
 
