@@ -93,7 +93,6 @@ strong invariant managementFeeRecipientSetWhenManagementFeeIsSet()
 //   3. totalSupply is bounded by 10 ^ 35
 //   4. `accrueInterestView()` does not revert. See the accrueInterestViewRevertConditions for its revert conditions in AccrueInterestReverts.spec.
 rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf) {
-
     require totalSupply() < 10 ^ 35, "assume totalSupply is bounded by 10 ^ 35";
 
     // ensure that withdraw within forceDeallocate will not revert due to gates.
