@@ -76,7 +76,7 @@ function summaryDeallocate(bytes data, uint256 assets, bytes4 selector, address 
 }
 
 hook Sload uint256 balance balanceOf[KEY address addr] {
-    require balance < 10 ^ 35, "totalAssets is bounded by 10 ^ 35";
+    require balance < 10 ^ 35, "balance is less than totalAssets and totalAssets is assume to bounded by 10 ^ 35";
 }
 
 strong invariant performanceFeeRecipientSetWhenPerformanceFeeIsSet()
@@ -90,7 +90,7 @@ strong invariant managementFeeRecipientSetWhenManagementFeeIsSet()
 // This rule verifies the liveness property that `forceDeallocate()` can be called with assets=0 with the following pre-conditions:
 //   1. The `onBehalf` address passes the sendShares gate check.
 //   2. The vault itself passes the receiveAssets gate check.
-//   3. totalSupply is bounded by 10 ^ 35
+//   3. totalSupply is bounded by 10 ^ 35.
 //   4. `accrueInterestView()` does not revert. See the accrueInterestViewRevertConditions for its revert conditions in AccrueInterestReverts.spec.
 rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf) {
     require totalSupply() < 10 ^ 35, "assume totalSupply is bounded by 10 ^ 35";
