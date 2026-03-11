@@ -38,8 +38,8 @@ function summaryBalanceOf() returns uint256 {
     return balance;
 }
 
-// The invariant newTotalAssets < 10 ^ 35 does not actually hold. This is an explicit assumption required.
-// In accrueInterestViewRevertConditions in Reverts.spec, we only show that the newTotalAssets is 2 ^ 128, given _totalAssets < 10 ^ 35.
+// newTotalAssets returned by accrueInterestView is not proven to be < 10 ^ 35. We add it as an an explicit assumption required.
+// In accrueInterestViewRevertConditions in AccrueInterestReverts.spec, we only show that the newTotalAssets is 2 ^ 128, given _totalAssets < 10 ^ 35.
 // The bounds on performanceFeeShares and managementFeeShares are proven in the rule accrueInterestViewRevertConditions in Reverts.spec.
 function summaryAccrueInterestView() returns (uint256, uint256, uint256) {
     uint256 newTotalAssets;
