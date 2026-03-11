@@ -91,7 +91,8 @@ strong invariant managementFeeRecipientSetWhenManagementFeeIsSet()
 //   1. The `onBehalf` address passes the sendShares gate check.
 //   2. The vault itself passes the receiveAssets gate check.
 //   3. totalSupply is bounded by 10 ^ 35.
-//   4. `accrueInterestView()` does not revert. See the accrueInterestViewRevertConditions for its revert conditions in AccrueInterestReverts.spec.
+//   4. Assumptions on the adapter's deallocate as specified in summaryDeallocate.
+//   5. `accrueInterestView()` does not revert. See the accrueInterestViewRevertConditions for its revert conditions in AccrueInterestReverts.spec.
 rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf) {
     require totalSupply() < 10 ^ 35, "assume totalSupply is bounded by 10 ^ 35";
 
