@@ -28,17 +28,15 @@ methods {
 
 ghost ghostCanReceiveShares(address, address) returns bool;
 
-// Returns a value bounded by 10 ^ 35.
 function summaryBalanceOf() returns uint256 {
     uint256 balance;
-    require balance < 10 ^ 35, "vault balance is less than totalAssets and totalAssets is assumed to be bounded by 10 ^ 35";
+    require balance < 10 ^ 35, "vault balance is less than totalAssets and totalAssets is required to be bounded by 10 ^ 35";
     return balance;
 }
 
-// Returns a value bounded by 10 ^ 35.
 function summaryRealAssets() returns uint256 {
     uint256 realAssets;
-    require realAssets < 10 ^ 35, "realAssets from each adapter is less than totalAssets and totalAssets is assumed to be bounded by 10 ^ 35";
+    require realAssets < 10 ^ 35, "realAssets from each adapter is less than totalAssets and totalAssets is required to be bounded by 10 ^ 35";
     return realAssets;
 }
 
