@@ -94,7 +94,7 @@ strong invariant managementFeeRecipientSetWhenManagementFeeIsSet()
 //   4. Assumptions on the adapter's deallocate as specified in summaryDeallocate.
 //   5. `accrueInterestView()` does not revert. See the accrueInterestViewRevertConditions for its revert conditions in AccrueInterestReverts.spec.
 rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf) {
-    require totalSupply() < 10 ^ 35, "assume totalSupply is bounded by 10 ^ 35";
+    require totalSupply() < 10 ^ 35, "totalSupply is required to be bounded by 10 ^ 35";
 
     // ensure that withdraw within forceDeallocate will not revert due to gates.
     require canSendShares(onBehalf), "onBehalf must pass canSendShares check";
@@ -108,7 +108,7 @@ rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf
     // proven invariants
     requireInvariant performanceFeeRecipientSetWhenPerformanceFeeIsSet();
     requireInvariant managementFeeRecipientSetWhenManagementFeeIsSet();
-    require virtualShares() <= 10 ^ 18, "See virtualSharesBounds in Invariants.spec";
+    require virtualShares() <= 10 ^ 18, "see virtualSharesBounds in Invariants.spec";
 
     // call forceDeallocate with zero requested assets.
     forceDeallocate@withrevert(e, adapter, data, 0, onBehalf);
