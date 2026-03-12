@@ -16,7 +16,7 @@ methods {
     // Adapter's `deallocate` is assumed to not revert when called and returns 3 distinct ids, with post-conditions on the returned ids and change as specified in summaryDeallocate.
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external => summaryDeallocate(data, assets, selector, sender) expect(bytes32[], int256);
 
-    // `accrueInterest` is assumed to not revert; Check the rule accrueInterestRevertConditions in Reverts.spec.
+    // `accrueInterest` is assumed to not revert; Check the rule accrueInterestRevertConditions in AccrueInterestReverts.spec.
     function accrueInterestView() internal returns (uint256, uint256, uint256) => summaryAccrueInterestView();
 
     // Trick to be able to retrieve the value returned by the corresponding contract before it is called, without the value changing between the retrieval and the call.
@@ -40,14 +40,14 @@ function summaryBalanceOf() returns uint256 {
 
 // newTotalAssets returned by accrueInterestView is not proven to be < 10 ^ 35. We add it as an an explicit assumption required.
 // In accrueInterestViewRevertConditions in AccrueInterestReverts.spec, we only show that the newTotalAssets is 2 ^ 128, given _totalAssets < 10 ^ 35.
-// The bounds on performanceFeeShares and managementFeeShares are proven in the rule accrueInterestViewRevertConditions in Reverts.spec.
+// The bounds on performanceFeeShares and managementFeeShares are proven in the rule accrueInterestViewRevertConditions in AccrueInterestReverts.spec.
 function summaryAccrueInterestView() returns (uint256, uint256, uint256) {
     uint256 newTotalAssets;
     uint256 performanceFeeShares;
     uint256 managementFeeShares;
-    require newTotalAssets < 10 ^ 35, "totalAssets is bounded 10 ^ 35";
-    require performanceFeeShares < 2 ^ 236, "see accrueInterestViewRevertConditions in Reverts.spec";
-    require managementFeeShares < 2 ^ 236, "see accrueInterestViewRevertConditions in Reverts.spec";
+    require newTotalAssets < 2 ^ 128, "see accrueInterestViewRevertConditions in AccrueInterestReverts.spec";
+    require performanceFeeShares < 2 ^ 236, "see accrueInterestViewRevertConditions in AccrueInterestReverts.spec";
+    require managementFeeShares < 2 ^ 236, "see accrueInterestViewRevertConditions in AccrueInterestReverts.spec";
     require(performanceFee() != 0 || performanceFeeShares == 0), "see accrueInterestViewRevertConditions in AccrueInterestReverts.spec";
     require(managementFee() != 0 || managementFeeShares == 0), "see accrueInterestViewRevertConditions in AccrueInterestReverts.spec";
     return (newTotalAssets, performanceFeeShares, managementFeeShares);
@@ -67,16 +67,16 @@ function summaryDeallocate(bytes data, uint256 assets, bytes4 selector, address 
     require ids[1] != ids[2], "ids must be unique";
 
     // Post-conditions on the returned ids and change that ensures forceDeallocate with Zero does not revert:
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0;
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= max_int256();
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0;
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= max_int256();
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assumption on adapter's return values for the rule canForceDeallocateZero";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= max_int256(), "assumption on adapter's return values for the rule canForceDeallocateZero";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "assumption on adapter's return values for the rule canForceDeallocateZero";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= max_int256(), "assumption on adapter's return values for the rule canForceDeallocateZero";
 
     return (ids, change);
 }
 
 hook Sload uint256 balance balanceOf[KEY address addr] {
-    require balance < 10 ^ 35, "balance is less than totalAssets and totalAssets is assume to bounded by 10 ^ 35";
+    require balance < 10 ^ 35, "balance is less than totalAssets and totalAssets is assumed to be bounded by 10 ^ 35";
 }
 
 strong invariant performanceFeeRecipientSetWhenPerformanceFeeIsSet()
