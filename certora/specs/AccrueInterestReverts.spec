@@ -40,6 +40,12 @@ function summaryRealAssets() returns uint256 {
     return realAssets;
 }
 
+strong invariant performanceFeeRecipientSetWhenPerformanceFeeIsSet()
+    performanceFee() != 0 => performanceFeeRecipient() != 0;
+
+strong invariant managementFeeRecipientSetWhenManagementFeeIsSet()
+    managementFee() != 0 => managementFeeRecipient() != 0;
+
 // This rule captures the conditions under which accrueInterestView does not revert.
 // Assumes balanceOf, realAssets and canReceiveShares do not revert and return values bounded by 10 ^ 35.
 // Shows that the returned values are bounded.
@@ -85,11 +91,13 @@ rule accrueInterestRevertCondition(env e) {
     require(balanceOf(performanceFeeRecipient()) < 2 ^ 256 - 2 ^ 236, "balance of performance fee recipient should be less than 2 ^ 256 - max performanceFeeShare; see accrueInterestViewRevertCondition");
     require(balanceOf(managementFeeRecipient()) < 2 ^ 256 - 2 ^ 236, "balance of management fee recipient should be less than 2 ^ 256 - max managementFeeShare; see accrueInterestViewRevertCondition");
 
-    // Call set-up and proven invariants
+    // call set-up
     require(e.msg.value == 0, "setup the call");
-    require(performanceFeeRecipient() != 0, "set up the call");
-    require(managementFeeRecipient() != 0, "setup the call");
     require(e.block.timestamp >= currentContract.lastUpdate(), "block timestamps are guaranteed to be non-decreasing");
+
+    // proven invariants
+    requireInvariant performanceFeeRecipientSetWhenPerformanceFeeIsSet();
+    requireInvariant managementFeeRecipientSetWhenManagementFeeIsSet();
     require(virtualShares() <= 10 ^ 18, "see virtualSharesBound invariant in Invariants.spec; virtualShares is bounded by 10 ^ 18");
     require(performanceFee() <= Utils.maxPerformanceFee(), "see PerformanceFeeBound invariant in Invariants.spec; bounded by 0.5 * 10 ^ 18");
     require(managementFee() <= Utils.maxManagementFee(), "see ManagementFeeBound invariant in Invariants.spec;  bounded by 0.05 * 10 ^ 18 / 365 days");
