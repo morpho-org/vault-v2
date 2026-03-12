@@ -6,6 +6,15 @@ import "../helpers/UtilityVault.spec";
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
+    function _.balanceOf(address) external => NONDET;
+    function _.realAssets() external => NONDET;
+    function _.transfer(address, uint256) external => NONDET;
+    function _.transferFrom(address, address, uint256) external => NONDET;
+    function _.canReceiveShares(address) external => NONDET;
+    function _.canSendShares(address) external => NONDET;
+    function _.canReceiveAssets(address) external => NONDET;
+    function _.canSendAssets(address) external => NONDET;
+
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e)
         => summaryAdapter(e, data, assets, selector, sender) expect(bytes32[], int256);
     function _.allocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e)
@@ -24,20 +33,20 @@ ghost mapping(bytes32 => bool) ghostIsMarketId {
     init_state axiom forall bytes32 id. !ghostIsMarketId[id];
 }
 
-ghost mapping(bytes32 => bytes32) ghostMarketToAdapterId {
-    init_state axiom forall bytes32 id. ghostMarketToAdapterId[id] == to_bytes32(0);
-}
-
-ghost mapping(bytes32 => bytes32) ghostMarketToCollateralId {
-    init_state axiom forall bytes32 id. ghostMarketToCollateralId[id] == to_bytes32(0);
-}
-
 ghost mapping(bytes32 => bool) ghostIsAdapterId {
     init_state axiom forall bytes32 id. !ghostIsAdapterId[id];
 }
 
 ghost mapping(bytes32 => bool) ghostIsCollateralId {
     init_state axiom forall bytes32 id. !ghostIsCollateralId[id];
+}
+
+ghost mapping(bytes32 => bytes32) ghostMarketToAdapterId {
+    init_state axiom forall bytes32 id. ghostMarketToAdapterId[id] == to_bytes32(0);
+}
+
+ghost mapping(bytes32 => bytes32) ghostMarketToCollateralId {
+    init_state axiom forall bytes32 id. ghostMarketToCollateralId[id] == to_bytes32(0);
 }
 
 hook Sstore currentContract.caps[KEY bytes32 id].allocation uint256 newValue (uint256 oldValue) {
@@ -51,7 +60,7 @@ function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, addr
     bytes32[] ids;
     int256 change;
 
-    require ids.length == 3, "see IdsMorphoMarketV1AdapterV2";
+    require ids.length == 3, "simplification";
     require ids[0] != ids[1], "see distinctMarketV1Ids";
     require ids[0] != ids[2], "see distinctMarketV1Ids";
     require ids[1] != ids[2], "see distinctMarketV1Ids";
@@ -60,7 +69,6 @@ function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, addr
     require allocation(ids[1]) == 0 || ghostIsCollateralId[ids[1]];
     require allocation(ids[2]) == 0 || ghostIsMarketId[ids[2]];
 
-    // Adapter and collateral ids are not market ids; prevents spurious hook updates when caps[ids[0/1]].allocation is stored.
     require !ghostIsMarketId[ids[0]], "see distinctMarketV1Ids";
     require !ghostIsMarketId[ids[1]], "see distinctMarketV1Ids";
 
