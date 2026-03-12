@@ -42,7 +42,7 @@ jobs:
         with:
           certora-key: ${{ secrets.CERTORAKEY }}
           debug-level: 1
-          gh-reviews: never
+          gh-review: never
           solc-versions: |-
             0.8.19
             0.8.21
