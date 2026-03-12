@@ -6,6 +6,8 @@ import "../helpers/UtilityVault.spec";
 using Utils as Utils;
 
 methods {
+    function multicall(bytes[]) external => HAVOC_ALL DELETE;
+
     function Utils.maxMaxRate() external returns (uint256) envfree;
     function Utils.maxPerformanceFee() external returns (uint256) envfree;
     function Utils.maxManagementFee() external returns (uint256) envfree;
