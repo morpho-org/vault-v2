@@ -79,6 +79,16 @@ jobs:
       - name: Install certora
         run: pip install certora-cli
 
+      - name: Run Certora Specs Linter
+        run: |
+          file="certora/specs/${{ matrix.conf }}.spec"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin ${{ github.base_ref }} --depth=1
+            git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -qF "$file" || exit 0
+          fi
+          echo "Fix lint errors by applying the following diff to $file:"
+          diff -u "$file" <(certoraCVLFormatter "$file")
+
       - name: Install solc (0.8.19)
         run: |
           wget https://github.com/ethereum/solidity/releases/download/v0.8.19/solc-static-linux
