@@ -14,6 +14,8 @@ methods {
     function _.canSendShares(address) external => NONDET;
     function _.canReceiveAssets(address) external => NONDET;
     function _.canSendAssets(address) external => NONDET;
+    function accrueInterest() internal => NONDET;
+    function accrueInterestView() internal returns (uint256, uint256, uint256) => NONDET;
 
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e)
         => summaryAdapter(e, data, assets, selector, sender) expect(bytes32[], int256);
@@ -21,31 +23,31 @@ methods {
         => summaryAdapter(e, data, assets, selector, sender) expect(bytes32[], int256);
 }
 
-ghost mapping(bytes32 => mapping(bytes32 => mathint)) ghostAllocationByAdapterId {
+persistent ghost mapping(bytes32 => mapping(bytes32 => mathint)) ghostAllocationByAdapterId {
     init_state axiom forall bytes32 a. forall bytes32 m. ghostAllocationByAdapterId[a][m] == 0;
 }
 
-ghost mapping(bytes32 => mapping(bytes32 => mathint)) ghostAllocationByCollateralId {
+persistent ghost mapping(bytes32 => mapping(bytes32 => mathint)) ghostAllocationByCollateralId {
     init_state axiom forall bytes32 c. forall bytes32 m. ghostAllocationByCollateralId[c][m] == 0;
 }
 
-ghost mapping(bytes32 => bool) ghostIsMarketId {
+persistent ghost mapping(bytes32 => bool) ghostIsMarketId {
     init_state axiom forall bytes32 id. !ghostIsMarketId[id];
 }
 
-ghost mapping(bytes32 => bool) ghostIsAdapterId {
+persistent ghost mapping(bytes32 => bool) ghostIsAdapterId {
     init_state axiom forall bytes32 id. !ghostIsAdapterId[id];
 }
 
-ghost mapping(bytes32 => bool) ghostIsCollateralId {
+persistent ghost mapping(bytes32 => bool) ghostIsCollateralId {
     init_state axiom forall bytes32 id. !ghostIsCollateralId[id];
 }
 
-ghost mapping(bytes32 => bytes32) ghostMarketToAdapterId {
+persistent ghost mapping(bytes32 => bytes32) ghostMarketToAdapterId {
     init_state axiom forall bytes32 id. ghostMarketToAdapterId[id] == to_bytes32(0);
 }
 
-ghost mapping(bytes32 => bytes32) ghostMarketToCollateralId {
+persistent ghost mapping(bytes32 => bytes32) ghostMarketToCollateralId {
     init_state axiom forall bytes32 id. ghostMarketToCollateralId[id] == to_bytes32(0);
 }
 
