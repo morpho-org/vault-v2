@@ -5,6 +5,8 @@ on:
     branches:
       - main
   pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -30,11 +32,25 @@ jobs:
           file="certora/confs/${{ matrix.conf }}.conf"
           diff <(grep -v "//" "$file" | jq) <(grep -v "//" "$file")
 
+      - name: Apply munging
+        run: make -C lib/metamorpho/certora munged
+
       - name: Submit verification jobs to Certora Prover
-        uses: Certora/certora-run-action@v2
+        uses: Certora/certora-run-action@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          certora-key: ${{ secrets.CERTORAKEY }}
+          debug-level: 1
+          gh-review: never
+          solc-versions: |-
+            0.8.19
+            0.8.21
+            0.8.26
+            0.8.28
           configurations: |-
             certora/confs/AbdicatedFunctions.conf
+            certora/confs/AccrueInterestReverts.conf
             certora/confs/AllocateDeallocateInputValidation.conf
             certora/confs/AllocateDeallocateReverts.conf
             certora/confs/AllocationMorphoMarketV1AdapterV2.conf
@@ -62,17 +78,10 @@ jobs:
             certora/confs/SentinelLiveness.conf
             certora/confs/SentinelLivenessDeallocateMarketV1.conf
             certora/confs/SentinelLivenessDeallocateVaultV1.conf
+            certora/confs/SkimMorphoMarketV1AdapterV2.conf
+            certora/confs/SkimMorphoVaultV1Adapter.conf
             certora/confs/TokensMorphoMarketV1AdapterV2.conf
             certora/confs/TokensMorphoVaultV1Adapter.conf
             certora/confs/TokensNoAdapter.conf
             certora/confs/TotalAssetsChange.conf
             certora/confs/TotalAssetsIsUpToDate.conf
-          solc-versions: |-
-            0.8.19
-            0.8.21
-            0.8.26
-            0.8.28
-          debug-level: 1
-          certora-key: ${{ secrets.CERTORAKEY }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
