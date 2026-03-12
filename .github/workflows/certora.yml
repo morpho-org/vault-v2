@@ -32,6 +32,9 @@ jobs:
           file="certora/confs/${{ matrix.conf }}.conf"
           diff <(grep -v "//" "$file" | jq) <(grep -v "//" "$file")
 
+      - name: Apply munging
+        run: make -C lib/metamorpho/certora munged
+
       - name: Submit verification jobs to Certora Prover
         uses: Certora/certora-run-action@main
         env:
