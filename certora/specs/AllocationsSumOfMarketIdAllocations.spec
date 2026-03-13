@@ -73,6 +73,10 @@ function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, addr
 
     require !ghostIsMarketId[ids[0]], "see distinctMarketV1Ids";
     require !ghostIsMarketId[ids[1]], "see distinctMarketV1Ids";
+    require !ghostIsAdapterId[ids[1]], "see distinctMarketV1Ids";
+    require !ghostIsAdapterId[ids[2]], "see distinctMarketV1Ids";
+    require !ghostIsCollateralId[ids[0]], "see distinctMarketV1Ids";
+    require !ghostIsCollateralId[ids[2]], "see distinctMarketV1Ids";
 
     // If this market was already registered, its adapter and collateral mappings must be consistent with the current call.
     // Justified by adapterAlwaysReturnsTheSameIDsForSameData: ids() is a pure function of market params.
@@ -80,18 +84,48 @@ function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, addr
     require !ghostIsMarketId[ids[2]] || ghostMarketToCollateralId[ids[2]] == ids[1], "see adapterAlwaysReturnsTheSameIDsForSameData";
 
     ghostIsMarketId[ids[2]] = true;
-    ghostMarketToAdapterId[ids[2]] = ids[0];
-    ghostMarketToCollateralId[ids[2]] = ids[1];
     ghostIsAdapterId[ids[0]] = true;
     ghostIsCollateralId[ids[1]] = true;
+    ghostMarketToAdapterId[ids[2]] = ids[0];
+    ghostMarketToCollateralId[ids[2]] = ids[1];
 
     return (ids, change);
 }
 
+strong invariant distinctIdTypes(bytes32 id)
+    !(ghostIsMarketId[id] && ghostIsAdapterId[id]) &&
+    !(ghostIsMarketId[id] && ghostIsCollateralId[id]) &&
+    !(ghostIsAdapterId[id] && ghostIsCollateralId[id]);
+
+strong invariant ghostAdapterConsistency(bytes32 adapterId, bytes32 marketId)
+    !(ghostIsMarketId[marketId] && ghostMarketToAdapterId[marketId] == adapterId) =>
+        ghostAllocationByAdapterId[adapterId][marketId] == 0;
+
+strong invariant marketGhostConsistency(bytes32 marketId)
+    ghostIsMarketId[marketId] =>
+        ghostAllocationByAdapterId[ghostMarketToAdapterId[marketId]][marketId] == to_mathint(allocation(marketId)) &&
+        ghostAllocationByCollateralId[ghostMarketToCollateralId[marketId]][marketId] == to_mathint(allocation(marketId));
+
+strong invariant ghostAllocationBounded(bytes32 a, bytes32 m)
+    ghostAllocationByAdapterId[a][m] >= 0 &&
+    ghostAllocationByAdapterId[a][m] <= max_uint256 &&
+    ghostAllocationByCollateralId[a][m] >= 0 &&
+    ghostAllocationByCollateralId[a][m] <= max_uint256;
+
 strong invariant adapterAllocationEqualsSumOfMarketAllocations(bytes32 adapterId)
     ghostIsAdapterId[adapterId] =>
         to_mathint(allocation(adapterId)) ==
-        (sum bytes32 marketId. ghostAllocationByAdapterId[adapterId][marketId]);
+        (usum bytes32 marketId. ghostAllocationByAdapterId[adapterId][marketId])
+{
+    preserved with (env e) {
+        bytes32 anyId;
+        bytes32 anyMarketId;
+        requireInvariant marketGhostConsistency(anyMarketId);
+        requireInvariant distinctIdTypes(anyId);
+        requireInvariant ghostAdapterConsistency(anyId, anyMarketId);
+        requireInvariant ghostAllocationBounded(anyId, anyMarketId);
+    }
+}
 
 strong invariant collateralAllocationEqualsSumOfMarketAllocations(bytes32 collateralId)
     ghostIsCollateralId[collateralId] =>
