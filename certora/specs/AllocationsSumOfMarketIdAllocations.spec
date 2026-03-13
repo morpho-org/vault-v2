@@ -221,9 +221,12 @@ rule allocationsSumOfMarketIdAllocations(bytes32 adapterId, bytes32 collateralId
     require ghostIsCollateralId[collateralId], "collateral id has been registered";
     require ghostMarketToAdapterId[marketId] == adapterId, "ghost mapping consistency";
     require ghostMarketToCollateralId[marketId] == collateralId, "ghost mapping consistency";
-
     requireInvariant adapterAllocationEqualsSumOfMarketAllocations(adapterId);
     requireInvariant collateralAllocationEqualsSumOfMarketAllocations(collateralId);
+    requireInvariant marketGhostConsistency(marketId);
+
+    bytes32 anyId; bytes32 anyMarketId;
+    requireInvariant ghostAllocationBounded(anyId, anyMarketId);
 
     assert allocation(adapterId) >= allocation(marketId),
         "adapter id allocation is a sum of market id allocations, hence >= any individual market allocation";
