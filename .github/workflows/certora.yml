@@ -28,6 +28,7 @@ jobs:
           - EarliestTime
           - EntrypointEquivalence
           - ExchangeRate
+          - ForceDeallocate
           - Gates
           - IdsMorphoMarketV1AdapterV2
           - IdsMorphoVaultV1Adapter
