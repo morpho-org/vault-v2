@@ -66,9 +66,13 @@ function summaryDeallocate(bytes data, uint256 assets, bytes4 selector, address 
     require ids[0] != ids[2], "ids must be unique";
     require ids[1] != ids[2], "ids must be unique";
 
+    // proven invariants
+    requireInvariant allocationIsInt256(ids[0]);
+    requireInvariant allocationIsInt256(ids[1]);
+    requireInvariant allocationIsInt256(ids[2]);
+
     // Post-conditions on the returned ids and change that ensures forceDeallocate with Zero does not revert:
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assumption on adapter's return values for the rule canForceDeallocateZero";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= max_int256(), "assumption on adapter's return values for the rule canForceDeallocateZero";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "assumption on adapter's return values for the rule canForceDeallocateZero";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= max_int256(), "assumption on adapter's return values for the rule canForceDeallocateZero";
 
@@ -79,11 +83,17 @@ hook Sload uint256 balance balanceOf[KEY address addr] {
     require balance < 10 ^ 35, "balance is less than totalAssets and totalAssets is assumed to be bounded by 10 ^ 35";
 }
 
+strong invariant allocationIsInt256(bytes32 id)
+    allocation(id) <= max_int256();
+
 strong invariant performanceFeeRecipientSetWhenPerformanceFeeIsSet()
     performanceFee() != 0 => performanceFeeRecipient() != 0;
 
 strong invariant managementFeeRecipientSetWhenManagementFeeIsSet()
     managementFee() != 0 => managementFeeRecipient() != 0;
+
+invariant virtualSharesBounds()
+    0 < currentContract.virtualShares && currentContract.virtualShares <= 10 ^ 18;
 
 // forceDeallocate with assets=0 triggers the adapter to update the allocation tracking in caps.
 // We assume the asset token is ERC20Standard.
@@ -108,7 +118,7 @@ rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf
     // proven invariants
     requireInvariant performanceFeeRecipientSetWhenPerformanceFeeIsSet();
     requireInvariant managementFeeRecipientSetWhenManagementFeeIsSet();
-    require virtualShares() <= 10 ^ 18, "see virtualSharesBounds in Invariants.spec";
+    requireInvariant virtualSharesBounds();
 
     // call forceDeallocate with zero requested assets.
     forceDeallocate@withrevert(e, adapter, data, 0, onBehalf);
