@@ -63,25 +63,20 @@ function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, addr
     int256 change;
 
     require ids.length == 3, "simplification";
-    require ids[0] != ids[1], "see distinctMarketV1Ids";
-    require ids[0] != ids[2], "see distinctMarketV1Ids";
-    require ids[1] != ids[2], "see distinctMarketV1Ids";
+    require ids[0] != ids[1], "ids are distinct";
+    require ids[0] != ids[2], "ids are distinct";
+    require ids[1] != ids[2], "ids are distinct";
 
-    require allocation(ids[0]) == 0 || ghostIsAdapterId[ids[0]];
-    require allocation(ids[1]) == 0 || ghostIsCollateralId[ids[1]];
-    require allocation(ids[2]) == 0 || ghostIsMarketId[ids[2]];
+    require allocation(ids[0]) == 0 || ghostIsAdapterId[ids[0]], "if ids[0] has nonzero allocation, it must be a known adapter id";
+    require allocation(ids[1]) == 0 || ghostIsCollateralId[ids[1]], "if ids[1] has nonzero allocation, it must be a known collateral id";
+    require allocation(ids[2]) == 0 || ghostIsMarketId[ids[2]], "if ids[2] has nonzero allocation, it must be a known market id";
 
-    require !ghostIsMarketId[ids[0]], "see distinctMarketV1Ids";
-    require !ghostIsMarketId[ids[1]], "see distinctMarketV1Ids";
-    require !ghostIsAdapterId[ids[1]], "see distinctMarketV1Ids";
-    require !ghostIsAdapterId[ids[2]], "see distinctMarketV1Ids";
-    require !ghostIsCollateralId[ids[0]], "see distinctMarketV1Ids";
-    require !ghostIsCollateralId[ids[2]], "see distinctMarketV1Ids";
-
-    // If this market was already registered, its adapter and collateral mappings must be consistent with the current call.
-    // Justified by adapterAlwaysReturnsTheSameIDsForSameData: ids() is a pure function of market params.
-    require !ghostIsMarketId[ids[2]] || ghostMarketToAdapterId[ids[2]] == ids[0], "see adapterAlwaysReturnsTheSameIDsForSameData";
-    require !ghostIsMarketId[ids[2]] || ghostMarketToCollateralId[ids[2]] == ids[1], "see adapterAlwaysReturnsTheSameIDsForSameData";
+    require !ghostIsMarketId[ids[0]], "only ids[2] can be marketIds";
+    require !ghostIsMarketId[ids[1]], "only ids[2] can be marketIds";
+    require !ghostIsAdapterId[ids[1]], "only ids[0] can be adapterIds";
+    require !ghostIsAdapterId[ids[2]], "only ids[0] can be adapterIds";
+    require !ghostIsCollateralId[ids[0]], "only ids[1] can be collateralIds";
+    require !ghostIsCollateralId[ids[2]], "only ids[1] can be collateralIds";
 
     // The hook updates ghostAllocationByAdapterId[ghostMarketToAdapterId[ids[2]]][ids[2]] when caps[ids[2]].allocation
     // is written. For the sum to track correctly, the ghost must be consistent with the actual allocation for ids[2]
@@ -94,13 +89,12 @@ function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, addr
     // that entry to a non-zero value X, making the hook's write a no-op to the sum (old = X, new = X)
     // while allocation(ids[0]) still increases by change — causing a sum/allocation mismatch.
     requireInvariant ghostAdapterConsistency(ids[0], ids[2]);
-    // Analogous fix for the collateral ghost sum.
+    // Analogous invariant for the collateral ghost sum.
     requireInvariant ghostCollateralConsistency(ids[1], ids[2]);
 
     // The contract applies change to all ids via (int256(allocation) + change).toUint256(), which reverts on
     // underflow or overflow. Require the same here so the prover cannot pick change values that make any
-    // individual allocation leave uint256 bounds, which would cause the mathint sum to exceed max_uint256
-    // while allocation(adapterId) stays bounded.
+    // individual allocation leave uint256 bounds, which would cause the mathint sum to exceed max_uint256.
     require to_mathint(allocation(ids[0])) + to_mathint(change) >= 0;
     require to_mathint(allocation(ids[0])) + to_mathint(change) <= max_uint256;
     require to_mathint(allocation(ids[1])) + to_mathint(change) >= 0;
@@ -114,24 +108,33 @@ function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, addr
     ghostMarketToAdapterId[ids[2]] = ids[0];
     ghostMarketToCollateralId[ids[2]] = ids[1];
 
+    // If this market was already registered, its adapter and collateral mappings must be consistent.
+    // ids() is a pure function of market params; ghostMarketToAdapterId and ghostMarketToCollateralId are set atomically with the
+    // ghostIsMarketId.
+    require !ghostIsMarketId[ids[2]] || ghostMarketToAdapterId[ids[2]] == ids[0], "we assume ";
+    require !ghostIsMarketId[ids[2]] || ghostMarketToCollateralId[ids[2]] == ids[1], "see adapterAlwaysReturnsTheSameIDsForSameData";
+
+
     return (ids, change);
 }
-
+// ids are distinct
 strong invariant distinctIdTypes(bytes32 id)
     !(ghostIsMarketId[id] && ghostIsAdapterId[id]) &&
     !(ghostIsMarketId[id] && ghostIsCollateralId[id]) &&
     !(ghostIsAdapterId[id] && ghostIsCollateralId[id]);
 
+// ghostAllocationByAdapterId[adapterId][marketId] is non-zero only when marketId exists and adapter corresponds to the marketId
 strong invariant ghostAdapterConsistency(bytes32 adapterId, bytes32 marketId)
     !(ghostIsMarketId[marketId] && ghostMarketToAdapterId[marketId] == adapterId) =>
         ghostAllocationByAdapterId[adapterId][marketId] == 0;
 
+// ghostAllocationByCollateralId[adapterId][marketId] is non-zero only when marketId exists and collateral corresponds to the marketId
 strong invariant ghostCollateralConsistency(bytes32 collateralId, bytes32 marketId)
     !(ghostIsMarketId[marketId] && ghostMarketToCollateralId[marketId] == collateralId) =>
         ghostAllocationByCollateralId[collateralId][marketId] == 0;
 
 // summaryAdapter always sets ghostIsAdapterId[ids[0]] and ghostIsCollateralId[ids[1]] in the same call
-// that sets ghostIsMarketId[ids[2]] and the ghostMarketTo* mappings. This captures that reachable states
+// that sets ghostIsMarketId[ids[2]] and the ghostMarketTo* mappings. Captures that reachable states
 // cannot have a registered market whose adapter/collateral id is not also registered.
 strong invariant marketImpliesAdapterId(bytes32 marketId)
     ghostIsMarketId[marketId] => ghostIsAdapterId[ghostMarketToAdapterId[marketId]];
@@ -192,8 +195,6 @@ strong invariant adapterAllocationEqualsSumOfMarketAllocations(bytes32 adapterId
         requireInvariant ghostAdapterConsistency(anyId, anyMarketId);
         requireInvariant ghostAllocationBounded(anyId, anyMarketId);
         requireInvariant marketImpliesAdapterId(anyMarketId);
-        // When adapterId transitions false→true during the first allocate, the pre-state ghost sum
-        // must be zero so the post-state sum equals change = allocation(adapterId)_post.
         requireInvariant nonAdapterHasZeroSum(adapterId);
     }
 }
@@ -229,7 +230,7 @@ rule allocationsSumOfMarketIdAllocations(bytes32 adapterId, bytes32 collateralId
     requireInvariant ghostAllocationBounded(anyId, anyMarketId);
 
     assert allocation(adapterId) >= allocation(marketId),
-        "adapter id allocation is a sum of market id allocations, hence >= any individual market allocation";
+        "adapter id allocation is a sum of corresponding market id allocations, hence >= any individual market allocation";
     assert allocation(collateralId) >= allocation(marketId),
-        "collateral token id allocation is a sum of market id allocations, hence >= any individual market allocation";
+        "collateral token id allocation is a sum of corresponding market id allocations, hence >= any individual market allocation";
 }
