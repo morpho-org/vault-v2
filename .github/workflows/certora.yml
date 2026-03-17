@@ -21,6 +21,7 @@ jobs:
           - AllocateDeallocateReverts
           - AllocationMorphoMarketV1AdapterV2
           - AllocationMorphoVaultV1Adapter
+          - AllocationsHierarchy
           - AllocationVaultV2
           - ChangesMorphoMarketV1AdapterV2
           - ChangesMorphoVaultV1Adapter
