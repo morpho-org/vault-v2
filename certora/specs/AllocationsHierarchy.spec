@@ -73,11 +73,12 @@ function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, addr
     require allocation(ids[1]) == 0 || ghostIsLeafId[ids[1]], "if ids[1] has nonzero allocation, it must be a known leaf id";
     require !ghostIsLeafId[ids[1]] || ghostLeafToGroupId[ids[1]] == ids[0], "leaf maps to same group";
 
-    // Require change values to be bounded, else the mathint sum exceeds max_uint256.
-    require to_mathint(allocation(ids[0])) + to_mathint(change) >= 0, "group level allocation + change is non-negative";
-    require to_mathint(allocation(ids[0])) + to_mathint(change) <= max_uint256, "group level allocation + change is bounded";
-    require to_mathint(allocation(ids[1])) + to_mathint(change) >= 0, "leaf level allocation + change is non-negative";
-    require to_mathint(allocation(ids[1])) + to_mathint(change) <= max_uint256, "leaf level allocation + change is bounded";
+    // Require change values to be bounded, else the sum exceeds max_uint256.
+    // Note that the implicit cast from uint256 to int256 is saf here, see allocationIsInt256 in Invariants.spec
+    require allocation(ids[0]) + change >= 0, "group level allocation + change is non-negative";
+    require allocation(ids[0]) + change <= max_uint256, "group level allocation + change is bounded";
+    require allocation(ids[1]) + change >= 0, "leaf level allocation + change is non-negative";
+    require allocation(ids[1]) + change <= max_uint256, "leaf level allocation + change is bounded";
 
     // Ensures ghost cell == allocation(ids[1]) before the hook updates, so the usum changes by exactly `change`.
     requireInvariant leafGhostConsistency(ids[1]);
