@@ -61,6 +61,7 @@ jobs:
             certora/confs/EarliestTime.conf
             certora/confs/EntrypointEquivalence.conf
             certora/confs/ExchangeRate.conf
+            certora/confs/ForceDeallocate.conf
             certora/confs/Gates.conf
             certora/confs/IdsMorphoMarketV1AdapterV2.conf
             certora/confs/IdsMorphoVaultV1Adapter.conf
