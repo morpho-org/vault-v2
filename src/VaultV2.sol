@@ -121,12 +121,25 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 ///
 /// LIVENESS REQUIREMENTS
 /// @dev List of assumptions that guarantees the vault's liveness properties:
-/// - Adapters should not revert on realAssets.
-/// - The token should not revert on transfer and transferFrom if balances and approvals are right.
-/// - The token should not revert on transfer to self.
-/// - totalAssets and totalSupply must stay below ~10^35. Initially there are min(1, 10^(18-decimals)) shares per asset.
+/// - Adapters should not revert on realAssets. Otherwise totalAssets, previews and any function calling
+///   accrueInterest are not live.
+/// - receiveSharesGate should not revert. Otherwise deposits/mints to the receiver and share transfers to the receiver
+///   are not live.
+/// - sendSharesGate should not revert. Otherwise withdrawals/redeems and share transfers from the account are not live.
+/// - receiveAssetsGate should not revert. Otherwise withdrawals/redeems to the receiver are not live.
+/// - sendAssetsGate should not revert. Otherwise deposits/mints from the sender are not live.
+/// - The token should not revert on balanceOf. Otherwise totalAssets, previews and any function calling
+///   accrueInterest are not live.
+/// - The token should not revert on transfer if balances are right. Otherwise allocations, deposits/mints relying on
+///   them, and withdrawals/redeems are not live.
+/// - The token should not revert on transferFrom if balances and approvals are right. Otherwise deposits/mints,
+///   deallocations and exits relying on them are not live.
+/// - The token should not revert on transfer to self. Otherwise forceDeallocate is not live.
+/// - totalAssets and totalSupply must stay below ~10^35. Initially there are min(1, 10^(18-decimals)) shares per
+///   asset.
 /// - The vault is pinged at least every 10 years.
-/// - Adapters must not revert on deallocate if the underlying markets are liquid.
+/// - Adapters must not revert on deallocate if the underlying markets are liquid. Otherwise exits relying on the
+///   liquidity adapter and forceDeallocate are not live.
 ///
 /// TIMELOCKS
 /// @dev The timelock duration of decreaseTimelock is the timelock duration of the function whose timelock is being
