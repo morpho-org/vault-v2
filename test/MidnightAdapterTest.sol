@@ -3,17 +3,20 @@
 pragma solidity ^0.8.0;
 
 import "../lib/forge-std/src/Test.sol";
-import {MorphoMarketV2Adapter, MaturityData} from "../src/adapters/MorphoMarketV2Adapter.sol";
-import {MorphoMarketV2AdapterFactory} from "../src/adapters/MorphoMarketV2AdapterFactory.sol";
+import {MidnightAdapter, MaturityData} from "../src/adapters/MidnightAdapter.sol";
+import {MidnightAdapterFactory} from "../src/adapters/MidnightAdapterFactory.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
-import {IMorphoMarketV2Adapter} from "../src/adapters/interfaces/IMorphoMarketV2Adapter.sol";
-import {IMorphoMarketV2AdapterFactory} from "../src/adapters/interfaces/IMorphoMarketV2AdapterFactory.sol";
+import {IMidnightAdapter} from "../src/adapters/interfaces/IMidnightAdapter.sol";
+import {IMidnightAdapterFactory} from "../src/adapters/interfaces/IMidnightAdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
-import {MorphoV2} from "../lib/morpho-v2/src/MorphoV2.sol";
-import {Offer, Signature, Obligation, Collateral, Proof} from "../lib/morpho-v2/src/interfaces/IMorphoV2.sol";
+import {Midnight} from "../lib/midnight/src/Midnight.sol";
+import {Offer, Obligation, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
+import {Signature, EIP712_DOMAIN_TYPEHASH, ROOT_TYPEHASH} from "../lib/midnight/src/interfaces/IEcrecover.sol";
+import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
+import {IdLib} from "../lib/midnight/src/libraries/IdLib.sol";
 import {stdStorage, StdStorage} from "../lib/forge-std/src/Test.sol";
 import {ORACLE_PRICE_SCALE} from "../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 
@@ -21,16 +24,16 @@ struct Step {
     uint256 assets;
     uint256 approxGrowth;
     uint256 maturity;
-    Collateral[] collaterals;
+    CollateralParams[] collaterals;
 }
 
-contract MorphoMarketV2AdapterTest is Test {
+contract MidnightAdapterTest is Test {
     using stdStorage for StdStorage;
     using MathLib for uint256;
 
-    MorphoV2 internal morphoV2;
-    IMorphoMarketV2AdapterFactory internal factory;
-    IMorphoMarketV2Adapter internal adapter;
+    Midnight internal morphoV2;
+    IMidnightAdapterFactory internal factory;
+    IMidnightAdapter internal adapter;
     VaultV2Mock internal parentVault;
     IERC20 internal loanToken;
     IERC20 internal rewardToken;
@@ -41,8 +44,8 @@ contract MorphoMarketV2AdapterTest is Test {
     address internal taker;
     address internal recipient;
     address internal tradingFeeRecipient = makeAddr("tradingFeeRecipient");
-    Collateral[] internal storedCollaterals;
-    Collateral[] internal storedSingleCollateral;
+    CollateralParams[] internal storedCollaterals;
+    CollateralParams[] internal storedSingleCollateral;
 
     mapping(address => uint256) internal privateKey;
 
@@ -74,24 +77,40 @@ contract MorphoMarketV2AdapterTest is Test {
         recipient = makeAddr("recipient");
         taker = makeAddr("taker");
 
-        morphoV2 = new MorphoV2();
-
-        vm.prank(morphoV2.owner());
-        morphoV2.setTradingFeeRecipient(tradingFeeRecipient);
+        morphoV2 = new Midnight();
 
         loanToken = IERC20(address(new ERC20Mock(18)));
         rewardToken = IERC20(address(new ERC20Mock(18)));
 
         parentVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
-        factory = new MorphoMarketV2AdapterFactory(allDurations);
-        adapter = MorphoMarketV2Adapter(factory.createMorphoMarketV2Adapter(address(parentVault), address(morphoV2)));
+        factory = new MidnightAdapterFactory(allDurations);
+        adapter = MidnightAdapter(factory.createMidnightAdapter(address(parentVault), address(morphoV2)));
+
+        // Adapter authorizes itself as ratifier
+        vm.prank(address(adapter));
+        morphoV2.setIsAuthorized(address(adapter), address(adapter), true);
+
+        address collToken0 = address(new ERC20Mock(18));
+        address collToken1 = address(new ERC20Mock(18));
+        address oracle0 = address(new OracleMock());
+        address oracle1 = address(new OracleMock());
+
+        // Ensure collateral tokens are sorted ascending by address
+        if (collToken0 > collToken1) {
+            (collToken0, collToken1) = (collToken1, collToken0);
+            (oracle0, oracle1) = (oracle1, oracle0);
+        }
 
         storedCollaterals.push(
-            Collateral({token: address(new ERC20Mock(18)), lltv: 0.8 ether, oracle: address(new OracleMock())})
+            CollateralParams({
+                token: collToken0, lltv: 1 ether, maxLif: morphoV2.maxLif(1 ether, 0.25e18), oracle: oracle0
+            })
         );
         storedCollaterals.push(
-            Collateral({token: address(new ERC20Mock(18)), lltv: 0.9 ether, oracle: address(new OracleMock())})
+            CollateralParams({
+                token: collToken1, lltv: 1 ether, maxLif: morphoV2.maxLif(1 ether, 0.25e18), oracle: oracle1
+            })
         );
 
         OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE);
@@ -100,28 +119,30 @@ contract MorphoMarketV2AdapterTest is Test {
         storedSingleCollateral.push(storedCollaterals[0]);
 
         uint256 maturity = vm.getBlockTimestamp() + 200;
-        uint256 rate = 0.05e18;
         storedOffer = Offer({
             buy: true,
             maker: address(adapter),
-            assets: 100,
-            obligationUnits: 0,
-            obligationShares: 0,
             obligation: Obligation({
-                chainId: block.chainid,
                 loanToken: address(loanToken),
-                collaterals: storedCollaterals,
-                maturity: maturity
+                collateralParams: storedCollaterals,
+                maturity: maturity,
+                rcfThreshold: 0,
+                enterGate: address(0),
+                liquidatorGate: address(0)
             }),
             start: vm.getBlockTimestamp(),
             expiry: maturity,
-            startPrice: 1e36 / (1e18 + rate * (maturity - vm.getBlockTimestamp()) / 365 days),
-            expiryPrice: 1e18,
+            tick: MAX_TICK,
             group: bytes32(0),
             session: bytes32(0),
-            ratifier: address(adapter),
             callback: address(adapter),
-            callbackData: bytes("")
+            callbackData: bytes(""),
+            receiverIfMakerIsSeller: address(0),
+            ratifier: address(adapter),
+            reduceOnly: false,
+            maxUnits: 0,
+            maxSellerAssets: 0,
+            maxBuyerAssets: 0
         });
 
         deal(address(loanToken), address(parentVault), 1_000_000e18);
@@ -161,31 +182,35 @@ contract MorphoMarketV2AdapterTest is Test {
 
     function testSimpleBuy() public {
         Offer memory offer = storedOffer;
+        offer.tick = TickLib.priceToTick(0.95e18);
 
         vm.startPrank(taker);
         IERC20(storedCollaterals[0].token).approve(address(morphoV2), type(uint256).max);
         IERC20(storedCollaterals[1].token).approve(address(morphoV2), type(uint256).max);
         deal(storedCollaterals[0].token, taker, 1_000e18);
         deal(storedCollaterals[1].token, taker, 1_000e18);
-        morphoV2.supplyCollateral(offer.obligation, address(storedCollaterals[0].token), 1_000e18, taker);
-        morphoV2.supplyCollateral(offer.obligation, address(storedCollaterals[1].token), 1_000e18, taker);
+        morphoV2.supplyCollateral(offer.obligation, 0, 1_000e18, taker);
+        morphoV2.supplyCollateral(offer.obligation, 1, 1_000e18, taker);
         vm.stopPrank();
 
         uint256 assets = 1e18;
+        uint256 price = TickLib.tickToPrice(offer.tick);
+        uint256 units = assets * 1e18 / price;
 
-        offer.assets = 1e18;
+        offer.maxUnits = units;
         offer.callback = address(adapter);
         offer.callbackData = abi.encode(0);
         vm.prank(taker);
-        morphoV2.take(assets, 0, 0, 0, taker, offer, proof([offer]), sign([offer], signerAllocator), address(0), "");
+        morphoV2.take(
+            units, taker, address(0), "", taker, offer, sign([offer], signerAllocator), root([offer]), proof([offer])
+        );
 
-        uint256 units = assets * 1e18 / offer.startPrice;
         uint256 remainder = (units - assets) % (offer.obligation.maturity - vm.getBlockTimestamp());
         assertEq(adapter._totalAssets(), assets + remainder, "_totalAssets");
         assertEq(adapter.lastUpdate(), vm.getBlockTimestamp(), "lastUpdate");
         assertEq(adapter.firstMaturity(), vm.getBlockTimestamp() + 200, "firstMaturity");
 
-        uint256 totalInterest = assets * 1e18 / offer.startPrice - assets;
+        uint256 totalInterest = units - assets;
         uint256 duration = offer.obligation.maturity - vm.getBlockTimestamp();
         uint256 newGrowth = totalInterest / duration;
         assertEq(adapter.currentGrowth(), newGrowth, "currentGrowth");
@@ -194,32 +219,37 @@ contract MorphoMarketV2AdapterTest is Test {
         assertEq(maturityData.nextMaturity, type(uint48).max, "nextMaturity");
 
         uint256 actualUnits = adapter.units(_obligationId(offer.obligation));
-        assertEq(actualUnits, assets + totalInterest, "units");
+        assertEq(actualUnits, units, "units");
     }
 
     function testBuyAtPastMaturityWithExistingGrowth() public {
         Offer memory offer = storedOffer;
+        offer.tick = TickLib.priceToTick(0.95e18);
         uint256 maturity = offer.obligation.maturity;
 
         vm.startPrank(taker);
         IERC20(storedCollaterals[0].token).approve(address(morphoV2), type(uint256).max);
         IERC20(storedCollaterals[1].token).approve(address(morphoV2), type(uint256).max);
-        deal(storedCollaterals[0].token, taker, 10_000e18);
-        deal(storedCollaterals[1].token, taker, 10_000e18);
-        morphoV2.supplyCollateral(offer.obligation, address(storedCollaterals[0].token), 10_000e18, taker);
-        morphoV2.supplyCollateral(offer.obligation, address(storedCollaterals[1].token), 10_000e18, taker);
+        deal(storedCollaterals[0].token, taker, 100_000e18);
+        deal(storedCollaterals[1].token, taker, 100_000e18);
+        morphoV2.supplyCollateral(offer.obligation, 0, 100_000e18, taker);
+        morphoV2.supplyCollateral(offer.obligation, 1, 100_000e18, taker);
         vm.stopPrank();
 
         // Step 1: Buy at maturity M (future)
         uint256 assets1 = 1e18;
-        offer.assets = assets1;
+        uint256 price1 = TickLib.tickToPrice(offer.tick);
+        uint256 units1 = assets1 * 1e18 / price1;
+
+        offer.maxUnits = units1;
         offer.callback = address(adapter);
         offer.callbackData = abi.encode(0);
 
         vm.prank(taker);
-        morphoV2.take(assets1, 0, 0, 0, taker, offer, proof([offer]), sign([offer], signerAllocator), address(0), "");
+        morphoV2.take(
+            units1, taker, address(0), "", taker, offer, sign([offer], signerAllocator), root([offer]), proof([offer])
+        );
 
-        uint256 units1 = assets1 * 1e18 / offer.startPrice;
         uint256 timeToMaturity = maturity - block.timestamp;
         uint128 growth1 = uint128((units1 - assets1) / timeToMaturity);
         assertGt(growth1, 0, "growth should be nonzero");
@@ -235,28 +265,13 @@ contract MorphoMarketV2AdapterTest is Test {
         assertEq(adapter.firstMaturity(), type(uint48).max, "firstMaturity should be sentinel");
         uint256 totalAssetsAfterAccrual = adapter._totalAssets();
 
-        // Step 4: Buy again at the SAME (now past) maturity M
-        uint256 assets2 = 0.5e18;
-        Offer memory offer2 = offer;
-        offer2.assets = assets2;
-        offer2.startPrice = 1e18;
-        offer2.group = bytes32(uint256(1));
-        offer2.start = block.timestamp;
-        offer2.expiry = block.timestamp + 1;
-
-        vm.prank(taker);
-        morphoV2.take(assets2, 0, 0, 0, taker, offer2, proof([offer2]), sign([offer2], signerAllocator), address(0), "");
-
-        uint256 units2 = assets2 * 1e18 / offer2.startPrice;
-        assertEq(units2, assets2, "units2 should equal assets2 at price 1e18");
-
-        // Step 5: Verify realAssets is correct
-        assertEq(adapter.currentGrowth(), 0, "currentGrowth should still be 0 after past-maturity buy");
-        assertEq(adapter._totalAssets(), totalAssetsAfterAccrual + units2, "_totalAssets after buy2");
-        assertEq(adapter.realAssets(), totalAssetsAfterAccrual + units2, "realAssets after buy2");
-
-        // Stale growth remains in storage but is harmless — M is not re-inserted into the linked list
+        // In midnight, any seller with debt past maturity is always liquidatable
+        // (isLiquidatable returns true if block.timestamp > maturity && debt > 0),
+        // so we can't test a second buy at past maturity. Just verify accrual state.
         assertEq(adapter.firstMaturity(), type(uint48).max, "past maturity not re-inserted into list");
+
+        // Note: In midnight, any seller with debt past maturity is always liquidatable,
+        // so the second buy at past maturity from the original test cannot be executed.
     }
 
     /* RATIFICATION */
@@ -264,46 +279,72 @@ contract MorphoMarketV2AdapterTest is Test {
     function _ratificationSetup() internal returns (Offer memory offer) {
         offer.buy = true;
         offer.maker = address(adapter);
-        offer.assets = 100;
 
-        offer.obligation.chainId = block.chainid;
         offer.obligation.loanToken = address(loanToken);
-        uint256 numCollaterals = bound(vm.randomUint(), 0, 3);
-        Collateral[] memory collaterals = new Collateral[](numCollaterals);
+        uint256 numCollaterals = bound(vm.randomUint(), 1, 3);
+        CollateralParams[] memory collateralParams = new CollateralParams[](numCollaterals);
+        address[] memory tokens = new address[](numCollaterals);
+        address[] memory oracles = new address[](numCollaterals);
         for (uint256 i = 0; i < numCollaterals; i++) {
-            collaterals[i] =
-                Collateral({token: address(new ERC20Mock(18)), lltv: 0.8 ether, oracle: address(new OracleMock())});
+            tokens[i] = address(new ERC20Mock(18));
+            oracles[i] = address(new OracleMock());
         }
-        offer.obligation.collaterals = collaterals;
-        offer.obligation.maturity = bound(vm.randomUint(), vm.getBlockTimestamp(), type(uint48).max);
+        // Sort tokens ascending (bubble sort)
+        for (uint256 i = 0; i < numCollaterals; i++) {
+            for (uint256 j = i + 1; j < numCollaterals; j++) {
+                if (tokens[i] > tokens[j]) {
+                    (tokens[i], tokens[j]) = (tokens[j], tokens[i]);
+                    (oracles[i], oracles[j]) = (oracles[j], oracles[i]);
+                }
+            }
+        }
+        for (uint256 i = 0; i < numCollaterals; i++) {
+            collateralParams[i] = CollateralParams({
+                token: tokens[i], lltv: 1 ether, maxLif: morphoV2.maxLif(1 ether, 0.25e18), oracle: oracles[i]
+            });
+        }
+        offer.obligation.collateralParams = collateralParams;
+        offer.obligation.maturity = bound(vm.randomUint(), vm.getBlockTimestamp(), type(uint48).max - 1);
+        offer.obligation.rcfThreshold = 0;
+        offer.obligation.enterGate = address(0);
+        offer.obligation.liquidatorGate = address(0);
 
         offer.start = bound(vm.randomUint(), 0, vm.getBlockTimestamp());
         offer.expiry = bound(vm.randomUint(), offer.start, type(uint48).max);
-        offer.startPrice = bound(vm.randomUint(), 1, 1e18);
-        if (offer.expiry > offer.start) {
-            offer.expiryPrice = bound(vm.randomUint(), offer.startPrice, 1e18);
-        }
+        offer.tick = bound(vm.randomUint(), 0, MAX_TICK);
         offer.callback = address(adapter);
         offer.callbackData = bytes("");
+        offer.receiverIfMakerIsSeller = address(0);
+        offer.ratifier = address(adapter);
+        offer.reduceOnly = false;
+        offer.maxUnits = 0;
+        offer.maxSellerAssets = 0;
+        offer.maxBuyerAssets = 0;
     }
 
-    function testRatifyIncorrectOfferBadSellSigner(uint256 seed, address otherSigner) public {
+    function testRatifyIncorrectOfferBadSellSigner(uint256 seed) public {
         vm.setSeed(seed);
+        (address otherSigner, uint256 otherSignerKey) = makeAddrAndKey("otherSigner");
+        privateKey[otherSigner] = otherSignerKey;
         vm.assume(otherSigner != signerAllocator);
         Offer memory offer = _ratificationSetup();
-        vm.expectRevert(IMorphoMarketV2Adapter.IncorrectSigner.selector);
-        vm.prank(address(morphoV2));
-        adapter.onRatify(offer, otherSigner);
+        bytes32 _root = root(offer);
+        bytes memory data = ratifierData(_root, otherSigner);
+        vm.expectRevert(IMidnightAdapter.IncorrectSigner.selector);
+        adapter.onRatify(offer, _root, data);
     }
 
-    function testRatifyIncorrectOfferBadBuySigner(uint256 seed, address otherSigner) public {
+    function testRatifyIncorrectOfferBadBuySigner(uint256 seed) public {
         vm.setSeed(seed);
+        (address otherSigner, uint256 otherSignerKey) = makeAddrAndKey("otherSigner2");
+        privateKey[otherSigner] = otherSignerKey;
         vm.assume(otherSigner != signerAllocator);
         vm.assume(otherSigner != address(adapter));
         Offer memory offer = _ratificationSetup();
-        vm.expectRevert(IMorphoMarketV2Adapter.IncorrectSigner.selector);
-        vm.prank(address(morphoV2));
-        adapter.onRatify(offer, otherSigner);
+        bytes32 _root = root(offer);
+        bytes memory data = ratifierData(_root, otherSigner);
+        vm.expectRevert(IMidnightAdapter.IncorrectSigner.selector);
+        adapter.onRatify(offer, _root, data);
     }
 
     function testRatifyLoanAssetMismatch(uint256 seed, address otherToken) public {
@@ -311,9 +352,10 @@ contract MorphoMarketV2AdapterTest is Test {
         Offer memory offer = _ratificationSetup();
         vm.assume(otherToken != offer.obligation.loanToken);
         offer.obligation.loanToken = otherToken;
-        vm.expectRevert(IMorphoMarketV2Adapter.LoanAssetMismatch.selector);
-        vm.prank(address(morphoV2));
-        adapter.onRatify(offer, signerAllocator);
+        bytes32 _root = root(offer);
+        bytes memory data = ratifierData(_root, signerAllocator);
+        vm.expectRevert(IMidnightAdapter.LoanAssetMismatch.selector);
+        adapter.onRatify(offer, _root, data);
     }
 
     function testRatifyIncorrectOwner(uint256 seed, address otherMaker) public {
@@ -321,43 +363,48 @@ contract MorphoMarketV2AdapterTest is Test {
         Offer memory offer = _ratificationSetup();
         vm.assume(otherMaker != address(adapter));
         offer.maker = otherMaker;
-        vm.expectRevert(IMorphoMarketV2Adapter.IncorrectOwner.selector);
-        vm.prank(address(morphoV2));
-        adapter.onRatify(offer, signerAllocator);
+        bytes32 _root = root(offer);
+        bytes memory data = ratifierData(_root, signerAllocator);
+        vm.expectRevert(IMidnightAdapter.IncorrectOwner.selector);
+        adapter.onRatify(offer, _root, data);
     }
 
     function testRatifyIncorrectMaturity(uint256 seed) public {
         vm.setSeed(seed);
         Offer memory offer = _ratificationSetup();
         offer.obligation.maturity = vm.randomUint(type(uint48).max, type(uint256).max);
-        vm.expectRevert(IMorphoMarketV2Adapter.IncorrectMaturity.selector);
-        vm.prank(address(morphoV2));
-        adapter.onRatify(offer, signerAllocator);
+        bytes32 _root = root(offer);
+        bytes memory data = ratifierData(_root, signerAllocator);
+        vm.expectRevert(IMidnightAdapter.IncorrectMaturity.selector);
+        adapter.onRatify(offer, _root, data);
     }
 
     function testRatifyIncorrectStart(uint256 seed) public {
         vm.setSeed(seed);
         Offer memory offer = _ratificationSetup();
         offer.start = vm.getBlockTimestamp() + 1;
-        vm.expectRevert(IMorphoMarketV2Adapter.IncorrectStart.selector);
-        vm.prank(address(morphoV2));
-        adapter.onRatify(offer, signerAllocator);
+        bytes32 _root = root(offer);
+        bytes memory data = ratifierData(_root, signerAllocator);
+        vm.expectRevert(IMidnightAdapter.IncorrectStart.selector);
+        adapter.onRatify(offer, _root, data);
     }
 
     function testRatifyIncorrectCallbackAddress(uint256 seed) public {
         vm.setSeed(seed);
         Offer memory offer = _ratificationSetup();
         offer.callback = address(0);
-        vm.expectRevert(IMorphoMarketV2Adapter.IncorrectCallbackAddress.selector);
-        vm.prank(address(morphoV2));
-        adapter.onRatify(offer, signerAllocator);
+        bytes32 _root = root(offer);
+        bytes memory data = ratifierData(_root, signerAllocator);
+        vm.expectRevert(IMidnightAdapter.IncorrectCallbackAddress.selector);
+        adapter.onRatify(offer, _root, data);
     }
 
     function testRatifyIncorrectExpiry(uint256 seed) public {
         vm.setSeed(seed);
         Offer memory offer = _ratificationSetup();
-        vm.prank(address(morphoV2));
-        adapter.onRatify(offer, signerAllocator);
+        bytes32 _root = root(offer);
+        bytes memory data = ratifierData(_root, signerAllocator);
+        adapter.onRatify(offer, _root, data);
     }
 
     /* STEPS SETUP */
@@ -373,24 +420,25 @@ contract MorphoMarketV2AdapterTest is Test {
             maker: address(adapter),
             start: vm.getBlockTimestamp(),
             expiry: vm.getBlockTimestamp() + 1,
-            expiryPrice: 1e18,
+            tick: MAX_TICK,
             callback: address(adapter),
             callbackData: abi.encode(0),
             obligation: Obligation({
-                chainId: block.chainid,
                 loanToken: address(loanToken),
-                collaterals: storedCollaterals,
-                // will be adjusted in loop
-                maturity: 0
+                collateralParams: storedCollaterals,
+                maturity: 0,
+                rcfThreshold: 0,
+                enterGate: address(0),
+                liquidatorGate: address(0)
             }),
-            // will be adjusted in loop
-            startPrice: 0,
-            assets: 0,
-            obligationUnits: 0,
-            obligationShares: 0,
             group: bytes32(0),
             session: bytes32(0),
-            ratifier: address(adapter)
+            ratifier: address(adapter),
+            receiverIfMakerIsSeller: address(0),
+            reduceOnly: false,
+            maxUnits: 0,
+            maxSellerAssets: 0,
+            maxBuyerAssets: 0
         });
 
         for (uint256 i = 0; i < steps.length; i++) {
@@ -399,24 +447,36 @@ contract MorphoMarketV2AdapterTest is Test {
             require(timeToMaturity > 0 || step.approxGrowth == 0, "nonzero growth on 0 duration");
             uint256 approxInterest = step.approxGrowth * timeToMaturity;
             offer.group = bytes32(i);
-            offer.assets = step.assets;
             offer.obligation.maturity = step.maturity;
-            offer.startPrice = step.assets.mulDivDown(1e18, step.assets + approxInterest);
-            uint256 units = step.assets.mulDivDown(1e18, offer.startPrice);
-            uint256 actualGrowth = (units - offer.assets) / timeToMaturity;
-            uint256 zeroPeriodGain = (units - offer.assets) % timeToMaturity;
-            // uint actualInterest = actualGrowth * timeToMaturity;
+
+            // Compute tick from desired price: price = assets / (assets + approxInterest)
+            uint256 desiredPrice = step.assets.mulDivDown(1e18, step.assets + approxInterest);
+            if (desiredPrice > 1e18) desiredPrice = 1e18;
+            offer.tick = TickLib.priceToTick(desiredPrice);
+            uint256 actualPrice = TickLib.tickToPrice(offer.tick);
+            uint256 units = step.assets.mulDivDown(1e18, actualPrice);
+            uint256 actualGrowth = (units - step.assets) / timeToMaturity;
+            uint256 zeroPeriodGain = (units - step.assets) % timeToMaturity;
+            offer.maxUnits = units;
             bytes32 obligationId = _obligationId(offer.obligation);
 
             vm.startPrank(taker);
             deal(storedCollaterals[0].token, taker, 1_000e18);
             deal(storedCollaterals[1].token, taker, 1_000e18);
-            morphoV2.supplyCollateral(offer.obligation, address(storedCollaterals[0].token), 1_000e18, taker);
-            morphoV2.supplyCollateral(offer.obligation, address(storedCollaterals[1].token), 1_000e18, taker);
+            morphoV2.supplyCollateral(offer.obligation, 0, 1_000e18, taker);
+            morphoV2.supplyCollateral(offer.obligation, 1, 1_000e18, taker);
 
             uint256 unitsBefore = adapter.units(obligationId);
             morphoV2.take(
-                step.assets, 0, 0, 0, taker, offer, proof([offer]), sign([offer], signerAllocator), address(0), ""
+                units,
+                taker,
+                address(0),
+                "",
+                taker,
+                offer,
+                sign([offer], signerAllocator),
+                root([offer]),
+                proof([offer])
             );
             vm.stopPrank();
 
@@ -554,25 +614,25 @@ contract MorphoMarketV2AdapterTest is Test {
 
         Obligation memory obligation;
 
-        Collateral[] memory collaterals = new Collateral[](collateralCount);
+        CollateralParams[] memory collateralParams = new CollateralParams[](collateralCount);
         for (uint256 i = 0; i < collateralCount; i++) {
-            collaterals[i].token = address(uint160(i));
+            collateralParams[i].token = address(uint160(i));
         }
-        obligation.collaterals = storedCollaterals;
+        obligation.collateralParams = storedCollaterals;
         obligation.maturity = bound(maturity, 1, 700 days);
 
         bytes32[] memory ids = adapter.ids(obligation);
         assertEq(ids[0], adapter.adapterId());
-        for (uint256 i = 0; i < obligation.collaterals.length; i++) {
-            assertEq(ids[i * 2 + 1], keccak256(abi.encode("collateralToken", obligation.collaterals[i].token)));
+        for (uint256 i = 0; i < obligation.collateralParams.length; i++) {
+            assertEq(ids[i * 2 + 1], keccak256(abi.encode("collateralToken", obligation.collateralParams[i].token)));
             assertEq(
                 ids[i * 2 + 2],
                 keccak256(
                     abi.encode(
                         "collateral",
-                        obligation.collaterals[i].token,
-                        obligation.collaterals[i].oracle,
-                        obligation.collaterals[i].lltv
+                        obligation.collateralParams[i].token,
+                        obligation.collateralParams[i].oracle,
+                        obligation.collateralParams[i].lltv
                     )
                 )
             );
@@ -583,14 +643,14 @@ contract MorphoMarketV2AdapterTest is Test {
         for (uint256 i = 0; i < durations.length; i++) {
             if ((obligation.maturity - block.timestamp) >= durations[i]) {
                 assertEq(
-                    ids[1 + obligation.collaterals.length * 2 + durationIdCount],
+                    ids[1 + obligation.collateralParams.length * 2 + durationIdCount],
                     keccak256(abi.encode("duration", durations[i]))
                 );
                 durationIdCount++;
             }
         }
 
-        assertEq(ids.length, 1 + obligation.collaterals.length * 2 + durationIdCount);
+        assertEq(ids.length, 1 + obligation.collateralParams.length * 2 + durationIdCount);
     }
 
     /* UTILITIES */
@@ -621,27 +681,27 @@ contract MorphoMarketV2AdapterTest is Test {
         return keccak256(abi.encode(obligation));
     }
 
-    function sign(Offer[1] memory offers) internal view returns (Signature memory) {
-        return messageSig(root(offers), offers[0].maker);
+    function sign(Offer[1] memory offers) internal view returns (bytes memory) {
+        return ratifierData(root(offers), offers[0].maker);
     }
 
-    function sign(Offer[1] memory offers, address signer) internal view returns (Signature memory) {
-        return messageSig(root(offers), signer);
+    function sign(Offer[1] memory offers, address signer) internal view returns (bytes memory) {
+        return ratifierData(root(offers), signer);
     }
 
-    function proof(Offer[1] memory offers) internal pure returns (Proof memory) {
-        return Proof({root: root(offers), path: new bytes32[](0)});
-    }
-
-    function sign(Offer[2] memory offers) internal view returns (Signature memory) {
-        return messageSig(root(offers), offers[0].maker);
+    function proof(Offer[1] memory) internal pure returns (bytes32[] memory) {
+        return new bytes32[](0);
     }
 
     // assumes the offer is the first one!
-    function proof(Offer[2] memory offers) internal pure returns (Proof memory) {
-        Proof memory _proof = Proof({root: root(offers), path: new bytes32[](1)});
-        _proof.path[0] = keccak256(abi.encode(offers[1]));
-        return _proof;
+    function proof(Offer[2] memory offers) internal pure returns (bytes32[] memory) {
+        bytes32[] memory path = new bytes32[](1);
+        path[0] = keccak256(abi.encode(offers[1]));
+        return path;
+    }
+
+    function sign(Offer[2] memory offers) internal view returns (bytes memory) {
+        return ratifierData(root(offers), offers[0].maker);
     }
 
     function root(Offer memory offer) internal pure returns (bytes32) {
@@ -656,9 +716,12 @@ contract MorphoMarketV2AdapterTest is Test {
         return keccak256(sort(keccak256(abi.encode(offers[0])), keccak256(abi.encode(offers[1]))));
     }
 
-    function messageSig(bytes32 _root, address signer) internal view returns (Signature memory sig) {
-        bytes32 messageHash = keccak256(bytes.concat("\x19\x45thereum Signed Message:\n32", _root));
-        (sig.v, sig.r, sig.s) = vm.sign(privateKey[signer], messageHash);
+    function ratifierData(bytes32 _root, address signer) internal view returns (bytes memory) {
+        bytes32 structHash = keccak256(abi.encode(ROOT_TYPEHASH, _root));
+        bytes32 domainSeparator = keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, block.chainid, address(adapter)));
+        bytes32 digest = keccak256(bytes.concat("\x19\x01", domainSeparator, structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey[signer], digest);
+        return abi.encode(Signature({v: v, r: r, s: s}));
     }
 
     /// @dev Returns the concatenation of x and y, sorted lexicographically.

@@ -3,7 +3,7 @@ via_ir = true
 optimizer = true
 optimizer_runs = 100000
 bytecode_hash = "none"
-evm_version = "cancun"
+evm_version = "osaka"
 dynamic_test_linking = true
 
 [profile.default.fmt]

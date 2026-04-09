@@ -1,21 +1,26 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
-pragma solidity 0.8.28;
+pragma solidity 0.8.34;
 
-import {MorphoV2} from "lib/morpho-v2/src/MorphoV2.sol";
-import {Offer, Signature, Obligation, Seizure, Proof} from "lib/morpho-v2/src/interfaces/IMorphoV2.sol";
+import {Midnight} from "lib/midnight/src/Midnight.sol";
+import {Offer, Obligation} from "lib/midnight/src/interfaces/IMidnight.sol";
+import {MAX_TICK} from "lib/midnight/src/libraries/TickLib.sol";
+import {Signature, EIP712_DOMAIN_TYPEHASH, ROOT_TYPEHASH} from "lib/midnight/src/interfaces/IEcrecover.sol";
+import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
+import {TakeAmountsLib} from "lib/midnight/src/periphery/TakeAmountsLib.sol";
+import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {IMorphoMarketV2Adapter, MaturityData, IAdapter} from "./interfaces/IMorphoMarketV2Adapter.sol";
+import {IMidnightAdapter, MaturityData, IAdapter} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest separately for each obligation.
 /// @dev Losses are immediately accounted minus a discount applied to the remaining interest to be earned, in proportion
 /// to the relative sizes of the loss and the adapter's position in the obligation hit by the loss.
 /// @dev The adapter must have the allocator role in its parent vault to be able to buy & sell obligations.
-contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
+contract MidnightAdapter is IMidnightAdapter {
     using MathLib for uint256;
     using MathLib for uint128;
     using DurationsLib for bytes32;
@@ -101,13 +106,13 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
 
     /* VAULT ALLOCATORS FUNCTIONS */
 
-    function withdrawToVault(Obligation memory obligation, uint256 withdrawn, uint256 shares) external {
+    function withdrawToVault(Obligation memory obligation, uint256 units) external {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
-        (, shares) = MorphoV2(morphoV2).withdraw(obligation, withdrawn, shares, address(this));
+        Midnight(morphoV2).withdraw(obligation, units, address(this), address(this));
 
         deallocateExpiredDurations(obligation);
-        removeUnits(obligation, withdrawn);
-        selfDeallocate(ids(obligation), withdrawn, withdrawn);
+        removeUnits(obligation, units);
+        selfDeallocate(ids(obligation), units, units);
     }
 
     function deallocateExpiredDurations(Obligation memory obligation) public {
@@ -176,10 +181,8 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
 
     function realizeLoss(Obligation memory obligation) external {
         bytes32 obligationId = _obligationId(obligation);
-        uint256 remainingUnits = MorphoV2(morphoV2).sharesOf(address(this), obligationId)
-            .mulDivDown(
-                MorphoV2(morphoV2).totalUnits(obligationId) + 1, MorphoV2(morphoV2).totalShares(obligationId) + 1
-            );
+        bytes32 midnightId = IdLib.toId(obligation, block.chainid, morphoV2);
+        uint256 remainingUnits = Midnight(morphoV2).creditOf(midnightId, address(this));
 
         uint256 lostUnits = _units[obligationId] - remainingUnits;
         deallocateExpiredDurations(obligation);
@@ -209,16 +212,17 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
         returns (bytes32[] memory, int256)
     {
         if (messageSig == IVaultV2.forceDeallocate.selector) {
-            (Offer memory offer, Proof memory proof, Signature memory signature) =
-                abi.decode(data, (Offer, Proof, Signature));
-            require(offer.buy && offer.obligation.loanToken == asset && offer.startPrice == 1e18, IncorrectOffer());
+            (Offer memory offer, bytes memory ratifierData, bytes32 root, bytes32[] memory proof) =
+                abi.decode(data, (Offer, bytes, bytes32, bytes32[]));
+            require(offer.buy && offer.obligation.loanToken == asset && offer.tick == MAX_TICK, IncorrectOffer());
 
             // Already in a deallocate call so we skip the onSell callback and return the deallocation here.
-            (,, uint256 deallocated,) = MorphoV2(morphoV2)
-                .take(0, sellerAssets, 0, 0, address(this), offer, proof, signature, address(0), hex"");
+            bytes32 midnightId = IdLib.toId(offer.obligation, block.chainid, morphoV2);
+            uint256 units = TakeAmountsLib.sellerAssetsToUnits(Midnight(morphoV2), midnightId, offer, sellerAssets);
+            (,, uint256 deallocated) = Midnight(morphoV2)
+                .take(units, address(this), address(0), hex"", address(this), offer, ratifierData, root, proof);
 
-            bytes32 obligationId = _obligationId(offer.obligation);
-            require(MorphoV2(morphoV2).debtOf(address(this), obligationId) == 0, NoBorrowing());
+            require(Midnight(morphoV2).debtOf(midnightId, address(this)) == 0, NoBorrowing());
 
             deallocateExpiredDurations(offer.obligation);
             removeUnits(offer.obligation, deallocated);
@@ -234,28 +238,35 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
 
     /* MORPHO V2 CALLBACKS */
 
-    function onRatify(Offer memory offer, address signer) external view returns (bool) {
+    function onRatify(Offer memory offer, bytes32 root, bytes memory data) external view returns (bytes32) {
         // Collaterals will be checked at the level of vault ids.
-        require(msg.sender == address(morphoV2), NotMorphoV2());
         require(offer.obligation.loanToken == asset, LoanAssetMismatch());
         require(offer.maker == address(this), IncorrectOwner());
         require(offer.callback == address(this), IncorrectCallbackAddress());
         require(offer.start <= block.timestamp, IncorrectStart());
         // uint48.max is the list end pointer
         require(offer.obligation.maturity < type(uint48).max, IncorrectMaturity());
+
+        // Signature verification (inlined from EcrecoverRatifier).
+        Signature memory sig = abi.decode(data, (Signature));
+        bytes32 structHash = keccak256(abi.encode(ROOT_TYPEHASH, root));
+        bytes32 domainSeparator = keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, block.chainid, address(this)));
+        bytes32 digest = keccak256(bytes.concat("\x19\x01", domainSeparator, structHash));
+        address signer = ecrecover(digest, sig.v, sig.r, sig.s);
+        require(signer != address(0), IncorrectSigner());
         require(IVaultV2(parentVault).isAllocator(signer), IncorrectSigner());
-        return true;
+
+        return CALLBACK_SUCCESS;
     }
 
     function onBuy(
+        bytes32,
         Obligation memory obligation,
         address buyer,
         uint256 buyerAssets,
-        uint256,
         uint256 obligationUnits,
-        uint256,
         bytes memory data
-    ) external {
+    ) external returns (bytes32) {
         require(msg.sender == address(morphoV2), NotMorphoV2());
         require(buyer == address(this), NotSelf());
         bytes32 obligationId = _obligationId(obligation);
@@ -307,21 +318,22 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
 
         IVaultV2(parentVault)
             .allocate(address(this), abi.encode(ids(obligation), obligationUnits.toInt256()), buyerAssets);
+
+        return CALLBACK_SUCCESS;
     }
 
     function onSell(
+        bytes32 midnightId,
         Obligation memory obligation,
         address seller,
-        uint256,
         uint256 sellerAssets,
         uint256 soldObligationUnits,
-        uint256,
         bytes memory
-    ) external {
+    ) external returns (bytes32) {
         bytes32 obligationId = _obligationId(obligation);
         require(msg.sender == address(morphoV2), NotMorphoV2());
         require(seller == address(this), NotSelf());
-        require(MorphoV2(morphoV2).debtOf(address(this), obligationId) == 0, NoBorrowing());
+        require(Midnight(morphoV2).debtOf(midnightId, address(this)) == 0, NoBorrowing());
 
         uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
 
@@ -335,6 +347,8 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
             vaultRealAssetsAfter += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
         }
         require(vaultRealAssetsAfter >= vaultTotalAssetsBefore, BufferTooLow());
+
+        return CALLBACK_SUCCESS;
     }
 
     /* INTERNAL FUNCTIONS */
@@ -370,16 +384,19 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
             durationsCount++;
         }
 
-        bytes32[] memory idsArray = new bytes32[](1 + obligation.collaterals.length * 2 + durationsCount);
+        bytes32[] memory idsArray = new bytes32[](1 + obligation.collateralParams.length * 2 + durationsCount);
 
         uint256 j;
         idsArray[j++] = adapterId;
-        for (uint256 i = 0; i < obligation.collaterals.length; i++) {
-            address collateralToken = obligation.collaterals[i].token;
+        for (uint256 i = 0; i < obligation.collateralParams.length; i++) {
+            address collateralToken = obligation.collateralParams[i].token;
             idsArray[j++] = keccak256(abi.encode("collateralToken", collateralToken));
             idsArray[j++] = keccak256(
                 abi.encode(
-                    "collateral", collateralToken, obligation.collaterals[i].oracle, obligation.collaterals[i].lltv
+                    "collateral",
+                    collateralToken,
+                    obligation.collateralParams[i].oracle,
+                    obligation.collateralParams[i].lltv
                 )
             );
         }
@@ -396,7 +413,11 @@ contract MorphoMarketV2Adapter is IMorphoMarketV2Adapter {
 
     /* TO REMOVE */
 
-    function onLiquidate(Seizure[] memory, address, address, bytes memory) external pure {
+    function onLiquidate(bytes32, Obligation memory, uint256, uint256, uint256, address, bytes memory) external pure {
+        revert();
+    }
+
+    function onRepay(bytes32, Obligation memory, uint256, address, bytes memory) external pure {
         revert();
     }
 }

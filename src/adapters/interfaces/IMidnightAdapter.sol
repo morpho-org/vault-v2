@@ -3,8 +3,9 @@
 pragma solidity >=0.5.0;
 
 import {IAdapter} from "../../interfaces/IAdapter.sol";
-import {Obligation, Seizure} from "lib/morpho-v2/src/interfaces/IMorphoV2.sol";
-import {ICallbacks} from "lib/morpho-v2/src/interfaces/ICallbacks.sol";
+import {Obligation} from "lib/midnight/src/interfaces/IMidnight.sol";
+import {ICallbacks} from "lib/midnight/src/interfaces/ICallbacks.sol";
+import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
 // Chain of maturities, each can represent multiple obligations.
 // nextMaturity is type(uint48).max if no next maturity
@@ -15,7 +16,7 @@ struct MaturityData {
     uint48 lastUpdate;
 }
 
-interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
+interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
     /* EVENTS */
 
     event SetSkimRecipient(address indexed newSkimRecipient);
@@ -54,7 +55,7 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
     function deallocateExpiredDurations(Obligation memory obligation) external;
-    function withdrawToVault(Obligation memory obligation, uint256 units, uint256 shares) external;
+    function withdrawToVault(Obligation memory obligation, uint256 units) external;
     function ids(Obligation memory obligation) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
     function accrueInterestView() external view returns (uint48, uint128, uint256);
@@ -67,22 +68,35 @@ interface IMorphoMarketV2Adapter is IAdapter, ICallbacks {
         external
         returns (bytes32[] memory, int256);
     function onBuy(
+        bytes32 id,
         Obligation memory obligation,
         address buyer,
         uint256 buyerAssets,
-        uint256 sellerAssets,
-        uint256 obligationUnits,
-        uint256 obligationShares,
+        uint256 units,
         bytes memory data
-    ) external;
+    ) external returns (bytes32);
     function onSell(
+        bytes32 id,
         Obligation memory obligation,
         address seller,
-        uint256 buyerAssets,
         uint256 sellerAssets,
-        uint256 obligationUnits,
-        uint256 obligationShares,
+        uint256 units,
+        bytes memory data
+    ) external returns (bytes32);
+    function onLiquidate(
+        bytes32 id,
+        Obligation memory obligation,
+        uint256 collateralIndex,
+        uint256 seizedAssets,
+        uint256 repaidUnits,
+        address borrower,
         bytes memory data
     ) external;
-    function onLiquidate(Seizure[] memory seizures, address borrower, address liquidator, bytes memory data) external;
+    function onRepay(
+        bytes32 obligationId,
+        Obligation memory obligation,
+        uint256 units,
+        address onBehalf,
+        bytes memory data
+    ) external;
 }

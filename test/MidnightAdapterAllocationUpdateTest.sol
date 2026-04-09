@@ -3,16 +3,18 @@
 pragma solidity ^0.8.0;
 
 import "../lib/forge-std/src/Test.sol";
-import {MorphoMarketV2AdapterTest} from "./MorphoMarketV2AdapterTest.sol";
+import {MidnightAdapterTest} from "./MidnightAdapterTest.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
-import {MorphoV2} from "../lib/morpho-v2/src/MorphoV2.sol";
-import {Offer, Obligation} from "../lib/morpho-v2/src/interfaces/IMorphoV2.sol";
+import {Midnight} from "../lib/midnight/src/Midnight.sol";
+import {Offer, Obligation, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
+import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
 import {stdStorage, StdStorage} from "../lib/forge-std/src/Test.sol";
-import {Oracle} from "../lib/morpho-v2/test/helpers/Oracle.sol";
-import {Seizure} from "../lib/morpho-v2/src/interfaces/IMorphoV2.sol";
+import {Oracle} from "../lib/midnight/test/helpers/Oracle.sol";
+import {ApprovalRatifier} from "../lib/midnight/src/ratifiers/ApprovalRatifier.sol";
+import {IdLib} from "../lib/midnight/src/libraries/IdLib.sol";
 
-contract MorphoMarketV2AdapterAllocationUpdateTest is MorphoMarketV2AdapterTest {
+contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
     using stdStorage for StdStorage;
     using MathLib for uint256;
 
@@ -22,8 +24,10 @@ contract MorphoMarketV2AdapterAllocationUpdateTest is MorphoMarketV2AdapterTest 
         super.setUp();
 
         storedCollaterals[0].lltv = 1e18;
+        storedCollaterals[0].maxLif = morphoV2.maxLif(1e18, 0.25e18);
         storedCollaterals[1].lltv = 1e18;
-        storedOffer.obligation.collaterals = storedCollaterals;
+        storedCollaterals[1].maxLif = morphoV2.maxLif(1e18, 0.25e18);
+        storedOffer.obligation.collateralParams = storedCollaterals;
 
         vm.startPrank(taker);
         IERC20(storedCollaterals[0].token).approve(address(morphoV2), type(uint256).max);
@@ -39,17 +43,20 @@ contract MorphoMarketV2AdapterAllocationUpdateTest is MorphoMarketV2AdapterTest 
 
         offer.obligation.maturity = block.timestamp + duration;
         offer.buy = true;
-        offer.startPrice = 1e18;
-        offer.expiryPrice = 1e18;
-        offer.assets = assets;
+        offer.tick = MAX_TICK;
+        uint256 price = TickLib.tickToPrice(MAX_TICK);
+        uint256 units = assets * 1e18 / price;
+        offer.maxUnits = units;
         offer.expiry = block.timestamp;
         offer.callback = address(adapter);
         offer.callbackData = abi.encode(0);
 
         vm.startPrank(taker);
-        morphoV2.supplyCollateral(offer.obligation, address(storedCollaterals[0].token), assets / 2, taker);
-        morphoV2.supplyCollateral(offer.obligation, address(storedCollaterals[1].token), assets / 2, taker);
-        morphoV2.take(assets, 0, 0, 0, taker, offer, proof([offer]), sign([offer], signerAllocator), address(0), "");
+        morphoV2.supplyCollateral(offer.obligation, 0, assets / 2, taker);
+        morphoV2.supplyCollateral(offer.obligation, 1, assets / 2, taker);
+        morphoV2.take(
+            units, taker, address(0), "", taker, offer, sign([offer], signerAllocator), root([offer]), proof([offer])
+        );
         vm.stopPrank();
         return offer;
     }
@@ -59,38 +66,48 @@ contract MorphoMarketV2AdapterAllocationUpdateTest is MorphoMarketV2AdapterTest 
 
         offer.obligation = obligation;
         offer.buy = false;
-        offer.startPrice = 1e18;
-        offer.expiryPrice = 1e18;
-        offer.assets = assets;
+        offer.tick = MAX_TICK;
+        uint256 price = TickLib.tickToPrice(MAX_TICK);
+        uint256 units = assets * 1e18 / price;
+        offer.maxUnits = units;
         offer.expiry = block.timestamp;
         offer.callback = address(adapter);
+        offer.receiverIfMakerIsSeller = address(adapter);
         offer.group = bytes32(vm.randomUint());
         offer.callbackData = abi.encode(0);
         vm.prank(taker);
-        morphoV2.take(assets, 0, 0, 0, taker, offer, proof([offer]), sign([offer], signerAllocator), address(0), "");
+        morphoV2.take(
+            units, taker, address(0), "", taker, offer, sign([offer], signerAllocator), root([offer]), proof([offer])
+        );
     }
 
     function forceDeallocate(Obligation memory obligation, uint256 assets) internal {
-        (address buyer, uint256 buyerPrivateKey) = makeAddrAndKey("buyer");
-        privateKey[buyer] = buyerPrivateKey;
+        address buyer = makeAddr("buyer");
+        ApprovalRatifier approvalRatifier = new ApprovalRatifier();
 
         Offer memory offer = storedOffer;
         offer.obligation = obligation;
         offer.buy = true;
         offer.maker = buyer;
-        offer.startPrice = 1e18;
-        offer.expiryPrice = 1e18;
-        offer.assets = assets;
+        offer.tick = MAX_TICK;
+        uint256 price = TickLib.tickToPrice(MAX_TICK);
+        uint256 units = assets * 1e18 / price;
+        offer.maxUnits = units;
         offer.expiry = block.timestamp;
         offer.callback = address(0);
-        offer.ratifier = address(0);
+        offer.callbackData = hex"";
+        offer.ratifier = address(approvalRatifier);
         offer.group = bytes32(vm.randomUint());
 
         deal(address(loanToken), buyer, assets);
-        vm.prank(buyer);
+        vm.startPrank(buyer);
         loanToken.approve(address(morphoV2), type(uint256).max);
+        morphoV2.setIsAuthorized(buyer, address(approvalRatifier), true);
+        bytes32 _root = root([offer]);
+        approvalRatifier.setApproval(_root, true);
+        vm.stopPrank();
 
-        bytes memory data = abi.encode(offer, proof([offer]), sign([offer]));
+        bytes memory data = abi.encode(offer, hex"", _root, proof([offer]));
         parentVault.forceDeallocate(address(adapter), data, assets, address(this));
     }
 
@@ -144,15 +161,12 @@ contract MorphoMarketV2AdapterAllocationUpdateTest is MorphoMarketV2AdapterTest 
 
         skip(1);
 
-        Oracle(offer.obligation.collaterals[0].oracle).setPrice(0);
-        morphoV2.liquidate(offer.obligation, new Seizure[](0), taker, "");
+        Oracle(offer.obligation.collateralParams[0].oracle).setPrice(0);
+        morphoV2.liquidate(offer.obligation, 0, 0, 0, taker, "");
         adapter.realizeLoss(offer.obligation);
 
-        bytes32 obligationId = _obligationId(offer.obligation);
-        uint256 remainingUnits = MorphoV2(morphoV2).sharesOf(address(adapter), obligationId)
-            .mulDivDown(
-                MorphoV2(morphoV2).totalUnits(obligationId) + 1, MorphoV2(morphoV2).totalShares(obligationId) + 1
-            );
+        bytes32 midnightId = IdLib.toId(offer.obligation, block.chainid, address(morphoV2));
+        uint256 remainingUnits = Midnight(morphoV2).creditOf(midnightId, address(adapter));
 
         assertEq(parentVault.allocation(durationId(1 days)), remainingUnits, "1 day");
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
@@ -166,9 +180,9 @@ contract MorphoMarketV2AdapterAllocationUpdateTest is MorphoMarketV2AdapterTest 
         skip(7 days);
 
         vm.prank(taker);
-        morphoV2.repay(offer.obligation, 1e18, taker);
+        morphoV2.repay(offer.obligation, 1e18, taker, "");
         vm.prank(signerAllocator);
-        adapter.withdrawToVault(offer.obligation, 0.5e18, 0);
+        adapter.withdrawToVault(offer.obligation, 0.5e18);
 
         assertEq(parentVault.allocation(durationId(1 days)), 0, "1 day");
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
