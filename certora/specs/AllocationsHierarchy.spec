@@ -3,12 +3,13 @@
 
 import "../helpers/UtilityVault.spec";
 
+definition max_int256() returns mathint = (2 ^ 255) - 1;
+
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
     // assume the following functions return arbitrary value but do not modify the relevant storage for this rule.
     function _.balanceOf(address) external => NONDET;
-    function _.realAssets() external => NONDET;
     function _.transfer(address, uint256) external => NONDET;
     function _.transferFrom(address, address, uint256) external => NONDET;
     function _.canReceiveShares(address) external => NONDET;
@@ -26,10 +27,8 @@ methods {
 }
 
 // We refer to each entry in this mapping as a ghost cell.
-persistent ghost mapping(bytes32 => mapping(bytes32 => mathint)) ghostAllocationByGroupId {
+persistent ghost mapping(bytes32 => mapping(bytes32 => uint256)) ghostAllocationByGroupId {
     init_state axiom forall bytes32 g. forall bytes32 l. ghostAllocationByGroupId[g][l] == 0;
-
-    // Certora creates a shadow variable for usum. The base case fails without the second axiom, hence it is necessary.
     init_state axiom forall bytes32 g. (usum bytes32 l. ghostAllocationByGroupId[g][l]) == 0;
 }
 
@@ -51,7 +50,7 @@ persistent ghost mapping(bytes32 => bytes32) ghostLeafToGroupId {
 // Mirrors every leaf allocation write into the ghost mapping so the usum stays updated.
 hook Sstore currentContract.caps[KEY bytes32 id].allocation uint256 newValue (uint256 oldValue) {
     if (ghostIsLeafId[id]) {
-        ghostAllocationByGroupId[ghostLeafToGroupId[id]][id] = to_mathint(newValue);
+        ghostAllocationByGroupId[ghostLeafToGroupId[id]][id] = newValue;
     }
 }
 
@@ -73,13 +72,6 @@ function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, addr
     require allocation(ids[1]) == 0 || ghostIsLeafId[ids[1]], "if ids[1] has nonzero allocation, it must be a known leaf id";
     require !ghostIsLeafId[ids[1]] || ghostLeafToGroupId[ids[1]] == ids[0], "leaf maps to same group";
 
-    // Require change values to be bounded, else the sum exceeds max_uint256.
-    // Note that the implicit cast from uint256 to int256 is saf here, see allocationIsInt256 in Invariants.spec
-    require allocation(ids[0]) + change >= 0, "group level allocation + change is non-negative";
-    require allocation(ids[0]) + change <= max_uint256, "group level allocation + change is bounded";
-    require allocation(ids[1]) + change >= 0, "leaf level allocation + change is non-negative";
-    require allocation(ids[1]) + change <= max_uint256, "leaf level allocation + change is bounded";
-
     // Ensures ghost cell == allocation(ids[1]) before the hook updates, so the usum changes by exactly `change`.
     requireInvariant leafGhostConsistency(ids[1]);
 
@@ -89,12 +81,19 @@ function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, addr
     // For a new leaf, the corresponding ghost cell == 0.
     requireInvariant ghostGroupConsistency(ids[0], ids[1]);
 
+    requireInvariant allocationIsInt256(ids[0]);
+    requireInvariant allocationIsInt256(ids[1]);
+
     ghostIsLeafId[ids[1]] = true;
     ghostIsGroupId[ids[0]] = true;
     ghostLeafToGroupId[ids[1]] = ids[0];
 
     return (ids, change);
 }
+
+// Proven in Invariants.spec; restated here to allow requireInvariant in summaryAdapter.
+strong invariant allocationIsInt256(bytes32 id)
+    allocation(id) <= max_int256();
 
 // No id can be both a leafId and a groupId
 strong invariant distinctIdTypes(bytes32 id)
@@ -110,11 +109,7 @@ strong invariant leafImpliesGroupId(bytes32 leafId)
 
 // For a registered leaf, the ghost cell must equal the allocation.
 strong invariant leafGhostConsistency(bytes32 leafId)
-    ghostIsLeafId[leafId] => ghostAllocationByGroupId[ghostLeafToGroupId[leafId]][leafId] == to_mathint(allocation(leafId));
-
-// Every ghost cell stays within uint256 bounds.
-strong invariant ghostAllocationBounded(bytes32 g, bytes32 l)
-    ghostAllocationByGroupId[g][l] >= 0 && ghostAllocationByGroupId[g][l] <= max_uint256;
+    ghostIsLeafId[leafId] => ghostAllocationByGroupId[ghostLeafToGroupId[leafId]][leafId] == allocation(leafId);
 
 // Unregistered groups have a zero usum shadow.
 strong invariant nonGroupHasZeroSum(bytes32 groupId)
@@ -153,7 +148,6 @@ rule groupAllocationGeLeafAllocation(bytes32 groupId, bytes32 leafId) {
 
     requireInvariant leafImpliesGroupId(leafId);
     requireInvariant leafGhostConsistency(leafId);
-    requireInvariant ghostAllocationBounded(groupId, leafId);
     requireInvariant groupAllocationEqualsSumOfLeafAllocations(groupId);
 
     assert allocation(groupId) >= allocation(leafId), "group id allocation is a sum of corresponding leaf id allocations, hence >= any individual leaf allocation";
