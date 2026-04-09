@@ -106,13 +106,13 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* VAULT ALLOCATORS FUNCTIONS */
 
-    function withdrawToVault(Obligation memory obligation, uint256 units) external {
+    function withdrawToVault(Obligation memory obligation, uint256 withdrawnUnits) external {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
-        Midnight(morphoV2).withdraw(obligation, units, address(this), address(this));
+        Midnight(morphoV2).withdraw(obligation, withdrawnUnits, address(this), address(this));
 
         deallocateExpiredDurations(obligation);
-        removeUnits(obligation, units);
-        selfDeallocate(ids(obligation), units, units);
+        removeUnits(obligation, withdrawnUnits);
+        selfDeallocate(ids(obligation), withdrawnUnits, withdrawnUnits);
     }
 
     function deallocateExpiredDurations(Obligation memory obligation) public {
@@ -218,9 +218,9 @@ contract MidnightAdapter is IMidnightAdapter {
 
             // Already in a deallocate call so we skip the onSell callback and return the deallocation here.
             bytes32 midnightId = IdLib.toId(offer.obligation, block.chainid, morphoV2);
-            uint256 units = TakeAmountsLib.sellerAssetsToUnits(Midnight(morphoV2), midnightId, offer, sellerAssets);
+            uint256 takeUnits = TakeAmountsLib.sellerAssetsToUnits(Midnight(morphoV2), midnightId, offer, sellerAssets);
             (,, uint256 deallocated) = Midnight(morphoV2)
-                .take(units, address(this), address(0), hex"", address(this), offer, ratifierData, root, proof);
+                .take(takeUnits, address(this), address(0), hex"", address(this), offer, ratifierData, root, proof);
 
             require(Midnight(morphoV2).debtOf(midnightId, address(this)) == 0, NoBorrowing());
 
@@ -330,7 +330,6 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 soldObligationUnits,
         bytes memory
     ) external returns (bytes32) {
-        bytes32 obligationId = _obligationId(obligation);
         require(msg.sender == address(morphoV2), NotMorphoV2());
         require(seller == address(this), NotSelf());
         require(Midnight(morphoV2).debtOf(midnightId, address(this)) == 0, NoBorrowing());
