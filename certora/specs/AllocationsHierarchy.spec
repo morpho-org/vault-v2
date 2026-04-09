@@ -64,18 +64,18 @@ function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, addr
     int256 change;
 
     require ids.length == 2, "simplification";
+
     require ids[0] != ids[1], "ids are distinct";
     require !ghostIsLeafId[ids[0]], "ids[0] is not a leafId of any other adapter";
     require !ghostIsGroupId[ids[1]], "ids[1] is not a groupId of any other adapter";
 
-    require allocation(ids[0]) == 0 || ghostIsGroupId[ids[0]], "if ids[0] has nonzero allocation, it must be a known group id";
-    require allocation(ids[1]) == 0 || ghostIsLeafId[ids[1]], "if ids[1] has nonzero allocation, it must be a known leaf id";
     require !ghostIsLeafId[ids[1]] || ghostLeafToGroupId[ids[1]] == ids[0], "leaf maps to same group";
 
     // Ensures ghost cell == allocation(ids[1]) before the hook updates, so the usum changes by exactly `change`.
     requireInvariant leafGhostConsistency(ids[1]);
 
-    // For a new leaf ids[1], allocation(ids[1]) == 0.
+    // For a new id, allocation == 0.
+    requireInvariant unregisteredIdHasZeroAllocation(ids[0]);
     requireInvariant unregisteredIdHasZeroAllocation(ids[1]);
 
     // For a new leaf, the corresponding ghost cell == 0.
@@ -87,6 +87,8 @@ function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, addr
     ghostIsLeafId[ids[1]] = true;
     ghostIsGroupId[ids[0]] = true;
     ghostLeafToGroupId[ids[1]] = ids[0];
+
+    //ghostAllocationByGroupId[ids[0]][ids[1]] = require_uint256(to_mathint(allocation(ids[1])) + to_mathint(change));
 
     return (ids, change);
 }
