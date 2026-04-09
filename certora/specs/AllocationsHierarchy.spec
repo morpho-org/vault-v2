@@ -134,11 +134,11 @@ strong invariant groupAllocationEqualsSumOfLeafAllocations(bytes32 groupId)
     {
         preserved with (env e) {
             bytes32 anyLeafId;
-            requireInvariant leafGhostConsistency(anyLeafId);
+            //requireInvariant leafGhostConsistency(anyLeafId);
             requireInvariant distinctIdTypes(groupId);
-            requireInvariant ghostGroupConsistency(groupId, anyLeafId);
+            //requireInvariant ghostGroupConsistency(groupId, anyLeafId);
             requireInvariant nonGroupHasZeroSum(groupId);
-            requireInvariant unregisteredIdHasZeroAllocation(anyLeafId);
+            //requireInvariant unregisteredIdHasZeroAllocation(anyLeafId);
         }
     }
 
