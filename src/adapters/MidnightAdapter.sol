@@ -9,6 +9,7 @@ import {Signature, EIP712_DOMAIN_TYPEHASH, ROOT_TYPEHASH} from "lib/midnight/src
 import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
 import {TakeAmountsLib} from "lib/midnight/src/periphery/TakeAmountsLib.sol";
 import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
+import {UtilsLib} from "lib/midnight/src/libraries/UtilsLib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
@@ -184,10 +185,12 @@ contract MidnightAdapter is IMidnightAdapter {
         bytes32 midnightId = IdLib.toId(obligation, block.chainid, morphoV2);
         uint256 remainingUnits = Midnight(morphoV2).creditOf(midnightId, address(this));
 
-        uint256 lostUnits = _units[obligationId] - remainingUnits;
+        uint256 lostUnits = _units[obligationId].zeroFloorSub(remainingUnits);
         deallocateExpiredDurations(obligation);
-        removeUnits(obligation, lostUnits);
-        selfDeallocate(ids(obligation), lostUnits, 0);
+        if (lostUnits > 0) {
+            removeUnits(obligation, lostUnits);
+            selfDeallocate(ids(obligation), lostUnits, 0);
+        }
     }
 
     /* ALLOCATION FUNCTIONS */
@@ -352,14 +355,17 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* INTERNAL FUNCTIONS */
 
-    /// @dev The total assets can go up after removing units to compensate for the rounded up lost growth.
+    /// @dev Removes units from tracking. Absorbs the loss from future interest (growth) first,
+    /// and only reduces principal (_totalAssets) for the remainder that growth can't cover.
+    /// @dev removedUnits can exceed tracked units (pending fee gap or bad debt).
     function removeUnits(Obligation memory obligation, uint256 removedUnits) internal {
         MaturityData storage maturityData = _maturities[obligation.maturity];
         accrueInterest();
 
         if (obligation.maturity > block.timestamp) {
             uint256 timeToMaturity = obligation.maturity - block.timestamp;
-            uint128 removedGrowth = maturityData.growth.mulDivUp(removedUnits, maturityData.units).toUint128();
+            uint128 removedGrowth =
+                UtilsLib.min(removedUnits.mulDivUp(1, timeToMaturity), maturityData.growth).toUint128();
             // Do not cleanup the linked list if we end up at 0 growth.
             maturityData.growth -= removedGrowth;
             currentGrowth -= removedGrowth;
