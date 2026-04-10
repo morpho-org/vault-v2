@@ -102,7 +102,7 @@ strong invariant nonMappedLeafHasZeroGhostAllocation(bytes32 groupId, bytes32 le
     !(ghostIsLeafId[leafId] && ghostLeafToGroupId[leafId] == groupId) => ghostAllocationByGroupId[groupId][leafId] == 0;
 
 // A registered leaf's parent group is always also registered.
-strong invariant leafImpliesGroupId(bytes32 leafId)
+strong invariant registeredLeafImpliesRegisteredGroup(bytes32 leafId)
     ghostIsLeafId[leafId] => ghostIsGroupId[ghostLeafToGroupId[leafId]];
 
 // For a registered leaf, the ghost cell must equal the allocation.
@@ -133,7 +133,7 @@ rule groupAllocationGteLeafAllocation(bytes32 groupId, bytes32 leafId) {
     require ghostIsLeafId[leafId], "leafId is registered";
     require ghostLeafToGroupId[leafId] == groupId, "groupId corresponds to leafId";
 
-    requireInvariant leafImpliesGroupId(leafId);
+    requireInvariant registeredLeafImpliesRegisteredGroup(leafId);
     requireInvariant leafGhostIsAllocation(leafId);
     requireInvariant groupAllocationEqualsSumOfLeafAllocations(groupId);
 
