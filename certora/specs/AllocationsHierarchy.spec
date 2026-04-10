@@ -88,8 +88,6 @@ function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, addr
     ghostIsGroupId[ids[0]] = true;
     ghostLeafToGroupId[ids[1]] = ids[0];
 
-    //ghostAllocationByGroupId[ids[0]][ids[1]] = require_uint256(to_mathint(allocation(ids[1])) + to_mathint(change));
-
     return (ids, change);
 }
 
@@ -115,14 +113,7 @@ strong invariant leafGhostConsistency(bytes32 leafId)
 
 // Unregistered groups have a zero usum shadow.
 strong invariant nonGroupHasZeroSum(bytes32 groupId)
-    !ghostIsGroupId[groupId] => (usum bytes32 leafId. ghostAllocationByGroupId[groupId][leafId]) == 0
-    {
-        preserved with (env e) {
-            bytes32 anyLeafId;
-            requireInvariant leafImpliesGroupId(anyLeafId);
-            requireInvariant ghostGroupConsistency(groupId, anyLeafId);
-        }
-    }
+    !ghostIsGroupId[groupId] => (usum bytes32 leafId. ghostAllocationByGroupId[groupId][leafId]) == 0;
 
 // An id that has never been registered as a leaf or group has zero allocation.
 strong invariant unregisteredIdHasZeroAllocation(bytes32 id)
@@ -133,12 +124,8 @@ strong invariant groupAllocationEqualsSumOfLeafAllocations(bytes32 groupId)
     ghostIsGroupId[groupId] => to_mathint(allocation(groupId)) == (usum bytes32 leafId. ghostAllocationByGroupId[groupId][leafId])
     {
         preserved with (env e) {
-            bytes32 anyLeafId;
-            //requireInvariant leafGhostConsistency(anyLeafId);
             requireInvariant distinctIdTypes(groupId);
-            //requireInvariant ghostGroupConsistency(groupId, anyLeafId);
             requireInvariant nonGroupHasZeroSum(groupId);
-            //requireInvariant unregisteredIdHasZeroAllocation(anyLeafId);
         }
     }
 
