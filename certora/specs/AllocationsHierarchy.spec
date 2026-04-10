@@ -17,8 +17,6 @@ methods {
     function _.canReceiveAssets(address) external => NONDET;
     function _.canSendAssets(address) external => NONDET;
     function accrueInterest() internal => NONDET;
-
-    // Not strictly necessary. added to improve prover performance.
     function accrueInterestView() internal returns (uint256, uint256, uint256) => NONDET;
 
     // Replace all adapter calls with a ghost-updating summary that models the id structure (i.e. the leaf-group hierarchy).
@@ -72,14 +70,14 @@ function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, addr
     require !ghostIsLeafId[ids[1]] || ghostLeafToGroupId[ids[1]] == ids[0], "leaf maps to same group";
 
     // Ensures ghost cell == allocation(ids[1]) before the hook updates, so the usum changes by exactly `change`.
-    requireInvariant leafGhostConsistency(ids[1]);
+    requireInvariant leafGhostIsAllocation(ids[1]);
 
     // For a new id, allocation == 0.
     requireInvariant unregisteredIdHasZeroAllocation(ids[0]);
     requireInvariant unregisteredIdHasZeroAllocation(ids[1]);
 
     // For a new leaf, the corresponding ghost cell == 0.
-    requireInvariant ghostGroupConsistency(ids[0], ids[1]);
+    requireInvariant nonMappedLeafHasZeroGhostAllocation(ids[0], ids[1]);
 
     requireInvariant allocationIsInt256(ids[0]);
     requireInvariant allocationIsInt256(ids[1]);
@@ -100,7 +98,7 @@ strong invariant distinctIdTypes(bytes32 id)
     !(ghostIsLeafId[id] && ghostIsGroupId[id]);
 
 // A ghost cell is non-zero only if its leaf is registered and maps to that group.
-strong invariant ghostGroupConsistency(bytes32 groupId, bytes32 leafId)
+strong invariant nonMappedLeafHasZeroGhostAllocation(bytes32 groupId, bytes32 leafId)
     !(ghostIsLeafId[leafId] && ghostLeafToGroupId[leafId] == groupId) => ghostAllocationByGroupId[groupId][leafId] == 0;
 
 // A registered leaf's parent group is always also registered.
@@ -108,7 +106,7 @@ strong invariant leafImpliesGroupId(bytes32 leafId)
     ghostIsLeafId[leafId] => ghostIsGroupId[ghostLeafToGroupId[leafId]];
 
 // For a registered leaf, the ghost cell must equal the allocation.
-strong invariant leafGhostConsistency(bytes32 leafId)
+strong invariant leafGhostIsAllocation(bytes32 leafId)
     ghostIsLeafId[leafId] => ghostAllocationByGroupId[ghostLeafToGroupId[leafId]][leafId] == allocation(leafId);
 
 // Unregistered groups have a zero usum shadow.
@@ -136,7 +134,7 @@ rule groupAllocationGeLeafAllocation(bytes32 groupId, bytes32 leafId) {
     require ghostLeafToGroupId[leafId] == groupId, "groupId corresponds to leafId";
 
     requireInvariant leafImpliesGroupId(leafId);
-    requireInvariant leafGhostConsistency(leafId);
+    requireInvariant leafGhostIsAllocation(leafId);
     requireInvariant groupAllocationEqualsSumOfLeafAllocations(groupId);
 
     assert allocation(groupId) >= allocation(leafId), "group id allocation is a sum of corresponding leaf id allocations, hence >= any individual leaf allocation";
