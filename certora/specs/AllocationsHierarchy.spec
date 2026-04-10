@@ -16,7 +16,6 @@ methods {
     function _.canSendShares(address) external => NONDET;
     function _.canReceiveAssets(address) external => NONDET;
     function _.canSendAssets(address) external => NONDET;
-    function accrueInterest() internal => NONDET;
     function accrueInterestView() internal returns (uint256, uint256, uint256) => NONDET;
 
     // Replace all adapter calls with a ghost-updating summary that models the id structure (i.e. the leaf-group hierarchy).
