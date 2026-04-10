@@ -110,7 +110,7 @@ strong invariant leafGhostIsAllocation(bytes32 leafId)
     ghostIsLeafId[leafId] => ghostAllocationByGroupId[ghostLeafToGroupId[leafId]][leafId] == allocation(leafId);
 
 // Unregistered groups have a zero usum shadow.
-strong invariant nonGroupHasZeroSum(bytes32 groupId)
+strong invariant unregisteredGroupHasZeroGhostSum(bytes32 groupId)
     !ghostIsGroupId[groupId] => (usum bytes32 leafId. ghostAllocationByGroupId[groupId][leafId]) == 0;
 
 // An id that has never been registered as a leaf or group has zero allocation.
@@ -123,13 +123,13 @@ strong invariant groupAllocationEqualsSumOfLeafAllocations(bytes32 groupId)
     {
         preserved with (env e) {
             requireInvariant distinctIdTypes(groupId);
-            requireInvariant nonGroupHasZeroSum(groupId);
+            requireInvariant unregisteredGroupHasZeroGhostSum(groupId);
         }
     }
 
 // A group's allocation is the sum of all its leaves' allocations, hence it is
 // always greater than or equal to any individual leaf's allocation.
-rule groupAllocationGeLeafAllocation(bytes32 groupId, bytes32 leafId) {
+rule groupAllocationGteLeafAllocation(bytes32 groupId, bytes32 leafId) {
     require ghostIsLeafId[leafId], "leafId is registered";
     require ghostLeafToGroupId[leafId] == groupId, "groupId corresponds to leafId";
 
