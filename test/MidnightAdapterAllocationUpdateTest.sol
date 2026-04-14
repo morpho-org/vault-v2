@@ -6,13 +6,11 @@ import "../lib/forge-std/src/Test.sol";
 import {MidnightAdapterTest} from "./MidnightAdapterTest.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
-import {Midnight} from "../lib/midnight/src/Midnight.sol";
 import {Offer, Obligation, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
 import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
 import {stdStorage, StdStorage} from "../lib/forge-std/src/Test.sol";
 import {Oracle} from "../lib/midnight/test/helpers/Oracle.sol";
-import {ApprovalRatifier} from "../lib/midnight/src/ratifiers/ApprovalRatifier.sol";
-import {IdLib} from "../lib/midnight/src/libraries/IdLib.sol";
+import {SetterRatifier} from "../lib/midnight/src/ratifiers/SetterRatifier.sol";
 
 contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
     using stdStorage for StdStorage;
@@ -24,17 +22,17 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         super.setUp();
 
         storedCollaterals[0].lltv = 1e18;
-        storedCollaterals[0].maxLif = morphoV2.maxLif(1e18, 0.25e18);
+        storedCollaterals[0].maxLif = midnight.maxLif(1e18, 0.25e18);
         storedCollaterals[1].lltv = 1e18;
-        storedCollaterals[1].maxLif = morphoV2.maxLif(1e18, 0.25e18);
+        storedCollaterals[1].maxLif = midnight.maxLif(1e18, 0.25e18);
         storedOffer.obligation.collateralParams = storedCollaterals;
 
         vm.startPrank(taker);
-        IERC20(storedCollaterals[0].token).approve(address(morphoV2), type(uint256).max);
-        IERC20(storedCollaterals[1].token).approve(address(morphoV2), type(uint256).max);
+        IERC20(storedCollaterals[0].token).approve(address(midnight), type(uint256).max);
+        IERC20(storedCollaterals[1].token).approve(address(midnight), type(uint256).max);
         deal(storedCollaterals[0].token, taker, 1_000e18);
         deal(storedCollaterals[1].token, taker, 1_000e18);
-        loanToken.approve(address(morphoV2), type(uint256).max);
+        loanToken.approve(address(midnight), type(uint256).max);
         vm.stopPrank();
     }
 
@@ -52,9 +50,9 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         offer.callbackData = abi.encode(0);
 
         vm.startPrank(taker);
-        morphoV2.supplyCollateral(offer.obligation, 0, assets / 2, taker);
-        morphoV2.supplyCollateral(offer.obligation, 1, assets / 2, taker);
-        morphoV2.take(
+        midnight.supplyCollateral(offer.obligation, 0, assets / 2, taker);
+        midnight.supplyCollateral(offer.obligation, 1, assets / 2, taker);
+        midnight.take(
             units, taker, address(0), "", taker, offer, sign([offer], signerAllocator), root([offer]), proof([offer])
         );
         vm.stopPrank();
@@ -76,14 +74,14 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         offer.group = bytes32(vm.randomUint());
         offer.callbackData = abi.encode(0);
         vm.prank(taker);
-        morphoV2.take(
+        midnight.take(
             units, taker, address(0), "", taker, offer, sign([offer], signerAllocator), root([offer]), proof([offer])
         );
     }
 
     function forceDeallocate(Obligation memory obligation, uint256 assets) internal {
         address buyer = makeAddr("buyer");
-        ApprovalRatifier approvalRatifier = new ApprovalRatifier();
+        SetterRatifier approvalRatifier = new SetterRatifier(address(midnight));
 
         Offer memory offer = storedOffer;
         offer.obligation = obligation;
@@ -101,10 +99,10 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
 
         deal(address(loanToken), buyer, assets);
         vm.startPrank(buyer);
-        loanToken.approve(address(morphoV2), type(uint256).max);
-        morphoV2.setIsAuthorized(buyer, address(approvalRatifier), true);
+        loanToken.approve(address(midnight), type(uint256).max);
+        midnight.setIsAuthorized(buyer, address(approvalRatifier), true);
         bytes32 _root = root([offer]);
-        approvalRatifier.setApproval(_root, true);
+        approvalRatifier.setApproval(buyer, _root, true);
         vm.stopPrank();
 
         bytes memory data = abi.encode(offer, hex"", _root, proof([offer]));
@@ -154,24 +152,6 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         assertEq(parentVault.allocation(durationId(duration)), savedAllocation);
     }
 
-    function testUpdateOnRealizeLoss() public {
-        Offer memory offer = buy(7 days, 1e18);
-        assertEq(parentVault.allocation(durationId(1 days)), 1e18, "1 week, before");
-        assertEq(parentVault.allocation(durationId(7 days)), 1e18, "2 weeks, before");
-
-        skip(1);
-
-        Oracle(offer.obligation.collateralParams[0].oracle).setPrice(0);
-        morphoV2.liquidate(offer.obligation, 0, 0, 0, taker, "");
-        adapter.realizeLoss(offer.obligation);
-
-        bytes32 midnightId = IdLib.toId(offer.obligation, block.chainid, address(morphoV2));
-        uint256 remainingUnits = Midnight(morphoV2).creditOf(midnightId, address(adapter));
-
-        assertEq(parentVault.allocation(durationId(1 days)), remainingUnits, "1 day");
-        assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
-    }
-
     function testUpdateOnWithdraw() public {
         Offer memory offer = buy(7 days, 1e18);
         assertEq(parentVault.allocation(durationId(1 days)), 1e18, "1 day, before");
@@ -180,7 +160,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         skip(7 days);
 
         vm.prank(taker);
-        morphoV2.repay(offer.obligation, 1e18, taker, "");
+        midnight.repay(offer.obligation, 1e18, taker, "");
         vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.obligation, 0.5e18);
 

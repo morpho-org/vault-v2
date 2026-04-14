@@ -62,6 +62,14 @@ contract VaultV2Mock {
         return (ids, change);
     }
 
+    function forceDeallocateInKind(address adapter, bytes memory data) external returns (bytes32[] memory, int256) {
+        (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, 0, msg.sig, msg.sender);
+        for (uint256 i; i < ids.length; i++) {
+            allocation[ids[i]] = uint256(int256(allocation[ids[i]]) + change);
+        }
+        return (ids, change);
+    }
+
     function setTotalAssets(uint256 newTotalAssets) external {
         totalAssets = newTotalAssets;
     }

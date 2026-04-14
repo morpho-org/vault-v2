@@ -5,11 +5,20 @@ optimizer_runs = 100000
 bytecode_hash = "none"
 evm_version = "osaka"
 dynamic_test_linking = true
+ignored_error_codes = ["transient-storage"]
 
 [profile.default.fmt]
 wrap_comments = true
 
 [lint]
+ignore = [
+    "lib/**",
+    "src/imports/MorphoImport.sol",
+    "src/imports/MidnightImport.sol",
+    "src/imports/MetaMorphoImport.sol",
+    "src/imports/MetaMorphoV1_1Import.sol",
+    "src/imports/AdaptiveCurveIrmImport.sol",
+]
 exclude_lints = [
     "unsafe-typecast",
     "erc20-unchecked-transfer",
