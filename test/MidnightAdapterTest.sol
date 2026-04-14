@@ -13,7 +13,7 @@ import {IMidnightAdapter} from "../src/adapters/interfaces/IMidnightAdapter.sol"
 import {IMidnightAdapterFactory} from "../src/adapters/interfaces/IMidnightAdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
 import {Midnight} from "../lib/midnight/src/Midnight.sol";
-import {Offer, Obligation, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
+import {IMidnight, Offer, Obligation, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
 import {Signature, EIP712_DOMAIN_TYPEHASH, ROOT_TYPEHASH} from "../lib/midnight/src/interfaces/IEcrecover.sol";
 import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
 import {IdLib} from "../lib/midnight/src/libraries/IdLib.sol";
@@ -31,7 +31,7 @@ contract MidnightAdapterTest is Test {
     using stdStorage for StdStorage;
     using MathLib for uint256;
 
-    Midnight internal morphoV2;
+    IMidnight internal midnight;
     IMidnightAdapterFactory internal factory;
     IMidnightAdapter internal adapter;
     VaultV2Mock internal parentVault;
@@ -77,7 +77,7 @@ contract MidnightAdapterTest is Test {
         recipient = makeAddr("recipient");
         taker = makeAddr("taker");
 
-        morphoV2 = new Midnight();
+        midnight = IMidnight(address(new Midnight()));
 
         loanToken = IERC20(address(new ERC20Mock(18)));
         rewardToken = IERC20(address(new ERC20Mock(18)));
@@ -85,11 +85,11 @@ contract MidnightAdapterTest is Test {
         parentVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
         factory = new MidnightAdapterFactory(allDurations);
-        adapter = MidnightAdapter(factory.createMidnightAdapter(address(parentVault), address(morphoV2)));
+        adapter = MidnightAdapter(factory.createMidnightAdapter(address(parentVault), address(midnight)));
 
         // Adapter authorizes itself as ratifier
         vm.prank(address(adapter));
-        morphoV2.setIsAuthorized(address(adapter), address(adapter), true);
+        midnight.setIsAuthorized(address(adapter), address(adapter), true);
 
         address collToken0 = address(new ERC20Mock(18));
         address collToken1 = address(new ERC20Mock(18));
@@ -104,12 +104,12 @@ contract MidnightAdapterTest is Test {
 
         storedCollaterals.push(
             CollateralParams({
-                token: collToken0, lltv: 1 ether, maxLif: morphoV2.maxLif(1 ether, 0.25e18), oracle: oracle0
+                token: collToken0, lltv: 1 ether, maxLif: midnight.maxLif(1 ether, 0.25e18), oracle: oracle0
             })
         );
         storedCollaterals.push(
             CollateralParams({
-                token: collToken1, lltv: 1 ether, maxLif: morphoV2.maxLif(1 ether, 0.25e18), oracle: oracle1
+                token: collToken1, lltv: 1 ether, maxLif: midnight.maxLif(1 ether, 0.25e18), oracle: oracle1
             })
         );
 
@@ -185,12 +185,12 @@ contract MidnightAdapterTest is Test {
         offer.tick = TickLib.priceToTick(0.95e18);
 
         vm.startPrank(taker);
-        IERC20(storedCollaterals[0].token).approve(address(morphoV2), type(uint256).max);
-        IERC20(storedCollaterals[1].token).approve(address(morphoV2), type(uint256).max);
+        IERC20(storedCollaterals[0].token).approve(address(midnight), type(uint256).max);
+        IERC20(storedCollaterals[1].token).approve(address(midnight), type(uint256).max);
         deal(storedCollaterals[0].token, taker, 1_000e18);
         deal(storedCollaterals[1].token, taker, 1_000e18);
-        morphoV2.supplyCollateral(offer.obligation, 0, 1_000e18, taker);
-        morphoV2.supplyCollateral(offer.obligation, 1, 1_000e18, taker);
+        midnight.supplyCollateral(offer.obligation, 0, 1_000e18, taker);
+        midnight.supplyCollateral(offer.obligation, 1, 1_000e18, taker);
         vm.stopPrank();
 
         uint256 assets = 1e18;
@@ -201,7 +201,7 @@ contract MidnightAdapterTest is Test {
         offer.callback = address(adapter);
         offer.callbackData = abi.encode(0);
         vm.prank(taker);
-        morphoV2.take(
+        midnight.take(
             units, taker, address(0), "", taker, offer, sign([offer], signerAllocator), root([offer]), proof([offer])
         );
 
@@ -218,7 +218,7 @@ contract MidnightAdapterTest is Test {
         assertEq(maturityData.growth, newGrowth, "growth");
         assertEq(maturityData.nextMaturity, type(uint48).max, "nextMaturity");
 
-        uint256 actualUnits = adapter.units(_obligationId(offer.obligation));
+        uint256 actualUnits = adapter.netCredit(_obligationId(offer.obligation));
         assertEq(actualUnits, units, "units");
     }
 
@@ -228,12 +228,12 @@ contract MidnightAdapterTest is Test {
         uint256 maturity = offer.obligation.maturity;
 
         vm.startPrank(taker);
-        IERC20(storedCollaterals[0].token).approve(address(morphoV2), type(uint256).max);
-        IERC20(storedCollaterals[1].token).approve(address(morphoV2), type(uint256).max);
+        IERC20(storedCollaterals[0].token).approve(address(midnight), type(uint256).max);
+        IERC20(storedCollaterals[1].token).approve(address(midnight), type(uint256).max);
         deal(storedCollaterals[0].token, taker, 100_000e18);
         deal(storedCollaterals[1].token, taker, 100_000e18);
-        morphoV2.supplyCollateral(offer.obligation, 0, 100_000e18, taker);
-        morphoV2.supplyCollateral(offer.obligation, 1, 100_000e18, taker);
+        midnight.supplyCollateral(offer.obligation, 0, 100_000e18, taker);
+        midnight.supplyCollateral(offer.obligation, 1, 100_000e18, taker);
         vm.stopPrank();
 
         // Step 1: Buy at maturity M (future)
@@ -246,7 +246,7 @@ contract MidnightAdapterTest is Test {
         offer.callbackData = abi.encode(0);
 
         vm.prank(taker);
-        morphoV2.take(
+        midnight.take(
             units1, taker, address(0), "", taker, offer, sign([offer], signerAllocator), root([offer]), proof([offer])
         );
 
@@ -263,7 +263,6 @@ contract MidnightAdapterTest is Test {
         adapter.accrueInterest();
         assertEq(adapter.currentGrowth(), 0, "currentGrowth after accrual should be 0");
         assertEq(adapter.firstMaturity(), type(uint48).max, "firstMaturity should be sentinel");
-        uint256 totalAssetsAfterAccrual = adapter._totalAssets();
 
         // In midnight, any seller with debt past maturity is always liquidatable
         // (isLiquidatable returns true if block.timestamp > maturity && debt > 0),
@@ -300,7 +299,7 @@ contract MidnightAdapterTest is Test {
         }
         for (uint256 i = 0; i < numCollaterals; i++) {
             collateralParams[i] = CollateralParams({
-                token: tokens[i], lltv: 1 ether, maxLif: morphoV2.maxLif(1 ether, 0.25e18), oracle: oracles[i]
+                token: tokens[i], lltv: 1 ether, maxLif: midnight.maxLif(1 ether, 0.25e18), oracle: oracles[i]
             });
         }
         offer.obligation.collateralParams = collateralParams;
@@ -411,8 +410,8 @@ contract MidnightAdapterTest is Test {
 
     function setupObligations(Step[] memory steps) internal {
         vm.startPrank(taker);
-        IERC20(storedCollaterals[0].token).approve(address(morphoV2), type(uint256).max);
-        IERC20(storedCollaterals[1].token).approve(address(morphoV2), type(uint256).max);
+        IERC20(storedCollaterals[0].token).approve(address(midnight), type(uint256).max);
+        IERC20(storedCollaterals[1].token).approve(address(midnight), type(uint256).max);
         vm.stopPrank();
 
         Offer memory offer = Offer({
@@ -463,11 +462,11 @@ contract MidnightAdapterTest is Test {
             vm.startPrank(taker);
             deal(storedCollaterals[0].token, taker, 1_000e18);
             deal(storedCollaterals[1].token, taker, 1_000e18);
-            morphoV2.supplyCollateral(offer.obligation, 0, 1_000e18, taker);
-            morphoV2.supplyCollateral(offer.obligation, 1, 1_000e18, taker);
+            midnight.supplyCollateral(offer.obligation, 0, 1_000e18, taker);
+            midnight.supplyCollateral(offer.obligation, 1, 1_000e18, taker);
 
-            uint256 unitsBefore = adapter.units(obligationId);
-            morphoV2.take(
+            uint256 unitsBefore = adapter.netCredit(obligationId);
+            midnight.take(
                 units,
                 taker,
                 address(0),
@@ -480,7 +479,7 @@ contract MidnightAdapterTest is Test {
             );
             vm.stopPrank();
 
-            assertEq(adapter.units(obligationId), unitsBefore + units, "setup: units 1");
+            assertEq(adapter.netCredit(obligationId), unitsBefore + units, "setup: units 1");
 
             expectedUnits[obligationId] += units;
             expectedMaturityGrowths[step.maturity] += actualGrowth;
@@ -536,7 +535,7 @@ contract MidnightAdapterTest is Test {
         // Check positions growth and size
         for (uint256 i = 0; i < expectedPositionsList.length; i++) {
             bytes32 obligationId = bytes32(expectedPositionsList[i]);
-            assertEq(adapter.units(obligationId), expectedUnits[obligationId], "units");
+            assertEq(adapter.netCredit(obligationId), expectedUnits[obligationId], "units");
         }
     }
 
@@ -605,7 +604,14 @@ contract MidnightAdapterTest is Test {
 
     /* DURATIONS */
 
-    // Add constructor tests
+    function testConstructorGetters() public view {
+        assertEq(adapter.asset(), address(loanToken), "asset");
+        assertEq(adapter.parentVault(), address(parentVault), "parentVault");
+        assertEq(adapter.midnight(), address(midnight), "midnight");
+        assertEq(adapter.skimRecipient(), address(0), "skimRecipient");
+        assertEq(adapter.durationsLength(), allDurations.length, "durationsLength");
+        assertEq(adapter.packedDurations(), MidnightAdapter(address(adapter)).packedDurations(), "packedDurations");
+    }
 
     /* IDS */
 
@@ -677,8 +683,8 @@ contract MidnightAdapterTest is Test {
         return res;
     }
 
-    function _obligationId(Obligation memory obligation) internal pure returns (bytes32) {
-        return keccak256(abi.encode(obligation));
+    function _obligationId(Obligation memory obligation) internal view returns (bytes32) {
+        return IdLib.toId(obligation, block.chainid, address(midnight));
     }
 
     function sign(Offer[1] memory offers) internal view returns (bytes memory) {

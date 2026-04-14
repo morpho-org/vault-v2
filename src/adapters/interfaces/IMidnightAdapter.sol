@@ -10,7 +10,7 @@ import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 // Chain of maturities, each can represent multiple obligations.
 // nextMaturity is type(uint48).max if no next maturity
 struct MaturityData {
-    uint128 units;
+    uint128 netCredit;
     uint128 growth;
     uint48 nextMaturity;
     uint48 lastUpdate;
@@ -25,6 +25,7 @@ interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
     /* ERRORS */
 
     error BufferTooLow();
+    error BuyAtLoss();
     error IncorrectCallbackAddress();
     error IncorrectDuration();
     error IncorrectHint();
@@ -35,19 +36,23 @@ interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
     error IncorrectStart();
     error LoanAssetMismatch();
     error NoBorrowing();
+    error NoDebtCreation();
     error NotAuthorized();
-    error NotMorphoV2();
+    error NotMidnight();
     error NotSelf();
     error SelfAllocationOnly();
 
     /* FUNCTIONS */
 
+    function asset() external view returns (address);
     function _totalAssets() external view returns (uint256);
     function lastUpdate() external view returns (uint48);
     function firstMaturity() external view returns (uint48);
     function currentGrowth() external view returns (uint128);
+    function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
-    function units(bytes32 obligationId) external view returns (uint256);
+    function packedDurations() external view returns (bytes32);
+    function netCredit(bytes32 obligationId) external view returns (uint256);
     function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
     function setSkimRecipient(address newSkimRecipient) external;
@@ -59,8 +64,7 @@ interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
     function ids(Obligation memory obligation) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
     function accrueInterestView() external view returns (uint48, uint128, uint256);
-    function accrueInterest() external;
-    function realizeLoss(Obligation memory obligation) external;
+    function accrueInterest() external returns (uint48, uint128, uint256);
     function allocate(bytes memory data, uint256 assets, bytes4, address vaultAllocator)
         external
         returns (bytes32[] memory, int256);
@@ -73,6 +77,7 @@ interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
         address buyer,
         uint256 buyerAssets,
         uint256 units,
+        uint256 buyerPendingFeeIncrease,
         bytes memory data
     ) external returns (bytes32);
     function onSell(
@@ -81,6 +86,7 @@ interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
         address seller,
         uint256 sellerAssets,
         uint256 units,
+        uint256 sellerPendingFeeDecrease,
         bytes memory data
     ) external returns (bytes32);
     function onLiquidate(
