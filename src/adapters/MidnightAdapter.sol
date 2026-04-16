@@ -284,19 +284,19 @@ contract MidnightAdapter is IMidnightAdapter {
         uint48 prevMaturity = abi.decode(data, (uint48));
         MaturityData storage maturityData = _maturities[obligation.maturity];
         Position storage position = positions[obligationId];
+        uint256 buyNetCreditIncrease = boughtCredit - buyPendingFeeIncrease;
+        uint256 timeToMaturity = obligation.maturity.zeroFloorSub(block.timestamp);
+        uint256 oldVaultNetCredit = position.vaultNetCredit;
+
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
         require(prevMaturity < obligation.maturity, IncorrectHint());
-
-        uint256 buyNetCreditIncrease = boughtCredit - buyPendingFeeIncrease;
         require(buyNetCreditIncrease >= paidAssets, BuyAtLoss());
 
         accrueInterest();
         updateDurationIndexAndAllocations(obligation);
-        uint256 oldVaultNetCredit = position.vaultNetCredit;
         realizeLoss(position, obligationId, obligation.maturity, int256(buyNetCreditIncrease));
 
-        uint256 timeToMaturity = obligation.maturity.zeroFloorSub(block.timestamp);
         if (timeToMaturity > 0) {
             uint128 gainedGrowth = ((buyNetCreditIncrease - paidAssets) / timeToMaturity).toUint128();
             _totalAssets += paidAssets + (buyNetCreditIncrease - paidAssets) % timeToMaturity;
@@ -307,7 +307,7 @@ contract MidnightAdapter is IMidnightAdapter {
         }
 
         maturityData.vaultNetCredit += buyNetCreditIncrease.toUint128();
-        position.vaultNetCredit += uint128(buyNetCreditIncrease);
+        position.vaultNetCredit += buyNetCreditIncrease.toUint128();
 
         int256 change = int256(uint256(position.vaultNetCredit)) - int256(oldVaultNetCredit);
         IVaultV2(parentVault).allocate(address(this), abi.encode(ids(obligation), change), paidAssets);
