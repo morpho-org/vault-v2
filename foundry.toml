@@ -18,6 +18,7 @@ ignore = [
     "src/imports/MetaMorphoImport.sol",
     "src/imports/MetaMorphoV1_1Import.sol",
     "src/imports/AdaptiveCurveIrmImport.sol",
+    "test/**/*.sol",
 ]
 exclude_lints = [
     "unsafe-typecast",

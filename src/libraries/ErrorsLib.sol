@@ -9,6 +9,7 @@ library ErrorsLib {
     error AbsoluteCapNotIncreasing();
     error ApproveReturnedFalse();
     error ApproveReverted();
+    error AutomaticallyTimelocked();
     error CannotReceiveShares();
     error CannotReceiveAssets();
     error CannotSendShares();
@@ -30,7 +31,6 @@ library ErrorsLib {
     error RelativeCapExceeded();
     error RelativeCapNotDecreasing();
     error RelativeCapNotIncreasing();
-    error AutomaticallyTimelocked();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();

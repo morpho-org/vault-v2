@@ -2,13 +2,14 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.28;
 
-import {IVaultV2, IERC20, Caps} from "./interfaces/IVaultV2.sol";
+import {IERC20} from "./interfaces/IERC20.sol";
+import {IVaultV2, Caps} from "./interfaces/IVaultV2.sol";
 import {IAdapter} from "./interfaces/IAdapter.sol";
 import {IAdapterRegistry} from "./interfaces/IAdapterRegistry.sol";
 
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import {EventsLib} from "./libraries/EventsLib.sol";
-import "./libraries/ConstantsLib.sol";
+import "./libraries/ConstantsLib.sol"; // forge-lint: disable-line(unaliased-plain-import)
 import {MathLib} from "./libraries/MathLib.sol";
 import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
@@ -32,13 +33,17 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// because flashloan-based shorting is prevented as interests and losses are only accounted once per transaction.
 ///
 /// SHARE PRICE
-/// @dev The share price can go down if the vault incurs some losses. Users might want to perform slippage checks upon
-/// withdraw/redeem via an other contract.
+/// @dev The share price can go down if the vault incurs some losses.
+/// @dev To get some additional bounds on the share price upon interactions, a check must be performed on top.
 /// @dev Interest/loss are accounted only once per transaction (at the first interaction with the vault).
 /// @dev Donations increase the share price but not faster than the maxRate.
 /// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). In order to protect against
 /// inflation attacks, the vault might need to be seeded with an initial deposit. See
 /// https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
+/// @dev Adapters may incur small dust losses due to rounding errors. If repeated, and the vault has very few assets,
+/// these could potentially lead to an abnormal deflation of the share price. To mitigate this risk, the vault should be
+/// seeded with a sufficient amount of assets to ensure that each interaction results in very small relative changes to
+/// the share price.
 /// @dev Donations and forceDeallocate penalties increase the rate, which can attract opportunistic depositors which
 /// will dilute interest. This fact can be mitigated by reducing the maxRate.
 ///
@@ -48,7 +53,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// the corresponding markets.
 /// @dev The caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
 /// @dev Relative caps are "soft" in the sense that they are not checked on exit.
-/// @dev Caps can be exceeded because of interest.
+/// @dev Caps can be exceeded because of interest and donations in adapters (if adapters do not prevent them).
 /// @dev The relative cap is relative to firstTotalAssets, not realAssets.
 /// @dev The relative cap unit is WAD.
 /// @dev To track allocations using events, use the Allocate and Deallocate events only.
@@ -128,17 +133,16 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// decreased (e.g. the timelock of decreaseTimelock(addAdapter, ...) is timelock[addAdapter]).
 /// @dev It is still possible to submit changes of the timelock duration of decreaseTimelock, but it won't have any
 /// effect (and trying to execute this change will revert).
-/// @dev Multiple clashing data can be pending, for example increaseCap and decreaseCap, which can make so accepted
-/// timelocked data can potentially be changed shortly afterwards.
 /// @dev If a function is abdicated, it cannot be called no matter its timelock and what executableAt[data] contains.
-/// Otherwise, the minimum time in which a function can be called is the following:
+/// Otherwise, the minimum time at which a function can be called is the following:
 /// min(
-///     timelock[selector],
+///     block.timestamp + timelock[selector],
 ///     executableAt[selector::_],
 ///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock
 /// ).
 /// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist, argument
-/// encoding is wrong, function' conditions are not met, etc.).
+/// encoding is wrong, function' conditions are not met, etc.), or clashing (e.g. increaseTimelock and
+/// decreaseTimelock for the same selector).
 ///
 /// ABDICATION
 /// @dev When a timelocked function is abdicated, it can't be called anymore.
@@ -258,6 +262,7 @@ contract VaultV2 is IVaultV2 {
         return newTotalAssets;
     }
 
+    /// forge-lint: disable-next-item(mixed-case-function)
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
         return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
     }
@@ -298,6 +303,7 @@ contract VaultV2 is IVaultV2 {
         lastUpdate = uint64(block.timestamp);
         uint256 assetDecimals = IERC20(_asset).decimals();
         uint256 decimalOffset = uint256(18).zeroFloorSub(assetDecimals);
+        // forge-lint: disable-next-item(unsafe-typecast) safe because assetDecimals + decimalOffset <= 18.
         decimals = uint8(assetDecimals + decimalOffset);
         virtualShares = 10 ** decimalOffset;
         emit EventsLib.Constructor(_owner, _asset);
@@ -343,7 +349,9 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(executableAt[data] == 0, ErrorsLib.DataAlreadyPending());
 
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(data);
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the second bytes4.
         uint256 _timelock =
             selector == IVaultV2.decreaseTimelock.selector ? timelock[bytes4(data[4:8])] : timelock[selector];
         executableAt[data] = block.timestamp + _timelock;
@@ -363,6 +371,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(executableAt[data] != 0, ErrorsLib.DataNotTimelocked());
         executableAt[data] = 0;
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(data);
         emit EventsLib.Revoke(msg.sender, selector, data);
     }
@@ -477,7 +486,7 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        // Safe because 2**96 > MAX_PERFORMANCE_FEE.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because 2**96 > MAX_PERFORMANCE_FEE.
         performanceFee = uint96(newPerformanceFee);
         emit EventsLib.SetPerformanceFee(newPerformanceFee);
     }
@@ -489,7 +498,7 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        // Safe because 2**96 > MAX_MANAGEMENT_FEE.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because 2**96 > MAX_MANAGEMENT_FEE.
         managementFee = uint96(newManagementFee);
         emit EventsLib.SetManagementFee(newManagementFee);
     }
@@ -528,7 +537,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(newAbsoluteCap <= caps[id].absoluteCap, ErrorsLib.AbsoluteCapNotDecreasing());
 
-        // Safe because newAbsoluteCap <= absoluteCap < 2**128.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because newAbsoluteCap <= absoluteCap < 2**128.
         caps[id].absoluteCap = uint128(newAbsoluteCap);
         emit EventsLib.DecreaseAbsoluteCap(msg.sender, id, idData, newAbsoluteCap);
     }
@@ -539,7 +548,7 @@ contract VaultV2 is IVaultV2 {
         require(newRelativeCap <= WAD, ErrorsLib.RelativeCapAboveOne());
         require(newRelativeCap >= caps[id].relativeCap, ErrorsLib.RelativeCapNotIncreasing());
 
-        // Safe because WAD < 2**128.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because WAD < 2**128.
         caps[id].relativeCap = uint128(newRelativeCap);
         emit EventsLib.IncreaseRelativeCap(id, idData, newRelativeCap);
     }
@@ -549,7 +558,7 @@ contract VaultV2 is IVaultV2 {
         require(msg.sender == curator || isSentinel[msg.sender], ErrorsLib.Unauthorized());
         require(newRelativeCap <= caps[id].relativeCap, ErrorsLib.RelativeCapNotDecreasing());
 
-        // Safe because WAD < 2**128.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because WAD < 2**128.
         caps[id].relativeCap = uint128(newRelativeCap);
         emit EventsLib.DecreaseRelativeCap(msg.sender, id, idData, newRelativeCap);
     }
@@ -615,6 +624,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Whether newLiquidityAdapter is an adapter is checked in allocate/deallocate.
+    /// @dev newLiquidityData is indexed in the event so it cannot be read from logs.
     function setLiquidityAdapterAndData(address newLiquidityAdapter, bytes memory newLiquidityData) external {
         require(isAllocator[msg.sender], ErrorsLib.Unauthorized());
         liquidityAdapter = newLiquidityAdapter;
@@ -628,7 +638,7 @@ contract VaultV2 is IVaultV2 {
 
         accrueInterest();
 
-        // Safe because newMaxRate <= MAX_MAX_RATE < 2**64-1.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because newMaxRate <= MAX_MAX_RATE < 2**64-1.
         maxRate = uint64(newMaxRate);
         emit EventsLib.SetMaxRate(newMaxRate);
     }
