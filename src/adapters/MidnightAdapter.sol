@@ -117,9 +117,7 @@ contract MidnightAdapter is IMidnightAdapter {
         // new net credit cannot be > old credit
         uint256 totalNetCreditDecrease = netCredit[obligationId] - newNetCredit;
 
-        if (totalNetCreditDecrease > 0) {
-            removeUnits(obligation, totalNetCreditDecrease);
-        }
+        if (totalNetCreditDecrease > 0) removeUnits(obligation, totalNetCreditDecrease);
 
         int256 change = -int256(totalNetCreditDecrease);
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(obligation), change), withdrawnAssets);
@@ -282,8 +280,11 @@ contract MidnightAdapter is IMidnightAdapter {
         int256 change = newNetCredit.toInt256() - netCredit[obligationId].toInt256();
         // change is at most buyNetCreditIncrease
         if (change < buyNetCreditIncrease.toInt256()) {
-            removeUnits(obligation, (buyNetCreditIncrease.toInt256() - change).toUint256());
+            uint256 loss = (int256(buyNetCreditIncrease) - change).toUint256();
+            removeUnits(obligation, loss);
         }
+
+        IVaultV2(parentVault).allocate(address(this), abi.encode(ids(obligation), change), paidAssets);
 
         if (timeToMaturity > 0) {
             uint128 gainedGrowth = ((buyNetCreditIncrease - paidAssets) / timeToMaturity).toUint128();
@@ -322,8 +323,6 @@ contract MidnightAdapter is IMidnightAdapter {
             }
         }
 
-        IVaultV2(parentVault).allocate(address(this), abi.encode(ids(obligation), change), paidAssets);
-
         return CALLBACK_SUCCESS;
     }
 
@@ -350,9 +349,10 @@ contract MidnightAdapter is IMidnightAdapter {
         // new net credit cannot be > old credit
         uint256 totalNetCreditDecrease = netCredit[obligationId] - newNetCredit;
 
-        if (totalNetCreditDecrease > 0) {
-            removeUnits(obligation, totalNetCreditDecrease);
-        }
+        if (totalNetCreditDecrease > 0) removeUnits(obligation, totalNetCreditDecrease);
+
+        int256 change = -int256(totalNetCreditDecrease);
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(obligation), change), sellerAssets);
 
         uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(address(parentVault));
         uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
@@ -360,9 +360,6 @@ contract MidnightAdapter is IMidnightAdapter {
             vaultRealAssetsAfter += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
         }
         require(vaultRealAssetsAfter >= vaultTotalAssetsBefore, BufferTooLow());
-
-        int256 change = -int256(totalNetCreditDecrease);
-        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(obligation), change), sellerAssets);
 
         return CALLBACK_SUCCESS;
     }
