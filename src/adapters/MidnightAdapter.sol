@@ -117,14 +117,12 @@ contract MidnightAdapter is IMidnightAdapter {
         // new net credit cannot be > old credit
         uint256 totalNetCreditDecrease = netCredit[obligationId] - newNetCredit;
 
-        if (totalNetCreditDecrease > withdrawNetCreditDecrease) {
-            removeUnits(obligation, totalNetCreditDecrease - withdrawNetCreditDecrease);
+        if (totalNetCreditDecrease > 0) {
+            removeUnits(obligation, totalNetCreditDecrease);
         }
 
-        if (withdrawNetCreditDecrease > 0) removeUnits(obligation, withdrawNetCreditDecrease);
-
-        IVaultV2(parentVault)
-            .deallocate(address(this), abi.encode(ids(obligation), -totalNetCreditDecrease.toInt256()), withdrawnAssets);
+        int256 change = -int256(totalNetCreditDecrease);
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(obligation), change), withdrawnAssets);
     }
 
     function updateDurationIndexAndAllocations(Obligation memory obligation) public {
@@ -138,8 +136,8 @@ contract MidnightAdapter is IMidnightAdapter {
             for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
                 zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationIndex + i)));
             }
-            IVaultV2(parentVault)
-                .deallocate(address(this), abi.encode(zeroedDurationsIds, -int256(uint256(maturityData.netCredit))), 0);
+            int256 change = -int256(uint256(maturityData.netCredit));
+            IVaultV2(parentVault).deallocate(address(this), abi.encode(zeroedDurationsIds, change), 0);
         }
     }
 
@@ -223,7 +221,8 @@ contract MidnightAdapter is IMidnightAdapter {
 
             if (totalNetCreditDecrease > 0) removeUnits(offer.obligation, totalNetCreditDecrease);
 
-            return (ids(offer.obligation), -totalNetCreditDecrease.toInt256());
+            int256 change = -int256(totalNetCreditDecrease);
+            return (ids(offer.obligation), change);
         } else {
             require(caller == address(this), SelfAllocationOnly());
             // Return exactly the data passed to the function.
@@ -351,12 +350,9 @@ contract MidnightAdapter is IMidnightAdapter {
         // new net credit cannot be > old credit
         uint256 totalNetCreditDecrease = netCredit[obligationId] - newNetCredit;
 
-        // The sell itself removes exactly `netCreditDecrease` of net credit; any excess is a concurrent loss.
-        if (totalNetCreditDecrease > sellNetCreditDecrease) {
-            removeUnits(obligation, totalNetCreditDecrease - sellNetCreditDecrease);
+        if (totalNetCreditDecrease > 0) {
+            removeUnits(obligation, totalNetCreditDecrease);
         }
-
-        if (sellNetCreditDecrease > 0) removeUnits(obligation, sellNetCreditDecrease);
 
         uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(address(parentVault));
         uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
@@ -365,8 +361,8 @@ contract MidnightAdapter is IMidnightAdapter {
         }
         require(vaultRealAssetsAfter >= vaultTotalAssetsBefore, BufferTooLow());
 
-        IVaultV2(parentVault)
-            .deallocate(address(this), abi.encode(ids(obligation), -totalNetCreditDecrease.toInt256()), sellerAssets);
+        int256 change = -int256(totalNetCreditDecrease);
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(obligation), change), sellerAssets);
 
         return CALLBACK_SUCCESS;
     }
