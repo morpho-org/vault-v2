@@ -18,8 +18,8 @@ jobs:
   certora-api:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: Certora/certora-run-action/api@main
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: Certora/certora-run-action/api@b202d974fbd137bd9190dcacd35a5a723c8fa68b # main
         with:
           certora-command: ${{ github.event.inputs.command }}
           server: production
