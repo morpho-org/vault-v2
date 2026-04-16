@@ -14,7 +14,7 @@ struct MaturityData {
     uint128 vaultNetCredit;
     uint128 growth;
     uint48 nextMaturity;
-    uint48 lastUpdate;
+    uint8 durationIndex;
 }
 
 // vaultNetCredit is the net credit owned by the vault in that obligation.
@@ -71,7 +71,7 @@ interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
-    function deallocateExpiredDurations(Obligation memory obligation) external;
+    function updateDurationIndexAndAllocations(Obligation memory obligation) external;
     function withdrawToVault(Obligation memory obligation, uint256 withdrawnAssets) external;
     function withdrawShares(Obligation memory obligation, uint256 redeemedShares) external;
     function ids(Obligation memory obligation) external view returns (bytes32[] memory);
