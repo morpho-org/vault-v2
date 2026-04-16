@@ -20,12 +20,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           submodules: recursive
 
       - name: Install Jq
-        uses: sergeysova/jq-action@v2
+        uses: sergeysova/jq-action@a3f0d4ff59cc1dddf023fc0b325dd75b10deec58 # v2
 
       - name: Run Certora Config Linter
         run: |
@@ -36,7 +36,7 @@ jobs:
         run: make -C lib/metamorpho/certora munged
 
       - name: Submit verification jobs to Certora Prover
-        uses: Certora/certora-run-action@main
+        uses: Certora/certora-run-action@b202d974fbd137bd9190dcacd35a5a723c8fa68b # main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
