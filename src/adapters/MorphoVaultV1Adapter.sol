@@ -72,8 +72,8 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         uint256 oldAllocation = allocation();
         uint256 newAllocation = IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)));
 
-        // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
-        // max total assets of the vault.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because Market V1 bounds the total supply of the
+        // underlying token, and allocation is less than the max total assets of the vault.
         return (ids(), int256(newAllocation) - int256(oldAllocation));
     }
 
@@ -90,8 +90,8 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         uint256 oldAllocation = allocation();
         uint256 newAllocation = IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)));
 
-        // Safe casts because Market V1 bounds the total supply of the underlying token, and allocation is less than the
-        // max total assets of the vault.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because Market V1 bounds the total supply of the
+        // underlying token, and allocation is less than the max total assets of the vault.
         return (ids(), int256(newAllocation) - int256(oldAllocation));
     }
 

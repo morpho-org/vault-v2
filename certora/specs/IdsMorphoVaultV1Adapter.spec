@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-import "UtilityFunctions.spec";
+import "../helpers/UtilityAdapters.spec";
 
 using Utils as Utils;
 
@@ -39,3 +39,11 @@ rule matchingIdsOnAllocateOrDeallocate(env e, bytes data, uint256 assets, bytes4
 
 invariant valueOfAdapterId()
   adapterId() == Utils.adapterId(currentContract);
+
+
+// Show that the ids returned are distinct (trivial since there is only one id).
+rule distinctVaultV1Ids() {
+  bytes32[] ids = ids();
+
+  assert forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i];
+}
