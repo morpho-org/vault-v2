@@ -64,6 +64,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
 
         offer.obligation = obligation;
         offer.buy = false;
+        offer.reduceOnly = true;
         offer.tick = MAX_TICK;
         uint256 price = TickLib.tickToPrice(MAX_TICK);
         uint256 units = assets * 1e18 / price;
@@ -80,33 +81,8 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
     }
 
     function forceDeallocate(Obligation memory obligation, uint256 assets) internal {
-        address buyer = makeAddr("buyer");
-        SetterRatifier approvalRatifier = new SetterRatifier(address(midnight));
-
-        Offer memory offer = storedOffer;
-        offer.obligation = obligation;
-        offer.buy = true;
-        offer.maker = buyer;
-        offer.tick = MAX_TICK;
-        uint256 price = TickLib.tickToPrice(MAX_TICK);
-        uint256 units = assets * 1e18 / price;
-        offer.maxUnits = units;
-        offer.expiry = block.timestamp;
-        offer.callback = address(0);
-        offer.callbackData = hex"";
-        offer.ratifier = address(approvalRatifier);
-        offer.group = bytes32(vm.randomUint());
-
-        deal(address(loanToken), buyer, assets);
-        vm.startPrank(buyer);
-        loanToken.approve(address(midnight), type(uint256).max);
-        midnight.setIsAuthorized(buyer, address(approvalRatifier), true);
-        bytes32 _root = root([offer]);
-        approvalRatifier.setApproval(buyer, _root, true);
-        vm.stopPrank();
-
-        bytes memory data = abi.encode(offer, hex"", _root, proof([offer]));
-        parentVault.forceDeallocate(address(adapter), data, assets, address(this));
+        deal(address(loanToken), address(adapter), assets);
+        parentVault.forceDeallocate(address(adapter), abi.encode(obligation), assets, address(this));
     }
 
     function durationId(uint256 duration) internal pure returns (bytes32) {

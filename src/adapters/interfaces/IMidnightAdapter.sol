@@ -9,11 +9,20 @@ import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
 // Chain of maturities, each can represent multiple obligations.
 // nextMaturity is type(uint48).max if no next maturity
+/// @dev vaultNetCredit is the net credit owned by the vault at that maturity.
 struct MaturityData {
-    uint128 netCredit;
+    uint128 vaultNetCredit;
     uint128 growth;
     uint48 nextMaturity;
     uint48 lastUpdate;
+}
+
+// vaultNetCredit is the net credit owned by the vault in that obligation.
+// userNetCredit is the net credit owned by the users in that obligation.
+struct Position {
+    uint128 vaultNetCredit;
+    uint128 userNetCredit;
+    uint128 userShares;
 }
 
 interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
@@ -37,18 +46,25 @@ interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
     error LoanAssetMismatch();
     error NoDebtCreation();
     error NotAuthorized();
-    error NotMorphoV2();
+    error NotMidnight();
     error NotSelf();
     error SelfAllocationOnly();
 
     /* FUNCTIONS */
 
+    function asset() external view returns (address);
     function _totalAssets() external view returns (uint256);
     function lastUpdate() external view returns (uint48);
     function firstMaturity() external view returns (uint48);
     function currentGrowth() external view returns (uint128);
+    function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
-    function netCredit(bytes32 obligationId) external view returns (uint256);
+    function packedDurations() external view returns (bytes32);
+    function positions(bytes32 obligationId)
+        external
+        view
+        returns (uint128 vaultNetCredit, uint128 userNetCredit, uint128 userShares);
+    function shares(bytes32 obligationId, address user) external view returns (uint256);
     function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
     function setSkimRecipient(address newSkimRecipient) external;
@@ -56,7 +72,8 @@ interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
     function deallocateExpiredDurations(Obligation memory obligation) external;
-    function withdrawToVault(Obligation memory obligation, uint256 units) external;
+    function withdrawToVault(Obligation memory obligation, uint256 withdrawnAssets) external;
+    function withdrawShares(Obligation memory obligation, uint256 redeemedShares) external;
     function ids(Obligation memory obligation) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
     function accrueInterestView() external view returns (uint48, uint128, uint256);
