@@ -121,12 +121,8 @@ contract MidnightAdapter is IMidnightAdapter {
             removeUnits(obligation.maturity, withdrawNetCreditDecrease);
         }
 
-        IVaultV2(parentVault)
-            .deallocate(
-                address(this),
-                abi.encode(ids(obligation), -(oldVaultNetCredit - position.vaultNetCredit).toInt256()),
-                withdrawnAssets
-            );
+        int256 change = int256(uint256(position.vaultNetCredit)) - int256(oldVaultNetCredit);
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(obligation), change), withdrawnAssets);
     }
 
     /// @dev To withdraw early, users can sell on midnight and in a callback immediately repay & withdraw here.
@@ -139,11 +135,9 @@ contract MidnightAdapter is IMidnightAdapter {
         updateDurationIndexAndAllocations(obligation);
         realizeLoss(position, obligationId, obligation.maturity, 0);
 
-        if (oldVaultNetCredit > position.vaultNetCredit) {
-            IVaultV2(parentVault)
-                .deallocate(
-                    address(this), abi.encode(ids(obligation), -int256(oldVaultNetCredit - position.vaultNetCredit)), 0
-                );
+        if (position.vaultNetCredit != oldVaultNetCredit) {
+            int256 change = int256(uint256(position.vaultNetCredit)) - int256(oldVaultNetCredit);
+            IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(obligation), change), 0);
         }
 
         uint256 withdrawnAssets = redeemedShares.mulDivDown(position.userNetCredit + 1, position.userShares + 1);
@@ -168,10 +162,8 @@ contract MidnightAdapter is IMidnightAdapter {
             for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
                 zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationIndex + i)));
             }
-            IVaultV2(parentVault)
-                .deallocate(
-                    address(this), abi.encode(zeroedDurationsIds, -int256(uint256(maturityData.vaultNetCredit))), 0
-                );
+            int256 change = -int256(uint256(maturityData.vaultNetCredit));
+            IVaultV2(parentVault).deallocate(address(this), abi.encode(zeroedDurationsIds, change), 0);
         }
     }
 
@@ -320,6 +312,9 @@ contract MidnightAdapter is IMidnightAdapter {
         maturityData.vaultNetCredit += buyNetCreditIncrease.toUint128();
         position.vaultNetCredit += uint128(buyNetCreditIncrease);
 
+        int256 change = int256(uint256(position.vaultNetCredit)) - int256(oldVaultNetCredit);
+        IVaultV2(parentVault).allocate(address(this), abi.encode(ids(obligation), change), paidAssets);
+
         // Insert the maturity in the list if needed
         if (obligation.maturity >= block.timestamp) {
             uint48 nextMaturity;
@@ -344,13 +339,6 @@ contract MidnightAdapter is IMidnightAdapter {
                 }
             }
         }
-
-        IVaultV2(parentVault)
-            .allocate(
-                address(this),
-                abi.encode(ids(obligation), position.vaultNetCredit.toInt256() - oldVaultNetCredit.toInt256()),
-                paidAssets
-            );
 
         return CALLBACK_SUCCESS;
     }
@@ -381,19 +369,15 @@ contract MidnightAdapter is IMidnightAdapter {
             removeUnits(obligation.maturity, sellNetCreditDecrease);
         }
 
+        int256 change = int256(uint256(position.vaultNetCredit)) - int256(oldVaultNetCredit);
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(obligation), change), sellerAssets);
+
         uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(address(parentVault));
         uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
         for (uint256 i = 0; i < adaptersLength; i++) {
             vaultRealAssetsAfter += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
         }
         require(vaultRealAssetsAfter >= vaultTotalAssetsBefore, BufferTooLow());
-
-        IVaultV2(parentVault)
-            .deallocate(
-                address(this),
-                abi.encode(ids(obligation), -(oldVaultNetCredit - position.vaultNetCredit).toInt256()),
-                sellerAssets
-            );
 
         return CALLBACK_SUCCESS;
     }
