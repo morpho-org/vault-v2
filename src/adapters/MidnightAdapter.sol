@@ -109,7 +109,7 @@ contract MidnightAdapter is IMidnightAdapter {
             IMidnight(midnight).withdraw(obligation, withdrawnAssets, address(this), address(this));
 
         accrueInterest();
-        deallocateExpiredDurations(obligation);
+        updateDurationIndexAndAllocations(obligation);
 
         uint256 withdrawNetCreditDecrease = withdrawnAssets - pendingFeeDecrease;
         uint256 newNetCredit = IMidnight(midnight).creditOf(obligationId, address(this))
@@ -127,33 +127,20 @@ contract MidnightAdapter is IMidnightAdapter {
             .deallocate(address(this), abi.encode(ids(obligation), -totalNetCreditDecrease.toInt256()), withdrawnAssets);
     }
 
-    function deallocateExpiredDurations(Obligation memory obligation) public {
+    function updateDurationIndexAndAllocations(Obligation memory obligation) public {
         MaturityData storage maturityData = _maturities[obligation.maturity];
-        if (maturityData.lastUpdate > 0) {
-            uint256 previousTimeToMaturity = obligation.maturity.zeroFloorSub(maturityData.lastUpdate);
-            uint256 timeToMaturity = obligation.maturity.zeroFloorSub(block.timestamp);
-
-            uint256 zeroedDurationsCount = 0;
-            for (uint256 i = 0; i < durationsLength && previousTimeToMaturity >= packedDurations.get(i); i++) {
-                if (timeToMaturity < packedDurations.get(i)) zeroedDurationsCount++;
+        uint256 oldDurationIndex = maturityData.durationIndex;
+        uint256 newDurationIndex = durationIndex(obligation.maturity);
+        maturityData.durationIndex = uint8(newDurationIndex);
+        // VaultV2.deallocate requires allocation > 0 for each returned id.
+        if (newDurationIndex < oldDurationIndex && maturityData.netCredit > 0) {
+            bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationIndex - newDurationIndex);
+            for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
+                zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationIndex + i)));
             }
-
-            if (zeroedDurationsCount > 0) {
-                bytes32[] memory zeroedDurationsIds = new bytes32[](zeroedDurationsCount);
-                uint256 j = 0;
-                for (uint256 i = 0; i < durationsLength; i++) {
-                    if (previousTimeToMaturity >= packedDurations.get(i) && timeToMaturity < packedDurations.get(i)) {
-                        zeroedDurationsIds[j++] = keccak256(abi.encode("duration", packedDurations.get(i)));
-                    }
-                }
-                IVaultV2(parentVault)
-                    .deallocate(
-                        address(this), abi.encode(zeroedDurationsIds, -int256(uint256(maturityData.netCredit))), 0
-                    );
-            }
+            IVaultV2(parentVault)
+                .deallocate(address(this), abi.encode(zeroedDurationsIds, -int256(uint256(maturityData.netCredit))), 0);
         }
-
-        maturityData.lastUpdate = uint48(block.timestamp);
     }
 
     /* ACCRUAL */
@@ -228,7 +215,7 @@ contract MidnightAdapter is IMidnightAdapter {
             require(IMidnight(midnight).debtOf(obligationId, address(this)) == 0, NoBorrowing());
 
             accrueInterest();
-            deallocateExpiredDurations(offer.obligation);
+            updateDurationIndexAndAllocations(offer.obligation);
             uint256 newNetCredit = IMidnight(midnight).creditOf(obligationId, address(this))
                 - IMidnight(midnight).pendingFee(obligationId, address(this));
             // new net credit cannot be > old credit
@@ -285,7 +272,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(prevMaturity < obligation.maturity, IncorrectHint());
 
         accrueInterest();
-        deallocateExpiredDurations(obligation);
+        updateDurationIndexAndAllocations(obligation);
 
         uint256 timeToMaturity = obligation.maturity.zeroFloorSub(block.timestamp);
         uint256 buyNetCreditIncrease = boughtCredit - buyPendingFeeIncrease;
@@ -356,7 +343,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(seller == address(this), NotSelf());
 
         accrueInterest();
-        deallocateExpiredDurations(obligation);
+        updateDurationIndexAndAllocations(obligation);
 
         uint256 sellNetCreditDecrease = units - sellPendingFeeDecrease;
         uint256 newNetCredit = IMidnight(midnight).creditOf(obligationId, address(this))
@@ -404,13 +391,13 @@ contract MidnightAdapter is IMidnightAdapter {
         netCredit[IdLib.toId(obligation, block.chainid, midnight)] -= removedUnits.toUint128();
     }
 
-    function ids(Obligation memory obligation) public view returns (bytes32[] memory) {
-        uint256 timeToMaturity = obligation.maturity.zeroFloorSub(block.timestamp);
+    function durationIndex(uint256 maturity) internal view returns (uint256 index) {
+        uint256 timeToMaturity = maturity.zeroFloorSub(block.timestamp);
+        while (index < durationsLength && timeToMaturity >= packedDurations.get(index)) index++;
+    }
 
-        uint256 durationsCount = 0;
-        for (uint256 i = 0; i < durationsLength && timeToMaturity >= packedDurations.get(i); i++) {
-            durationsCount++;
-        }
+    function ids(Obligation memory obligation) public view returns (bytes32[] memory) {
+        uint256 durationsCount = durationIndex(obligation.maturity);
 
         bytes32[] memory idsArray = new bytes32[](1 + obligation.collateralParams.length * 2 + durationsCount);
 
@@ -428,7 +415,7 @@ contract MidnightAdapter is IMidnightAdapter {
                 )
             );
         }
-        for (uint256 i = 0; i < durationsLength && timeToMaturity >= packedDurations.get(i); i++) {
+        for (uint256 i = 0; i < durationsCount; i++) {
             idsArray[j++] = keccak256(abi.encode("duration", packedDurations.get(i)));
         }
 

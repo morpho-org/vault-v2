@@ -13,7 +13,7 @@ struct MaturityData {
     uint128 netCredit;
     uint128 growth;
     uint48 nextMaturity;
-    uint48 lastUpdate;
+    uint8 durationIndex;
 }
 
 interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
@@ -59,7 +59,7 @@ interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
-    function deallocateExpiredDurations(Obligation memory obligation) external;
+    function updateDurationIndexAndAllocations(Obligation memory obligation) external;
     function withdrawToVault(Obligation memory obligation, uint256 units) external;
     function ids(Obligation memory obligation) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
