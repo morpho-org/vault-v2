@@ -222,14 +222,21 @@ contract MidnightAdapter is IMidnightAdapter {
             bytes32 obligationId = IdLib.toId(offer.obligation, block.chainid, midnight);
             uint256 takeUnits =
                 TakeAmountsLib.sellerAssetsToUnits(IMidnight(midnight), obligationId, offer, sellerAssets);
-            (,, uint256 deallocated) = IMidnight(midnight)
+            IMidnight(midnight)
                 .take(takeUnits, address(this), address(0), hex"", address(this), offer, ratifierData, root, proof);
 
             require(IMidnight(midnight).debtOf(obligationId, address(this)) == 0, NoBorrowing());
 
+            accrueInterest();
             deallocateExpiredDurations(offer.obligation);
-            removeUnits(offer.obligation, deallocated);
-            return (ids(offer.obligation), -deallocated.toInt256());
+            uint256 newNetCredit = IMidnight(midnight).creditOf(obligationId, address(this))
+                - IMidnight(midnight).pendingFee(obligationId, address(this));
+            // new net credit cannot be > old credit
+            uint256 totalNetCreditDecrease = netCredit[obligationId] - newNetCredit;
+
+            if (totalNetCreditDecrease > 0) removeUnits(offer.obligation, totalNetCreditDecrease);
+
+            return (ids(offer.obligation), -totalNetCreditDecrease.toInt256());
         } else {
             require(caller == address(this), SelfAllocationOnly());
             // Return exactly the data passed to the function.
