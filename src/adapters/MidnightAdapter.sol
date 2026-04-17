@@ -305,6 +305,7 @@ contract MidnightAdapter is IMidnightAdapter {
             if (prevMaturity == 0) {
                 nextMaturity = firstMaturity;
             } else {
+                require(prevMaturity >= block.timestamp, IncorrectHint());
                 nextMaturity = _maturities[prevMaturity].nextMaturity;
                 require(nextMaturity > 0, IncorrectHint());
             }
