@@ -44,6 +44,7 @@ contract MidnightAdapter is IMidnightAdapter {
     uint48 public lastUpdate;
     uint48 public firstMaturity;
     uint128 public currentGrowth;
+    uint256 public activableMaturities = 50;
     mapping(uint256 timestamp => MaturityData) public _maturities;
     mapping(bytes32 obligationId => uint256) public netCredit;
     /* CONSTRUCTOR */
@@ -287,6 +288,8 @@ contract MidnightAdapter is IMidnightAdapter {
             removeUnits(obligationId, obligation.maturity, loss);
         }
 
+        if (maturityData.netCredit == 0 && buyNetCreditIncrease > 0) activableMaturities--;
+
         IVaultV2(parentVault).allocate(address(this), abi.encode(ids(obligation), change), paidAssets);
 
         if (timeToMaturity > 0) {
@@ -307,9 +310,8 @@ contract MidnightAdapter is IMidnightAdapter {
             if (prevMaturity == 0) {
                 nextMaturity = firstMaturity;
             } else {
-                require(prevMaturity >= block.timestamp, IncorrectHint());
+                require(prevMaturity >= firstMaturity && _maturities[prevMaturity].netCredit > 0, IncorrectHint());
                 nextMaturity = _maturities[prevMaturity].nextMaturity;
-                require(nextMaturity > 0, IncorrectHint());
             }
 
             while (nextMaturity < obligation.maturity) {
@@ -318,11 +320,15 @@ contract MidnightAdapter is IMidnightAdapter {
             }
 
             if (nextMaturity > obligation.maturity) {
+                maturityData.prevMaturity = prevMaturity;
                 maturityData.nextMaturity = nextMaturity;
                 if (prevMaturity == 0) {
                     firstMaturity = obligation.maturity.toUint48();
                 } else {
                     _maturities[prevMaturity].nextMaturity = obligation.maturity.toUint48();
+                }
+                if (nextMaturity < type(uint48).max) {
+                    _maturities[nextMaturity].prevMaturity = obligation.maturity.toUint48();
                 }
             }
         }
@@ -384,6 +390,22 @@ contract MidnightAdapter is IMidnightAdapter {
         }
         maturityData.netCredit -= removedUnits.toUint128();
         netCredit[obligationId] -= removedUnits.toUint128();
+
+        if (removedUnits > 0 && maturityData.netCredit == 0) {
+            activableMaturities++;
+            if (maturity > block.timestamp) {
+                uint48 prevMaturity = maturityData.prevMaturity;
+                uint48 nextMaturity = maturityData.nextMaturity;
+                if (maturity == firstMaturity) {
+                    firstMaturity = nextMaturity;
+                } else {
+                    _maturities[prevMaturity].nextMaturity = nextMaturity;
+                }
+                if (nextMaturity < type(uint48).max) {
+                    _maturities[nextMaturity].prevMaturity = prevMaturity;
+                }
+            }
+        }
     }
 
     function durationIndex(uint256 maturity) internal view returns (uint256 index) {
