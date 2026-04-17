@@ -310,9 +310,8 @@ contract MidnightAdapter is IMidnightAdapter {
             if (prevMaturity == 0) {
                 nextMaturity = firstMaturity;
             } else {
-                require(prevMaturity >= block.timestamp, IncorrectHint());
+                require(prevMaturity >= firstMaturity && _maturities[prevMaturity].netCredit > 0, IncorrectHint());
                 nextMaturity = _maturities[prevMaturity].nextMaturity;
-                require(nextMaturity > 0, IncorrectHint());
             }
 
             while (nextMaturity < obligation.maturity) {
@@ -405,7 +404,6 @@ contract MidnightAdapter is IMidnightAdapter {
                 if (nextMaturity < type(uint48).max) {
                     _maturities[nextMaturity].prevMaturity = prevMaturity;
                 }
-                maturityData.nextMaturity = 0;
             }
         }
     }
