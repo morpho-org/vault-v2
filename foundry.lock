@@ -1,12 +1,15 @@
 {
   "lib/forge-std": {
-    "rev": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
+    "rev": "0844d7e1fc5e60d77b68e469bff60265f236c398"
   },
   "lib/metamorpho": {
     "rev": "00da9ad27da8051bce663eeac02f3b9c0c0aa8d8"
   },
   "lib/metamorpho-v1.1": {
     "rev": "2d160ba9bb945ca3bf12efb182427445dce59c27"
+  },
+  "lib/midnight": {
+    "rev": "7385a905d087367689fbdd16eef04e68b5146dc2"
   },
   "lib/morpho-blue": {
     "rev": "cf3f0ce68db99421bcd808d505cfe49d61f4eaa0"
