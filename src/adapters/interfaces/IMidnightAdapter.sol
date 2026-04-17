@@ -8,10 +8,12 @@ import {ICallbacks} from "lib/midnight/src/interfaces/ICallbacks.sol";
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
 // Chain of maturities, each can represent multiple obligations.
-// nextMaturity is type(uint48).max if no next maturity
+// prevMaturity is 0 if no previous maturity.
+// nextMaturity is type(uint48).max if no next maturity.
 struct MaturityData {
     uint128 netCredit;
     uint128 growth;
+    uint48 prevMaturity;
     uint48 nextMaturity;
     uint8 durationIndex;
 }
@@ -41,14 +43,17 @@ interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
     error NotMidnight();
     error NotSelf();
     error SelfAllocationOnly();
+    error TooManyActiveMaturities();
 
     /* FUNCTIONS */
 
+    function MAX_ACTIVE_MATURITIES() external view returns (uint256);
     function asset() external view returns (address);
     function _totalAssets() external view returns (uint256);
     function lastUpdate() external view returns (uint48);
     function firstMaturity() external view returns (uint48);
     function currentGrowth() external view returns (uint128);
+    function activeMaturities() external view returns (uint256);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
