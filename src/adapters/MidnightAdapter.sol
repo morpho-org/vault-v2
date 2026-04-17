@@ -252,6 +252,9 @@ contract MidnightAdapter is IMidnightAdapter {
         return CALLBACK_SUCCESS;
     }
 
+    /// @dev `data` is used for new maturity insertions.
+    /// @dev It should encode a maturity present in the linked list.
+    /// @dev That maturity should be earlier than the inserted obligation maturity.
     function onBuy(
         bytes32 obligationId,
         Obligation memory obligation,
