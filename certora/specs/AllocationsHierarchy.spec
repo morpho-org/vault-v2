@@ -44,7 +44,7 @@ persistent ghost mapping(bytes32 => bytes32) ghostLeafToGroupId {
     init_state axiom forall bytes32 id. ghostLeafToGroupId[id] == to_bytes32(0);
 }
 
-// Mirrors every leaf allocation write into the ghost mapping so the usum stays updated.
+// Defines how `ghostAllocationByGroupId` is updated on leaf allocation writes.
 hook Sstore currentContract.caps[KEY bytes32 id].allocation uint256 newValue (uint256 oldValue) {
     if (ghostIsLeafId[id]) {
         ghostAllocationByGroupId[ghostLeafToGroupId[id]][id] = newValue;
