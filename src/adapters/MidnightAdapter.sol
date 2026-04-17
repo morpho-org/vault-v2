@@ -105,8 +105,7 @@ contract MidnightAdapter is IMidnightAdapter {
     function withdrawToVault(Obligation memory obligation, uint256 withdrawnAssets) external {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
         bytes32 obligationId = IdLib.toId(obligation, block.chainid, midnight);
-        uint256 pendingFeeDecrease =
-            IMidnight(midnight).withdraw(obligation, withdrawnAssets, address(this), address(this));
+        IMidnight(midnight).withdraw(obligation, withdrawnAssets, address(this), address(this));
         uint256 newNetCredit = IMidnight(midnight).creditOf(obligationId, address(this))
             - IMidnight(midnight).pendingFee(obligationId, address(this));
         // new net credit cannot be > old credit
@@ -316,7 +315,7 @@ contract MidnightAdapter is IMidnightAdapter {
             }
 
             if (nextMaturity > obligation.maturity) {
-                _maturities[obligation.maturity].nextMaturity = nextMaturity;
+                maturityData.nextMaturity = nextMaturity;
                 if (prevMaturity == 0) {
                     firstMaturity = obligation.maturity.toUint48();
                 } else {
@@ -333,8 +332,8 @@ contract MidnightAdapter is IMidnightAdapter {
         Obligation memory obligation,
         address seller,
         uint256 sellerAssets,
-        uint256 units,
-        uint256 sellPendingFeeDecrease,
+        uint256,
+        uint256,
         bytes memory
     ) external returns (bytes32) {
         uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
