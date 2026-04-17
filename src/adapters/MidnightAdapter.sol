@@ -316,7 +316,7 @@ contract MidnightAdapter is IMidnightAdapter {
             }
 
             if (nextMaturity > obligation.maturity) {
-                _maturities[obligation.maturity].nextMaturity = nextMaturity;
+                maturityData.nextMaturity = nextMaturity;
                 if (prevMaturity == 0) {
                     firstMaturity = obligation.maturity.toUint48();
                 } else {
