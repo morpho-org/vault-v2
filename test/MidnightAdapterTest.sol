@@ -218,7 +218,7 @@ contract MidnightAdapterTest is Test {
         assertEq(maturityData.growth, newGrowth, "growth");
         assertEq(maturityData.nextMaturity, type(uint48).max, "nextMaturity");
 
-        uint256 actualUnits = adapter.netCredit(_obligationId(offer.obligation));
+        uint256 actualUnits = vaultNetCredit(_obligationId(offer.obligation));
         assertEq(actualUnits, units, "units");
     }
 
@@ -465,7 +465,7 @@ contract MidnightAdapterTest is Test {
             midnight.supplyCollateral(offer.obligation, 0, 1_000e18, taker);
             midnight.supplyCollateral(offer.obligation, 1, 1_000e18, taker);
 
-            uint256 unitsBefore = adapter.netCredit(obligationId);
+            uint256 unitsBefore = vaultNetCredit(obligationId);
             midnight.take(
                 units,
                 taker,
@@ -479,7 +479,7 @@ contract MidnightAdapterTest is Test {
             );
             vm.stopPrank();
 
-            assertEq(adapter.netCredit(obligationId), unitsBefore + units, "setup: units 1");
+            assertEq(vaultNetCredit(obligationId), unitsBefore + units, "setup: units 1");
 
             expectedUnits[obligationId] += units;
             expectedMaturityGrowths[step.maturity] += actualGrowth;
@@ -535,7 +535,7 @@ contract MidnightAdapterTest is Test {
         // Check positions growth and size
         for (uint256 i = 0; i < expectedPositionsList.length; i++) {
             bytes32 obligationId = bytes32(expectedPositionsList[i]);
-            assertEq(adapter.netCredit(obligationId), expectedUnits[obligationId], "units");
+            assertEq(vaultNetCredit(obligationId), expectedUnits[obligationId], "units");
         }
     }
 
@@ -611,6 +611,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.skimRecipient(), address(0), "skimRecipient");
         assertEq(adapter.durationsLength(), allDurations.length, "durationsLength");
         assertEq(adapter.packedDurations(), MidnightAdapter(address(adapter)).packedDurations(), "packedDurations");
+        assertEq(adapter.shares(_obligationId(storedOffer.obligation), address(this)), 0, "shares");
     }
 
     /* IDS */
@@ -685,6 +686,11 @@ contract MidnightAdapterTest is Test {
 
     function _obligationId(Obligation memory obligation) internal view returns (bytes32) {
         return IdLib.toId(obligation, block.chainid, address(midnight));
+    }
+
+    function vaultNetCredit(bytes32 obligationId) internal view returns (uint256) {
+        (uint128 _vaultNetCredit,,) = adapter.positions(obligationId);
+        return _vaultNetCredit;
     }
 
     function sign(Offer[1] memory offers) internal view returns (bytes memory) {
