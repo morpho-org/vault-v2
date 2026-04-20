@@ -36,7 +36,7 @@ jobs:
         run: make -C lib/metamorpho/certora munged
 
       - name: Submit verification jobs to Certora Prover
-        uses: Certora/certora-run-action@b202d974fbd137bd9190dcacd35a5a723c8fa68b # main
+        uses: Certora/certora-run-action@9154685363091a2ecea21dc72ef4edbfc41c221a # v2.8
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
