@@ -7,11 +7,6 @@ import {Obligation} from "lib/midnight/src/interfaces/IMidnight.sol";
 import {ICallbacks} from "lib/midnight/src/interfaces/ICallbacks.sol";
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
-// Per-hour accounting, keyed by `maturityHour` — each obligation's real maturity is rounded up to
-// the next MATURITY_PRECISION boundary (so `maturityHour * MATURITY_PRECISION` is the effective
-// expiry used by the adapter). An hour's data is "active" iff netCredit > 0 and its effective
-// expiry is in the future; the `bitmaps` mapping tracks the latter in a bitmap-per-group layout
-// (each `group` holds 256 consecutive maturity hours) for O(1) iteration during accrual.
 struct MaturityData {
     uint128 netCredit;
     uint128 growth;

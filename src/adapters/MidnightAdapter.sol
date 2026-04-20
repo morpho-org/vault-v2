@@ -76,7 +76,6 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* GETTERS */
 
-    /// @dev Returns the MaturityData for the bucket containing `date` (rounded up to the next hour).
     function maturities(uint256 date) public view returns (MaturityData memory) {
         return maturitiesData[date.align()];
     }
@@ -313,7 +312,6 @@ contract MidnightAdapter is IMidnightAdapter {
             removeUnits(obligationId, maturity, loss);
         }
 
-        // Fresh activation: bookkeep the slot and, if the maturity is in the future, mark its bitmap bit.
         if (maturityData.netCredit == 0 && buyNetCreditIncrease > 0 && maturity > block.timestamp) {
             activableMaturities--;
             uint256 group = maturity.group();
