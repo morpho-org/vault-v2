@@ -113,7 +113,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 totalNetCreditDecrease = netCredit[obligationId] - newNetCredit;
 
         accrueInterest();
-        updateDurationIndexAndAllocations(obligation);
+        updateDurationCountAndAllocations(obligation);
 
         if (totalNetCreditDecrease > 0) removeUnits(obligationId, obligation.maturity, totalNetCreditDecrease);
 
@@ -121,16 +121,16 @@ contract MidnightAdapter is IMidnightAdapter {
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(obligation), change), withdrawnAssets);
     }
 
-    function updateDurationIndexAndAllocations(Obligation memory obligation) public {
+    function updateDurationCountAndAllocations(Obligation memory obligation) public {
         MaturityData storage maturityData = _maturities[obligation.maturity];
-        uint256 oldDurationIndex = maturityData.durationIndex;
-        uint256 newDurationIndex = durationIndex(obligation.maturity);
-        maturityData.durationIndex = uint8(newDurationIndex);
+        uint256 oldDurationCount = maturityData.durationCount;
+        uint256 newDurationCount = durationCount(obligation.maturity);
+        maturityData.durationCount = uint8(newDurationCount);
         // VaultV2.deallocate requires allocation > 0 for each returned id.
-        if (newDurationIndex < oldDurationIndex && maturityData.netCredit > 0) {
-            bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationIndex - newDurationIndex);
+        if (newDurationCount < oldDurationCount && maturityData.netCredit > 0) {
+            bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationCount - newDurationCount);
             for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
-                zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationIndex + i)));
+                zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
             }
             int256 change = -int256(uint256(maturityData.netCredit));
             IVaultV2(parentVault).deallocate(address(this), abi.encode(zeroedDurationsIds, change), 0);
@@ -209,7 +209,7 @@ contract MidnightAdapter is IMidnightAdapter {
             require(IMidnight(midnight).debtOf(obligationId, address(this)) == 0, NoBorrowing());
 
             accrueInterest();
-            updateDurationIndexAndAllocations(offer.obligation);
+            updateDurationCountAndAllocations(offer.obligation);
             uint256 newNetCredit = IMidnight(midnight).creditOf(obligationId, address(this))
                 - IMidnight(midnight).pendingFee(obligationId, address(this));
             // new net credit cannot be > old credit
@@ -280,7 +280,7 @@ contract MidnightAdapter is IMidnightAdapter {
         int256 change = newNetCredit.toInt256() - netCredit[obligationId].toInt256();
 
         accrueInterest();
-        updateDurationIndexAndAllocations(obligation);
+        updateDurationCountAndAllocations(obligation);
 
         // change is at most buyNetCreditIncrease
         if (change < buyNetCreditIncrease.toInt256()) {
@@ -355,7 +355,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(seller == address(this), NotSelf());
 
         accrueInterest();
-        updateDurationIndexAndAllocations(obligation);
+        updateDurationCountAndAllocations(obligation);
 
         if (totalNetCreditDecrease > 0) removeUnits(obligationId, obligation.maturity, totalNetCreditDecrease);
 
@@ -408,13 +408,13 @@ contract MidnightAdapter is IMidnightAdapter {
         }
     }
 
-    function durationIndex(uint256 maturity) internal view returns (uint256 index) {
+    function durationCount(uint256 maturity) internal view returns (uint256 count) {
         uint256 timeToMaturity = maturity.zeroFloorSub(block.timestamp);
-        while (index < durationsLength && timeToMaturity >= packedDurations.get(index)) index++;
+        while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;
     }
 
     function ids(Obligation memory obligation) public view returns (bytes32[] memory) {
-        uint256 durationsCount = durationIndex(obligation.maturity);
+        uint256 durationsCount = durationCount(obligation.maturity);
 
         bytes32[] memory idsArray = new bytes32[](1 + obligation.collateralParams.length * 2 + durationsCount);
 
