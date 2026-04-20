@@ -124,8 +124,8 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
     function testExitDuration(uint256 durationIndex, uint256 timeToMaturity, uint256 extraSkip) public {
         durationIndex = bound(durationIndex, 0, adapter.durationsLength() - 1);
         uint256 duration = adapter.durations()[durationIndex];
-        timeToMaturity = bound(timeToMaturity, duration, type(uint32).max);
-        extraSkip = bound(extraSkip, 1, 10 * 365 days);
+        timeToMaturity = bound(timeToMaturity, duration, adapter.maxTtmWhenBuying() - 1 hours);
+        extraSkip = bound(extraSkip, 1 hours + 1, 10 * 365 days);
 
         Offer memory offer = buy(timeToMaturity, 1e18);
         assertEq(parentVault.allocation(durationId(duration)), 1e18);
@@ -142,7 +142,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
     {
         durationIndex = bound(durationIndex, 0, adapter.durationsLength() - 1);
         uint256 duration = adapter.durations()[durationIndex];
-        timeToMaturity = bound(timeToMaturity, duration, type(uint32).max);
+        timeToMaturity = bound(timeToMaturity, duration, adapter.maxTtmWhenBuying() - 1 hours);
         skipAmount = bound(skipAmount, 0, duration * 2);
 
         Offer memory offer = buy(timeToMaturity, 1e18);
@@ -174,7 +174,8 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         assertEq(parentVault.allocation(durationId(1 days)), 1e18, "1 day, before");
         assertEq(parentVault.allocation(durationId(7 days)), 1e18, "7 days, before");
 
-        skip(1);
+        // Skip past the 1-hour alignment overshoot so the bucketed TTM crosses the 7-day boundary.
+        skip(1 hours + 1);
 
         parentVault.setTotalAssets(1e18);
         parentVault.setAdaptersLength(1);
@@ -192,7 +193,8 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         assertEq(parentVault.allocation(durationId(1 days)), 1e18, "1 day, before");
         assertEq(parentVault.allocation(durationId(7 days)), 1e18, "7 days, before");
 
-        skip(1);
+        // Skip past the 1-hour alignment overshoot so the bucketed TTM crosses the 7-day boundary.
+        skip(1 hours + 1);
 
         forceDeallocate(offer.obligation, 0.5e18);
 

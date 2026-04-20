@@ -12,6 +12,7 @@ import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IMidnightAdapter} from "../src/adapters/interfaces/IMidnightAdapter.sol";
 import {IMidnightAdapterFactory} from "../src/adapters/interfaces/IMidnightAdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
+import {MaturitiesLib} from "../src/adapters/libraries/MaturitiesLib.sol";
 import {Midnight} from "../lib/midnight/src/Midnight.sol";
 import {IMidnight, Offer, Obligation, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
 import {Signature, EIP712_DOMAIN_TYPEHASH, ROOT_TYPEHASH} from "../lib/midnight/src/interfaces/IEcrecover.sol";
@@ -30,6 +31,7 @@ struct Step {
 contract MidnightAdapterTest is Test {
     using stdStorage for StdStorage;
     using MathLib for uint256;
+    using MaturitiesLib for uint256;
 
     IMidnight internal midnight;
     IMidnightAdapterFactory internal factory;
@@ -205,18 +207,17 @@ contract MidnightAdapterTest is Test {
             units, taker, address(0), "", taker, offer, sign([offer], signerAllocator), root([offer]), proof([offer])
         );
 
-        uint256 remainder = (units - assets) % (offer.obligation.maturity - vm.getBlockTimestamp());
+        uint256 alignedMaturity = offer.obligation.maturity.align();
+        uint256 duration = alignedMaturity - vm.getBlockTimestamp();
+        uint256 remainder = (units - assets) % duration;
         assertEq(adapter._totalAssets(), assets + remainder, "_totalAssets");
         assertEq(adapter.lastUpdate(), vm.getBlockTimestamp(), "lastUpdate");
-        assertEq(adapter.firstMaturity(), vm.getBlockTimestamp() + 200, "firstMaturity");
 
         uint256 totalInterest = units - assets;
-        uint256 duration = offer.obligation.maturity - vm.getBlockTimestamp();
         uint256 newGrowth = totalInterest / duration;
         assertEq(adapter.currentGrowth(), newGrowth, "currentGrowth");
         MaturityData memory maturityData = adapter.maturities(offer.obligation.maturity);
         assertEq(maturityData.growth, newGrowth, "growth");
-        assertEq(maturityData.nextMaturity, type(uint48).max, "nextMaturity");
 
         uint256 actualUnits = adapter.netCredit(_obligationId(offer.obligation));
         assertEq(actualUnits, units, "units");
@@ -250,24 +251,19 @@ contract MidnightAdapterTest is Test {
             units1, taker, address(0), "", taker, offer, sign([offer], signerAllocator), root([offer]), proof([offer])
         );
 
-        uint256 timeToMaturity = maturity - block.timestamp;
+        uint256 alignedMaturity = maturity.align();
+        uint256 timeToMaturity = alignedMaturity - block.timestamp;
         uint128 growth1 = uint128((units1 - assets1) / timeToMaturity);
         assertGt(growth1, 0, "growth should be nonzero");
         assertEq(adapter.currentGrowth(), growth1, "currentGrowth after buy1");
 
         // Step 2: Advance time past maturity M
         skip(timeToMaturity + 1);
-        assertGt(block.timestamp, maturity, "should be past maturity");
+        assertGt(block.timestamp, alignedMaturity, "should be past aligned maturity");
 
         // Step 3: Trigger accrueInterest so the walk subtracts growth from currentGrowth
         adapter.accrueInterest();
         assertEq(adapter.currentGrowth(), 0, "currentGrowth after accrual should be 0");
-        assertEq(adapter.firstMaturity(), type(uint48).max, "firstMaturity should be sentinel");
-
-        // In midnight, any seller with debt past maturity is always liquidatable
-        // (isLiquidatable returns true if block.timestamp > maturity && debt > 0),
-        // so we can't test a second buy at past maturity. Just verify accrual state.
-        assertEq(adapter.firstMaturity(), type(uint48).max, "past maturity not re-inserted into list");
 
         // Note: In midnight, any seller with debt past maturity is always liquidatable,
         // so the second buy at past maturity from the original test cannot be executed.
@@ -368,16 +364,6 @@ contract MidnightAdapterTest is Test {
         adapter.onRatify(offer, _root, data);
     }
 
-    function testRatifyIncorrectMaturity(uint256 seed) public {
-        vm.setSeed(seed);
-        Offer memory offer = _ratificationSetup();
-        offer.obligation.maturity = vm.randomUint(type(uint48).max, type(uint256).max);
-        bytes32 _root = root(offer);
-        bytes memory data = ratifierData(_root, signerAllocator);
-        vm.expectRevert(IMidnightAdapter.IncorrectMaturity.selector);
-        adapter.onRatify(offer, _root, data);
-    }
-
     function testRatifyIncorrectStart(uint256 seed) public {
         vm.setSeed(seed);
         Offer memory offer = _ratificationSetup();
@@ -442,7 +428,8 @@ contract MidnightAdapterTest is Test {
 
         for (uint256 i = 0; i < steps.length; i++) {
             Step memory step = steps[i];
-            uint256 timeToMaturity = step.maturity - vm.getBlockTimestamp();
+            uint256 alignedMaturity = step.maturity.align();
+            uint256 timeToMaturity = alignedMaturity - vm.getBlockTimestamp();
             require(timeToMaturity > 0 || step.approxGrowth == 0, "nonzero growth on 0 duration");
             uint256 approxInterest = step.approxGrowth * timeToMaturity;
             offer.group = bytes32(i);
@@ -482,13 +469,13 @@ contract MidnightAdapterTest is Test {
             assertEq(adapter.netCredit(obligationId), unitsBefore + units, "setup: units 1");
 
             expectedUnits[obligationId] += units;
-            expectedMaturityGrowths[step.maturity] += actualGrowth;
+            expectedMaturityGrowths[alignedMaturity] += actualGrowth;
             if (timeToMaturity > 0) {
                 expectedAddedGrowth += actualGrowth.toUint128();
             }
             expectedAddedAssets += step.assets + zeroPeriodGain;
             expectedPositionsList.push(uint256(obligationId));
-            expectedMaturitiesList.push(step.maturity);
+            expectedMaturitiesList.push(alignedMaturity);
         }
         expectedPositionsList = removeCopies(expectedPositionsList);
         expectedMaturitiesList = removeCopies(expectedMaturitiesList);
@@ -505,31 +492,13 @@ contract MidnightAdapterTest is Test {
 
         setupObligations(steps);
 
-        // Check pointer to first element of maturities list
-        if (steps.length > 0) {
-            assertEq(adapter.firstMaturity(), steps[0].maturity, "firstMaturity");
-        } else {
-            assertEq(adapter.firstMaturity(), type(uint48).max, "firstMaturity");
-        }
-
-        // Check maturities growth and linked list structure
+        // Check maturities growth
         for (uint256 i = 0; i < expectedMaturitiesList.length; i++) {
             assertEq(
                 adapter.maturities(expectedMaturitiesList[i]).growth,
                 expectedMaturityGrowths[expectedMaturitiesList[i]],
                 "growth"
             );
-            if (i == expectedMaturitiesList.length - 1) {
-                assertEq(
-                    adapter.maturities(expectedMaturitiesList[i]).nextMaturity, type(uint48).max, "nextMaturity end"
-                );
-            } else {
-                assertEq(
-                    adapter.maturities(expectedMaturitiesList[i]).nextMaturity,
-                    expectedMaturitiesList[i + 1],
-                    "nextMaturity middle"
-                );
-            }
         }
 
         // Check positions growth and size
@@ -571,11 +540,10 @@ contract MidnightAdapterTest is Test {
 
         skip(elapsed);
 
-        (uint48 nextMaturity, uint128 newGrowth, uint256 newTotalAssets) = adapter.accrueInterestView();
+        (uint128 newGrowth, uint256 newTotalAssets) = adapter.accrueInterestView();
 
         uint256 lostGrowth = 0;
         uint256 interest = initialGrowth * elapsed;
-        uint256 expectedNextMaturity = type(uint48).max;
 
         for (uint256 i = 0; i < expectedMaturitiesList.length; i++) {
             uint256 maturity = expectedMaturitiesList[i];
@@ -585,11 +553,7 @@ contract MidnightAdapterTest is Test {
             } else {
                 interest += expectedMaturityGrowths[maturity] * elapsed;
             }
-            if (maturity >= vm.getBlockTimestamp() && maturity < expectedNextMaturity) {
-                expectedNextMaturity = maturity;
-            }
         }
-        assertEq(nextMaturity, expectedNextMaturity, "nextMaturity");
         assertEq(newGrowth, expectedCurrentGrowth - lostGrowth, "newGrowth");
         assertEq(newTotalAssets, _totalAssets + expectedAddedAssets + interest, "newTotalAssets");
     }
@@ -625,7 +589,7 @@ contract MidnightAdapterTest is Test {
             collateralParams[i].token = address(uint160(i));
         }
         obligation.collateralParams = storedCollaterals;
-        obligation.maturity = bound(maturity, 1, 700 days);
+        obligation.maturity = bound(maturity, block.timestamp + 1, block.timestamp + 700 days);
 
         bytes32[] memory ids = adapter.ids(obligation);
         assertEq(ids[0], adapter.adapterId());
@@ -646,8 +610,9 @@ contract MidnightAdapterTest is Test {
 
         uint256[] memory durations = adapter.durations();
         uint256 durationIdCount = 0;
+        uint256 alignedTtm = obligation.maturity.align() - block.timestamp;
         for (uint256 i = 0; i < durations.length; i++) {
-            if ((obligation.maturity - block.timestamp) >= durations[i]) {
+            if (alignedTtm >= durations[i]) {
                 assertEq(
                     ids[1 + obligation.collateralParams.length * 2 + durationIdCount],
                     keccak256(abi.encode("duration", durations[i]))

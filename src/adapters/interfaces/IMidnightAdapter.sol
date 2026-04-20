@@ -7,13 +7,14 @@ import {Obligation} from "lib/midnight/src/interfaces/IMidnight.sol";
 import {ICallbacks} from "lib/midnight/src/interfaces/ICallbacks.sol";
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
-// Chain of maturities, each can represent multiple obligations.
-// nextMaturity is type(uint48).max if no next maturity.
+// Per-hour accounting, keyed by `maturityHour` — each obligation's real maturity is rounded up to
+// the next MATURITY_PRECISION boundary (so `maturityHour * MATURITY_PRECISION` is the effective
+// expiry used by the adapter). An hour's data is "active" iff netCredit > 0 and its effective
+// expiry is in the future; the `bitmaps` mapping tracks the latter in a bitmap-per-group layout
+// (each `group` holds 256 consecutive maturity hours) for O(1) iteration during accrual.
 struct MaturityData {
     uint128 netCredit;
     uint128 growth;
-    uint48 prevMaturity;
-    uint48 nextMaturity;
     uint8 durationIndex;
 }
 
@@ -29,13 +30,12 @@ interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
     error BuyAtLoss();
     error IncorrectCallbackAddress();
     error IncorrectDuration();
-    error IncorrectHint();
-    error IncorrectMaturity();
     error IncorrectOffer();
     error IncorrectOwner();
     error IncorrectSigner();
     error IncorrectStart();
     error LoanAssetMismatch();
+    error MaturityTooFar();
     error NoBorrowing();
     error NoDebtCreation();
     error NotAuthorized();
@@ -48,9 +48,10 @@ interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
     function asset() external view returns (address);
     function _totalAssets() external view returns (uint256);
     function lastUpdate() external view returns (uint48);
-    function firstMaturity() external view returns (uint48);
     function currentGrowth() external view returns (uint128);
-    function activeMaturities() external view returns (uint256);
+    function activableMaturities() external view returns (uint256);
+    function maxTtmWhenBuying() external view returns (uint256);
+    function bitmaps(uint256 group) external view returns (uint256);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
@@ -65,8 +66,8 @@ interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
     function withdrawToVault(Obligation memory obligation, uint256 units) external;
     function ids(Obligation memory obligation) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
-    function accrueInterestView() external view returns (uint48, uint128, uint256);
-    function accrueInterest() external returns (uint48, uint128, uint256);
+    function accrueInterestView() external view returns (uint128, uint256);
+    function accrueInterest() external returns (uint128, uint256);
     function allocate(bytes memory data, uint256 assets, bytes4, address vaultAllocator)
         external
         returns (bytes32[] memory, int256);

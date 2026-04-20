@@ -14,6 +14,7 @@ import {MathLib} from "../libraries/MathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapter, MaturityData, IAdapter} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
+import {MaturitiesLib} from "./libraries/MaturitiesLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest separately for each obligation.
 /// @dev Losses are immediately accounted minus a discount applied to the remaining interest to be earned, in proportion
@@ -24,6 +25,8 @@ contract MidnightAdapter is IMidnightAdapter {
     using MathLib for uint128;
     using MathLib for int256;
     using DurationsLib for bytes32;
+    using MaturitiesLib for uint256;
+    using MaturitiesLib for uint48;
 
     /* IMMUTABLES */
 
@@ -33,6 +36,7 @@ contract MidnightAdapter is IMidnightAdapter {
     bytes32 public immutable adapterId;
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
+    uint256 public constant maxTtmWhenBuying = 10 * 52 weeks;
 
     /* MANAGEMENT */
 
@@ -42,11 +46,12 @@ contract MidnightAdapter is IMidnightAdapter {
 
     uint256 public _totalAssets;
     uint48 public lastUpdate;
-    uint48 public firstMaturity;
     uint128 public currentGrowth;
     uint256 public activableMaturities = 50;
-    mapping(uint256 timestamp => MaturityData) public _maturities;
+    /// @dev Maturities must be rounded to the next hour.
+    mapping(uint256 maturity => MaturityData) public maturitiesData;
     mapping(bytes32 obligationId => uint256) public netCredit;
+    mapping(uint256 group => uint256) public bitmaps;
     /* CONSTRUCTOR */
 
     constructor(address _parentVault, address _midnight, uint256[] memory _durations) {
@@ -56,7 +61,6 @@ contract MidnightAdapter is IMidnightAdapter {
         lastUpdate = uint48(block.timestamp);
         SafeERC20Lib.safeApprove(asset, _midnight, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
-        firstMaturity = type(uint48).max;
         adapterId = keccak256(abi.encode("this", address(this)));
 
         bytes32 _packedDurations;
@@ -72,8 +76,9 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* GETTERS */
 
+    /// @dev Returns the MaturityData for the bucket containing `date` (rounded up to the next hour).
     function maturities(uint256 date) public view returns (MaturityData memory) {
-        return _maturities[date];
+        return maturitiesData[date.align()];
     }
 
     function durations() public view returns (uint256[] memory) {
@@ -115,16 +120,19 @@ contract MidnightAdapter is IMidnightAdapter {
         accrueInterest();
         updateDurationIndexAndAllocations(obligation);
 
-        if (totalNetCreditDecrease > 0) removeUnits(obligationId, obligation.maturity, totalNetCreditDecrease);
+        if (totalNetCreditDecrease > 0) {
+            removeUnits(obligationId, obligation.maturity.align(), totalNetCreditDecrease);
+        }
 
         int256 change = -int256(totalNetCreditDecrease);
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(obligation), change), withdrawnAssets);
     }
 
     function updateDurationIndexAndAllocations(Obligation memory obligation) public {
-        MaturityData storage maturityData = _maturities[obligation.maturity];
+        uint256 maturity = obligation.maturity.align();
+        MaturityData storage maturityData = maturitiesData[maturity];
         uint256 oldDurationIndex = maturityData.durationIndex;
-        uint256 newDurationIndex = durationIndex(obligation.maturity);
+        uint256 newDurationIndex = durationIndex(maturity);
         maturityData.durationIndex = uint8(newDurationIndex);
         // VaultV2.deallocate requires allocation > 0 for each returned id.
         if (newDurationIndex < oldDurationIndex && maturityData.netCredit > 0) {
@@ -139,36 +147,58 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* ACCRUAL */
 
-    function accrueInterestView() public view returns (uint48, uint128, uint256) {
+    function accrueInterestView() public view returns (uint128, uint256) {
         uint256 lastChange = lastUpdate;
-        uint48 nextMaturity = firstMaturity;
         uint128 newGrowth = currentGrowth;
         uint256 gainedAssets;
-
-        while (nextMaturity < block.timestamp) {
-            gainedAssets += uint256(newGrowth) * (nextMaturity - lastChange);
-            newGrowth -= _maturities[nextMaturity].growth;
-            lastChange = nextMaturity;
-            nextMaturity = _maturities[nextMaturity].nextMaturity;
+        uint256 firstGroup = lastUpdate.group();
+        uint256 lastGroup = block.timestamp.zeroFloorSub(1 hours).group();
+        for (uint256 group = firstGroup; group <= lastGroup; group++) {
+            for (uint256 bitmap = bitmaps[group]; bitmap != 0; bitmap &= bitmap - 1) {
+                uint256 maturity = group.maturity() + bitmap.lsb() * 1 hours;
+                if (maturity >= block.timestamp) break;
+                gainedAssets += uint256(newGrowth) * (maturity - lastChange);
+                newGrowth -= maturitiesData[maturity].growth;
+                lastChange = maturity;
+            }
         }
 
         gainedAssets += uint256(newGrowth) * (block.timestamp - lastChange);
 
-        return (nextMaturity, newGrowth, _totalAssets + gainedAssets);
+        return (newGrowth, _totalAssets + gainedAssets);
     }
 
-    function accrueInterest() public returns (uint48, uint128, uint256) {
+    function accrueInterest() public returns (uint128, uint256) {
         if (lastUpdate != block.timestamp) {
-            (firstMaturity, currentGrowth, _totalAssets) = accrueInterestView();
+            uint256 lastChange = lastUpdate;
+            uint128 newGrowth = currentGrowth;
+            uint256 gainedAssets;
+            uint256 firstGroup = lastUpdate.group();
+            uint256 lastGroup = block.timestamp.zeroFloorSub(1 hours).group();
+            for (uint256 group = firstGroup; group <= lastGroup; group++) {
+                uint256 bitmap;
+                for (bitmap = bitmaps[group]; bitmap != 0; bitmap &= bitmap - 1) {
+                    uint256 maturity = group.maturity() + bitmap.lsb() * 1 hours;
+                    if (maturity >= block.timestamp) break;
+                    gainedAssets += uint256(newGrowth) * (maturity - lastChange);
+                    newGrowth -= maturitiesData[maturity].growth;
+                    lastChange = maturity;
+                }
+                bitmaps[group] = bitmap;
+            }
+
+            gainedAssets += uint256(newGrowth) * (block.timestamp - lastChange);
+            currentGrowth = newGrowth;
+            _totalAssets += gainedAssets;
             lastUpdate = uint48(block.timestamp);
         }
-        return (firstMaturity, currentGrowth, _totalAssets);
+        return (currentGrowth, _totalAssets);
     }
 
     /// @dev Returns an estimate of the real assets assigned to the adapter.
     /// @dev Excludes assets reserved for users.
     function realAssets() external view returns (uint256) {
-        (,, uint256 newTotalAssets) = accrueInterestView();
+        (, uint256 newTotalAssets) = accrueInterestView();
         return newTotalAssets;
     }
 
@@ -216,7 +246,7 @@ contract MidnightAdapter is IMidnightAdapter {
             uint256 totalNetCreditDecrease = netCredit[obligationId] - newNetCredit;
 
             if (totalNetCreditDecrease > 0) {
-                removeUnits(obligationId, offer.obligation.maturity, totalNetCreditDecrease);
+                removeUnits(obligationId, offer.obligation.maturity.align(), totalNetCreditDecrease);
             }
 
             int256 change = -int256(totalNetCreditDecrease);
@@ -238,8 +268,6 @@ contract MidnightAdapter is IMidnightAdapter {
         require(offer.maker == address(this), IncorrectOwner());
         require(offer.callback == address(this), IncorrectCallbackAddress());
         require(offer.start <= block.timestamp, IncorrectStart());
-        // uint48.max is the list end pointer
-        require(offer.obligation.maturity < type(uint48).max, IncorrectMaturity());
         require(offer.buy || offer.reduceOnly, NoDebtCreation());
 
         Signature memory sig = abi.decode(data, (Signature));
@@ -253,9 +281,6 @@ contract MidnightAdapter is IMidnightAdapter {
         return CALLBACK_SUCCESS;
     }
 
-    /// @dev `data` is used for new maturity insertions.
-    /// @dev It should encode a maturity present in the linked list.
-    /// @dev That maturity should be earlier than the inserted obligation maturity.
     function onBuy(
         bytes32 obligationId,
         Obligation memory obligation,
@@ -263,17 +288,17 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 paidAssets,
         uint256 boughtCredit,
         uint256 buyPendingFeeIncrease,
-        bytes memory data
+        bytes memory
     ) external returns (bytes32) {
-        uint48 prevMaturity = abi.decode(data, (uint48));
-        MaturityData storage maturityData = _maturities[obligation.maturity];
+        uint256 maturity = obligation.maturity.align();
+        MaturityData storage maturityData = maturitiesData[maturity];
         uint256 buyNetCreditIncrease = boughtCredit - buyPendingFeeIncrease;
-        uint256 timeToMaturity = obligation.maturity.zeroFloorSub(block.timestamp);
+        uint256 timeToMaturity = maturity.zeroFloorSub(block.timestamp);
 
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
-        require(prevMaturity < obligation.maturity, IncorrectHint());
         require(buyNetCreditIncrease >= paidAssets, BuyAtLoss());
+        require(timeToMaturity <= maxTtmWhenBuying, MaturityTooFar());
 
         uint256 newNetCredit = IMidnight(midnight).creditOf(obligationId, address(this))
             - IMidnight(midnight).pendingFee(obligationId, address(this));
@@ -285,10 +310,16 @@ contract MidnightAdapter is IMidnightAdapter {
         // change is at most buyNetCreditIncrease
         if (change < buyNetCreditIncrease.toInt256()) {
             uint256 loss = (int256(buyNetCreditIncrease) - change).toUint256();
-            removeUnits(obligationId, obligation.maturity, loss);
+            removeUnits(obligationId, maturity, loss);
         }
 
-        if (maturityData.netCredit == 0 && buyNetCreditIncrease > 0) activableMaturities--;
+        // Fresh activation: bookkeep the slot and, if the maturity is in the future, mark its bitmap bit.
+        if (maturityData.netCredit == 0 && buyNetCreditIncrease > 0 && maturity > block.timestamp) {
+            activableMaturities--;
+            uint256 group = maturity.group();
+            uint256 bit = (maturity / 1 hours) % 256;
+            bitmaps[group] = bitmaps[group] | (uint256(1) << bit);
+        }
 
         IVaultV2(parentVault).allocate(address(this), abi.encode(ids(obligation), change), paidAssets);
 
@@ -303,35 +334,6 @@ contract MidnightAdapter is IMidnightAdapter {
 
         maturityData.netCredit += buyNetCreditIncrease.toUint128();
         netCredit[obligationId] += buyNetCreditIncrease.toUint128();
-
-        // Insert the maturity in the list if needed
-        if (obligation.maturity >= block.timestamp) {
-            uint48 nextMaturity;
-            if (prevMaturity == 0) {
-                nextMaturity = firstMaturity;
-            } else {
-                require(prevMaturity >= firstMaturity && _maturities[prevMaturity].netCredit > 0, IncorrectHint());
-                nextMaturity = _maturities[prevMaturity].nextMaturity;
-            }
-
-            while (nextMaturity < obligation.maturity) {
-                prevMaturity = nextMaturity;
-                nextMaturity = _maturities[prevMaturity].nextMaturity;
-            }
-
-            if (nextMaturity > obligation.maturity) {
-                maturityData.prevMaturity = prevMaturity;
-                maturityData.nextMaturity = nextMaturity;
-                if (prevMaturity == 0) {
-                    firstMaturity = obligation.maturity.toUint48();
-                } else {
-                    _maturities[prevMaturity].nextMaturity = obligation.maturity.toUint48();
-                }
-                if (nextMaturity < type(uint48).max) {
-                    _maturities[nextMaturity].prevMaturity = obligation.maturity.toUint48();
-                }
-            }
-        }
 
         return CALLBACK_SUCCESS;
     }
@@ -357,7 +359,9 @@ contract MidnightAdapter is IMidnightAdapter {
         accrueInterest();
         updateDurationIndexAndAllocations(obligation);
 
-        if (totalNetCreditDecrease > 0) removeUnits(obligationId, obligation.maturity, totalNetCreditDecrease);
+        if (totalNetCreditDecrease > 0) {
+            removeUnits(obligationId, obligation.maturity.align(), totalNetCreditDecrease);
+        }
 
         int256 change = -int256(totalNetCreditDecrease);
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(obligation), change), sellerAssets);
@@ -377,7 +381,7 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Removes units from tracking.
     /// @dev Changes the implied price of the obligation as little as possible.
     function removeUnits(bytes32 obligationId, uint256 maturity, uint256 removedUnits) internal {
-        MaturityData storage maturityData = _maturities[maturity];
+        MaturityData storage maturityData = maturitiesData[maturity];
 
         if (maturity > block.timestamp) {
             uint256 timeToMaturity = maturity - block.timestamp;
@@ -391,20 +395,11 @@ contract MidnightAdapter is IMidnightAdapter {
         maturityData.netCredit -= removedUnits.toUint128();
         netCredit[obligationId] -= removedUnits.toUint128();
 
-        if (removedUnits > 0 && maturityData.netCredit == 0) {
+        if (removedUnits > 0 && maturityData.netCredit == 0 && maturity > block.timestamp) {
             activableMaturities++;
-            if (maturity > block.timestamp) {
-                uint48 prevMaturity = maturityData.prevMaturity;
-                uint48 nextMaturity = maturityData.nextMaturity;
-                if (maturity == firstMaturity) {
-                    firstMaturity = nextMaturity;
-                } else {
-                    _maturities[prevMaturity].nextMaturity = nextMaturity;
-                }
-                if (nextMaturity < type(uint48).max) {
-                    _maturities[nextMaturity].prevMaturity = prevMaturity;
-                }
-            }
+            uint256 group = maturity.group();
+            uint256 bit = (maturity / 1 hours) % 256;
+            bitmaps[group] = bitmaps[group] & ~(uint256(1) << bit);
         }
     }
 
@@ -414,7 +409,7 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     function ids(Obligation memory obligation) public view returns (bytes32[] memory) {
-        uint256 durationsCount = durationIndex(obligation.maturity);
+        uint256 durationsCount = durationIndex(obligation.maturity.align());
 
         bytes32[] memory idsArray = new bytes32[](1 + obligation.collateralParams.length * 2 + durationsCount);
 
