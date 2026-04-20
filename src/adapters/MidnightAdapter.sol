@@ -131,13 +131,13 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 maturity = obligation.maturity.align();
         MaturityData storage maturityData = maturitiesData[maturity];
         uint256 olddurationCount = maturityData.durationCount;
-        uint256 newdurationCount = durationCount(maturity);
-        maturityData.durationCount = uint8(newdurationCount);
+        uint256 newDurationCount = durationCount(maturity);
+        maturityData.durationCount = uint8(newDurationCount);
         // VaultV2.deallocate requires allocation > 0 for each returned id.
-        if (newdurationCount < olddurationCount && maturityData.netCredit > 0) {
-            bytes32[] memory zeroedDurationsIds = new bytes32[](olddurationCount - newdurationCount);
+        if (newDurationCount < olddurationCount && maturityData.netCredit > 0) {
+            bytes32[] memory zeroedDurationsIds = new bytes32[](olddurationCount - newDurationCount);
             for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
-                zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newdurationCount + i)));
+                zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
             }
             int256 change = -int256(uint256(maturityData.netCredit));
             IVaultV2(parentVault).deallocate(address(this), abi.encode(zeroedDurationsIds, change), 0);
