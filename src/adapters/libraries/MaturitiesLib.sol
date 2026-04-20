@@ -9,15 +9,15 @@ library MaturitiesLib {
         return (_maturity + h - 1) / h * h;
     }
 
-    /// @dev Bitmap group containing the already aligned maturity.
-    function group(uint256 alignedMaturity) internal pure returns (uint256) {
+    /// @dev Index of the bitmap containing the already aligned maturity.
+    function bitmapIndex(uint256 alignedMaturity) internal pure returns (uint256) {
         return alignedMaturity / (256 * 1 hours);
     }
 
-    /// @dev Starting maturity of a bitmap group.
+    /// @dev Earliest maturity in the bitmap at index.
     /// @dev Always aligned to an hour.
-    function maturity(uint256 _group) internal pure returns (uint256) {
-        return _group * 256 * 1 hours;
+    function maturity(uint256 index) internal pure returns (uint256) {
+        return index * 256 * 1 hours;
     }
 
     /// @dev Least significant set bit. Assumes `bitmap` is not zero.

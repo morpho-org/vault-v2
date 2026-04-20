@@ -51,7 +51,7 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Maturities must be rounded to the next hour.
     mapping(uint256 maturity => MaturityData) public maturitiesData;
     mapping(bytes32 obligationId => uint256) public netCredit;
-    mapping(uint256 group => uint256) public bitmaps;
+    mapping(uint256 index => uint256) public bitmaps;
     /* CONSTRUCTOR */
 
     constructor(address _parentVault, address _midnight, uint256[] memory _durations) {
@@ -117,7 +117,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 totalNetCreditDecrease = netCredit[obligationId] - newNetCredit;
 
         accrueInterest();
-        updateDurationIndexAndAllocations(obligation);
+        updateDurationCountAndAllocations(obligation);
 
         if (totalNetCreditDecrease > 0) {
             removeUnits(obligationId, obligation.maturity.align(), totalNetCreditDecrease);
@@ -127,17 +127,17 @@ contract MidnightAdapter is IMidnightAdapter {
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(obligation), change), withdrawnAssets);
     }
 
-    function updateDurationIndexAndAllocations(Obligation memory obligation) public {
+    function updateDurationCountAndAllocations(Obligation memory obligation) public {
         uint256 maturity = obligation.maturity.align();
         MaturityData storage maturityData = maturitiesData[maturity];
-        uint256 oldDurationIndex = maturityData.durationIndex;
-        uint256 newDurationIndex = durationIndex(maturity);
-        maturityData.durationIndex = uint8(newDurationIndex);
+        uint256 olddurationCount = maturityData.durationCount;
+        uint256 newdurationCount = durationCount(maturity);
+        maturityData.durationCount = uint8(newdurationCount);
         // VaultV2.deallocate requires allocation > 0 for each returned id.
-        if (newDurationIndex < oldDurationIndex && maturityData.netCredit > 0) {
-            bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationIndex - newDurationIndex);
+        if (newdurationCount < olddurationCount && maturityData.netCredit > 0) {
+            bytes32[] memory zeroedDurationsIds = new bytes32[](olddurationCount - newdurationCount);
             for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
-                zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationIndex + i)));
+                zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newdurationCount + i)));
             }
             int256 change = -int256(uint256(maturityData.netCredit));
             IVaultV2(parentVault).deallocate(address(this), abi.encode(zeroedDurationsIds, change), 0);
@@ -150,11 +150,11 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 lastChange = lastUpdate;
         uint128 newGrowth = currentGrowth;
         uint256 gainedAssets;
-        uint256 firstGroup = lastUpdate.group();
-        uint256 lastGroup = block.timestamp.zeroFloorSub(1 hours).group();
-        for (uint256 group = firstGroup; group <= lastGroup; group++) {
-            for (uint256 bitmap = bitmaps[group]; bitmap != 0; bitmap &= bitmap - 1) {
-                uint256 maturity = group.maturity() + bitmap.lsb() * 1 hours;
+        uint256 firstIndex = lastUpdate.bitmapIndex();
+        uint256 lastIndex = block.timestamp.zeroFloorSub(1).bitmapIndex();
+        for (uint256 index = firstIndex; index <= lastIndex; index++) {
+            for (uint256 bitmap = bitmaps[index]; bitmap != 0; bitmap &= bitmap - 1) {
+                uint256 maturity = index.maturity() + bitmap.lsb() * 1 hours;
                 if (maturity >= block.timestamp) break;
                 gainedAssets += uint256(newGrowth) * (maturity - lastChange);
                 newGrowth -= maturitiesData[maturity].growth;
@@ -172,18 +172,19 @@ contract MidnightAdapter is IMidnightAdapter {
             uint256 lastChange = lastUpdate;
             uint128 newGrowth = currentGrowth;
             uint256 gainedAssets;
-            uint256 firstGroup = lastUpdate.group();
-            uint256 lastGroup = block.timestamp.zeroFloorSub(1 hours).group();
-            for (uint256 group = firstGroup; group <= lastGroup; group++) {
+            uint256 firstIndex = lastUpdate.bitmapIndex();
+            uint256 lastIndex = block.timestamp.zeroFloorSub(1).bitmapIndex();
+            for (uint256 index = firstIndex; index <= lastIndex; index++) {
                 uint256 bitmap;
-                for (bitmap = bitmaps[group]; bitmap != 0; bitmap &= bitmap - 1) {
-                    uint256 maturity = group.maturity() + bitmap.lsb() * 1 hours;
+                for (bitmap = bitmaps[index]; bitmap != 0; bitmap &= bitmap - 1) {
+                    uint256 maturity = index.maturity() + bitmap.lsb() * 1 hours;
                     if (maturity >= block.timestamp) break;
                     gainedAssets += uint256(newGrowth) * (maturity - lastChange);
                     newGrowth -= maturitiesData[maturity].growth;
                     lastChange = maturity;
+                    activableMaturities++;
                 }
-                bitmaps[group] = bitmap;
+                bitmaps[index] = bitmap;
             }
 
             gainedAssets += uint256(newGrowth) * (block.timestamp - lastChange);
@@ -238,7 +239,7 @@ contract MidnightAdapter is IMidnightAdapter {
             require(IMidnight(midnight).debtOf(obligationId, address(this)) == 0, NoBorrowing());
 
             accrueInterest();
-            updateDurationIndexAndAllocations(offer.obligation);
+            updateDurationCountAndAllocations(offer.obligation);
             uint256 newNetCredit = IMidnight(midnight).creditOf(obligationId, address(this))
                 - IMidnight(midnight).pendingFee(obligationId, address(this));
             // new net credit cannot be > old credit
@@ -304,7 +305,7 @@ contract MidnightAdapter is IMidnightAdapter {
         int256 change = newNetCredit.toInt256() - netCredit[obligationId].toInt256();
 
         accrueInterest();
-        updateDurationIndexAndAllocations(obligation);
+        updateDurationCountAndAllocations(obligation);
 
         // change is at most buyNetCreditIncrease
         if (change < buyNetCreditIncrease.toInt256()) {
@@ -314,9 +315,9 @@ contract MidnightAdapter is IMidnightAdapter {
 
         if (maturityData.netCredit == 0 && buyNetCreditIncrease > 0 && maturity > block.timestamp) {
             activableMaturities--;
-            uint256 group = maturity.group();
+            uint256 index = maturity.bitmapIndex();
             uint256 bit = (maturity / 1 hours) % 256;
-            bitmaps[group] = bitmaps[group] | (uint256(1) << bit);
+            bitmaps[index] = bitmaps[index] | (uint256(1) << bit);
         }
 
         IVaultV2(parentVault).allocate(address(this), abi.encode(ids(obligation), change), paidAssets);
@@ -355,7 +356,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(seller == address(this), NotSelf());
 
         accrueInterest();
-        updateDurationIndexAndAllocations(obligation);
+        updateDurationCountAndAllocations(obligation);
 
         if (totalNetCreditDecrease > 0) {
             removeUnits(obligationId, obligation.maturity.align(), totalNetCreditDecrease);
@@ -395,19 +396,19 @@ contract MidnightAdapter is IMidnightAdapter {
 
         if (removedUnits > 0 && maturityData.netCredit == 0 && maturity > block.timestamp) {
             activableMaturities++;
-            uint256 group = maturity.group();
+            uint256 index = maturity.bitmapIndex();
             uint256 bit = (maturity / 1 hours) % 256;
-            bitmaps[group] = bitmaps[group] & ~(uint256(1) << bit);
+            bitmaps[index] = bitmaps[index] & ~(uint256(1) << bit);
         }
     }
 
-    function durationIndex(uint256 maturity) internal view returns (uint256 index) {
+    function durationCount(uint256 maturity) internal view returns (uint256 count) {
         uint256 timeToMaturity = maturity.zeroFloorSub(block.timestamp);
-        while (index < durationsLength && timeToMaturity >= packedDurations.get(index)) index++;
+        while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;
     }
 
     function ids(Obligation memory obligation) public view returns (bytes32[] memory) {
-        uint256 durationsCount = durationIndex(obligation.maturity.align());
+        uint256 durationsCount = durationCount(obligation.maturity.align());
 
         bytes32[] memory idsArray = new bytes32[](1 + obligation.collateralParams.length * 2 + durationsCount);
 

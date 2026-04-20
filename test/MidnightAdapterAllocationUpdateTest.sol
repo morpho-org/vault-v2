@@ -114,16 +114,16 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         return keccak256(abi.encode("duration", duration));
     }
 
-    function testExactDuration(uint32 durationIndex) public {
-        durationIndex = uint32(bound(durationIndex, 0, adapter.durationsLength() - 1));
-        uint256 duration = adapter.durations()[durationIndex];
+    function testExactDuration(uint32 durationCount) public {
+        durationCount = uint32(bound(durationCount, 0, adapter.durationsLength() - 1));
+        uint256 duration = adapter.durations()[durationCount];
         buy(duration, 1e18);
         assertEq(parentVault.allocation(durationId(duration)), 1e18);
     }
 
-    function testExitDuration(uint256 durationIndex, uint256 timeToMaturity, uint256 extraSkip) public {
-        durationIndex = bound(durationIndex, 0, adapter.durationsLength() - 1);
-        uint256 duration = adapter.durations()[durationIndex];
+    function testExitDuration(uint256 durationCount, uint256 timeToMaturity, uint256 extraSkip) public {
+        durationCount = bound(durationCount, 0, adapter.durationsLength() - 1);
+        uint256 duration = adapter.durations()[durationCount];
         timeToMaturity = bound(timeToMaturity, duration, adapter.maxTtmWhenBuying() - 1 hours);
         extraSkip = bound(extraSkip, 1 hours + 1, 10 * 365 days);
 
@@ -132,24 +132,24 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
 
         skip(timeToMaturity - duration + extraSkip);
 
-        adapter.updateDurationIndexAndAllocations(offer.obligation);
+        adapter.updateDurationCountAndAllocations(offer.obligation);
 
         assertEq(parentVault.allocation(durationId(duration)), 0);
     }
 
-    function testRepeatDeallocateExpiredDurations(uint256 durationIndex, uint256 timeToMaturity, uint256 skipAmount)
+    function testRepeatDeallocateExpiredDurations(uint256 durationCount, uint256 timeToMaturity, uint256 skipAmount)
         public
     {
-        durationIndex = bound(durationIndex, 0, adapter.durationsLength() - 1);
-        uint256 duration = adapter.durations()[durationIndex];
+        durationCount = bound(durationCount, 0, adapter.durationsLength() - 1);
+        uint256 duration = adapter.durations()[durationCount];
         timeToMaturity = bound(timeToMaturity, duration, adapter.maxTtmWhenBuying() - 1 hours);
         skipAmount = bound(skipAmount, 0, duration * 2);
 
         Offer memory offer = buy(timeToMaturity, 1e18);
         skip(skipAmount);
-        adapter.updateDurationIndexAndAllocations(offer.obligation);
+        adapter.updateDurationCountAndAllocations(offer.obligation);
         uint256 savedAllocation = parentVault.allocation(durationId(duration));
-        adapter.updateDurationIndexAndAllocations(offer.obligation);
+        adapter.updateDurationCountAndAllocations(offer.obligation);
         assertEq(parentVault.allocation(durationId(duration)), savedAllocation);
     }
 
