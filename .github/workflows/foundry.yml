@@ -19,7 +19,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@8789b3e21e6c11b2697f5eb56eddae542f746c10 # v1
 
       - name: Run forge fmt
-        run: forge fmt --check
+        run: forge fmt src test script certora --check
 
   lint:
     runs-on: ubuntu-latest
@@ -32,7 +32,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@8789b3e21e6c11b2697f5eb56eddae542f746c10 # v1
 
       - name: Run forge lint
-        run: forge lint --deny notes
+        run: forge lint src certora --deny notes
 
   sizes:
     runs-on: ubuntu-latest
