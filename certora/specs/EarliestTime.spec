@@ -16,6 +16,19 @@ methods {
 persistent ghost mapping(bytes4 => mathint) minDecreaseTimelock {
     init_state axiom forall bytes4 selector. minDecreaseTimelock[selector] == max_uint256;
 }
+// Ghost to track the minimum possible execution time for every possible submission
+persistent ghost mapping(bytes4 => mapping(bytes32 => mathint)) decreaseTimelockEET {
+    init_state axiom forall bytes4 selector.  forall bytes32 hash. decreaseTimelockEET[selector][hash] == max_uint256;
+}
+
+definition minimumIsLowerBound(bytes4 selector) returns bool =
+    forall bytes32 hash. minDecreaseTimelock[selector] <= decreaseTimelockEET[selector][hash];
+
+definition minimumIsAchievable(bytes4 selector) returns bool =
+    exists bytes32 hash. minDecreaseTimelock[selector] == decreaseTimelockEET[selector][hash];
+
+definition earliestTimeFromValueDuration(uint256 value, uint256 duration) returns mathint =
+    value > 0 ? value + duration : max_uint256;
 
 // Hook on executableAt writes to track decreaseTimelock submissions
 hook Sstore executableAt[KEY bytes hookData] uint256 newValue (uint256 oldValue) {
@@ -26,11 +39,25 @@ hook Sstore executableAt[KEY bytes hookData] uint256 newValue (uint256 oldValue)
         uint256 newDuration;
         targetSelector, newDuration = EarliestTime.extractDecreaseTimelockArgs(hookData);
 
-        if (oldValue == 0 && newValue != 0 && minDecreaseTimelock[targetSelector] > newValue + newDuration) {
-            minDecreaseTimelock[targetSelector] = newValue + newDuration;
-        } else if (oldValue != 0 && newValue == 0) {
-            minDecreaseTimelock[targetSelector] = max_uint256;
-        }
+        decreaseTimelockEET[targetSelector][keccak256(hookData)] = earliestTimeFromValueDuration(newValue, newDuration);
+        bytes32 newMinimumWitness;
+        mathint newMinimum = decreaseTimelockEET[targetSelector][newMinimumWitness];
+        require forall bytes32 hash. newMinimum <= decreaseTimelockEET[targetSelector][hash], "Witness can be chosen for the minimum.";
+        minDecreaseTimelock[targetSelector] = newMinimum;
+    }
+}
+
+// Hook on executableAt writes to track decreaseTimelock submissions
+hook Sload uint256 value executableAt[KEY bytes hookData] {
+    bytes4 selector = EarliestTime.getSelector(hookData);
+
+    if (selector == to_bytes4(sig:decreaseTimelock(bytes4, uint256).selector)) {
+        bytes4 targetSelector;
+        uint256 newDuration;
+        targetSelector, newDuration = EarliestTime.extractDecreaseTimelockArgs(hookData);
+
+        requireInvariant minimumCorrectlyTracked(targetSelector);
+        require decreaseTimelockEET[targetSelector][keccak256(hookData)] == earliestTimeFromValueDuration(value, newDuration), "ghost mirror";
     }
 }
 
@@ -52,6 +79,11 @@ function earliestExecutionTime(uint256 blockTimestamp, bytes4 selector, uint256 
 
     return min(viaDirectExecution, viaFreshSubmission, viaDecreaseTimelock);
 }
+
+invariant minimumCorrectlyTracked(bytes4 selector) 
+    minimumIsLowerBound(selector) && minimumIsAchievable(selector)
+filtered { f -> f.contract == currentContract }
+
 
 // Similar to guardianUpdateTime from vault v1.
 // Earliest execution time is monotonically non-decreasing across three paths:
