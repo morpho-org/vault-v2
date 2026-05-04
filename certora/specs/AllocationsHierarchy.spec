@@ -18,15 +18,25 @@ methods {
     function _.canSendAssets(address) external => NONDET;
     function accrueInterestView() internal returns (uint256, uint256, uint256) => NONDET;
 
-    // Replace all adapter calls with a ghost-updating summary that models the id structure (i.e. the leaf-group hierarchy).
-    function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryAdapter(e, data, assets, selector, sender) expect(bytes32[], int256);
-    function _.allocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryAdapter(e, data, assets, selector, sender) expect(bytes32[], int256);
+    // Summary model: one group per adapter, and if a leaf is returned then its group is returned too.
+    function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryAdapter(calledContract, e, data, assets, selector, sender) expect(bytes32[], int256);
+    function _.allocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryAdapter(calledContract, e, data, assets, selector, sender) expect(bytes32[], int256);
 }
 
-// We refer to each entry in this mapping as a ghost cell.
-persistent ghost mapping(bytes32 => mapping(bytes32 => uint256)) ghostAllocationByGroupId {
-    init_state axiom forall bytes32 g. forall bytes32 l. ghostAllocationByGroupId[g][l] == 0;
-    init_state axiom forall bytes32 g. (usum bytes32 l. ghostAllocationByGroupId[g][l]) == 0;
+// True ghost state. `ghostAllocationByGroupId[groupId]` tracks the aggregate contribution to `groupId`.
+// The hook updates it by the leaf delta `newValue - oldValue`.
+persistent ghost mapping(bytes32 => mathint) ghostAllocationByGroupId {
+    init_state axiom forall bytes32 g. ghostAllocationByGroupId[g] == 0;
+}
+
+// Global aggregate of all leaf allocations across every adapter/group.
+persistent ghost mathint ghostTotalLeafAllocation {
+    init_state axiom ghostTotalLeafAllocation == 0;
+}
+
+// Global aggregate of all group allocations (parallel mirror, updated on group writes).
+persistent ghost mathint ghostTotalGroupAllocation {
+    init_state axiom ghostTotalGroupAllocation == 0;
 }
 
 // Tracks if an id is registered as leafId
@@ -39,50 +49,59 @@ persistent ghost mapping(bytes32 => bool) ghostIsGroupId {
     init_state axiom forall bytes32 id. !ghostIsGroupId[id];
 }
 
-// maps leafId to groupId
+// Maps each adapter to its unique groupId in this spec model.
+persistent ghost mapping(address => bytes32) ghostAdapterToGroupId {
+    init_state axiom forall address adapter. ghostAdapterToGroupId[adapter] == to_bytes32(0);
+}
+
+// Maps each leafId to the groupId returned with it. Immutable across calls.
 persistent ghost mapping(bytes32 => bytes32) ghostLeafToGroupId {
     init_state axiom forall bytes32 id. ghostLeafToGroupId[id] == to_bytes32(0);
 }
 
-// Defines how `ghostAllocationByGroupId` is updated on leaf allocation writes.
+// Defines how the true ghost group sum is updated on leaf allocation writes.
 hook Sstore currentContract.caps[KEY bytes32 id].allocation uint256 newValue (uint256 oldValue) {
     if (ghostIsLeafId[id]) {
-        ghostAllocationByGroupId[ghostLeafToGroupId[id]][id] = newValue;
+        ghostAllocationByGroupId[ghostLeafToGroupId[id]] = ghostAllocationByGroupId[ghostLeafToGroupId[id]] - oldValue + newValue;
+        ghostTotalLeafAllocation = ghostTotalLeafAllocation - oldValue + newValue;
+    }
+    if (ghostIsGroupId[id]) {
+        ghostTotalGroupAllocation = ghostTotalGroupAllocation - oldValue + newValue;
     }
 }
 
-// Generic adapter that returns exactly two Ids that form a two-level hierarchy: groupId (index 0) and leafId (index 1).
-// - groupId and leafId are distinct
-// - groupId is never itself a leaf in any other adapter
-// - leafId is never itself a group in any other adapter
-// - a leaf's parent group never changes across calls
-function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
+// Simplified hierarchy:
+// - ids[0] is the groupId and ids[1] is the leafId
+// - one group per adapter
+// - if a leaf is returned, its group is returned too
+// - the leaf/group pair is immutable across calls
+// - unlike the full setup (including Midnight), a leaf cannot also be a group and does not belong to multiple groups
+function summaryAdapter(address adapter, env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
     bytes32[] ids;
     int256 change;
 
-    require ids.length == 2, "simplification";
+    require ids.length == 2, "simplification: one group per adapter in this spec";
 
     require ids[0] != ids[1], "ids are distinct";
     require !ghostIsLeafId[ids[0]], "ids[0] is not a leafId of any other adapter";
     require !ghostIsGroupId[ids[1]], "ids[1] is not a groupId of any other adapter";
 
+    require ghostAdapterToGroupId[adapter] == to_bytes32(0) || ghostAdapterToGroupId[adapter] == ids[0], "adapter maps to same group";
     require !ghostIsLeafId[ids[1]] || ghostLeafToGroupId[ids[1]] == ids[0], "leaf maps to same group";
-
-    // Ensures ghost cell == allocation(ids[1]) before the hook updates, so the usum changes by exactly `change`.
-    requireInvariant leafGhostIsAllocation(ids[1]);
 
     // For a new id, allocation == 0.
     requireInvariant unregisteredIdHasZeroAllocation(ids[0]);
     requireInvariant unregisteredIdHasZeroAllocation(ids[1]);
 
-    // For a new leaf, the corresponding ghost cell == 0.
-    requireInvariant nonMappedLeafHasZeroGhostAllocation(ids[0], ids[1]);
+    // For a new group, the aggregate ghost contribution is 0.
+    requireInvariant unregisteredGroupHasZeroGhostAllocation(ids[0]);
 
     requireInvariant allocationIsInt256(ids[0]);
     requireInvariant allocationIsInt256(ids[1]);
 
     ghostIsLeafId[ids[1]] = true;
     ghostIsGroupId[ids[0]] = true;
+    ghostAdapterToGroupId[adapter] = ids[0];
     ghostLeafToGroupId[ids[1]] = ids[0];
 
     return (ids, change);
@@ -92,49 +111,32 @@ function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, addr
 strong invariant allocationIsInt256(bytes32 id)
     allocation(id) <= max_int256();
 
-// No id can be both a leafId and a groupId
+// Simplification: an id cannot be both a leafId and a groupId.
 strong invariant distinctIdTypes(bytes32 id)
     !(ghostIsLeafId[id] && ghostIsGroupId[id]);
-
-// A ghost cell is non-zero only if its leaf is registered and maps to that group.
-strong invariant nonMappedLeafHasZeroGhostAllocation(bytes32 groupId, bytes32 leafId)
-    !(ghostIsLeafId[leafId] && ghostLeafToGroupId[leafId] == groupId) => ghostAllocationByGroupId[groupId][leafId] == 0;
 
 // A registered leaf's parent group is always also registered.
 strong invariant registeredLeafImpliesRegisteredGroup(bytes32 leafId)
     ghostIsLeafId[leafId] => ghostIsGroupId[ghostLeafToGroupId[leafId]];
 
-// For a registered leaf, the ghost cell must equal the allocation.
-strong invariant leafGhostIsAllocation(bytes32 leafId)
-    ghostIsLeafId[leafId] => ghostAllocationByGroupId[ghostLeafToGroupId[leafId]][leafId] == allocation(leafId);
-
-// Unregistered groups have a zero usum shadow.
-strong invariant unregisteredGroupHasZeroGhostSum(bytes32 groupId)
-    !ghostIsGroupId[groupId] => (usum bytes32 leafId. ghostAllocationByGroupId[groupId][leafId]) == 0;
+// Unregistered groups have a zero ghost-tracked aggregate.
+strong invariant unregisteredGroupHasZeroGhostAllocation(bytes32 groupId)
+    !ghostIsGroupId[groupId] => ghostAllocationByGroupId[groupId] == 0;
 
 // An id that has never been registered as a leaf or group has zero allocation.
 strong invariant unregisteredIdHasZeroAllocation(bytes32 id)
     !ghostIsLeafId[id] && !ghostIsGroupId[id] => allocation(id) == 0;
 
-// The allocation of a registered group equals the usum of its leaves' ghost cells.
-strong invariant groupAllocationEqualsSumOfLeafAllocations(bytes32 groupId)
-    ghostIsGroupId[groupId] => to_mathint(allocation(groupId)) == (usum bytes32 leafId. ghostAllocationByGroupId[groupId][leafId])
+// A registered group's allocation equals its ghost-tracked aggregate.
+strong invariant groupAllocationEqualsGhostAllocation(bytes32 groupId)
+    ghostIsGroupId[groupId] => to_mathint(allocation(groupId)) == ghostAllocationByGroupId[groupId]
     {
         preserved with (env e) {
             requireInvariant distinctIdTypes(groupId);
-            requireInvariant unregisteredGroupHasZeroGhostSum(groupId);
+            requireInvariant unregisteredGroupHasZeroGhostAllocation(groupId);
         }
     }
 
-// A group's allocation is the sum of all its leaves' allocations, hence it is
-// always greater than or equal to any individual leaf's allocation.
-rule groupAllocationGteLeafAllocation(bytes32 groupId, bytes32 leafId) {
-    require ghostIsLeafId[leafId], "leafId is registered";
-    require ghostLeafToGroupId[leafId] == groupId, "groupId corresponds to leafId";
-
-    requireInvariant registeredLeafImpliesRegisteredGroup(leafId);
-    requireInvariant leafGhostIsAllocation(leafId);
-    requireInvariant groupAllocationEqualsSumOfLeafAllocations(groupId);
-
-    assert allocation(groupId) >= allocation(leafId), "group id allocation is a sum of corresponding leaf id allocations, hence >= any individual leaf allocation";
-}
+// Global: total leaf allocation equals total group allocation.
+strong invariant totalLeafEqualsTotalGroup()
+    ghostTotalLeafAllocation == ghostTotalGroupAllocation;
