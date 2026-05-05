@@ -6,6 +6,7 @@ import "../helpers/UtilityVault.spec";
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
+    // Over-approximate view functions.
     function accrueInterestView() internal returns (uint256, uint256, uint256) => NONDET;
 
     // Replace all adapter calls with a summary that models the id structure (i.e. the leaf-group hierarchy).
@@ -35,15 +36,17 @@ hook Sstore currentContract.caps[KEY bytes32 id].allocation uint256 newValue (ui
     }
 }
 
-// Adapter's allocate/deallocate summarised to return ids = [groupId, leaf] and an arbitrary change.
+// Adapter's allocate/deallocate summarised to return group id iff a leaf id is returned.
 function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
     bytes32[] ids;
     int256 change;
 
-    require ids.length == 2, "2-slot adapter id abstraction: [groupId, leaf].";
-    require ids[0] == groupId, "every adapter uses the group";
-    require isLeaf[ids[1]], "ids[1] is a leaf";
+    require ids.length == 2, "simplification: assume a fixed number of ids";
+    require isLeaf[ids[0]] <=> ids[1] == groupId, "assume that adapters return group id iff a leaf id is returned";
+    require isLeaf[ids[1]] <=> ids[0] == groupId, "assume that adapters return group id iff a leaf id is returned";
 
+    requireInvariant groupIdNotLeaf();
+    requireInvariant ghostMirrorsLeafAllocation(ids[0]);
     requireInvariant ghostMirrorsLeafAllocation(ids[1]);
     requireInvariant allocationIsInt256(groupId);
     requireInvariant allocationIsInt256(ids[1]);
