@@ -82,6 +82,7 @@ strong invariant globalGroupIdAllocationEqualsSumOfLeafAllocations()
         }
     }
 
+// allocation(globalGroupId) >= allocation(leafId) for every leafId.
 strong invariant globalGroupIdAllocationGteLeafAllocation(bytes32 leafId)
     ghostIsLeafId[leafId] => allocation(globalGroupId) >= allocation(leafId)
     {
