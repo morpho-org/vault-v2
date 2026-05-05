@@ -2,11 +2,10 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.28;
 
-import "../../src/VaultV2.sol";
-import "../../src/interfaces/IVaultV2.sol";
-import "../../src/interfaces/IAdapterRegistry.sol";
-import "../../src/adapters/MorphoMarketV1AdapterV2.sol";
-import "../../src/adapters/interfaces/IMorphoMarketV1AdapterV2.sol";
+import {VaultV2} from "../../src/VaultV2.sol";
+import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
+import {IAdapterRegistry} from "../../src/interfaces/IAdapterRegistry.sol";
+import {MorphoMarketV1AdapterV2} from "../../src/adapters/MorphoMarketV1AdapterV2.sol";
 import {
     WAD,
     MAX_PERFORMANCE_FEE,
