@@ -447,7 +447,6 @@ contract MidnightAdapterTest is Test {
             uint256 approxInterest = step.approxGrowth * timeToMaturity;
             offer.group = bytes32(i);
             offer.obligation.maturity = step.maturity;
-            offer.callbackData = abi.encode(prevMaturity(step.maturity));
 
             // Compute tick from desired price: price = assets / (assets + approxInterest)
             uint256 desiredPrice = step.assets.mulDivDown(1e18, step.assets + approxInterest);
@@ -686,14 +685,6 @@ contract MidnightAdapterTest is Test {
 
     function _obligationId(Obligation memory obligation) internal view returns (bytes32) {
         return IdLib.toId(obligation, block.chainid, address(midnight));
-    }
-
-    function prevMaturity(uint256 maturity) internal view returns (uint48 prev) {
-        uint48 nextMaturity = adapter.firstMaturity();
-        while (nextMaturity < maturity) {
-            prev = nextMaturity;
-            nextMaturity = adapter.maturities(prev).nextMaturity;
-        }
     }
 
     function sign(Offer[1] memory offers) internal view returns (bytes memory) {

@@ -48,7 +48,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         offer.maxUnits = units;
         offer.expiry = block.timestamp;
         offer.callback = address(adapter);
-        offer.callbackData = abi.encode(prevMaturity(offer.obligation.maturity));
+        offer.callbackData = abi.encode(0);
 
         vm.startPrank(taker);
         midnight.supplyCollateral(offer.obligation, 0, assets / 2, taker);
@@ -60,7 +60,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         return offer;
     }
 
-    function sell(Obligation memory obligation, uint256 assets, uint48 prevMaturity) internal {
+    function sell(Obligation memory obligation, uint256 assets) internal {
         Offer memory offer = storedOffer;
 
         offer.obligation = obligation;
@@ -74,7 +74,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         offer.callback = address(adapter);
         offer.receiverIfMakerIsSeller = address(adapter);
         offer.group = bytes32(vm.randomUint());
-        offer.callbackData = abi.encode(prevMaturity);
+        offer.callbackData = abi.encode(0);
         vm.prank(taker);
         midnight.take(
             units, taker, address(0), "", taker, offer, sign([offer], signerAllocator), root([offer]), proof([offer])
@@ -107,7 +107,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         approvalRatifier.setApproval(buyer, _root, true);
         vm.stopPrank();
 
-        bytes memory data = abi.encode(offer, hex"", _root, proof([offer]), uint48(0));
+        bytes memory data = abi.encode(offer, hex"", _root, proof([offer]));
         parentVault.forceDeallocate(address(adapter), data, assets, address(this));
     }
 
@@ -164,7 +164,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         vm.prank(taker);
         midnight.repay(offer.obligation, 1e18, taker, "");
         vm.prank(signerAllocator);
-        adapter.withdrawToVault(offer.obligation, 0.5e18, 0);
+        adapter.withdrawToVault(offer.obligation, 0.5e18);
 
         assertEq(parentVault.allocation(durationId(1 days)), 0, "1 day");
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
@@ -182,7 +182,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         address[] memory adapters = new address[](1);
         adapters[0] = address(adapter);
         parentVault.setAdapters(adapters);
-        sell(offer.obligation, 0.5e18, 0);
+        sell(offer.obligation, 0.5e18);
 
         assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day");
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
@@ -203,7 +203,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         address[] memory adapters = new address[](1);
         adapters[0] = address(adapter);
         parentVault.setAdapters(adapters);
-        sell(secondOffer.obligation, 1e18, 0);
+        sell(secondOffer.obligation, 1e18);
 
         assertEq(adapter.activableMaturities(), 1, "activableMaturities after");
         assertEq(adapter.firstMaturity(), firstOffer.obligation.maturity, "firstMaturity after");
