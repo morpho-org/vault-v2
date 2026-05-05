@@ -29,7 +29,6 @@ persistent ghost bytes32 globalGroupId;
 // Mirrors caps[leafId].allocation for ids in the leaf set, so usum tracks the aggregate.
 persistent ghost mapping(bytes32 => uint256) ghostAllocationByLeafId {
     init_state axiom forall bytes32 l. ghostAllocationByLeafId[l] == 0;
-    init_state axiom (usum bytes32 l. ghostAllocationByLeafId[l]) == 0;
 }
 
 // The arbitrary but fixed set of leafIds. Require globalGroupId to not be a leafId.
@@ -49,12 +48,12 @@ function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, addr
     bytes32[] ids;
     int256 change;
 
-    require ids.length == 2, "simplification";
+    require ids.length == 2, "2-slot adapter id abstraction: [globalGroupId, leafId].";
     require ids[0] == globalGroupId, "every adapter uses the global group";
     require ghostIsLeafId[ids[1]], "ids[1] is a leaf";
 
     // Ensures the ghost cell equals allocation(ids[1]) before the hook fires, so usum changes by exactly `change`.
-    requireInvariant leafGhostMatchesAllocation(ids[1]);
+    requireInvariant ghostMirrorsLeafAllocation(ids[1]);
 
     requireInvariant allocationIsInt256(globalGroupId);
     requireInvariant allocationIsInt256(ids[1]);
@@ -71,7 +70,7 @@ strong invariant globalGroupIdNotLeaf()
     !ghostIsLeafId[globalGroupId];
 
 // The ghost cell equals the allocation for leaves and is zero otherwise.
-strong invariant leafGhostMatchesAllocation(bytes32 leafId)
+strong invariant ghostMirrorsLeafAllocation(bytes32 leafId)
     ghostAllocationByLeafId[leafId] == (ghostIsLeafId[leafId] ? allocation(leafId) : 0);
 
 // allocation(globalGroupId) equals the sum of all leaf allocations.
@@ -83,12 +82,11 @@ strong invariant globalGroupIdAllocationEqualsSumOfLeafAllocations()
         }
     }
 
-// allocation(globalGroupId) >= allocation(leafId) for any leaf, since the group's allocation is the sum of its leaves' allocations.
-rule globalGroupIdAllocationGteLeafAllocation(bytes32 leafId) {
-    require ghostIsLeafId[leafId], "leafId is in the leaf set";
-
-    requireInvariant leafGhostMatchesAllocation(leafId);
-    requireInvariant globalGroupIdAllocationEqualsSumOfLeafAllocations();
-
-    assert allocation(globalGroupId) >= allocation(leafId);
-}
+strong invariant globalGroupIdAllocationGteLeafAllocation(bytes32 leafId)
+    ghostIsLeafId[leafId] => allocation(globalGroupId) >= allocation(leafId)
+    {
+        preserved {
+            requireInvariant ghostMirrorsLeafAllocation(leafId);
+            requireInvariant globalGroupIdAllocationEqualsSumOfLeafAllocations();
+        }
+    }
