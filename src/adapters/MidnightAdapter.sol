@@ -103,7 +103,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* VAULT ALLOCATORS FUNCTIONS */
 
-    function withdrawToVault(Obligation memory obligation, uint256 withdrawnAssets) external {
+    function withdrawToVault(Obligation memory obligation, uint256 withdrawnAssets, uint48 prevMaturity) external {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
         bytes32 obligationId = IdLib.toId(obligation, block.chainid, midnight);
         IMidnight(midnight).withdraw(obligation, withdrawnAssets, address(this), address(this));
@@ -115,7 +115,9 @@ contract MidnightAdapter is IMidnightAdapter {
         accrueInterest();
         updateDurationCountAndAllocations(obligation);
 
-        if (totalNetCreditDecrease > 0) removeUnits(obligationId, obligation.maturity, totalNetCreditDecrease);
+        if (totalNetCreditDecrease > 0) {
+            removeUnits(obligationId, obligation.maturity, totalNetCreditDecrease, prevMaturity);
+        }
 
         int256 change = -int256(totalNetCreditDecrease);
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(obligation), change), withdrawnAssets);
@@ -195,8 +197,8 @@ contract MidnightAdapter is IMidnightAdapter {
     {
         require(msg.sender == parentVault, NotAuthorized());
         if (messageSig == IVaultV2.forceDeallocate.selector) {
-            (Offer memory offer, bytes memory ratifierData, bytes32 root, bytes32[] memory proof) =
-                abi.decode(data, (Offer, bytes, bytes32, bytes32[]));
+            (Offer memory offer, bytes memory ratifierData, bytes32 root, bytes32[] memory proof, uint48 prevMaturity) =
+                abi.decode(data, (Offer, bytes, bytes32, bytes32[], uint48));
             require(offer.buy && offer.obligation.loanToken == asset && offer.tick == MAX_TICK, IncorrectOffer());
 
             // Already in a deallocate call so we skip the onSell callback and return the deallocation here.
@@ -216,7 +218,7 @@ contract MidnightAdapter is IMidnightAdapter {
             uint256 totalNetCreditDecrease = netCredit[obligationId] - newNetCredit;
 
             if (totalNetCreditDecrease > 0) {
-                removeUnits(obligationId, offer.obligation.maturity, totalNetCreditDecrease);
+                removeUnits(obligationId, offer.obligation.maturity, totalNetCreditDecrease, prevMaturity);
             }
 
             int256 change = -int256(totalNetCreditDecrease);
@@ -285,7 +287,7 @@ contract MidnightAdapter is IMidnightAdapter {
         // change is at most buyNetCreditIncrease
         if (change < buyNetCreditIncrease.toInt256()) {
             uint256 loss = (int256(buyNetCreditIncrease) - change).toUint256();
-            removeUnits(obligationId, obligation.maturity, loss);
+            removeUnits(obligationId, obligation.maturity, loss, prevMaturity);
         }
 
         if (maturityData.netCredit == 0 && buyNetCreditIncrease > 0) activableMaturities--;
@@ -320,15 +322,11 @@ contract MidnightAdapter is IMidnightAdapter {
             }
 
             if (nextMaturity > obligation.maturity) {
-                maturityData.prevMaturity = prevMaturity;
                 maturityData.nextMaturity = nextMaturity;
                 if (prevMaturity == 0) {
                     firstMaturity = obligation.maturity.toUint48();
                 } else {
                     _maturities[prevMaturity].nextMaturity = obligation.maturity.toUint48();
-                }
-                if (nextMaturity < type(uint48).max) {
-                    _maturities[nextMaturity].prevMaturity = obligation.maturity.toUint48();
                 }
             }
         }
@@ -343,8 +341,9 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 sellerAssets,
         uint256,
         uint256,
-        bytes memory
+        bytes memory data
     ) external returns (bytes32) {
+        uint48 prevMaturity = abi.decode(data, (uint48));
         uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
         uint256 newNetCredit = IMidnight(midnight).creditOf(obligationId, address(this))
             - IMidnight(midnight).pendingFee(obligationId, address(this));
@@ -357,7 +356,9 @@ contract MidnightAdapter is IMidnightAdapter {
         accrueInterest();
         updateDurationCountAndAllocations(obligation);
 
-        if (totalNetCreditDecrease > 0) removeUnits(obligationId, obligation.maturity, totalNetCreditDecrease);
+        if (totalNetCreditDecrease > 0) {
+            removeUnits(obligationId, obligation.maturity, totalNetCreditDecrease, prevMaturity);
+        }
 
         int256 change = -int256(totalNetCreditDecrease);
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(obligation), change), sellerAssets);
@@ -376,7 +377,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /// @dev Removes units from tracking.
     /// @dev Changes the implied price of the obligation as little as possible.
-    function removeUnits(bytes32 obligationId, uint256 maturity, uint256 removedUnits) internal {
+    function removeUnits(bytes32 obligationId, uint256 maturity, uint256 removedUnits, uint48 prevMaturity) internal {
         MaturityData storage maturityData = _maturities[maturity];
 
         if (maturity > block.timestamp) {
@@ -394,15 +395,24 @@ contract MidnightAdapter is IMidnightAdapter {
         if (removedUnits > 0 && maturityData.netCredit == 0) {
             activableMaturities++;
             if (maturity > block.timestamp) {
-                uint48 prevMaturity = maturityData.prevMaturity;
-                uint48 nextMaturity = maturityData.nextMaturity;
-                if (maturity == firstMaturity) {
-                    firstMaturity = nextMaturity;
+                uint48 nextMaturity;
+                if (prevMaturity == 0) {
+                    nextMaturity = firstMaturity;
                 } else {
-                    _maturities[prevMaturity].nextMaturity = nextMaturity;
+                    require(prevMaturity >= firstMaturity && _maturities[prevMaturity].netCredit > 0, IncorrectHint());
+                    nextMaturity = _maturities[prevMaturity].nextMaturity;
                 }
-                if (nextMaturity < type(uint48).max) {
-                    _maturities[nextMaturity].prevMaturity = prevMaturity;
+
+                while (nextMaturity < maturity) {
+                    prevMaturity = nextMaturity;
+                    nextMaturity = _maturities[prevMaturity].nextMaturity;
+                }
+
+                require(nextMaturity == maturity, IncorrectHint());
+                if (prevMaturity == 0) {
+                    firstMaturity = maturityData.nextMaturity;
+                } else {
+                    _maturities[prevMaturity].nextMaturity = maturityData.nextMaturity;
                 }
             }
         }
