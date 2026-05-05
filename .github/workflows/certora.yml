@@ -5,83 +5,69 @@ on:
     branches:
       - main
   pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
-  submit:
+  matrix:
     runs-on: ubuntu-latest
+    outputs:
+      confs: ${{ steps.list.outputs.confs }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-    permissions:
-      contents: read
-      statuses: write
-      id-token: write
+      - id: list
+        run: echo "confs=$(ls certora/confs/*.conf | xargs -I{} basename {} .conf | jq -nRc '[inputs]')" >> "$GITHUB_OUTPUT"
+
+  verify:
+    needs: matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        conf: ${{ fromJson(needs.matrix.outputs.confs) }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           submodules: recursive
 
-      - name: Install Jq
-        uses: sergeysova/jq-action@a3f0d4ff59cc1dddf023fc0b325dd75b10deec58 # v2
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
 
       - name: Run Certora Config Linter
         run: |
           file="certora/confs/${{ matrix.conf }}.conf"
-          diff <(grep -v "//" "$file" | jq) <(grep -v "//" "$file")
+          echo "Fix lint errors by applying the following diff to $file:"
+          diff -u "$file" <(jq < "$file")
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+
+      - name: Install certora
+        run: pip install certora-cli
+
+      - name: Run Certora Specs Linter
+        run: |
+          file="certora/specs/${{ matrix.conf }}.spec"
+          echo "Fix lint errors by applying the following diff to $file:"
+          diff -u "$file" <(certoraCVLFormatter "$file")
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@8789b3e21e6c11b2697f5eb56eddae542f746c10 # v1
+
+      - name: Copy solc
+        run: |
+          forge build
+          cp ~/.svm/0.8.19/solc-0.8.19 /usr/local/bin
+          cp ~/.svm/0.8.21/solc-0.8.21 /usr/local/bin
+          cp ~/.svm/0.8.26/solc-0.8.26 /usr/local/bin
+          cp ~/.svm/0.8.28/solc-0.8.28 /usr/local/bin
 
       - name: Apply munging
         run: make -C lib/metamorpho/certora munged
 
-      - name: Submit verification jobs to Certora Prover
-        uses: Certora/certora-run-action@9154685363091a2ecea21dc72ef4edbfc41c221a # v2.8
+      - name: Verify ${{ matrix.conf }}
+        run: certoraRun certora/confs/${{ matrix.conf }}.conf
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          certora-key: ${{ secrets.CERTORAKEY }}
-          debug-level: 1
-          gh-review: never
-          solc-versions: |-
-            0.8.19
-            0.8.21
-            0.8.26
-            0.8.28
-          configurations: |-
-            certora/confs/AbdicatedFunctions.conf
-            certora/confs/AccrueInterestReverts.conf
-            certora/confs/AllocateDeallocateInputValidation.conf
-            certora/confs/AllocateDeallocateReverts.conf
-            certora/confs/AllocationMorphoMarketV1AdapterV2.conf
-            certora/confs/AllocationMorphoVaultV1Adapter.conf
-            certora/confs/AllocationVaultV2.conf
-            certora/confs/ChangesMorphoMarketV1AdapterV2.conf
-            certora/confs/ChangesMorphoVaultV1Adapter.conf
-            certora/confs/EarliestTime.conf
-            certora/confs/EntrypointEquivalence.conf
-            certora/confs/ExchangeRate.conf
-            certora/confs/Gates.conf
-            certora/confs/IdsMorphoMarketV1AdapterV2.conf
-            certora/confs/IdsMorphoVaultV1Adapter.conf
-            certora/confs/Immutability.conf
-            certora/confs/Invariants.conf
-            certora/confs/Liveness.conf
-            certora/confs/MarketIds.conf
-            certora/confs/OwnerSafety.conf
-            certora/confs/PreviewFunctions.conf
-            certora/confs/Reentrancy.conf
-            certora/confs/ReentrancyView.conf
-            certora/confs/RelativeCaps.conf
-            certora/confs/RemoveMarketLiveness.conf
-            certora/confs/Reverts.conf
-            certora/confs/SentinelLiveness.conf
-            certora/confs/SentinelLivenessDeallocateMarketV1.conf
-            certora/confs/SentinelLivenessDeallocateVaultV1.conf
-            certora/confs/SkimMorphoMarketV1AdapterV2.conf
-            certora/confs/SkimMorphoVaultV1Adapter.conf
-            certora/confs/TokensMorphoMarketV1AdapterV2.conf
-            certora/confs/TokensMorphoVaultV1Adapter.conf
-            certora/confs/TokensNoAdapter.conf
-            certora/confs/TotalAssetsChange.conf
-            certora/confs/TotalAssetsIsUpToDate.conf
+          CERTORAKEY: ${{ secrets.CERTORAKEY }}
