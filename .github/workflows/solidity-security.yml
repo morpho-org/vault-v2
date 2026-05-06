@@ -1,0 +1,36 @@
+name: Solidity Security & Gas Analysis
+
+on:
+  pull_request:
+    paths:
+      - '**/*.sol'
+      - 'contracts/**'
+      - 'src/**'
+  push:
+    branches: [main, master]
+    paths:
+      - '**/*.sol'
+      - 'contracts/**'
+      - 'src/**'
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    name: Security & Gas Analysis
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Solidity Security Audit
+        uses: harunosakura030303-maker/solidity-audit-action@v1
+        with:
+          path: 'contracts'
+          severity: 'medium'
+
+      - name: Gas Usage Report
+        uses: harunosakura030303-maker/solidity-gas-reporter-action@v1
+        with:
+          path: 'contracts'
+          threshold: '500000'
+          post-comment: 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
