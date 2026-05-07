@@ -14,7 +14,8 @@ import {IMidnightAdapterFactory} from "../src/adapters/interfaces/IMidnightAdapt
 import {MathLib} from "../src/libraries/MathLib.sol";
 import {Midnight} from "../lib/midnight/src/Midnight.sol";
 import {IMidnight, Offer, Obligation, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
-import {Signature, EIP712_DOMAIN_TYPEHASH, ROOT_TYPEHASH} from "../lib/midnight/src/interfaces/IEcrecover.sol";
+import {Signature, EIP712_DOMAIN_TYPEHASH} from "../lib/midnight/src/ratifiers/interfaces/IEcrecoverRatifier.sol";
+import {UtilsLib} from "../lib/midnight/src/libraries/UtilsLib.sol";
 import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
 import {IdLib} from "../lib/midnight/src/libraries/IdLib.sol";
 import {stdStorage, StdStorage} from "../lib/forge-std/src/Test.sol";
@@ -199,7 +200,7 @@ contract MidnightAdapterTest is Test {
 
         offer.maxUnits = units;
         offer.callback = address(adapter);
-        offer.callbackData = abi.encode(0);
+        offer.callbackData = abi.encode(uint48(0));
         vm.prank(taker);
         midnight.take(
             units, taker, address(0), "", taker, offer, sign([offer], signerAllocator), root([offer]), proof([offer])
@@ -243,7 +244,7 @@ contract MidnightAdapterTest is Test {
 
         offer.maxUnits = units1;
         offer.callback = address(adapter);
-        offer.callbackData = abi.encode(0);
+        offer.callbackData = abi.encode(uint48(0));
 
         vm.prank(taker);
         midnight.take(
@@ -421,7 +422,7 @@ contract MidnightAdapterTest is Test {
             expiry: vm.getBlockTimestamp() + 1,
             tick: MAX_TICK,
             callback: address(adapter),
-            callbackData: abi.encode(0),
+            callbackData: abi.encode(uint48(0)),
             obligation: Obligation({
                 loanToken: address(loanToken),
                 collateralParams: storedCollaterals,
@@ -572,7 +573,7 @@ contract MidnightAdapterTest is Test {
 
         skip(elapsed);
 
-        (uint48 nextMaturity, uint128 newGrowth, uint256 newTotalAssets) = adapter.accrueInterestView();
+        (uint48 nextMaturity, uint128 newGrowth, uint256 newTotalAssets,) = adapter.accrueInterestView();
 
         uint256 lostGrowth = 0;
         uint256 interest = initialGrowth * elapsed;
@@ -716,7 +717,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function sign(Offer[2] memory offers) internal view returns (bytes memory) {
-        return ratifierData(root(offers), offers[0].maker);
+        return ratifierData(root(offers), offers[0].maker, 1);
     }
 
     function root(Offer memory offer) internal pure returns (bytes32) {
@@ -732,11 +733,15 @@ contract MidnightAdapterTest is Test {
     }
 
     function ratifierData(bytes32 _root, address signer) internal view returns (bytes memory) {
-        bytes32 structHash = keccak256(abi.encode(ROOT_TYPEHASH, _root));
+        return ratifierData(_root, signer, 0);
+    }
+
+    function ratifierData(bytes32 _root, address signer, uint256 height) internal view returns (bytes memory) {
+        bytes32 structHash = keccak256(abi.encode(UtilsLib.offerTreeTypeHash(height), _root));
         bytes32 domainSeparator = keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, block.chainid, address(adapter)));
         bytes32 digest = keccak256(bytes.concat("\x19\x01", domainSeparator, structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey[signer], digest);
-        return abi.encode(Signature({v: v, r: r, s: s}));
+        return abi.encode(Signature({v: v, r: r, s: s}), height);
     }
 
     /// @dev Returns the concatenation of x and y, sorted lexicographically.

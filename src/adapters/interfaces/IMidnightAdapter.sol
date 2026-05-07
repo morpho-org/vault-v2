@@ -4,7 +4,12 @@ pragma solidity >=0.5.0;
 
 import {IAdapter} from "../../interfaces/IAdapter.sol";
 import {Obligation} from "lib/midnight/src/interfaces/IMidnight.sol";
-import {ICallbacks} from "lib/midnight/src/interfaces/ICallbacks.sol";
+import {
+    IBuyCallback,
+    ISellCallback,
+    ILiquidateCallback,
+    IRepayCallback
+} from "lib/midnight/src/interfaces/ICallbacks.sol";
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
 // Chain of maturities, each can represent multiple obligations.
@@ -16,11 +21,21 @@ struct MaturityData {
     uint8 durationCount;
 }
 
-interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
+interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     /* EVENTS */
 
     event SetSkimRecipient(address indexed newSkimRecipient);
     event Skim(address indexed token, uint256 assets);
+    event WithdrawToVault(bytes32 indexed obligationId, uint256 withdrawnAssets, uint256 netCreditDecrease);
+    event UpdateDurationCountAndAllocations(
+        uint256 indexed maturity, uint256 oldDurationCount, uint256 newDurationCount, uint256 netCredit
+    );
+    event ForceDeallocate(bytes32 indexed obligationId, uint256 sellerAssets, uint256 netCreditDecrease);
+    event Buy(bytes32 indexed obligationId, uint256 paidAssets, uint256 netCreditIncrease, int256 change);
+    event Sell(bytes32 indexed obligationId, uint256 sellerAssets, uint256 netCreditDecrease);
+    event AccrueInterest(uint48 firstMaturity, uint128 currentGrowth, uint256 totalAssets, uint256 availableMaturities);
+    event RemoveMaturity(uint256 indexed maturity, uint48 prevMaturity, uint256 availableMaturities);
+    event InsertMaturity(uint256 indexed maturity, uint48 prevMaturity, uint256 availableMaturities);
 
     /* ERRORS */
 
@@ -28,7 +43,7 @@ interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
     error BuyAtLoss();
     error IncorrectCallbackAddress();
     error IncorrectDuration();
-    error IncorrectHint();
+    error InvalidHint();
     error IncorrectMaturity();
     error IncorrectOffer();
     error IncorrectOwner();
@@ -49,7 +64,7 @@ interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
     function lastUpdate() external view returns (uint48);
     function firstMaturity() external view returns (uint48);
     function currentGrowth() external view returns (uint128);
-    function activableMaturities() external view returns (uint256);
+    function availableMaturities() external view returns (uint256);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
@@ -61,10 +76,10 @@ interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
     function updateDurationCountAndAllocations(Obligation memory obligation) external;
-    function withdrawToVault(Obligation memory obligation, uint256 units, uint48 prevMaturity) external;
+    function withdrawToVault(Obligation memory obligation, uint256 units, uint48 prevMaturityHint) external;
     function ids(Obligation memory obligation) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
-    function accrueInterestView() external view returns (uint48, uint128, uint256);
+    function accrueInterestView() external view returns (uint48, uint128, uint256, uint256);
     function accrueInterest() external returns (uint48, uint128, uint256);
     function allocate(bytes memory data, uint256 assets, bytes4, address vaultAllocator)
         external
@@ -90,20 +105,4 @@ interface IMidnightAdapter is IAdapter, ICallbacks, IRatifier {
         uint256 sellerPendingFeeDecrease,
         bytes memory data
     ) external returns (bytes32);
-    function onLiquidate(
-        bytes32 id,
-        Obligation memory obligation,
-        uint256 collateralIndex,
-        uint256 seizedAssets,
-        uint256 repaidUnits,
-        address borrower,
-        bytes memory data
-    ) external;
-    function onRepay(
-        bytes32 obligationId,
-        Obligation memory obligation,
-        uint256 units,
-        address onBehalf,
-        bytes memory data
-    ) external;
 }

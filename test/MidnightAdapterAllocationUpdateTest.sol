@@ -5,6 +5,7 @@ pragma solidity ^0.8.0;
 import "../lib/forge-std/src/Test.sol";
 import {MidnightAdapterTest} from "./MidnightAdapterTest.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
+import {IMidnightAdapter} from "../src/adapters/interfaces/IMidnightAdapter.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
 import {Offer, Obligation, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
 import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
@@ -104,7 +105,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         loanToken.approve(address(midnight), type(uint256).max);
         midnight.setIsAuthorized(buyer, address(approvalRatifier), true);
         bytes32 _root = root([offer]);
-        approvalRatifier.setApproval(buyer, _root, true);
+        approvalRatifier.setIsRatified(buyer, _root, true);
         vm.stopPrank();
 
         bytes memory data = abi.encode(offer, hex"", _root, proof([offer]), uint48(0));
@@ -113,6 +114,11 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
 
     function durationId(uint256 duration) internal pure returns (bytes32) {
         return keccak256(abi.encode("duration", duration));
+    }
+
+    function setMidnightCredit(bytes32 obligationId, address account, uint256 credit) internal {
+        stdstore.target(address(midnight)).sig("creditOf(bytes32,address)").with_key(obligationId).with_key(account)
+            .checked_write(credit);
     }
 
     function testExactDuration(uint32 durationIndex) public {
@@ -162,7 +168,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         skip(7 days);
 
         vm.prank(taker);
-        midnight.repay(offer.obligation, 1e18, taker, "");
+        midnight.repay(offer.obligation, 1e18, taker, address(0), "");
         vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.obligation, 0.5e18, 0);
 
@@ -188,6 +194,36 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
     }
 
+    function testOnBuyUsesSingleHintForRemoveAndInsert() public {
+        Offer memory firstOffer = buy(1 days, 1e18);
+        Offer memory offer = buy(7 days, 1e18);
+        Offer memory lastOffer = buy(30 days, 1e18);
+        bytes32 obligationId = _obligationId(offer.obligation);
+        setMidnightCredit(obligationId, address(adapter), 0);
+
+        offer.group = bytes32("second buy");
+        uint256 units = 1e18 * 1e18 / TickLib.tickToPrice(MAX_TICK);
+        offer.maxUnits = units;
+
+        vm.startPrank(taker);
+        midnight.supplyCollateral(offer.obligation, 0, 0.5e18, taker);
+        midnight.supplyCollateral(offer.obligation, 1, 0.5e18, taker);
+        vm.stopPrank();
+
+        offer.callbackData = abi.encode(uint48(lastOffer.obligation.maturity));
+        vm.expectRevert(IMidnightAdapter.InvalidHint.selector);
+        vm.prank(taker);
+        midnight.take(
+            units, taker, address(0), "", taker, offer, sign([offer], signerAllocator), root([offer]), proof([offer])
+        );
+
+        offer.callbackData = abi.encode(uint48(firstOffer.obligation.maturity));
+        vm.prank(taker);
+        midnight.take(
+            units, taker, address(0), "", taker, offer, sign([offer], signerAllocator), root([offer]), proof([offer])
+        );
+    }
+
     function testSellClearsMaturityAndReactivatesSlot() public {
         Offer memory firstOffer;
         Offer memory secondOffer;
@@ -196,7 +232,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
             if (i == 0) firstOffer = offer;
             if (i == 1) secondOffer = offer;
         }
-        assertEq(adapter.activableMaturities(), 0, "activableMaturities before");
+        assertEq(adapter.availableMaturities(), 0, "availableMaturities before");
 
         parentVault.setTotalAssets(1e18);
         parentVault.setAdaptersLength(1);
@@ -205,12 +241,12 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         parentVault.setAdapters(adapters);
         sell(secondOffer.obligation, 1e18, 0);
 
-        assertEq(adapter.activableMaturities(), 1, "activableMaturities after");
+        assertEq(adapter.availableMaturities(), 1, "availableMaturities after");
         assertEq(adapter.firstMaturity(), firstOffer.obligation.maturity, "firstMaturity after");
 
         buy(60 days, 1e18);
 
-        assertEq(adapter.activableMaturities(), 0, "activableMaturities final");
+        assertEq(adapter.availableMaturities(), 0, "availableMaturities final");
     }
 
     function testUpdateOnForceDeallocate() public {
