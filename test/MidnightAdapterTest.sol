@@ -692,7 +692,7 @@ contract MidnightAdapterTest is Test {
     // assumes the offer is the first one!
     function proof(Offer[2] memory offers) internal pure returns (bytes32[] memory) {
         bytes32[] memory path = new bytes32[](1);
-        path[0] = keccak256(abi.encode(offers[1]));
+        path[0] = UtilsLib.hashOffer(offers[1]);
         return path;
     }
 
@@ -701,15 +701,15 @@ contract MidnightAdapterTest is Test {
     }
 
     function root(Offer memory offer) internal pure returns (bytes32) {
-        return keccak256(abi.encode(offer));
+        return UtilsLib.hashOffer(offer);
     }
 
     function root(Offer[1] memory offers) internal pure returns (bytes32) {
-        return keccak256(abi.encode(offers[0]));
+        return UtilsLib.hashOffer(offers[0]);
     }
 
     function root(Offer[2] memory offers) internal pure returns (bytes32) {
-        return keccak256(sort(keccak256(abi.encode(offers[0])), keccak256(abi.encode(offers[1]))));
+        return UtilsLib.commutativeHash(UtilsLib.hashOffer(offers[0]), UtilsLib.hashOffer(offers[1]));
     }
 
     function ratifierData(bytes32 _root, address signer) internal view returns (bytes memory) {
