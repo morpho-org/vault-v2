@@ -124,7 +124,7 @@ contract MidnightAdapter is IMidnightAdapter {
             removeUnits(obligationId, obligation.maturity, totalNetCreditDecrease);
         }
 
-        int256 change = -int256(totalNetCreditDecrease);
+        int256 change = -totalNetCreditDecrease.toInt256();
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(obligation), change), withdrawnAssets);
         emit WithdrawToVault(obligationId, withdrawnAssets, totalNetCreditDecrease);
     }
@@ -233,7 +233,7 @@ contract MidnightAdapter is IMidnightAdapter {
                 removeUnits(obligationId, offer.obligation.maturity, totalNetCreditDecrease);
             }
 
-            int256 change = -int256(totalNetCreditDecrease);
+            int256 change = -totalNetCreditDecrease.toInt256();
             emit ForceDeallocate(obligationId, sellerAssets, totalNetCreditDecrease);
             return (ids(offer.obligation), change);
         } else {
@@ -292,7 +292,9 @@ contract MidnightAdapter is IMidnightAdapter {
 
         // change is at most buyNetCreditIncrease
         if (change < buyNetCreditIncrease.toInt256()) {
-            uint256 loss = (int256(buyNetCreditIncrease) - change).toUint256();
+            // forge-lint: disable-next-item(unsafe-typecast) safe because change < buyNetCreditIncrease (checked
+            // above).
+            uint256 loss = uint256(int256(buyNetCreditIncrease) - change);
             removeUnits(obligationId, obligation.maturity, loss);
         }
 
@@ -358,7 +360,7 @@ contract MidnightAdapter is IMidnightAdapter {
             removeUnits(obligationId, obligation.maturity, totalNetCreditDecrease);
         }
 
-        int256 change = -int256(totalNetCreditDecrease);
+        int256 change = -totalNetCreditDecrease.toInt256();
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(obligation), change), sellerAssets);
 
         uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(address(parentVault));
