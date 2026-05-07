@@ -151,23 +151,23 @@ contract MidnightAdapter is IMidnightAdapter {
     /* ACCRUAL */
 
     function accrueInterestView() public view returns (uint48, uint128, uint256, uint256) {
-        uint256 lastChange = lastUpdate;
-        uint48 nextMaturity = _maturities[0].nextMaturity;
+        uint48 _firstMaturity = _maturities[0].nextMaturity;
         uint128 newGrowth = currentGrowth;
         uint256 newAvailableMaturities = availableMaturities;
-        uint256 gainedAssets;
+        uint256 gainedAssets = 0;
+        uint256 accrueFrom = lastUpdate;
 
-        while (nextMaturity != 0 && nextMaturity < block.timestamp) {
-            gainedAssets += uint256(newGrowth) * (nextMaturity - lastChange);
-            newGrowth -= _maturities[nextMaturity].growth;
-            lastChange = nextMaturity;
-            nextMaturity = _maturities[nextMaturity].nextMaturity;
+        while (_firstMaturity != 0 && _firstMaturity < block.timestamp) {
+            gainedAssets += uint256(newGrowth) * (_firstMaturity - accrueFrom);
+            newGrowth -= _maturities[_firstMaturity].growth;
+            accrueFrom = _firstMaturity;
+            _firstMaturity = _maturities[_firstMaturity].nextMaturity;
             newAvailableMaturities++;
         }
 
-        gainedAssets += uint256(newGrowth) * (block.timestamp - lastChange);
+        gainedAssets += uint256(newGrowth) * (block.timestamp - accrueFrom);
 
-        return (nextMaturity, newGrowth, _totalAssets + gainedAssets, newAvailableMaturities);
+        return (_firstMaturity, newGrowth, _totalAssets + gainedAssets, newAvailableMaturities);
     }
 
     function accrueInterest() public returns (uint48, uint128, uint256) {
