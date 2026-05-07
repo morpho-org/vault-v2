@@ -5,7 +5,6 @@ pragma solidity ^0.8.0;
 import "../lib/forge-std/src/Test.sol";
 import {MidnightAdapterTest} from "./MidnightAdapterTest.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
-import {IMidnightAdapter} from "../src/adapters/interfaces/IMidnightAdapter.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
 import {Offer, Obligation, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
 import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
@@ -49,7 +48,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         offer.maxUnits = units;
         offer.expiry = block.timestamp;
         offer.callback = address(adapter);
-        offer.callbackData = abi.encode(prevMaturity(offer.obligation.maturity));
+        offer.callbackData = hex"";
 
         vm.startPrank(taker);
         midnight.supplyCollateral(offer.obligation, 0, assets / 2, taker);
@@ -61,7 +60,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         return offer;
     }
 
-    function sell(Obligation memory obligation, uint256 assets, uint48 prevMaturity) internal {
+    function sell(Obligation memory obligation, uint256 assets) internal {
         Offer memory offer = storedOffer;
 
         offer.obligation = obligation;
@@ -75,7 +74,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         offer.callback = address(adapter);
         offer.receiverIfMakerIsSeller = address(adapter);
         offer.group = bytes32(vm.randomUint());
-        offer.callbackData = abi.encode(prevMaturity);
+        offer.callbackData = hex"";
         vm.prank(taker);
         midnight.take(
             units, taker, address(0), "", taker, offer, sign([offer], signerAllocator), root([offer]), proof([offer])
@@ -108,7 +107,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         approvalRatifier.setIsRatified(buyer, _root, true);
         vm.stopPrank();
 
-        bytes memory data = abi.encode(offer, hex"", _root, proof([offer]), uint48(0));
+        bytes memory data = abi.encode(offer, hex"", _root, proof([offer]));
         parentVault.forceDeallocate(address(adapter), data, assets, address(this));
     }
 
@@ -170,7 +169,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         vm.prank(taker);
         midnight.repay(offer.obligation, 1e18, taker, address(0), "");
         vm.prank(signerAllocator);
-        adapter.withdrawToVault(offer.obligation, 0.5e18, 0);
+        adapter.withdrawToVault(offer.obligation, 0.5e18);
 
         assertEq(parentVault.allocation(durationId(1 days)), 0, "1 day");
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
@@ -188,16 +187,16 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         address[] memory adapters = new address[](1);
         adapters[0] = address(adapter);
         parentVault.setAdapters(adapters);
-        sell(offer.obligation, 0.5e18, 0);
+        sell(offer.obligation, 0.5e18);
 
         assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day");
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
     }
 
-    function testOnBuyUsesSingleHintForRemoveAndInsert() public {
-        Offer memory firstOffer = buy(1 days, 1e18);
+    function testOnBuyRemovesAndReinsertsMaturity() public {
+        buy(1 days, 1e18);
         Offer memory offer = buy(7 days, 1e18);
-        Offer memory lastOffer = buy(30 days, 1e18);
+        buy(30 days, 1e18);
         bytes32 obligationId = _obligationId(offer.obligation);
         setMidnightCredit(obligationId, address(adapter), 0);
 
@@ -210,14 +209,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         midnight.supplyCollateral(offer.obligation, 1, 0.5e18, taker);
         vm.stopPrank();
 
-        offer.callbackData = abi.encode(uint48(lastOffer.obligation.maturity));
-        vm.expectRevert(IMidnightAdapter.InvalidHint.selector);
-        vm.prank(taker);
-        midnight.take(
-            units, taker, address(0), "", taker, offer, sign([offer], signerAllocator), root([offer]), proof([offer])
-        );
-
-        offer.callbackData = abi.encode(uint48(firstOffer.obligation.maturity));
+        offer.callbackData = hex"";
         vm.prank(taker);
         midnight.take(
             units, taker, address(0), "", taker, offer, sign([offer], signerAllocator), root([offer]), proof([offer])
@@ -239,7 +231,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         address[] memory adapters = new address[](1);
         adapters[0] = address(adapter);
         parentVault.setAdapters(adapters);
-        sell(secondOffer.obligation, 1e18, 0);
+        sell(secondOffer.obligation, 1e18);
 
         assertEq(adapter.availableMaturities(), 1, "availableMaturities after");
         assertEq(adapter.firstMaturity(), firstOffer.obligation.maturity, "firstMaturity after");

@@ -58,7 +58,6 @@ contract MidnightAdapter is IMidnightAdapter {
         lastUpdate = uint48(block.timestamp);
         SafeERC20Lib.safeApprove(asset, _midnight, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
-        _maturities[0].nextMaturity = type(uint48).max;
         adapterId = keccak256(abi.encode("this", address(this)));
 
         bytes32 _packedDurations;
@@ -109,7 +108,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* VAULT ALLOCATORS FUNCTIONS */
 
-    function withdrawToVault(Obligation memory obligation, uint256 withdrawnAssets, uint48 prevMaturityHint) external {
+    function withdrawToVault(Obligation memory obligation, uint256 withdrawnAssets) external {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
         bytes32 obligationId = IdLib.toId(obligation, block.chainid, midnight);
         IMidnight(midnight).withdraw(obligation, withdrawnAssets, address(this), address(this));
@@ -122,7 +121,7 @@ contract MidnightAdapter is IMidnightAdapter {
         updateDurationCountAndAllocations(obligation);
 
         if (totalNetCreditDecrease > 0) {
-            removeUnits(obligationId, obligation.maturity, totalNetCreditDecrease, prevMaturityHint);
+            removeUnits(obligationId, obligation.maturity, totalNetCreditDecrease);
         }
 
         int256 change = -int256(totalNetCreditDecrease);
@@ -158,7 +157,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 newAvailableMaturities = availableMaturities;
         uint256 gainedAssets;
 
-        while (nextMaturity < block.timestamp) {
+        while (nextMaturity != 0 && nextMaturity < block.timestamp) {
             gainedAssets += uint256(newGrowth) * (nextMaturity - lastChange);
             newGrowth -= _maturities[nextMaturity].growth;
             lastChange = nextMaturity;
@@ -174,6 +173,7 @@ contract MidnightAdapter is IMidnightAdapter {
     function accrueInterest() public returns (uint48, uint128, uint256) {
         if (lastUpdate != block.timestamp) {
             (_maturities[0].nextMaturity, currentGrowth, _totalAssets, availableMaturities) = accrueInterestView();
+            _maturities[_maturities[0].nextMaturity].prevMaturity = 0;
             lastUpdate = uint48(block.timestamp);
             emit AccrueInterest(_maturities[0].nextMaturity, currentGrowth, _totalAssets, availableMaturities);
         }
@@ -210,13 +210,8 @@ contract MidnightAdapter is IMidnightAdapter {
     {
         require(msg.sender == parentVault, NotAuthorized());
         if (messageSig == IVaultV2.forceDeallocate.selector) {
-            (
-                Offer memory offer,
-                bytes memory ratifierData,
-                bytes32 root,
-                bytes32[] memory proof,
-                uint48 prevMaturityHint
-            ) = abi.decode(data, (Offer, bytes, bytes32, bytes32[], uint48));
+            (Offer memory offer, bytes memory ratifierData, bytes32 root, bytes32[] memory proof) =
+                abi.decode(data, (Offer, bytes, bytes32, bytes32[]));
             require(offer.buy && offer.obligation.loanToken == asset && offer.tick == MAX_TICK, IncorrectOffer());
 
             // Already in a deallocate call so we skip the onSell callback and return the deallocation here.
@@ -235,7 +230,7 @@ contract MidnightAdapter is IMidnightAdapter {
             uint256 totalNetCreditDecrease = netCredit[obligationId] - newNetCredit;
 
             if (totalNetCreditDecrease > 0) {
-                removeUnits(obligationId, offer.obligation.maturity, totalNetCreditDecrease, prevMaturityHint);
+                removeUnits(obligationId, offer.obligation.maturity, totalNetCreditDecrease);
             }
 
             int256 change = -int256(totalNetCreditDecrease);
@@ -258,8 +253,6 @@ contract MidnightAdapter is IMidnightAdapter {
         require(offer.maker == address(this), IncorrectOwner());
         require(offer.callback == address(this), IncorrectCallbackAddress());
         require(offer.start <= block.timestamp, IncorrectStart());
-        // uint48.max is the list end pointer
-        require(offer.obligation.maturity < type(uint48).max, IncorrectMaturity());
         require(offer.buy || offer.reduceOnly, NoDebtCreation());
 
         (Signature memory sig, uint256 height) = abi.decode(data, (Signature, uint256));
@@ -273,8 +266,6 @@ contract MidnightAdapter is IMidnightAdapter {
         return CALLBACK_SUCCESS;
     }
 
-    /// @dev `data` encodes a hint, it should be zero or a maturity present in the linked list before the obligation
-    /// maturity.
     function onBuy(
         bytes32 obligationId,
         Obligation memory obligation,
@@ -282,9 +273,8 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 paidAssets,
         uint256 boughtCredit,
         uint256 buyPendingFeeIncrease,
-        bytes memory data
+        bytes memory
     ) external returns (bytes32) {
-        uint48 prevMaturityHint = abi.decode(data, (uint48));
         MaturityData storage maturityData = _maturities[obligation.maturity];
         uint256 buyNetCreditIncrease = boughtCredit - buyPendingFeeIncrease;
         uint256 timeToMaturity = obligation.maturity.zeroFloorSub(block.timestamp);
@@ -303,7 +293,7 @@ contract MidnightAdapter is IMidnightAdapter {
         // change is at most buyNetCreditIncrease
         if (change < buyNetCreditIncrease.toInt256()) {
             uint256 loss = (int256(buyNetCreditIncrease) - change).toUint256();
-            removeUnits(obligationId, obligation.maturity, loss, prevMaturityHint);
+            removeUnits(obligationId, obligation.maturity, loss);
         }
 
         IVaultV2(parentVault).allocate(address(this), abi.encode(ids(obligation), change), paidAssets);
@@ -326,10 +316,17 @@ contract MidnightAdapter is IMidnightAdapter {
                 && obligation.maturity >= block.timestamp
         ) {
             availableMaturities--;
-            uint48 prevMaturity = findPrev(prevMaturityHint, obligation.maturity);
+            uint48 prevMaturity = 0;
+            uint48 nextMaturity = _maturities[0].nextMaturity;
+            while (nextMaturity != 0 && nextMaturity < obligation.maturity) {
+                prevMaturity = nextMaturity;
+                nextMaturity = _maturities[prevMaturity].nextMaturity;
+            }
             maturityData.nextMaturity = _maturities[prevMaturity].nextMaturity;
+            maturityData.prevMaturity = prevMaturity;
             _maturities[prevMaturity].nextMaturity = obligation.maturity.toUint48();
-            emit InsertMaturity(obligation.maturity, prevMaturity, availableMaturities);
+            _maturities[maturityData.nextMaturity].prevMaturity = obligation.maturity.toUint48();
+            emit InsertMaturity(obligation.maturity, availableMaturities);
         }
 
         emit Buy(obligationId, paidAssets, buyNetCreditIncrease, change);
@@ -343,9 +340,8 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 sellerAssets,
         uint256,
         uint256,
-        bytes memory data
+        bytes memory
     ) external returns (bytes32) {
-        uint48 prevMaturityHint = abi.decode(data, (uint48));
         uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
         uint256 newNetCredit = IMidnight(midnight).creditOf(obligationId, address(this))
             - IMidnight(midnight).pendingFee(obligationId, address(this));
@@ -359,7 +355,7 @@ contract MidnightAdapter is IMidnightAdapter {
         updateDurationCountAndAllocations(obligation);
 
         if (totalNetCreditDecrease > 0) {
-            removeUnits(obligationId, obligation.maturity, totalNetCreditDecrease, prevMaturityHint);
+            removeUnits(obligationId, obligation.maturity, totalNetCreditDecrease);
         }
 
         int256 change = -int256(totalNetCreditDecrease);
@@ -380,9 +376,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /// @dev Removes units from tracking.
     /// @dev Changes the implied price of the obligation as little as possible.
-    function removeUnits(bytes32 obligationId, uint256 maturity, uint256 removedUnits, uint48 prevMaturityHint)
-        internal
-    {
+    function removeUnits(bytes32 obligationId, uint256 maturity, uint256 removedUnits) internal {
         MaturityData storage maturityData = _maturities[maturity];
 
         if (maturity > block.timestamp) {
@@ -399,25 +393,10 @@ contract MidnightAdapter is IMidnightAdapter {
 
         if (removedUnits > 0 && maturityData.netCredit == 0 && maturity >= block.timestamp) {
             availableMaturities++;
-            uint48 prevMaturity = findPrev(prevMaturityHint, maturity);
-            _maturities[prevMaturity].nextMaturity = maturityData.nextMaturity;
-            emit RemoveMaturity(maturity, prevMaturity, availableMaturities);
+            _maturities[maturityData.prevMaturity].nextMaturity = maturityData.nextMaturity;
+            _maturities[maturityData.nextMaturity].prevMaturity = maturityData.prevMaturity;
+            emit RemoveMaturity(maturity, availableMaturities);
         }
-    }
-
-    /// @dev Finds the last active maturity earlier than `maturity`, starting from a hint.
-    function findPrev(uint48 prevMaturity, uint256 maturity) internal view returns (uint48) {
-        require(
-            prevMaturity == 0
-                || (prevMaturity < maturity
-                    && prevMaturity >= _maturities[0].nextMaturity
-                    && _maturities[prevMaturity].netCredit > 0),
-            InvalidHint()
-        );
-
-        while (_maturities[prevMaturity].nextMaturity < maturity) prevMaturity = _maturities[prevMaturity].nextMaturity;
-
-        return prevMaturity;
     }
 
     function durationCount(uint256 maturity) internal view returns (uint256 count) {

@@ -200,7 +200,7 @@ contract MidnightAdapterTest is Test {
 
         offer.maxUnits = units;
         offer.callback = address(adapter);
-        offer.callbackData = abi.encode(uint48(0));
+        offer.callbackData = hex"";
         vm.prank(taker);
         midnight.take(
             units, taker, address(0), "", taker, offer, sign([offer], signerAllocator), root([offer]), proof([offer])
@@ -217,7 +217,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.currentGrowth(), newGrowth, "currentGrowth");
         MaturityData memory maturityData = adapter.maturities(offer.obligation.maturity);
         assertEq(maturityData.growth, newGrowth, "growth");
-        assertEq(maturityData.nextMaturity, type(uint48).max, "nextMaturity");
+        assertEq(maturityData.nextMaturity, 0, "nextMaturity");
 
         uint256 actualUnits = adapter.netCredit(_obligationId(offer.obligation));
         assertEq(actualUnits, units, "units");
@@ -244,7 +244,7 @@ contract MidnightAdapterTest is Test {
 
         offer.maxUnits = units1;
         offer.callback = address(adapter);
-        offer.callbackData = abi.encode(uint48(0));
+        offer.callbackData = hex"";
 
         vm.prank(taker);
         midnight.take(
@@ -263,12 +263,12 @@ contract MidnightAdapterTest is Test {
         // Step 3: Trigger accrueInterest so the walk subtracts growth from currentGrowth
         adapter.accrueInterest();
         assertEq(adapter.currentGrowth(), 0, "currentGrowth after accrual should be 0");
-        assertEq(adapter.firstMaturity(), type(uint48).max, "firstMaturity should be sentinel");
+        assertEq(adapter.firstMaturity(), 0, "firstMaturity should be sentinel");
 
         // In midnight, any seller with debt past maturity is always liquidatable
         // (isLiquidatable returns true if block.timestamp > maturity && debt > 0),
         // so we can't test a second buy at past maturity. Just verify accrual state.
-        assertEq(adapter.firstMaturity(), type(uint48).max, "past maturity not re-inserted into list");
+        assertEq(adapter.firstMaturity(), 0, "past maturity not re-inserted into list");
 
         // Note: In midnight, any seller with debt past maturity is always liquidatable,
         // so the second buy at past maturity from the original test cannot be executed.
@@ -369,16 +369,6 @@ contract MidnightAdapterTest is Test {
         adapter.onRatify(offer, _root, data);
     }
 
-    function testRatifyIncorrectMaturity(uint256 seed) public {
-        vm.setSeed(seed);
-        Offer memory offer = _ratificationSetup();
-        offer.obligation.maturity = vm.randomUint(type(uint48).max, type(uint256).max);
-        bytes32 _root = root(offer);
-        bytes memory data = ratifierData(_root, signerAllocator);
-        vm.expectRevert(IMidnightAdapter.IncorrectMaturity.selector);
-        adapter.onRatify(offer, _root, data);
-    }
-
     function testRatifyIncorrectStart(uint256 seed) public {
         vm.setSeed(seed);
         Offer memory offer = _ratificationSetup();
@@ -422,7 +412,7 @@ contract MidnightAdapterTest is Test {
             expiry: vm.getBlockTimestamp() + 1,
             tick: MAX_TICK,
             callback: address(adapter),
-            callbackData: abi.encode(uint48(0)),
+            callbackData: hex"",
             obligation: Obligation({
                 loanToken: address(loanToken),
                 collateralParams: storedCollaterals,
@@ -448,7 +438,7 @@ contract MidnightAdapterTest is Test {
             uint256 approxInterest = step.approxGrowth * timeToMaturity;
             offer.group = bytes32(i);
             offer.obligation.maturity = step.maturity;
-            offer.callbackData = abi.encode(prevMaturity(step.maturity));
+            offer.callbackData = hex"";
 
             // Compute tick from desired price: price = assets / (assets + approxInterest)
             uint256 desiredPrice = step.assets.mulDivDown(1e18, step.assets + approxInterest);
@@ -511,7 +501,7 @@ contract MidnightAdapterTest is Test {
         if (steps.length > 0) {
             assertEq(adapter.firstMaturity(), steps[0].maturity, "firstMaturity");
         } else {
-            assertEq(adapter.firstMaturity(), type(uint48).max, "firstMaturity");
+            assertEq(adapter.firstMaturity(), 0, "firstMaturity");
         }
 
         // Check maturities growth and linked list structure
@@ -522,9 +512,7 @@ contract MidnightAdapterTest is Test {
                 "growth"
             );
             if (i == expectedMaturitiesList.length - 1) {
-                assertEq(
-                    adapter.maturities(expectedMaturitiesList[i]).nextMaturity, type(uint48).max, "nextMaturity end"
-                );
+                assertEq(adapter.maturities(expectedMaturitiesList[i]).nextMaturity, 0, "nextMaturity end");
             } else {
                 assertEq(
                     adapter.maturities(expectedMaturitiesList[i]).nextMaturity,
@@ -577,7 +565,7 @@ contract MidnightAdapterTest is Test {
 
         uint256 lostGrowth = 0;
         uint256 interest = initialGrowth * elapsed;
-        uint256 expectedNextMaturity = type(uint48).max;
+        uint256 expectedNextMaturity;
 
         for (uint256 i = 0; i < expectedMaturitiesList.length; i++) {
             uint256 maturity = expectedMaturitiesList[i];
@@ -587,7 +575,7 @@ contract MidnightAdapterTest is Test {
             } else {
                 interest += expectedMaturityGrowths[maturity] * elapsed;
             }
-            if (maturity >= vm.getBlockTimestamp() && maturity < expectedNextMaturity) {
+            if (maturity >= vm.getBlockTimestamp() && (expectedNextMaturity == 0 || maturity < expectedNextMaturity)) {
                 expectedNextMaturity = maturity;
             }
         }
@@ -687,14 +675,6 @@ contract MidnightAdapterTest is Test {
 
     function _obligationId(Obligation memory obligation) internal view returns (bytes32) {
         return IdLib.toId(obligation, block.chainid, address(midnight));
-    }
-
-    function prevMaturity(uint256 maturity) internal view returns (uint48 prev) {
-        uint48 nextMaturity = adapter.firstMaturity();
-        while (nextMaturity < maturity) {
-            prev = nextMaturity;
-            nextMaturity = adapter.maturities(prev).nextMaturity;
-        }
     }
 
     function sign(Offer[1] memory offers) internal view returns (bytes memory) {

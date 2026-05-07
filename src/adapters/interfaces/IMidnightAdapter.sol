@@ -13,10 +13,11 @@ import {
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
 // Chain of maturities, each can represent multiple obligations.
-// nextMaturity is type(uint48).max if no next maturity.
+// nextMaturity is 0 if no next maturity.
 struct MaturityData {
     uint128 netCredit;
     uint128 growth;
+    uint48 prevMaturity;
     uint48 nextMaturity;
     uint8 durationCount;
 }
@@ -34,8 +35,8 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event Buy(bytes32 indexed obligationId, uint256 paidAssets, uint256 netCreditIncrease, int256 change);
     event Sell(bytes32 indexed obligationId, uint256 sellerAssets, uint256 netCreditDecrease);
     event AccrueInterest(uint48 firstMaturity, uint128 currentGrowth, uint256 totalAssets, uint256 availableMaturities);
-    event RemoveMaturity(uint256 indexed maturity, uint48 prevMaturity, uint256 availableMaturities);
-    event InsertMaturity(uint256 indexed maturity, uint48 prevMaturity, uint256 availableMaturities);
+    event RemoveMaturity(uint256 indexed maturity, uint256 availableMaturities);
+    event InsertMaturity(uint256 indexed maturity, uint256 availableMaturities);
 
     /* ERRORS */
 
@@ -43,8 +44,6 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error BuyAtLoss();
     error IncorrectCallbackAddress();
     error IncorrectDuration();
-    error InvalidHint();
-    error IncorrectMaturity();
     error IncorrectOffer();
     error IncorrectOwner();
     error IncorrectSigner();
@@ -76,7 +75,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
     function updateDurationCountAndAllocations(Obligation memory obligation) external;
-    function withdrawToVault(Obligation memory obligation, uint256 units, uint48 prevMaturityHint) external;
+    function withdrawToVault(Obligation memory obligation, uint256 units) external;
     function ids(Obligation memory obligation) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
     function accrueInterestView() external view returns (uint48, uint128, uint256, uint256);
