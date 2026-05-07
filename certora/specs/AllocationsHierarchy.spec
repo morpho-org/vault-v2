@@ -3,19 +3,10 @@
 
 import "../helpers/UtilityVault.spec";
 
-definition max_int256() returns mathint = (2 ^ 255) - 1;
-
 methods {
     function multicall(bytes[]) external => HAVOC_ALL DELETE;
 
-    function _.balanceOf(address) external => NONDET;
-    function _.transfer(address, uint256) external => NONDET;
-    function _.transferFrom(address, address, uint256) external => NONDET;
-    function _.canReceiveShares(address) external => NONDET;
-    function _.canSendShares(address) external => NONDET;
-    function _.canReceiveAssets(address) external => NONDET;
-    function _.canSendAssets(address) external => NONDET;
-    function accrueInterest() internal => NONDET;
+    // Over-approximate view functions.
     function accrueInterestView() internal returns (uint256, uint256, uint256) => NONDET;
 
     // Replace all adapter calls with a summary that models the id structure (i.e. the leaf-group hierarchy).
@@ -23,39 +14,41 @@ methods {
     function _.allocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryAdapter(e, data, assets, selector, sender) expect(bytes32[], int256);
 }
 
-// The single group id shared by every adapter, fixed across the run.
-persistent ghost bytes32 globalGroupId;
+definition max_int256() returns mathint = (2 ^ 255) - 1;
 
-// Mirrors caps[leafId].allocation for ids in the leaf set, so usum tracks the aggregate.
-persistent ghost mapping(bytes32 => uint256) ghostAllocationByLeafId {
-    init_state axiom forall bytes32 l. ghostAllocationByLeafId[l] == 0;
+// An abitrary but fixed group id.
+persistent ghost bytes32 groupId;
+
+// The arbitrary but fixed set of leaf ids. Requires group id to not be a leaf id.
+persistent ghost mapping(bytes32 => bool) isLeaf {
+    init_state axiom !isLeaf[groupId];
 }
 
-// The arbitrary but fixed set of leafIds. Require globalGroupId to not be a leafId.
-persistent ghost mapping(bytes32 => bool) ghostIsLeafId {
-    init_state axiom !ghostIsLeafId[globalGroupId];
+// Mirrors caps[id].allocation for id in the leaf set, so usum tracks the aggregate.
+persistent ghost mapping(bytes32 => uint256) leafAllocation {
+    init_state axiom forall bytes32 id. leafAllocation[id] == 0;
 }
 
 // Mirror leaf allocation writes into the ghost mapping.
 hook Sstore currentContract.caps[KEY bytes32 id].allocation uint256 newValue (uint256 oldValue) {
-    if (ghostIsLeafId[id]) {
-        ghostAllocationByLeafId[id] = newValue;
+    if (isLeaf[id]) {
+        leafAllocation[id] = newValue;
     }
 }
 
-// Adapter's allocate/deallocate summarised to return ids = [globalGroupId, leafId] and an arbitrary change.
+// Adapter's allocate/deallocate summarised to return group id iff a leaf id is returned.
 function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
     bytes32[] ids;
     int256 change;
 
-    require ids.length == 2, "2-slot adapter id abstraction: [globalGroupId, leafId].";
-    require ids[0] == globalGroupId, "every adapter uses the global group";
-    require ghostIsLeafId[ids[1]], "ids[1] is a leaf";
+    require ids.length == 2, "simplification: assume a fixed number of ids";
+    require isLeaf[ids[0]] <=> ids[1] == groupId, "assume that adapters return group id iff a leaf id is returned";
+    require isLeaf[ids[1]] <=> ids[0] == groupId, "assume that adapters return group id iff a leaf id is returned";
 
-    // Ensures the ghost cell equals allocation(ids[1]) before the hook fires, so usum changes by exactly `change`.
+    requireInvariant groupIdNotLeaf();
+    requireInvariant ghostMirrorsLeafAllocation(ids[0]);
     requireInvariant ghostMirrorsLeafAllocation(ids[1]);
-
-    requireInvariant allocationIsInt256(globalGroupId);
+    requireInvariant allocationIsInt256(groupId);
     requireInvariant allocationIsInt256(ids[1]);
 
     return (ids, change);
@@ -65,29 +58,27 @@ function summaryAdapter(env e, bytes data, uint256 assets, bytes4 selector, addr
 strong invariant allocationIsInt256(bytes32 id)
     allocation(id) <= max_int256();
 
-// globalGroupId is never a leaf.
-strong invariant globalGroupIdNotLeaf()
-    !ghostIsLeafId[globalGroupId];
+// The groupId is never a leaf.
+strong invariant groupIdNotLeaf()
+    !isLeaf[groupId];
 
 // The ghost cell equals the allocation for leaves and is zero otherwise.
-strong invariant ghostMirrorsLeafAllocation(bytes32 leafId)
-    ghostAllocationByLeafId[leafId] == (ghostIsLeafId[leafId] ? allocation(leafId) : 0);
+strong invariant ghostMirrorsLeafAllocation(bytes32 id)
+    leafAllocation[id] == (isLeaf[id] ? allocation(id) : 0);
 
-// allocation(globalGroupId) equals the sum of all leaf allocations.
-strong invariant globalGroupIdAllocationEqualsSumOfLeafAllocations()
-    to_mathint(allocation(globalGroupId)) == (usum bytes32 leafId. ghostAllocationByLeafId[leafId])
+// The group allocation equals the sum of all leaf allocations.
+strong invariant groupAllocationEqualsSumOfLeafAllocations()
+    allocation(groupId) == (usum bytes32 id. leafAllocation[id])
     {
         preserved with (env e) {
-            requireInvariant globalGroupIdNotLeaf();
+            requireInvariant groupIdNotLeaf();
         }
     }
 
-// allocation(globalGroupId) >= allocation(leafId) for every leafId.
-strong invariant globalGroupIdAllocationGteLeafAllocation(bytes32 leafId)
-    ghostIsLeafId[leafId] => allocation(globalGroupId) >= allocation(leafId)
-    {
-        preserved {
-            requireInvariant ghostMirrorsLeafAllocation(leafId);
-            requireInvariant globalGroupIdAllocationEqualsSumOfLeafAllocations();
-        }
-    }
+// The group allocation is greater than or equal to the allocation for any leaf.
+rule groupAllocationGteLeafAllocation(bytes32 id) {
+    requireInvariant ghostMirrorsLeafAllocation(id);
+    requireInvariant groupAllocationEqualsSumOfLeafAllocations();
+
+    assert isLeaf[id] => allocation(groupId) >= allocation(id);
+}
