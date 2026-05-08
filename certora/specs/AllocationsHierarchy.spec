@@ -71,6 +71,7 @@ strong invariant groupAllocationEqualsSumOfLeafAllocations()
     allocation(groupId) == (usum bytes32 id. leafAllocation[id])
     {
         preserved with (env e) {
+            // Else groupId enters usum via the hook, so RHS = allocation(groupId) + Σ(other leaves), breaking equality.
             requireInvariant groupIdNotLeaf();
         }
     }
