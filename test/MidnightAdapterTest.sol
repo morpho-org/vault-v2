@@ -569,13 +569,13 @@ contract MidnightAdapterTest is Test {
 
         for (uint256 i = 0; i < expectedMaturitiesList.length; i++) {
             uint256 maturity = expectedMaturitiesList[i];
-            if (maturity < vm.getBlockTimestamp()) {
+            if (maturity <= vm.getBlockTimestamp()) {
                 lostGrowth += expectedMaturityGrowths[maturity];
                 interest += expectedMaturityGrowths[maturity] * (maturity - begin);
             } else {
                 interest += expectedMaturityGrowths[maturity] * elapsed;
             }
-            if (maturity >= vm.getBlockTimestamp() && (expectedNextMaturity == 0 || maturity < expectedNextMaturity)) {
+            if (maturity > vm.getBlockTimestamp() && (expectedNextMaturity == 0 || maturity < expectedNextMaturity)) {
                 expectedNextMaturity = maturity;
             }
         }

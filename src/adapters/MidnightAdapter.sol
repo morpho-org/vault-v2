@@ -45,7 +45,7 @@ contract MidnightAdapter is IMidnightAdapter {
     uint48 public lastUpdate;
     uint128 public currentGrowth;
     /// @dev Maximum steps of an accrual.
-    /// @dev A maturity uses an availability slot iff it has some units and is >= now after accrual.
+    /// @dev A maturity uses an availability slot iff it has some units and is > now after accrual.
     uint256 public availableMaturities = 50;
     mapping(uint256 timestamp => MaturityData) public _maturities;
     mapping(bytes32 obligationId => uint256) public netCredit;
@@ -153,29 +153,31 @@ contract MidnightAdapter is IMidnightAdapter {
     function accrueInterestView() public view returns (uint48, uint128, uint256, uint256) {
         uint48 _firstMaturity = _maturities[0].nextMaturity;
         uint128 newGrowth = currentGrowth;
-        uint256 newAvailableMaturities = availableMaturities;
+        uint256 removedMaturities = 0;
         uint256 gainedAssets = 0;
         uint256 accrueFrom = lastUpdate;
 
-        while (_firstMaturity != 0 && _firstMaturity < block.timestamp) {
+        while (_firstMaturity != 0 && _firstMaturity <= block.timestamp) {
             gainedAssets += uint256(newGrowth) * (_firstMaturity - accrueFrom);
             newGrowth -= _maturities[_firstMaturity].growth;
             accrueFrom = _firstMaturity;
             _firstMaturity = _maturities[_firstMaturity].nextMaturity;
-            newAvailableMaturities++;
+            removedMaturities++;
         }
 
         gainedAssets += uint256(newGrowth) * (block.timestamp - accrueFrom);
 
-        return (_firstMaturity, newGrowth, _totalAssets + gainedAssets, newAvailableMaturities);
+        return (_firstMaturity, newGrowth, _totalAssets + gainedAssets, removedMaturities);
     }
 
     function accrueInterest() public returns (uint48, uint128, uint256) {
         if (lastUpdate != block.timestamp) {
-            (_maturities[0].nextMaturity, currentGrowth, _totalAssets, availableMaturities) = accrueInterestView();
+            uint256 removedMaturities;
+            (_maturities[0].nextMaturity, currentGrowth, _totalAssets, removedMaturities) = accrueInterestView();
+            availableMaturities += removedMaturities;
             _maturities[_maturities[0].nextMaturity].prevMaturity = 0;
             lastUpdate = uint48(block.timestamp);
-            emit AccrueInterest(_maturities[0].nextMaturity, currentGrowth, _totalAssets, availableMaturities);
+            emit AccrueInterest(_maturities[0].nextMaturity, currentGrowth, _totalAssets, removedMaturities);
         }
         return (_maturities[0].nextMaturity, currentGrowth, _totalAssets);
     }
@@ -315,7 +317,7 @@ contract MidnightAdapter is IMidnightAdapter {
         // Insert the maturity in the list if needed
         if (
             maturityData.netCredit == buyNetCreditIncrease && buyNetCreditIncrease > 0
-                && obligation.maturity >= block.timestamp
+                && obligation.maturity > block.timestamp
         ) {
             availableMaturities--;
             uint48 prevMaturity = 0;
@@ -328,7 +330,7 @@ contract MidnightAdapter is IMidnightAdapter {
             maturityData.prevMaturity = prevMaturity;
             _maturities[prevMaturity].nextMaturity = obligation.maturity.toUint48();
             _maturities[maturityData.nextMaturity].prevMaturity = obligation.maturity.toUint48();
-            emit InsertMaturity(obligation.maturity, availableMaturities);
+            emit InsertMaturity(obligation.maturity);
         }
 
         emit Buy(obligationId, paidAssets, buyNetCreditIncrease, change);
@@ -393,11 +395,11 @@ contract MidnightAdapter is IMidnightAdapter {
         maturityData.netCredit -= removedUnits.toUint128();
         netCredit[obligationId] -= removedUnits.toUint128();
 
-        if (removedUnits > 0 && maturityData.netCredit == 0 && maturity >= block.timestamp) {
+        if (removedUnits > 0 && maturityData.netCredit == 0 && maturity > block.timestamp) {
             availableMaturities++;
             _maturities[maturityData.prevMaturity].nextMaturity = maturityData.nextMaturity;
             _maturities[maturityData.nextMaturity].prevMaturity = maturityData.prevMaturity;
-            emit RemoveMaturity(maturity, availableMaturities);
+            emit RemoveMaturity(maturity);
         }
     }
 
