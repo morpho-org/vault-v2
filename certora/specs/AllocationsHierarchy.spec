@@ -9,7 +9,11 @@ methods {
     // Over-approximate view functions.
     function accrueInterestView() internal returns (uint256, uint256, uint256) => NONDET;
 
-    // Replace all adapter calls with a summary that models the id structure (i.e. the leaf-group hierarchy).
+    // Replace all adapter calls with a summary that models the id structure (i.e. the leaf-group hierarchy):
+    // - assume a fixed group id and some fixed leaf ids
+    // - the group id is not a leaf id
+    // - an adapter returns the group id if and only if it returns a leaf id.
+    // Instanciate this proof with appropriate group and leaf ids.
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryAdapter(e, data, assets, selector, sender) expect(bytes32[], int256);
     function _.allocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryAdapter(e, data, assets, selector, sender) expect(bytes32[], int256);
 }
