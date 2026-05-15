@@ -172,12 +172,14 @@ contract MidnightAdapter is IMidnightAdapter {
 
     function accrueInterest() public returns (uint48, uint128, uint256) {
         if (lastUpdate != block.timestamp) {
+            uint48 newHead;
             uint256 removedMaturities;
-            (_maturities[0].nextMaturity, currentGrowth, _totalAssets, removedMaturities) = accrueInterestView();
+            (newHead, currentGrowth, _totalAssets, removedMaturities) = accrueInterestView();
             availableMaturities += removedMaturities;
-            _maturities[_maturities[0].nextMaturity].prevMaturity = 0;
+            _maturities[0].nextMaturity = newHead;
+            _maturities[newHead].prevMaturity = 0;
             lastUpdate = uint48(block.timestamp);
-            emit AccrueInterest(_maturities[0].nextMaturity, currentGrowth, _totalAssets, removedMaturities);
+            emit AccrueInterest(newHead, currentGrowth, _totalAssets, removedMaturities);
         }
         return (_maturities[0].nextMaturity, currentGrowth, _totalAssets);
     }
