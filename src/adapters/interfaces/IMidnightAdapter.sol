@@ -3,7 +3,7 @@
 pragma solidity >=0.5.0;
 
 import {IAdapter} from "../../interfaces/IAdapter.sol";
-import {Obligation} from "lib/midnight/src/interfaces/IMidnight.sol";
+import {Market} from "lib/midnight/src/interfaces/IMidnight.sol";
 import {
     IBuyCallback,
     ISellCallback,
@@ -12,7 +12,7 @@ import {
 } from "lib/midnight/src/interfaces/ICallbacks.sol";
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
-// Chain of maturities, each can represent multiple obligations.
+// Chain of maturities, each can represent multiple markets.
 // nextMaturity is 0 if no next maturity.
 struct MaturityData {
     uint128 netCredit;
@@ -27,13 +27,13 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
 
     event SetSkimRecipient(address indexed newSkimRecipient);
     event Skim(address indexed token, uint256 assets);
-    event WithdrawToVault(bytes32 indexed obligationId, uint256 withdrawnAssets, uint256 netCreditDecrease);
+    event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
     event UpdateDurationCountAndAllocations(
         uint256 indexed maturity, uint256 oldDurationCount, uint256 newDurationCount, uint256 netCredit
     );
-    event ForceDeallocate(bytes32 indexed obligationId, uint256 sellerAssets, uint256 netCreditDecrease);
-    event Buy(bytes32 indexed obligationId, uint256 paidAssets, uint256 netCreditIncrease, int256 change);
-    event Sell(bytes32 indexed obligationId, uint256 sellerAssets, uint256 netCreditDecrease);
+    event ForceDeallocate(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
+    event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 netCreditIncrease, int256 change);
+    event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
     event AccrueInterest(uint48 firstMaturity, uint128 currentGrowth, uint256 totalAssets, uint256 removedMaturities);
     event RemoveMaturity(uint256 indexed maturity);
     event InsertMaturity(uint256 indexed maturity);
@@ -48,6 +48,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error IncorrectOwner();
     error IncorrectSigner();
     error IncorrectStart();
+    error InvalidProof();
     error LoanAssetMismatch();
     error NoBorrowing();
     error NoDebtCreation();
@@ -67,16 +68,16 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
-    function netCredit(bytes32 obligationId) external view returns (uint256);
+    function netCredit(bytes32 marketId) external view returns (uint256);
     function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
-    function updateDurationCountAndAllocations(Obligation memory obligation) external;
-    function withdrawToVault(Obligation memory obligation, uint256 units) external;
-    function ids(Obligation memory obligation) external view returns (bytes32[] memory);
+    function updateDurationCountAndAllocations(Market memory market) external;
+    function withdrawToVault(Market memory market, uint256 units) external;
+    function ids(Market memory market) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
     function accrueInterestView() external view returns (uint48, uint128, uint256, uint256);
     function accrueInterest() external returns (uint48, uint128, uint256);
@@ -88,20 +89,18 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
         returns (bytes32[] memory, int256);
     function onBuy(
         bytes32 id,
-        Obligation memory obligation,
+        Market memory market,
         address buyer,
         uint256 buyerAssets,
         uint256 units,
-        uint256 buyerPendingFeeIncrease,
         bytes memory data
     ) external returns (bytes32);
     function onSell(
         bytes32 id,
-        Obligation memory obligation,
+        Market memory market,
         address seller,
         uint256 sellerAssets,
         uint256 units,
-        uint256 sellerPendingFeeDecrease,
         bytes memory data
     ) external returns (bytes32);
 }
