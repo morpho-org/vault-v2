@@ -209,7 +209,8 @@ contract MidnightAdapterTest is Test {
         uint256 remainder = (units - assets) % (offer.obligation.maturity - vm.getBlockTimestamp());
         assertEq(adapter._totalAssets(), assets + remainder, "_totalAssets");
         assertEq(adapter.lastUpdate(), vm.getBlockTimestamp(), "lastUpdate");
-        assertEq(adapter.firstMaturity(), vm.getBlockTimestamp() + 200, "firstMaturity");
+        assertEq(adapter.pendingMaturities(0), vm.getBlockTimestamp() + 200, "first pending maturity");
+        assertEq(adapter.availableMaturities(), 49, "availableMaturities");
 
         uint256 totalInterest = units - assets;
         uint256 duration = offer.obligation.maturity - vm.getBlockTimestamp();
@@ -217,7 +218,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.currentGrowth(), newGrowth, "currentGrowth");
         MaturityData memory maturityData = adapter.maturities(offer.obligation.maturity);
         assertEq(maturityData.growth, newGrowth, "growth");
-        assertEq(maturityData.nextMaturity, 0, "nextMaturity");
+        assertEq(maturityData.index, 0, "index");
 
         uint256 actualUnits = adapter.netCredit(_obligationId(offer.obligation));
         assertEq(actualUnits, units, "units");
@@ -263,12 +264,12 @@ contract MidnightAdapterTest is Test {
         // Step 3: Trigger accrueInterest so the walk subtracts growth from currentGrowth
         adapter.accrueInterest();
         assertEq(adapter.currentGrowth(), 0, "currentGrowth after accrual should be 0");
-        assertEq(adapter.firstMaturity(), 0, "firstMaturity should be sentinel");
+        assertEq(adapter.availableMaturities(), 50, "availableMaturities full after accrual");
 
         // In midnight, any seller with debt past maturity is always liquidatable
         // (isLiquidatable returns true if block.timestamp > maturity && debt > 0),
         // so we can't test a second buy at past maturity. Just verify accrual state.
-        assertEq(adapter.firstMaturity(), 0, "past maturity not re-inserted into list");
+        assertEq(adapter.availableMaturities(), 50, "past maturity not re-inserted into list");
 
         // Note: In midnight, any seller with debt past maturity is always liquidatable,
         // so the second buy at past maturity from the original test cannot be executed.
@@ -497,29 +498,17 @@ contract MidnightAdapterTest is Test {
 
         setupObligations(steps);
 
-        // Check pointer to first element of maturities list
-        if (steps.length > 0) {
-            assertEq(adapter.firstMaturity(), steps[0].maturity, "firstMaturity");
-        } else {
-            assertEq(adapter.firstMaturity(), 0, "firstMaturity");
-        }
-
-        // Check maturities growth and linked list structure
+        // Check pending-maturities membership and indices (array is unordered).
+        assertEq(
+            adapter.availableMaturities(),
+            adapter.MAX_PENDING_MATURITIES() - expectedMaturitiesList.length,
+            "availableMaturities"
+        );
         for (uint256 i = 0; i < expectedMaturitiesList.length; i++) {
-            assertEq(
-                adapter.maturities(expectedMaturitiesList[i]).growth,
-                expectedMaturityGrowths[expectedMaturitiesList[i]],
-                "growth"
-            );
-            if (i == expectedMaturitiesList.length - 1) {
-                assertEq(adapter.maturities(expectedMaturitiesList[i]).nextMaturity, 0, "nextMaturity end");
-            } else {
-                assertEq(
-                    adapter.maturities(expectedMaturitiesList[i]).nextMaturity,
-                    expectedMaturitiesList[i + 1],
-                    "nextMaturity middle"
-                );
-            }
+            uint256 m = expectedMaturitiesList[i];
+            assertEq(adapter.maturities(m).growth, expectedMaturityGrowths[m], "growth");
+            uint256 idx = adapter.maturities(m).index;
+            assertEq(adapter.pendingMaturities(idx), m, "pendingMaturities[index] matches");
         }
 
         // Check positions growth and size
@@ -561,11 +550,10 @@ contract MidnightAdapterTest is Test {
 
         skip(elapsed);
 
-        (uint48 nextMaturity, uint128 newGrowth, uint256 newTotalAssets,) = adapter.accrueInterestView();
+        (uint128 newGrowth, uint256 newTotalAssets) = adapter.accrueInterestView();
 
         uint256 lostGrowth = 0;
         uint256 interest = initialGrowth * elapsed;
-        uint256 expectedNextMaturity;
 
         for (uint256 i = 0; i < expectedMaturitiesList.length; i++) {
             uint256 maturity = expectedMaturitiesList[i];
@@ -575,11 +563,7 @@ contract MidnightAdapterTest is Test {
             } else {
                 interest += expectedMaturityGrowths[maturity] * elapsed;
             }
-            if (maturity >= vm.getBlockTimestamp() && (expectedNextMaturity == 0 || maturity < expectedNextMaturity)) {
-                expectedNextMaturity = maturity;
-            }
         }
-        assertEq(nextMaturity, expectedNextMaturity, "nextMaturity");
         assertEq(newGrowth, expectedCurrentGrowth - lostGrowth, "newGrowth");
         assertEq(newTotalAssets, _totalAssets + expectedAddedAssets + interest, "newTotalAssets");
     }

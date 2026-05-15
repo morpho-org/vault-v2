@@ -41,12 +41,16 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* ACCOUNTING */
 
+    uint256 public constant MAX_PENDING_MATURITIES = 50;
+
     uint256 public _totalAssets;
-    uint48 public lastUpdate;
+    uint40 public lastUpdate;
     uint128 public currentGrowth;
-    /// @dev Maximum steps of an accrual.
-    /// @dev A maturity uses an availability slot iff it has some units and is >= now after accrual.
-    uint256 public availableMaturities = 50;
+    /// @dev Unordered fixed-size array of future maturities where the adapter has credit.
+    /// @dev The populated prefix has length `MAX_PENDING_MATURITIES - availableMaturities`; remaining slots may
+    /// contain stale data and must not be read.
+    uint40[MAX_PENDING_MATURITIES] public pendingMaturities;
+    uint256 public availableMaturities = MAX_PENDING_MATURITIES;
     mapping(uint256 timestamp => MaturityData) public _maturities;
     mapping(bytes32 obligationId => uint256) public netCredit;
     /* CONSTRUCTOR */
@@ -55,7 +59,7 @@ contract MidnightAdapter is IMidnightAdapter {
         asset = IVaultV2(_parentVault).asset();
         parentVault = _parentVault;
         midnight = _midnight;
-        lastUpdate = uint48(block.timestamp);
+        lastUpdate = uint40(block.timestamp);
         SafeERC20Lib.safeApprove(asset, _midnight, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
         adapterId = keccak256(abi.encode("this", address(this)));
@@ -72,10 +76,6 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /* GETTERS */
-
-    function firstMaturity() public view returns (uint48) {
-        return _maturities[0].nextMaturity;
-    }
 
     function maturities(uint256 date) public view returns (MaturityData memory) {
         return _maturities[date];
@@ -150,40 +150,52 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* ACCRUAL */
 
-    function accrueInterestView() public view returns (uint48, uint128, uint256, uint256) {
-        uint48 _firstMaturity = _maturities[0].nextMaturity;
+    function accrueInterestView() public view returns (uint128, uint256) {
+        if (lastUpdate == block.timestamp) return (currentGrowth, _totalAssets);
+
         uint128 newGrowth = currentGrowth;
-        uint256 newAvailableMaturities = availableMaturities;
-        uint256 gainedAssets = 0;
-        uint256 accrueFrom = lastUpdate;
+        uint256 newTotalAssets = _totalAssets;
 
-        while (_firstMaturity != 0 && _firstMaturity < block.timestamp) {
-            gainedAssets += uint256(newGrowth) * (_firstMaturity - accrueFrom);
-            newGrowth -= _maturities[_firstMaturity].growth;
-            accrueFrom = _firstMaturity;
-            _firstMaturity = _maturities[_firstMaturity].nextMaturity;
-            newAvailableMaturities++;
+        for (uint256 i = MAX_PENDING_MATURITIES - availableMaturities; i > 0; i--) {
+            uint40 maturity = pendingMaturities[i - 1];
+            if (maturity < block.timestamp) {
+                newTotalAssets += uint256(_maturities[maturity].growth) * (maturity - lastUpdate);
+                newGrowth -= _maturities[maturity].growth;
+            }
         }
+        newTotalAssets += uint256(newGrowth) * (block.timestamp - lastUpdate);
 
-        gainedAssets += uint256(newGrowth) * (block.timestamp - accrueFrom);
-
-        return (_firstMaturity, newGrowth, _totalAssets + gainedAssets, newAvailableMaturities);
+        return (newGrowth, newTotalAssets);
     }
 
-    function accrueInterest() public returns (uint48, uint128, uint256) {
-        if (lastUpdate != block.timestamp) {
-            (_maturities[0].nextMaturity, currentGrowth, _totalAssets, availableMaturities) = accrueInterestView();
-            _maturities[_maturities[0].nextMaturity].prevMaturity = 0;
-            lastUpdate = uint48(block.timestamp);
-            emit AccrueInterest(_maturities[0].nextMaturity, currentGrowth, _totalAssets, availableMaturities);
+    function accrueInterest() public returns (uint128, uint256) {
+        if (lastUpdate == block.timestamp) return (currentGrowth, _totalAssets);
+
+        uint128 newGrowth = currentGrowth;
+        uint256 newTotalAssets = _totalAssets;
+
+        for (uint256 i = MAX_PENDING_MATURITIES - availableMaturities; i > 0; i--) {
+            uint40 maturity = pendingMaturities[i - 1];
+            if (maturity < block.timestamp) {
+                newTotalAssets += uint256(_maturities[maturity].growth) * (maturity - lastUpdate);
+                newGrowth -= _maturities[maturity].growth;
+                removePendingMaturity(i - 1);
+            }
         }
-        return (_maturities[0].nextMaturity, currentGrowth, _totalAssets);
+        newTotalAssets += uint256(newGrowth) * (block.timestamp - lastUpdate);
+
+        currentGrowth = newGrowth;
+        _totalAssets = newTotalAssets;
+        lastUpdate = uint40(block.timestamp);
+        emit AccrueInterest(newGrowth, newTotalAssets);
+
+        return (newGrowth, newTotalAssets);
     }
 
     /// @dev Returns an estimate of the real assets assigned to the adapter.
     /// @dev Excludes assets reserved for users.
     function realAssets() external view returns (uint256) {
-        (,, uint256 newTotalAssets,) = accrueInterestView();
+        (, uint256 newTotalAssets) = accrueInterestView();
         return newTotalAssets;
     }
 
@@ -315,20 +327,12 @@ contract MidnightAdapter is IMidnightAdapter {
         // Insert the maturity in the list if needed
         if (
             maturityData.netCredit == buyNetCreditIncrease && buyNetCreditIncrease > 0
-                && obligation.maturity >= block.timestamp
+                && obligation.maturity > block.timestamp
         ) {
+            maturityData.index = uint8(MAX_PENDING_MATURITIES - availableMaturities);
+            pendingMaturities[MAX_PENDING_MATURITIES - availableMaturities] = obligation.maturity.toUint40();
             availableMaturities--;
-            uint48 prevMaturity = 0;
-            uint48 nextMaturity = _maturities[0].nextMaturity;
-            while (nextMaturity != 0 && nextMaturity < obligation.maturity) {
-                prevMaturity = nextMaturity;
-                nextMaturity = _maturities[prevMaturity].nextMaturity;
-            }
-            maturityData.nextMaturity = _maturities[prevMaturity].nextMaturity;
-            maturityData.prevMaturity = prevMaturity;
-            _maturities[prevMaturity].nextMaturity = obligation.maturity.toUint48();
-            _maturities[maturityData.nextMaturity].prevMaturity = obligation.maturity.toUint48();
-            emit InsertMaturity(obligation.maturity, availableMaturities);
+            emit InsertMaturity(obligation.maturity);
         }
 
         emit Buy(obligationId, paidAssets, buyNetCreditIncrease, change);
@@ -393,12 +397,22 @@ contract MidnightAdapter is IMidnightAdapter {
         maturityData.netCredit -= removedUnits.toUint128();
         netCredit[obligationId] -= removedUnits.toUint128();
 
-        if (removedUnits > 0 && maturityData.netCredit == 0 && maturity >= block.timestamp) {
-            availableMaturities++;
-            _maturities[maturityData.prevMaturity].nextMaturity = maturityData.nextMaturity;
-            _maturities[maturityData.nextMaturity].prevMaturity = maturityData.prevMaturity;
-            emit RemoveMaturity(maturity, availableMaturities);
+        if (removedUnits > 0 && maturityData.netCredit == 0 && maturity > block.timestamp) {
+            removePendingMaturity(maturityData.index);
         }
+    }
+
+    /// @dev Remove the maturity at `index`, keep the populated prefix contiguous.
+    /// @dev The slot at the old last index is left with stale data (cheaper than zeroing).
+    function removePendingMaturity(uint256 index) internal {
+        emit RemoveMaturity(pendingMaturities[index]);
+        uint256 lastIndex = MAX_PENDING_MATURITIES - availableMaturities - 1;
+        if (index != lastIndex) {
+            uint40 lastMaturity = pendingMaturities[lastIndex];
+            _maturities[lastMaturity].index = uint8(index);
+            pendingMaturities[index] = lastMaturity;
+        }
+        availableMaturities++;
     }
 
     function durationCount(uint256 maturity) internal view returns (uint256 count) {

@@ -234,7 +234,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         sell(secondOffer.obligation, 1e18);
 
         assertEq(adapter.availableMaturities(), 1, "availableMaturities after");
-        assertEq(adapter.firstMaturity(), firstOffer.obligation.maturity, "firstMaturity after");
+        assertEq(adapter.pendingMaturities(0), firstOffer.obligation.maturity, "first pending maturity after");
 
         buy(60 days, 1e18);
 
