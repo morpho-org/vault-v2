@@ -168,7 +168,7 @@ contract MidnightAdapter is IMidnightAdapter {
             _maturities[0].nextMaturity = newHead;
             _maturities[newHead].prevMaturity = 0;
             lastUpdate = uint48(block.timestamp);
-            emit AccrueInterest(newHead, currentGrowth, totalAssets);
+            emit AccrueInterest(currentGrowth, totalAssets);
         }
         return (_maturities[0].nextMaturity, currentGrowth, totalAssets);
     }
