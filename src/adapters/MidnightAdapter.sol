@@ -62,14 +62,7 @@ contract MidnightAdapter is IMidnightAdapter {
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
         adapterId = keccak256(abi.encode("this", address(this)));
 
-        bytes32 _packedDurations;
-        uint256 currentDuration;
-        for (uint256 i = 0; i < _durations.length; i++) {
-            require(_durations[i] > currentDuration, IncorrectDuration());
-            currentDuration = _durations[i];
-            _packedDurations = _packedDurations.set(i, _durations[i]);
-        }
-        packedDurations = _packedDurations;
+        packedDurations = DurationsLib.pack(_durations);
         durationsLength = _durations.length;
     }
 
