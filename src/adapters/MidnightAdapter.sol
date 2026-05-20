@@ -48,9 +48,9 @@ contract MidnightAdapter is IMidnightAdapter {
     uint128 public totalAssets;
     uint128 public currentGrowth;
     uint40 public lastUpdate;
+    uint8 public availableMaturities = MAX_PENDING_MATURITIES;
     /// @dev Used to avoid reading the entire pendingMaturities array most of the time.
     uint40 public nextMaturityFloor = type(uint40).max;
-    uint8 public availableMaturities = MAX_PENDING_MATURITIES;
     /// @dev Unordered array of future maturities where the adapter has credit.
     /// @dev Actual length is MAX_PENDING_MATURITIES - availableMaturities, elements after should be ignored.
     uint40[MAX_PENDING_MATURITIES] public pendingMaturities;
