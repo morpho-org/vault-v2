@@ -48,9 +48,12 @@ contract MidnightAdapter is IMidnightAdapter {
     uint128 public totalAssets;
     uint128 public currentGrowth;
     uint40 public lastUpdate;
+    /// @dev Lower bound on the smallest maturity in `pendingMaturities`.
+    /// @dev Used to avoid reading the entire pendingMaturities array most of the time.
+    uint40 public nextMaturityFloor = type(uint40).max;
     /// @dev Unordered fixed-size array of future maturities where the adapter has credit.
-    /// @dev The populated prefix has length `MAX_PENDING_MATURITIES - availableMaturities`; remaining slots may
-    /// contain stale data and must not be read.
+    /// @dev The used prefix has length `MAX_PENDING_MATURITIES - availableMaturities`.
+    /// @dev The remaining elemtents may contain stale data and should be ignored.
     uint40[MAX_PENDING_MATURITIES] public pendingMaturities;
     uint8 public availableMaturities = MAX_PENDING_MATURITIES;
     mapping(uint256 timestamp => MaturityData) public _maturities;
@@ -144,16 +147,16 @@ contract MidnightAdapter is IMidnightAdapter {
     /* ACCRUAL */
 
     function accrueInterestView() public view returns (uint128, uint256) {
-        if (lastUpdate == block.timestamp) return (currentGrowth, totalAssets);
-
         uint128 newGrowth = currentGrowth;
         uint256 newTotalAssets = totalAssets;
 
-        for (uint256 i = MAX_PENDING_MATURITIES - availableMaturities; i > 0; i--) {
-            uint40 maturity = pendingMaturities[i - 1];
-            if (maturity <= block.timestamp) {
-                newTotalAssets += uint256(_maturities[maturity].growth) * (maturity - lastUpdate);
-                newGrowth -= _maturities[maturity].growth;
+        if (block.timestamp >= nextMaturityFloor) {
+            for (uint256 i = MAX_PENDING_MATURITIES - availableMaturities; i > 0; i--) {
+                uint40 maturity = pendingMaturities[i - 1];
+                if (maturity <= block.timestamp) {
+                    newTotalAssets += uint256(_maturities[maturity].growth) * (maturity - lastUpdate);
+                    newGrowth -= _maturities[maturity].growth;
+                }
             }
         }
         newTotalAssets += uint256(newGrowth) * (block.timestamp - lastUpdate);
@@ -162,25 +165,29 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     function accrueInterest() public returns (uint128, uint256) {
-        if (lastUpdate == block.timestamp) return (currentGrowth, totalAssets);
-
         uint128 newGrowth = currentGrowth;
         uint256 newTotalAssets = totalAssets;
 
-        for (uint256 i = MAX_PENDING_MATURITIES - availableMaturities; i > 0; i--) {
-            uint40 maturity = pendingMaturities[i - 1];
-            if (maturity <= block.timestamp) {
-                newTotalAssets += uint256(_maturities[maturity].growth) * (maturity - lastUpdate);
-                newGrowth -= _maturities[maturity].growth;
-                removePendingMaturity(i - 1);
+        if (block.timestamp >= nextMaturityFloor) {
+            uint40 newMin = type(uint40).max;
+            for (uint256 i = MAX_PENDING_MATURITIES - availableMaturities; i > 0; i--) {
+                uint40 maturity = pendingMaturities[i - 1];
+                if (maturity <= block.timestamp) {
+                    newTotalAssets += uint256(_maturities[maturity].growth) * (maturity - lastUpdate);
+                    newGrowth -= _maturities[maturity].growth;
+                    removePendingMaturity(i - 1);
+                } else if (maturity < newMin) {
+                    newMin = maturity;
+                }
             }
+            nextMaturityFloor = newMin;
+            currentGrowth = newGrowth;
         }
         newTotalAssets += uint256(newGrowth) * (block.timestamp - lastUpdate);
 
-        currentGrowth = newGrowth;
         totalAssets = newTotalAssets.toUint128();
+        if (block.timestamp != lastUpdate) emit AccrueInterest(newGrowth, newTotalAssets);
         lastUpdate = uint40(block.timestamp);
-        emit AccrueInterest(newGrowth, newTotalAssets);
 
         return (newGrowth, newTotalAssets);
     }
@@ -325,6 +332,7 @@ contract MidnightAdapter is IMidnightAdapter {
             maturityData.index = uint8(MAX_PENDING_MATURITIES - availableMaturities);
             pendingMaturities[MAX_PENDING_MATURITIES - availableMaturities] = market.maturity.toUint40();
             availableMaturities--;
+            if (market.maturity < nextMaturityFloor) nextMaturityFloor = market.maturity.toUint40();
             emit InsertMaturity(market.maturity);
         }
 
