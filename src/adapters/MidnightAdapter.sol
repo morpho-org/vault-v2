@@ -412,6 +412,7 @@ contract MidnightAdapter is IMidnightAdapter {
         pendingMaturities[index] = lastMaturity;
     }
 
+    /// @dev Returns the number of durations in packedDurations that are most the time to maturity.
     function durationCount(uint256 maturity) internal view returns (uint256 count) {
         uint256 timeToMaturity = maturity.zeroFloorSub(block.timestamp);
         while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;
