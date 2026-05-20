@@ -5,7 +5,7 @@ pragma solidity 0.8.34;
 import {IMidnight, Offer, Market} from "lib/midnight/src/interfaces/IMidnight.sol";
 import {MAX_TICK} from "lib/midnight/src/libraries/TickLib.sol";
 import {Signature, EIP712_DOMAIN_TYPEHASH} from "lib/midnight/src/ratifiers/interfaces/IEcrecoverRatifier.sol";
-import {CALLBACK_SUCCESS, WAD} from "lib/midnight/src/libraries/ConstantsLib.sol";
+import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
 import {TakeAmountsLib} from "lib/midnight/src/periphery/TakeAmountsLib.sol";
 import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
 import {HashLib} from "lib/midnight/src/ratifiers/libraries/HashLib.sol";
@@ -32,6 +32,8 @@ contract MidnightAdapter is IMidnightAdapter {
     address public immutable parentVault;
     address public immutable midnight;
     bytes32 public immutable adapterId;
+    /// @dev Sorted durations that can be used to cap the time to maturity.
+    /// @dev Sorted in ascending order.
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
 
@@ -41,12 +43,12 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* ACCOUNTING */
 
-    uint256 public _totalAssets;
-    uint48 public lastUpdate;
+    uint128 public totalAssets;
     uint128 public currentGrowth;
+    uint48 public lastUpdate;
     /// @dev Maximum steps of an accrual.
     /// @dev A maturity uses an availability slot iff it has some units and is > now after accrual.
-    uint256 public availableMaturities = 50;
+    uint8 public availableMaturities = 50;
     mapping(uint256 timestamp => MaturityData) public _maturities;
     mapping(bytes32 marketId => uint256) public netCredit;
     /* CONSTRUCTOR */
@@ -124,8 +126,8 @@ contract MidnightAdapter is IMidnightAdapter {
             removeUnits(marketId, market.maturity, totalNetCreditDecrease);
         }
 
-        int256 change = -totalNetCreditDecrease.toInt256();
-        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), withdrawnAssets);
+        IVaultV2(parentVault)
+            .deallocate(address(this), abi.encode(ids(market), -totalNetCreditDecrease.toInt256()), withdrawnAssets);
         emit WithdrawToVault(marketId, withdrawnAssets, totalNetCreditDecrease);
     }
 
@@ -134,9 +136,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 oldDurationCount = maturityData.durationCount;
         uint256 newDurationCount = durationCount(market.maturity);
         maturityData.durationCount = uint8(newDurationCount);
-        emit UpdateDurationCountAndAllocations(
-            market.maturity, oldDurationCount, newDurationCount, maturityData.netCredit
-        );
+        emit UpdateDurationCountAndAllocations(market.maturity, newDurationCount, maturityData.netCredit);
         // VaultV2.deallocate requires allocation > 0 for each returned id.
         if (newDurationCount < oldDurationCount && maturityData.netCredit > 0) {
             bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationCount - newDurationCount);
@@ -150,7 +150,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* ACCRUAL */
 
-    function accrueInterestView() public view returns (uint48, uint128, uint256, uint256) {
+    function accrueInterestView() public view returns (uint48, uint128, uint128, uint256) {
         uint48 _firstMaturity = _maturities[0].nextMaturity;
         uint128 newGrowth = currentGrowth;
         uint256 removedMaturities = 0;
@@ -167,21 +167,21 @@ contract MidnightAdapter is IMidnightAdapter {
 
         gainedAssets += uint256(newGrowth) * (block.timestamp - accrueFrom);
 
-        return (_firstMaturity, newGrowth, _totalAssets + gainedAssets, removedMaturities);
+        return (_firstMaturity, newGrowth, (totalAssets + gainedAssets).toUint128(), removedMaturities);
     }
 
     function accrueInterest() public returns (uint48, uint128, uint256) {
         if (lastUpdate != block.timestamp) {
             uint48 newHead;
             uint256 removedMaturities;
-            (newHead, currentGrowth, _totalAssets, removedMaturities) = accrueInterestView();
-            availableMaturities += removedMaturities;
+            (newHead, currentGrowth, totalAssets, removedMaturities) = accrueInterestView();
+            availableMaturities += uint8(removedMaturities);
             _maturities[0].nextMaturity = newHead;
             _maturities[newHead].prevMaturity = 0;
             lastUpdate = uint48(block.timestamp);
-            emit AccrueInterest(newHead, currentGrowth, _totalAssets, removedMaturities);
+            emit AccrueInterest(newHead, currentGrowth, totalAssets, removedMaturities);
         }
-        return (_maturities[0].nextMaturity, currentGrowth, _totalAssets);
+        return (_maturities[0].nextMaturity, currentGrowth, totalAssets);
     }
 
     /// @dev Returns an estimate of the real assets assigned to the adapter.
@@ -220,7 +220,7 @@ contract MidnightAdapter is IMidnightAdapter {
             // Already in a deallocate call so we skip the onSell callback and return the deallocation here.
             bytes32 marketId = IdLib.toId(offer.market, block.chainid, midnight);
             uint256 takeUnits = TakeAmountsLib.sellerAssetsToUnits(midnight, marketId, offer, sellerAssets);
-            IMidnight(midnight).take(takeUnits, address(this), address(0), hex"", address(this), offer, ratifierData);
+            IMidnight(midnight).take(offer, takeUnits, address(this), address(this), address(0), hex"", ratifierData);
 
             require(IMidnight(midnight).debtOf(marketId, address(this)) == 0, NoBorrowing());
 
@@ -257,10 +257,10 @@ contract MidnightAdapter is IMidnightAdapter {
         require(offer.start <= block.timestamp, IncorrectStart());
         require(offer.buy || offer.reduceOnly, NoDebtCreation());
 
-        (Signature memory sig, uint256 height, bytes32 root, bytes32[] memory proof) =
-            abi.decode(data, (Signature, uint256, bytes32, bytes32[]));
-        require(HashLib.isLeaf(root, HashLib.hashOffer(offer), proof), InvalidProof());
-        bytes32 structHash = keccak256(abi.encode(HashLib.offerTreeTypeHash(height), root));
+        (Signature memory sig, bytes32 root, uint256 leafIndex, bytes32[] memory proof) =
+            abi.decode(data, (Signature, bytes32, uint256, bytes32[]));
+        require(HashLib.isLeaf(root, HashLib.hashOffer(offer), leafIndex, proof), InvalidProof());
+        bytes32 structHash = keccak256(abi.encode(HashLib.offerTreeTypeHash(proof.length), root));
         bytes32 domainSeparator = keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, block.chainid, address(this)));
         bytes32 digest = keccak256(bytes.concat("\x19\x01", domainSeparator, structHash));
         address signer = ecrecover(digest, sig.v, sig.r, sig.s);
@@ -273,16 +273,14 @@ contract MidnightAdapter is IMidnightAdapter {
     function onBuy(
         bytes32 marketId,
         Market memory market,
-        address buyer,
         uint256 paidAssets,
         uint256 boughtCredit,
+        uint256 buyPendingFeeIncrease,
+        address buyer,
         bytes memory
     ) external returns (bytes32) {
         MaturityData storage maturityData = _maturities[market.maturity];
         uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
-        // Works because the adapter never takes on debt and the fee is the one used by midnight.
-        uint256 buyPendingFeeIncrease =
-            boughtCredit.mulDivDown(IMidnight(midnight).continuousFee(marketId) * timeToMaturity, WAD);
         uint256 buyNetCreditIncrease = boughtCredit - buyPendingFeeIncrease;
 
         require(msg.sender == midnight, NotMidnight());
@@ -308,11 +306,11 @@ contract MidnightAdapter is IMidnightAdapter {
 
         if (timeToMaturity > 0) {
             uint128 gainedGrowth = ((buyNetCreditIncrease - paidAssets) / timeToMaturity).toUint128();
-            _totalAssets += paidAssets + (buyNetCreditIncrease - paidAssets) % timeToMaturity;
+            totalAssets += (paidAssets + (buyNetCreditIncrease - paidAssets) % timeToMaturity).toUint128();
             maturityData.growth += gainedGrowth;
             currentGrowth += gainedGrowth;
         } else {
-            _totalAssets += buyNetCreditIncrease;
+            totalAssets += buyNetCreditIncrease.toUint128();
         }
 
         maturityData.netCredit += buyNetCreditIncrease.toUint128();
@@ -341,10 +339,16 @@ contract MidnightAdapter is IMidnightAdapter {
         return CALLBACK_SUCCESS;
     }
 
-    function onSell(bytes32 marketId, Market memory market, address seller, uint256 sellerAssets, uint256, bytes memory)
-        external
-        returns (bytes32)
-    {
+    function onSell(
+        bytes32 marketId,
+        Market memory market,
+        uint256 sellerAssets,
+        uint256,
+        uint256,
+        address seller,
+        address,
+        bytes memory
+    ) external returns (bytes32) {
         uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
         uint256 newNetCredit = IMidnight(midnight).creditOf(marketId, address(this))
             - IMidnight(midnight).pendingFee(marketId, address(this));
@@ -387,9 +391,9 @@ contract MidnightAdapter is IMidnightAdapter {
             uint128 removedGrowth = maturityData.growth.mulDivUp(removedUnits, maturityData.netCredit).toUint128();
             maturityData.growth -= removedGrowth;
             currentGrowth -= removedGrowth;
-            _totalAssets = _totalAssets + (removedGrowth * timeToMaturity) - removedUnits;
+            totalAssets = (totalAssets + (removedGrowth * timeToMaturity) - removedUnits).toUint128();
         } else {
-            _totalAssets -= removedUnits;
+            totalAssets -= removedUnits.toUint128();
         }
         maturityData.netCredit -= removedUnits.toUint128();
         netCredit[marketId] -= removedUnits.toUint128();
@@ -402,6 +406,7 @@ contract MidnightAdapter is IMidnightAdapter {
         }
     }
 
+    /// @dev Returns the number of possibly capped durations that are less than or equal to the time to maturity.
     function durationCount(uint256 maturity) internal view returns (uint256 count) {
         uint256 timeToMaturity = maturity.zeroFloorSub(block.timestamp);
         while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;
