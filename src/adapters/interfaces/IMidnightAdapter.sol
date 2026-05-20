@@ -7,14 +7,11 @@ import {Market} from "lib/midnight/src/interfaces/IMidnight.sol";
 import {IBuyCallback, ISellCallback} from "lib/midnight/src/interfaces/ICallbacks.sol";
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
-// Chain of maturities, each can represent multiple markets.
-// nextMaturity is 0 if no next maturity.
 struct MaturityData {
     uint128 netCredit;
     uint128 growth;
-    uint48 prevMaturity;
-    uint48 nextMaturity;
     uint8 durationCount;
+    uint8 index; // index in pendingMaturities
 }
 
 interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
@@ -27,7 +24,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event ForceDeallocate(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 netCreditIncrease, int256 change);
     event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
-    event AccrueInterest(uint48 firstMaturity, uint128 currentGrowth, uint256 totalAssets);
+    event AccrueInterest(uint128 currentGrowth, uint256 totalAssets);
     event RemoveMaturity(uint256 indexed maturity);
     event InsertMaturity(uint256 indexed maturity);
 
@@ -54,9 +51,12 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
 
     function asset() external view returns (address);
     function totalAssets() external view returns (uint128);
-    function lastUpdate() external view returns (uint48);
+    function lastUpdate() external view returns (uint40);
+    function nextMaturityFloor() external view returns (uint40);
     function currentGrowth() external view returns (uint128);
+    function pendingMaturities(uint256) external view returns (uint40);
     function availableMaturities() external view returns (uint8);
+    function MAX_PENDING_MATURITIES() external view returns (uint8);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
@@ -71,8 +71,8 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function withdrawToVault(Market memory market, uint256 units) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
-    function accrueInterestView() external view returns (uint48, uint128, uint128, uint256);
-    function accrueInterest() external returns (uint48, uint128, uint256);
+    function accrueInterestView() external view returns (uint128, uint256);
+    function accrueInterest() external returns (uint128, uint256);
     function allocate(bytes memory data, uint256 assets, bytes4, address vaultAllocator)
         external
         returns (bytes32[] memory, int256);

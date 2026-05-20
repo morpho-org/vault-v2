@@ -59,10 +59,10 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         return offer;
     }
 
-    function sell(Market memory obligation, uint256 assets) internal {
+    function sell(Market memory market, uint256 assets) internal {
         Offer memory offer = storedOffer;
 
-        offer.market = obligation;
+        offer.market = market;
         offer.buy = false;
         offer.reduceOnly = true;
         offer.tick = MAX_TICK;
@@ -78,12 +78,12 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         midnight.take(offer, units, taker, taker, address(0), "", sign([offer], signerAllocator));
     }
 
-    function forceDeallocate(Market memory obligation, uint256 assets) internal {
+    function forceDeallocate(Market memory market, uint256 assets) internal {
         address buyer = makeAddr("buyer");
         SetterRatifier approvalRatifier = new SetterRatifier(address(midnight));
 
         Offer memory offer = storedOffer;
-        offer.market = obligation;
+        offer.market = market;
         offer.buy = true;
         offer.maker = buyer;
         offer.tick = MAX_TICK;
@@ -112,8 +112,8 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         return keccak256(abi.encode("duration", duration));
     }
 
-    function setMidnightCredit(bytes32 obligationId, address account, uint256 credit) internal {
-        stdstore.target(address(midnight)).sig("creditOf(bytes32,address)").with_key(obligationId).with_key(account)
+    function setMidnightCredit(bytes32 marketId, address account, uint256 credit) internal {
+        stdstore.target(address(midnight)).sig("creditOf(bytes32,address)").with_key(marketId).with_key(account)
             .checked_write(credit);
     }
 
@@ -194,8 +194,8 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         buy(1 days, 1e18);
         Offer memory offer = buy(7 days, 1e18);
         buy(30 days, 1e18);
-        bytes32 obligationId = _obligationId(offer.market);
-        setMidnightCredit(obligationId, address(adapter), 0);
+        bytes32 marketId = _marketId(offer.market);
+        setMidnightCredit(marketId, address(adapter), 0);
 
         offer.group = bytes32("second buy");
         uint256 units = 1e18 * 1e18 / TickLib.tickToPrice(MAX_TICK);
@@ -229,7 +229,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         sell(secondOffer.market, 1e18);
 
         assertEq(adapter.availableMaturities(), 1, "availableMaturities after");
-        assertEq(adapter.maturities(0).nextMaturity, firstOffer.market.maturity, "firstMaturity after");
+        assertEq(adapter.pendingMaturities(0), firstOffer.market.maturity, "first pending maturity after");
 
         buy(60 days, 1e18);
 

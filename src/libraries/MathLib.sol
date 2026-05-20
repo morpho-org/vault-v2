@@ -28,12 +28,6 @@ library MathLib {
         return uint40(x);
     }
 
-    /// @dev Casts from uint256 to uint48, reverting if input number is too large.
-    function toUint48(uint256 x) internal pure returns (uint48) {
-        require(x <= type(uint48).max, ErrorsLib.CastOverflow());
-        return uint48(x);
-    }
-
     /// @dev Casts from uint256 to uint128, reverting if input number is too large.
     function toUint128(uint256 x) internal pure returns (uint128) {
         require(x <= type(uint128).max, ErrorsLib.CastOverflow());
