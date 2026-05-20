@@ -132,8 +132,8 @@ contract MidnightAdapter is IMidnightAdapter {
             for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
                 zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
             }
-            int256 change = -int256(uint256(maturityData.netCredit));
-            IVaultV2(parentVault).deallocate(address(this), abi.encode(zeroedDurationsIds, change), 0);
+            IVaultV2(parentVault)
+                .deallocate(address(this), abi.encode(zeroedDurationsIds, -int256(uint256(maturityData.netCredit))), 0);
         }
     }
 
@@ -224,9 +224,8 @@ contract MidnightAdapter is IMidnightAdapter {
                 removeUnits(marketId, offer.market.maturity, totalNetCreditDecrease);
             }
 
-            int256 change = -totalNetCreditDecrease.toInt256();
             emit ForceDeallocate(marketId, sellerAssets, totalNetCreditDecrease);
-            return (ids(offer.market), change);
+            return (ids(offer.market), -totalNetCreditDecrease.toInt256());
         } else {
             require(caller == address(this), SelfAllocationOnly());
             // Return exactly the data passed to the function.
@@ -354,8 +353,8 @@ contract MidnightAdapter is IMidnightAdapter {
             removeUnits(marketId, market.maturity, totalNetCreditDecrease);
         }
 
-        int256 change = -totalNetCreditDecrease.toInt256();
-        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
+        IVaultV2(parentVault)
+            .deallocate(address(this), abi.encode(ids(market), -totalNetCreditDecrease.toInt256()), sellerAssets);
 
         uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(address(parentVault));
         uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
