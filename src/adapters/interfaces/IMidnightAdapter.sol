@@ -11,7 +11,7 @@ struct MaturityData {
     uint128 netCredit;
     uint128 growth;
     uint8 durationCount;
-    uint8 indexInPendingMaturities;
+    uint8 index; // index in pendingMaturities
 }
 
 interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
