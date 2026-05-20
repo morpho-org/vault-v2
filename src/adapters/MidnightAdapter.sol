@@ -51,9 +51,9 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Lower bound on the smallest maturity in `pendingMaturities`.
     /// @dev Used to avoid reading the entire pendingMaturities array most of the time.
     uint40 public nextMaturityFloor = type(uint40).max;
-    /// @dev Unordered fixed-size array of future maturities where the adapter has credit.
+    /// @dev Unordered array of pending maturities where the adapter has credit.
     /// @dev The used prefix has length `MAX_PENDING_MATURITIES - availableMaturities`.
-    /// @dev The remaining elemtents may contain stale data and should be ignored.
+    /// @dev The remaining elements may contain stale data and should be ignored.
     uint40[MAX_PENDING_MATURITIES] public pendingMaturities;
     uint8 public availableMaturities = MAX_PENDING_MATURITIES;
     mapping(uint256 timestamp => MaturityData) public _maturities;
@@ -329,7 +329,7 @@ contract MidnightAdapter is IMidnightAdapter {
             maturityData.netCredit == buyNetCreditIncrease && buyNetCreditIncrease > 0
                 && market.maturity > block.timestamp
         ) {
-            maturityData.index = uint8(MAX_PENDING_MATURITIES - availableMaturities);
+            maturityData.indexInPendingMaturities = uint8(MAX_PENDING_MATURITIES - availableMaturities);
             pendingMaturities[MAX_PENDING_MATURITIES - availableMaturities] = market.maturity.toUint40();
             availableMaturities--;
             if (market.maturity < nextMaturityFloor) nextMaturityFloor = market.maturity.toUint40();
@@ -400,7 +400,7 @@ contract MidnightAdapter is IMidnightAdapter {
         netCredit[marketId] -= removedUnits.toUint128();
 
         if (removedUnits > 0 && maturityData.netCredit == 0 && maturity > block.timestamp) {
-            removePendingMaturity(maturityData.index);
+            removePendingMaturity(maturityData.indexInPendingMaturities);
         }
     }
 
@@ -411,7 +411,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 lastIndex = MAX_PENDING_MATURITIES - availableMaturities - 1;
         if (index != lastIndex) {
             uint40 lastMaturity = pendingMaturities[lastIndex];
-            _maturities[lastMaturity].index = uint8(index);
+            _maturities[lastMaturity].indexInPendingMaturities = uint8(index);
             pendingMaturities[index] = lastMaturity;
         }
         availableMaturities++;

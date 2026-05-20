@@ -7,12 +7,11 @@ import {Market} from "lib/midnight/src/interfaces/IMidnight.sol";
 import {IBuyCallback, ISellCallback} from "lib/midnight/src/interfaces/ICallbacks.sol";
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
-// Maturity data, each can represent multiple markets.
 struct MaturityData {
     uint128 netCredit;
     uint128 growth;
     uint8 durationCount;
-    uint8 index;
+    uint8 indexInPendingMaturities;
 }
 
 interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {

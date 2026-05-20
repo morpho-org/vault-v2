@@ -212,7 +212,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.currentGrowth(), newGrowth, "currentGrowth");
         MaturityData memory maturityData = adapter.maturities(offer.market.maturity);
         assertEq(maturityData.growth, newGrowth, "growth");
-        assertEq(maturityData.index, 0, "index");
+        assertEq(maturityData.indexInPendingMaturities, 0, "indexInPendingMaturities");
 
         uint256 actualUnits = adapter.netCredit(_marketId(offer.market));
         assertEq(actualUnits, units, "units");
@@ -486,7 +486,7 @@ contract MidnightAdapterTest is Test {
         for (uint256 i = 0; i < expectedMaturitiesList.length; i++) {
             uint256 m = expectedMaturitiesList[i];
             assertEq(adapter.maturities(m).growth, expectedMaturityGrowths[m], "growth");
-            uint256 idx = adapter.maturities(m).index;
+            uint256 idx = adapter.maturities(m).indexInPendingMaturities;
             assertEq(adapter.pendingMaturities(idx), m, "pendingMaturities[index] matches");
         }
 
