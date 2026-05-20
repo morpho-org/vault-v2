@@ -68,10 +68,6 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* GETTERS */
 
-    function firstMaturity() public view returns (uint48) {
-        return _maturities[0].nextMaturity;
-    }
-
     function maturities(uint256 date) public view returns (MaturityData memory) {
         return _maturities[date];
     }
@@ -172,7 +168,7 @@ contract MidnightAdapter is IMidnightAdapter {
             _maturities[0].nextMaturity = newHead;
             _maturities[newHead].prevMaturity = 0;
             lastUpdate = uint48(block.timestamp);
-            emit AccrueInterest(newHead, currentGrowth, totalAssets, removedMaturities);
+            emit AccrueInterest(newHead, currentGrowth, totalAssets);
         }
         return (_maturities[0].nextMaturity, currentGrowth, totalAssets);
     }
@@ -399,7 +395,7 @@ contract MidnightAdapter is IMidnightAdapter {
         }
     }
 
-    /// @dev Returns the number of possibly capped durations that are less than or equal to the time to maturity.
+    /// @dev Returns the number of durations in packedDurations that are most the time to maturity.
     function durationCount(uint256 maturity) internal view returns (uint256 count) {
         uint256 timeToMaturity = maturity.zeroFloorSub(block.timestamp);
         while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;

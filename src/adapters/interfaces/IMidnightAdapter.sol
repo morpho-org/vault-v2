@@ -27,7 +27,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event ForceDeallocate(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 netCreditIncrease, int256 change);
     event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
-    event AccrueInterest(uint48 firstMaturity, uint128 currentGrowth, uint256 totalAssets, uint256 removedMaturities);
+    event AccrueInterest(uint48 firstMaturity, uint128 currentGrowth, uint256 totalAssets);
     event RemoveMaturity(uint256 indexed maturity);
     event InsertMaturity(uint256 indexed maturity);
 
@@ -55,7 +55,6 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function asset() external view returns (address);
     function totalAssets() external view returns (uint128);
     function lastUpdate() external view returns (uint48);
-    function firstMaturity() external view returns (uint48);
     function currentGrowth() external view returns (uint128);
     function availableMaturities() external view returns (uint8);
     function midnight() external view returns (address);

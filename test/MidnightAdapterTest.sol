@@ -202,7 +202,7 @@ contract MidnightAdapterTest is Test {
         uint256 remainder = (units - assets) % (offer.market.maturity - vm.getBlockTimestamp());
         assertEq(adapter.totalAssets(), assets + remainder, "_totalAssets");
         assertEq(adapter.lastUpdate(), vm.getBlockTimestamp(), "lastUpdate");
-        assertEq(adapter.firstMaturity(), vm.getBlockTimestamp() + 200, "firstMaturity");
+        assertEq(adapter.maturities(0).nextMaturity, vm.getBlockTimestamp() + 200, "firstMaturity");
 
         uint256 totalInterest = units - assets;
         uint256 duration = offer.market.maturity - vm.getBlockTimestamp();
@@ -254,12 +254,12 @@ contract MidnightAdapterTest is Test {
         // Step 3: Trigger accrueInterest so the walk subtracts growth from currentGrowth
         adapter.accrueInterest();
         assertEq(adapter.currentGrowth(), 0, "currentGrowth after accrual should be 0");
-        assertEq(adapter.firstMaturity(), 0, "firstMaturity should be sentinel");
+        assertEq(adapter.maturities(0).nextMaturity, 0, "firstMaturity should be sentinel");
 
         // In midnight, any seller with debt past maturity is always liquidatable
         // (isLiquidatable returns true if block.timestamp > maturity && debt > 0),
         // so we can't test a second buy at past maturity. Just verify accrual state.
-        assertEq(adapter.firstMaturity(), 0, "past maturity not re-inserted into list");
+        assertEq(adapter.maturities(0).nextMaturity, 0, "past maturity not re-inserted into list");
 
         // Note: In midnight, any seller with debt past maturity is always liquidatable,
         // so the second buy at past maturity from the original test cannot be executed.
@@ -477,9 +477,9 @@ contract MidnightAdapterTest is Test {
 
         // Check pointer to first element of maturities list
         if (steps.length > 0) {
-            assertEq(adapter.firstMaturity(), steps[0].maturity, "firstMaturity");
+            assertEq(adapter.maturities(0).nextMaturity, steps[0].maturity, "firstMaturity");
         } else {
-            assertEq(adapter.firstMaturity(), 0, "firstMaturity");
+            assertEq(adapter.maturities(0).nextMaturity, 0, "firstMaturity");
         }
 
         // Check maturities growth and linked list structure
