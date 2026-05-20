@@ -54,7 +54,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         vm.startPrank(taker);
         midnight.supplyCollateral(offer.market, 0, assets / 2, taker);
         midnight.supplyCollateral(offer.market, 1, assets / 2, taker);
-        midnight.take(units, taker, address(0), "", taker, offer, sign([offer], signerAllocator));
+        midnight.take(offer, units, taker, taker, address(0), "", sign([offer], signerAllocator));
         vm.stopPrank();
         return offer;
     }
@@ -75,7 +75,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         offer.group = bytes32(vm.randomUint());
         offer.callbackData = hex"";
         vm.prank(taker);
-        midnight.take(units, taker, address(0), "", taker, offer, sign([offer], signerAllocator));
+        midnight.take(offer, units, taker, taker, address(0), "", sign([offer], signerAllocator));
     }
 
     function forceDeallocate(Market memory market, uint256 assets) internal {
@@ -99,12 +99,12 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         deal(address(loanToken), buyer, assets);
         vm.startPrank(buyer);
         loanToken.approve(address(midnight), type(uint256).max);
-        midnight.setIsAuthorized(buyer, address(approvalRatifier), true);
+        midnight.setIsAuthorized(address(approvalRatifier), true, buyer);
         bytes32 _root = root([offer]);
         approvalRatifier.setIsRootRatified(buyer, _root, true);
         vm.stopPrank();
 
-        bytes memory data = abi.encode(offer, abi.encode(_root, proof([offer])));
+        bytes memory data = abi.encode(offer, abi.encode(_root, 0, proof([offer])));
         parentVault.forceDeallocate(address(adapter), data, assets, address(this));
     }
 
@@ -208,7 +208,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
 
         offer.callbackData = hex"";
         vm.prank(taker);
-        midnight.take(units, taker, address(0), "", taker, offer, sign([offer], signerAllocator));
+        midnight.take(offer, units, taker, taker, address(0), "", sign([offer], signerAllocator));
     }
 
     function testSellClearsMaturityAndReactivatesSlot() public {
