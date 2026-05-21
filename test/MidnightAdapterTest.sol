@@ -204,7 +204,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.totalAssets(), assets + remainder, "_totalAssets");
         assertEq(adapter.lastUpdate(), vm.getBlockTimestamp(), "lastUpdate");
         assertEq(adapter.pendingMaturities(0), vm.getBlockTimestamp() + 200, "first pending maturity");
-        assertEq(adapter.availableMaturities(), 49, "availableMaturities");
+        assertEq(adapter.pendingMaturitiesLength(), 1, "pendingMaturitiesLength");
 
         uint256 totalInterest = units - assets;
         uint256 duration = offer.market.maturity - vm.getBlockTimestamp();
@@ -256,12 +256,12 @@ contract MidnightAdapterTest is Test {
         // Step 3: Trigger accrueInterest so the walk subtracts growth from currentGrowth
         adapter.accrueInterest();
         assertEq(adapter.currentGrowth(), 0, "currentGrowth after accrual should be 0");
-        assertEq(adapter.availableMaturities(), 50, "availableMaturities full after accrual");
+        assertEq(adapter.pendingMaturitiesLength(), 0, "pendingMaturitiesLength empty after accrual");
 
         // In midnight, any seller with debt past maturity is always liquidatable
         // (isLiquidatable returns true if block.timestamp > maturity && debt > 0),
         // so we can't test a second buy at past maturity. Just verify accrual state.
-        assertEq(adapter.availableMaturities(), 50, "past maturity not re-inserted into list");
+        assertEq(adapter.pendingMaturitiesLength(), 0, "past maturity not re-inserted into list");
 
         // Note: In midnight, any seller with debt past maturity is always liquidatable,
         // so the second buy at past maturity from the original test cannot be executed.
@@ -478,11 +478,7 @@ contract MidnightAdapterTest is Test {
         setupMarkets(steps);
 
         // Check pending-maturities membership and indices (array is unordered).
-        assertEq(
-            adapter.availableMaturities(),
-            adapter.MAX_PENDING_MATURITIES() - expectedMaturitiesList.length,
-            "availableMaturities"
-        );
+        assertEq(adapter.pendingMaturitiesLength(), expectedMaturitiesList.length, "pendingMaturitiesLength");
         for (uint256 i = 0; i < expectedMaturitiesList.length; i++) {
             uint256 m = expectedMaturitiesList[i];
             assertEq(adapter.maturities(m).growth, expectedMaturityGrowths[m], "growth");

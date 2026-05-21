@@ -48,11 +48,11 @@ contract MidnightAdapter is IMidnightAdapter {
     uint128 public totalAssets;
     uint128 public currentGrowth;
     uint48 public lastUpdate;
-    uint8 public availableMaturities = MAX_PENDING_MATURITIES;
+    uint8 public pendingMaturitiesLength;
     /// @dev Used to avoid reading the entire pendingMaturities array most of the time.
     uint48 public nextMaturityFloor = type(uint48).max;
     /// @dev Unordered array of future maturities where the adapter has credit.
-    /// @dev Actual length is MAX_PENDING_MATURITIES - availableMaturities, elements after should be ignored.
+    /// @dev Elements at index >= pendingMaturitiesLength should be ignored.
     uint48[MAX_PENDING_MATURITIES] public pendingMaturities;
     mapping(uint256 timestamp => MaturityData) public _maturities;
     mapping(bytes32 marketId => uint256) public netCredit;
@@ -149,7 +149,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 newTotalAssets = totalAssets;
 
         if (block.timestamp >= nextMaturityFloor) {
-            for (uint256 i = MAX_PENDING_MATURITIES - availableMaturities; i > 0; i--) {
+            for (uint256 i = pendingMaturitiesLength; i > 0; i--) {
                 uint48 maturity = pendingMaturities[i - 1];
                 if (maturity <= block.timestamp) {
                     newTotalAssets += uint256(_maturities[maturity].growth) * (maturity - lastUpdate);
@@ -168,7 +168,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         if (block.timestamp >= nextMaturityFloor) {
             uint48 newMin = type(uint48).max;
-            for (uint256 i = MAX_PENDING_MATURITIES - availableMaturities; i > 0; i--) {
+            for (uint256 i = pendingMaturitiesLength; i > 0; i--) {
                 uint48 maturity = pendingMaturities[i - 1];
                 if (maturity <= block.timestamp) {
                     newTotalAssets += uint256(_maturities[maturity].growth) * (maturity - lastUpdate);
@@ -326,9 +326,9 @@ contract MidnightAdapter is IMidnightAdapter {
             maturityData.netCredit == buyNetCreditIncrease && buyNetCreditIncrease > 0
                 && market.maturity > block.timestamp
         ) {
-            maturityData.index = uint8(MAX_PENDING_MATURITIES - availableMaturities);
-            pendingMaturities[maturityData.index] = market.maturity.toUint48();
-            availableMaturities--;
+            maturityData.index = pendingMaturitiesLength;
+            pendingMaturities[pendingMaturitiesLength] = market.maturity.toUint48();
+            pendingMaturitiesLength++;
             if (market.maturity < nextMaturityFloor) nextMaturityFloor = market.maturity.toUint48();
             emit InsertMaturity(market.maturity);
         }
@@ -404,12 +404,11 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Remove the maturity at index.
     /// @dev The slot at the old last index is left with stale data.
     function removePendingMaturity(uint256 index) internal {
-        uint256 lastIndex = MAX_PENDING_MATURITIES - availableMaturities - 1;
-        uint48 lastMaturity = pendingMaturities[lastIndex];
-        _maturities[lastMaturity].index = uint8(index);
-        availableMaturities++;
         emit RemoveMaturity(pendingMaturities[index]);
+        pendingMaturitiesLength--;
+        uint48 lastMaturity = pendingMaturities[pendingMaturitiesLength];
         pendingMaturities[index] = lastMaturity;
+        _maturities[lastMaturity].index = uint8(index);
     }
 
     /// @dev Returns the number of durations in packedDurations that are most the time to maturity.

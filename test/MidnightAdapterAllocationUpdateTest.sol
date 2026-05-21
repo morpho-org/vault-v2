@@ -219,7 +219,7 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
             if (i == 0) firstOffer = offer;
             if (i == 1) secondOffer = offer;
         }
-        assertEq(adapter.availableMaturities(), 0, "availableMaturities before");
+        assertEq(adapter.pendingMaturitiesLength(), 50, "pendingMaturitiesLength before");
 
         parentVault.setTotalAssets(1e18);
         parentVault.setAdaptersLength(1);
@@ -228,12 +228,12 @@ contract MidnightAdapterAllocationUpdateTest is MidnightAdapterTest {
         parentVault.setAdapters(adapters);
         sell(secondOffer.market, 1e18);
 
-        assertEq(adapter.availableMaturities(), 1, "availableMaturities after");
+        assertEq(adapter.pendingMaturitiesLength(), 49, "pendingMaturitiesLength after");
         assertEq(adapter.pendingMaturities(0), firstOffer.market.maturity, "first pending maturity after");
 
         buy(60 days, 1e18);
 
-        assertEq(adapter.availableMaturities(), 0, "availableMaturities final");
+        assertEq(adapter.pendingMaturitiesLength(), 50, "pendingMaturitiesLength final");
     }
 
     function testUpdateOnForceDeallocate() public {
