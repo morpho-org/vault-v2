@@ -47,13 +47,13 @@ contract MidnightAdapter is IMidnightAdapter {
 
     uint128 public totalAssets;
     uint128 public currentGrowth;
-    uint40 public lastUpdate;
+    uint48 public lastUpdate;
     uint8 public availableMaturities = MAX_PENDING_MATURITIES;
     /// @dev Used to avoid reading the entire pendingMaturities array most of the time.
-    uint40 public nextMaturityFloor = type(uint40).max;
+    uint48 public nextMaturityFloor = type(uint48).max;
     /// @dev Unordered array of future maturities where the adapter has credit.
     /// @dev Actual length is MAX_PENDING_MATURITIES - availableMaturities, elements after should be ignored.
-    uint40[MAX_PENDING_MATURITIES] public pendingMaturities;
+    uint48[MAX_PENDING_MATURITIES] public pendingMaturities;
     mapping(uint256 timestamp => MaturityData) public _maturities;
     mapping(bytes32 marketId => uint256) public netCredit;
     /* CONSTRUCTOR */
@@ -62,7 +62,7 @@ contract MidnightAdapter is IMidnightAdapter {
         asset = IVaultV2(_parentVault).asset();
         parentVault = _parentVault;
         midnight = _midnight;
-        lastUpdate = uint40(block.timestamp);
+        lastUpdate = uint48(block.timestamp);
         SafeERC20Lib.safeApprove(asset, _midnight, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
         adapterId = keccak256(abi.encode("this", address(this)));
@@ -150,7 +150,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         if (block.timestamp >= nextMaturityFloor) {
             for (uint256 i = MAX_PENDING_MATURITIES - availableMaturities; i > 0; i--) {
-                uint40 maturity = pendingMaturities[i - 1];
+                uint48 maturity = pendingMaturities[i - 1];
                 if (maturity <= block.timestamp) {
                     newTotalAssets += uint256(_maturities[maturity].growth) * (maturity - lastUpdate);
                     newGrowth -= _maturities[maturity].growth;
@@ -167,9 +167,9 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 newTotalAssets = totalAssets;
 
         if (block.timestamp >= nextMaturityFloor) {
-            uint40 newMin = type(uint40).max;
+            uint48 newMin = type(uint48).max;
             for (uint256 i = MAX_PENDING_MATURITIES - availableMaturities; i > 0; i--) {
-                uint40 maturity = pendingMaturities[i - 1];
+                uint48 maturity = pendingMaturities[i - 1];
                 if (maturity <= block.timestamp) {
                     newTotalAssets += uint256(_maturities[maturity].growth) * (maturity - lastUpdate);
                     newGrowth -= _maturities[maturity].growth;
@@ -185,7 +185,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         totalAssets = newTotalAssets.toUint128();
         if (block.timestamp != lastUpdate) emit AccrueInterest(newGrowth, newTotalAssets);
-        lastUpdate = uint40(block.timestamp);
+        lastUpdate = uint48(block.timestamp);
 
         return (newGrowth, newTotalAssets);
     }
@@ -327,9 +327,9 @@ contract MidnightAdapter is IMidnightAdapter {
                 && market.maturity > block.timestamp
         ) {
             maturityData.index = uint8(MAX_PENDING_MATURITIES - availableMaturities);
-            pendingMaturities[MAX_PENDING_MATURITIES - availableMaturities] = market.maturity.toUint40();
+            pendingMaturities[maturityData.index] = market.maturity.toUint48();
             availableMaturities--;
-            if (market.maturity < nextMaturityFloor) nextMaturityFloor = market.maturity.toUint40();
+            if (market.maturity < nextMaturityFloor) nextMaturityFloor = market.maturity.toUint48();
             emit InsertMaturity(market.maturity);
         }
 
@@ -405,9 +405,9 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev The slot at the old last index is left with stale data.
     function removePendingMaturity(uint256 index) internal {
         uint256 lastIndex = MAX_PENDING_MATURITIES - availableMaturities - 1;
-        availableMaturities++;
-        uint40 lastMaturity = pendingMaturities[lastIndex];
+        uint48 lastMaturity = pendingMaturities[lastIndex];
         _maturities[lastMaturity].index = uint8(index);
+        availableMaturities++;
         emit RemoveMaturity(pendingMaturities[index]);
         pendingMaturities[index] = lastMaturity;
     }
