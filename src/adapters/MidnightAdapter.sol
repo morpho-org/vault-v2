@@ -48,7 +48,8 @@ contract MidnightAdapter is IMidnightAdapter {
     uint48 public lastUpdate;
     /// @dev Maximum steps of an accrual.
     /// @dev A maturity uses an availability slot iff it has some units and is > now after accrual.
-    uint8 public availableMaturities = 50;
+    uint8 public constant MAX_PENDING_MATURITIES = 50;
+    uint8 public availableMaturities = MAX_PENDING_MATURITIES;
     mapping(uint256 timestamp => MaturityData) public _maturities;
     mapping(bytes32 marketId => uint256) public netCredit;
     /* CONSTRUCTOR */
