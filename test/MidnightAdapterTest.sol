@@ -56,12 +56,12 @@ contract MidnightAdapterTest is Test {
     uint256 internal constant MIN_TEST_ASSETS = 10;
     uint256 internal constant MAX_TEST_ASSETS = 1e24;
 
-    // Hardcoded obligation setups
+    // Hardcoded market setups
     Step[] internal steps00;
     Step[] internal steps01;
 
-    // Expected values after setting up obligations
-    mapping(bytes32 obligationId => uint256) expectedUnits;
+    // Expected values after setting up markets
+    mapping(bytes32 marketId => uint256) expectedUnits;
     mapping(uint256 timestamp => uint256) expectedMaturityGrowths;
     uint256[] internal expectedPositionsList;
     uint256[] internal expectedMaturitiesList;
@@ -212,7 +212,7 @@ contract MidnightAdapterTest is Test {
         assertEq(maturityData.growth, newGrowth, "growth");
         assertEq(maturityData.nextMaturity, 0, "nextMaturity");
 
-        uint256 actualUnits = adapter.netCredit(_obligationId(offer.market));
+        uint256 actualUnits = adapter.netCredit(_marketId(offer.market));
         assertEq(actualUnits, units, "units");
     }
 
@@ -389,7 +389,7 @@ contract MidnightAdapterTest is Test {
 
     /* STEPS SETUP */
 
-    function setupObligations(Step[] memory steps) internal {
+    function setupMarkets(Step[] memory steps) internal {
         vm.startPrank(taker);
         IERC20(storedCollaterals[0].token).approve(address(midnight), type(uint256).max);
         IERC20(storedCollaterals[1].token).approve(address(midnight), type(uint256).max);
@@ -437,7 +437,7 @@ contract MidnightAdapterTest is Test {
             uint256 actualGrowth = (units - step.assets) / timeToMaturity;
             uint256 zeroPeriodGain = (units - step.assets) % timeToMaturity;
             offer.maxUnits = units;
-            bytes32 obligationId = _obligationId(offer.market);
+            bytes32 marketId = _marketId(offer.market);
 
             vm.startPrank(taker);
             deal(storedCollaterals[0].token, taker, 1_000e18);
@@ -445,19 +445,19 @@ contract MidnightAdapterTest is Test {
             midnight.supplyCollateral(offer.market, 0, 1_000e18, taker);
             midnight.supplyCollateral(offer.market, 1, 1_000e18, taker);
 
-            uint256 unitsBefore = adapter.netCredit(obligationId);
+            uint256 unitsBefore = adapter.netCredit(marketId);
             midnight.take(offer, units, taker, taker, address(0), "", sign([offer], signerAllocator));
             vm.stopPrank();
 
-            assertEq(adapter.netCredit(obligationId), unitsBefore + units, "setup: units 1");
+            assertEq(adapter.netCredit(marketId), unitsBefore + units, "setup: units 1");
 
-            expectedUnits[obligationId] += units;
+            expectedUnits[marketId] += units;
             expectedMaturityGrowths[step.maturity] += actualGrowth;
             if (timeToMaturity > 0) {
                 expectedAddedGrowth += actualGrowth.toUint128();
             }
             expectedAddedAssets += step.assets + zeroPeriodGain;
-            expectedPositionsList.push(uint256(obligationId));
+            expectedPositionsList.push(uint256(marketId));
             expectedMaturitiesList.push(step.maturity);
         }
         expectedPositionsList = removeCopies(expectedPositionsList);
@@ -473,7 +473,7 @@ contract MidnightAdapterTest is Test {
         }
         indices = vm.shuffle(indices);
 
-        setupObligations(steps);
+        setupMarkets(steps);
 
         // Check pointer to first element of maturities list
         if (steps.length > 0) {
@@ -502,8 +502,8 @@ contract MidnightAdapterTest is Test {
 
         // Check positions growth and size
         for (uint256 i = 0; i < expectedPositionsList.length; i++) {
-            bytes32 obligationId = bytes32(expectedPositionsList[i]);
-            assertEq(adapter.netCredit(obligationId), expectedUnits[obligationId], "units");
+            bytes32 marketId = bytes32(expectedPositionsList[i]);
+            assertEq(adapter.netCredit(marketId), expectedUnits[marketId], "units");
         }
     }
 
@@ -532,7 +532,7 @@ contract MidnightAdapterTest is Test {
 
         setCurrentGrowth(uint128(initialGrowth));
         set_TotalAssets(_totalAssets);
-        setupObligations(steps);
+        setupMarkets(steps);
         uint256 expectedCurrentGrowth = initialGrowth + expectedAddedGrowth;
         assertEq(adapter.currentGrowth(), expectedCurrentGrowth, "currentGrowth");
         assertEq(adapter.totalAssets(), _totalAssets + expectedAddedAssets, "_totalAssets");
@@ -586,27 +586,27 @@ contract MidnightAdapterTest is Test {
     function testIds(uint256 collateralCount, uint256 maturity) public view {
         collateralCount = bound(collateralCount, 0, 5);
 
-        Market memory obligation;
+        Market memory market;
 
         CollateralParams[] memory collateralParams = new CollateralParams[](collateralCount);
         for (uint256 i = 0; i < collateralCount; i++) {
             collateralParams[i].token = address(uint160(i));
         }
-        obligation.collateralParams = storedCollaterals;
-        obligation.maturity = bound(maturity, 1, 700 days);
+        market.collateralParams = storedCollaterals;
+        market.maturity = bound(maturity, 1, 700 days);
 
-        bytes32[] memory ids = adapter.ids(obligation);
+        bytes32[] memory ids = adapter.ids(market);
         assertEq(ids[0], adapter.adapterId());
-        for (uint256 i = 0; i < obligation.collateralParams.length; i++) {
-            assertEq(ids[i * 2 + 1], keccak256(abi.encode("collateralToken", obligation.collateralParams[i].token)));
+        for (uint256 i = 0; i < market.collateralParams.length; i++) {
+            assertEq(ids[i * 2 + 1], keccak256(abi.encode("collateralToken", market.collateralParams[i].token)));
             assertEq(
                 ids[i * 2 + 2],
                 keccak256(
                     abi.encode(
                         "collateral",
-                        obligation.collateralParams[i].token,
-                        obligation.collateralParams[i].oracle,
-                        obligation.collateralParams[i].lltv
+                        market.collateralParams[i].token,
+                        market.collateralParams[i].oracle,
+                        market.collateralParams[i].lltv
                     )
                 )
             );
@@ -615,16 +615,16 @@ contract MidnightAdapterTest is Test {
         uint256[] memory durations = adapter.durations();
         uint256 durationIdCount = 0;
         for (uint256 i = 0; i < durations.length; i++) {
-            if ((obligation.maturity - block.timestamp) >= durations[i]) {
+            if ((market.maturity - block.timestamp) >= durations[i]) {
                 assertEq(
-                    ids[1 + obligation.collateralParams.length * 2 + durationIdCount],
+                    ids[1 + market.collateralParams.length * 2 + durationIdCount],
                     keccak256(abi.encode("duration", durations[i]))
                 );
                 durationIdCount++;
             }
         }
 
-        assertEq(ids.length, 1 + obligation.collateralParams.length * 2 + durationIdCount);
+        assertEq(ids.length, 1 + market.collateralParams.length * 2 + durationIdCount);
     }
 
     /* UTILITIES */
@@ -651,8 +651,8 @@ contract MidnightAdapterTest is Test {
         return res;
     }
 
-    function _obligationId(Market memory obligation) internal view returns (bytes32) {
-        return IdLib.toId(obligation, block.chainid, address(midnight));
+    function _marketId(Market memory market) internal view returns (bytes32) {
+        return IdLib.toId(market, block.chainid, address(midnight));
     }
 
     function sign(Offer[1] memory offers) internal view returns (bytes memory) {
