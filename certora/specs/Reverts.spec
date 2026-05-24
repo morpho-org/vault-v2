@@ -13,7 +13,7 @@ methods {
     function Utils.maxMaxRate() external returns (uint256) envfree;
     function liquidityData() external returns (bytes) envfree;
 
-    // Assume that accrueInterest does not revert.
+    // Assume that accrueInterest does not revert. The revert conditions for accrueInterest are checked in AccrueInterestReverts.spec.
     function accrueInterest() internal => NONDET;
 
     // Trick to be able to retrieve the value returned by the corresponding contract before it is called, without the value changing between the retrieval and the call.
@@ -102,6 +102,7 @@ rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
 
 rule setNameRevertCondition(env e, string newName) {
     address owner = owner();
+
     // String stored in name can be malformed, so we just call the getter to ensure that the encoding is correct.
     name();
 
@@ -112,6 +113,7 @@ rule setNameRevertCondition(env e, string newName) {
 
 rule setSymbolRevertCondition(env e, string newSymbol) {
     address owner = owner();
+
     // String stored in symbol can be malformed, so we just call the getter to ensure that the encoding is correct.
     symbol();
 

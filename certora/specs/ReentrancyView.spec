@@ -55,11 +55,9 @@ hook STATICCALL(uint256 g, address addr, uint256 argsOffset, uint256 argsLength,
 }
 
 // Check that there are no reentrancy unsafe calls except potentially for balanceOf on the asset, realAssets on the adapters and canReceiveShares, canSendShares, canReceiveAssets and canSendAssets on the gates, and isInRegistry on adapter registry.
-rule reentrancyViewSafe(method f, env e, calldataarg data)
-filtered {
-    // forceDeallocate is a composition of deallocate and withdraw.
-    f -> f.selector != sig:forceDeallocate(address, bytes, uint256, address).selector
-} {
+rule reentrancyViewSafe(method f, env e, calldataarg data) filtered {
+// forceDeallocate is a composition of deallocate and withdraw.
+f -> f.selector != sig:forceDeallocate(address, bytes, uint256, address).selector } {
     require ignoredStaticcall == false, "setup ghost state";
     require storageChanged == false, "setup ghost state";
     require staticCallAfterSStore == false, "setup ghost state";
