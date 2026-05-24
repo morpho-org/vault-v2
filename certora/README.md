@@ -273,11 +273,7 @@ rule previewDepositValue(env e, uint256 assets, address onBehalf) {
 
 The file [TotalAssetsChange.spec](specs/TotalAssetsChange.spec) verifies that total assets change correctly on deposit, withdraw, mint, and redeem operations.
 
-## Protection against common attack vectors
-
-Other common and known attack vectors are verified to not be possible on Vault V2.
-
-### Reentrancy
+## Reentrancy
 
 Reentrancy is a common attack vector that happens when a call to a contract allows, when in a temporary state, to call the same contract again.
 The Vault V2 contract is verified to not be vulnerable to reentrancy attacks.
