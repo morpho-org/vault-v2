@@ -8,72 +8,41 @@ on:
   workflow_dispatch:
 
 jobs:
-  verify:
+  matrix:
     runs-on: ubuntu-latest
+    outputs:
+      confs: ${{ steps.list.outputs.confs }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+      - id: list
+        run: echo "confs=$(ls certora/confs/*.conf | xargs -I{} basename {} .conf | jq -nRc '[inputs]')" >> "$GITHUB_OUTPUT"
+
+  verify:
+    needs: matrix
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-
       matrix:
-        conf:
-          - AbdicatedFunctions
-          - AllocateDeallocateInputValidation
-          - AllocateDeallocateReverts
-          - AllocationMorphoMarketV1AdapterV2
-          - AllocationMorphoVaultV1Adapter
-          - AllocationVaultV2
-          - ChangesMorphoMarketV1AdapterV2
-          - ChangesMorphoVaultV1Adapter
-          - EarliestTime
-          - EntrypointEquivalence
-          - ExchangeRate
-          - Gates
-          - IdsMorphoMarketV1AdapterV2
-          - IdsMorphoVaultV1Adapter
-          - Immutability
-          - Invariants
-          - Liveness
-          - MarketIds
-          - OwnerSafety
-          - PreviewFunctions
-          - Reentrancy
-          - ReentrancyView
-          - RelativeCaps
-          - RemoveMarketLiveness
-          - Reverts
-          - SentinelLiveness
-          - SentinelLivenessDeallocateMarketV1
-          - SentinelLivenessDeallocateVaultV1
-          - SkimMorphoMarketV1AdapterV2
-          - SkimMorphoVaultV1Adapter
-          - TokensMorphoMarketV1AdapterV2
-          - TokensMorphoVaultV1Adapter
-          - TokensNoAdapter
-          - TotalAssetsChange
-          - TotalAssetsIsUpToDate
+        conf: ${{ fromJson(needs.matrix.outputs.confs) }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           submodules: recursive
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
         with:
           distribution: temurin
           java-version: "21"
 
-      - name: Install Jq
-        uses: sergeysova/jq-action@v2
-
       - name: Run Certora Config Linter
         run: |
           file="certora/confs/${{ matrix.conf }}.conf"
-          diff <(grep -v "//" "$file" | jq) <(grep -v "//" "$file")
+          echo "Fix lint errors by applying the following diff to $file:"
+          diff -u "$file" <(jq < "$file")
 
-      - name: Install python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ">=3.10"
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
 
       - name: Install certora
         run: pip install certora-cli
@@ -81,36 +50,19 @@ jobs:
       - name: Run Certora Specs Linter
         run: |
           file="certora/specs/${{ matrix.conf }}.spec"
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            git fetch origin ${{ github.base_ref }} --depth=1
-            git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -qF "$file" || exit 0
-          fi
           echo "Fix lint errors by applying the following diff to $file:"
           diff -u "$file" <(certoraCVLFormatter "$file")
 
-      - name: Install solc (0.8.19)
-        run: |
-          wget https://github.com/ethereum/solidity/releases/download/v0.8.19/solc-static-linux
-          chmod +x solc-static-linux
-          sudo mv solc-static-linux /usr/local/bin/solc-0.8.19
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@8789b3e21e6c11b2697f5eb56eddae542f746c10 # v1
 
-      - name: Install solc (0.8.21)
+      - name: Copy solc
         run: |
-          wget https://github.com/ethereum/solidity/releases/download/v0.8.21/solc-static-linux
-          chmod +x solc-static-linux
-          sudo mv solc-static-linux /usr/local/bin/solc-0.8.21
-
-      - name: Install solc (0.8.26)
-        run: |
-          wget https://github.com/ethereum/solidity/releases/download/v0.8.26/solc-static-linux
-          chmod +x solc-static-linux
-          sudo mv solc-static-linux /usr/local/bin/solc-0.8.26
-
-      - name: Install solc (0.8.28)
-        run: |
-          wget https://github.com/ethereum/solidity/releases/download/v0.8.28/solc-static-linux
-          chmod +x solc-static-linux
-          sudo mv solc-static-linux /usr/local/bin/solc-0.8.28
+          forge build
+          cp ~/.svm/0.8.19/solc-0.8.19 /usr/local/bin
+          cp ~/.svm/0.8.21/solc-0.8.21 /usr/local/bin
+          cp ~/.svm/0.8.26/solc-0.8.26 /usr/local/bin
+          cp ~/.svm/0.8.28/solc-0.8.28 /usr/local/bin
 
       - name: Apply munging
         run: make -C lib/metamorpho/certora munged
