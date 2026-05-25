@@ -43,8 +43,7 @@ strong invariant marketIdsWithNoAllocationIsNotInMarketIds()
 ## Shares and exchange rate
 
 When depositing into Vault V2, shares are minted to represent the user's position.
-The share price is verified to be monotonically increasing (except due to management fees or loss realization).
-This ensures that the vault cannot be exploited through share price manipulation.
+The share price is verified to be monotonically non-decreasing, assuming the vault is seeded and the management fee is zero, and excluding loss realization (which is verified to decrease the share price, not increase it).
 
 The file [ExchangeRate.spec](specs/ExchangeRate.spec) checks this property with the following rule.
 
@@ -82,7 +81,8 @@ rule earliestExecutionTimeIncreases(env e, method f, calldataarg args) {
 ## Gates
 
 Vault V2 can use external gate contracts to control share transfers and asset deposits/withdrawals.
-The file [Gates.spec](specs/Gates.spec) verifies that the gating mechanism works correctly.
+The file [Gates.spec](specs/Gates.spec) verifies that the gating mechanism works correctly for transfers initiated by the vault itself.
+The asset-side properties assume that adapters do not themselves move user balances in ways that would break the gates; only the vault's own transfer paths are verified.
 
 ```solidity
 rule cantReceiveShares(env e, method f, calldataarg args, address user) {
@@ -113,9 +113,9 @@ rule relativeCapValidity(env e, method f, calldataarg args) {
 ## Authorization and owner safety
 
 Vault V2 defines different roles: owner, curator, sentinels, and allocators.
-The verification ensures that only authorized accounts can perform their respective actions.
+The verification covers two complementary properties for these roles: that authorized accounts can always perform their expected operations (liveness), and that unauthorized accounts cannot (safety, verified via the revert conditions in [Reverts.spec](specs/Reverts.spec)).
 
-The file [OwnerSafety.spec](specs/OwnerSafety.spec) verifies that the owner can always perform their expected operations.
+The file [OwnerSafety.spec](specs/OwnerSafety.spec) covers the liveness side for the owner: the owner can always change the owner, curator, and sentinel set.
 
 ```solidity
 rule ownerCanChangeOwner(env e, address newOwner) {
@@ -146,7 +146,7 @@ rule sentinelCanRevoke(env e, bytes data) {
 ## Abdication
 
 Configuration can be abdicated, meaning it cannot be changed anymore.
-The file [AbdicatedFunctions.spec](specs/AbdicatedFunctions.spec) verifies that abdicated functions cannot be called and that abdication is permanent.
+The file [AbdicatedFunctions.spec](specs/AbdicatedFunctions.spec) verifies that abdicated timelocked functions revert when called, that the state they would have changed stays put for every configuration function individually, and that abdication is permanent.
 
 ```solidity
 rule abdicatedFunctionsCantBeCalled(env e, method f, calldataarg args) filtered { f -> functionIsTimelocked(f) } {
@@ -169,9 +169,11 @@ In particular, in case of a transfer, it is assumed that the balance of the vaul
 
 The verification is done for the most common implementations of the ERC20 standard, for which we distinguish three different implementations:
 
-- Standard compliant versions that revert in case of insufficient funds or insufficient allowance.
-- Standard compliant versions that do not revert (and return false instead).
-- Non-standard implementations like USDT which omit the return value.
+- [ERC20Standard](../lib/metamorpho/certora/dispatch/ERC20Standard.sol) which respects the standard and reverts in case of insufficient funds or in case of insufficient allowance.
+- [ERC20NoRevert](../lib/metamorpho/certora/dispatch/ERC20NoRevert.sol) which respects the standard but does not revert (and returns false instead).
+- [ERC20USDT](../lib/metamorpho/certora/dispatch/ERC20USDT.sol) which does not strictly respect the standard because it omits the return value of the `transfer` and `transferFrom` functions.
+
+These dispatch contracts are reused from the [MetaMorpho repository](https://github.com/morpho-org/metamorpho) via the `lib/metamorpho` submodule, and are linked into the relevant verification jobs through the configuration files in [`certora/confs`](confs).
 
 The file [TokensNoAdapter.spec](specs/TokensNoAdapter.spec) checks that token balances change as expected on deposit and withdraw operations.
 
@@ -225,7 +227,7 @@ strong invariant totalSupplyIsSumOfBalances()
 
 ### Immutability
 
-The file [Immutability.spec](specs/Immutability.spec) verifies that the contract is truly immutable and cannot delegate calls to arbitrary addresses.
+The file [Immutability.spec](specs/Immutability.spec) verifies that the contract does not delegate calls to arbitrary addresses: every `DELEGATECALL` targets the contract itself.
 
 ### Input validation and revert conditions
 
@@ -276,9 +278,9 @@ The file [TotalAssetsChange.spec](specs/TotalAssetsChange.spec) verifies that to
 ## Reentrancy
 
 Reentrancy is a common attack vector that happens when a call to a contract allows, when in a temporary state, to call the same contract again.
-The Vault V2 contract is verified to not be vulnerable to reentrancy attacks.
+The Vault V2 contract is verified to make no external calls outside of a known trusted set: itself, the two adapter implementations ([MorphoMarketV1AdapterV2](../src/adapters/MorphoMarketV1AdapterV2.sol) and [MorphoVaultV1Adapter](../src/adapters/MorphoVaultV1Adapter.sol)), the underlying ERC20 asset, and the Morpho market / MetaMorpho V1 vault reached through an adapter. These last three targets are assumed not to reenter the vault.
 
-The file [Reentrancy.spec](specs/Reentrancy.spec) checks that there are no untrusted external calls.
+The file [Reentrancy.spec](specs/Reentrancy.spec) checks this absence of untrusted external calls.
 
 ```solidity
 rule reentrancySafe(method f, env e, calldataarg data) {
