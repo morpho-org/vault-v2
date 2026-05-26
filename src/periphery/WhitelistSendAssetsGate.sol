@@ -22,8 +22,7 @@ contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
     }
 
     function canSendAssets(address account) external view returns (bool) {
-        if (isIntermediary[account]) account = IIntermediary(account).initiator();
-        return isWhitelisted[account];
+        return isWhitelisted[isIntermediary[account] ? IIntermediary(account).initiator() : account];
     }
 
     function setWhitelister(address newWhitelister) external {
@@ -32,10 +31,10 @@ contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
         emit SetWhitelister(newWhitelister);
     }
 
-    function setIsWhitelisted(address account, bool whitelisted) external {
+    function setIsWhitelisted(address account, bool newIsWhitelisted) external {
         require(msg.sender == whitelister, NotWhitelister());
-        isWhitelisted[account] = whitelisted;
-        emit SetIsWhitelisted(account, whitelisted);
+        isWhitelisted[account] = newIsWhitelisted;
+        emit SetIsWhitelisted(account, newIsWhitelisted);
     }
 
     function setIsIntermediary(address intermediary, bool newIsIntermediary) external {
@@ -45,17 +44,22 @@ contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
     }
 
     /// @dev Signature malleability is not explicitly prevented but it is not a problem thanks to the nonce.
-    function setIsWhitelistedWithSig(address account, bool whitelisted, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
-        external
-    {
+    function setIsWhitelistedWithSig(
+        address account,
+        bool newIsWhitelisted,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external {
         require(deadline >= block.timestamp, PermitDeadlineExpired());
         bytes32 hashStruct =
-            keccak256(abi.encode(SET_IS_WHITELISTED_TYPEHASH, account, whitelisted, nonces[account]++, deadline));
+            keccak256(abi.encode(SET_IS_WHITELISTED_TYPEHASH, account, newIsWhitelisted, nonces[account]++, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
         address recovered = ecrecover(digest, v, r, s);
         require(recovered != address(0) && recovered == whitelister, InvalidSigner());
-        isWhitelisted[account] = whitelisted;
-        emit SetIsWhitelisted(account, whitelisted);
+        isWhitelisted[account] = newIsWhitelisted;
+        emit SetIsWhitelisted(account, newIsWhitelisted);
     }
 
     /// forge-lint: disable-next-item(mixed-case-function)

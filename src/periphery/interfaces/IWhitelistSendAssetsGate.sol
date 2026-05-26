@@ -5,7 +5,7 @@ pragma solidity >=0.5.0;
 import {ISendAssetsGate} from "../../interfaces/IGate.sol";
 
 bytes32 constant SET_IS_WHITELISTED_TYPEHASH =
-    keccak256("SetIsWhitelisted(address account,bool whitelisted,uint256 nonce,uint256 deadline)");
+    keccak256("SetIsWhitelisted(address account,bool newIsWhitelisted,uint256 nonce,uint256 deadline)");
 
 interface IIntermediary {
     function initiator() external view returns (address);
@@ -16,7 +16,7 @@ interface IWhitelistSendAssetsGate is ISendAssetsGate {
 
     event Constructor(address indexed whitelister);
     event SetWhitelister(address indexed newWhitelister);
-    event SetIsWhitelisted(address indexed account, bool whitelisted);
+    event SetIsWhitelisted(address indexed account, bool newIsWhitelisted);
     event SetIsIntermediary(address indexed intermediary, bool isIntermediary);
 
     /* ERRORS */
@@ -32,9 +32,15 @@ interface IWhitelistSendAssetsGate is ISendAssetsGate {
     function isIntermediary(address account) external view returns (bool);
     function isWhitelisted(address account) external view returns (bool);
     function setWhitelister(address newWhitelister) external;
-    function setIsWhitelisted(address account, bool whitelisted) external;
+    function setIsWhitelisted(address account, bool newIsWhitelisted) external;
     function setIsIntermediary(address intermediary, bool newIsIntermediary) external;
-    function setIsWhitelistedWithSig(address account, bool whitelisted, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
-        external;
+    function setIsWhitelistedWithSig(
+        address account,
+        bool newIsWhitelisted,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external;
     function DOMAIN_SEPARATOR() external view returns (bytes32);
 }
