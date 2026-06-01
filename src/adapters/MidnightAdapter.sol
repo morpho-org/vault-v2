@@ -13,10 +13,10 @@ import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {IMidnightAdapter, MaturityData, IAdapter} from "./interfaces/IMidnightAdapter.sol";
+import {IMidnightAdapter, MaturityData, MarketData, IAdapter} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
-/// @dev Approximates held assets by linearly accounting for interest separately for each maturity.
+/// @dev Approximates held assets by linearly accounting for interest per market, aggregated by maturity.
 /// @dev Losses are immediately accounted minus a discount applied to the remaining interest to be earned, in proportion
 /// to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev The adapter must have the allocator role in its parent vault to be able to buy & sell on markets.
@@ -55,7 +55,7 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Elements at index >= pendingMaturitiesLength should be ignored.
     uint48[MAX_PENDING_MATURITIES] public pendingMaturities;
     mapping(uint256 timestamp => MaturityData) public _maturities;
-    mapping(bytes32 marketId => uint256) public netCredit;
+    mapping(bytes32 marketId => MarketData) public _markets;
     /* CONSTRUCTOR */
 
     constructor(address _parentVault, address _midnight, uint256[] memory _durations) {
@@ -75,6 +75,11 @@ contract MidnightAdapter is IMidnightAdapter {
 
     function maturities(uint256 date) public view returns (MaturityData memory) {
         return _maturities[date];
+    }
+
+    /// @dev Returns the growth of the market. Can be stale after maturity.
+    function markets(bytes32 marketId) public view returns (MarketData memory) {
+        return _markets[marketId];
     }
 
     function durations() public view returns (uint256[] memory) {
@@ -111,7 +116,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 currentNetCredit = IMidnight(midnight).creditOf(marketId, address(this))
             - IMidnight(midnight).pendingFee(marketId, address(this));
         // current net credit cannot be > accounted net credit
-        uint256 netCreditDecrease = netCredit[marketId] - currentNetCredit;
+        uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit;
 
         accrueInterest();
         updateDurationCountAndAllocations(market);
@@ -235,7 +240,7 @@ contract MidnightAdapter is IMidnightAdapter {
             uint256 currentNetCredit = IMidnight(midnight).creditOf(marketId, address(this))
                 - IMidnight(midnight).pendingFee(marketId, address(this));
             // current net credit cannot be > accounted net credit
-            uint256 netCreditDecrease = netCredit[marketId] - currentNetCredit;
+            uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit;
 
             if (netCreditDecrease > 0) {
                 removeNetCredit(marketId, offer.market.maturity, netCreditDecrease);
@@ -285,11 +290,12 @@ contract MidnightAdapter is IMidnightAdapter {
         bytes memory
     ) external returns (bytes32) {
         MaturityData storage maturityData = _maturities[market.maturity];
+        MarketData storage marketData = _markets[marketId];
         uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         uint256 currentNetCredit = IMidnight(midnight).creditOf(marketId, address(this))
             - IMidnight(midnight).pendingFee(marketId, address(this));
-        int256 netCreditChange = currentNetCredit.toInt256() - netCredit[marketId].toInt256();
+        int256 netCreditChange = currentNetCredit.toInt256() - uint256(marketData.netCredit).toInt256();
 
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
@@ -312,6 +318,7 @@ contract MidnightAdapter is IMidnightAdapter {
             uint256 interest = boughtNetCredit - paidAssets;
             uint128 growthIncrease = (interest / timeToMaturity).toUint128();
             totalAssets += (paidAssets + interest % timeToMaturity).toUint128();
+            marketData.growth += growthIncrease;
             maturityData.growth += growthIncrease;
             currentGrowth += growthIncrease;
         } else {
@@ -319,7 +326,7 @@ contract MidnightAdapter is IMidnightAdapter {
         }
 
         maturityData.netCredit += boughtNetCredit.toUint128();
-        netCredit[marketId] += boughtNetCredit.toUint128();
+        marketData.netCredit += boughtNetCredit.toUint128();
 
         // Insert the maturity in the list if needed
         if (maturityData.netCredit == boughtNetCredit && boughtNetCredit > 0 && market.maturity > block.timestamp) {
@@ -348,7 +355,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 currentNetCredit = IMidnight(midnight).creditOf(marketId, address(this))
             - IMidnight(midnight).pendingFee(marketId, address(this));
         // current net credit cannot be > accounted net credit
-        uint256 netCreditDecrease = netCredit[marketId] - currentNetCredit;
+        uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit;
 
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
@@ -379,10 +386,12 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Removes netCredit proportionally from current accounted assets and future growth.
     function removeNetCredit(bytes32 marketId, uint256 maturity, uint256 removedNetCredit) internal {
         MaturityData storage maturityData = _maturities[maturity];
+        MarketData storage marketData = _markets[marketId];
 
         if (maturity > block.timestamp) {
             uint256 timeToMaturity = maturity - block.timestamp;
-            uint128 growthDecrease = maturityData.growth.mulDivUp(removedNetCredit, maturityData.netCredit).toUint128();
+            uint128 growthDecrease = marketData.growth.mulDivUp(removedNetCredit, marketData.netCredit).toUint128();
+            marketData.growth -= growthDecrease;
             maturityData.growth -= growthDecrease;
             currentGrowth -= growthDecrease;
             totalAssets = (totalAssets + (growthDecrease * timeToMaturity) - removedNetCredit).toUint128();
@@ -390,7 +399,7 @@ contract MidnightAdapter is IMidnightAdapter {
             totalAssets -= removedNetCredit.toUint128();
         }
         maturityData.netCredit -= removedNetCredit.toUint128();
-        netCredit[marketId] -= removedNetCredit.toUint128();
+        marketData.netCredit -= removedNetCredit.toUint128();
 
         if (removedNetCredit > 0 && maturityData.netCredit == 0 && maturity > block.timestamp) {
             removePendingMaturity(maturityData.index);
