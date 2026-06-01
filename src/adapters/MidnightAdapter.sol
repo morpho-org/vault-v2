@@ -57,7 +57,7 @@ contract MidnightAdapter is IMidnightAdapter {
         asset = IVaultV2(_parentVault).asset();
         parentVault = _parentVault;
         midnight = _midnight;
-        lastUpdate = uint48(block.timestamp);
+        lastUpdate = block.timestamp.toUint48();
         SafeERC20Lib.safeApprove(asset, _midnight, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
         adapterId = keccak256(abi.encode("this", address(this)));
@@ -108,11 +108,9 @@ contract MidnightAdapter is IMidnightAdapter {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
         bytes32 marketId = IdLib.toId(market, block.chainid, midnight);
         MarketData storage marketData = _markets[marketId];
-        uint256 oldAdapterNetCredit = IMidnight(midnight).creditOf(marketId, address(this))
-            - IMidnight(midnight).pendingFee(marketId, address(this));
+        uint256 oldAdapterNetCredit = currentNetCredit(marketId);
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
-        uint256 currentAdapterNetCredit = IMidnight(midnight).creditOf(marketId, address(this))
-            - IMidnight(midnight).pendingFee(marketId, address(this));
+        uint256 currentAdapterNetCredit = currentNetCredit(marketId);
         uint256 withdrawNetCreditDecrease = oldAdapterNetCredit - currentAdapterNetCredit;
         uint256 oldVaultNetCredit = marketData.vaultNetCredit;
 
@@ -147,12 +145,10 @@ contract MidnightAdapter is IMidnightAdapter {
 
         uint256 withdrawnAssets = redeemedShares.mulDivDown(marketData.userNetCredit + 1, marketData.userShares + 1);
 
-        uint256 oldAdapterNetCredit = IMidnight(midnight).creditOf(marketId, address(this))
-            - IMidnight(midnight).pendingFee(marketId, address(this));
+        uint256 oldAdapterNetCredit = currentNetCredit(marketId);
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), msg.sender);
 
-        uint256 currentAdapterNetCredit = IMidnight(midnight).creditOf(marketId, address(this))
-            - IMidnight(midnight).pendingFee(marketId, address(this));
+        uint256 currentAdapterNetCredit = currentNetCredit(marketId);
         uint256 withdrawNetCreditDecrease = oldAdapterNetCredit - currentAdapterNetCredit;
         marketData.userNetCredit -= uint128(withdrawNetCreditDecrease);
         marketData.userShares -= redeemedShares.toUint128();
@@ -208,7 +204,7 @@ contract MidnightAdapter is IMidnightAdapter {
             availableMaturities += uint8(removedMaturities);
             _maturities[0].nextMaturity = newHead;
             _maturities[newHead].prevMaturity = 0;
-            lastUpdate = uint48(block.timestamp);
+            lastUpdate = block.timestamp.toUint48();
             emit AccrueInterest(currentGrowth, totalAssets);
         }
         return (_maturities[0].nextMaturity, currentGrowth, totalAssets);
@@ -399,6 +395,12 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* INTERNAL FUNCTIONS */
 
+    function currentNetCredit(bytes32 marketId) internal view returns (uint256) {
+        return
+            IMidnight(midnight).creditOf(marketId, address(this))
+                - IMidnight(midnight).pendingFee(marketId, address(this));
+    }
+
     /// @dev Realizes any loss between the expected and actual net credit.
     /// @dev Splits the loss between users and vault, and updates vault accounting.
     function realizeLoss(
@@ -407,8 +409,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 maturity,
         int256 expectedAdapterNetCreditDelta
     ) internal {
-        uint256 currentAdapterNetCredit = IMidnight(midnight).creditOf(marketId, address(this))
-            - IMidnight(midnight).pendingFee(marketId, address(this));
+        uint256 currentAdapterNetCredit = currentNetCredit(marketId);
         uint256 oldAdapterNetCredit = marketData.vaultNetCredit + marketData.userNetCredit;
         uint256 expectedAdapterNetCredit = (int256(oldAdapterNetCredit) + expectedAdapterNetCreditDelta).toUint256();
         if (expectedAdapterNetCredit > currentAdapterNetCredit) {
