@@ -28,6 +28,7 @@ exclude_lints = [
     "unused-import",
     "asm-keccak256",
     "mixed-case-function",
+    "block-timestamp",
 ]
 
 [profile.no_via_ir]
