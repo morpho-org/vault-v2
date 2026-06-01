@@ -58,7 +58,7 @@ contract MidnightAdapter is IMidnightAdapter {
         asset = IVaultV2(_parentVault).asset();
         parentVault = _parentVault;
         midnight = _midnight;
-        lastUpdate = uint48(block.timestamp);
+        lastUpdate = block.timestamp.toUint48();
         SafeERC20Lib.safeApprove(asset, _midnight, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
         adapterId = keccak256(abi.encode("this", address(this)));
@@ -173,7 +173,7 @@ contract MidnightAdapter is IMidnightAdapter {
             availableMaturities += uint8(removedMaturities);
             _maturities[0].nextMaturity = newHead;
             _maturities[newHead].prevMaturity = 0;
-            lastUpdate = uint48(block.timestamp);
+            lastUpdate = block.timestamp.toUint48();
             emit AccrueInterest(currentGrowth, totalAssets);
         }
         return (_maturities[0].nextMaturity, currentGrowth, totalAssets);
@@ -275,14 +275,13 @@ contract MidnightAdapter is IMidnightAdapter {
         MarketData storage marketData = _markets[marketId];
         uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
+        uint256 currentNetCredit = IMidnight(midnight).creditOf(marketId, address(this))
+            - IMidnight(midnight).pendingFee(marketId, address(this));
+        int256 netCreditChange = currentNetCredit.toInt256() - uint256(marketData.netCredit).toInt256();
 
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
-
-        uint256 currentNetCredit = IMidnight(midnight).creditOf(marketId, address(this))
-            - IMidnight(midnight).pendingFee(marketId, address(this));
-        int256 netCreditChange = currentNetCredit.toInt256() - uint256(marketData.netCredit).toInt256();
 
         accrueInterest();
         updateDurationCountAndAllocations(market);
