@@ -43,4 +43,5 @@ interface IWhitelistSendAssetsGate is ISendAssetsGate {
         bytes32 s
     ) external;
     function DOMAIN_SEPARATOR() external view returns (bytes32);
+    function multicall(bytes[] calldata data) external;
 }
