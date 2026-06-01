@@ -22,7 +22,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
     event UpdateDurationCountAndAllocations(uint256 indexed maturity, uint256 newDurationCount, uint256 netCredit);
     event ForceDeallocate(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
-    event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 netCreditIncrease, int256 change);
+    event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 netCreditIncrease, int256 netCreditChange);
     event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
     event AccrueInterest(uint128 currentGrowth, uint256 totalAssets);
     event RemoveMaturity(uint256 indexed maturity);
@@ -68,7 +68,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
     function updateDurationCountAndAllocations(Market memory market) external;
-    function withdrawToVault(Market memory market, uint256 units) external;
+    function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
     function accrueInterestView() external view returns (uint128, uint256);
