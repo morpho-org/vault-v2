@@ -55,13 +55,17 @@ contract WhitelistedEntryGateTest is Test {
 
     function _hashAddresses(address[] memory accounts) internal pure returns (bytes32) {
         bytes32[] memory padded = new bytes32[](accounts.length);
-        for (uint256 i; i < accounts.length; ++i) padded[i] = bytes32(uint256(uint160(accounts[i])));
+        for (uint256 i; i < accounts.length; ++i) {
+            padded[i] = bytes32(uint256(uint160(accounts[i])));
+        }
         return keccak256(abi.encodePacked(padded));
     }
 
     function _hashBools(bool[] memory values) internal pure returns (bytes32) {
         bytes32[] memory padded = new bytes32[](values.length);
-        for (uint256 i; i < values.length; ++i) padded[i] = bytes32(uint256(values[i] ? 1 : 0));
+        for (uint256 i; i < values.length; ++i) {
+            padded[i] = bytes32(uint256(values[i] ? 1 : 0));
+        }
         return keccak256(abi.encodePacked(padded));
     }
 
@@ -72,11 +76,7 @@ contract WhitelistedEntryGateTest is Test {
     {
         bytes32 hashStruct = keccak256(
             abi.encode(
-                SET_IS_WHITELISTED_TYPEHASH,
-                _hashAddresses(accounts),
-                _hashBools(whitelisted),
-                gate.nonce(),
-                deadline
+                SET_IS_WHITELISTED_TYPEHASH, _hashAddresses(accounts), _hashBools(whitelisted), gate.nonce(), deadline
             )
         );
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", gate.DOMAIN_SEPARATOR(), hashStruct));

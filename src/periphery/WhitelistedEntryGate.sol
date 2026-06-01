@@ -66,11 +66,7 @@ contract WhitelistedEntryGate is IWhitelistedEntryGate {
         require(deadline >= block.timestamp, PermitDeadlineExpired());
         bytes32 hashStruct = keccak256(
             abi.encode(
-                SET_IS_WHITELISTED_TYPEHASH,
-                _hashAccounts(accounts),
-                _hashBools(newIsWhitelisteds),
-                nonce++,
-                deadline
+                SET_IS_WHITELISTED_TYPEHASH, _hashAccounts(accounts), _hashBools(newIsWhitelisteds), nonce++, deadline
             )
         );
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
@@ -95,13 +91,17 @@ contract WhitelistedEntryGate is IWhitelistedEntryGate {
     /// @dev EIP-712 array hash: keccak256 of each element's atomic encoding (32 bytes), concatenated.
     function _hashAccounts(address[] calldata accounts) internal pure returns (bytes32) {
         bytes32[] memory padded = new bytes32[](accounts.length);
-        for (uint256 i; i < accounts.length; ++i) padded[i] = bytes32(uint256(uint160(accounts[i])));
+        for (uint256 i; i < accounts.length; ++i) {
+            padded[i] = bytes32(uint256(uint160(accounts[i])));
+        }
         return keccak256(abi.encodePacked(padded));
     }
 
     function _hashBools(bool[] calldata values) internal pure returns (bytes32) {
         bytes32[] memory padded = new bytes32[](values.length);
-        for (uint256 i; i < values.length; ++i) padded[i] = bytes32(uint256(values[i] ? 1 : 0));
+        for (uint256 i; i < values.length; ++i) {
+            padded[i] = bytes32(uint256(values[i] ? 1 : 0));
+        }
         return keccak256(abi.encodePacked(padded));
     }
 }
