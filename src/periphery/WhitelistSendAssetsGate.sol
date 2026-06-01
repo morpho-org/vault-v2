@@ -21,6 +21,20 @@ contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
         emit Constructor(_whitelister);
     }
 
+    /// @dev Useful for EOAs to batch admin calls.
+    /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do
+    /// the multicall themselves.
+    function multicall(bytes[] calldata data) external {
+        for (uint256 i = 0; i < data.length; i++) {
+            (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
+            if (!success) {
+                assembly ("memory-safe") {
+                    revert(add(32, returnData), mload(returnData))
+                }
+            }
+        }
+    }
+
     function canSendAssets(address account) external view returns (bool) {
         return isWhitelisted[isIntermediary[account] ? IIntermediary(account).initiator() : account];
     }
@@ -65,19 +79,5 @@ contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
     /// forge-lint: disable-next-item(mixed-case-function)
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
         return keccak256(abi.encode(DOMAIN_TYPEHASH, block.chainid, address(this)));
-    }
-
-    /// @dev Useful for EOAs to batch admin calls.
-    /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do
-    /// the multicall themselves.
-    function multicall(bytes[] calldata data) external {
-        for (uint256 i = 0; i < data.length; i++) {
-            (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
-            if (!success) {
-                assembly ("memory-safe") {
-                    revert(add(32, returnData), mload(returnData))
-                }
-            }
-        }
     }
 }

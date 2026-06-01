@@ -144,4 +144,26 @@ contract WhitelistSendAssetsGateTest is Test {
         vm.expectRevert(IWhitelistSendAssetsGate.InvalidSigner.selector);
         gate.setIsWhitelistedWithSig(alice, true, deadline, v, r, s);
     }
+
+    function testMulticall() public {
+        bytes[] memory data = new bytes[](2);
+        data[0] = abi.encodeCall(IWhitelistSendAssetsGate.setIsWhitelisted, (alice, true));
+        data[1] = abi.encodeCall(IWhitelistSendAssetsGate.setIsIntermediary, (bob, true));
+
+        vm.prank(whitelister);
+        gate.multicall(data);
+
+        assertTrue(gate.isWhitelisted(alice));
+        assertTrue(gate.isIntermediary(bob));
+    }
+
+    function testMulticallBubblesRevert() public {
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encodeCall(IWhitelistSendAssetsGate.setIsWhitelisted, (alice, true));
+
+        // Called by a non-whitelister: the inner call reverts and the multicall must bubble it up.
+        vm.expectRevert(IWhitelistSendAssetsGate.NotWhitelister.selector);
+        vm.prank(alice);
+        gate.multicall(data);
+    }
 }
