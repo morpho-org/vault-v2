@@ -661,10 +661,10 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offerB.market, 1, assetsB / 2, taker);
         take(offerB);
 
-        (uint128 marketNetCreditA,) = adapter._markets(_marketId(offerA.market));
-        (uint128 marketNetCreditB,) = adapter._markets(_marketId(offerB.market));
-        assertEq(marketNetCreditA, assetsA, "netCredit A");
-        assertEq(marketNetCreditB, assetsB, "netCredit B");
+        (uint128 netCreditA,) = adapter._markets(_marketId(offerA.market));
+        (uint128 netCreditB,) = adapter._markets(_marketId(offerB.market));
+        assertEq(netCreditA, assetsA, "netCredit A");
+        assertEq(netCreditB, assetsB, "netCredit B");
         assertEq(adapter.maturities(block.timestamp).netCredit, assetsA + assetsB, "shared netCredit");
         assertEq(adapter.totalAssets(), assetsA + assetsB, "totalAssets");
     }
