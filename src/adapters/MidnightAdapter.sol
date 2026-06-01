@@ -233,8 +233,6 @@ contract MidnightAdapter is IMidnightAdapter {
             uint256 takeUnits = TakeAmountsLib.sellerAssetsToUnits(midnight, marketId, offer, sellerAssets);
             IMidnight(midnight).take(offer, takeUnits, address(this), address(this), address(0), hex"", ratifierData);
 
-            require(IMidnight(midnight).debtOf(marketId, address(this)) == 0, NoBorrowing());
-
             accrueInterest();
             updateDurationCountAndAllocations(offer.market);
             uint256 currentNetCredit = IMidnight(midnight).creditOf(marketId, address(this))
