@@ -8,7 +8,7 @@ import {IMidnightAdapterFactory} from "./interfaces/IMidnightAdapterFactory.sol"
 contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* STORAGE */
 
-    mapping(address parentVault => mapping(address morpho => address)) public midnightAdapter;
+    mapping(address parentVault => mapping(address midnight => address)) public midnightAdapter;
     mapping(address account => bool) public isMidnightAdapter;
     uint256[] public durations;
 
@@ -26,11 +26,11 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
 
     /* FUNCTIONS */
 
-    function createMidnightAdapter(address parentVault, address morpho) external returns (address) {
-        address _midnightAdapter = address(new MidnightAdapter{salt: bytes32(0)}(parentVault, morpho, durations));
-        midnightAdapter[parentVault][morpho] = _midnightAdapter;
+    function createMidnightAdapter(address parentVault, address midnight) external returns (address) {
+        address _midnightAdapter = address(new MidnightAdapter{salt: bytes32(0)}(parentVault, midnight, durations));
+        midnightAdapter[parentVault][midnight] = _midnightAdapter;
         isMidnightAdapter[_midnightAdapter] = true;
-        emit CreateMidnightAdapter(parentVault, morpho, _midnightAdapter);
+        emit CreateMidnightAdapter(parentVault, midnight, _midnightAdapter);
         return _midnightAdapter;
     }
 }
