@@ -111,15 +111,12 @@ contract MidnightAdapter is IMidnightAdapter {
 
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
-        bytes32 marketId = IdLib.toId(market, block.chainid, midnight);
-        IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
-        uint256 currentNetCredit = IMidnight(midnight).creditOf(marketId, address(this))
-            - IMidnight(midnight).pendingFee(marketId, address(this));
-        // current net credit cannot be > accounted net credit
-        uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit;
-
         accrueInterest();
         updateDurationCountAndAllocations(market);
+        IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
+        bytes32 marketId = IdLib.toId(market, block.chainid, midnight);
+        // current net credit cannot be > accounted net credit
+        uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit(marketId);
 
         if (netCreditDecrease > 0) {
             removeNetCredit(marketId, market.maturity, netCreditDecrease);
@@ -228,18 +225,15 @@ contract MidnightAdapter is IMidnightAdapter {
             (Offer memory offer, bytes memory ratifierData) = abi.decode(data, (Offer, bytes));
             require(offer.buy && offer.market.loanToken == asset && offer.tick == MAX_TICK, IncorrectOffer());
 
-            // Already in a deallocate call so we skip the onSell callback and return the deallocation here.
+            accrueInterest();
+            updateDurationCountAndAllocations(offer.market);
+
+            // Skip onSell since we are already in a deallocate call.
             bytes32 marketId = IdLib.toId(offer.market, block.chainid, midnight);
             uint256 takeUnits = TakeAmountsLib.sellerAssetsToUnits(midnight, marketId, offer, sellerAssets);
             IMidnight(midnight).take(offer, takeUnits, address(this), address(this), address(0), hex"", ratifierData);
-
-            accrueInterest();
-            updateDurationCountAndAllocations(offer.market);
-            uint256 currentNetCredit = IMidnight(midnight).creditOf(marketId, address(this))
-                - IMidnight(midnight).pendingFee(marketId, address(this));
             // current net credit cannot be > accounted net credit
-            uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit;
-
+            uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit(marketId);
             if (netCreditDecrease > 0) {
                 removeNetCredit(marketId, offer.market.maturity, netCreditDecrease);
             }
@@ -287,20 +281,17 @@ contract MidnightAdapter is IMidnightAdapter {
         address buyer,
         bytes memory
     ) external returns (bytes32) {
+        require(msg.sender == midnight, NotMidnight());
+        require(buyer == address(this), NotSelf());
+        uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
+        require(boughtNetCredit >= paidAssets, BuyAtLoss());
+        accrueInterest();
+        updateDurationCountAndAllocations(market);
+
         MaturityData storage maturityData = _maturities[market.maturity];
         MarketData storage marketData = _markets[marketId];
         uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
-        uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
-        uint256 currentNetCredit = IMidnight(midnight).creditOf(marketId, address(this))
-            - IMidnight(midnight).pendingFee(marketId, address(this));
-        int256 netCreditChange = currentNetCredit.toInt256() - uint256(marketData.netCredit).toInt256();
-
-        require(msg.sender == midnight, NotMidnight());
-        require(buyer == address(this), NotSelf());
-        require(boughtNetCredit >= paidAssets, BuyAtLoss());
-
-        accrueInterest();
-        updateDurationCountAndAllocations(market);
+        int256 netCreditChange = currentNetCredit(marketId).toInt256() - uint256(marketData.netCredit).toInt256();
 
         // netCreditChange is at most boughtNetCredit
         if (netCreditChange < boughtNetCredit.toInt256()) {
@@ -349,18 +340,15 @@ contract MidnightAdapter is IMidnightAdapter {
         address,
         bytes memory
     ) external returns (bytes32) {
-        uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
-        uint256 currentNetCredit = IMidnight(midnight).creditOf(marketId, address(this))
-            - IMidnight(midnight).pendingFee(marketId, address(this));
-        // current net credit cannot be > accounted net credit
-        uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit;
-
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
 
         accrueInterest();
         updateDurationCountAndAllocations(market);
 
+        uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
+        // current net credit cannot be > accounted net credit
+        uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit(marketId);
         if (netCreditDecrease > 0) {
             removeNetCredit(marketId, market.maturity, netCreditDecrease);
         }
@@ -380,6 +368,12 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /* INTERNAL FUNCTIONS */
+
+    function currentNetCredit(bytes32 marketId) internal view returns (uint256) {
+        return
+            IMidnight(midnight).creditOf(marketId, address(this))
+                - IMidnight(midnight).pendingFee(marketId, address(this));
+    }
 
     /// @dev Removes netCredit proportionally from current accounted assets and future growth.
     function removeNetCredit(bytes32 marketId, uint256 maturity, uint256 removedNetCredit) internal {
