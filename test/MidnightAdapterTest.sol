@@ -726,6 +726,17 @@ contract MidnightAdapterTest is Test {
         );
     }
 
+    function testForceDeallocateRevertsOnCallback() public {
+        Offer memory boughtOffer = buy(7 days, 1e18);
+        (Offer memory offer,) = makeForceDeallocateOffer(boughtOffer.market, 0.5e18);
+        offer.callback = address(this);
+
+        vm.expectRevert(IMidnightAdapter.IncorrectOffer.selector);
+        parentVault.forceDeallocate(
+            address(adapter), abi.encode(offer, abi.encode(bytes32(0), 0, proof([offer]))), 0.5e18, address(this)
+        );
+    }
+
     /* WITHDRAW TO VAULT */
 
     function testWithdrawToVaultUnauthorized(address nonAllocator) public {

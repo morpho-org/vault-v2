@@ -207,7 +207,10 @@ contract MidnightAdapter is IMidnightAdapter {
         require(msg.sender == parentVault, NotAuthorized());
         if (messageSig == IVaultV2.forceDeallocate.selector) {
             (Offer memory offer, bytes memory ratifierData) = abi.decode(data, (Offer, bytes));
-            require(offer.buy && offer.market.loanToken == asset && offer.tick == MAX_TICK, IncorrectOffer());
+            require(
+                offer.buy && offer.market.loanToken == asset && offer.tick == MAX_TICK && offer.callback == address(0),
+                IncorrectOffer()
+            );
 
             accrueInterest();
             updateDurationCountAndAllocations(offer.market);
