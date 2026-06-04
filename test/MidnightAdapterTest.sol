@@ -41,6 +41,27 @@ contract ExtraAssetsAdapter is IAdapter {
     }
 }
 
+contract LiquidityAdapterMock is IAdapter {
+    address internal immutable asset;
+
+    constructor(address _asset, address parentVault) {
+        asset = _asset;
+        IERC20(_asset).approve(parentVault, type(uint256).max);
+    }
+
+    function allocate(bytes memory, uint256, bytes4, address) external pure returns (bytes32[] memory, int256) {
+        return (new bytes32[](0), 0);
+    }
+
+    function deallocate(bytes memory, uint256, bytes4, address) external pure returns (bytes32[] memory, int256) {
+        return (new bytes32[](0), 0);
+    }
+
+    function realAssets() external view returns (uint256) {
+        return IERC20(asset).balanceOf(address(this));
+    }
+}
+
 contract MidnightAdapterTest is Test {
     using stdStorage for StdStorage;
     using MathLib for uint256;
@@ -349,6 +370,8 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.parentVault(), address(parentVault), "parentVault");
         assertEq(adapter.midnight(), address(midnight), "midnight");
         assertEq(adapter.skimRecipient(), address(0), "skimRecipient");
+        assertEq(adapter.liquidityAdapter(), address(0), "liquidityAdapter");
+        assertEq(adapter.liquidityData(), hex"", "liquidityData");
         assertEq(adapter.durationsLength(), allDurations.length, "durationsLength");
         assertEq(adapter.packedDurations(), MidnightAdapter(address(adapter)).packedDurations(), "packedDurations");
     }
@@ -768,6 +791,46 @@ contract MidnightAdapterTest is Test {
         (uint128 creditAfter,) = adapter._markets(marketId);
         assertLt(creditAfter, creditBefore);
         assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + withdrawAmount);
+    }
+
+    /* LIQUIDITY */
+
+    function testSetLiquidityAdapterAndDataUnauthorized(address nonAllocator) public {
+        vm.assume(!parentVault.isAllocator(nonAllocator));
+        vm.prank(nonAllocator);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.setLiquidityAdapterAndData(address(1), hex"1234");
+    }
+
+    function testSetLiquidityAdapterAndDataOK(address liquidityAdapter, bytes memory liquidityData) public {
+        vm.expectEmit(true, true, true, true, address(adapter));
+        emit IMidnightAdapter.SetLiquidityAdapterAndData(signerAllocator, liquidityAdapter, liquidityData);
+        vm.prank(signerAllocator);
+        adapter.setLiquidityAdapterAndData(liquidityAdapter, liquidityData);
+        assertEq(adapter.liquidityAdapter(), liquidityAdapter, "liquidityAdapter");
+        assertEq(adapter.liquidityData(), liquidityData, "liquidityData");
+    }
+
+    function testBuyPullsFromLiquidityAdapter() public {
+        Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
+        uint256 paidAssets = offer.maxUnits.mulDivDown(TickLib.tickToPrice(offer.tick), 1e18);
+        LiquidityAdapterMock liquidityAdapter = new LiquidityAdapterMock(address(loanToken), address(parentVault));
+        bytes memory liquidityData = hex"1234";
+
+        deal(address(loanToken), address(parentVault), 0);
+        deal(address(loanToken), address(liquidityAdapter), paidAssets);
+
+        vm.prank(signerAllocator);
+        adapter.setLiquidityAdapterAndData(address(liquidityAdapter), liquidityData);
+
+        midnight.supplyCollateral(offer.market, 0, 0.5e18, taker);
+        midnight.supplyCollateral(offer.market, 1, 0.5e18, taker);
+        take(offer);
+
+        assertEq(adapter.liquidityAdapter(), address(liquidityAdapter), "liquidityAdapter");
+        assertEq(adapter.liquidityData(), liquidityData, "liquidityData");
+        assertEq(loanToken.balanceOf(address(parentVault)), 0, "parentVault balance");
+        assertEq(loanToken.balanceOf(address(liquidityAdapter)), 0, "liquidityAdapter balance");
     }
 
     /* SKIM */

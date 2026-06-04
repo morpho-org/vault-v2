@@ -37,6 +37,11 @@ contract MidnightAdapter is IMidnightAdapter {
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
 
+    /* LIQUIDITY */
+
+    address public liquidityAdapter;
+    bytes public liquidityData;
+
     /* MANAGEMENT */
 
     address public skimRecipient;
@@ -101,6 +106,15 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 balance = IERC20(token).balanceOf(address(this));
         SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
         emit Skim(token, balance);
+    }
+
+    /* LIQUIDITY FUNCTIONS */
+
+    function setLiquidityAdapterAndData(address newLiquidityAdapter, bytes memory newLiquidityData) external {
+        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
+        liquidityAdapter = newLiquidityAdapter;
+        liquidityData = newLiquidityData;
+        emit SetLiquidityAdapterAndData(msg.sender, newLiquidityAdapter, newLiquidityData);
     }
 
     /* VAULT ALLOCATORS FUNCTIONS */
@@ -288,6 +302,9 @@ contract MidnightAdapter is IMidnightAdapter {
             removeNetCredit(marketId, market.maturity, netCreditLoss);
         }
 
+        if (liquidityAdapter != address(0) && paidAssets > 0) {
+            IVaultV2(parentVault).deallocate(liquidityAdapter, liquidityData, paidAssets);
+        }
         IVaultV2(parentVault).allocate(address(this), abi.encode(ids(market), netCreditChange), paidAssets);
 
         if (timeToMaturity > 0) {
