@@ -802,7 +802,14 @@ contract MidnightAdapterTest is Test {
         adapter.setLiquidityAdapterAndData(address(1), hex"1234");
     }
 
+    function testSetLiquidityAdapterAndDataSelfReverts() public {
+        vm.prank(signerAllocator);
+        vm.expectRevert(IMidnightAdapter.SelfLiquidityAdapter.selector);
+        adapter.setLiquidityAdapterAndData(address(adapter), hex"1234");
+    }
+
     function testSetLiquidityAdapterAndDataOK(address liquidityAdapter, bytes memory liquidityData) public {
+        vm.assume(liquidityAdapter != address(adapter));
         vm.expectEmit(true, true, true, true, address(adapter));
         emit IMidnightAdapter.SetLiquidityAdapterAndData(signerAllocator, liquidityAdapter, liquidityData);
         vm.prank(signerAllocator);

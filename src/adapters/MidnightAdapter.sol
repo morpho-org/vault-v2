@@ -112,6 +112,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     function setLiquidityAdapterAndData(address newLiquidityAdapter, bytes memory newLiquidityData) external {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
+        require(newLiquidityAdapter != address(this), SelfLiquidityAdapter());
         liquidityAdapter = newLiquidityAdapter;
         liquidityData = newLiquidityData;
         emit SetLiquidityAdapterAndData(msg.sender, newLiquidityAdapter, newLiquidityData);

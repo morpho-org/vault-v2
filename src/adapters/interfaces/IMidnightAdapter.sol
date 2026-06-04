@@ -55,6 +55,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error NotAuthorized();
     error NotMidnight();
     error NotSelf();
+    error SelfLiquidityAdapter();
     error SelfAllocationOnly();
 
     /* FUNCTIONS */
