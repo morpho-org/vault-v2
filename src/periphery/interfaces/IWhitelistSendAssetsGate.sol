@@ -17,6 +17,7 @@ interface IWhitelistSendAssetsGate is ISendAssetsGate {
     event Constructor(address indexed whitelister);
     event SetWhitelister(address indexed newWhitelister);
     event SetIsWhitelisted(address indexed account, bool newIsWhitelisted);
+    event SetIsWhitelistedWithSig(address indexed account, bool newIsWhitelisted);
     event SetIsIntermediary(address indexed intermediary, bool isIntermediary);
 
     /* ERRORS */

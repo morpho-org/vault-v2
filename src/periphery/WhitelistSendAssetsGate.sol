@@ -74,7 +74,7 @@ contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
         address recovered = ecrecover(digest, v, r, s);
         require(recovered != address(0) && recovered == whitelister, InvalidSigner());
         isWhitelisted[account] = newIsWhitelisted;
-        emit SetIsWhitelisted(account, newIsWhitelisted);
+        emit SetIsWhitelistedWithSig(account, newIsWhitelisted);
     }
 
     /// forge-lint: disable-next-item(mixed-case-function)
