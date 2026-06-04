@@ -123,7 +123,7 @@ contract WhitelistSendAssetsGateTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, whitelisterPk);
 
         vm.expectEmit();
-        emit IWhitelistSendAssetsGate.SetIsWhitelisted(account, whitelisted);
+        emit IWhitelistSendAssetsGate.SetIsWhitelistedWithSig(account, whitelisted);
         // Relayed by an arbitrary account.
         vm.prank(relayer);
         gate.setIsWhitelistedWithSig(account, whitelisted, deadline, v, r, s);
