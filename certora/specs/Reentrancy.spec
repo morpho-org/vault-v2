@@ -22,7 +22,6 @@ methods {
 
     function _.transfer(address, uint256) external => ignoredCallBoolSummary() expect(bool);
     function _.transferFrom(address, address, uint256) external => ignoredCallBoolSummary() expect(bool);
-    function _.balanceOf(address) external => ignoredCallUintSummary() expect(uint256);
 }
 
 function ignoredCallVoidSummary() {
