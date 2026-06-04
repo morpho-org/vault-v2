@@ -35,6 +35,7 @@ contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
         }
     }
 
+    /// @dev Reverts if isIntermediary[account] but account reverts on initiator().
     function canSendAssets(address account) external view returns (bool) {
         return isWhitelisted[isIntermediary[account] ? IIntermediary(account).initiator() : account];
     }
