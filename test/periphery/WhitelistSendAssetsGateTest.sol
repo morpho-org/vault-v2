@@ -42,128 +42,146 @@ contract WhitelistSendAssetsGateTest is Test {
         return vm.sign(pk, digest);
     }
 
-    function testConstructor() public {
+    function testConstructor(address _whitelister) public {
         vm.expectEmit();
-        emit IWhitelistSendAssetsGate.Constructor(whitelister);
-        WhitelistSendAssetsGate g = new WhitelistSendAssetsGate(whitelister);
-        assertEq(g.whitelister(), whitelister);
+        emit IWhitelistSendAssetsGate.Constructor(_whitelister);
+        WhitelistSendAssetsGate g = new WhitelistSendAssetsGate(_whitelister);
+        assertEq(g.whitelister(), _whitelister);
     }
 
-    function testSetWhitelister() public {
+    function testSetWhitelister(address newWhitelister) public {
         vm.expectEmit();
-        emit IWhitelistSendAssetsGate.SetWhitelister(bob);
+        emit IWhitelistSendAssetsGate.SetWhitelister(newWhitelister);
         vm.prank(whitelister);
-        gate.setWhitelister(bob);
-        assertEq(gate.whitelister(), bob);
+        gate.setWhitelister(newWhitelister);
+        assertEq(gate.whitelister(), newWhitelister);
     }
 
-    function testSetWhitelisterNotWhitelister() public {
+    function testSetWhitelisterNotWhitelister(address caller, address newWhitelister) public {
+        vm.assume(caller != whitelister);
         vm.expectRevert(IWhitelistSendAssetsGate.NotWhitelister.selector);
-        vm.prank(alice);
-        gate.setWhitelister(bob);
+        vm.prank(caller);
+        gate.setWhitelister(newWhitelister);
     }
 
-    function testSetIsWhitelisted() public {
+    function testSetIsWhitelisted(address account, bool whitelisted) public {
         vm.expectEmit();
-        emit IWhitelistSendAssetsGate.SetIsWhitelisted(alice, true);
+        emit IWhitelistSendAssetsGate.SetIsWhitelisted(account, whitelisted);
         vm.prank(whitelister);
-        gate.setIsWhitelisted(alice, true);
-        assertTrue(gate.isWhitelisted(alice));
+        gate.setIsWhitelisted(account, whitelisted);
+        assertEq(gate.isWhitelisted(account), whitelisted);
     }
 
-    function testSetIsWhitelistedNotWhitelister() public {
+    function testSetIsWhitelistedNotWhitelister(address caller, address account, bool whitelisted) public {
+        vm.assume(caller != whitelister);
         vm.expectRevert(IWhitelistSendAssetsGate.NotWhitelister.selector);
-        vm.prank(alice);
-        gate.setIsWhitelisted(alice, true);
+        vm.prank(caller);
+        gate.setIsWhitelisted(account, whitelisted);
     }
 
-    function testSetIsIntermediary() public {
+    function testSetIsIntermediary(address intermediary, bool isIntermediary_) public {
         vm.expectEmit();
-        emit IWhitelistSendAssetsGate.SetIsIntermediary(bob, true);
+        emit IWhitelistSendAssetsGate.SetIsIntermediary(intermediary, isIntermediary_);
         vm.prank(whitelister);
-        gate.setIsIntermediary(bob, true);
-        assertTrue(gate.isIntermediary(bob));
+        gate.setIsIntermediary(intermediary, isIntermediary_);
+        assertEq(gate.isIntermediary(intermediary), isIntermediary_);
     }
 
-    function testSetIsIntermediaryNotWhitelister() public {
+    function testSetIsIntermediaryNotWhitelister(address caller, address intermediary, bool isIntermediary_) public {
+        vm.assume(caller != whitelister);
         vm.expectRevert(IWhitelistSendAssetsGate.NotWhitelister.selector);
-        vm.prank(alice);
-        gate.setIsIntermediary(bob, true);
+        vm.prank(caller);
+        gate.setIsIntermediary(intermediary, isIntermediary_);
     }
 
-    function testCanSendAssetsDirect() public {
+    function testCanSendAssetsDirect(address account, address other) public {
+        vm.assume(account != other);
         vm.prank(whitelister);
-        gate.setIsWhitelisted(alice, true);
-        assertTrue(gate.canSendAssets(alice));
-        assertFalse(gate.canSendAssets(bob));
+        gate.setIsWhitelisted(account, true);
+        assertTrue(gate.canSendAssets(account));
+        assertFalse(gate.canSendAssets(other));
     }
 
-    function testCanSendAssetsViaIntermediary() public {
+    function testCanSendAssetsViaIntermediary(address initiator_, address otherInitiator) public {
+        vm.assume(initiator_ != otherInitiator);
         IntermediaryMock intermediary = new IntermediaryMock();
-        intermediary.setInitiator(alice);
+        intermediary.setInitiator(initiator_);
 
         vm.startPrank(whitelister);
         gate.setIsIntermediary(address(intermediary), true);
-        gate.setIsWhitelisted(alice, true);
+        gate.setIsWhitelisted(initiator_, true);
         vm.stopPrank();
 
         assertTrue(gate.canSendAssets(address(intermediary)));
 
-        intermediary.setInitiator(bob);
+        intermediary.setInitiator(otherInitiator);
         assertFalse(gate.canSendAssets(address(intermediary)));
     }
 
-    function testSetIsWhitelistedWithSig() public {
-        uint256 deadline = block.timestamp + 1;
-        (uint8 v, bytes32 r, bytes32 s) = _sign(alice, true, deadline, whitelisterPk);
+    function testSetIsWhitelistedWithSig(address account, bool whitelisted, uint256 deadline, address relayer) public {
+        deadline = bound(deadline, block.timestamp, type(uint256).max);
+        (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, whitelisterPk);
 
         vm.expectEmit();
-        emit IWhitelistSendAssetsGate.SetIsWhitelisted(alice, true);
+        emit IWhitelistSendAssetsGate.SetIsWhitelisted(account, whitelisted);
         // Relayed by an arbitrary account.
-        vm.prank(bob);
-        gate.setIsWhitelistedWithSig(alice, true, deadline, v, r, s);
+        vm.prank(relayer);
+        gate.setIsWhitelistedWithSig(account, whitelisted, deadline, v, r, s);
 
-        assertTrue(gate.isWhitelisted(alice));
-        assertEq(gate.nonces(alice), 1);
+        assertEq(gate.isWhitelisted(account), whitelisted);
+        assertEq(gate.nonces(account), 1);
     }
 
-    function testSetIsWhitelistedWithSigDeadlineExpired() public {
-        vm.warp(1000);
-        uint256 deadline = 1000;
-        (uint8 v, bytes32 r, bytes32 s) = _sign(alice, true, deadline, whitelisterPk);
+    function testSetIsWhitelistedWithSigDeadlineExpired(
+        address account,
+        bool whitelisted,
+        uint256 deadline,
+        uint256 currentTime
+    ) public {
+        deadline = bound(deadline, 0, type(uint256).max - 1);
+        currentTime = bound(currentTime, deadline + 1, type(uint256).max);
+        vm.warp(currentTime);
+        (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, whitelisterPk);
 
-        vm.warp(1001);
         vm.expectRevert(IWhitelistSendAssetsGate.PermitDeadlineExpired.selector);
-        gate.setIsWhitelistedWithSig(alice, true, deadline, v, r, s);
+        gate.setIsWhitelistedWithSig(account, whitelisted, deadline, v, r, s);
     }
 
-    function testSetIsWhitelistedWithSigInvalidSigner() public {
-        uint256 deadline = block.timestamp + 1;
-        (uint8 v, bytes32 r, bytes32 s) = _sign(alice, true, deadline, 0xBADBAD);
+    function testSetIsWhitelistedWithSigInvalidSigner(
+        uint256 wrongPk,
+        address account,
+        bool whitelisted,
+        uint256 deadline
+    ) public {
+        wrongPk = bound(wrongPk, 1, type(uint128).max);
+        vm.assume(vm.addr(wrongPk) != whitelister);
+        deadline = bound(deadline, block.timestamp, type(uint256).max);
+        (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, wrongPk);
 
         vm.expectRevert(IWhitelistSendAssetsGate.InvalidSigner.selector);
-        gate.setIsWhitelistedWithSig(alice, true, deadline, v, r, s);
+        gate.setIsWhitelistedWithSig(account, whitelisted, deadline, v, r, s);
     }
 
-    function testMulticall() public {
+    function testMulticall(address account, address intermediary, bool whitelisted, bool isIntermediary_) public {
         bytes[] memory data = new bytes[](2);
-        data[0] = abi.encodeCall(IWhitelistSendAssetsGate.setIsWhitelisted, (alice, true));
-        data[1] = abi.encodeCall(IWhitelistSendAssetsGate.setIsIntermediary, (bob, true));
+        data[0] = abi.encodeCall(IWhitelistSendAssetsGate.setIsWhitelisted, (account, whitelisted));
+        data[1] = abi.encodeCall(IWhitelistSendAssetsGate.setIsIntermediary, (intermediary, isIntermediary_));
 
         vm.prank(whitelister);
         gate.multicall(data);
 
-        assertTrue(gate.isWhitelisted(alice));
-        assertTrue(gate.isIntermediary(bob));
+        assertEq(gate.isWhitelisted(account), whitelisted);
+        assertEq(gate.isIntermediary(intermediary), isIntermediary_);
     }
 
-    function testMulticallBubblesRevert() public {
+    function testMulticallBubblesRevert(address caller, address account, bool whitelisted) public {
+        vm.assume(caller != whitelister);
         bytes[] memory data = new bytes[](1);
-        data[0] = abi.encodeCall(IWhitelistSendAssetsGate.setIsWhitelisted, (alice, true));
+        data[0] = abi.encodeCall(IWhitelistSendAssetsGate.setIsWhitelisted, (account, whitelisted));
 
         // Called by a non-whitelister: the inner call reverts and the multicall must bubble it up.
         vm.expectRevert(IWhitelistSendAssetsGate.NotWhitelister.selector);
-        vm.prank(alice);
+        vm.prank(caller);
         gate.multicall(data);
     }
 }
