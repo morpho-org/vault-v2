@@ -118,9 +118,7 @@ contract MidnightAdapter is IMidnightAdapter {
         // current net credit cannot be > accounted net credit
         uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit(marketId);
 
-        if (netCreditDecrease > 0) {
-            removeNetCredit(marketId, market.maturity, netCreditDecrease);
-        }
+        removeNetCredit(marketId, market.maturity, netCreditDecrease);
 
         IVaultV2(parentVault)
             .deallocate(address(this), abi.encode(ids(market), -netCreditDecrease.toInt256()), withdrawnAssets);
@@ -223,7 +221,10 @@ contract MidnightAdapter is IMidnightAdapter {
         require(msg.sender == parentVault, NotAuthorized());
         if (messageSig == IVaultV2.forceDeallocate.selector) {
             (Offer memory offer, bytes memory ratifierData) = abi.decode(data, (Offer, bytes));
-            require(offer.buy && offer.market.loanToken == asset && offer.tick == MAX_TICK, IncorrectOffer());
+            require(
+                offer.buy && offer.market.loanToken == asset && offer.tick == MAX_TICK && offer.callback == address(0),
+                IncorrectOffer()
+            );
 
             accrueInterest();
             updateDurationCountAndAllocations(offer.market);
@@ -234,9 +235,7 @@ contract MidnightAdapter is IMidnightAdapter {
             IMidnight(midnight).take(offer, takeUnits, address(this), address(this), address(0), hex"", ratifierData);
             // current net credit cannot be > accounted net credit
             uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit(marketId);
-            if (netCreditDecrease > 0) {
-                removeNetCredit(marketId, offer.market.maturity, netCreditDecrease);
-            }
+            removeNetCredit(marketId, offer.market.maturity, netCreditDecrease);
 
             emit ForceDeallocate(marketId, sellerAssets, netCreditDecrease);
             return (ids(offer.market), -netCreditDecrease.toInt256());
@@ -349,9 +348,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
         // current net credit cannot be > accounted net credit
         uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit(marketId);
-        if (netCreditDecrease > 0) {
-            removeNetCredit(marketId, market.maturity, netCreditDecrease);
-        }
+        removeNetCredit(marketId, market.maturity, netCreditDecrease);
 
         IVaultV2(parentVault)
             .deallocate(address(this), abi.encode(ids(market), -netCreditDecrease.toInt256()), sellerAssets);
@@ -377,6 +374,8 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /// @dev Removes netCredit proportionally from current accounted assets and future growth.
     function removeNetCredit(bytes32 marketId, uint256 maturity, uint256 removedNetCredit) internal {
+        if (removedNetCredit == 0) return;
+
         MaturityData storage maturityData = _maturities[maturity];
         MarketData storage marketData = _markets[marketId];
 
