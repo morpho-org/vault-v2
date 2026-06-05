@@ -840,6 +840,43 @@ contract MidnightAdapterTest is Test {
         assertEq(loanToken.balanceOf(address(liquidityAdapter)), 0, "liquidityAdapter balance");
     }
 
+    function testBuyPullsOnlyLiquidityShortfall(uint256 idleAssets) public {
+        Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
+        uint256 paidAssets = offer.maxUnits.mulDivDown(TickLib.tickToPrice(offer.tick), 1e18);
+        idleAssets = bound(idleAssets, 0, paidAssets - 1);
+        LiquidityAdapterMock liquidityAdapter = new LiquidityAdapterMock(address(loanToken), address(parentVault));
+
+        deal(address(loanToken), address(parentVault), idleAssets);
+        deal(address(loanToken), address(liquidityAdapter), paidAssets);
+
+        vm.prank(signerAllocator);
+        adapter.setLiquidityAdapterAndData(address(liquidityAdapter), hex"1234");
+
+        midnight.supplyCollateral(offer.market, 0, 0.5e18, taker);
+        midnight.supplyCollateral(offer.market, 1, 0.5e18, taker);
+        take(offer);
+
+        assertEq(loanToken.balanceOf(address(parentVault)), 0, "parentVault balance");
+        assertEq(loanToken.balanceOf(address(liquidityAdapter)), idleAssets, "liquidityAdapter balance");
+    }
+
+    function testBuyDoesNotPullLiquidityWhenVaultHasEnoughIdle(uint256 extraIdleAssets) public {
+        Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
+        uint256 paidAssets = offer.maxUnits.mulDivDown(TickLib.tickToPrice(offer.tick), 1e18);
+        extraIdleAssets = bound(extraIdleAssets, 0, paidAssets);
+
+        deal(address(loanToken), address(parentVault), paidAssets + extraIdleAssets);
+
+        vm.prank(signerAllocator);
+        adapter.setLiquidityAdapterAndData(makeAddr("invalidLiquidityAdapter"), hex"1234");
+
+        midnight.supplyCollateral(offer.market, 0, 0.5e18, taker);
+        midnight.supplyCollateral(offer.market, 1, 0.5e18, taker);
+        take(offer);
+
+        assertEq(loanToken.balanceOf(address(parentVault)), extraIdleAssets, "parentVault balance");
+    }
+
     /* SKIM */
 
     function testSetSkimRecipientUnauthorized(address nonOwner) public {
