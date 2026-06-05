@@ -17,6 +17,12 @@ contract IntermediaryMock {
     }
 }
 
+contract RevertingIntermediaryMock {
+    function initiator() external pure returns (address) {
+        revert("initiator failed");
+    }
+}
+
 contract WhitelistSendAssetsGateTest is Test {
     WhitelistSendAssetsGate internal gate;
     uint256 internal whitelisterPk;
@@ -28,6 +34,13 @@ contract WhitelistSendAssetsGateTest is Test {
         whitelisterPk = 0xA11CE;
         whitelister = vm.addr(whitelisterPk);
         gate = new WhitelistSendAssetsGate(whitelister);
+    }
+
+    function testSetIsWhitelistedTypehash() public pure {
+        assertEq(
+            SET_IS_WHITELISTED_TYPEHASH,
+            keccak256("SetIsWhitelisted(address account,bool newIsWhitelisted,uint256 nonce,uint256 deadline)")
+        );
     }
 
     function _sign(address account, bool whitelisted, uint256 deadline, uint256 pk)
@@ -50,11 +63,22 @@ contract WhitelistSendAssetsGateTest is Test {
     }
 
     function testSetWhitelister(address newWhitelister) public {
+        vm.assume(newWhitelister != address(0));
+        vm.assume(newWhitelister != whitelister);
+
         vm.expectEmit();
         emit IWhitelistSendAssetsGate.SetWhitelister(newWhitelister);
         vm.prank(whitelister);
         gate.setWhitelister(newWhitelister);
         assertEq(gate.whitelister(), newWhitelister);
+
+        vm.expectRevert(IWhitelistSendAssetsGate.NotWhitelister.selector);
+        vm.prank(whitelister);
+        gate.setIsWhitelisted(alice, true);
+
+        vm.prank(newWhitelister);
+        gate.setIsWhitelisted(alice, true);
+        assertTrue(gate.isWhitelisted(alice));
     }
 
     function testSetWhitelisterNotWhitelister(address caller, address newWhitelister) public {
@@ -118,6 +142,33 @@ contract WhitelistSendAssetsGateTest is Test {
         assertFalse(gate.canSendAssets(address(intermediary)));
     }
 
+    function testIntermediaryIgnoresOwnWhitelistUntilDisabled() public {
+        IntermediaryMock intermediary = new IntermediaryMock();
+        intermediary.setInitiator(bob);
+
+        vm.startPrank(whitelister);
+        gate.setIsWhitelisted(address(intermediary), true);
+        gate.setIsIntermediary(address(intermediary), true);
+        vm.stopPrank();
+
+        assertFalse(gate.canSendAssets(address(intermediary)));
+
+        vm.prank(whitelister);
+        gate.setIsIntermediary(address(intermediary), false);
+
+        assertTrue(gate.canSendAssets(address(intermediary)));
+    }
+
+    function testIntermediaryInitiatorReverts() public {
+        RevertingIntermediaryMock intermediary = new RevertingIntermediaryMock();
+
+        vm.prank(whitelister);
+        gate.setIsIntermediary(address(intermediary), true);
+
+        vm.expectRevert("initiator failed");
+        gate.canSendAssets(address(intermediary));
+    }
+
     function testSetIsWhitelistedWithSig(address account, bool whitelisted, uint256 deadline, address relayer) public {
         deadline = bound(deadline, block.timestamp, type(uint256).max);
         (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, whitelisterPk);
@@ -130,6 +181,38 @@ contract WhitelistSendAssetsGateTest is Test {
 
         assertEq(gate.isWhitelisted(account), whitelisted);
         assertEq(gate.nonces(account), 1);
+    }
+
+    function testSetIsWhitelistedWithSigRejectsReplayAndTampering() public {
+        uint256 deadline = block.timestamp + 1 days;
+
+        (uint8 v, bytes32 r, bytes32 s) = _sign(alice, true, deadline, whitelisterPk);
+        gate.setIsWhitelistedWithSig(alice, true, deadline, v, r, s);
+
+        // replay
+        vm.expectRevert(IWhitelistSendAssetsGate.InvalidSigner.selector);
+        gate.setIsWhitelistedWithSig(alice, true, deadline, v, r, s);
+
+        // wrong account
+        (v, r, s) = _sign(alice, false, deadline, whitelisterPk);
+        vm.expectRevert(IWhitelistSendAssetsGate.InvalidSigner.selector);
+        gate.setIsWhitelistedWithSig(bob, false, deadline, v, r, s);
+
+        // wrong value
+        (v, r, s) = _sign(alice, false, deadline, whitelisterPk);
+        vm.expectRevert(IWhitelistSendAssetsGate.InvalidSigner.selector);
+        gate.setIsWhitelistedWithSig(alice, true, deadline, v, r, s);
+
+        // wrong deadline
+        (v, r, s) = _sign(alice, false, deadline, whitelisterPk);
+        vm.expectRevert(IWhitelistSendAssetsGate.InvalidSigner.selector);
+        gate.setIsWhitelistedWithSig(alice, false, deadline + 1, v, r, s);
+
+        // wrong domain separator
+        (v, r, s) = _sign(bob, true, deadline, whitelisterPk);
+        WhitelistSendAssetsGate otherGate = new WhitelistSendAssetsGate(whitelister);
+        vm.expectRevert(IWhitelistSendAssetsGate.InvalidSigner.selector);
+        otherGate.setIsWhitelistedWithSig(bob, true, deadline, v, r, s);
     }
 
     function testSetIsWhitelistedWithSigDeadlineExpired(
