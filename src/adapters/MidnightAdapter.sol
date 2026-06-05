@@ -117,14 +117,11 @@ contract MidnightAdapter is IMidnightAdapter {
         accrueInterest();
         updateDurationCountAndAllocations(market);
         realizeLoss(marketData, marketId, market.maturity, -int256(withdrawNetCreditDecrease));
+        removeNetCredit(marketId, market.maturity, withdrawNetCreditDecrease);
 
-        if (withdrawNetCreditDecrease > 0) {
-            removeNetCredit(marketId, market.maturity, withdrawNetCreditDecrease);
-        }
-
-        int256 change = int256(uint256(marketData.vaultNetCredit)) - int256(oldVaultNetCredit);
         uint256 vaultNetCreditDecrease = oldVaultNetCredit - marketData.vaultNetCredit;
-        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), withdrawnAssets);
+        IVaultV2(parentVault)
+            .deallocate(address(this), abi.encode(ids(market), -vaultNetCreditDecrease.toInt256()), withdrawnAssets);
         emit WithdrawToVault(marketId, withdrawnAssets, vaultNetCreditDecrease);
     }
 
@@ -139,8 +136,9 @@ contract MidnightAdapter is IMidnightAdapter {
         realizeLoss(marketData, marketId, market.maturity, 0);
 
         if (marketData.vaultNetCredit != oldVaultNetCredit) {
-            int256 change = int256(uint256(marketData.vaultNetCredit)) - int256(oldVaultNetCredit);
-            IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), 0);
+            uint256 vaultNetCreditDecrease = oldVaultNetCredit - marketData.vaultNetCredit;
+            IVaultV2(parentVault)
+                .deallocate(address(this), abi.encode(ids(market), -vaultNetCreditDecrease.toInt256()), 0);
         }
 
         uint256 withdrawnAssets = redeemedShares.mulDivDown(marketData.userNetCredit + 1, marketData.userShares + 1);
@@ -248,6 +246,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
             accrueInterest();
             updateDurationCountAndAllocations(market);
+            IMidnight(midnight).updatePosition(market, address(this));
             realizeLoss(marketData, marketId, market.maturity, 0);
 
             uint256 mintedShares =
@@ -257,9 +256,9 @@ contract MidnightAdapter is IMidnightAdapter {
             marketData.userNetCredit += uint128(deallocatedAmount);
             removeNetCredit(marketId, market.maturity, deallocatedAmount);
 
-            int256 change = int256(uint256(marketData.vaultNetCredit)) - int256(oldVaultNetCredit);
-            emit ForceDeallocate(marketId, deallocatedAmount, oldVaultNetCredit - marketData.vaultNetCredit);
-            return (ids(market), change);
+            uint256 vaultNetCreditDecrease = oldVaultNetCredit - marketData.vaultNetCredit;
+            emit ForceDeallocate(marketId, deallocatedAmount, vaultNetCreditDecrease);
+            return (ids(market), -vaultNetCreditDecrease.toInt256());
         } else {
             require(caller == address(this), SelfAllocationOnly());
             // Return exactly the data passed to the function.
@@ -375,12 +374,11 @@ contract MidnightAdapter is IMidnightAdapter {
         updateDurationCountAndAllocations(market);
         realizeLoss(marketData, marketId, market.maturity, -int256(sellNetCreditDecrease));
 
-        if (sellNetCreditDecrease > 0) {
-            removeNetCredit(marketId, market.maturity, sellNetCreditDecrease);
-        }
+        removeNetCredit(marketId, market.maturity, sellNetCreditDecrease);
 
-        int256 change = int256(uint256(marketData.vaultNetCredit)) - int256(oldVaultNetCredit);
-        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
+        uint256 vaultNetCreditDecrease = oldVaultNetCredit - marketData.vaultNetCredit;
+        IVaultV2(parentVault)
+            .deallocate(address(this), abi.encode(ids(market), -vaultNetCreditDecrease.toInt256()), sellerAssets);
 
         uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(address(parentVault));
         uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
