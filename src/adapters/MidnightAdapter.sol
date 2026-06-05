@@ -20,8 +20,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Losses are immediately accounted minus a discount applied to the remaining interest to be earned, in proportion
 /// to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev The adapter must have the allocator role in its parent vault to be able to buy & sell on markets.
-/// @dev On buys, the parent vault's idle assets are used first and liquidity is sourced from the liquidity adapter only
-/// for the shortfall.
+/// @dev On buys, the idle assets are used first. A liquidity adapter is used only if needed.
 contract MidnightAdapter is IMidnightAdapter {
     using MathLib for uint256;
     using MathLib for uint128;
