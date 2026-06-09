@@ -79,6 +79,8 @@ Four gates are defined:
 - **Receive assets Gate** (`receiveAssetsGate`): Controls permissions related to receiving assets.
 - **Send assets Gate** (`sendAssetsGate`): Controls permissions related to sending assets.
 
+See [WhitelistSendAssetsGate](./src/periphery/WhitelistSendAssetsGate.sol) which gives one possible implementation of the Send assets Gate.
+
 ### Max rate
 
 The vault's share price will not increase faster than the allocator-set `maxRate`.
