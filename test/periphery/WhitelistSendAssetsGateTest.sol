@@ -226,7 +226,7 @@ contract WhitelistSendAssetsGateTest is Test {
         vm.warp(currentTime);
         (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, whitelisterPk);
 
-        vm.expectRevert(IWhitelistSendAssetsGate.PermitDeadlineExpired.selector);
+        vm.expectRevert(IWhitelistSendAssetsGate.DeadlineExpired.selector);
         gate.setIsWhitelistedWithSig(account, whitelisted, deadline, v, r, s);
     }
 

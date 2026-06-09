@@ -23,7 +23,7 @@ interface IWhitelistSendAssetsGate is ISendAssetsGate {
     /* ERRORS */
 
     error NotWhitelister();
-    error PermitDeadlineExpired();
+    error DeadlineExpired();
     error InvalidSigner();
 
     /* FUNCTIONS */

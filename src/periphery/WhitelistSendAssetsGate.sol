@@ -71,7 +71,7 @@ contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
         bytes32 r,
         bytes32 s
     ) external {
-        require(deadline >= block.timestamp, PermitDeadlineExpired());
+        require(deadline >= block.timestamp, DeadlineExpired());
         bytes32 hashStruct =
             keccak256(abi.encode(SET_IS_WHITELISTED_TYPEHASH, account, newIsWhitelisted, nonces[account]++, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
