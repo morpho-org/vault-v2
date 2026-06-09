@@ -9,10 +9,10 @@ import {
 } from "./interfaces/IWhitelistSendAssetsGate.sol";
 import {DOMAIN_TYPEHASH} from "../libraries/ConstantsLib.sol";
 
-/// @dev If `account` is registered as a trusted intermediary, IIntermediary(account).initiator() is checked instead.
 /// @dev The whitelisted accounts are responsible for the assets they deposit to the vault.
-/// @dev The intermediary is responsible for the assets sent by the initiator through the deposits they forward to the vault.
-/// @dev No-ops are allowed.
+/// @dev If `account` is registered as a trusted intermediary, IIntermediary(account).initiator() is checked instead.
+/// @dev The intermediary should only deposit assets when forwarding them from the initiator.
+///@dev No-ops are allowed.
 /// @dev Zero checks are not systematically performed.
 contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
     address public whitelister;
@@ -63,6 +63,7 @@ contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
     }
 
     /// @dev Signature malleability is not explicitly prevented but it is not a problem thanks to the nonce.
+    /// @dev Allows to batch setIsWhitelisted with the deposit, without requiring a transaction from the whitelister.
     function setIsWhitelistedWithSig(
         address account,
         bool newIsWhitelisted,
