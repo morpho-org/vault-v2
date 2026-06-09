@@ -10,6 +10,10 @@ import {
 import {DOMAIN_TYPEHASH} from "../libraries/ConstantsLib.sol";
 
 /// @dev If `account` is registered as a trusted intermediary, IIntermediary(account).initiator() is checked instead.
+/// @dev The whitelisted accounts are responsible for the assets they deposit to the vault.
+/// @dev The intermediary is responsible for the assets sent by the initiator through the deposits they forward to the vault.
+/// @dev No-ops are allowed.
+/// @dev Zero checks are not systematically performed.
 contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
     address public whitelister;
     mapping(address => uint256) public nonces;
