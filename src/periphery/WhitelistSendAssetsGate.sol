@@ -17,8 +17,8 @@ import {DOMAIN_TYPEHASH} from "../libraries/ConstantsLib.sol";
 contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
     address public whitelister;
     mapping(address => uint256) public nonces;
-    mapping(address => bool) public isIntermediary;
     mapping(address => bool) public isWhitelisted;
+    mapping(address => bool) public isIntermediary;
 
     constructor(address _whitelister) {
         whitelister = _whitelister;

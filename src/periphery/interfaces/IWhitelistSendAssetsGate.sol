@@ -30,8 +30,8 @@ interface IWhitelistSendAssetsGate is ISendAssetsGate {
 
     function whitelister() external view returns (address);
     function nonces(address account) external view returns (uint256);
-    function isIntermediary(address account) external view returns (bool);
     function isWhitelisted(address account) external view returns (bool);
+    function isIntermediary(address account) external view returns (bool);
     function setWhitelister(address newWhitelister) external;
     function setIsWhitelisted(address account, bool newIsWhitelisted) external;
     function setIsIntermediary(address intermediary, bool newIsIntermediary) external;
