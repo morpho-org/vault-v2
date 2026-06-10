@@ -392,7 +392,7 @@ contract MidnightAdapter is IMidnightAdapter {
         maturityData.netCredit -= removedNetCredit.toUint128();
         marketData.netCredit -= removedNetCredit.toUint128();
 
-        if (removedNetCredit > 0 && maturityData.netCredit == 0 && maturity > block.timestamp) {
+        if (maturityData.netCredit == 0 && maturity > block.timestamp) {
             removePendingMaturity(maturityData.index);
         }
     }
