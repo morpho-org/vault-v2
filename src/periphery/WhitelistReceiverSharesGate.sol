@@ -11,7 +11,7 @@ import {DOMAIN_TYPEHASH} from "../libraries/ConstantsLib.sol";
 /// not be able to get their shares back (typically to withdraw them) if they get un-whitelisted afterwards.
 /// @dev No-ops are allowed.
 /// @dev Zero checks are not systematically performed.
-contract WhitelistReceiverSharesGate is IWhitelistReceiverSharesGate {
+contract WhitelistReceiveSharesGate is IWhitelistReceiverSharesGate {
     address public whitelister;
     mapping(address => uint256) public nonces;
     mapping(address => bool) public isWhitelisted;
