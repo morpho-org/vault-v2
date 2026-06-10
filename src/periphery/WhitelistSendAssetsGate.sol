@@ -10,7 +10,7 @@ import {
 import {DOMAIN_TYPEHASH} from "../libraries/ConstantsLib.sol";
 
 /// @dev Using this gate allows to restrict who the funds are initially owned by in a vault's deposits/mints.
-/// @dev The whitelisted accounts are responsible for the assets they deposit to the vault.
+/// @dev As it is a send assets gate, whitelisted accounts can deposit on behalf of non whitelisted accounts.
 /// @dev If `account` is registered as a trusted intermediary, IIntermediary(account).initiator() is checked instead.
 /// @dev The intermediary should only deposit and mint using assets initially owned by its current initiator.
 /// @dev No-ops are allowed.
