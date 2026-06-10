@@ -135,7 +135,7 @@ contract MidnightAdapterTest is Test {
             group: bytes32(0),
             callback: address(adapter),
             callbackData: bytes(""),
-            receiverIfMakerIsSeller: address(0),
+            receiverIfMakerIsSeller: address(adapter),
             ratifier: address(adapter),
             reduceOnly: false,
             maxUnits: 0,
@@ -215,7 +215,7 @@ contract MidnightAdapterTest is Test {
         offer.tick = bound(vm.randomUint(), 0, MAX_TICK);
         offer.callback = address(adapter);
         offer.callbackData = bytes("");
-        offer.receiverIfMakerIsSeller = address(0);
+        offer.receiverIfMakerIsSeller = address(adapter);
         offer.ratifier = address(adapter);
         offer.reduceOnly = false;
         offer.maxUnits = 0;
@@ -340,6 +340,51 @@ contract MidnightAdapterTest is Test {
         bytes32 _root = HashLib.hashOffer(offer);
         bytes memory data = ratifierData(_root, signerAllocator);
         assertEq(adapter.isRatified(offer, data), CALLBACK_SUCCESS, "callback success");
+    }
+
+    function testRatifyIncorrectReceiver(uint256 seed, address otherReceiver) public {
+        vm.setSeed(seed);
+        vm.assume(otherReceiver != address(adapter));
+        Offer memory offer = _ratificationSetup();
+        offer.receiverIfMakerIsSeller = otherReceiver;
+        bytes32 _root = root(offer);
+        bytes memory data = ratifierData(_root, signerAllocator);
+        vm.expectRevert(IMidnightAdapter.IncorrectReceiver.selector);
+        adapter.isRatified(offer, data);
+    }
+
+    function testCancelRootByAllocator(uint256 seed) public {
+        vm.setSeed(seed);
+        Offer memory offer = _ratificationSetup();
+        bytes32 _root = root(offer);
+        bytes memory data = ratifierData(_root, signerAllocator);
+        assertEq(adapter.isRatified(offer, data), CALLBACK_SUCCESS, "ratifies before cancel");
+        vm.prank(signerAllocator);
+        adapter.cancelRoot(_root);
+        assertTrue(adapter.isRootCanceled(_root), "root canceled");
+        vm.expectRevert(IMidnightAdapter.RootCanceled.selector);
+        adapter.isRatified(offer, data);
+    }
+
+    function testCancelRootBySentinel(uint256 seed, address sentinel) public {
+        vm.setSeed(seed);
+        vm.assume(sentinel != signerAllocator);
+        stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(sentinel).checked_write(true);
+        Offer memory offer = _ratificationSetup();
+        bytes32 _root = root(offer);
+        bytes memory data = ratifierData(_root, signerAllocator);
+        vm.prank(sentinel);
+        adapter.cancelRoot(_root);
+        assertTrue(adapter.isRootCanceled(_root), "root canceled");
+        vm.expectRevert(IMidnightAdapter.RootCanceled.selector);
+        adapter.isRatified(offer, data);
+    }
+
+    function testCancelRootUnauthorized(address caller) public {
+        vm.assume(!parentVault.isAllocator(caller) && !parentVault.isSentinel(caller));
+        vm.prank(caller);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.cancelRoot(keccak256("some root"));
     }
 
     /* DURATIONS */
