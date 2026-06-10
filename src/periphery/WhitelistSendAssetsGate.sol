@@ -9,12 +9,18 @@ import {
 } from "./interfaces/IWhitelistSendAssetsGate.sol";
 import {DOMAIN_TYPEHASH} from "../libraries/ConstantsLib.sol";
 
-/// @dev If `account` is registered as a trusted intermediary, IIntermediary(account).initiator() is checked instead.
+/// @dev Using this gate allows to restrict who the funds are initially owned by in a vault's deposits/mints.
+/// @dev As with any send assets gate, nothing prevents whitelisted accounts from using a non whitelisted account's
+/// funds.
+/// @dev If `account` is registered as a trusted intermediary, IIntermediary(account).initiator() is checked
+/// instead. Thus the intermediary should only deposit and mint using assets initially owned by its current initiator.
+/// @dev No-ops are allowed.
+/// @dev Zero checks are not systematically performed.
 contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
     address public whitelister;
     mapping(address => uint256) public nonces;
-    mapping(address => bool) public isIntermediary;
     mapping(address => bool) public isWhitelisted;
+    mapping(address => bool) public isIntermediary;
 
     constructor(address _whitelister) {
         whitelister = _whitelister;
@@ -59,6 +65,7 @@ contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
     }
 
     /// @dev Signature malleability is not explicitly prevented but it is not a problem thanks to the nonce.
+    /// @dev Allows to batch setIsWhitelisted with the deposit, without requiring a transaction from the whitelister.
     function setIsWhitelistedWithSig(
         address account,
         bool newIsWhitelisted,
@@ -67,7 +74,7 @@ contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
         bytes32 r,
         bytes32 s
     ) external {
-        require(deadline >= block.timestamp, PermitDeadlineExpired());
+        require(deadline >= block.timestamp, DeadlineExpired());
         bytes32 hashStruct =
             keccak256(abi.encode(SET_IS_WHITELISTED_TYPEHASH, account, newIsWhitelisted, nonces[account]++, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));

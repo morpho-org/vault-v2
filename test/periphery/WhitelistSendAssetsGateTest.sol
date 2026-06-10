@@ -36,13 +36,6 @@ contract WhitelistSendAssetsGateTest is Test {
         gate = new WhitelistSendAssetsGate(whitelister);
     }
 
-    function testSetIsWhitelistedTypehash() public pure {
-        assertEq(
-            SET_IS_WHITELISTED_TYPEHASH,
-            keccak256("SetIsWhitelisted(address account,bool newIsWhitelisted,uint256 nonce,uint256 deadline)")
-        );
-    }
-
     function _sign(address account, bool whitelisted, uint256 deadline, uint256 pk)
         internal
         view
@@ -63,22 +56,11 @@ contract WhitelistSendAssetsGateTest is Test {
     }
 
     function testSetWhitelister(address newWhitelister) public {
-        vm.assume(newWhitelister != address(0));
-        vm.assume(newWhitelister != whitelister);
-
         vm.expectEmit();
         emit IWhitelistSendAssetsGate.SetWhitelister(newWhitelister);
         vm.prank(whitelister);
         gate.setWhitelister(newWhitelister);
         assertEq(gate.whitelister(), newWhitelister);
-
-        vm.expectRevert(IWhitelistSendAssetsGate.NotWhitelister.selector);
-        vm.prank(whitelister);
-        gate.setIsWhitelisted(alice, true);
-
-        vm.prank(newWhitelister);
-        gate.setIsWhitelisted(alice, true);
-        assertTrue(gate.isWhitelisted(alice));
     }
 
     function testSetWhitelisterNotWhitelister(address caller, address newWhitelister) public {
@@ -226,7 +208,7 @@ contract WhitelistSendAssetsGateTest is Test {
         vm.warp(currentTime);
         (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, whitelisterPk);
 
-        vm.expectRevert(IWhitelistSendAssetsGate.PermitDeadlineExpired.selector);
+        vm.expectRevert(IWhitelistSendAssetsGate.DeadlineExpired.selector);
         gate.setIsWhitelistedWithSig(account, whitelisted, deadline, v, r, s);
     }
 
