@@ -6,7 +6,7 @@ import {IWhitelistReceiverSharesGate, SET_IS_WHITELISTED_TYPEHASH} from "./inter
 import {DOMAIN_TYPEHASH} from "../libraries/ConstantsLib.sol";
 
 /// @dev Using this gate allows to restrict who can own shares of a vault.
-/// @dev A whitelisted account could own shares to let other accounts access the vault's payoff.
+/// @dev Note that a whitelisted account could own shares to let other accounts access the vault's payoff.
 /// @dev CRITICAL NOTE: if a depositor transfers their shares (typically to deposit them on a DeFi protocol), they might
 /// not be able to get their shares back (typically to withdraw them) if they get un-whitelisted afterwards.
 /// @dev No-ops are allowed.
