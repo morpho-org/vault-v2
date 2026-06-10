@@ -7,7 +7,7 @@ import {IReceiveSharesGate} from "../../interfaces/IGate.sol";
 bytes32 constant SET_IS_WHITELISTED_TYPEHASH =
     keccak256("SetIsWhitelisted(address account,bool newIsWhitelisted,uint256 nonce,uint256 deadline)");
 
-interface IWhitelistReceiverSharesGate is IReceiveSharesGate {
+interface IWhitelistReceiveSharesGate is IReceiveSharesGate {
     /* EVENTS */
 
     event Constructor(address indexed whitelister);

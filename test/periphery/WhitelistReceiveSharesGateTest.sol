@@ -3,13 +3,13 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {WhitelistReceiveSharesGate} from "../../src/periphery/WhitelistReceiverSharesGate.sol";
+import {WhitelistReceiveSharesGate} from "../../src/periphery/WhitelistReceiveSharesGate.sol";
 import {
-    IWhitelistReceiverSharesGate,
+    IWhitelistReceiveSharesGate,
     SET_IS_WHITELISTED_TYPEHASH
-} from "../../src/periphery/interfaces/IWhitelistReceiverSharesGate.sol";
+} from "../../src/periphery/interfaces/IWhitelistReceiveSharesGate.sol";
 
-contract WhitelistReceiverSharesGateTest is Test {
+contract WhitelistReceiveSharesGateTest is Test {
     WhitelistReceiveSharesGate internal gate;
     uint256 internal whitelisterPk;
     address internal whitelister;
@@ -36,14 +36,14 @@ contract WhitelistReceiverSharesGateTest is Test {
 
     function testConstructor(address _whitelister) public {
         vm.expectEmit();
-        emit IWhitelistReceiverSharesGate.Constructor(_whitelister);
+        emit IWhitelistReceiveSharesGate.Constructor(_whitelister);
         WhitelistReceiveSharesGate g = new WhitelistReceiveSharesGate(_whitelister);
         assertEq(g.whitelister(), _whitelister);
     }
 
     function testSetWhitelister(address newWhitelister) public {
         vm.expectEmit();
-        emit IWhitelistReceiverSharesGate.SetWhitelister(newWhitelister);
+        emit IWhitelistReceiveSharesGate.SetWhitelister(newWhitelister);
         vm.prank(whitelister);
         gate.setWhitelister(newWhitelister);
         assertEq(gate.whitelister(), newWhitelister);
@@ -51,14 +51,14 @@ contract WhitelistReceiverSharesGateTest is Test {
 
     function testSetWhitelisterNotWhitelister(address caller, address newWhitelister) public {
         vm.assume(caller != whitelister);
-        vm.expectRevert(IWhitelistReceiverSharesGate.NotWhitelister.selector);
+        vm.expectRevert(IWhitelistReceiveSharesGate.NotWhitelister.selector);
         vm.prank(caller);
         gate.setWhitelister(newWhitelister);
     }
 
     function testSetIsWhitelisted(address account, bool whitelisted) public {
         vm.expectEmit();
-        emit IWhitelistReceiverSharesGate.SetIsWhitelisted(account, whitelisted);
+        emit IWhitelistReceiveSharesGate.SetIsWhitelisted(account, whitelisted);
         vm.prank(whitelister);
         gate.setIsWhitelisted(account, whitelisted);
         assertEq(gate.isWhitelisted(account), whitelisted);
@@ -66,7 +66,7 @@ contract WhitelistReceiverSharesGateTest is Test {
 
     function testSetIsWhitelistedNotWhitelister(address caller, address account, bool whitelisted) public {
         vm.assume(caller != whitelister);
-        vm.expectRevert(IWhitelistReceiverSharesGate.NotWhitelister.selector);
+        vm.expectRevert(IWhitelistReceiveSharesGate.NotWhitelister.selector);
         vm.prank(caller);
         gate.setIsWhitelisted(account, whitelisted);
     }
@@ -84,7 +84,7 @@ contract WhitelistReceiverSharesGateTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, whitelisterPk);
 
         vm.expectEmit();
-        emit IWhitelistReceiverSharesGate.SetIsWhitelistedWithSig(account, whitelisted);
+        emit IWhitelistReceiveSharesGate.SetIsWhitelistedWithSig(account, whitelisted);
         // Relayed by an arbitrary account.
         vm.prank(relayer);
         gate.setIsWhitelistedWithSig(account, whitelisted, deadline, v, r, s);
@@ -100,28 +100,28 @@ contract WhitelistReceiverSharesGateTest is Test {
         gate.setIsWhitelistedWithSig(alice, true, deadline, v, r, s);
 
         // replay
-        vm.expectRevert(IWhitelistReceiverSharesGate.InvalidSigner.selector);
+        vm.expectRevert(IWhitelistReceiveSharesGate.InvalidSigner.selector);
         gate.setIsWhitelistedWithSig(alice, true, deadline, v, r, s);
 
         // wrong account
         (v, r, s) = _sign(alice, false, deadline, whitelisterPk);
-        vm.expectRevert(IWhitelistReceiverSharesGate.InvalidSigner.selector);
+        vm.expectRevert(IWhitelistReceiveSharesGate.InvalidSigner.selector);
         gate.setIsWhitelistedWithSig(bob, false, deadline, v, r, s);
 
         // wrong value
         (v, r, s) = _sign(alice, false, deadline, whitelisterPk);
-        vm.expectRevert(IWhitelistReceiverSharesGate.InvalidSigner.selector);
+        vm.expectRevert(IWhitelistReceiveSharesGate.InvalidSigner.selector);
         gate.setIsWhitelistedWithSig(alice, true, deadline, v, r, s);
 
         // wrong deadline
         (v, r, s) = _sign(alice, false, deadline, whitelisterPk);
-        vm.expectRevert(IWhitelistReceiverSharesGate.InvalidSigner.selector);
+        vm.expectRevert(IWhitelistReceiveSharesGate.InvalidSigner.selector);
         gate.setIsWhitelistedWithSig(alice, false, deadline + 1, v, r, s);
 
         // wrong domain separator
         (v, r, s) = _sign(bob, true, deadline, whitelisterPk);
         WhitelistReceiveSharesGate otherGate = new WhitelistReceiveSharesGate(whitelister);
-        vm.expectRevert(IWhitelistReceiverSharesGate.InvalidSigner.selector);
+        vm.expectRevert(IWhitelistReceiveSharesGate.InvalidSigner.selector);
         otherGate.setIsWhitelistedWithSig(bob, true, deadline, v, r, s);
     }
 
@@ -136,7 +136,7 @@ contract WhitelistReceiverSharesGateTest is Test {
         vm.warp(currentTime);
         (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, whitelisterPk);
 
-        vm.expectRevert(IWhitelistReceiverSharesGate.DeadlineExpired.selector);
+        vm.expectRevert(IWhitelistReceiveSharesGate.DeadlineExpired.selector);
         gate.setIsWhitelistedWithSig(account, whitelisted, deadline, v, r, s);
     }
 
@@ -151,14 +151,14 @@ contract WhitelistReceiverSharesGateTest is Test {
         deadline = bound(deadline, block.timestamp, type(uint256).max);
         (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, wrongPk);
 
-        vm.expectRevert(IWhitelistReceiverSharesGate.InvalidSigner.selector);
+        vm.expectRevert(IWhitelistReceiveSharesGate.InvalidSigner.selector);
         gate.setIsWhitelistedWithSig(account, whitelisted, deadline, v, r, s);
     }
 
     function testMulticall(address account, bool whitelisted, address account2, bool whitelisted2) public {
         bytes[] memory data = new bytes[](2);
-        data[0] = abi.encodeCall(IWhitelistReceiverSharesGate.setIsWhitelisted, (account, whitelisted));
-        data[1] = abi.encodeCall(IWhitelistReceiverSharesGate.setIsWhitelisted, (account2, whitelisted2));
+        data[0] = abi.encodeCall(IWhitelistReceiveSharesGate.setIsWhitelisted, (account, whitelisted));
+        data[1] = abi.encodeCall(IWhitelistReceiveSharesGate.setIsWhitelisted, (account2, whitelisted2));
 
         vm.prank(whitelister);
         gate.multicall(data);
@@ -174,10 +174,10 @@ contract WhitelistReceiverSharesGateTest is Test {
     function testMulticallBubblesRevert(address caller, address account, bool whitelisted) public {
         vm.assume(caller != whitelister);
         bytes[] memory data = new bytes[](1);
-        data[0] = abi.encodeCall(IWhitelistReceiverSharesGate.setIsWhitelisted, (account, whitelisted));
+        data[0] = abi.encodeCall(IWhitelistReceiveSharesGate.setIsWhitelisted, (account, whitelisted));
 
         // Called by a non-whitelister: the inner call reverts and the multicall must bubble it up.
-        vm.expectRevert(IWhitelistReceiverSharesGate.NotWhitelister.selector);
+        vm.expectRevert(IWhitelistReceiveSharesGate.NotWhitelister.selector);
         vm.prank(caller);
         gate.multicall(data);
     }

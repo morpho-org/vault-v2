@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity 0.8.28;
 
-import {IWhitelistReceiverSharesGate, SET_IS_WHITELISTED_TYPEHASH} from "./interfaces/IWhitelistReceiverSharesGate.sol";
+import {IWhitelistReceiveSharesGate, SET_IS_WHITELISTED_TYPEHASH} from "./interfaces/IWhitelistReceiveSharesGate.sol";
 import {DOMAIN_TYPEHASH} from "../libraries/ConstantsLib.sol";
 
 /// @dev Using this gate allows to restrict who can own shares of a vault.
@@ -12,7 +12,7 @@ import {DOMAIN_TYPEHASH} from "../libraries/ConstantsLib.sol";
 /// not be able to get their shares back (typically to withdraw them) if they get un-whitelisted afterwards.
 /// @dev No-ops are allowed.
 /// @dev Zero checks are not systematically performed.
-contract WhitelistReceiveSharesGate is IWhitelistReceiverSharesGate {
+contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
     address public whitelister;
     mapping(address => uint256) public nonces;
     mapping(address => bool) public isWhitelisted;
