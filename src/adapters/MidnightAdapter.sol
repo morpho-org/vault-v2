@@ -116,7 +116,7 @@ contract MidnightAdapter is IMidnightAdapter {
         // current net credit cannot be > accounted net credit
         uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit(marketId);
 
-        removeNetCredit(marketId, market.maturity, netCreditDecrease);
+        decreaseNetCredit(marketId, market.maturity, netCreditDecrease);
 
         IVaultV2(parentVault)
             .deallocate(address(this), abi.encode(ids(market), -netCreditDecrease.toInt256()), withdrawnAssets);
@@ -221,7 +221,7 @@ contract MidnightAdapter is IMidnightAdapter {
             IMidnight(midnight).take(offer, takeUnits, address(this), address(this), address(0), hex"", ratifierData);
             // current net credit cannot be > accounted net credit
             uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit(marketId);
-            removeNetCredit(marketId, offer.market.maturity, netCreditDecrease);
+            decreaseNetCredit(marketId, offer.market.maturity, netCreditDecrease);
 
             emit ForceDeallocate(marketId, sellerAssets, netCreditDecrease);
             return (ids(offer.market), -netCreditDecrease.toInt256());
@@ -287,17 +287,16 @@ contract MidnightAdapter is IMidnightAdapter {
         MaturityData storage maturityData = _maturities[market.maturity];
         MarketData storage marketData = _markets[marketId];
         uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
-        int256 netCreditChange = currentNetCredit(marketId).toInt256() - uint256(marketData.netCredit).toInt256();
+        // current net credit cannot be > accounted net credit + bought net credit
+        uint256 netCreditLoss = uint256(marketData.netCredit) + boughtNetCredit - currentNetCredit(marketId);
+        decreaseNetCredit(marketId, market.maturity, netCreditLoss);
 
-        // netCreditChange is at most boughtNetCredit
-        if (netCreditChange < boughtNetCredit.toInt256()) {
-            // forge-lint: disable-next-item(unsafe-typecast) safe because netCreditChange < boughtNetCredit (checked
-            // above).
-            uint256 netCreditLoss = uint256(int256(boughtNetCredit) - netCreditChange);
-            removeNetCredit(marketId, market.maturity, netCreditLoss);
-        }
-
-        IVaultV2(parentVault).allocate(address(this), abi.encode(ids(market), netCreditChange), paidAssets);
+        IVaultV2(parentVault)
+            .allocate(
+                address(this),
+                abi.encode(ids(market), boughtNetCredit.toInt256() - netCreditLoss.toInt256()),
+                paidAssets
+            );
 
         if (timeToMaturity > 0) {
             uint256 interest = boughtNetCredit - paidAssets;
@@ -329,7 +328,7 @@ contract MidnightAdapter is IMidnightAdapter {
             emit InsertMaturity(market.maturity);
         }
 
-        emit Buy(marketId, paidAssets, boughtNetCredit, netCreditChange);
+        emit Buy(marketId, paidAssets, boughtNetCredit, netCreditLoss);
         return CALLBACK_SUCCESS;
     }
 
@@ -352,7 +351,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
         // current net credit cannot be > accounted net credit
         uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit(marketId);
-        removeNetCredit(marketId, market.maturity, netCreditDecrease);
+        decreaseNetCredit(marketId, market.maturity, netCreditDecrease);
 
         IVaultV2(parentVault)
             .deallocate(address(this), abi.encode(ids(market), -netCreditDecrease.toInt256()), sellerAssets);
@@ -376,25 +375,25 @@ contract MidnightAdapter is IMidnightAdapter {
                 - IMidnight(midnight).pendingFee(marketId, address(this));
     }
 
-    /// @dev Removes netCredit proportionally from current accounted assets and future growth.
-    function removeNetCredit(bytes32 marketId, uint256 maturity, uint256 removedNetCredit) internal {
-        if (removedNetCredit == 0) return;
+    /// @dev Decreases netCredit proportionally from current accounted assets and future growth.
+    function decreaseNetCredit(bytes32 marketId, uint256 maturity, uint256 netCreditDecrease) internal {
+        if (netCreditDecrease == 0) return;
 
         MaturityData storage maturityData = _maturities[maturity];
         MarketData storage marketData = _markets[marketId];
 
         if (maturity > block.timestamp) {
             uint256 timeToMaturity = maturity - block.timestamp;
-            uint128 growthDecrease = marketData.growth.mulDivUp(removedNetCredit, marketData.netCredit).toUint128();
+            uint128 growthDecrease = marketData.growth.mulDivUp(netCreditDecrease, marketData.netCredit).toUint128();
             marketData.growth -= growthDecrease;
             maturityData.growth -= growthDecrease;
             currentGrowth -= growthDecrease;
-            totalAssets = (totalAssets + (growthDecrease * timeToMaturity) - removedNetCredit).toUint128();
+            totalAssets = (totalAssets + (growthDecrease * timeToMaturity) - netCreditDecrease).toUint128();
         } else {
-            totalAssets -= removedNetCredit.toUint128();
+            totalAssets -= netCreditDecrease.toUint128();
         }
-        maturityData.netCredit -= removedNetCredit.toUint128();
-        marketData.netCredit -= removedNetCredit.toUint128();
+        maturityData.netCredit -= netCreditDecrease.toUint128();
+        marketData.netCredit -= netCreditDecrease.toUint128();
 
         if (maturityData.netCredit == 0 && maturity > block.timestamp) {
             availableMaturities++;
