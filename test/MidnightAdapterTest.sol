@@ -659,7 +659,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.totalAssets(), 0);
     }
 
-    /* MATURITY LIST */
+    /* PENDING MATURITIES LIST */
 
     function testOutOfOrderInsertsStaySorted() public {
         uint256 t0 = block.timestamp;
@@ -667,10 +667,10 @@ contract MidnightAdapterTest is Test {
         buy(1, 1e18);
         buy(2, 1e18);
 
-        assertMaturityList([t0 + 1, t0 + 2, t0 + 3]);
+        assertPendingMaturities([t0 + 1, t0 + 2, t0 + 3]);
     }
 
-    function testMidListRemoval() public {
+    function testMidPendingMaturityRemoval() public {
         Offer memory smallest = buy(1, 1e18);
         Offer memory middle = buy(2, 1e18);
         Offer memory largest = buy(3, 1e18);
@@ -678,7 +678,7 @@ contract MidnightAdapterTest is Test {
         parentVault.setTotalAssets(1e18);
         sell(middle.market, 1e18);
 
-        assertMaturityList([smallest.market.maturity, largest.market.maturity]);
+        assertPendingMaturities([smallest.market.maturity, largest.market.maturity]);
     }
 
     function testMultipleConsecutiveElapsedMaturitiesInOneAccrual() public {
@@ -686,7 +686,7 @@ contract MidnightAdapterTest is Test {
         buy(2, 1e18);
         skip(3);
         adapter.accrueInterest();
-        assertMaturityListEmpty();
+        assertPendingMaturitiesEmpty();
         assertEq(adapter.currentGrowth(), 0, "currentGrowth");
     }
 
@@ -723,7 +723,7 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(second.market, 1, 0.5e18, taker);
         take(second);
 
-        assertMaturityList([first.market.maturity]);
+        assertPendingMaturities([first.market.maturity]);
     }
 
     /* FORCE DEALLOCATE */
@@ -960,7 +960,7 @@ contract MidnightAdapterTest is Test {
             .checked_write(credit);
     }
 
-    function checkMaturityList(uint256[] memory expected) internal view {
+    function checkPendingMaturities(uint256[] memory expected) internal view {
         uint48 prev = 0;
         uint48 current = adapter.maturities(0).nextMaturity;
         for (uint256 i = 0; i < expected.length; i++) {
@@ -972,29 +972,29 @@ contract MidnightAdapterTest is Test {
         assertEq(current, 0, "list longer than expected");
     }
 
-    function assertMaturityListEmpty() internal view {
-        checkMaturityList(new uint256[](0));
+    function assertPendingMaturitiesEmpty() internal view {
+        checkPendingMaturities(new uint256[](0));
     }
 
-    function assertMaturityList(uint256[1] memory m) internal view {
+    function assertPendingMaturities(uint256[1] memory m) internal view {
         uint256[] memory arr = new uint256[](1);
         arr[0] = m[0];
-        checkMaturityList(arr);
+        checkPendingMaturities(arr);
     }
 
-    function assertMaturityList(uint256[2] memory m) internal view {
+    function assertPendingMaturities(uint256[2] memory m) internal view {
         uint256[] memory arr = new uint256[](2);
         arr[0] = m[0];
         arr[1] = m[1];
-        checkMaturityList(arr);
+        checkPendingMaturities(arr);
     }
 
-    function assertMaturityList(uint256[3] memory m) internal view {
+    function assertPendingMaturities(uint256[3] memory m) internal view {
         uint256[] memory arr = new uint256[](3);
         arr[0] = m[0];
         arr[1] = m[1];
         arr[2] = m[2];
-        checkMaturityList(arr);
+        checkPendingMaturities(arr);
     }
 
     function _marketId(Market memory market) internal view returns (bytes32) {
