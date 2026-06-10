@@ -3,14 +3,14 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {WhitelistReceiverSharesGate} from "../../src/periphery/WhitelistReceiverSharesGate.sol";
+import {WhitelistReceiveSharesGate} from "../../src/periphery/WhitelistReceiverSharesGate.sol";
 import {
     IWhitelistReceiverSharesGate,
     SET_IS_WHITELISTED_TYPEHASH
 } from "../../src/periphery/interfaces/IWhitelistReceiverSharesGate.sol";
 
 contract WhitelistReceiverSharesGateTest is Test {
-    WhitelistReceiverSharesGate internal gate;
+    WhitelistReceiveSharesGate internal gate;
     uint256 internal whitelisterPk;
     address internal whitelister;
     address internal alice = makeAddr("alice");
@@ -19,7 +19,7 @@ contract WhitelistReceiverSharesGateTest is Test {
     function setUp() public {
         whitelisterPk = 0xA11CE;
         whitelister = vm.addr(whitelisterPk);
-        gate = new WhitelistReceiverSharesGate(whitelister);
+        gate = new WhitelistReceiveSharesGate(whitelister);
     }
 
     function _sign(address account, bool whitelisted, uint256 deadline, uint256 pk)
@@ -37,7 +37,7 @@ contract WhitelistReceiverSharesGateTest is Test {
     function testConstructor(address _whitelister) public {
         vm.expectEmit();
         emit IWhitelistReceiverSharesGate.Constructor(_whitelister);
-        WhitelistReceiverSharesGate g = new WhitelistReceiverSharesGate(_whitelister);
+        WhitelistReceiveSharesGate g = new WhitelistReceiveSharesGate(_whitelister);
         assertEq(g.whitelister(), _whitelister);
     }
 
@@ -120,7 +120,7 @@ contract WhitelistReceiverSharesGateTest is Test {
 
         // wrong domain separator
         (v, r, s) = _sign(bob, true, deadline, whitelisterPk);
-        WhitelistReceiverSharesGate otherGate = new WhitelistReceiverSharesGate(whitelister);
+        WhitelistReceiveSharesGate otherGate = new WhitelistReceiveSharesGate(whitelister);
         vm.expectRevert(IWhitelistReceiverSharesGate.InvalidSigner.selector);
         otherGate.setIsWhitelistedWithSig(bob, true, deadline, v, r, s);
     }
