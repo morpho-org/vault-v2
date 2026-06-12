@@ -26,11 +26,12 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
     event UpdateDurationCountAndAllocations(uint256 indexed maturity, uint256 newDurationCount, uint256 netCredit);
     event ForceDeallocate(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
-    event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 netCreditIncrease, int256 netCreditChange);
+    event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 netCreditIncrease, uint256 netCreditLoss);
     event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
     event AccrueInterest(uint128 currentGrowth, uint256 totalAssets);
     event RemoveMaturity(uint256 indexed maturity);
     event InsertMaturity(uint256 indexed maturity);
+    event CancelRoot(address indexed caller, bytes32 indexed root);
 
     /* ERRORS */
 
@@ -40,6 +41,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error IncorrectDuration();
     error IncorrectOffer();
     error IncorrectOwner();
+    error IncorrectReceiver();
     error IncorrectSigner();
     error IncorrectStart();
     error InvalidProof();
@@ -48,6 +50,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error NotAuthorized();
     error NotMidnight();
     error NotSelf();
+    error RootCanceled();
     error SelfAllocationOnly();
 
     /* FUNCTIONS */
@@ -66,7 +69,9 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function _markets(bytes32 marketId) external view returns (uint128 netCredit, uint120 growth);
     function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
+    function isRootCanceled(bytes32 root) external view returns (bool);
     function setSkimRecipient(address newSkimRecipient) external;
+    function cancelRoot(bytes32 root) external;
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
