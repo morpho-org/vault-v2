@@ -9,14 +9,13 @@ import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
 struct MaturityData {
     uint128 netCredit;
-    uint128 growth;
+    uint120 growth;
     uint8 durationCount;
-    uint8 index; // index in pendingMaturities
 }
 
 struct MarketData {
     uint128 netCredit;
-    uint128 growth;
+    uint120 growth;
 }
 
 interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
@@ -64,7 +63,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
-    function _markets(bytes32 marketId) external view returns (uint128 netCredit, uint128 growth);
+    function _markets(bytes32 marketId) external view returns (uint128 netCredit, uint120 growth);
     function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
     function setSkimRecipient(address newSkimRecipient) external;
