@@ -43,7 +43,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* ACCOUNTING */
 
-    uint8 public constant MAX_PENDING_MATURITIES = 50;
+    uint8 public constant MAX_PENDING_MATURITIES = 6;
 
     uint128 public totalAssets;
     uint128 public currentGrowth;
@@ -146,6 +146,8 @@ contract MidnightAdapter is IMidnightAdapter {
     /* ACCRUAL */
 
     function accrueInterestView() public view returns (uint128, uint256) {
+        if (block.timestamp == lastUpdate) return (currentGrowth, totalAssets);
+
         uint128 newGrowth = currentGrowth;
         uint256 newTotalAssets = totalAssets;
 
@@ -164,6 +166,8 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     function accrueInterest() public returns (uint128, uint256) {
+        if (block.timestamp == lastUpdate) return (currentGrowth, totalAssets);
+
         uint128 newGrowth = currentGrowth;
         uint256 newTotalAssets = totalAssets;
 
@@ -185,8 +189,8 @@ contract MidnightAdapter is IMidnightAdapter {
         newTotalAssets += uint256(newGrowth) * (block.timestamp - lastUpdate);
 
         totalAssets = newTotalAssets.toUint128();
-        if (block.timestamp != lastUpdate) emit AccrueInterest(newGrowth, newTotalAssets);
         lastUpdate = block.timestamp.toUint48();
+        emit AccrueInterest(newGrowth, newTotalAssets);
 
         return (newGrowth, newTotalAssets);
     }
