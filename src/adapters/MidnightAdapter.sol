@@ -143,6 +143,8 @@ contract MidnightAdapter is IMidnightAdapter {
     /* ACCRUAL */
 
     function accrueInterestView() public view returns (uint48, uint128, uint128, uint256) {
+        if (block.timestamp == lastUpdate) return (_maturities[0].nextMaturity, currentGrowth, totalAssets, 0);
+
         uint48 _firstMaturity = _maturities[0].nextMaturity;
         uint128 newGrowth = currentGrowth;
         uint256 removedMaturities = 0;
@@ -163,17 +165,18 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     function accrueInterest() public returns (uint48, uint128, uint256) {
-        if (lastUpdate != block.timestamp) {
-            uint48 newHead;
-            uint256 removedMaturities;
-            (newHead, currentGrowth, totalAssets, removedMaturities) = accrueInterestView();
-            availableMaturities += uint8(removedMaturities);
-            _maturities[0].nextMaturity = newHead;
-            _maturities[newHead].prevMaturity = 0;
-            lastUpdate = block.timestamp.toUint48();
-            emit AccrueInterest(currentGrowth, totalAssets);
-        }
-        return (_maturities[0].nextMaturity, currentGrowth, totalAssets);
+        if (block.timestamp == lastUpdate) return (_maturities[0].nextMaturity, currentGrowth, totalAssets);
+
+        uint48 newFirstMaturity;
+        uint256 removedMaturities;
+        (newFirstMaturity, currentGrowth, totalAssets, removedMaturities) = accrueInterestView();
+        availableMaturities += uint8(removedMaturities);
+        _maturities[0].nextMaturity = newFirstMaturity;
+        _maturities[newFirstMaturity].prevMaturity = 0;
+        lastUpdate = block.timestamp.toUint48();
+        emit AccrueInterest(currentGrowth, totalAssets);
+
+        return (newFirstMaturity, currentGrowth, totalAssets);
     }
 
     /// @dev Returns an estimate of the real assets assigned to the adapter.
