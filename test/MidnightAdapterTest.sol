@@ -464,7 +464,7 @@ contract MidnightAdapterTest is Test {
 
         skip(timeToMaturity - duration + extraSkip);
 
-        adapter.updateDurationCountAndAllocations(offer.market);
+        adapter.updateDurationCaps(offer.market);
 
         assertEq(parentVault.allocation(durationId(duration)), 0);
     }
@@ -479,9 +479,9 @@ contract MidnightAdapterTest is Test {
 
         Offer memory offer = buy(timeToMaturity, 1e18);
         skip(skipAmount);
-        adapter.updateDurationCountAndAllocations(offer.market);
+        adapter.updateDurationCaps(offer.market);
         uint256 savedAllocation = parentVault.allocation(durationId(duration));
-        adapter.updateDurationCountAndAllocations(offer.market);
+        adapter.updateDurationCaps(offer.market);
         assertEq(parentVault.allocation(durationId(duration)), savedAllocation);
     }
 
@@ -544,17 +544,17 @@ contract MidnightAdapterTest is Test {
             if (i == 0) firstOffer = offer;
             if (i == 1) secondOffer = offer;
         }
-        assertEq(adapter.availableMaturities(), 0, "availableMaturities before");
+        assertEq(adapter.pendingMaturitiesLength(), 50, "pendingMaturitiesLength before");
 
         parentVault.setTotalAssets(1e18);
         sell(secondOffer.market, 1e18);
 
-        assertEq(adapter.availableMaturities(), 1, "availableMaturities after");
-        assertEq(adapter.maturities(0).nextMaturity, firstOffer.market.maturity, "firstMaturity after");
+        assertEq(adapter.pendingMaturitiesLength(), 49, "pendingMaturitiesLength after");
+        assertEq(adapter.pendingMaturities(0), firstOffer.market.maturity, "first pending maturity after");
 
         buy(60 days, 1e18);
 
-        assertEq(adapter.availableMaturities(), 0, "availableMaturities final");
+        assertEq(adapter.pendingMaturitiesLength(), 50, "pendingMaturitiesLength final");
     }
 
     function testUpdateOnForceDeallocate() public {
@@ -570,14 +570,14 @@ contract MidnightAdapterTest is Test {
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
     }
 
-    /* AVAILABLE MATURITIES */
+    /* PENDING MATURITIES */
 
-    function testAvailableMaturitiesCap(uint256 boughtNum) public {
+    function testPendingMaturitiesCap(uint256 boughtNum) public {
         boughtNum = bound(boughtNum, 0, 50);
         for (uint256 i = 1; i <= boughtNum; i++) {
             buy(i, 1e18);
         }
-        assertEq(adapter.availableMaturities(), 50 - boughtNum);
+        assertEq(adapter.pendingMaturitiesLength(), boughtNum);
 
         for (uint256 i = boughtNum + 1; i <= 50; i++) {
             buy(i, 1e18);
@@ -586,11 +586,11 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = makeBuyOffer(51, 1e18, MAX_TICK);
         midnight.supplyCollateral(offer.market, 0, 0.5e18, taker);
         midnight.supplyCollateral(offer.market, 1, 0.5e18, taker);
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert();
         take(offer);
     }
 
-    function testAvailableMaturitiesBuySell(uint256 boughtNum, uint256 soldNum) public {
+    function testPendingMaturitiesBuySell(uint256 boughtNum, uint256 soldNum) public {
         boughtNum = bound(boughtNum, 1, 50);
         soldNum = bound(soldNum, 0, boughtNum);
 
@@ -604,7 +604,7 @@ contract MidnightAdapterTest is Test {
             sell(markets[i], 1e18);
         }
 
-        assertEq(adapter.availableMaturities(), 50 - boughtNum + soldNum);
+        assertEq(adapter.pendingMaturitiesLength(), boughtNum - soldNum);
     }
 
     function testOnBuyCanRealizeLoss() public {
@@ -659,15 +659,13 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.totalAssets(), 0);
     }
 
-    /* PENDING MATURITIES LIST */
-
-    function testOutOfOrderInsertsStaySorted() public {
+    function testOutOfOrderInsertsStayTracked() public {
         uint256 t0 = block.timestamp;
         buy(3, 1e18);
         buy(1, 1e18);
         buy(2, 1e18);
 
-        assertPendingMaturities([t0 + 1, t0 + 2, t0 + 3]);
+        assertPendingMaturities([t0 + 3, t0 + 1, t0 + 2]);
     }
 
     function testMidPendingMaturityRemoval() public {
@@ -961,15 +959,19 @@ contract MidnightAdapterTest is Test {
     }
 
     function checkPendingMaturities(uint256[] memory expected) internal view {
-        uint48 prev = 0;
-        uint48 current = adapter.maturities(0).nextMaturity;
+        uint256 length = adapter.pendingMaturitiesLength();
+        assertEq(length, expected.length, "pendingMaturitiesLength");
         for (uint256 i = 0; i < expected.length; i++) {
-            assertEq(current, expected[i].toUint48(), "wrong maturity in list");
-            assertEq(adapter.maturities(current).prevMaturity, prev, "wrong prevMaturity");
-            prev = current;
-            current = adapter.maturities(current).nextMaturity;
+            uint48 maturity = expected[i].toUint48();
+            bool found;
+            for (uint256 j = 0; j < length; j++) {
+                found = found || adapter.pendingMaturities(j) == maturity;
+            }
+            assertTrue(found, "missing pending maturity");
+            uint256 index = adapter.maturities(maturity).index;
+            assertLt(index, length, "index out of bounds");
+            assertEq(adapter.pendingMaturities(index), maturity, "pendingMaturities[index] matches");
         }
-        assertEq(current, 0, "list longer than expected");
     }
 
     function assertPendingMaturitiesEmpty() internal view {
