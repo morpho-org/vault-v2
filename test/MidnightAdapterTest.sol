@@ -464,7 +464,7 @@ contract MidnightAdapterTest is Test {
 
         skip(timeToMaturity - duration + extraSkip);
 
-        adapter.updateDurationCountAndAllocations(offer.market);
+        adapter.updateDurationCaps(offer.market);
 
         assertEq(parentVault.allocation(durationId(duration)), 0);
     }
@@ -479,9 +479,9 @@ contract MidnightAdapterTest is Test {
 
         Offer memory offer = buy(timeToMaturity, 1e18);
         skip(skipAmount);
-        adapter.updateDurationCountAndAllocations(offer.market);
+        adapter.updateDurationCaps(offer.market);
         uint256 savedAllocation = parentVault.allocation(durationId(duration));
-        adapter.updateDurationCountAndAllocations(offer.market);
+        adapter.updateDurationCaps(offer.market);
         assertEq(parentVault.allocation(durationId(duration)), savedAllocation);
     }
 
