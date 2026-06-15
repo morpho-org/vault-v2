@@ -13,13 +13,15 @@ import {DOMAIN_TYPEHASH} from "../libraries/ConstantsLib.sol";
 /// @dev No-ops are allowed.
 /// @dev Zero checks are not systematically performed.
 contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
+    address public admin;
     address public whitelister;
     mapping(address => uint256) public nonces;
     mapping(address => bool) public isWhitelisted;
 
-    constructor(address _whitelister) {
+    constructor(address _admin, address _whitelister) {
+        admin = _admin;
         whitelister = _whitelister;
-        emit Constructor(_whitelister);
+        emit Constructor(_admin, _whitelister);
     }
 
     /// @dev Useful for EOAs to batch admin calls.
@@ -40,8 +42,14 @@ contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
         return isWhitelisted[account];
     }
 
+    function setAdmin(address newAdmin) external {
+        require(msg.sender == admin, NotAdmin());
+        admin = newAdmin;
+        emit SetAdmin(newAdmin);
+    }
+
     function setWhitelister(address newWhitelister) external {
-        require(msg.sender == whitelister, NotWhitelister());
+        require(msg.sender == admin, NotAdmin());
         whitelister = newWhitelister;
         emit SetWhitelister(newWhitelister);
     }

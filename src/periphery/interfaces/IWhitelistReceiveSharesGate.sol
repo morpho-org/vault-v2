@@ -10,22 +10,26 @@ bytes32 constant SET_IS_WHITELISTED_TYPEHASH =
 interface IWhitelistReceiveSharesGate is IReceiveSharesGate {
     /* EVENTS */
 
-    event Constructor(address indexed whitelister);
+    event Constructor(address indexed admin, address indexed whitelister);
+    event SetAdmin(address indexed newAdmin);
     event SetWhitelister(address indexed newWhitelister);
     event SetIsWhitelisted(address indexed account, bool newIsWhitelisted);
     event SetIsWhitelistedWithSig(address indexed account, bool newIsWhitelisted);
 
     /* ERRORS */
 
+    error NotAdmin();
     error NotWhitelister();
     error DeadlineExpired();
     error InvalidSigner();
 
     /* FUNCTIONS */
 
+    function admin() external view returns (address);
     function whitelister() external view returns (address);
     function nonces(address account) external view returns (uint256);
     function isWhitelisted(address account) external view returns (bool);
+    function setAdmin(address newAdmin) external;
     function setWhitelister(address newWhitelister) external;
     function setIsWhitelisted(address account, bool newIsWhitelisted) external;
     function setIsWhitelistedWithSig(
