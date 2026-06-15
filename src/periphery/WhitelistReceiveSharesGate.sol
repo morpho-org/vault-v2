@@ -13,18 +13,18 @@ import {DOMAIN_TYPEHASH} from "../libraries/ConstantsLib.sol";
 /// @dev No-ops are allowed.
 /// @dev Zero checks are not systematically performed.
 contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
-    address public admin;
+    address public roleSetter;
     address public whitelister;
     mapping(address => uint256) public nonces;
     mapping(address => bool) public isWhitelisted;
 
-    constructor(address _admin, address _whitelister) {
-        admin = _admin;
+    constructor(address _roleSetter, address _whitelister) {
+        roleSetter = _roleSetter;
         whitelister = _whitelister;
-        emit Constructor(_admin, _whitelister);
+        emit Constructor(_roleSetter, _whitelister);
     }
 
-    /// @dev Useful for EOAs to batch admin calls.
+    /// @dev Useful for EOAs to batch privileged calls.
     /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do
     /// the multicall themselves.
     function multicall(bytes[] calldata data) external {
@@ -42,14 +42,14 @@ contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
         return isWhitelisted[account];
     }
 
-    function setAdmin(address newAdmin) external {
-        require(msg.sender == admin, NotAdmin());
-        admin = newAdmin;
-        emit SetAdmin(newAdmin);
+    function setRoleSetter(address newRoleSetter) external {
+        require(msg.sender == roleSetter, NotRoleSetter());
+        roleSetter = newRoleSetter;
+        emit SetRoleSetter(newRoleSetter);
     }
 
     function setWhitelister(address newWhitelister) external {
-        require(msg.sender == admin, NotAdmin());
+        require(msg.sender == roleSetter, NotRoleSetter());
         whitelister = newWhitelister;
         emit SetWhitelister(newWhitelister);
     }

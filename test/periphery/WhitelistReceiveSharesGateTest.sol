@@ -12,7 +12,7 @@ import {
 contract WhitelistReceiveSharesGateTest is Test {
     WhitelistReceiveSharesGate internal gate;
     uint256 internal whitelisterPk;
-    address internal admin = makeAddr("admin");
+    address internal roleSetter = makeAddr("roleSetter");
     address internal whitelister;
     address internal alice = makeAddr("alice");
     address internal bob = makeAddr("bob");
@@ -20,7 +20,7 @@ contract WhitelistReceiveSharesGateTest is Test {
     function setUp() public {
         whitelisterPk = 0xA11CE;
         whitelister = vm.addr(whitelisterPk);
-        gate = new WhitelistReceiveSharesGate(admin, whitelister);
+        gate = new WhitelistReceiveSharesGate(roleSetter, whitelister);
     }
 
     function _sign(address account, bool whitelisted, uint256 deadline, uint256 pk)
@@ -35,46 +35,46 @@ contract WhitelistReceiveSharesGateTest is Test {
         return vm.sign(pk, digest);
     }
 
-    function testConstructor(address _admin, address _whitelister) public {
+    function testConstructor(address _roleSetter, address _whitelister) public {
         vm.expectEmit();
-        emit IWhitelistReceiveSharesGate.Constructor(_admin, _whitelister);
-        WhitelistReceiveSharesGate g = new WhitelistReceiveSharesGate(_admin, _whitelister);
-        assertEq(g.admin(), _admin);
+        emit IWhitelistReceiveSharesGate.Constructor(_roleSetter, _whitelister);
+        WhitelistReceiveSharesGate g = new WhitelistReceiveSharesGate(_roleSetter, _whitelister);
+        assertEq(g.roleSetter(), _roleSetter);
         assertEq(g.whitelister(), _whitelister);
     }
 
-    function testSetAdmin(address newAdmin) public {
+    function testSetRoleSetter(address newRoleSetter) public {
         vm.expectEmit();
-        emit IWhitelistReceiveSharesGate.SetAdmin(newAdmin);
-        vm.prank(admin);
-        gate.setAdmin(newAdmin);
-        assertEq(gate.admin(), newAdmin);
+        emit IWhitelistReceiveSharesGate.SetRoleSetter(newRoleSetter);
+        vm.prank(roleSetter);
+        gate.setRoleSetter(newRoleSetter);
+        assertEq(gate.roleSetter(), newRoleSetter);
     }
 
-    function testSetAdminNotAdmin(address caller, address newAdmin) public {
-        vm.assume(caller != admin);
-        vm.expectRevert(IWhitelistReceiveSharesGate.NotAdmin.selector);
+    function testSetRoleSetterNotRoleSetter(address caller, address newRoleSetter) public {
+        vm.assume(caller != roleSetter);
+        vm.expectRevert(IWhitelistReceiveSharesGate.NotRoleSetter.selector);
         vm.prank(caller);
-        gate.setAdmin(newAdmin);
+        gate.setRoleSetter(newRoleSetter);
     }
 
     function testSetWhitelister(address newWhitelister) public {
         vm.expectEmit();
         emit IWhitelistReceiveSharesGate.SetWhitelister(newWhitelister);
-        vm.prank(admin);
+        vm.prank(roleSetter);
         gate.setWhitelister(newWhitelister);
         assertEq(gate.whitelister(), newWhitelister);
     }
 
-    function testSetWhitelisterNotAdmin(address caller, address newWhitelister) public {
-        vm.assume(caller != admin);
-        vm.expectRevert(IWhitelistReceiveSharesGate.NotAdmin.selector);
+    function testSetWhitelisterNotRoleSetter(address caller, address newWhitelister) public {
+        vm.assume(caller != roleSetter);
+        vm.expectRevert(IWhitelistReceiveSharesGate.NotRoleSetter.selector);
         vm.prank(caller);
         gate.setWhitelister(newWhitelister);
     }
 
     function testWhitelisterCannotSetWhitelister(address newWhitelister) public {
-        vm.expectRevert(IWhitelistReceiveSharesGate.NotAdmin.selector);
+        vm.expectRevert(IWhitelistReceiveSharesGate.NotRoleSetter.selector);
         vm.prank(whitelister);
         gate.setWhitelister(newWhitelister);
     }
@@ -143,7 +143,7 @@ contract WhitelistReceiveSharesGateTest is Test {
 
         // wrong domain separator
         (v, r, s) = _sign(bob, true, deadline, whitelisterPk);
-        WhitelistReceiveSharesGate otherGate = new WhitelistReceiveSharesGate(admin, whitelister);
+        WhitelistReceiveSharesGate otherGate = new WhitelistReceiveSharesGate(roleSetter, whitelister);
         vm.expectRevert(IWhitelistReceiveSharesGate.InvalidSigner.selector);
         otherGate.setIsWhitelistedWithSig(bob, true, deadline, v, r, s);
     }
