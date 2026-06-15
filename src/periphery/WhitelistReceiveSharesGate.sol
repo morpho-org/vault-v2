@@ -18,10 +18,9 @@ contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
     mapping(address => uint256) public nonces;
     mapping(address => bool) public isWhitelisted;
 
-    constructor(address _roleSetter, address _whitelister) {
+    constructor(address _roleSetter) {
         roleSetter = _roleSetter;
-        whitelister = _whitelister;
-        emit Constructor(_roleSetter, _whitelister);
+        emit Constructor(_roleSetter);
     }
 
     /// @dev Useful for EOAs to batch privileged calls.

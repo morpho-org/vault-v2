@@ -14,7 +14,7 @@ interface IIntermediary {
 interface IWhitelistSendAssetsGate is ISendAssetsGate {
     /* EVENTS */
 
-    event Constructor(address indexed roleSetter, address indexed whitelister);
+    event Constructor(address indexed roleSetter);
     event SetRoleSetter(address indexed newRoleSetter);
     event SetWhitelister(address indexed newWhitelister);
     event SetIsWhitelisted(address indexed account, bool newIsWhitelisted);

@@ -34,7 +34,9 @@ contract WhitelistSendAssetsGateTest is Test {
     function setUp() public {
         whitelisterPk = 0xA11CE;
         whitelister = vm.addr(whitelisterPk);
-        gate = new WhitelistSendAssetsGate(roleSetter, whitelister);
+        gate = new WhitelistSendAssetsGate(roleSetter);
+        vm.prank(roleSetter);
+        gate.setWhitelister(whitelister);
     }
 
     function _sign(address account, bool whitelisted, uint256 deadline, uint256 pk)
@@ -49,12 +51,12 @@ contract WhitelistSendAssetsGateTest is Test {
         return vm.sign(pk, digest);
     }
 
-    function testConstructor(address _roleSetter, address _whitelister) public {
+    function testConstructor(address _roleSetter) public {
         vm.expectEmit();
-        emit IWhitelistSendAssetsGate.Constructor(_roleSetter, _whitelister);
-        WhitelistSendAssetsGate g = new WhitelistSendAssetsGate(_roleSetter, _whitelister);
+        emit IWhitelistSendAssetsGate.Constructor(_roleSetter);
+        WhitelistSendAssetsGate g = new WhitelistSendAssetsGate(_roleSetter);
         assertEq(g.roleSetter(), _roleSetter);
-        assertEq(g.whitelister(), _whitelister);
+        assertEq(g.whitelister(), address(0));
     }
 
     function testSetRoleSetter(address newRoleSetter) public {
@@ -215,7 +217,9 @@ contract WhitelistSendAssetsGateTest is Test {
 
         // wrong domain separator
         (v, r, s) = _sign(bob, true, deadline, whitelisterPk);
-        WhitelistSendAssetsGate otherGate = new WhitelistSendAssetsGate(roleSetter, whitelister);
+        WhitelistSendAssetsGate otherGate = new WhitelistSendAssetsGate(roleSetter);
+        vm.prank(roleSetter);
+        otherGate.setWhitelister(whitelister);
         vm.expectRevert(IWhitelistSendAssetsGate.InvalidSigner.selector);
         otherGate.setIsWhitelistedWithSig(bob, true, deadline, v, r, s);
     }
