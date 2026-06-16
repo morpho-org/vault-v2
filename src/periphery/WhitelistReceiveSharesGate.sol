@@ -14,7 +14,7 @@ import {DOMAIN_TYPEHASH} from "../libraries/ConstantsLib.sol";
 /// @dev Zero checks are not systematically performed.
 contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
     address public roleSetter;
-    address public whitelister;
+    mapping(address => bool) public isWhitelister;
     mapping(address => uint256) public nonces;
     mapping(address => bool) public isWhitelisted;
 
@@ -47,14 +47,14 @@ contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
         emit SetRoleSetter(newRoleSetter);
     }
 
-    function setWhitelister(address newWhitelister) external {
+    function setIsWhitelister(address account, bool newIsWhitelister) external {
         require(msg.sender == roleSetter, NotRoleSetter());
-        whitelister = newWhitelister;
-        emit SetWhitelister(newWhitelister);
+        isWhitelister[account] = newIsWhitelister;
+        emit SetIsWhitelister(account, newIsWhitelister);
     }
 
     function setIsWhitelisted(address account, bool newIsWhitelisted) external {
-        require(msg.sender == whitelister, NotWhitelister());
+        require(isWhitelister[msg.sender], NotWhitelister());
         isWhitelisted[account] = newIsWhitelisted;
         emit SetIsWhitelisted(account, newIsWhitelisted);
     }
@@ -74,7 +74,7 @@ contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
             keccak256(abi.encode(SET_IS_WHITELISTED_TYPEHASH, account, newIsWhitelisted, nonces[account]++, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
         address recovered = ecrecover(digest, v, r, s);
-        require(recovered != address(0) && recovered == whitelister, InvalidSigner());
+        require(recovered != address(0) && isWhitelister[recovered], InvalidSigner());
         isWhitelisted[account] = newIsWhitelisted;
         emit SetIsWhitelistedWithSig(account, newIsWhitelisted);
     }

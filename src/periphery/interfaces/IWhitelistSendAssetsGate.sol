@@ -16,7 +16,7 @@ interface IWhitelistSendAssetsGate is ISendAssetsGate {
 
     event Constructor(address indexed roleSetter);
     event SetRoleSetter(address indexed newRoleSetter);
-    event SetWhitelister(address indexed newWhitelister);
+    event SetIsWhitelister(address indexed whitelister, bool newIsWhitelister);
     event SetIsWhitelisted(address indexed account, bool newIsWhitelisted);
     event SetIsWhitelistedWithSig(address indexed account, bool newIsWhitelisted);
     event SetIsIntermediary(address indexed intermediary, bool newIsIntermediary);
@@ -31,12 +31,12 @@ interface IWhitelistSendAssetsGate is ISendAssetsGate {
     /* FUNCTIONS */
 
     function roleSetter() external view returns (address);
-    function whitelister() external view returns (address);
+    function isWhitelister(address account) external view returns (bool);
     function nonces(address account) external view returns (uint256);
     function isWhitelisted(address account) external view returns (bool);
     function isIntermediary(address account) external view returns (bool);
     function setRoleSetter(address newRoleSetter) external;
-    function setWhitelister(address newWhitelister) external;
+    function setIsWhitelister(address account, bool newIsWhitelister) external;
     function setIsWhitelisted(address account, bool newIsWhitelisted) external;
     function setIsIntermediary(address intermediary, bool newIsIntermediary) external;
     function setIsWhitelistedWithSig(
