@@ -65,6 +65,9 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@8789b3e21e6c11b2697f5eb56eddae542f746c10 # v1
 
+      - name: Precompile contracts
+        run: forge build --force --threads 1
+
       - name: Run forge tests with a ${{ matrix.decimals }} decimals underlying asset
         run: if [ ${{ matrix.isolate }} = true ]; then forge test -vvv --isolate; else forge test -vvv; fi
         env:
