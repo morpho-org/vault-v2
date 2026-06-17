@@ -39,6 +39,6 @@ interface IPublicAllocator {
         bytes calldata deallocateData,
         address allocateAdapter,
         bytes calldata allocateData,
-        uint128 amount
+        uint128 assets
     ) external payable;
 }
