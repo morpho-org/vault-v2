@@ -178,12 +178,14 @@ contract PublicAllocatorTest is BaseTest {
         _seedAdapterA(1e18);
         _setCanAllocate(adapterB, dataB, true);
 
+        uint256 curatorBalanceBefore = curator.balance;
+
         vm.deal(rando, feeAmount);
         vm.prank(rando);
         publicAllocator.reallocate{value: feeAmount}(address(vault), adapterA, dataA, adapterB, dataB, 1e18);
 
-        assertEq(publicAllocator.accruedFee(address(vault)), feeAmount);
-        assertEq(address(publicAllocator).balance, feeAmount);
+        assertEq(curator.balance, curatorBalanceBefore + feeAmount);
+        assertEq(address(publicAllocator).balance, 0);
     }
 
     function testReallocateIncorrectFee(uint256 feeAmount, uint256 sentValue) public {
@@ -200,35 +202,6 @@ contract PublicAllocatorTest is BaseTest {
         vm.expectRevert(IPublicAllocator.IncorrectFee.selector);
         vm.prank(rando);
         publicAllocator.reallocate{value: sentValue}(address(vault), adapterA, dataA, adapterB, dataB, 1e18);
-    }
-
-    function testClaimFee(uint256 feeAmount) public {
-        feeAmount = bound(feeAmount, 1, 10 ether);
-        vm.prank(allocator);
-        publicAllocator.setFee(address(vault), feeAmount);
-
-        _seedAdapterA(1e18);
-        _setCanAllocate(adapterB, dataB, true);
-        vm.deal(rando, feeAmount);
-        vm.prank(rando);
-        publicAllocator.reallocate{value: feeAmount}(address(vault), adapterA, dataA, adapterB, dataB, 1e18);
-
-        address payable recipient = payable(makeAddr("recipient"));
-        vm.expectEmit();
-        emit IPublicAllocator.ClaimFee(allocator, address(vault), feeAmount, recipient);
-        vm.prank(allocator);
-        publicAllocator.claimFee(address(vault), recipient);
-
-        assertEq(recipient.balance, feeAmount);
-        assertEq(publicAllocator.accruedFee(address(vault)), 0);
-        assertEq(address(publicAllocator).balance, 0);
-    }
-
-    function testClaimFeeUnauthorized(address caller) public {
-        vm.assume(!vault.isAllocator(caller));
-        vm.expectRevert(IPublicAllocator.Unauthorized.selector);
-        vm.prank(caller);
-        publicAllocator.claimFee(address(vault), payable(caller));
     }
 
     function testReallocateRespectsVaultCaps() public {
