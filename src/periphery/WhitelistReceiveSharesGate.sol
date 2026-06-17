@@ -56,7 +56,7 @@ contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
     function setIsWhitelisted(address account, bool newIsWhitelisted) external {
         require(isWhitelister[msg.sender], NotWhitelister());
         isWhitelisted[account] = newIsWhitelisted;
-        emit SetIsWhitelisted(account, newIsWhitelisted);
+        emit SetIsWhitelisted(msg.sender, account, newIsWhitelisted);
     }
 
     /// @dev Signature malleability is not explicitly prevented but it is not a problem thanks to the nonce.
@@ -76,7 +76,7 @@ contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
         address recovered = ecrecover(digest, v, r, s);
         require(recovered != address(0) && isWhitelister[recovered], InvalidSigner());
         isWhitelisted[account] = newIsWhitelisted;
-        emit SetIsWhitelistedWithSig(account, newIsWhitelisted);
+        emit SetIsWhitelistedWithSig(recovered, account, newIsWhitelisted);
     }
 
     /// forge-lint: disable-next-item(mixed-case-function)

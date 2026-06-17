@@ -125,7 +125,7 @@ contract WhitelistSendAssetsGateTest is Test {
 
     function testSetIsWhitelisted(address account, bool whitelisted) public {
         vm.expectEmit();
-        emit IWhitelistSendAssetsGate.SetIsWhitelisted(account, whitelisted);
+        emit IWhitelistSendAssetsGate.SetIsWhitelisted(whitelister, account, whitelisted);
         vm.prank(whitelister);
         gate.setIsWhitelisted(account, whitelisted);
         assertEq(gate.isWhitelisted(account), whitelisted);
@@ -140,7 +140,7 @@ contract WhitelistSendAssetsGateTest is Test {
 
     function testSetIsIntermediary(address intermediary, bool isIntermediary_) public {
         vm.expectEmit();
-        emit IWhitelistSendAssetsGate.SetIsIntermediary(intermediary, isIntermediary_);
+        emit IWhitelistSendAssetsGate.SetIsIntermediary(whitelister, intermediary, isIntermediary_);
         vm.prank(whitelister);
         gate.setIsIntermediary(intermediary, isIntermediary_);
         assertEq(gate.isIntermediary(intermediary), isIntermediary_);
@@ -209,7 +209,7 @@ contract WhitelistSendAssetsGateTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, whitelisterPk);
 
         vm.expectEmit();
-        emit IWhitelistSendAssetsGate.SetIsWhitelistedWithSig(account, whitelisted);
+        emit IWhitelistSendAssetsGate.SetIsWhitelistedWithSig(whitelister, account, whitelisted);
         // Relayed by an arbitrary account.
         vm.prank(relayer);
         gate.setIsWhitelistedWithSig(account, whitelisted, deadline, v, r, s);
@@ -229,6 +229,8 @@ contract WhitelistSendAssetsGateTest is Test {
         gate.setIsWhitelister(whitelister2, true);
         (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, whitelister2Pk);
 
+        vm.expectEmit();
+        emit IWhitelistSendAssetsGate.SetIsWhitelistedWithSig(whitelister2, account, whitelisted);
         // Relayed by an arbitrary account.
         vm.prank(relayer);
         gate.setIsWhitelistedWithSig(account, whitelisted, deadline, v, r, s);

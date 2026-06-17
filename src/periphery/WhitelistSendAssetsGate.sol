@@ -63,13 +63,13 @@ contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
     function setIsWhitelisted(address account, bool newIsWhitelisted) external {
         require(isWhitelister[msg.sender], NotWhitelister());
         isWhitelisted[account] = newIsWhitelisted;
-        emit SetIsWhitelisted(account, newIsWhitelisted);
+        emit SetIsWhitelisted(msg.sender, account, newIsWhitelisted);
     }
 
     function setIsIntermediary(address intermediary, bool newIsIntermediary) external {
         require(isWhitelister[msg.sender], NotWhitelister());
         isIntermediary[intermediary] = newIsIntermediary;
-        emit SetIsIntermediary(intermediary, newIsIntermediary);
+        emit SetIsIntermediary(msg.sender, intermediary, newIsIntermediary);
     }
 
     /// @dev Signature malleability is not explicitly prevented but it is not a problem thanks to the nonce.
@@ -89,7 +89,7 @@ contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
         address recovered = ecrecover(digest, v, r, s);
         require(recovered != address(0) && isWhitelister[recovered], InvalidSigner());
         isWhitelisted[account] = newIsWhitelisted;
-        emit SetIsWhitelistedWithSig(account, newIsWhitelisted);
+        emit SetIsWhitelistedWithSig(recovered, account, newIsWhitelisted);
     }
 
     /// forge-lint: disable-next-item(mixed-case-function)

@@ -13,8 +13,8 @@ interface IWhitelistReceiveSharesGate is IReceiveSharesGate {
     event Constructor(address indexed roleSetter);
     event SetRoleSetter(address indexed newRoleSetter);
     event SetIsWhitelister(address indexed whitelister, bool newIsWhitelister);
-    event SetIsWhitelisted(address indexed account, bool newIsWhitelisted);
-    event SetIsWhitelistedWithSig(address indexed account, bool newIsWhitelisted);
+    event SetIsWhitelisted(address indexed whitelister, address indexed account, bool newIsWhitelisted);
+    event SetIsWhitelistedWithSig(address indexed whitelister, address indexed account, bool newIsWhitelisted);
 
     /* ERRORS */
 

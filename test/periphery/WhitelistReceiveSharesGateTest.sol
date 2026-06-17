@@ -111,7 +111,7 @@ contract WhitelistReceiveSharesGateTest is Test {
 
     function testSetIsWhitelisted(address account, bool whitelisted) public {
         vm.expectEmit();
-        emit IWhitelistReceiveSharesGate.SetIsWhitelisted(account, whitelisted);
+        emit IWhitelistReceiveSharesGate.SetIsWhitelisted(whitelister, account, whitelisted);
         vm.prank(whitelister);
         gate.setIsWhitelisted(account, whitelisted);
         assertEq(gate.isWhitelisted(account), whitelisted);
@@ -137,7 +137,7 @@ contract WhitelistReceiveSharesGateTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, whitelisterPk);
 
         vm.expectEmit();
-        emit IWhitelistReceiveSharesGate.SetIsWhitelistedWithSig(account, whitelisted);
+        emit IWhitelistReceiveSharesGate.SetIsWhitelistedWithSig(whitelister, account, whitelisted);
         // Relayed by an arbitrary account.
         vm.prank(relayer);
         gate.setIsWhitelistedWithSig(account, whitelisted, deadline, v, r, s);
@@ -157,6 +157,8 @@ contract WhitelistReceiveSharesGateTest is Test {
         gate.setIsWhitelister(whitelister2, true);
         (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, whitelister2Pk);
 
+        vm.expectEmit();
+        emit IWhitelistReceiveSharesGate.SetIsWhitelistedWithSig(whitelister2, account, whitelisted);
         // Relayed by an arbitrary account.
         vm.prank(relayer);
         gate.setIsWhitelistedWithSig(account, whitelisted, deadline, v, r, s);
