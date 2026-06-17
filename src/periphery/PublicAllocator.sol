@@ -6,9 +6,10 @@ import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
 
 /// @dev To be usable, the PublicAllocator must be set as an allocator of the vault.
-/// @dev The PublicAllocator inherits the vault's roles. The vault's allocators can enable and disable canAllocate and
-/// set the fee; the vault's sentinels can only disable canAllocate, to cut off public inflows (derisk).
-/// @dev Each reallocate call costs a fee in native currency, set per vault by the allocators. The fee is sent to the
+/// @dev The PublicAllocator inherits the vault's roles. The vault's allocators can enable and disable canAllocate;
+/// the vault's sentinels can only disable canAllocate, to cut off public inflows (derisk); the vault's curator sets
+/// the fee.
+/// @dev Each reallocate call costs a fee in native currency, set per vault by the curator. The fee is sent to the
 /// vault's curator on each call.
 /// @dev No-ops are allowed. Zero checks are not systematically performed.
 contract PublicAllocator is IPublicAllocator {
@@ -29,7 +30,7 @@ contract PublicAllocator is IPublicAllocator {
     }
 
     function setFee(address vault, uint256 newFee) external {
-        require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
+        require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
         fee[vault] = newFee;
         emit SetFee(msg.sender, vault, newFee);
     }
@@ -43,7 +44,7 @@ contract PublicAllocator is IPublicAllocator {
         bytes calldata deallocateData,
         address allocateAdapter,
         bytes calldata allocateData,
-        uint128 amount
+        uint128 assets
     ) external payable {
         require(msg.value == fee[vault], IncorrectFee());
         if (msg.value > 0) {
@@ -54,10 +55,10 @@ contract PublicAllocator is IPublicAllocator {
         bytes32 allocateKey = keccak256(abi.encode(allocateAdapter, allocateData));
         require(canAllocate[vault][allocateKey], CannotAllocate());
 
-        IVaultV2(vault).deallocate(deallocateAdapter, deallocateData, amount);
-        IVaultV2(vault).allocate(allocateAdapter, allocateData, amount);
+        IVaultV2(vault).deallocate(deallocateAdapter, deallocateData, assets);
+        IVaultV2(vault).allocate(allocateAdapter, allocateData, assets);
 
         bytes32 deallocateKey = keccak256(abi.encode(deallocateAdapter, deallocateData));
-        emit Reallocate(msg.sender, vault, allocateKey, deallocateKey, amount);
+        emit Reallocate(msg.sender, vault, allocateKey, deallocateKey, assets);
     }
 }

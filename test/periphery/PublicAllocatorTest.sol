@@ -66,9 +66,9 @@ contract PublicAllocatorTest is BaseTest {
         vault.allocate(adapterA, dataA, assets);
     }
 
-    function _reallocate(uint128 amount) internal {
+    function _reallocate(uint128 assets) internal {
         vm.prank(rando);
-        publicAllocator.reallocate(address(vault), adapterA, dataA, adapterB, dataB, amount);
+        publicAllocator.reallocate(address(vault), adapterA, dataA, adapterB, dataB, assets);
     }
 
     function decreaseRelativeCap(bytes memory idData, uint256 relativeCap) internal {
@@ -127,91 +127,103 @@ contract PublicAllocatorTest is BaseTest {
         assertEq(AdapterMock(adapterB).deposit(), amount, "adapterB");
     }
 
-    function testReallocateBothWays() public {
-        uint256 assets = 10e18;
+    function testReallocateBothWays(uint256 assets, uint128 amount) public {
+        assets = bound(assets, 1, 1e30);
+        amount = uint128(bound(amount, 1, assets));
+
         _seedAdapterA(assets);
         // Both adapters can be supplied to; withdrawing from either is unrestricted.
         _setCanAllocate(adapterA, dataA, true);
         _setCanAllocate(adapterB, dataB, true);
 
-        _reallocate(3e18);
-        assertEq(AdapterMock(adapterA).deposit(), 7e18);
-        assertEq(AdapterMock(adapterB).deposit(), 3e18);
+        _reallocate(amount);
+        assertEq(AdapterMock(adapterA).deposit(), assets - amount);
+        assertEq(AdapterMock(adapterB).deposit(), amount);
 
         // Move it back.
         vm.prank(rando);
-        publicAllocator.reallocate(address(vault), adapterB, dataB, adapterA, dataA, 3e18);
+        publicAllocator.reallocate(address(vault), adapterB, dataB, adapterA, dataA, amount);
         assertEq(AdapterMock(adapterA).deposit(), assets);
         assertEq(AdapterMock(adapterB).deposit(), 0);
     }
 
-    function testReallocateCannotAllocate() public {
-        _seedAdapterA(10e18);
+    function testReallocateCannotAllocate(uint256 assets, uint128 amount) public {
+        assets = bound(assets, 1, 1e30);
+        amount = uint128(bound(amount, 1, assets));
+
+        _seedAdapterA(assets);
         // Supply adapter B not enabled.
 
         vm.expectRevert(IPublicAllocator.CannotAllocate.selector);
-        _reallocate(1e18);
+        _reallocate(amount);
     }
 
     /* FEE */
 
     function testSetFee(uint256 newFee) public {
         vm.expectEmit();
-        emit IPublicAllocator.SetFee(allocator, address(vault), newFee);
-        vm.prank(allocator);
+        emit IPublicAllocator.SetFee(curator, address(vault), newFee);
+        vm.prank(curator);
         publicAllocator.setFee(address(vault), newFee);
         assertEq(publicAllocator.fee(address(vault)), newFee);
     }
 
     function testSetFeeUnauthorized(address caller, uint256 newFee) public {
-        vm.assume(!vault.isAllocator(caller));
+        vm.assume(caller != curator);
         vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(caller);
         publicAllocator.setFee(address(vault), newFee);
     }
 
-    function testReallocateChargesFee(uint256 feeAmount) public {
+    function testReallocateChargesFee(uint256 feeAmount, uint256 assets, uint128 amount) public {
         feeAmount = bound(feeAmount, 1, 10 ether);
-        vm.prank(allocator);
+        assets = bound(assets, 1, 1e30);
+        amount = uint128(bound(amount, 1, assets));
+        vm.prank(curator);
         publicAllocator.setFee(address(vault), feeAmount);
 
-        _seedAdapterA(1e18);
+        _seedAdapterA(assets);
         _setCanAllocate(adapterB, dataB, true);
 
         uint256 curatorBalanceBefore = curator.balance;
 
         vm.deal(rando, feeAmount);
         vm.prank(rando);
-        publicAllocator.reallocate{value: feeAmount}(address(vault), adapterA, dataA, adapterB, dataB, 1e18);
+        publicAllocator.reallocate{value: feeAmount}(address(vault), adapterA, dataA, adapterB, dataB, amount);
 
         assertEq(curator.balance, curatorBalanceBefore + feeAmount);
         assertEq(address(publicAllocator).balance, 0);
     }
 
-    function testReallocateIncorrectFee(uint256 feeAmount, uint256 sentValue) public {
+    function testReallocateIncorrectFee(uint256 feeAmount, uint256 sentValue, uint256 assets, uint128 amount) public {
         feeAmount = bound(feeAmount, 1, 10 ether);
         sentValue = bound(sentValue, 0, 10 ether);
         vm.assume(sentValue != feeAmount);
-        vm.prank(allocator);
+        assets = bound(assets, 1, 1e30);
+        amount = uint128(bound(amount, 1, assets));
+        vm.prank(curator);
         publicAllocator.setFee(address(vault), feeAmount);
 
-        _seedAdapterA(1e18);
+        _seedAdapterA(assets);
         _setCanAllocate(adapterB, dataB, true);
 
         vm.deal(rando, sentValue);
         vm.expectRevert(IPublicAllocator.IncorrectFee.selector);
         vm.prank(rando);
-        publicAllocator.reallocate{value: sentValue}(address(vault), adapterA, dataA, adapterB, dataB, 1e18);
+        publicAllocator.reallocate{value: sentValue}(address(vault), adapterA, dataA, adapterB, dataB, amount);
     }
 
-    function testReallocateRespectsVaultCaps() public {
-        _seedAdapterA(10e18);
+    function testReallocateRespectsVaultCaps(uint256 assets, uint128 amount) public {
+        assets = bound(assets, 1, 1e30);
+        amount = uint128(bound(amount, 1, assets));
+
+        _seedAdapterA(assets);
         _setCanAllocate(adapterB, dataB, true);
 
         // Vault relative cap on a shared id tightened so the supply allocation would exceed it.
         decreaseRelativeCap("id-0", 0);
 
         vm.expectRevert(ErrorsLib.RelativeCapExceeded.selector);
-        _reallocate(5e18);
+        _reallocate(amount);
     }
 }
