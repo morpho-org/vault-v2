@@ -8,15 +8,14 @@ import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
 /// @dev To be usable, the PublicAllocator must be set as an allocator of the vault.
 /// @dev The PublicAllocator inherits the vault's roles. The vault's allocators can enable and disable canAllocate and
 /// set the fee; the vault's sentinels can only disable canAllocate, to cut off public inflows (derisk).
-/// @dev Each reallocate call costs a fee in native currency, set per vault by the allocators. The accrued fees are
-/// claimable via claimFee.
+/// @dev Each reallocate call costs a fee in native currency, set per vault by the allocators. The fee is sent to the
+/// vault's curator on each call.
 /// @dev No-ops are allowed. Zero checks are not systematically performed.
 contract PublicAllocator is IPublicAllocator {
     /* STORAGE */
 
     mapping(address vault => mapping(bytes32 key => bool)) public canAllocate;
     mapping(address vault => uint256) public fee;
-    mapping(address vault => uint256) public accruedFee;
 
     /* CONFIGURATION FUNCTIONS */
 
@@ -35,15 +34,6 @@ contract PublicAllocator is IPublicAllocator {
         emit SetFee(msg.sender, vault, newFee);
     }
 
-    function claimFee(address vault, address payable recipient) external {
-        require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
-        uint256 amount = accruedFee[vault];
-        accruedFee[vault] = 0;
-        (bool success,) = recipient.call{value: amount}("");
-        require(success, FeeTransferFailed());
-        emit ClaimFee(msg.sender, vault, amount, recipient);
-    }
-
     /* PUBLIC FUNCTION */
 
     /// @dev The vault's caps are still enforced on the allocation, so this call reverts if it would exceed them.
@@ -56,7 +46,10 @@ contract PublicAllocator is IPublicAllocator {
         uint128 amount
     ) external payable {
         require(msg.value == fee[vault], IncorrectFee());
-        if (msg.value > 0) accruedFee[vault] += msg.value;
+        if (msg.value > 0) {
+            (bool success,) = payable(IVaultV2(vault).curator()).call{value: msg.value}("");
+            require(success, FeeTransferFailed());
+        }
 
         bytes32 allocateKey = keccak256(abi.encode(allocateAdapter, allocateData));
         require(canAllocate[vault][allocateKey], CannotAllocate());
