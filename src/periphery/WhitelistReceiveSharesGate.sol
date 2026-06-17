@@ -15,7 +15,7 @@ import {DOMAIN_TYPEHASH} from "../libraries/ConstantsLib.sol";
 contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
     address public roleSetter;
     mapping(address => bool) public isWhitelister;
-    mapping(address => uint256) public nonces;
+    mapping(address => mapping(address => uint256)) public nonces;
     mapping(address => bool) public isWhitelisted;
 
     constructor(address _roleSetter) {
@@ -64,17 +64,19 @@ contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
     function setIsWhitelistedWithSig(
         address account,
         bool newIsWhitelisted,
+        address whitelister,
         uint256 deadline,
         uint8 v,
         bytes32 r,
         bytes32 s
     ) external {
         require(deadline >= block.timestamp, DeadlineExpired());
-        bytes32 hashStruct =
-            keccak256(abi.encode(SET_IS_WHITELISTED_TYPEHASH, account, newIsWhitelisted, nonces[account]++, deadline));
+        bytes32 hashStruct = keccak256(
+            abi.encode(SET_IS_WHITELISTED_TYPEHASH, account, newIsWhitelisted, nonces[whitelister][account]++, deadline)
+        );
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
         address recovered = ecrecover(digest, v, r, s);
-        require(recovered != address(0) && isWhitelister[recovered], InvalidSigner());
+        require(recovered != address(0) && recovered == whitelister && isWhitelister[recovered], InvalidSigner());
         isWhitelisted[account] = newIsWhitelisted;
         emit SetIsWhitelistedWithSig(recovered, account, newIsWhitelisted);
     }

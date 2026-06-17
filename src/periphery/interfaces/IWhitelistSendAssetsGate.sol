@@ -32,7 +32,7 @@ interface IWhitelistSendAssetsGate is ISendAssetsGate {
 
     function roleSetter() external view returns (address);
     function isWhitelister(address account) external view returns (bool);
-    function nonces(address account) external view returns (uint256);
+    function nonces(address whitelister, address account) external view returns (uint256);
     function isWhitelisted(address account) external view returns (bool);
     function isIntermediary(address account) external view returns (bool);
     function setRoleSetter(address newRoleSetter) external;
@@ -42,6 +42,7 @@ interface IWhitelistSendAssetsGate is ISendAssetsGate {
     function setIsWhitelistedWithSig(
         address account,
         bool newIsWhitelisted,
+        address whitelister,
         uint256 deadline,
         uint8 v,
         bytes32 r,
