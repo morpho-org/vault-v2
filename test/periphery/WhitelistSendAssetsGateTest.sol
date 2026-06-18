@@ -51,9 +51,9 @@ contract WhitelistSendAssetsGateTest is Test {
         bytes32 hashStruct = keccak256(
             abi.encode(
                 SET_IS_WHITELISTED_TYPEHASH,
+                vm.addr(pk),
                 account,
                 whitelisted,
-                vm.addr(pk),
                 gate.nonces(vm.addr(pk), account),
                 deadline
             )

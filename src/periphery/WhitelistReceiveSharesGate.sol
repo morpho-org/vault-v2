@@ -74,9 +74,9 @@ contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
         bytes32 hashStruct = keccak256(
             abi.encode(
                 SET_IS_WHITELISTED_TYPEHASH,
+                whitelister,
                 account,
                 newIsWhitelisted,
-                whitelister,
                 nonces[whitelister][account]++,
                 deadline
             )

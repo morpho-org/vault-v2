@@ -5,7 +5,7 @@ pragma solidity >=0.5.0;
 import {IReceiveSharesGate} from "../../interfaces/IGate.sol";
 
 bytes32 constant SET_IS_WHITELISTED_TYPEHASH = keccak256(
-    "SetIsWhitelisted(address account,bool newIsWhitelisted,address whitelister,uint256 nonce,uint256 deadline)"
+    "SetIsWhitelisted(address whitelister,address account,bool newIsWhitelisted,uint256 nonce,uint256 deadline)"
 );
 
 interface IWhitelistReceiveSharesGate is IReceiveSharesGate {
