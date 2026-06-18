@@ -75,9 +75,9 @@ contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
     /// @dev Signature malleability is not explicitly prevented but it is not a problem thanks to the nonce.
     /// @dev Allows to batch setIsWhitelisted with the deposit, without requiring a transaction from the whitelister.
     function setIsWhitelistedWithSig(
+        address whitelister,
         address account,
         bool newIsWhitelisted,
-        address whitelister,
         uint256 deadline,
         uint8 v,
         bytes32 r,

@@ -40,9 +40,9 @@ interface IWhitelistSendAssetsGate is ISendAssetsGate {
     function setIsWhitelisted(address account, bool newIsWhitelisted) external;
     function setIsIntermediary(address intermediary, bool newIsIntermediary) external;
     function setIsWhitelistedWithSig(
+        address whitelister,
         address account,
         bool newIsWhitelisted,
-        address whitelister,
         uint256 deadline,
         uint8 v,
         bytes32 r,

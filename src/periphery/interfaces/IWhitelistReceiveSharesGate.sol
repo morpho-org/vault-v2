@@ -33,9 +33,9 @@ interface IWhitelistReceiveSharesGate is IReceiveSharesGate {
     function setIsWhitelister(address account, bool newIsWhitelister) external;
     function setIsWhitelisted(address account, bool newIsWhitelisted) external;
     function setIsWhitelistedWithSig(
+        address whitelister,
         address account,
         bool newIsWhitelisted,
-        address whitelister,
         uint256 deadline,
         uint8 v,
         bytes32 r,
