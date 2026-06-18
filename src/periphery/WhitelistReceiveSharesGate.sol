@@ -72,7 +72,14 @@ contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
     ) external {
         require(deadline >= block.timestamp, DeadlineExpired());
         bytes32 hashStruct = keccak256(
-            abi.encode(SET_IS_WHITELISTED_TYPEHASH, account, newIsWhitelisted, nonces[whitelister][account]++, deadline)
+            abi.encode(
+                SET_IS_WHITELISTED_TYPEHASH,
+                account,
+                newIsWhitelisted,
+                whitelister,
+                nonces[whitelister][account]++,
+                deadline
+            )
         );
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
         address recovered = ecrecover(digest, v, r, s);

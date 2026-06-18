@@ -4,8 +4,9 @@ pragma solidity >=0.5.0;
 
 import {ISendAssetsGate} from "../../interfaces/IGate.sol";
 
-bytes32 constant SET_IS_WHITELISTED_TYPEHASH =
-    keccak256("SetIsWhitelisted(address account,bool newIsWhitelisted,uint256 nonce,uint256 deadline)");
+bytes32 constant SET_IS_WHITELISTED_TYPEHASH = keccak256(
+    "SetIsWhitelisted(address account,bool newIsWhitelisted,address whitelister,uint256 nonce,uint256 deadline)"
+);
 
 interface IIntermediary {
     function initiator() external view returns (address);
