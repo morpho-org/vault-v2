@@ -22,6 +22,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 contract MidnightAdapter is IMidnightAdapter {
     using MathLib for uint256;
     using MathLib for uint128;
+    using MathLib for uint120;
     using MathLib for int256;
     using DurationsLib for bytes32;
 
@@ -178,7 +179,9 @@ contract MidnightAdapter is IMidnightAdapter {
                 if (maturity <= block.timestamp) {
                     newTotalAssets += uint256(_maturities[maturity].growth) * (maturity - lastUpdate);
                     newGrowth -= _maturities[maturity].growth;
-                    removePendingMaturity(i - 1);
+                    emit RemoveMaturity(maturity);
+                    pendingMaturitiesLength--;
+                    pendingMaturities[i - 1] = pendingMaturities[pendingMaturitiesLength];
                 } else if (maturity < newMin) {
                     newMin = maturity;
                 }
@@ -319,7 +322,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         if (timeToMaturity > 0) {
             uint256 interest = boughtNetCredit - paidAssets;
-            uint128 growthIncrease = (interest / timeToMaturity).toUint128();
+            uint120 growthIncrease = (interest / timeToMaturity).toUint120();
             totalAssets += (paidAssets + interest % timeToMaturity).toUint128();
             marketData.growth += growthIncrease;
             maturityData.growth += growthIncrease;
@@ -333,7 +336,6 @@ contract MidnightAdapter is IMidnightAdapter {
 
         // Insert the maturity in the list if needed
         if (maturityData.netCredit == boughtNetCredit && boughtNetCredit > 0 && market.maturity > block.timestamp) {
-            maturityData.index = pendingMaturitiesLength;
             pendingMaturities[pendingMaturitiesLength] = market.maturity.toUint48();
             pendingMaturitiesLength++;
             if (market.maturity < nextMaturityFloor) nextMaturityFloor = market.maturity.toUint48();
@@ -396,7 +398,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         if (maturity > block.timestamp) {
             uint256 timeToMaturity = maturity - block.timestamp;
-            uint128 growthDecrease = marketData.growth.mulDivUp(netCreditDecrease, marketData.netCredit).toUint128();
+            uint120 growthDecrease = marketData.growth.mulDivUp(netCreditDecrease, marketData.netCredit).toUint120();
             marketData.growth -= growthDecrease;
             maturityData.growth -= growthDecrease;
             currentGrowth -= growthDecrease;
@@ -408,18 +410,12 @@ contract MidnightAdapter is IMidnightAdapter {
         marketData.netCredit -= netCreditDecrease.toUint128();
 
         if (maturityData.netCredit == 0 && maturity > block.timestamp) {
-            removePendingMaturity(maturityData.index);
+            uint256 index;
+            while (pendingMaturities[index] != maturity) index++;
+            emit RemoveMaturity(maturity);
+            pendingMaturitiesLength--;
+            pendingMaturities[index] = pendingMaturities[pendingMaturitiesLength];
         }
-    }
-
-    /// @dev Remove the maturity at index.
-    /// @dev The slot at the old last index is left with stale data.
-    function removePendingMaturity(uint256 index) internal {
-        emit RemoveMaturity(pendingMaturities[index]);
-        pendingMaturitiesLength--;
-        uint48 lastMaturity = pendingMaturities[pendingMaturitiesLength];
-        pendingMaturities[index] = lastMaturity;
-        _maturities[lastMaturity].index = uint8(index);
     }
 
     /// @dev Returns the number of durations in packedDurations that are most the time to maturity.

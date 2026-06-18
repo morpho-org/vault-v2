@@ -968,9 +968,6 @@ contract MidnightAdapterTest is Test {
                 found = found || adapter.pendingMaturities(j) == maturity;
             }
             assertTrue(found, "missing pending maturity");
-            uint256 index = adapter.maturities(maturity).index;
-            assertLt(index, length, "index out of bounds");
-            assertEq(adapter.pendingMaturities(index), maturity, "pendingMaturities[index] matches");
         }
     }
 
