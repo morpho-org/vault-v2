@@ -153,7 +153,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev receiveSharesGate:
 ///     - Gates receiving shares.
 ///     - Can lock users out of getting back their shares deposited on an other contract.
-///     - Can DOS the vault if it reverts.
+///     - Can block all vault interactions if it reverts or consumes too much gas.
 /// @dev sendSharesGate:
 ///     - Gates sending shares.
 ///     - Can lock users out of exiting the vault.
