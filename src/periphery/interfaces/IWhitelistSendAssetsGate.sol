@@ -4,8 +4,9 @@ pragma solidity >=0.5.0;
 
 import {ISendAssetsGate} from "../../interfaces/IGate.sol";
 
-bytes32 constant SET_IS_WHITELISTED_TYPEHASH =
-    keccak256("SetIsWhitelisted(address account,bool newIsWhitelisted,uint256 nonce,uint256 deadline)");
+bytes32 constant SET_IS_WHITELISTED_TYPEHASH = keccak256(
+    "SetIsWhitelisted(address whitelister,address account,bool newIsWhitelisted,uint256 nonce,uint256 deadline)"
+);
 
 interface IIntermediary {
     function initiator() external view returns (address);
@@ -16,10 +17,10 @@ interface IWhitelistSendAssetsGate is ISendAssetsGate {
 
     event Constructor(address indexed roleSetter);
     event SetRoleSetter(address indexed newRoleSetter);
-    event SetWhitelister(address indexed newWhitelister);
-    event SetIsWhitelisted(address indexed account, bool newIsWhitelisted);
-    event SetIsWhitelistedWithSig(address indexed account, bool newIsWhitelisted);
-    event SetIsIntermediary(address indexed intermediary, bool newIsIntermediary);
+    event SetIsWhitelister(address indexed whitelister, bool newIsWhitelister);
+    event SetIsWhitelisted(address indexed whitelister, address indexed account, bool newIsWhitelisted);
+    event SetIsWhitelistedWithSig(address indexed whitelister, address indexed account, bool newIsWhitelisted);
+    event SetIsIntermediary(address indexed whitelister, address indexed intermediary, bool newIsIntermediary);
 
     /* ERRORS */
 
@@ -31,15 +32,16 @@ interface IWhitelistSendAssetsGate is ISendAssetsGate {
     /* FUNCTIONS */
 
     function roleSetter() external view returns (address);
-    function whitelister() external view returns (address);
-    function nonces(address account) external view returns (uint256);
+    function isWhitelister(address account) external view returns (bool);
+    function nonces(address whitelister, address account) external view returns (uint256);
     function isWhitelisted(address account) external view returns (bool);
     function isIntermediary(address account) external view returns (bool);
     function setRoleSetter(address newRoleSetter) external;
-    function setWhitelister(address newWhitelister) external;
+    function setIsWhitelister(address account, bool newIsWhitelister) external;
     function setIsWhitelisted(address account, bool newIsWhitelisted) external;
     function setIsIntermediary(address intermediary, bool newIsIntermediary) external;
     function setIsWhitelistedWithSig(
+        address whitelister,
         address account,
         bool newIsWhitelisted,
         uint256 deadline,

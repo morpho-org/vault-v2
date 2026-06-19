@@ -12,17 +12,21 @@ import {
 contract WhitelistReceiveSharesGateTest is Test {
     WhitelistReceiveSharesGate internal gate;
     uint256 internal whitelisterPk;
+    uint256 internal whitelister2Pk;
     address internal roleSetter = makeAddr("roleSetter");
     address internal whitelister;
+    address internal whitelister2;
     address internal alice = makeAddr("alice");
     address internal bob = makeAddr("bob");
 
     function setUp() public {
         whitelisterPk = 0xA11CE;
+        whitelister2Pk = 0xB0B;
         whitelister = vm.addr(whitelisterPk);
+        whitelister2 = vm.addr(whitelister2Pk);
         gate = new WhitelistReceiveSharesGate(roleSetter);
         vm.prank(roleSetter);
-        gate.setWhitelister(whitelister);
+        gate.setIsWhitelister(whitelister, true);
     }
 
     function _sign(address account, bool whitelisted, uint256 deadline, uint256 pk)
@@ -31,7 +35,14 @@ contract WhitelistReceiveSharesGateTest is Test {
         returns (uint8 v, bytes32 r, bytes32 s)
     {
         bytes32 hashStruct = keccak256(
-            abi.encode(SET_IS_WHITELISTED_TYPEHASH, account, whitelisted, gate.nonces(account), deadline)
+            abi.encode(
+                SET_IS_WHITELISTED_TYPEHASH,
+                vm.addr(pk),
+                account,
+                whitelisted,
+                gate.nonces(vm.addr(pk), account),
+                deadline
+            )
         );
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", gate.DOMAIN_SEPARATOR(), hashStruct));
         return vm.sign(pk, digest);
@@ -42,7 +53,7 @@ contract WhitelistReceiveSharesGateTest is Test {
         emit IWhitelistReceiveSharesGate.Constructor(_roleSetter);
         WhitelistReceiveSharesGate g = new WhitelistReceiveSharesGate(_roleSetter);
         assertEq(g.roleSetter(), _roleSetter);
-        assertEq(g.whitelister(), address(0));
+        assertFalse(g.isWhitelister(_roleSetter));
     }
 
     function testSetRoleSetter(address newRoleSetter) public {
@@ -60,30 +71,54 @@ contract WhitelistReceiveSharesGateTest is Test {
         gate.setRoleSetter(newRoleSetter);
     }
 
-    function testSetWhitelister(address newWhitelister) public {
+    function testSetIsWhitelister(address account, bool isWhitelister_) public {
         vm.expectEmit();
-        emit IWhitelistReceiveSharesGate.SetWhitelister(newWhitelister);
+        emit IWhitelistReceiveSharesGate.SetIsWhitelister(account, isWhitelister_);
         vm.prank(roleSetter);
-        gate.setWhitelister(newWhitelister);
-        assertEq(gate.whitelister(), newWhitelister);
+        gate.setIsWhitelister(account, isWhitelister_);
+        assertEq(gate.isWhitelister(account), isWhitelister_);
     }
 
-    function testSetWhitelisterNotRoleSetter(address caller, address newWhitelister) public {
+    function testSetIsWhitelisterNotRoleSetter(address caller, address account, bool isWhitelister_) public {
         vm.assume(caller != roleSetter);
         vm.expectRevert(IWhitelistReceiveSharesGate.NotRoleSetter.selector);
         vm.prank(caller);
-        gate.setWhitelister(newWhitelister);
+        gate.setIsWhitelister(account, isWhitelister_);
     }
 
-    function testWhitelisterCannotSetWhitelister(address newWhitelister) public {
+    function testWhitelisterCannotSetIsWhitelister(address account, bool isWhitelister_) public {
         vm.expectRevert(IWhitelistReceiveSharesGate.NotRoleSetter.selector);
         vm.prank(whitelister);
-        gate.setWhitelister(newWhitelister);
+        gate.setIsWhitelister(account, isWhitelister_);
+    }
+
+    function testMultipleWhitelistersCanSetIsWhitelisted(address account, address account2) public {
+        vm.assume(account != account2);
+
+        vm.prank(roleSetter);
+        gate.setIsWhitelister(whitelister2, true);
+
+        vm.prank(whitelister);
+        gate.setIsWhitelisted(account, true);
+        vm.prank(whitelister2);
+        gate.setIsWhitelisted(account2, true);
+
+        assertTrue(gate.isWhitelisted(account));
+        assertTrue(gate.isWhitelisted(account2));
+    }
+
+    function testRevokedWhitelisterCannotSetIsWhitelisted(address account) public {
+        vm.prank(roleSetter);
+        gate.setIsWhitelister(whitelister, false);
+
+        vm.expectRevert(IWhitelistReceiveSharesGate.NotWhitelister.selector);
+        vm.prank(whitelister);
+        gate.setIsWhitelisted(account, true);
     }
 
     function testSetIsWhitelisted(address account, bool whitelisted) public {
         vm.expectEmit();
-        emit IWhitelistReceiveSharesGate.SetIsWhitelisted(account, whitelisted);
+        emit IWhitelistReceiveSharesGate.SetIsWhitelisted(whitelister, account, whitelisted);
         vm.prank(whitelister);
         gate.setIsWhitelisted(account, whitelisted);
         assertEq(gate.isWhitelisted(account), whitelisted);
@@ -109,47 +144,100 @@ contract WhitelistReceiveSharesGateTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, whitelisterPk);
 
         vm.expectEmit();
-        emit IWhitelistReceiveSharesGate.SetIsWhitelistedWithSig(account, whitelisted);
+        emit IWhitelistReceiveSharesGate.SetIsWhitelistedWithSig(whitelister, account, whitelisted);
         // Relayed by an arbitrary account.
         vm.prank(relayer);
-        gate.setIsWhitelistedWithSig(account, whitelisted, deadline, v, r, s);
+        gate.setIsWhitelistedWithSig(whitelister, account, whitelisted, deadline, v, r, s);
 
         assertEq(gate.isWhitelisted(account), whitelisted);
-        assertEq(gate.nonces(account), 1);
+        assertEq(gate.nonces(whitelister, account), 1);
+    }
+
+    function testSetIsWhitelistedWithSigAcceptsAnyWhitelister(
+        address account,
+        bool whitelisted,
+        uint256 deadline,
+        address relayer
+    ) public {
+        deadline = bound(deadline, block.timestamp, type(uint256).max);
+        vm.prank(roleSetter);
+        gate.setIsWhitelister(whitelister2, true);
+        (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, whitelister2Pk);
+
+        vm.expectEmit();
+        emit IWhitelistReceiveSharesGate.SetIsWhitelistedWithSig(whitelister2, account, whitelisted);
+        // Relayed by an arbitrary account.
+        vm.prank(relayer);
+        gate.setIsWhitelistedWithSig(whitelister2, account, whitelisted, deadline, v, r, s);
+
+        assertEq(gate.isWhitelisted(account), whitelisted);
+        assertEq(gate.nonces(whitelister2, account), 1);
+    }
+
+    function testNoncesArePerWhitelister(address account, uint256 deadline) public {
+        deadline = bound(deadline, block.timestamp, type(uint256).max);
+        vm.prank(roleSetter);
+        gate.setIsWhitelister(whitelister2, true);
+
+        // Both whitelisters sign for the same account at their own nonce 0.
+        (uint8 v1, bytes32 r1, bytes32 s1) = _sign(account, true, deadline, whitelisterPk);
+        (uint8 v2, bytes32 r2, bytes32 s2) = _sign(account, true, deadline, whitelister2Pk);
+
+        gate.setIsWhitelistedWithSig(whitelister, account, true, deadline, v1, r1, s1);
+        gate.setIsWhitelistedWithSig(whitelister2, account, true, deadline, v2, r2, s2);
+
+        assertEq(gate.nonces(whitelister, account), 1);
+        assertEq(gate.nonces(whitelister2, account), 1);
+    }
+
+    function testSetIsWhitelistedWithSigRejectsRevokedWhitelister(address account, bool whitelisted) public {
+        uint256 deadline = block.timestamp + 1 days;
+        (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, whitelisterPk);
+
+        vm.prank(roleSetter);
+        gate.setIsWhitelister(whitelister, false);
+
+        vm.expectRevert(IWhitelistReceiveSharesGate.InvalidSigner.selector);
+        gate.setIsWhitelistedWithSig(whitelister, account, whitelisted, deadline, v, r, s);
     }
 
     function testSetIsWhitelistedWithSigRejectsReplayAndTampering() public {
         uint256 deadline = block.timestamp + 1 days;
 
         (uint8 v, bytes32 r, bytes32 s) = _sign(alice, true, deadline, whitelisterPk);
-        gate.setIsWhitelistedWithSig(alice, true, deadline, v, r, s);
+        gate.setIsWhitelistedWithSig(whitelister, alice, true, deadline, v, r, s);
 
         // replay
         vm.expectRevert(IWhitelistReceiveSharesGate.InvalidSigner.selector);
-        gate.setIsWhitelistedWithSig(alice, true, deadline, v, r, s);
+        gate.setIsWhitelistedWithSig(whitelister, alice, true, deadline, v, r, s);
 
         // wrong account
         (v, r, s) = _sign(alice, false, deadline, whitelisterPk);
         vm.expectRevert(IWhitelistReceiveSharesGate.InvalidSigner.selector);
-        gate.setIsWhitelistedWithSig(bob, false, deadline, v, r, s);
+        gate.setIsWhitelistedWithSig(whitelister, bob, false, deadline, v, r, s);
 
         // wrong value
         (v, r, s) = _sign(alice, false, deadline, whitelisterPk);
         vm.expectRevert(IWhitelistReceiveSharesGate.InvalidSigner.selector);
-        gate.setIsWhitelistedWithSig(alice, true, deadline, v, r, s);
+        gate.setIsWhitelistedWithSig(whitelister, alice, true, deadline, v, r, s);
 
         // wrong deadline
         (v, r, s) = _sign(alice, false, deadline, whitelisterPk);
         vm.expectRevert(IWhitelistReceiveSharesGate.InvalidSigner.selector);
-        gate.setIsWhitelistedWithSig(alice, false, deadline + 1, v, r, s);
+        gate.setIsWhitelistedWithSig(whitelister, alice, false, deadline + 1, v, r, s);
+
+        // wrong whitelister
+        (v, r, s) = _sign(alice, false, deadline, whitelisterPk);
+        vm.expectRevert(IWhitelistReceiveSharesGate.InvalidSigner.selector);
+        gate.setIsWhitelistedWithSig(whitelister2, alice, false, deadline, v, r, s);
 
         // wrong domain separator
         (v, r, s) = _sign(bob, true, deadline, whitelisterPk);
         WhitelistReceiveSharesGate otherGate = new WhitelistReceiveSharesGate(roleSetter);
         vm.prank(roleSetter);
-        otherGate.setWhitelister(whitelister);
+        otherGate.setIsWhitelister(whitelister, true);
         vm.expectRevert(IWhitelistReceiveSharesGate.InvalidSigner.selector);
-        otherGate.setIsWhitelistedWithSig(bob, true, deadline, v, r, s);
+        otherGate.setIsWhitelistedWithSig(whitelister, bob, true, deadline, v, r, s);
     }
 
     function testSetIsWhitelistedWithSigDeadlineExpired(
@@ -164,7 +252,7 @@ contract WhitelistReceiveSharesGateTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, whitelisterPk);
 
         vm.expectRevert(IWhitelistReceiveSharesGate.DeadlineExpired.selector);
-        gate.setIsWhitelistedWithSig(account, whitelisted, deadline, v, r, s);
+        gate.setIsWhitelistedWithSig(whitelister, account, whitelisted, deadline, v, r, s);
     }
 
     function testSetIsWhitelistedWithSigInvalidSigner(
@@ -179,7 +267,7 @@ contract WhitelistReceiveSharesGateTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = _sign(account, whitelisted, deadline, wrongPk);
 
         vm.expectRevert(IWhitelistReceiveSharesGate.InvalidSigner.selector);
-        gate.setIsWhitelistedWithSig(account, whitelisted, deadline, v, r, s);
+        gate.setIsWhitelistedWithSig(vm.addr(wrongPk), account, whitelisted, deadline, v, r, s);
     }
 
     function testMulticall(address account, bool whitelisted, address account2, bool whitelisted2) public {
