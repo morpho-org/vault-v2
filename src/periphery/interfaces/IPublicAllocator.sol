@@ -6,6 +6,9 @@ interface IPublicAllocator {
     /* EVENTS */
 
     event SetCanAllocate(address indexed sender, address indexed vault, address adapter, bytes data, bool canAllocate);
+    event SetCanDeallocate(
+        address indexed sender, address indexed vault, address adapter, bytes data, bool canDeallocate
+    );
     event SetFee(address indexed sender, address indexed vault, uint256 newFee);
     event Reallocate(
         address indexed sender,
@@ -19,6 +22,7 @@ interface IPublicAllocator {
 
     error Unauthorized();
     error CannotAllocate();
+    error CannotDeallocate();
     error IncorrectFee();
     error FeeTransferFailed();
 
@@ -27,11 +31,13 @@ interface IPublicAllocator {
     /// @dev An (adapter, data) pair of a vault, exactly as in VaultV2.allocate/deallocate, is keyed by
     /// key = keccak256(abi.encode(adapter, data)).
     function canAllocate(address vault, bytes32 key) external view returns (bool);
+    function canDeallocate(address vault, bytes32 key) external view returns (bool);
     function fee(address vault) external view returns (uint256);
 
     /* FUNCTIONS */
 
     function setCanAllocate(address vault, address adapter, bytes calldata data, bool newCanAllocate) external;
+    function setCanDeallocate(address vault, address adapter, bytes calldata data, bool newCanDeallocate) external;
     function setFee(address vault, uint256 newFee) external;
     function reallocate(
         address vault,
