@@ -21,8 +21,8 @@ contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
     address public roleSetter;
     mapping(address account => bool) public isWhitelister;
     mapping(address whitelister => mapping(address account => uint256)) public nonces;
-    mapping(address => bool) public isWhitelisted;
-    mapping(address => bool) public isIntermediary;
+    mapping(address account => bool) public isWhitelisted;
+    mapping(address account => bool) public isIntermediary;
 
     constructor(address _roleSetter) {
         roleSetter = _roleSetter;
