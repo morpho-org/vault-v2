@@ -17,7 +17,7 @@ interface IWhitelistSendAssetsGate is ISendAssetsGate {
 
     event Constructor(address indexed roleSetter);
     event SetRoleSetter(address indexed newRoleSetter);
-    event SetIsWhitelister(address indexed whitelister, bool newIsWhitelister);
+    event SetIsWhitelister(address indexed account, bool newIsWhitelister);
     event SetIsWhitelisted(address indexed whitelister, address indexed account, bool newIsWhitelisted);
     event SetIsWhitelistedWithSig(address indexed whitelister, address indexed account, bool newIsWhitelisted);
     event SetIsIntermediary(address indexed whitelister, address indexed intermediary, bool newIsIntermediary);
