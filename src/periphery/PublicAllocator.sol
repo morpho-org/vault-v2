@@ -7,8 +7,8 @@ import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
 
 /// @dev To be usable, the PublicAllocator must be set as an allocator of the vault.
 /// @dev The PublicAllocator inherits the vault's roles. The vault's allocators can enable and disable canAllocate and
-/// canDeallocate; the vault's sentinels can only disable them, to cut off public reallocations (derisk); the vault's
-/// curator sets the fee.
+/// canDeallocate; the vault's sentinels can disable canAllocate and enable canDeallocate, to cut off public inflows and
+/// allow public outflows for derisking; the vault's curator sets the fee.
 /// @dev Each reallocate call costs a fee in native currency, set per vault by the curator. The fee is sent to the
 /// vault's curator on each call.
 /// @dev No-ops are allowed. Zero checks are not systematically performed.
@@ -32,7 +32,7 @@ contract PublicAllocator is IPublicAllocator {
 
     function setCanDeallocate(address vault, address adapter, bytes calldata data, bool newCanDeallocate) external {
         require(
-            IVaultV2(vault).isAllocator(msg.sender) || (!newCanDeallocate && IVaultV2(vault).isSentinel(msg.sender)),
+            IVaultV2(vault).isAllocator(msg.sender) || (newCanDeallocate && IVaultV2(vault).isSentinel(msg.sender)),
             Unauthorized()
         );
         canDeallocate[vault][keccak256(abi.encode(adapter, data))] = newCanDeallocate;
