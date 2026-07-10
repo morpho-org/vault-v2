@@ -10,6 +10,7 @@ interface IPublicAllocator {
         address indexed sender, address indexed vault, address adapter, bytes data, bool canDeallocate
     );
     event SetFee(address indexed sender, address indexed vault, uint256 newFee);
+    event TransferFee(address indexed sender, address indexed vault, uint256 claimed, address feeRecipient);
     event Reallocate(
         address indexed sender,
         address indexed vault,
@@ -32,12 +33,14 @@ interface IPublicAllocator {
     function canAllocate(address vault, bytes32 key) external view returns (bool);
     function canDeallocate(address vault, bytes32 key) external view returns (bool);
     function fee(address vault) external view returns (uint256);
+    function accruedFee(address vault) external view returns (uint256);
 
     /* FUNCTIONS */
 
     function setCanAllocate(address vault, address adapter, bytes calldata data, bool newCanAllocate) external;
     function setCanDeallocate(address vault, address adapter, bytes calldata data, bool newCanDeallocate) external;
     function setFee(address vault, uint256 newFee) external;
+    function transferFee(address vault, address payable feeRecipient) external;
     function reallocate(
         address vault,
         address deallocateAdapter,

@@ -9,8 +9,8 @@ import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
 /// @dev The PublicAllocator inherits the vault's roles. The vault's allocators can enable and disable canAllocate and
 /// canDeallocate; the vault's sentinels can disable canAllocate and enable canDeallocate, to cut off public inflows and
 /// allow public outflows for derisking; the vault's curator sets the fee.
-/// @dev Each reallocate call costs a fee in native currency, set per vault by the curator. The fee is sent to the
-/// vault's curator on each call.
+/// @dev Each reallocate call costs a fee in native currency, set per vault by the curator. The fee is accrued per vault
+/// and can be claimed by the vault's curator.
 /// @dev No-ops are allowed. Zero checks are not systematically performed.
 contract PublicAllocator is IPublicAllocator {
     /* STORAGE */
@@ -18,6 +18,7 @@ contract PublicAllocator is IPublicAllocator {
     mapping(address vault => mapping(bytes32 key => bool)) public canAllocate;
     mapping(address vault => mapping(bytes32 key => bool)) public canDeallocate;
     mapping(address vault => uint256) public fee;
+    mapping(address vault => uint256) public accruedFee;
 
     /* CONFIGURATION FUNCTIONS */
 
@@ -45,6 +46,18 @@ contract PublicAllocator is IPublicAllocator {
         emit SetFee(msg.sender, vault, newFee);
     }
 
+    /* CLAIM FUNCTION */
+
+    function transferFee(address vault, address payable feeRecipient) external {
+        require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
+
+        uint256 claimed = accruedFee[vault];
+        accruedFee[vault] = 0;
+        feeRecipient.transfer(claimed);
+
+        emit TransferFee(msg.sender, vault, claimed, feeRecipient);
+    }
+
     /* PUBLIC FUNCTION */
 
     /// @dev The vault's caps are still enforced on the allocation, so this call reverts if it would exceed them.
@@ -57,12 +70,7 @@ contract PublicAllocator is IPublicAllocator {
         uint128 assets
     ) external payable {
         require(msg.value == fee[vault], IncorrectFee());
-        if (msg.value > 0) {
-            address curator = IVaultV2(vault).curator();
-            assembly ("memory-safe") {
-                pop(call(gas(), curator, callvalue(), 0, 0, 0, 0))
-            }
-        }
+        if (msg.value > 0) accruedFee[vault] += msg.value;
 
         bytes32 deallocateKey = keccak256(abi.encode(deallocateAdapter, deallocateData));
         require(canDeallocate[vault][deallocateKey], CannotDeallocate());
