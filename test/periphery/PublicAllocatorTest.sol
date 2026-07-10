@@ -211,29 +211,29 @@ contract PublicAllocatorTest is BaseTest {
         _reallocate(amount);
     }
 
-    /* PENALTY */
+    /* ETH PENALTY */
 
-    function testSetPenalty(uint256 newPenalty) public {
+    function testSetEthPenalty(uint256 newEthPenalty) public {
         vm.expectEmit();
-        emit IPublicAllocator.SetPenalty(curator, address(vault), newPenalty);
+        emit IPublicAllocator.SetEthPenalty(curator, address(vault), newEthPenalty);
         vm.prank(curator);
-        publicAllocator.setPenalty(address(vault), newPenalty);
-        assertEq(publicAllocator.penalty(address(vault)), newPenalty);
+        publicAllocator.setEthPenalty(address(vault), newEthPenalty);
+        assertEq(publicAllocator.ethPenalty(address(vault)), newEthPenalty);
     }
 
-    function testSetPenaltyUnauthorized(address caller, uint256 newPenalty) public {
+    function testSetEthPenaltyUnauthorized(address caller, uint256 newEthPenalty) public {
         vm.assume(caller != curator);
         vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(caller);
-        publicAllocator.setPenalty(address(vault), newPenalty);
+        publicAllocator.setEthPenalty(address(vault), newEthPenalty);
     }
 
-    function testReallocateChargesPenalty(uint256 penaltyAmount, uint256 assets, uint128 amount) public {
-        penaltyAmount = bound(penaltyAmount, 1, 10 ether);
+    function testReallocateChargesEthPenalty(uint256 ethPenaltyAmount, uint256 assets, uint128 amount) public {
+        ethPenaltyAmount = bound(ethPenaltyAmount, 1, 10 ether);
         assets = bound(assets, 1, 1e30);
         amount = uint128(bound(amount, 1, assets));
         vm.prank(curator);
-        publicAllocator.setPenalty(address(vault), penaltyAmount);
+        publicAllocator.setEthPenalty(address(vault), ethPenaltyAmount);
 
         _seedAdapterA(assets);
         _setCanDeallocate(adapterA, dataA, true);
@@ -241,19 +241,21 @@ contract PublicAllocatorTest is BaseTest {
 
         uint256 curatorBalanceBefore = curator.balance;
 
-        vm.deal(rando, penaltyAmount);
+        vm.deal(rando, ethPenaltyAmount);
         vm.prank(rando);
-        publicAllocator.reallocate{value: penaltyAmount}(address(vault), adapterA, dataA, adapterB, dataB, amount);
+        publicAllocator.reallocate{value: ethPenaltyAmount}(address(vault), adapterA, dataA, adapterB, dataB, amount);
 
         assertEq(curator.balance, curatorBalanceBefore);
-        assertEq(publicAllocator.accruedPenalty(address(vault)), penaltyAmount);
-        assertEq(address(publicAllocator).balance, penaltyAmount);
+        assertEq(publicAllocator.accruedEthPenalty(address(vault)), ethPenaltyAmount);
+        assertEq(address(publicAllocator).balance, ethPenaltyAmount);
     }
 
-    function testReallocateAccruesPenaltyForNonPayableCurator(uint256 penaltyAmount, uint256 assets, uint128 amount)
-        public
-    {
-        penaltyAmount = bound(penaltyAmount, 1, 10 ether);
+    function testReallocateAccruesEthPenaltyForNonPayableCurator(
+        uint256 ethPenaltyAmount,
+        uint256 assets,
+        uint128 amount
+    ) public {
+        ethPenaltyAmount = bound(ethPenaltyAmount, 1, 10 ether);
         assets = bound(assets, 1, 1e30);
         amount = uint128(bound(amount, 1, assets));
 
@@ -261,73 +263,76 @@ contract PublicAllocatorTest is BaseTest {
         vm.prank(owner);
         vault.setCurator(nonPayableCurator);
         vm.prank(nonPayableCurator);
-        publicAllocator.setPenalty(address(vault), penaltyAmount);
+        publicAllocator.setEthPenalty(address(vault), ethPenaltyAmount);
 
         _seedAdapterA(assets);
         _setCanDeallocate(adapterA, dataA, true);
         _setCanAllocate(adapterB, dataB, true);
 
-        vm.deal(rando, penaltyAmount);
+        vm.deal(rando, ethPenaltyAmount);
         vm.prank(rando);
-        publicAllocator.reallocate{value: penaltyAmount}(address(vault), adapterA, dataA, adapterB, dataB, amount);
+        publicAllocator.reallocate{value: ethPenaltyAmount}(address(vault), adapterA, dataA, adapterB, dataB, amount);
 
         assertEq(nonPayableCurator.balance, 0);
-        assertEq(publicAllocator.accruedPenalty(address(vault)), penaltyAmount);
-        assertEq(address(publicAllocator).balance, penaltyAmount);
+        assertEq(publicAllocator.accruedEthPenalty(address(vault)), ethPenaltyAmount);
+        assertEq(address(publicAllocator).balance, ethPenaltyAmount);
         assertEq(AdapterMock(adapterA).deposit(), assets - amount, "adapterA");
         assertEq(AdapterMock(adapterB).deposit(), amount, "adapterB");
     }
 
-    function testClaimFee(uint256 penaltyAmount, uint256 assets, uint128 amount) public {
-        penaltyAmount = bound(penaltyAmount, 1, 10 ether);
+    function testClaimEthPenalty(uint256 ethPenaltyAmount, uint256 assets, uint128 amount) public {
+        ethPenaltyAmount = bound(ethPenaltyAmount, 1, 10 ether);
         assets = bound(assets, 1, 1e30);
         amount = uint128(bound(amount, 1, assets));
         address payable receiver = payable(makeAddr("receiver"));
 
         vm.prank(curator);
-        publicAllocator.setPenalty(address(vault), penaltyAmount);
+        publicAllocator.setEthPenalty(address(vault), ethPenaltyAmount);
         _seedAdapterA(assets);
         _setCanDeallocate(adapterA, dataA, true);
         _setCanAllocate(adapterB, dataB, true);
 
-        vm.deal(rando, penaltyAmount);
+        vm.deal(rando, ethPenaltyAmount);
         vm.prank(rando);
-        publicAllocator.reallocate{value: penaltyAmount}(address(vault), adapterA, dataA, adapterB, dataB, amount);
+        publicAllocator.reallocate{value: ethPenaltyAmount}(address(vault), adapterA, dataA, adapterB, dataB, amount);
 
         vm.expectEmit();
-        emit IPublicAllocator.ClaimFee(curator, address(vault), penaltyAmount, receiver);
+        emit IPublicAllocator.ClaimEthPenalty(curator, address(vault), ethPenaltyAmount, receiver);
         vm.prank(curator);
-        publicAllocator.claimFee(address(vault), receiver);
+        publicAllocator.claimEthPenalty(address(vault), receiver);
 
-        assertEq(publicAllocator.accruedPenalty(address(vault)), 0);
-        assertEq(receiver.balance, penaltyAmount);
+        assertEq(publicAllocator.accruedEthPenalty(address(vault)), 0);
+        assertEq(receiver.balance, ethPenaltyAmount);
         assertEq(address(publicAllocator).balance, 0);
     }
 
-    function testClaimFeeUnauthorized(address caller, address payable receiver) public {
+    function testClaimEthPenaltyUnauthorized(address caller, address payable receiver) public {
         vm.assume(caller != curator);
 
         vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(caller);
-        publicAllocator.claimFee(address(vault), receiver);
+        publicAllocator.claimEthPenalty(address(vault), receiver);
     }
 
-    function testReallocateIncorrectPenalty(uint256 penaltyAmount, uint256 sentValue, uint256 assets, uint128 amount)
-        public
-    {
-        penaltyAmount = bound(penaltyAmount, 1, 10 ether);
+    function testReallocateIncorrectEthPenalty(
+        uint256 ethPenaltyAmount,
+        uint256 sentValue,
+        uint256 assets,
+        uint128 amount
+    ) public {
+        ethPenaltyAmount = bound(ethPenaltyAmount, 1, 10 ether);
         sentValue = bound(sentValue, 0, 10 ether);
-        vm.assume(sentValue != penaltyAmount);
+        vm.assume(sentValue != ethPenaltyAmount);
         assets = bound(assets, 1, 1e30);
         amount = uint128(bound(amount, 1, assets));
         vm.prank(curator);
-        publicAllocator.setPenalty(address(vault), penaltyAmount);
+        publicAllocator.setEthPenalty(address(vault), ethPenaltyAmount);
 
         _seedAdapterA(assets);
         _setCanAllocate(adapterB, dataB, true);
 
         vm.deal(rando, sentValue);
-        vm.expectRevert(IPublicAllocator.IncorrectPenalty.selector);
+        vm.expectRevert(IPublicAllocator.IncorrectEthPenalty.selector);
         vm.prank(rando);
         publicAllocator.reallocate{value: sentValue}(address(vault), adapterA, dataA, adapterB, dataB, amount);
     }
