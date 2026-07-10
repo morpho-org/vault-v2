@@ -8,17 +8,17 @@ import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
 /// @dev To be usable, the PublicAllocator must be set as an allocator of the vault.
 /// @dev The PublicAllocator inherits the vault's roles. The vault's allocators can enable and disable canAllocate and
 /// canDeallocate; the vault's sentinels can disable canAllocate and enable canDeallocate, to cut off public inflows and
-/// allow public outflows for derisking; the vault's curator sets the fee.
-/// @dev Each reallocate call costs a fee in native currency, set per vault by the curator. The fee is accrued per vault
-/// and can be claimed by the vault's curator.
+/// allow public outflows for derisking; the vault's curator sets the penalty.
+/// @dev Each reallocate call costs a penalty in native currency, set per vault by the curator. The penalty is accrued
+/// per vault and can be claimed by the vault's curator.
 /// @dev No-ops are allowed. Zero checks are not systematically performed.
 contract PublicAllocator is IPublicAllocator {
     /* STORAGE */
 
     mapping(address vault => mapping(bytes32 key => bool)) public canAllocate;
     mapping(address vault => mapping(bytes32 key => bool)) public canDeallocate;
-    mapping(address vault => uint256) public fee;
-    mapping(address vault => uint256) public accruedFee;
+    mapping(address vault => uint256) public penalty;
+    mapping(address vault => uint256) public accruedPenalty;
 
     /* CONFIGURATION FUNCTIONS */
 
@@ -40,22 +40,22 @@ contract PublicAllocator is IPublicAllocator {
         emit SetCanDeallocate(msg.sender, vault, adapter, data, newCanDeallocate);
     }
 
-    function setFee(address vault, uint256 newFee) external {
+    function setPenalty(address vault, uint256 newPenalty) external {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
-        fee[vault] = newFee;
-        emit SetFee(msg.sender, vault, newFee);
+        penalty[vault] = newPenalty;
+        emit SetPenalty(msg.sender, vault, newPenalty);
     }
 
     /* CLAIM FUNCTION */
 
-    function transferFee(address vault, address payable receiver) external {
+    function claimFee(address vault, address payable receiver) external {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
 
-        uint256 claimed = accruedFee[vault];
-        accruedFee[vault] = 0;
+        uint256 claimed = accruedPenalty[vault];
+        accruedPenalty[vault] = 0;
         receiver.transfer(claimed);
 
-        emit TransferFee(msg.sender, vault, claimed, receiver);
+        emit ClaimFee(msg.sender, vault, claimed, receiver);
     }
 
     /* PUBLIC FUNCTION */
@@ -69,8 +69,8 @@ contract PublicAllocator is IPublicAllocator {
         bytes calldata allocateData,
         uint128 assets
     ) external payable {
-        require(msg.value == fee[vault], IncorrectFee());
-        if (msg.value > 0) accruedFee[vault] += msg.value;
+        require(msg.value == penalty[vault], IncorrectPenalty());
+        if (msg.value > 0) accruedPenalty[vault] += msg.value;
 
         bytes32 deallocateKey = keccak256(abi.encode(deallocateAdapter, deallocateData));
         require(canDeallocate[vault][deallocateKey], CannotDeallocate());

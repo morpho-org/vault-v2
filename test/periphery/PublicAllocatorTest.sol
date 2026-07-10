@@ -211,29 +211,29 @@ contract PublicAllocatorTest is BaseTest {
         _reallocate(amount);
     }
 
-    /* FEE */
+    /* PENALTY */
 
-    function testSetFee(uint256 newFee) public {
+    function testSetPenalty(uint256 newPenalty) public {
         vm.expectEmit();
-        emit IPublicAllocator.SetFee(curator, address(vault), newFee);
+        emit IPublicAllocator.SetPenalty(curator, address(vault), newPenalty);
         vm.prank(curator);
-        publicAllocator.setFee(address(vault), newFee);
-        assertEq(publicAllocator.fee(address(vault)), newFee);
+        publicAllocator.setPenalty(address(vault), newPenalty);
+        assertEq(publicAllocator.penalty(address(vault)), newPenalty);
     }
 
-    function testSetFeeUnauthorized(address caller, uint256 newFee) public {
+    function testSetPenaltyUnauthorized(address caller, uint256 newPenalty) public {
         vm.assume(caller != curator);
         vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(caller);
-        publicAllocator.setFee(address(vault), newFee);
+        publicAllocator.setPenalty(address(vault), newPenalty);
     }
 
-    function testReallocateChargesFee(uint256 feeAmount, uint256 assets, uint128 amount) public {
-        feeAmount = bound(feeAmount, 1, 10 ether);
+    function testReallocateChargesPenalty(uint256 penaltyAmount, uint256 assets, uint128 amount) public {
+        penaltyAmount = bound(penaltyAmount, 1, 10 ether);
         assets = bound(assets, 1, 1e30);
         amount = uint128(bound(amount, 1, assets));
         vm.prank(curator);
-        publicAllocator.setFee(address(vault), feeAmount);
+        publicAllocator.setPenalty(address(vault), penaltyAmount);
 
         _seedAdapterA(assets);
         _setCanDeallocate(adapterA, dataA, true);
@@ -241,17 +241,19 @@ contract PublicAllocatorTest is BaseTest {
 
         uint256 curatorBalanceBefore = curator.balance;
 
-        vm.deal(rando, feeAmount);
+        vm.deal(rando, penaltyAmount);
         vm.prank(rando);
-        publicAllocator.reallocate{value: feeAmount}(address(vault), adapterA, dataA, adapterB, dataB, amount);
+        publicAllocator.reallocate{value: penaltyAmount}(address(vault), adapterA, dataA, adapterB, dataB, amount);
 
         assertEq(curator.balance, curatorBalanceBefore);
-        assertEq(publicAllocator.accruedFee(address(vault)), feeAmount);
-        assertEq(address(publicAllocator).balance, feeAmount);
+        assertEq(publicAllocator.accruedPenalty(address(vault)), penaltyAmount);
+        assertEq(address(publicAllocator).balance, penaltyAmount);
     }
 
-    function testReallocateAccruesFeeForNonPayableCurator(uint256 feeAmount, uint256 assets, uint128 amount) public {
-        feeAmount = bound(feeAmount, 1, 10 ether);
+    function testReallocateAccruesPenaltyForNonPayableCurator(uint256 penaltyAmount, uint256 assets, uint128 amount)
+        public
+    {
+        penaltyAmount = bound(penaltyAmount, 1, 10 ether);
         assets = bound(assets, 1, 1e30);
         amount = uint128(bound(amount, 1, assets));
 
@@ -259,71 +261,73 @@ contract PublicAllocatorTest is BaseTest {
         vm.prank(owner);
         vault.setCurator(nonPayableCurator);
         vm.prank(nonPayableCurator);
-        publicAllocator.setFee(address(vault), feeAmount);
+        publicAllocator.setPenalty(address(vault), penaltyAmount);
 
         _seedAdapterA(assets);
         _setCanDeallocate(adapterA, dataA, true);
         _setCanAllocate(adapterB, dataB, true);
 
-        vm.deal(rando, feeAmount);
+        vm.deal(rando, penaltyAmount);
         vm.prank(rando);
-        publicAllocator.reallocate{value: feeAmount}(address(vault), adapterA, dataA, adapterB, dataB, amount);
+        publicAllocator.reallocate{value: penaltyAmount}(address(vault), adapterA, dataA, adapterB, dataB, amount);
 
         assertEq(nonPayableCurator.balance, 0);
-        assertEq(publicAllocator.accruedFee(address(vault)), feeAmount);
-        assertEq(address(publicAllocator).balance, feeAmount);
+        assertEq(publicAllocator.accruedPenalty(address(vault)), penaltyAmount);
+        assertEq(address(publicAllocator).balance, penaltyAmount);
         assertEq(AdapterMock(adapterA).deposit(), assets - amount, "adapterA");
         assertEq(AdapterMock(adapterB).deposit(), amount, "adapterB");
     }
 
-    function testTransferFee(uint256 feeAmount, uint256 assets, uint128 amount) public {
-        feeAmount = bound(feeAmount, 1, 10 ether);
+    function testClaimFee(uint256 penaltyAmount, uint256 assets, uint128 amount) public {
+        penaltyAmount = bound(penaltyAmount, 1, 10 ether);
         assets = bound(assets, 1, 1e30);
         amount = uint128(bound(amount, 1, assets));
         address payable receiver = payable(makeAddr("receiver"));
 
         vm.prank(curator);
-        publicAllocator.setFee(address(vault), feeAmount);
+        publicAllocator.setPenalty(address(vault), penaltyAmount);
         _seedAdapterA(assets);
         _setCanDeallocate(adapterA, dataA, true);
         _setCanAllocate(adapterB, dataB, true);
 
-        vm.deal(rando, feeAmount);
+        vm.deal(rando, penaltyAmount);
         vm.prank(rando);
-        publicAllocator.reallocate{value: feeAmount}(address(vault), adapterA, dataA, adapterB, dataB, amount);
+        publicAllocator.reallocate{value: penaltyAmount}(address(vault), adapterA, dataA, adapterB, dataB, amount);
 
         vm.expectEmit();
-        emit IPublicAllocator.TransferFee(curator, address(vault), feeAmount, receiver);
+        emit IPublicAllocator.ClaimFee(curator, address(vault), penaltyAmount, receiver);
         vm.prank(curator);
-        publicAllocator.transferFee(address(vault), receiver);
+        publicAllocator.claimFee(address(vault), receiver);
 
-        assertEq(publicAllocator.accruedFee(address(vault)), 0);
-        assertEq(receiver.balance, feeAmount);
+        assertEq(publicAllocator.accruedPenalty(address(vault)), 0);
+        assertEq(receiver.balance, penaltyAmount);
         assertEq(address(publicAllocator).balance, 0);
     }
 
-    function testTransferFeeUnauthorized(address caller, address payable receiver) public {
+    function testClaimFeeUnauthorized(address caller, address payable receiver) public {
         vm.assume(caller != curator);
 
         vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(caller);
-        publicAllocator.transferFee(address(vault), receiver);
+        publicAllocator.claimFee(address(vault), receiver);
     }
 
-    function testReallocateIncorrectFee(uint256 feeAmount, uint256 sentValue, uint256 assets, uint128 amount) public {
-        feeAmount = bound(feeAmount, 1, 10 ether);
+    function testReallocateIncorrectPenalty(uint256 penaltyAmount, uint256 sentValue, uint256 assets, uint128 amount)
+        public
+    {
+        penaltyAmount = bound(penaltyAmount, 1, 10 ether);
         sentValue = bound(sentValue, 0, 10 ether);
-        vm.assume(sentValue != feeAmount);
+        vm.assume(sentValue != penaltyAmount);
         assets = bound(assets, 1, 1e30);
         amount = uint128(bound(amount, 1, assets));
         vm.prank(curator);
-        publicAllocator.setFee(address(vault), feeAmount);
+        publicAllocator.setPenalty(address(vault), penaltyAmount);
 
         _seedAdapterA(assets);
         _setCanAllocate(adapterB, dataB, true);
 
         vm.deal(rando, sentValue);
-        vm.expectRevert(IPublicAllocator.IncorrectFee.selector);
+        vm.expectRevert(IPublicAllocator.IncorrectPenalty.selector);
         vm.prank(rando);
         publicAllocator.reallocate{value: sentValue}(address(vault), adapterA, dataA, adapterB, dataB, amount);
     }

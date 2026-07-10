@@ -9,8 +9,8 @@ interface IPublicAllocator {
     event SetCanDeallocate(
         address indexed sender, address indexed vault, address adapter, bytes data, bool canDeallocate
     );
-    event SetFee(address indexed sender, address indexed vault, uint256 newFee);
-    event TransferFee(address indexed sender, address indexed vault, uint256 claimed, address receiver);
+    event SetPenalty(address indexed sender, address indexed vault, uint256 newPenalty);
+    event ClaimFee(address indexed sender, address indexed vault, uint256 claimed, address receiver);
     event Reallocate(
         address indexed sender,
         address indexed vault,
@@ -24,7 +24,7 @@ interface IPublicAllocator {
     error Unauthorized();
     error CannotAllocate();
     error CannotDeallocate();
-    error IncorrectFee();
+    error IncorrectPenalty();
 
     /* VIEW */
 
@@ -32,15 +32,15 @@ interface IPublicAllocator {
     /// key = keccak256(abi.encode(adapter, data)).
     function canAllocate(address vault, bytes32 key) external view returns (bool);
     function canDeallocate(address vault, bytes32 key) external view returns (bool);
-    function fee(address vault) external view returns (uint256);
-    function accruedFee(address vault) external view returns (uint256);
+    function penalty(address vault) external view returns (uint256);
+    function accruedPenalty(address vault) external view returns (uint256);
 
     /* FUNCTIONS */
 
     function setCanAllocate(address vault, address adapter, bytes calldata data, bool newCanAllocate) external;
     function setCanDeallocate(address vault, address adapter, bytes calldata data, bool newCanDeallocate) external;
-    function setFee(address vault, uint256 newFee) external;
-    function transferFee(address vault, address payable receiver) external;
+    function setPenalty(address vault, uint256 newPenalty) external;
+    function claimFee(address vault, address payable receiver) external;
     function reallocate(
         address vault,
         address deallocateAdapter,
