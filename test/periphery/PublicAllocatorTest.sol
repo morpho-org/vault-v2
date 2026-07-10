@@ -128,19 +128,18 @@ contract PublicAllocatorTest is BaseTest {
         publicAllocator.setCanDeallocate(address(vault), adapterA, dataA, true);
     }
 
-    function testSetCanDeallocateSentinelCanOnlyDisable() public {
-        // Enable via allocator first.
-        _setCanDeallocate(adapterA, dataA, true);
-
-        // Sentinel cannot enable.
-        vm.expectRevert(IPublicAllocator.Unauthorized.selector);
+    function testSetCanDeallocateSentinelCanOnlyEnable() public {
+        // Sentinel can enable public deallocations to derisk.
+        vm.expectEmit();
+        emit IPublicAllocator.SetCanDeallocate(sentinel, address(vault), adapterA, dataA, true);
         vm.prank(sentinel);
         publicAllocator.setCanDeallocate(address(vault), adapterA, dataA, true);
+        assertTrue(publicAllocator.canDeallocate(address(vault), keyA));
 
-        // Sentinel can disable (cut public outflows).
+        // Sentinel cannot disable public deallocations.
+        vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(sentinel);
         publicAllocator.setCanDeallocate(address(vault), adapterA, dataA, false);
-        assertFalse(publicAllocator.canDeallocate(address(vault), keyA));
     }
 
     /* REALLOCATE */
