@@ -24,7 +24,6 @@ interface IPublicAllocator {
     error CannotAllocate();
     error CannotDeallocate();
     error IncorrectFee();
-    error FeeTransferFailed();
 
     /* VIEW */
 
