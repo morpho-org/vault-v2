@@ -8,16 +8,17 @@ import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
 /// @dev To be usable, the PublicAllocator must be set as an allocator of the vault.
 /// @dev The PublicAllocator inherits the vault's roles. The vault's allocators can enable and disable canAllocate and
 /// canDeallocate; the vault's sentinels can disable canAllocate and enable canDeallocate, to cut off public inflows and
-/// allow public outflows for derisking; the vault's curator sets the fee.
-/// @dev Each reallocate call costs a fee in native currency, set per vault by the curator. The fee is sent to the
-/// vault's curator on each call.
+/// allow public outflows for derisking; the vault's curator sets the ETH penalty.
+/// @dev Each reallocate call costs an ETH penalty in native currency, set per vault by the curator. The ETH penalty is
+/// accrued per vault and can be claimed by the vault's curator.
 /// @dev No-ops are allowed. Zero checks are not systematically performed.
 contract PublicAllocator is IPublicAllocator {
     /* STORAGE */
 
     mapping(address vault => mapping(bytes32 key => bool)) public canAllocate;
     mapping(address vault => mapping(bytes32 key => bool)) public canDeallocate;
-    mapping(address vault => uint256) public fee;
+    mapping(address vault => uint256) public ethPenalty;
+    mapping(address vault => uint256) public accruedEthPenalty;
 
     /* CONFIGURATION FUNCTIONS */
 
@@ -39,10 +40,22 @@ contract PublicAllocator is IPublicAllocator {
         emit SetCanDeallocate(msg.sender, vault, adapter, data, newCanDeallocate);
     }
 
-    function setFee(address vault, uint256 newFee) external {
+    function setEthPenalty(address vault, uint256 newEthPenalty) external {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
-        fee[vault] = newFee;
-        emit SetFee(msg.sender, vault, newFee);
+        ethPenalty[vault] = newEthPenalty;
+        emit SetEthPenalty(msg.sender, vault, newEthPenalty);
+    }
+
+    /* CLAIM FUNCTION */
+
+    function claimEthPenalty(address vault, address payable receiver) external {
+        require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
+
+        uint256 claimed = accruedEthPenalty[vault];
+        accruedEthPenalty[vault] = 0;
+        receiver.transfer(claimed);
+
+        emit ClaimEthPenalty(msg.sender, vault, claimed, receiver);
     }
 
     /* PUBLIC FUNCTION */
@@ -56,11 +69,8 @@ contract PublicAllocator is IPublicAllocator {
         bytes calldata allocateData,
         uint128 assets
     ) external payable {
-        require(msg.value == fee[vault], IncorrectFee());
-        if (msg.value > 0) {
-            (bool success,) = payable(IVaultV2(vault).curator()).call{value: msg.value}("");
-            require(success, FeeTransferFailed());
-        }
+        require(msg.value == ethPenalty[vault], IncorrectEthPenalty());
+        if (msg.value > 0) accruedEthPenalty[vault] += msg.value;
 
         bytes32 deallocateKey = keccak256(abi.encode(deallocateAdapter, deallocateData));
         require(canDeallocate[vault][deallocateKey], CannotDeallocate());
