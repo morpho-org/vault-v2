@@ -48,14 +48,14 @@ contract PublicAllocator is IPublicAllocator {
 
     /* CLAIM FUNCTION */
 
-    function transferFee(address vault, address payable feeRecipient) external {
+    function transferFee(address vault, address payable receiver) external {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
 
         uint256 claimed = accruedFee[vault];
         accruedFee[vault] = 0;
-        feeRecipient.transfer(claimed);
+        receiver.transfer(claimed);
 
-        emit TransferFee(msg.sender, vault, claimed, feeRecipient);
+        emit TransferFee(msg.sender, vault, claimed, receiver);
     }
 
     /* PUBLIC FUNCTION */
