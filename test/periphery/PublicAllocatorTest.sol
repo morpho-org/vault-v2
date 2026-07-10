@@ -60,6 +60,11 @@ contract PublicAllocatorTest is BaseTest {
         publicAllocator.setCanAllocate(address(vault), adapter, data, value);
     }
 
+    function _setCanDeallocate(address adapter, bytes memory data, bool value) internal {
+        vm.prank(allocator);
+        publicAllocator.setCanDeallocate(address(vault), adapter, data, value);
+    }
+
     function _seedAdapterA(uint256 assets) internal {
         vault.deposit(assets, address(this));
         vm.prank(allocator);
@@ -107,6 +112,37 @@ contract PublicAllocatorTest is BaseTest {
         assertFalse(publicAllocator.canAllocate(address(vault), keyA));
     }
 
+    /* SET CAN DEALLOCATE */
+
+    function testSetCanDeallocate(bool value) public {
+        vm.expectEmit();
+        emit IPublicAllocator.SetCanDeallocate(allocator, address(vault), adapterA, dataA, value);
+        _setCanDeallocate(adapterA, dataA, value);
+        assertEq(publicAllocator.canDeallocate(address(vault), keyA), value);
+    }
+
+    function testSetCanDeallocateUnauthorized(address caller) public {
+        vm.assume(!vault.isAllocator(caller) && !vault.isSentinel(caller));
+        vm.expectRevert(IPublicAllocator.Unauthorized.selector);
+        vm.prank(caller);
+        publicAllocator.setCanDeallocate(address(vault), adapterA, dataA, true);
+    }
+
+    function testSetCanDeallocateSentinelCanOnlyDisable() public {
+        // Enable via allocator first.
+        _setCanDeallocate(adapterA, dataA, true);
+
+        // Sentinel cannot enable.
+        vm.expectRevert(IPublicAllocator.Unauthorized.selector);
+        vm.prank(sentinel);
+        publicAllocator.setCanDeallocate(address(vault), adapterA, dataA, true);
+
+        // Sentinel can disable (cut public outflows).
+        vm.prank(sentinel);
+        publicAllocator.setCanDeallocate(address(vault), adapterA, dataA, false);
+        assertFalse(publicAllocator.canDeallocate(address(vault), keyA));
+    }
+
     /* REALLOCATE */
 
     function testReallocateMovesLiquidity(uint256 assets, uint128 amount) public {
@@ -114,7 +150,8 @@ contract PublicAllocatorTest is BaseTest {
         amount = uint128(bound(amount, 1, assets));
 
         _seedAdapterA(assets);
-        _setCanAllocate(adapterB, dataB, true); // can supply to B; withdrawing from A is unrestricted
+        _setCanDeallocate(adapterA, dataA, true);
+        _setCanAllocate(adapterB, dataB, true);
 
         assertEq(AdapterMock(adapterA).deposit(), assets);
         assertEq(AdapterMock(adapterB).deposit(), 0);
@@ -132,9 +169,11 @@ contract PublicAllocatorTest is BaseTest {
         amount = uint128(bound(amount, 1, assets));
 
         _seedAdapterA(assets);
-        // Both adapters can be supplied to; withdrawing from either is unrestricted.
+        // Both adapters can be supplied to and withdrawn from.
         _setCanAllocate(adapterA, dataA, true);
         _setCanAllocate(adapterB, dataB, true);
+        _setCanDeallocate(adapterA, dataA, true);
+        _setCanDeallocate(adapterB, dataB, true);
 
         _reallocate(amount);
         assertEq(AdapterMock(adapterA).deposit(), assets - amount);
@@ -152,9 +191,22 @@ contract PublicAllocatorTest is BaseTest {
         amount = uint128(bound(amount, 1, assets));
 
         _seedAdapterA(assets);
+        _setCanDeallocate(adapterA, dataA, true);
         // Supply adapter B not enabled.
 
         vm.expectRevert(IPublicAllocator.CannotAllocate.selector);
+        _reallocate(amount);
+    }
+
+    function testReallocateCannotDeallocate(uint256 assets, uint128 amount) public {
+        assets = bound(assets, 1, 1e30);
+        amount = uint128(bound(amount, 1, assets));
+
+        _seedAdapterA(assets);
+        _setCanAllocate(adapterB, dataB, true);
+        // Withdraw adapter A not enabled.
+
+        vm.expectRevert(IPublicAllocator.CannotDeallocate.selector);
         _reallocate(amount);
     }
 
@@ -183,6 +235,7 @@ contract PublicAllocatorTest is BaseTest {
         publicAllocator.setFee(address(vault), feeAmount);
 
         _seedAdapterA(assets);
+        _setCanDeallocate(adapterA, dataA, true);
         _setCanAllocate(adapterB, dataB, true);
 
         uint256 curatorBalanceBefore = curator.balance;
@@ -218,6 +271,7 @@ contract PublicAllocatorTest is BaseTest {
         amount = uint128(bound(amount, 1, assets));
 
         _seedAdapterA(assets);
+        _setCanDeallocate(adapterA, dataA, true);
         _setCanAllocate(adapterB, dataB, true);
 
         // Vault relative cap on a shared id tightened so the supply allocation would exceed it.
