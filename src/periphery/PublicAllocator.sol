@@ -13,6 +13,10 @@ import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
 /// vault's curator on each call.
 /// @dev No-ops are allowed. Zero checks are not systematically performed.
 contract PublicAllocator is IPublicAllocator {
+    /* CONSTANTS */
+
+    uint256 internal constant ETH_TRANSFER_GAS_STIPEND = 100_000;
+
     /* STORAGE */
 
     mapping(address vault => mapping(bytes32 key => bool)) public canAllocate;
@@ -57,10 +61,7 @@ contract PublicAllocator is IPublicAllocator {
         uint128 assets
     ) external payable {
         require(msg.value == fee[vault], IncorrectFee());
-        if (msg.value > 0) {
-            (bool success,) = payable(IVaultV2(vault).curator()).call{value: msg.value}("");
-            require(success, FeeTransferFailed());
-        }
+        if (msg.value > 0) _transferEth(IVaultV2(vault).curator(), msg.value);
 
         bytes32 deallocateKey = keccak256(abi.encode(deallocateAdapter, deallocateData));
         require(canDeallocate[vault][deallocateKey], CannotDeallocate());
@@ -72,5 +73,11 @@ contract PublicAllocator is IPublicAllocator {
         IVaultV2(vault).allocate(allocateAdapter, allocateData, assets);
 
         emit Reallocate(msg.sender, vault, allocateKey, deallocateKey, assets);
+    }
+
+    /// @dev Intentionally ignores failures: a non-payable curator must not block reallocations.
+    function _transferEth(address recipient, uint256 amount) internal {
+        (bool success,) = payable(recipient).call{value: amount, gas: ETH_TRANSFER_GAS_STIPEND}("");
+        if (!success) return;
     }
 }

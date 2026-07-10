@@ -7,6 +7,8 @@ import {AdapterMock} from "../mocks/AdapterMock.sol";
 import {PublicAllocator} from "../../src/periphery/PublicAllocator.sol";
 import {IPublicAllocator} from "../../src/periphery/interfaces/IPublicAllocator.sol";
 
+contract RejectEth {}
+
 contract PublicAllocatorTest is BaseTest {
     PublicAllocator internal publicAllocator;
 
@@ -245,6 +247,33 @@ contract PublicAllocatorTest is BaseTest {
 
         assertEq(curator.balance, curatorBalanceBefore + feeAmount);
         assertEq(address(publicAllocator).balance, 0);
+    }
+
+    function testReallocateDoesNotRevertWhenCuratorRejectsFee(uint256 feeAmount, uint256 assets, uint128 amount)
+        public
+    {
+        feeAmount = bound(feeAmount, 1, 10 ether);
+        assets = bound(assets, 1, 1e30);
+        amount = uint128(bound(amount, 1, assets));
+
+        address nonPayableCurator = address(new RejectEth());
+        vm.prank(owner);
+        vault.setCurator(nonPayableCurator);
+        vm.prank(nonPayableCurator);
+        publicAllocator.setFee(address(vault), feeAmount);
+
+        _seedAdapterA(assets);
+        _setCanDeallocate(adapterA, dataA, true);
+        _setCanAllocate(adapterB, dataB, true);
+
+        vm.deal(rando, feeAmount);
+        vm.prank(rando);
+        publicAllocator.reallocate{value: feeAmount}(address(vault), adapterA, dataA, adapterB, dataB, amount);
+
+        assertEq(nonPayableCurator.balance, 0);
+        assertEq(address(publicAllocator).balance, feeAmount);
+        assertEq(AdapterMock(adapterA).deposit(), assets - amount, "adapterA");
+        assertEq(AdapterMock(adapterB).deposit(), amount, "adapterB");
     }
 
     function testReallocateIncorrectFee(uint256 feeAmount, uint256 sentValue, uint256 assets, uint128 amount) public {
