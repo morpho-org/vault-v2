@@ -7,6 +7,8 @@ import {AdapterMock} from "../mocks/AdapterMock.sol";
 import {PublicAllocator} from "../../src/periphery/PublicAllocator.sol";
 import {IPublicAllocator} from "../../src/periphery/interfaces/IPublicAllocator.sol";
 
+contract RejectEth {}
+
 contract PublicAllocatorTest is BaseTest {
     PublicAllocator internal publicAllocator;
 
@@ -209,29 +211,29 @@ contract PublicAllocatorTest is BaseTest {
         _reallocate(amount);
     }
 
-    /* FEE */
+    /* ETH PENALTY */
 
-    function testSetFee(uint256 newFee) public {
+    function testSetEthPenalty(uint256 newEthPenalty) public {
         vm.expectEmit();
-        emit IPublicAllocator.SetFee(curator, address(vault), newFee);
+        emit IPublicAllocator.SetEthPenalty(curator, address(vault), newEthPenalty);
         vm.prank(curator);
-        publicAllocator.setFee(address(vault), newFee);
-        assertEq(publicAllocator.fee(address(vault)), newFee);
+        publicAllocator.setEthPenalty(address(vault), newEthPenalty);
+        assertEq(publicAllocator.ethPenalty(address(vault)), newEthPenalty);
     }
 
-    function testSetFeeUnauthorized(address caller, uint256 newFee) public {
+    function testSetEthPenaltyUnauthorized(address caller, uint256 newEthPenalty) public {
         vm.assume(caller != curator);
         vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(caller);
-        publicAllocator.setFee(address(vault), newFee);
+        publicAllocator.setEthPenalty(address(vault), newEthPenalty);
     }
 
-    function testReallocateChargesFee(uint256 feeAmount, uint256 assets, uint128 amount) public {
-        feeAmount = bound(feeAmount, 1, 10 ether);
+    function testReallocateChargesEthPenalty(uint256 ethPenaltyAmount, uint256 assets, uint128 amount) public {
+        ethPenaltyAmount = bound(ethPenaltyAmount, 1, 10 ether);
         assets = bound(assets, 1, 1e30);
         amount = uint128(bound(amount, 1, assets));
         vm.prank(curator);
-        publicAllocator.setFee(address(vault), feeAmount);
+        publicAllocator.setEthPenalty(address(vault), ethPenaltyAmount);
 
         _seedAdapterA(assets);
         _setCanDeallocate(adapterA, dataA, true);
@@ -239,28 +241,98 @@ contract PublicAllocatorTest is BaseTest {
 
         uint256 curatorBalanceBefore = curator.balance;
 
-        vm.deal(rando, feeAmount);
+        vm.deal(rando, ethPenaltyAmount);
         vm.prank(rando);
-        publicAllocator.reallocate{value: feeAmount}(address(vault), adapterA, dataA, adapterB, dataB, amount);
+        publicAllocator.reallocate{value: ethPenaltyAmount}(address(vault), adapterA, dataA, adapterB, dataB, amount);
 
-        assertEq(curator.balance, curatorBalanceBefore + feeAmount);
+        assertEq(curator.balance, curatorBalanceBefore);
+        assertEq(publicAllocator.accruedEthPenalty(address(vault)), ethPenaltyAmount);
+        assertEq(address(publicAllocator).balance, ethPenaltyAmount);
+    }
+
+    function testReallocateAccruesEthPenaltyForNonPayableCurator(
+        uint256 ethPenaltyAmount,
+        uint256 assets,
+        uint128 amount
+    ) public {
+        ethPenaltyAmount = bound(ethPenaltyAmount, 1, 10 ether);
+        assets = bound(assets, 1, 1e30);
+        amount = uint128(bound(amount, 1, assets));
+
+        address nonPayableCurator = address(new RejectEth());
+        vm.prank(owner);
+        vault.setCurator(nonPayableCurator);
+        vm.prank(nonPayableCurator);
+        publicAllocator.setEthPenalty(address(vault), ethPenaltyAmount);
+
+        _seedAdapterA(assets);
+        _setCanDeallocate(adapterA, dataA, true);
+        _setCanAllocate(adapterB, dataB, true);
+
+        vm.deal(rando, ethPenaltyAmount);
+        vm.prank(rando);
+        publicAllocator.reallocate{value: ethPenaltyAmount}(address(vault), adapterA, dataA, adapterB, dataB, amount);
+
+        assertEq(nonPayableCurator.balance, 0);
+        assertEq(publicAllocator.accruedEthPenalty(address(vault)), ethPenaltyAmount);
+        assertEq(address(publicAllocator).balance, ethPenaltyAmount);
+        assertEq(AdapterMock(adapterA).deposit(), assets - amount, "adapterA");
+        assertEq(AdapterMock(adapterB).deposit(), amount, "adapterB");
+    }
+
+    function testClaimEthPenalty(uint256 ethPenaltyAmount, uint256 assets, uint128 amount) public {
+        ethPenaltyAmount = bound(ethPenaltyAmount, 1, 10 ether);
+        assets = bound(assets, 1, 1e30);
+        amount = uint128(bound(amount, 1, assets));
+        address payable receiver = payable(makeAddr("receiver"));
+
+        vm.prank(curator);
+        publicAllocator.setEthPenalty(address(vault), ethPenaltyAmount);
+        _seedAdapterA(assets);
+        _setCanDeallocate(adapterA, dataA, true);
+        _setCanAllocate(adapterB, dataB, true);
+
+        vm.deal(rando, ethPenaltyAmount);
+        vm.prank(rando);
+        publicAllocator.reallocate{value: ethPenaltyAmount}(address(vault), adapterA, dataA, adapterB, dataB, amount);
+
+        vm.expectEmit();
+        emit IPublicAllocator.ClaimEthPenalty(curator, address(vault), ethPenaltyAmount, receiver);
+        vm.prank(curator);
+        publicAllocator.claimEthPenalty(address(vault), receiver);
+
+        assertEq(publicAllocator.accruedEthPenalty(address(vault)), 0);
+        assertEq(receiver.balance, ethPenaltyAmount);
         assertEq(address(publicAllocator).balance, 0);
     }
 
-    function testReallocateIncorrectFee(uint256 feeAmount, uint256 sentValue, uint256 assets, uint128 amount) public {
-        feeAmount = bound(feeAmount, 1, 10 ether);
+    function testClaimEthPenaltyUnauthorized(address caller, address payable receiver) public {
+        vm.assume(caller != curator);
+
+        vm.expectRevert(IPublicAllocator.Unauthorized.selector);
+        vm.prank(caller);
+        publicAllocator.claimEthPenalty(address(vault), receiver);
+    }
+
+    function testReallocateIncorrectEthPenalty(
+        uint256 ethPenaltyAmount,
+        uint256 sentValue,
+        uint256 assets,
+        uint128 amount
+    ) public {
+        ethPenaltyAmount = bound(ethPenaltyAmount, 1, 10 ether);
         sentValue = bound(sentValue, 0, 10 ether);
-        vm.assume(sentValue != feeAmount);
+        vm.assume(sentValue != ethPenaltyAmount);
         assets = bound(assets, 1, 1e30);
         amount = uint128(bound(amount, 1, assets));
         vm.prank(curator);
-        publicAllocator.setFee(address(vault), feeAmount);
+        publicAllocator.setEthPenalty(address(vault), ethPenaltyAmount);
 
         _seedAdapterA(assets);
         _setCanAllocate(adapterB, dataB, true);
 
         vm.deal(rando, sentValue);
-        vm.expectRevert(IPublicAllocator.IncorrectFee.selector);
+        vm.expectRevert(IPublicAllocator.IncorrectEthPenalty.selector);
         vm.prank(rando);
         publicAllocator.reallocate{value: sentValue}(address(vault), adapterA, dataA, adapterB, dataB, amount);
     }
