@@ -24,6 +24,7 @@ interface IPublicAllocator {
     error Unauthorized();
     error CannotAllocate();
     error CannotDeallocate();
+    error EthTransferFailed();
     error IncorrectEthPenalty();
 
     /* VIEW */
