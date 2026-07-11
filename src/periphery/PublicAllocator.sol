@@ -53,7 +53,8 @@ contract PublicAllocator is IPublicAllocator {
 
         uint256 claimed = accruedEthPenalty[vault];
         accruedEthPenalty[vault] = 0;
-        receiver.transfer(claimed);
+        (bool success,) = receiver.call{value: claimed}("");
+        require(success, EthTransferFailed());
 
         emit ClaimEthPenalty(msg.sender, vault, claimed, receiver);
     }
