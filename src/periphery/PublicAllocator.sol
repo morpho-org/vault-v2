@@ -8,7 +8,7 @@ import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
 /// @dev To be usable, the PublicAllocator must be set as an allocator of the vault.
 /// @dev The PublicAllocator inherits the vault's roles. The vault's allocators can enable and disable canAllocate and
 /// canDeallocate; the vault's sentinels can disable canAllocate and enable canDeallocate, to cut off public inflows and
-/// allow public outflows for derisking; the vault's curator sets the ETH penalty.
+/// allow public outflows for derisking; the vault's curator sets and claims the ETH penalty.
 /// @dev Each reallocate call costs an ETH penalty in native currency, set per vault by the curator. The ETH penalty is
 /// accrued per vault and can be claimed by the vault's curator.
 /// @dev No-ops are allowed. Zero checks are not performed.
