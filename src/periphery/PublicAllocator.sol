@@ -11,7 +11,7 @@ import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
 /// allow public outflows for derisking; the vault's curator sets the ETH penalty.
 /// @dev Each reallocate call costs an ETH penalty in native currency, set per vault by the curator. The ETH penalty is
 /// accrued per vault and can be claimed by the vault's curator.
-/// @dev No-ops are allowed. Zero checks are not systematically performed.
+/// @dev No-ops are allowed. Zero checks are not performed.
 contract PublicAllocator is IPublicAllocator {
     /* STORAGE */
 
