@@ -20,7 +20,7 @@ contract PublicAllocator is IPublicAllocator {
     mapping(address vault => uint256) public ethPenalty;
     mapping(address vault => uint256) public accruedEthPenalty;
 
-    /* CONFIGURATION FUNCTIONS */
+    /* AUTHORIZED FUNCTIONS */
 
     function setCanAllocate(address vault, address adapter, bytes calldata data, bool newCanAllocate) external {
         require(
@@ -45,8 +45,6 @@ contract PublicAllocator is IPublicAllocator {
         ethPenalty[vault] = newEthPenalty;
         emit SetEthPenalty(msg.sender, vault, newEthPenalty);
     }
-
-    /* CLAIM FUNCTION */
 
     function claimEthPenalty(address vault, address payable receiver) external {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
