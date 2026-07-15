@@ -8,8 +8,8 @@ import {IMorphoMarketV1AdapterV2, MarketParams} from "../adapters/interfaces/IMo
 
 /// @dev Specialized to Morpho Blue allocations through the MorphoMarketV1AdapterV2.
 /// @dev To be usable, the PublicAllocator must be set as an allocator of the vault.
-/// @dev The PublicAllocator inherits the vault's roles. The vault's allocators can set the allocate cap and
-/// canDeallocate; the vault's sentinels can decrease the allocate cap and enable canDeallocate, to cut off public
+/// @dev The PublicAllocator inherits the vault's roles. The vault's allocators can set the absolute cap and
+/// canDeallocate; the vault's sentinels can decrease the absolute cap and enable canDeallocate, to cut off public
 /// inflows and allow public outflows for derisking; the vault's curator sets and claims the ETH penalty.
 /// @dev Each reallocate call costs a penalty in native currency, set per vault by the curator. The penalty is accrued
 /// per vault and can be claimed by the vault's curator.
@@ -24,20 +24,20 @@ contract PublicAllocator is IPublicAllocator {
 
     /* AUTHORIZED FUNCTIONS */
 
-    function setAllocateCap(
+    function setAbsoluteCap(
         address vault,
         IMorphoMarketV1AdapterV2 adapter,
         MarketParams calldata marketParams,
-        uint256 newAllocateCap
+        uint256 newAbsoluteCap
     ) external {
         bytes32 id = _marketId(adapter, marketParams);
         require(
             IVaultV2(vault).isAllocator(msg.sender)
-                || (newAllocateCap <= absoluteCap[vault][id] && IVaultV2(vault).isSentinel(msg.sender)),
+                || (newAbsoluteCap <= absoluteCap[vault][id] && IVaultV2(vault).isSentinel(msg.sender)),
             Unauthorized()
         );
-        absoluteCap[vault][id] = newAllocateCap;
-        emit SetAllocateCap(msg.sender, vault, address(adapter), marketParams, newAllocateCap);
+        absoluteCap[vault][id] = newAbsoluteCap;
+        emit SetAbsoluteCap(msg.sender, vault, address(adapter), marketParams, newAbsoluteCap);
     }
 
     function setCanDeallocate(
@@ -91,7 +91,7 @@ contract PublicAllocator is IPublicAllocator {
         bytes32 deallocateId = _marketId(deallocateAdapter, deallocateMarketParams);
         require(canDeallocate[vault][deallocateId], CannotDeallocate());
         bytes32 allocateId = _marketId(allocateAdapter, allocateMarketParams);
-        require(IVaultV2(vault).allocation(allocateId) <= absoluteCap[vault][allocateId], AllocateCapExceeded());
+        require(IVaultV2(vault).allocation(allocateId) <= absoluteCap[vault][allocateId], AbsoluteCapExceeded());
 
         emit Reallocate(msg.sender, vault, allocateId, deallocateId, assets);
     }

@@ -7,8 +7,8 @@ import {IMorphoMarketV1AdapterV2, MarketParams} from "../../adapters/interfaces/
 interface IPublicAllocator {
     /* EVENTS */
 
-    event SetAllocateCap(
-        address indexed sender, address indexed vault, address adapter, MarketParams marketParams, uint256 allocateCap
+    event SetAbsoluteCap(
+        address indexed sender, address indexed vault, address adapter, MarketParams marketParams, uint256 absoluteCap
     );
     event SetCanDeallocate(
         address indexed sender, address indexed vault, address adapter, MarketParams marketParams, bool canDeallocate
@@ -22,7 +22,7 @@ interface IPublicAllocator {
     /* ERRORS */
 
     error Unauthorized();
-    error AllocateCapExceeded();
+    error AbsoluteCapExceeded();
     error CannotDeallocate();
     error EthTransferFailed();
     error IncorrectEthPenalty();
@@ -38,11 +38,11 @@ interface IPublicAllocator {
 
     /* FUNCTIONS */
 
-    function setAllocateCap(
+    function setAbsoluteCap(
         address vault,
         IMorphoMarketV1AdapterV2 adapter,
         MarketParams calldata marketParams,
-        uint256 newAllocateCap
+        uint256 newAbsoluteCap
     ) external;
     function setCanDeallocate(
         address vault,
