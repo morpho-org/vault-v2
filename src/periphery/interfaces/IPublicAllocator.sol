@@ -5,6 +5,10 @@ pragma solidity >=0.5.0;
 import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 interface IPublicAllocator {
+    /* CONSTANTS */
+
+    function IDLE_ID() external view returns (bytes32);
+
     /* EVENTS */
 
     event SetAbsoluteCap(
