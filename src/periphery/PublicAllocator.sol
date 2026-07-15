@@ -68,6 +68,7 @@ contract PublicAllocator is IPublicAllocator {
     /* PUBLIC FUNCTION */
 
     /// @dev The vault's caps are still enforced on the allocation, so this call reverts if it would exceed them.
+    /// @dev Use address(0) as the deallocate adapter to deallocate from idle.
     function reallocate(
         address vault,
         address deallocateAdapter,
@@ -79,7 +80,9 @@ contract PublicAllocator is IPublicAllocator {
         require(msg.value == ethPenalty[vault], IncorrectEthPenalty());
         if (msg.value > 0) accruedEthPenalty[vault] += msg.value;
 
-        IVaultV2(vault).deallocate(address(deallocateAdapter), abi.encode(deallocateMarketParams), assets);
+        if (deallocateAdapter != address(0)) {
+            IVaultV2(vault).deallocate(address(deallocateAdapter), abi.encode(deallocateMarketParams), assets);
+        }
         IVaultV2(vault).allocate(address(allocateAdapter), abi.encode(allocateMarketParams), assets);
 
         bytes32 deallocateId = marketId(deallocateAdapter, deallocateMarketParams);
