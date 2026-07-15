@@ -18,7 +18,7 @@ contract GasHungryEthReceiver {
 }
 
 /// @dev The public allocator is specialized to Morpho Market V1 (Morpho Blue) via the Morpho Market V1 adapter (V2).
-/// These tests use a real vault + adapter + Morpho Blue markets so that the allocate cap is keyed by the exact
+/// These tests use a real vault + adapter + Morpho Blue markets so that the absolute cap is keyed by the exact
 /// per-market vault id (keccak256(abi.encode("this/marketParams", adapter, marketParams))).
 contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
     using MorphoBalancesLib for IMorpho;
@@ -47,10 +47,10 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
     /* HELPERS */
 
-    // The allocate cap is set by the vault's allocators (inherited role).
-    function _setAllocateCap(MarketParams memory marketParams, uint256 cap) internal {
+    // The absolute cap is set by the vault's allocators (inherited role).
+    function _setAbsoluteCap(MarketParams memory marketParams, uint256 cap) internal {
         vm.prank(allocator);
-        publicAllocator.setAllocateCap(address(vault), adapter, marketParams, cap);
+        publicAllocator.setAbsoluteCap(address(vault), adapter, marketParams, cap);
     }
 
     function _setCanDeallocate(MarketParams memory marketParams, bool value) internal {
@@ -70,38 +70,38 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         publicAllocator.reallocate(address(vault), adapter, marketParams1, adapter, marketParams2, assets);
     }
 
-    /* SET ALLOCATE CAP */
+    /* SET ABSOLUTE CAP */
 
-    function testSetAllocateCap(uint256 cap) public {
+    function testSetAbsoluteCap(uint256 cap) public {
         vm.expectEmit();
-        emit IPublicAllocator.SetAllocateCap(allocator, address(vault), address(adapter), marketParams2, cap);
-        _setAllocateCap(marketParams2, cap);
+        emit IPublicAllocator.SetAbsoluteCap(allocator, address(vault), address(adapter), marketParams2, cap);
+        _setAbsoluteCap(marketParams2, cap);
         assertEq(publicAllocator.absoluteCap(address(vault), id2), cap);
     }
 
-    function testSetAllocateCapUnauthorized(address caller, uint256 cap) public {
+    function testSetAbsoluteCapUnauthorized(address caller, uint256 cap) public {
         vm.assume(!vault.isAllocator(caller) && !vault.isSentinel(caller));
         vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(caller);
-        publicAllocator.setAllocateCap(address(vault), adapter, marketParams2, cap);
+        publicAllocator.setAbsoluteCap(address(vault), adapter, marketParams2, cap);
     }
 
-    function testSetAllocateCapSentinelCanOnlyDecrease(uint256 cap, uint256 lower, uint256 higher) public {
+    function testSetAbsoluteCapSentinelCanOnlyDecrease(uint256 cap, uint256 lower, uint256 higher) public {
         cap = bound(cap, 1, type(uint256).max - 1);
         lower = bound(lower, 0, cap);
         higher = bound(higher, cap + 1, type(uint256).max);
 
         // Allocator sets the cap.
-        _setAllocateCap(marketParams2, cap);
+        _setAbsoluteCap(marketParams2, cap);
 
         // Sentinel cannot increase the cap.
         vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(sentinel);
-        publicAllocator.setAllocateCap(address(vault), adapter, marketParams2, higher);
+        publicAllocator.setAbsoluteCap(address(vault), adapter, marketParams2, higher);
 
         // Sentinel can decrease the cap (cut public inflows).
         vm.prank(sentinel);
-        publicAllocator.setAllocateCap(address(vault), adapter, marketParams2, lower);
+        publicAllocator.setAbsoluteCap(address(vault), adapter, marketParams2, lower);
         assertEq(publicAllocator.absoluteCap(address(vault), id2), lower);
     }
 
@@ -143,7 +143,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
         _seedMarket1(assets);
         _setCanDeallocate(marketParams1, true);
-        _setAllocateCap(marketParams2, type(uint256).max);
+        _setAbsoluteCap(marketParams2, type(uint256).max);
 
         uint256 alloc1Before = vault.allocation(id1);
         assertEq(vault.allocation(id2), 0);
@@ -162,34 +162,34 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 1, assets));
 
         _seedMarket1(assets);
-        _setAllocateCap(marketParams2, type(uint256).max);
+        _setAbsoluteCap(marketParams2, type(uint256).max);
         // market1 deallocation not enabled.
 
         vm.expectRevert(IPublicAllocator.CannotDeallocate.selector);
         _reallocate(amount);
     }
 
-    function testReallocateAllocateCapExceeded(uint256 assets, uint128 amount) public {
+    function testReallocateAbsoluteCapExceeded(uint256 assets, uint128 amount) public {
         assets = bound(assets, 2, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 2, assets));
 
         _seedMarket1(assets);
         _setCanDeallocate(marketParams1, true);
-        // Allocate cap on market2 is 0: any non-zero resulting allocation must exceed it.
-        _setAllocateCap(marketParams2, 0);
+        // Absolute cap on market2 is 0: any non-zero resulting allocation must exceed it.
+        _setAbsoluteCap(marketParams2, 0);
 
-        vm.expectRevert(IPublicAllocator.AllocateCapExceeded.selector);
+        vm.expectRevert(IPublicAllocator.AbsoluteCapExceeded.selector);
         _reallocate(amount);
     }
 
-    function testReallocateWithinAllocateCap(uint256 assets, uint128 amount) public {
+    function testReallocateWithinAbsoluteCap(uint256 assets, uint128 amount) public {
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
 
         _seedMarket1(assets);
         _setCanDeallocate(marketParams1, true);
         // Resulting allocation is at most `amount` (Morpho rounds down), so `amount` is a valid cap upper bound.
-        _setAllocateCap(marketParams2, amount);
+        _setAbsoluteCap(marketParams2, amount);
 
         _reallocate(amount);
 
@@ -202,7 +202,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
         _seedMarket1(assets);
         _setCanDeallocate(marketParams1, true);
-        _setAllocateCap(marketParams2, type(uint256).max);
+        _setAbsoluteCap(marketParams2, type(uint256).max);
 
         // Vault absolute cap on market2 tightened below the amount so the vault's own allocate reverts first.
         // decreaseAbsoluteCap is not timelocked; the curator can call it directly.
@@ -239,7 +239,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
         _seedMarket1(assets);
         _setCanDeallocate(marketParams1, true);
-        _setAllocateCap(marketParams2, type(uint256).max);
+        _setAbsoluteCap(marketParams2, type(uint256).max);
 
         uint256 curatorBalanceBefore = curator.balance;
 
@@ -270,9 +270,9 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         publicAllocator.setEthPenalty(address(vault), ethPenaltyAmount);
 
         _seedMarket1(assets);
-        // canDeallocate / allocateCap are allocator-set roles, independent of the curator swap.
+        // canDeallocate / absoluteCap are allocator-set roles, independent of the curator swap.
         _setCanDeallocate(marketParams1, true);
-        _setAllocateCap(marketParams2, type(uint256).max);
+        _setAbsoluteCap(marketParams2, type(uint256).max);
 
         vm.deal(rando, ethPenaltyAmount);
         vm.prank(rando);
@@ -295,7 +295,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         publicAllocator.setEthPenalty(address(vault), ethPenaltyAmount);
         _seedMarket1(assets);
         _setCanDeallocate(marketParams1, true);
-        _setAllocateCap(marketParams2, type(uint256).max);
+        _setAbsoluteCap(marketParams2, type(uint256).max);
 
         vm.deal(rando, ethPenaltyAmount);
         vm.prank(rando);
@@ -323,7 +323,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         publicAllocator.setEthPenalty(address(vault), ethPenaltyAmount);
         _seedMarket1(assets);
         _setCanDeallocate(marketParams1, true);
-        _setAllocateCap(marketParams2, type(uint256).max);
+        _setAbsoluteCap(marketParams2, type(uint256).max);
 
         vm.deal(rando, ethPenaltyAmount);
         vm.prank(rando);
@@ -354,7 +354,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         publicAllocator.setEthPenalty(address(vault), ethPenaltyAmount);
         _seedMarket1(assets);
         _setCanDeallocate(marketParams1, true);
-        _setAllocateCap(marketParams2, type(uint256).max);
+        _setAbsoluteCap(marketParams2, type(uint256).max);
 
         vm.deal(rando, ethPenaltyAmount);
         vm.prank(rando);
@@ -395,7 +395,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
         _seedMarket1(assets);
         _setCanDeallocate(marketParams1, true);
-        _setAllocateCap(marketParams2, type(uint256).max);
+        _setAbsoluteCap(marketParams2, type(uint256).max);
 
         vm.deal(rando, sentValue);
         vm.expectRevert(IPublicAllocator.IncorrectEthPenalty.selector);
