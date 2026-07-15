@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
-import {IMorphoMarketV1AdapterV2, MarketParams} from "../adapters/interfaces/IMorphoMarketV1AdapterV2.sol";
+import {MarketParams} from "../adapters/interfaces/IMorphoMarketV1AdapterV2.sol";
 
 /// @dev Specialized to Morpho Blue allocations through the MorphoMarketV1AdapterV2.
 /// @dev To be usable, the PublicAllocator must be set as an allocator of the vault.
@@ -24,13 +24,10 @@ contract PublicAllocator is IPublicAllocator {
 
     /* AUTHORIZED FUNCTIONS */
 
-    function setAbsoluteCap(
-        address vault,
-        IMorphoMarketV1AdapterV2 adapter,
-        MarketParams calldata marketParams,
-        uint256 newAbsoluteCap
-    ) external {
-        bytes32 id = _marketId(adapter, marketParams);
+    function setAbsoluteCap(address vault, address adapter, MarketParams calldata marketParams, uint256 newAbsoluteCap)
+        external
+    {
+        bytes32 id = marketId(adapter, marketParams);
         require(
             IVaultV2(vault).isAllocator(msg.sender)
                 || (newAbsoluteCap <= absoluteCap[vault][id] && IVaultV2(vault).isSentinel(msg.sender)),
@@ -40,17 +37,14 @@ contract PublicAllocator is IPublicAllocator {
         emit SetAbsoluteCap(msg.sender, vault, address(adapter), marketParams, newAbsoluteCap);
     }
 
-    function setCanDeallocate(
-        address vault,
-        IMorphoMarketV1AdapterV2 adapter,
-        MarketParams calldata marketParams,
-        bool newCanDeallocate
-    ) external {
+    function setCanDeallocate(address vault, address adapter, MarketParams calldata marketParams, bool newCanDeallocate)
+        external
+    {
         require(
             IVaultV2(vault).isAllocator(msg.sender) || (newCanDeallocate && IVaultV2(vault).isSentinel(msg.sender)),
             Unauthorized()
         );
-        canDeallocate[vault][_marketId(adapter, marketParams)] = newCanDeallocate;
+        canDeallocate[vault][marketId(adapter, marketParams)] = newCanDeallocate;
         emit SetCanDeallocate(msg.sender, vault, address(adapter), marketParams, newCanDeallocate);
     }
 
@@ -76,9 +70,9 @@ contract PublicAllocator is IPublicAllocator {
     /// @dev The vault's caps are still enforced on the allocation, so this call reverts if it would exceed them.
     function reallocate(
         address vault,
-        IMorphoMarketV1AdapterV2 deallocateAdapter,
+        address deallocateAdapter,
         MarketParams calldata deallocateMarketParams,
-        IMorphoMarketV1AdapterV2 allocateAdapter,
+        address allocateAdapter,
         MarketParams calldata allocateMarketParams,
         uint128 assets
     ) external payable {
@@ -88,9 +82,9 @@ contract PublicAllocator is IPublicAllocator {
         IVaultV2(vault).deallocate(address(deallocateAdapter), abi.encode(deallocateMarketParams), assets);
         IVaultV2(vault).allocate(address(allocateAdapter), abi.encode(allocateMarketParams), assets);
 
-        bytes32 deallocateId = _marketId(deallocateAdapter, deallocateMarketParams);
+        bytes32 deallocateId = marketId(deallocateAdapter, deallocateMarketParams);
         require(canDeallocate[vault][deallocateId], CannotDeallocate());
-        bytes32 allocateId = _marketId(allocateAdapter, allocateMarketParams);
+        bytes32 allocateId = marketId(allocateAdapter, allocateMarketParams);
         require(IVaultV2(vault).allocation(allocateId) <= absoluteCap[vault][allocateId], AbsoluteCapExceeded());
 
         emit Reallocate(msg.sender, vault, allocateId, deallocateId, assets);
@@ -98,13 +92,8 @@ contract PublicAllocator is IPublicAllocator {
 
     /* INTERNAL */
 
-    /// @dev Returns the market's per-market vault id, exactly as keyed by the Morpho Market V1 adapter (V2) in the
-    /// vault's caps.
-    function _marketId(IMorphoMarketV1AdapterV2 adapter, MarketParams calldata marketParams)
-        internal
-        pure
-        returns (bytes32)
-    {
+    /// @dev Returns the market's per-market vault id, exactly as keyed by the MorphoMarketV1AdapterV2.
+    function marketId(address adapter, MarketParams calldata marketParams) internal pure returns (bytes32) {
         return keccak256(abi.encode("this/marketParams", address(adapter), marketParams));
     }
 }

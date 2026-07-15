@@ -50,12 +50,12 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
     // The absolute cap is set by the vault's allocators (inherited role).
     function _setAbsoluteCap(MarketParams memory marketParams, uint256 cap) internal {
         vm.prank(allocator);
-        publicAllocator.setAbsoluteCap(address(vault), adapter, marketParams, cap);
+        publicAllocator.setAbsoluteCap(address(vault), address(adapter), marketParams, cap);
     }
 
     function _setCanDeallocate(MarketParams memory marketParams, bool value) internal {
         vm.prank(allocator);
-        publicAllocator.setCanDeallocate(address(vault), adapter, marketParams, value);
+        publicAllocator.setCanDeallocate(address(vault), address(adapter), marketParams, value);
     }
 
     // Deposit into the vault and allocate to market1 so there is liquidity to reallocate away from.
@@ -67,7 +67,9 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
     function _reallocate(uint128 assets) internal {
         vm.prank(rando);
-        publicAllocator.reallocate(address(vault), adapter, marketParams1, adapter, marketParams2, assets);
+        publicAllocator.reallocate(
+            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, assets
+        );
     }
 
     /* SET ABSOLUTE CAP */
@@ -83,7 +85,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.assume(!vault.isAllocator(caller) && !vault.isSentinel(caller));
         vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(caller);
-        publicAllocator.setAbsoluteCap(address(vault), adapter, marketParams2, cap);
+        publicAllocator.setAbsoluteCap(address(vault), address(adapter), marketParams2, cap);
     }
 
     function testSetAbsoluteCapSentinelCanOnlyDecrease(uint256 cap, uint256 lower, uint256 higher) public {
@@ -97,11 +99,11 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         // Sentinel cannot increase the cap.
         vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(sentinel);
-        publicAllocator.setAbsoluteCap(address(vault), adapter, marketParams2, higher);
+        publicAllocator.setAbsoluteCap(address(vault), address(adapter), marketParams2, higher);
 
         // Sentinel can decrease the cap (cut public inflows).
         vm.prank(sentinel);
-        publicAllocator.setAbsoluteCap(address(vault), adapter, marketParams2, lower);
+        publicAllocator.setAbsoluteCap(address(vault), address(adapter), marketParams2, lower);
         assertEq(publicAllocator.absoluteCap(address(vault), id2), lower);
     }
 
@@ -118,7 +120,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.assume(!vault.isAllocator(caller) && !vault.isSentinel(caller));
         vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(caller);
-        publicAllocator.setCanDeallocate(address(vault), adapter, marketParams1, true);
+        publicAllocator.setCanDeallocate(address(vault), address(adapter), marketParams1, true);
     }
 
     function testSetCanDeallocateSentinelCanOnlyEnable() public {
@@ -126,13 +128,13 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.expectEmit();
         emit IPublicAllocator.SetCanDeallocate(sentinel, address(vault), address(adapter), marketParams1, true);
         vm.prank(sentinel);
-        publicAllocator.setCanDeallocate(address(vault), adapter, marketParams1, true);
+        publicAllocator.setCanDeallocate(address(vault), address(adapter), marketParams1, true);
         assertTrue(publicAllocator.canDeallocate(address(vault), id1));
 
         // Sentinel cannot disable public deallocations.
         vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(sentinel);
-        publicAllocator.setCanDeallocate(address(vault), adapter, marketParams1, false);
+        publicAllocator.setCanDeallocate(address(vault), address(adapter), marketParams1, false);
     }
 
     /* REALLOCATE */
@@ -246,7 +248,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.deal(rando, ethPenaltyAmount);
         vm.prank(rando);
         publicAllocator.reallocate{value: ethPenaltyAmount}(
-            address(vault), adapter, marketParams1, adapter, marketParams2, amount
+            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
         );
 
         assertEq(curator.balance, curatorBalanceBefore);
@@ -277,7 +279,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.deal(rando, ethPenaltyAmount);
         vm.prank(rando);
         publicAllocator.reallocate{value: ethPenaltyAmount}(
-            address(vault), adapter, marketParams1, adapter, marketParams2, amount
+            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
         );
 
         assertEq(nonPayableCurator.balance, 0);
@@ -300,7 +302,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.deal(rando, ethPenaltyAmount);
         vm.prank(rando);
         publicAllocator.reallocate{value: ethPenaltyAmount}(
-            address(vault), adapter, marketParams1, adapter, marketParams2, amount
+            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
         );
 
         vm.expectEmit();
@@ -328,7 +330,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.deal(rando, ethPenaltyAmount);
         vm.prank(rando);
         publicAllocator.reallocate{value: ethPenaltyAmount}(
-            address(vault), adapter, marketParams1, adapter, marketParams2, amount
+            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
         );
 
         vm.expectEmit();
@@ -359,7 +361,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.deal(rando, ethPenaltyAmount);
         vm.prank(rando);
         publicAllocator.reallocate{value: ethPenaltyAmount}(
-            address(vault), adapter, marketParams1, adapter, marketParams2, amount
+            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
         );
 
         vm.expectRevert(IPublicAllocator.EthTransferFailed.selector);
@@ -401,7 +403,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.expectRevert(IPublicAllocator.IncorrectEthPenalty.selector);
         vm.prank(rando);
         publicAllocator.reallocate{value: sentValue}(
-            address(vault), adapter, marketParams1, adapter, marketParams2, amount
+            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
         );
     }
 }
