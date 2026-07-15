@@ -13,12 +13,14 @@ import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 /// inflows and allow public outflows for derisking; the vault's curator sets and claims the ETH penalty.
 /// @dev Each reallocate call costs a penalty in native currency, set per vault by the curator. The penalty is accrued
 /// per vault and can be claimed by the vault's curator.
+/// @dev The vault's caps are still enforced on the allocation, so this call reverts if it would exceed them.
 /// @dev No-ops are allowed. Zero checks are not performed.
 contract PublicAllocator is IPublicAllocator {
     /* STORAGE */
 
     mapping(address vault => mapping(bytes32 id => uint256)) public absoluteCap;
     mapping(address vault => mapping(bytes32 id => bool)) public canDeallocate;
+    mapping(address vault => bool) public canDeallocateFromIdle;
     mapping(address vault => uint256) public ethPenalty;
     mapping(address vault => uint256) public accruedEthPenalty;
 
@@ -34,7 +36,7 @@ contract PublicAllocator is IPublicAllocator {
             Unauthorized()
         );
         absoluteCap[vault][id] = newAbsoluteCap;
-        emit SetAbsoluteCap(msg.sender, vault, address(adapter), marketParams, newAbsoluteCap);
+        emit SetAbsoluteCap(msg.sender, vault, adapter, marketParams, newAbsoluteCap);
     }
 
     function setCanDeallocate(address vault, address adapter, MarketParams calldata marketParams, bool newCanDeallocate)
@@ -45,7 +47,16 @@ contract PublicAllocator is IPublicAllocator {
             Unauthorized()
         );
         canDeallocate[vault][marketId(adapter, marketParams)] = newCanDeallocate;
-        emit SetCanDeallocate(msg.sender, vault, address(adapter), marketParams, newCanDeallocate);
+        emit SetCanDeallocate(msg.sender, vault, adapter, marketParams, newCanDeallocate);
+    }
+
+    function setCanDeallocateFromIdle(address vault, bool newCanDeallocate) external {
+        require(
+            IVaultV2(vault).isAllocator(msg.sender) || (newCanDeallocate && IVaultV2(vault).isSentinel(msg.sender)),
+            Unauthorized()
+        );
+        canDeallocateFromIdle[vault] = newCanDeallocate;
+        emit SetCanDeallocateFromIdle(msg.sender, vault, newCanDeallocate);
     }
 
     function setEthPenalty(address vault, uint256 newEthPenalty) external {
@@ -67,8 +78,6 @@ contract PublicAllocator is IPublicAllocator {
 
     /* PUBLIC FUNCTION */
 
-    /// @dev The vault's caps are still enforced on the allocation, so this call reverts if it would exceed them.
-    /// @dev Use address(0) as the deallocate adapter to deallocate from idle.
     function reallocate(
         address vault,
         address deallocateAdapter,
@@ -79,24 +88,40 @@ contract PublicAllocator is IPublicAllocator {
     ) external payable {
         require(msg.value == ethPenalty[vault], IncorrectEthPenalty());
         if (msg.value > 0) accruedEthPenalty[vault] += msg.value;
-
-        if (deallocateAdapter != address(0)) {
-            IVaultV2(vault).deallocate(address(deallocateAdapter), abi.encode(deallocateMarketParams), assets);
-        }
-        IVaultV2(vault).allocate(address(allocateAdapter), abi.encode(allocateMarketParams), assets);
-
         bytes32 deallocateId = marketId(deallocateAdapter, deallocateMarketParams);
         require(canDeallocate[vault][deallocateId], CannotDeallocate());
+
+        IVaultV2(vault).deallocate(deallocateAdapter, abi.encode(deallocateMarketParams), assets);
+        IVaultV2(vault).allocate(allocateAdapter, abi.encode(allocateMarketParams), assets);
+
         bytes32 allocateId = marketId(allocateAdapter, allocateMarketParams);
         require(IVaultV2(vault).allocation(allocateId) <= absoluteCap[vault][allocateId], AbsoluteCapExceeded());
 
         emit Reallocate(msg.sender, vault, allocateId, deallocateId, assets);
     }
 
+    function allocate(
+        address vault,
+        address adapter,
+        MarketParams calldata marketParams,
+        uint128 assets
+    ) external payable {
+        require(msg.value == ethPenalty[vault], IncorrectEthPenalty());
+        if (msg.value > 0) accruedEthPenalty[vault] += msg.value;
+        require(canDeallocateFromIdle[vault], CannotDeallocate());
+
+        IVaultV2(vault).allocate(adapter, abi.encode(marketParams), assets);
+
+        bytes32 allocateId = marketId(adapter, marketParams);
+        require(IVaultV2(vault).allocation(allocateId) <= absoluteCap[vault][allocateId], AbsoluteCapExceeded());
+
+        emit AllocateFromIdle(msg.sender, vault, allocateId, assets);
+    }
+
     /* INTERNAL */
 
     /// @dev Returns the market's per-market vault id, exactly as keyed by the MorphoMarketV1AdapterV2.
     function marketId(address adapter, MarketParams calldata marketParams) internal pure returns (bytes32) {
-        return keccak256(abi.encode("this/marketParams", address(adapter), marketParams));
+        return keccak256(abi.encode("this/marketParams", adapter, marketParams));
     }
 }
