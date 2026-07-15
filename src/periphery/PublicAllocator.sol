@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
-import {MarketParams} from "../adapters/interfaces/IMorphoMarketV1AdapterV2.sol";
+import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 /// @dev Specialized to Morpho Blue allocations through the MorphoMarketV1AdapterV2.
 /// @dev To be usable, the PublicAllocator must be set as an allocator of the vault.

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity >=0.5.0;
 
-import {MarketParams} from "../../adapters/interfaces/IMorphoMarketV1AdapterV2.sol";
+import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 interface IPublicAllocator {
     /* EVENTS */
