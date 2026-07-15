@@ -58,6 +58,11 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         publicAllocator.setCanDeallocate(address(vault), address(adapter), marketParams, value);
     }
 
+    function _setCanDeallocateFromIdle(bool value) internal {
+        vm.prank(allocator);
+        publicAllocator.setCanDeallocateFromIdle(address(vault), value);
+    }
+
     // Deposit into the vault and allocate to market1 so there is liquidity to reallocate away from.
     function _seedMarket1(uint256 assets) internal {
         vault.deposit(assets, address(this));
@@ -137,6 +142,32 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         publicAllocator.setCanDeallocate(address(vault), address(adapter), marketParams1, false);
     }
 
+    function testSetCanDeallocateFromIdle(bool value) public {
+        vm.expectEmit();
+        emit IPublicAllocator.SetCanDeallocateFromIdle(allocator, address(vault), value);
+        _setCanDeallocateFromIdle(value);
+        assertEq(publicAllocator.canDeallocateFromIdle(address(vault)), value);
+    }
+
+    function testSetCanDeallocateFromIdleUnauthorized(address caller) public {
+        vm.assume(!vault.isAllocator(caller) && !vault.isSentinel(caller));
+        vm.expectRevert(IPublicAllocator.Unauthorized.selector);
+        vm.prank(caller);
+        publicAllocator.setCanDeallocateFromIdle(address(vault), true);
+    }
+
+    function testSetCanDeallocateFromIdleSentinelCanOnlyEnable() public {
+        vm.expectEmit();
+        emit IPublicAllocator.SetCanDeallocateFromIdle(sentinel, address(vault), true);
+        vm.prank(sentinel);
+        publicAllocator.setCanDeallocateFromIdle(address(vault), true);
+        assertTrue(publicAllocator.canDeallocateFromIdle(address(vault)));
+
+        vm.expectRevert(IPublicAllocator.Unauthorized.selector);
+        vm.prank(sentinel);
+        publicAllocator.setCanDeallocateFromIdle(address(vault), false);
+    }
+
     /* REALLOCATE */
 
     function testReallocateMovesLiquidity(uint256 assets, uint128 amount) public {
@@ -198,32 +229,46 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         assertLe(vault.allocation(id2), publicAllocator.absoluteCap(address(vault), id2), "within cap");
     }
 
-    function testReallocateFromIdle(uint256 assets, uint128 amount) public {
+    function testAllocate(uint256 assets, uint128 amount) public {
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
 
         vault.deposit(assets, address(this));
+        _setCanDeallocateFromIdle(true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
         vm.expectEmit();
-        emit IPublicAllocator.Reallocate(rando, address(vault), id2, publicAllocator.IDLE_ID(), amount);
+        emit IPublicAllocator.AllocateFromIdle(rando, address(vault), id2, amount);
         vm.prank(rando);
-        publicAllocator.reallocate(address(vault), address(0), marketParams1, address(adapter), marketParams2, amount);
+        publicAllocator.allocate(address(vault), address(adapter), marketParams2, amount);
 
         assertEq(underlyingToken.balanceOf(address(vault)), assets - amount, "idle");
         assertLe(vault.allocation(id2), amount, "market2 rounds down");
         assertGt(vault.allocation(id2), 0, "market2 supplied");
     }
 
-    function testReallocateToIdleReverts(uint256 assets, uint128 amount) public {
+    function testAllocateCannotDeallocate(uint256 assets, uint128 amount) public {
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
 
         vault.deposit(assets, address(this));
+        _setAbsoluteCap(marketParams2, type(uint256).max);
+
+        vm.expectRevert(IPublicAllocator.CannotDeallocate.selector);
+        vm.prank(rando);
+        publicAllocator.allocate(address(vault), address(adapter), marketParams2, amount);
+    }
+
+    function testAllocateToIdleReverts(uint256 assets, uint128 amount) public {
+        assets = bound(assets, 1, MAX_TEST_ASSETS);
+        amount = uint128(bound(amount, 1, assets));
+
+        vault.deposit(assets, address(this));
+        _setCanDeallocateFromIdle(true);
 
         vm.expectRevert(ErrorsLib.NotAdapter.selector);
         vm.prank(rando);
-        publicAllocator.reallocate(address(vault), address(0), marketParams1, address(0), marketParams2, amount);
+        publicAllocator.allocate(address(vault), address(0), marketParams2, amount);
     }
 
     function testReallocateRespectsVaultCaps(uint256 assets, uint128 amount) public {
