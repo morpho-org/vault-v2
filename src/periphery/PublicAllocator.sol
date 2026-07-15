@@ -4,8 +4,7 @@ pragma solidity 0.8.28;
 
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
-import {IMorphoMarketV1AdapterV2} from "../adapters/interfaces/IMorphoMarketV1AdapterV2.sol";
-import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {IMorphoMarketV1AdapterV2, MarketParams} from "../adapters/interfaces/IMorphoMarketV1AdapterV2.sol";
 
 /// @dev Specialized to Morpho Blue allocations through the MorphoMarketV1AdapterV2.
 /// @dev To be usable, the PublicAllocator must be set as an allocator of the vault.
@@ -18,7 +17,7 @@ import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 contract PublicAllocator is IPublicAllocator {
     /* STORAGE */
 
-    mapping(address vault => mapping(bytes32 id => uint256)) public allocateCap;
+    mapping(address vault => mapping(bytes32 id => uint256)) public absoluteCap;
     mapping(address vault => mapping(bytes32 id => bool)) public canDeallocate;
     mapping(address vault => uint256) public ethPenalty;
     mapping(address vault => uint256) public accruedEthPenalty;
@@ -34,10 +33,10 @@ contract PublicAllocator is IPublicAllocator {
         bytes32 id = _marketId(adapter, marketParams);
         require(
             IVaultV2(vault).isAllocator(msg.sender)
-                || (newAllocateCap <= allocateCap[vault][id] && IVaultV2(vault).isSentinel(msg.sender)),
+                || (newAllocateCap <= absoluteCap[vault][id] && IVaultV2(vault).isSentinel(msg.sender)),
             Unauthorized()
         );
-        allocateCap[vault][id] = newAllocateCap;
+        absoluteCap[vault][id] = newAllocateCap;
         emit SetAllocateCap(msg.sender, vault, address(adapter), marketParams, newAllocateCap);
     }
 
@@ -86,15 +85,13 @@ contract PublicAllocator is IPublicAllocator {
         require(msg.value == ethPenalty[vault], IncorrectEthPenalty());
         if (msg.value > 0) accruedEthPenalty[vault] += msg.value;
 
-        bytes32 deallocateId = _marketId(deallocateAdapter, deallocateMarketParams);
-        require(canDeallocate[vault][deallocateId], CannotDeallocate());
-
-        bytes32 allocateId = _marketId(allocateAdapter, allocateMarketParams);
-
         IVaultV2(vault).deallocate(address(deallocateAdapter), abi.encode(deallocateMarketParams), assets);
         IVaultV2(vault).allocate(address(allocateAdapter), abi.encode(allocateMarketParams), assets);
 
-        require(IVaultV2(vault).allocation(allocateId) <= allocateCap[vault][allocateId], AllocateCapExceeded());
+        bytes32 deallocateId = _marketId(deallocateAdapter, deallocateMarketParams);
+        require(canDeallocate[vault][deallocateId], CannotDeallocate());
+        bytes32 allocateId = _marketId(allocateAdapter, allocateMarketParams);
+        require(IVaultV2(vault).allocation(allocateId) <= absoluteCap[vault][allocateId], AllocateCapExceeded());
 
         emit Reallocate(msg.sender, vault, allocateId, deallocateId, assets);
     }

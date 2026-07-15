@@ -2,8 +2,7 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity >=0.5.0;
 
-import {IMorphoMarketV1AdapterV2} from "../../adapters/interfaces/IMorphoMarketV1AdapterV2.sol";
-import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {IMorphoMarketV1AdapterV2, MarketParams} from "../../adapters/interfaces/IMorphoMarketV1AdapterV2.sol";
 
 interface IPublicAllocator {
     /* EVENTS */
@@ -32,7 +31,7 @@ interface IPublicAllocator {
 
     /// @dev A Morpho Market V1 market of a vault is keyed by its per-market vault id,
     /// id = keccak256(abi.encode("this/marketParams", adapter, marketParams)), exactly as in the vault's caps.
-    function allocateCap(address vault, bytes32 id) external view returns (uint256);
+    function absoluteCap(address vault, bytes32 id) external view returns (uint256);
     function canDeallocate(address vault, bytes32 id) external view returns (bool);
     function ethPenalty(address vault) external view returns (uint256);
     function accruedEthPenalty(address vault) external view returns (uint256);
