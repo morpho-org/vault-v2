@@ -12,9 +12,6 @@ import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 /// @dev The PublicAllocator inherits the vault's roles. The vault's allocators can set the allocate cap and
 /// canDeallocate; the vault's sentinels can decrease the allocate cap and enable canDeallocate, to cut off public
 /// inflows and allow public outflows for derisking; the vault's curator sets and claims the ETH penalty.
-/// @dev A public allocation into a market is allowed as long as the market's resulting vault allocation stays below the
-/// allocate cap, mirroring the vault's absolute cap. The allocate cap is expressed in the market's per-market vault id,
-/// so it is checked exactly like the vault's own absolute cap.
 /// @dev Each reallocate call costs a penalty in native currency, set per vault by the curator. The penalty is accrued
 /// per vault and can be claimed by the vault's curator.
 /// @dev No-ops are allowed. Zero checks are not performed.
