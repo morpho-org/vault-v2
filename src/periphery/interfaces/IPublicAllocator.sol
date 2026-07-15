@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity >=0.5.0;
 
-import {IMorphoMarketV1AdapterV2, MarketParams} from "../../adapters/interfaces/IMorphoMarketV1AdapterV2.sol";
+import {MarketParams} from "../../adapters/interfaces/IMorphoMarketV1AdapterV2.sol";
 
 interface IPublicAllocator {
     /* EVENTS */
@@ -38,25 +38,17 @@ interface IPublicAllocator {
 
     /* FUNCTIONS */
 
-    function setAbsoluteCap(
-        address vault,
-        IMorphoMarketV1AdapterV2 adapter,
-        MarketParams calldata marketParams,
-        uint256 newAbsoluteCap
-    ) external;
-    function setCanDeallocate(
-        address vault,
-        IMorphoMarketV1AdapterV2 adapter,
-        MarketParams calldata marketParams,
-        bool newCanDeallocate
-    ) external;
+    function setAbsoluteCap(address vault, address adapter, MarketParams calldata marketParams, uint256 newAbsoluteCap)
+        external;
+    function setCanDeallocate(address vault, address adapter, MarketParams calldata marketParams, bool newCanDeallocate)
+        external;
     function setEthPenalty(address vault, uint256 newEthPenalty) external;
     function claimEthPenalty(address vault, address payable receiver) external;
     function reallocate(
         address vault,
-        IMorphoMarketV1AdapterV2 deallocateAdapter,
+        address deallocateAdapter,
         MarketParams calldata deallocateMarketParams,
-        IMorphoMarketV1AdapterV2 allocateAdapter,
+        address allocateAdapter,
         MarketParams calldata allocateMarketParams,
         uint128 assets
     ) external payable;
