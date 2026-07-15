@@ -2,52 +2,63 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity >=0.5.0;
 
+import {IMorphoMarketV1AdapterV2} from "../../adapters/interfaces/IMorphoMarketV1AdapterV2.sol";
+import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+
 interface IPublicAllocator {
     /* EVENTS */
 
-    event SetCanAllocate(address indexed sender, address indexed vault, address adapter, bytes data, bool canAllocate);
+    event SetAllocateCap(
+        address indexed sender, address indexed vault, address adapter, MarketParams marketParams, uint256 allocateCap
+    );
     event SetCanDeallocate(
-        address indexed sender, address indexed vault, address adapter, bytes data, bool canDeallocate
+        address indexed sender, address indexed vault, address adapter, MarketParams marketParams, bool canDeallocate
     );
     event SetEthPenalty(address indexed sender, address indexed vault, uint256 newEthPenalty);
     event ClaimEthPenalty(address indexed sender, address indexed vault, uint256 claimed, address receiver);
     event Reallocate(
-        address indexed sender,
-        address indexed vault,
-        bytes32 indexed allocateKey,
-        bytes32 deallocateKey,
-        uint128 assets
+        address indexed sender, address indexed vault, bytes32 indexed allocateId, bytes32 deallocateId, uint128 assets
     );
 
     /* ERRORS */
 
     error Unauthorized();
-    error CannotAllocate();
+    error AllocateCapExceeded();
     error CannotDeallocate();
     error EthTransferFailed();
     error IncorrectEthPenalty();
 
     /* VIEW */
 
-    /// @dev An (adapter, data) pair of a vault, exactly as in VaultV2.allocate/deallocate, is keyed by
-    /// key = keccak256(abi.encode(adapter, data)).
-    function canAllocate(address vault, bytes32 key) external view returns (bool);
-    function canDeallocate(address vault, bytes32 key) external view returns (bool);
+    /// @dev A Morpho Market V1 market of a vault is keyed by its per-market vault id,
+    /// id = keccak256(abi.encode("this/marketParams", adapter, marketParams)), exactly as in the vault's caps.
+    function allocateCap(address vault, bytes32 id) external view returns (uint256);
+    function canDeallocate(address vault, bytes32 id) external view returns (bool);
     function ethPenalty(address vault) external view returns (uint256);
     function accruedEthPenalty(address vault) external view returns (uint256);
 
     /* FUNCTIONS */
 
-    function setCanAllocate(address vault, address adapter, bytes calldata data, bool newCanAllocate) external;
-    function setCanDeallocate(address vault, address adapter, bytes calldata data, bool newCanDeallocate) external;
+    function setAllocateCap(
+        address vault,
+        IMorphoMarketV1AdapterV2 adapter,
+        MarketParams calldata marketParams,
+        uint256 newAllocateCap
+    ) external;
+    function setCanDeallocate(
+        address vault,
+        IMorphoMarketV1AdapterV2 adapter,
+        MarketParams calldata marketParams,
+        bool newCanDeallocate
+    ) external;
     function setEthPenalty(address vault, uint256 newEthPenalty) external;
     function claimEthPenalty(address vault, address payable receiver) external;
     function reallocate(
         address vault,
-        address deallocateAdapter,
-        bytes calldata deallocateData,
-        address allocateAdapter,
-        bytes calldata allocateData,
+        IMorphoMarketV1AdapterV2 deallocateAdapter,
+        MarketParams calldata deallocateMarketParams,
+        IMorphoMarketV1AdapterV2 allocateAdapter,
+        MarketParams calldata allocateMarketParams,
         uint128 assets
     ) external payable;
 }
