@@ -7,7 +7,7 @@ import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
 import {IMorphoMarketV1AdapterV2} from "../adapters/interfaces/IMorphoMarketV1AdapterV2.sol";
 import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
-/// @dev Specialized to Morpho Market V1 (a.k.a. Morpho Blue) through the Morpho Market V1 adapter (V2).
+/// @dev Specialized to Morpho Blue allocations through the MorphoMarketV1AdapterV2.
 /// @dev To be usable, the PublicAllocator must be set as an allocator of the vault.
 /// @dev The PublicAllocator inherits the vault's roles. The vault's allocators can set the allocate cap and
 /// canDeallocate; the vault's sentinels can decrease the allocate cap and enable canDeallocate, to cut off public
