@@ -76,7 +76,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.expectEmit();
         emit IPublicAllocator.SetAllocateCap(allocator, address(vault), address(adapter), marketParams2, cap);
         _setAllocateCap(marketParams2, cap);
-        assertEq(publicAllocator.allocateCap(address(vault), id2), cap);
+        assertEq(publicAllocator.absoluteCap(address(vault), id2), cap);
     }
 
     function testSetAllocateCapUnauthorized(address caller, uint256 cap) public {
@@ -102,7 +102,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         // Sentinel can decrease the cap (cut public inflows).
         vm.prank(sentinel);
         publicAllocator.setAllocateCap(address(vault), adapter, marketParams2, lower);
-        assertEq(publicAllocator.allocateCap(address(vault), id2), lower);
+        assertEq(publicAllocator.absoluteCap(address(vault), id2), lower);
     }
 
     /* SET CAN DEALLOCATE */
@@ -193,7 +193,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
         _reallocate(amount);
 
-        assertLe(vault.allocation(id2), publicAllocator.allocateCap(address(vault), id2), "within cap");
+        assertLe(vault.allocation(id2), publicAllocator.absoluteCap(address(vault), id2), "within cap");
     }
 
     function testReallocateRespectsVaultCaps(uint256 assets, uint128 amount) public {
