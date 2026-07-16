@@ -17,7 +17,7 @@ interface IPublicAllocator {
     event SetEthPenalty(address indexed sender, address indexed vault, uint256 newEthPenalty);
     event ClaimEthPenalty(address indexed sender, address indexed vault, uint256 claimed, address receiver);
     event Reallocate(
-        address indexed sender, address indexed vault, bytes32 indexed allocateId, bytes32 deallocateId, uint128 assets
+        address sender, address indexed vault, bytes32 indexed allocateId, bytes32 indexed deallocateId, uint128 assets
     );
     event AllocateFromIdle(address indexed sender, address indexed vault, bytes32 indexed allocateId, uint128 assets);
 
