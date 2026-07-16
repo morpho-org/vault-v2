@@ -31,8 +31,6 @@ interface IPublicAllocator {
 
     /* VIEW */
 
-    /// @dev A Morpho Market V1 market of a vault is keyed by its per-market vault id,
-    /// id = keccak256(abi.encode("this/marketParams", adapter, marketParams)), exactly as in the vault's caps.
     function absoluteCap(address vault, bytes32 id) external view returns (uint256);
     function canDeallocate(address vault, bytes32 id) external view returns (bool);
     function canDeallocateFromIdle(address vault) external view returns (bool);
@@ -56,7 +54,6 @@ interface IPublicAllocator {
         MarketParams calldata allocateMarketParams,
         uint128 assets
     ) external payable;
-    /// @dev Allocates assets from the vault's idle balance.
     function allocate(address vault, address adapter, MarketParams calldata marketParams, uint128 assets)
         external
         payable;
