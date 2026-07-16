@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2026 Morpho Association
-pragma solidity 0.8.28;
+pragma solidity 0.8.36;
 
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
@@ -97,7 +97,7 @@ contract PublicAllocator is IPublicAllocator {
         bytes32 allocateId = marketId(allocateAdapter, allocateMarketParams);
         require(IVaultV2(vault).allocation(allocateId) <= absoluteCap[vault][allocateId], AbsoluteCapExceeded());
 
-        emit Reallocate(msg.sender, vault, allocateId, deallocateId, assets);
+        emit Reallocate(msg.sender, vault, allocateId, deallocateId, assets, msg.value);
     }
 
     function allocate(address vault, address adapter, MarketParams calldata marketParams, uint128 assets)
@@ -113,7 +113,7 @@ contract PublicAllocator is IPublicAllocator {
         bytes32 allocateId = marketId(adapter, marketParams);
         require(IVaultV2(vault).allocation(allocateId) <= absoluteCap[vault][allocateId], AbsoluteCapExceeded());
 
-        emit AllocateFromIdle(msg.sender, vault, allocateId, assets);
+        emit Allocate(msg.sender, vault, allocateId, assets, msg.value);
     }
 
     /* INTERNAL */

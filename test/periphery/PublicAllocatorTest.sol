@@ -182,7 +182,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         assertEq(vault.allocation(id2), 0);
 
         vm.expectEmit();
-        emit IPublicAllocator.Reallocate(rando, address(vault), id2, id1, amount);
+        emit IPublicAllocator.Reallocate(rando, address(vault), id2, id1, amount, 0);
         _reallocate(amount);
 
         assertEq(vault.allocation(id1), alloc1Before - amount, "market1");
@@ -238,7 +238,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
         vm.expectEmit();
-        emit IPublicAllocator.AllocateFromIdle(rando, address(vault), id2, amount);
+        emit IPublicAllocator.Allocate(rando, address(vault), id2, amount, 0);
         vm.prank(rando);
         publicAllocator.allocate(address(vault), address(adapter), marketParams2, amount);
 
