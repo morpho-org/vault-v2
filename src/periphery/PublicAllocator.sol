@@ -100,12 +100,10 @@ contract PublicAllocator is IPublicAllocator {
         emit Reallocate(msg.sender, vault, allocateId, deallocateId, assets);
     }
 
-    function allocate(
-        address vault,
-        address adapter,
-        MarketParams calldata marketParams,
-        uint128 assets
-    ) external payable {
+    function allocate(address vault, address adapter, MarketParams calldata marketParams, uint128 assets)
+        external
+        payable
+    {
         require(msg.value == ethPenalty[vault], IncorrectEthPenalty());
         if (msg.value > 0) accruedEthPenalty[vault] += msg.value;
         require(canDeallocateFromIdle[vault], CannotDeallocate());
