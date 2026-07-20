@@ -156,16 +156,18 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         publicAllocator.setCanDeallocateFromIdle(address(vault), true);
     }
 
-    function testSetCanDeallocateFromIdleSentinelCanOnlyEnable() public {
-        vm.expectEmit();
-        emit IPublicAllocator.SetCanDeallocateFromIdle(sentinel, address(vault), true);
-        vm.prank(sentinel);
-        publicAllocator.setCanDeallocateFromIdle(address(vault), true);
-        assertTrue(publicAllocator.canDeallocateFromIdle(address(vault)));
-
+    function testSetCanDeallocateFromIdleSentinelCanOnlyDisable() public {
         vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(sentinel);
+        publicAllocator.setCanDeallocateFromIdle(address(vault), true);
+
+        _setCanDeallocateFromIdle(true);
+
+        vm.expectEmit();
+        emit IPublicAllocator.SetCanDeallocateFromIdle(sentinel, address(vault), false);
+        vm.prank(sentinel);
         publicAllocator.setCanDeallocateFromIdle(address(vault), false);
+        assertFalse(publicAllocator.canDeallocateFromIdle(address(vault)));
     }
 
     /* REALLOCATE */
