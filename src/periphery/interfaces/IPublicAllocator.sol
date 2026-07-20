@@ -24,7 +24,9 @@ interface IPublicAllocator {
         uint128 assets,
         uint256 value
     );
-    event Allocate(address indexed sender, address indexed vault, bytes32 indexed allocateId, uint128 assets, uint256 value);
+    event Allocate(
+        address indexed sender, address indexed vault, bytes32 indexed allocateId, uint128 assets, uint256 value
+    );
 
     /* ERRORS */
 
