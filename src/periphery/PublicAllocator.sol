@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2026 Morpho Association
-pragma solidity 0.8.36;
+pragma solidity 0.8.28;
 
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
@@ -9,8 +9,9 @@ import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 /// @dev Specialized to Morpho Blue allocations through the MorphoMarketV1AdapterV2.
 /// @dev To be usable, the PublicAllocator must be set as an allocator of the vault.
 /// @dev The PublicAllocator inherits the vault's roles. The vault's allocators can set the absolute cap and
-/// canDeallocate; the vault's sentinels can decrease the absolute cap and enable canDeallocate, to cut off public
-/// inflows and allow public outflows for derisking; the vault's curator sets and claims the ETH penalty.
+/// canDeallocate and canDeallocateFromIdle; the vault's sentinels can decrease the absolute cap, enable
+/// canDeallocate, and disable canDeallocateFromIdle, to cut off public inflows and allow public outflows for derisking;
+/// the vault's curator sets and claims the ETH penalty.
 /// @dev Each reallocate call costs a penalty in native currency, set per vault by the curator. The penalty is accrued
 /// per vault and can be claimed by the vault's curator.
 /// @dev The vault's caps are still enforced on the allocation, so this call reverts if it would exceed them.
@@ -52,7 +53,7 @@ contract PublicAllocator is IPublicAllocator {
 
     function setCanDeallocateFromIdle(address vault, bool newCanDeallocate) external {
         require(
-            IVaultV2(vault).isAllocator(msg.sender) || (newCanDeallocate && IVaultV2(vault).isSentinel(msg.sender)),
+            IVaultV2(vault).isAllocator(msg.sender) || (!newCanDeallocate && IVaultV2(vault).isSentinel(msg.sender)),
             Unauthorized()
         );
         canDeallocateFromIdle[vault] = newCanDeallocate;
