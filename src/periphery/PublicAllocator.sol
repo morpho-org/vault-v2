@@ -11,7 +11,7 @@ import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 /// @dev The PublicAllocator inherits the vault's roles. The vault's allocators can set the absolute cap and
 /// canDeallocate and canDeallocateFromIdle; the vault's sentinels can decrease the absolute cap, enable
 /// canDeallocate, and disable canDeallocateFromIdle, to cut off public inflows and allow public outflows for derisking;
-/// the vault's curator sets and claims the ETH penalty.
+/// the vault's curator sets and claims the native penalty.
 /// @dev Each reallocate call costs a penalty in native currency, set per vault by the curator. The penalty is accrued
 /// per vault and can be claimed by the vault's curator.
 /// @dev The vault's caps are still enforced on the allocation, so this call reverts if it would exceed them.
@@ -22,8 +22,8 @@ contract PublicAllocator is IPublicAllocator {
     mapping(address vault => mapping(bytes32 id => uint256)) public absoluteCap;
     mapping(address vault => mapping(bytes32 id => bool)) public canDeallocate;
     mapping(address vault => bool) public canDeallocateFromIdle;
-    mapping(address vault => uint256) public ethPenalty;
-    mapping(address vault => uint256) public accruedEthPenalty;
+    mapping(address vault => uint256) public nativePenalty;
+    mapping(address vault => uint256) public accruedNativePenalty;
 
     /* AUTHORIZED FUNCTIONS */
 
@@ -60,21 +60,21 @@ contract PublicAllocator is IPublicAllocator {
         emit SetCanDeallocateFromIdle(msg.sender, vault, newCanDeallocate);
     }
 
-    function setEthPenalty(address vault, uint256 newEthPenalty) external {
+    function setNativePenalty(address vault, uint256 newNativePenalty) external {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
-        ethPenalty[vault] = newEthPenalty;
-        emit SetEthPenalty(msg.sender, vault, newEthPenalty);
+        nativePenalty[vault] = newNativePenalty;
+        emit SetNativePenalty(msg.sender, vault, newNativePenalty);
     }
 
-    function claimEthPenalty(address vault, address payable receiver) external {
+    function claimNativePenalty(address vault, address payable receiver) external {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
 
-        uint256 claimed = accruedEthPenalty[vault];
-        accruedEthPenalty[vault] = 0;
+        uint256 claimed = accruedNativePenalty[vault];
+        accruedNativePenalty[vault] = 0;
         (bool success,) = receiver.call{value: claimed}("");
-        require(success, EthTransferFailed());
+        require(success, NativeTransferFailed());
 
-        emit ClaimEthPenalty(msg.sender, vault, claimed, receiver);
+        emit ClaimNativePenalty(msg.sender, vault, claimed, receiver);
     }
 
     /* PUBLIC FUNCTION */
@@ -87,8 +87,8 @@ contract PublicAllocator is IPublicAllocator {
         MarketParams calldata allocateMarketParams,
         uint128 assets
     ) external payable {
-        require(msg.value == ethPenalty[vault], IncorrectEthPenalty());
-        if (msg.value > 0) accruedEthPenalty[vault] += msg.value;
+        require(msg.value == nativePenalty[vault], IncorrectNativePenalty());
+        if (msg.value > 0) accruedNativePenalty[vault] += msg.value;
         bytes32 deallocateId = marketId(deallocateAdapter, deallocateMarketParams);
         require(canDeallocate[vault][deallocateId], CannotDeallocate());
 
@@ -105,8 +105,8 @@ contract PublicAllocator is IPublicAllocator {
         external
         payable
     {
-        require(msg.value == ethPenalty[vault], IncorrectEthPenalty());
-        if (msg.value > 0) accruedEthPenalty[vault] += msg.value;
+        require(msg.value == nativePenalty[vault], IncorrectNativePenalty());
+        if (msg.value > 0) accruedNativePenalty[vault] += msg.value;
         require(canDeallocateFromIdle[vault], CannotDeallocate());
 
         IVaultV2(vault).allocate(adapter, abi.encode(marketParams), assets);

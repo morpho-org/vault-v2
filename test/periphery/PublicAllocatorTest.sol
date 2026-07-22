@@ -7,9 +7,9 @@ import "../integration/MorphoMarketV1IntegrationTest.sol";
 import {PublicAllocator} from "../../src/periphery/PublicAllocator.sol";
 import {IPublicAllocator} from "../../src/periphery/interfaces/IPublicAllocator.sol";
 
-contract RejectEth {}
+contract RejectNative {}
 
-contract GasHungryEthReceiver {
+contract GasHungryNativeReceiver {
     uint256 public received;
 
     receive() external payable {
@@ -290,29 +290,29 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         _reallocate(amount);
     }
 
-    /* ETH PENALTY */
+    /* NATIVE PENALTY */
 
-    function testSetEthPenalty(uint256 newEthPenalty) public {
+    function testSetNativePenalty(uint256 newNativePenalty) public {
         vm.expectEmit();
-        emit IPublicAllocator.SetEthPenalty(curator, address(vault), newEthPenalty);
+        emit IPublicAllocator.SetNativePenalty(curator, address(vault), newNativePenalty);
         vm.prank(curator);
-        publicAllocator.setEthPenalty(address(vault), newEthPenalty);
-        assertEq(publicAllocator.ethPenalty(address(vault)), newEthPenalty);
+        publicAllocator.setNativePenalty(address(vault), newNativePenalty);
+        assertEq(publicAllocator.nativePenalty(address(vault)), newNativePenalty);
     }
 
-    function testSetEthPenaltyUnauthorized(address caller, uint256 newEthPenalty) public {
+    function testSetNativePenaltyUnauthorized(address caller, uint256 newNativePenalty) public {
         vm.assume(caller != curator);
         vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(caller);
-        publicAllocator.setEthPenalty(address(vault), newEthPenalty);
+        publicAllocator.setNativePenalty(address(vault), newNativePenalty);
     }
 
-    function testReallocateChargesEthPenalty(uint256 ethPenaltyAmount, uint256 assets, uint128 amount) public {
-        ethPenaltyAmount = bound(ethPenaltyAmount, 1, 10 ether);
+    function testReallocateChargesNativePenalty(uint256 nativePenaltyAmount, uint256 assets, uint128 amount) public {
+        nativePenaltyAmount = bound(nativePenaltyAmount, 1, 10 ether);
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
         vm.prank(curator);
-        publicAllocator.setEthPenalty(address(vault), ethPenaltyAmount);
+        publicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
 
         _seedMarket1(assets);
         _setCanDeallocate(marketParams1, true);
@@ -320,162 +320,164 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
         uint256 curatorBalanceBefore = curator.balance;
 
-        vm.deal(rando, ethPenaltyAmount);
+        vm.deal(rando, nativePenaltyAmount);
         vm.prank(rando);
-        publicAllocator.reallocate{value: ethPenaltyAmount}(
+        publicAllocator.reallocate{value: nativePenaltyAmount}(
             address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
         );
 
         assertEq(curator.balance, curatorBalanceBefore);
-        assertEq(publicAllocator.accruedEthPenalty(address(vault)), ethPenaltyAmount);
-        assertEq(address(publicAllocator).balance, ethPenaltyAmount);
+        assertEq(publicAllocator.accruedNativePenalty(address(vault)), nativePenaltyAmount);
+        assertEq(address(publicAllocator).balance, nativePenaltyAmount);
     }
 
-    function testReallocateAccruesEthPenaltyForNonPayableCurator(
-        uint256 ethPenaltyAmount,
+    function testReallocateAccruesNativePenaltyForNonPayableCurator(
+        uint256 nativePenaltyAmount,
         uint256 assets,
         uint128 amount
     ) public {
-        ethPenaltyAmount = bound(ethPenaltyAmount, 1, 10 ether);
+        nativePenaltyAmount = bound(nativePenaltyAmount, 1, 10 ether);
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
 
-        address nonPayableCurator = address(new RejectEth());
+        address nonPayableCurator = address(new RejectNative());
         vm.prank(owner);
         vault.setCurator(nonPayableCurator);
         vm.prank(nonPayableCurator);
-        publicAllocator.setEthPenalty(address(vault), ethPenaltyAmount);
+        publicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
 
         _seedMarket1(assets);
         // canDeallocate / absoluteCap are allocator-set roles, independent of the curator swap.
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
-        vm.deal(rando, ethPenaltyAmount);
+        vm.deal(rando, nativePenaltyAmount);
         vm.prank(rando);
-        publicAllocator.reallocate{value: ethPenaltyAmount}(
+        publicAllocator.reallocate{value: nativePenaltyAmount}(
             address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
         );
 
         assertEq(nonPayableCurator.balance, 0);
-        assertEq(publicAllocator.accruedEthPenalty(address(vault)), ethPenaltyAmount);
-        assertEq(address(publicAllocator).balance, ethPenaltyAmount);
+        assertEq(publicAllocator.accruedNativePenalty(address(vault)), nativePenaltyAmount);
+        assertEq(address(publicAllocator).balance, nativePenaltyAmount);
     }
 
-    function testClaimEthPenalty(uint256 ethPenaltyAmount, uint256 assets, uint128 amount) public {
-        ethPenaltyAmount = bound(ethPenaltyAmount, 1, 10 ether);
+    function testClaimNativePenalty(uint256 nativePenaltyAmount, uint256 assets, uint128 amount) public {
+        nativePenaltyAmount = bound(nativePenaltyAmount, 1, 10 ether);
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
         address payable receiver = payable(makeAddr("receiver"));
 
         vm.prank(curator);
-        publicAllocator.setEthPenalty(address(vault), ethPenaltyAmount);
+        publicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
         _seedMarket1(assets);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
-        vm.deal(rando, ethPenaltyAmount);
+        vm.deal(rando, nativePenaltyAmount);
         vm.prank(rando);
-        publicAllocator.reallocate{value: ethPenaltyAmount}(
+        publicAllocator.reallocate{value: nativePenaltyAmount}(
             address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
         );
 
         vm.expectEmit();
-        emit IPublicAllocator.ClaimEthPenalty(curator, address(vault), ethPenaltyAmount, receiver);
+        emit IPublicAllocator.ClaimNativePenalty(curator, address(vault), nativePenaltyAmount, receiver);
         vm.prank(curator);
-        publicAllocator.claimEthPenalty(address(vault), receiver);
+        publicAllocator.claimNativePenalty(address(vault), receiver);
 
-        assertEq(publicAllocator.accruedEthPenalty(address(vault)), 0);
-        assertEq(receiver.balance, ethPenaltyAmount);
+        assertEq(publicAllocator.accruedNativePenalty(address(vault)), 0);
+        assertEq(receiver.balance, nativePenaltyAmount);
         assertEq(address(publicAllocator).balance, 0);
     }
 
-    function testClaimEthPenaltyForGasHungryReceiver(uint256 ethPenaltyAmount, uint256 assets, uint128 amount) public {
-        ethPenaltyAmount = bound(ethPenaltyAmount, 1, 10 ether);
-        assets = bound(assets, 1, MAX_TEST_ASSETS);
-        amount = uint128(bound(amount, 1, assets));
-        GasHungryEthReceiver receiver = new GasHungryEthReceiver();
-
-        vm.prank(curator);
-        publicAllocator.setEthPenalty(address(vault), ethPenaltyAmount);
-        _seedMarket1(assets);
-        _setCanDeallocate(marketParams1, true);
-        _setAbsoluteCap(marketParams2, type(uint256).max);
-
-        vm.deal(rando, ethPenaltyAmount);
-        vm.prank(rando);
-        publicAllocator.reallocate{value: ethPenaltyAmount}(
-            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
-        );
-
-        vm.expectEmit();
-        emit IPublicAllocator.ClaimEthPenalty(curator, address(vault), ethPenaltyAmount, address(receiver));
-        vm.prank(curator);
-        publicAllocator.claimEthPenalty(address(vault), payable(address(receiver)));
-
-        assertEq(publicAllocator.accruedEthPenalty(address(vault)), 0);
-        assertEq(address(receiver).balance, ethPenaltyAmount);
-        assertEq(receiver.received(), ethPenaltyAmount);
-        assertEq(address(publicAllocator).balance, 0);
-    }
-
-    function testClaimEthPenaltyRevertsWhenReceiverRejects(uint256 ethPenaltyAmount, uint256 assets, uint128 amount)
+    function testClaimNativePenaltyForGasHungryReceiver(uint256 nativePenaltyAmount, uint256 assets, uint128 amount)
         public
     {
-        ethPenaltyAmount = bound(ethPenaltyAmount, 1, 10 ether);
+        nativePenaltyAmount = bound(nativePenaltyAmount, 1, 10 ether);
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
-        address payable receiver = payable(address(new RejectEth()));
+        GasHungryNativeReceiver receiver = new GasHungryNativeReceiver();
 
         vm.prank(curator);
-        publicAllocator.setEthPenalty(address(vault), ethPenaltyAmount);
+        publicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
         _seedMarket1(assets);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
-        vm.deal(rando, ethPenaltyAmount);
+        vm.deal(rando, nativePenaltyAmount);
         vm.prank(rando);
-        publicAllocator.reallocate{value: ethPenaltyAmount}(
+        publicAllocator.reallocate{value: nativePenaltyAmount}(
             address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
         );
 
-        vm.expectRevert(IPublicAllocator.EthTransferFailed.selector);
+        vm.expectEmit();
+        emit IPublicAllocator.ClaimNativePenalty(curator, address(vault), nativePenaltyAmount, address(receiver));
         vm.prank(curator);
-        publicAllocator.claimEthPenalty(address(vault), receiver);
+        publicAllocator.claimNativePenalty(address(vault), payable(address(receiver)));
 
-        assertEq(publicAllocator.accruedEthPenalty(address(vault)), ethPenaltyAmount);
-        assertEq(receiver.balance, 0);
-        assertEq(address(publicAllocator).balance, ethPenaltyAmount);
+        assertEq(publicAllocator.accruedNativePenalty(address(vault)), 0);
+        assertEq(address(receiver).balance, nativePenaltyAmount);
+        assertEq(receiver.received(), nativePenaltyAmount);
+        assertEq(address(publicAllocator).balance, 0);
     }
 
-    function testClaimEthPenaltyUnauthorized(address caller, address payable receiver) public {
+    function testClaimNativePenaltyRevertsWhenReceiverRejects(uint256 nativePenaltyAmount, uint256 assets, uint128 amount)
+        public
+    {
+        nativePenaltyAmount = bound(nativePenaltyAmount, 1, 10 ether);
+        assets = bound(assets, 1, MAX_TEST_ASSETS);
+        amount = uint128(bound(amount, 1, assets));
+        address payable receiver = payable(address(new RejectNative()));
+
+        vm.prank(curator);
+        publicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
+        _seedMarket1(assets);
+        _setCanDeallocate(marketParams1, true);
+        _setAbsoluteCap(marketParams2, type(uint256).max);
+
+        vm.deal(rando, nativePenaltyAmount);
+        vm.prank(rando);
+        publicAllocator.reallocate{value: nativePenaltyAmount}(
+            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
+        );
+
+        vm.expectRevert(IPublicAllocator.NativeTransferFailed.selector);
+        vm.prank(curator);
+        publicAllocator.claimNativePenalty(address(vault), receiver);
+
+        assertEq(publicAllocator.accruedNativePenalty(address(vault)), nativePenaltyAmount);
+        assertEq(receiver.balance, 0);
+        assertEq(address(publicAllocator).balance, nativePenaltyAmount);
+    }
+
+    function testClaimNativePenaltyUnauthorized(address caller, address payable receiver) public {
         vm.assume(caller != curator);
 
         vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(caller);
-        publicAllocator.claimEthPenalty(address(vault), receiver);
+        publicAllocator.claimNativePenalty(address(vault), receiver);
     }
 
-    function testReallocateIncorrectEthPenalty(
-        uint256 ethPenaltyAmount,
+    function testReallocateIncorrectNativePenalty(
+        uint256 nativePenaltyAmount,
         uint256 sentValue,
         uint256 assets,
         uint128 amount
     ) public {
-        ethPenaltyAmount = bound(ethPenaltyAmount, 1, 10 ether);
+        nativePenaltyAmount = bound(nativePenaltyAmount, 1, 10 ether);
         sentValue = bound(sentValue, 0, 10 ether);
-        vm.assume(sentValue != ethPenaltyAmount);
+        vm.assume(sentValue != nativePenaltyAmount);
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
         vm.prank(curator);
-        publicAllocator.setEthPenalty(address(vault), ethPenaltyAmount);
+        publicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
 
         _seedMarket1(assets);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
         vm.deal(rando, sentValue);
-        vm.expectRevert(IPublicAllocator.IncorrectEthPenalty.selector);
+        vm.expectRevert(IPublicAllocator.IncorrectNativePenalty.selector);
         vm.prank(rando);
         publicAllocator.reallocate{value: sentValue}(
             address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
