@@ -14,8 +14,8 @@ interface IPublicAllocator {
         address indexed sender, address indexed vault, address adapter, MarketParams marketParams, bool canDeallocate
     );
     event SetCanDeallocateFromIdle(address indexed sender, address indexed vault, bool canDeallocate);
-    event SetEthPenalty(address indexed sender, address indexed vault, uint256 newEthPenalty);
-    event ClaimEthPenalty(address indexed sender, address indexed vault, uint256 claimed, address receiver);
+    event SetNativePenalty(address indexed sender, address indexed vault, uint256 newNativePenalty);
+    event ClaimNativePenalty(address indexed sender, address indexed vault, uint256 claimed, address receiver);
     event Reallocate(
         address sender,
         address indexed vault,
@@ -33,16 +33,16 @@ interface IPublicAllocator {
     error Unauthorized();
     error AbsoluteCapExceeded();
     error CannotDeallocate();
-    error EthTransferFailed();
-    error IncorrectEthPenalty();
+    error NativeTransferFailed();
+    error IncorrectNativePenalty();
 
     /* VIEW */
 
     function absoluteCap(address vault, bytes32 id) external view returns (uint256);
     function canDeallocate(address vault, bytes32 id) external view returns (bool);
     function canDeallocateFromIdle(address vault) external view returns (bool);
-    function ethPenalty(address vault) external view returns (uint256);
-    function accruedEthPenalty(address vault) external view returns (uint256);
+    function nativePenalty(address vault) external view returns (uint256);
+    function accruedNativePenalty(address vault) external view returns (uint256);
 
     /* FUNCTIONS */
 
@@ -51,8 +51,8 @@ interface IPublicAllocator {
     function setCanDeallocate(address vault, address adapter, MarketParams calldata marketParams, bool newCanDeallocate)
         external;
     function setCanDeallocateFromIdle(address vault, bool newCanDeallocate) external;
-    function setEthPenalty(address vault, uint256 newEthPenalty) external;
-    function claimEthPenalty(address vault, address payable receiver) external;
+    function setNativePenalty(address vault, uint256 newNativePenalty) external;
+    function claimNativePenalty(address vault, address payable receiver) external;
     function reallocate(
         address vault,
         address deallocateAdapter,
