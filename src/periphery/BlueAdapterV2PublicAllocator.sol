@@ -26,6 +26,7 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
     struct VaultData {
         bool canDeallocateFromIdle;
         uint120 nativePenalty;
+        // uint120 max ~2^120 (~1e18 tokens at 18 decimals), so accrued native penalty cannot realistically overflow.
         uint120 accruedNativePenalty;
     }
 
