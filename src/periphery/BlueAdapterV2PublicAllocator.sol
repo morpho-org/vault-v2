@@ -3,21 +3,21 @@
 pragma solidity 0.8.28;
 
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
+import {IBlueAdapterV2PublicAllocator} from "./interfaces/IBlueAdapterV2PublicAllocator.sol";
 import {IMorphoMarketV1AdapterV2Factory} from "../adapters/interfaces/IMorphoMarketV1AdapterV2Factory.sol";
 import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 /// @dev Specialized to Morpho Blue allocations through the MorphoMarketV1AdapterV2.
-/// @dev To be usable, the PublicAllocator must be set as an allocator of the vault.
-/// @dev The PublicAllocator inherits the vault's roles. The vault's allocators can set the absolute cap and
-/// canDeallocate and canDeallocateFromIdle; the vault's sentinels can decrease the absolute cap, enable
+/// @dev To be usable, the BlueAdapterV2PublicAllocator must be set as an allocator of the vault.
+/// @dev The BlueAdapterV2PublicAllocator inherits the vault's roles. The vault's allocators can set the absolute cap
+/// and canDeallocate and canDeallocateFromIdle; the vault's sentinels can decrease the absolute cap, enable
 /// canDeallocate, and disable canDeallocateFromIdle, to cut off public inflows and allow public outflows for derisking;
 /// the vault's curator sets and claims the native penalty.
 /// @dev Each reallocate call costs a penalty in native currency, set per vault by the curator. The penalty is accrued
 /// per vault and can be claimed by the vault's curator.
 /// @dev The vault's caps are still enforced on the allocation, so this call reverts if it would exceed them.
 /// @dev No-ops are allowed. Zero checks are not performed.
-contract PublicAllocator is IPublicAllocator {
+contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
     /* IMMUTABLES */
 
     address public immutable adapterFactory;
