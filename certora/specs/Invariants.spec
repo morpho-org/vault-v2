@@ -66,6 +66,15 @@ strong invariant decreaseTimelockTimelock()
 strong invariant totalSupplyIsSumOfBalances()
     totalSupply() == sumOfBalances;
 
+// Follows from the Sload hook (sumOfBalances >= balanceOf(account)) and totalSupplyIsSumOfBalances.
+strong invariant balanceOfLeqTotalSupply(address account)
+    to_mathint(balanceOf(account)) <= to_mathint(totalSupply())
+    {
+        preserved {
+            requireInvariant totalSupplyIsSumOfBalances();
+        }
+    }
+
 strong invariant allocationIsInt256(bytes32 id)
     allocation(id) <= max_int256();
 
