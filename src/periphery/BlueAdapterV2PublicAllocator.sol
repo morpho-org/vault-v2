@@ -129,8 +129,7 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
             NotBlueAdapter()
         );
         require(
-            IMorphoMarketV1AdapterV2Factory(adapterFactory).isMorphoMarketV1AdapterV2(allocateAdapter),
-            NotBlueAdapter()
+            IMorphoMarketV1AdapterV2Factory(adapterFactory).isMorphoMarketV1AdapterV2(allocateAdapter), NotBlueAdapter()
         );
         require(msg.value == _vaultData[vault].nativePenalty, IncorrectNativePenalty());
         // forge-lint: disable-next-item(unsafe-typecast) safe because msg.value == nativePenalty <= type(uint120).max.
