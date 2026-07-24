@@ -3,6 +3,23 @@
 
 import "../helpers/UtilityVault.spec";
 
+using Utils as Utils;
+
+methods {
+    function multicall(bytes[]) external => HAVOC_ALL DELETE;
+
+    function _.isInRegistry(address adapter) external => ghostIsInRegistry[calledContract][adapter] expect(bool);
+
+    function Utils.wad() external returns (uint256) envfree;
+    function Utils.maxPerformanceFee() external returns (uint256) envfree;
+    function Utils.maxManagementFee() external returns (uint256) envfree;
+    function Utils.maxForceDeallocatePenalty() external returns (uint256) envfree;
+    function Utils.maxMaxRate() external returns (uint256) envfree;
+}
+
+// For each potential adapter registry, we keep track of which adapters are in that registry, and assume that registries are all add-only.
+persistent ghost mapping(address => mapping(address => bool)) ghostIsInRegistry;
+
 // Mirror of balanceOf, summed natively with usum so each balance is bounded by the total supply.
 ghost mapping(address => uint256) balanceOfGhost {
     init_state axiom forall address a. balanceOfGhost[a] == 0;
