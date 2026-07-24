@@ -64,9 +64,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
     function _reallocate(uint128 assets) internal {
         vm.prank(rando);
-        publicAllocator.reallocate(
-            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, assets
-        );
+        publicAllocator.reallocate(address(vault), address(adapter), marketParams1, marketParams2, assets);
     }
 
     /* SET ABSOLUTE CAP */
@@ -323,7 +321,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.deal(rando, nativePenaltyAmount);
         vm.prank(rando);
         publicAllocator.reallocate{value: nativePenaltyAmount}(
-            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
+            address(vault), address(adapter), marketParams1, marketParams2, amount
         );
 
         assertEq(curator.balance, curatorBalanceBefore);
@@ -354,7 +352,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.deal(rando, nativePenaltyAmount);
         vm.prank(rando);
         publicAllocator.reallocate{value: nativePenaltyAmount}(
-            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
+            address(vault), address(adapter), marketParams1, marketParams2, amount
         );
 
         assertEq(nonPayableCurator.balance, 0);
@@ -377,7 +375,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.deal(rando, nativePenaltyAmount);
         vm.prank(rando);
         publicAllocator.reallocate{value: nativePenaltyAmount}(
-            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
+            address(vault), address(adapter), marketParams1, marketParams2, amount
         );
 
         vm.expectEmit();
@@ -409,7 +407,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.deal(rando, nativePenaltyAmount);
         vm.prank(rando);
         publicAllocator.reallocate{value: nativePenaltyAmount}(
-            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
+            address(vault), address(adapter), marketParams1, marketParams2, amount
         );
 
         vm.expectRevert(IBlueAdapterV2PublicAllocator.NativeTransferFailed.selector);
@@ -451,7 +449,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.expectRevert(IBlueAdapterV2PublicAllocator.IncorrectNativePenalty.selector);
         vm.prank(rando);
         publicAllocator.reallocate{value: sentValue}(
-            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
+            address(vault), address(adapter), marketParams1, marketParams2, amount
         );
     }
 }
