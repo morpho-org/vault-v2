@@ -5,7 +5,6 @@ pragma solidity 0.8.28;
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IBlueAdapterV2PublicAllocator} from "./interfaces/IBlueAdapterV2PublicAllocator.sol";
 import {IMorphoMarketV1AdapterV2Factory} from "../adapters/interfaces/IMorphoMarketV1AdapterV2Factory.sol";
-import {ErrorsLib} from "../libraries/ErrorsLib.sol";
 import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 /// @dev Specialized to Morpho Blue allocations through the MorphoMarketV1AdapterV2.
@@ -99,7 +98,7 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
 
     function setNativePenalty(address vault, uint256 newNativePenalty) external {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
-        require(newNativePenalty <= type(uint120).max, ErrorsLib.CastOverflow());
+        require(newNativePenalty <= type(uint120).max, CastOverflow());
         // forge-lint: disable-next-item(unsafe-typecast) safe because newNativePenalty <= type(uint120).max.
         _vaultData[vault].nativePenalty = uint120(newNativePenalty);
         emit SetNativePenalty(msg.sender, vault, newNativePenalty);
