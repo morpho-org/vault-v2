@@ -24,17 +24,17 @@ persistent ghost mapping(address => mapping(address => bool)) ghostIsInRegistry;
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
 
-// Mirror of balanceOf, used to sum balances natively with usum.
-ghost mapping(address => mathint) balanceOfGhost {
+// Mirror of balanceOf, summed natively with usum so each balance is bounded by the total supply.
+ghost mapping(address => uint256) balanceOfGhost {
     init_state axiom forall address a. balanceOfGhost[a] == 0;
 }
 
 hook Sload uint256 balance balanceOf[KEY address addr] {
-    require balanceOfGhost[addr] == to_mathint(balance), "the ghost mirrors the balance";
+    require balanceOfGhost[addr] == balance, "the ghost mirrors the balance";
 }
 
 hook Sstore balanceOf[KEY address addr] uint256 newValue (uint256 oldValue) {
-    balanceOfGhost[addr] = to_mathint(newValue);
+    balanceOfGhost[addr] = newValue;
 }
 
 strong invariant performanceFeeRecipientSetWhenPerformanceFeeIsSet()
@@ -65,9 +65,9 @@ strong invariant decreaseTimelockTimelock()
     timelock(decreaseTimelockSelector()) == 0;
 
 strong invariant totalSupplyIsSumOfBalances()
-    to_mathint(totalSupply()) == usum address a. balanceOfGhost[a];
+    to_mathint(totalSupply()) == (usum address a. balanceOfGhost[a]);
 
-// Follows from the native sum (usum is greater than any of its elements) and totalSupplyIsSumOfBalances.
+// usum guarantees the sum is at least any single balance, so this follows from totalSupplyIsSumOfBalances.
 strong invariant balanceOfLeqTotalSupply(address account)
     to_mathint(balanceOf(account)) <= to_mathint(totalSupply())
     {
