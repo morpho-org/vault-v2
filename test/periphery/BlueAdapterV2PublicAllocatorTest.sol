@@ -266,7 +266,8 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vault.deposit(assets, address(this));
         _setCanDeallocateFromIdle(true);
 
-        vm.expectRevert(ErrorsLib.NotAdapter.selector);
+        // address(0) is not a factory-created Blue adapter, so the top-level check rejects it first.
+        vm.expectRevert(IBlueAdapterV2PublicAllocator.NotBlueAdapter.selector);
         vm.prank(rando);
         publicAllocator.allocateFromIdle(address(vault), address(0), marketParams2, amount);
     }
@@ -291,6 +292,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
     /* NATIVE PENALTY */
 
     function testSetNativePenalty(uint256 newNativePenalty) public {
+        newNativePenalty = bound(newNativePenalty, 0, type(uint120).max);
         vm.expectEmit();
         emit IBlueAdapterV2PublicAllocator.SetNativePenalty(curator, address(vault), newNativePenalty);
         vm.prank(curator);
