@@ -231,7 +231,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         assertLe(vault.allocation(id2), publicAllocator.absoluteCap(address(vault), id2), "within cap");
     }
 
-    function testAllocate(uint256 assets, uint128 amount) public {
+    function testAllocateFromIdle(uint256 assets, uint128 amount) public {
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
 
@@ -240,16 +240,16 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
         vm.expectEmit();
-        emit IPublicAllocator.Allocate(rando, address(vault), id2, amount, 0);
+        emit IPublicAllocator.AllocateFromIdle(rando, address(vault), id2, amount, 0);
         vm.prank(rando);
-        publicAllocator.allocate(address(vault), address(adapter), marketParams2, amount);
+        publicAllocator.allocateFromIdle(address(vault), address(adapter), marketParams2, amount);
 
         assertEq(underlyingToken.balanceOf(address(vault)), assets - amount, "idle");
         assertLe(vault.allocation(id2), amount, "market2 rounds down");
         assertGt(vault.allocation(id2), 0, "market2 supplied");
     }
 
-    function testAllocateCannotDeallocate(uint256 assets, uint128 amount) public {
+    function testAllocateFromIdleCannotDeallocate(uint256 assets, uint128 amount) public {
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
 
@@ -258,10 +258,10 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
         vm.expectRevert(IPublicAllocator.CannotDeallocate.selector);
         vm.prank(rando);
-        publicAllocator.allocate(address(vault), address(adapter), marketParams2, amount);
+        publicAllocator.allocateFromIdle(address(vault), address(adapter), marketParams2, amount);
     }
 
-    function testAllocateToIdleReverts(uint256 assets, uint128 amount) public {
+    function testAllocateFromIdleToIdleReverts(uint256 assets, uint128 amount) public {
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
 
@@ -270,7 +270,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
         vm.expectRevert(ErrorsLib.NotAdapter.selector);
         vm.prank(rando);
-        publicAllocator.allocate(address(vault), address(0), marketParams2, amount);
+        publicAllocator.allocateFromIdle(address(vault), address(0), marketParams2, amount);
     }
 
     function testReallocateRespectsVaultCaps(uint256 assets, uint128 amount) public {

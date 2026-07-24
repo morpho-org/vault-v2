@@ -24,7 +24,7 @@ interface IPublicAllocator {
         uint128 assets,
         uint256 value
     );
-    event Allocate(
+    event AllocateFromIdle(
         address indexed sender, address indexed vault, bytes32 indexed allocateId, uint128 assets, uint256 value
     );
 
@@ -61,7 +61,7 @@ interface IPublicAllocator {
         MarketParams calldata allocateMarketParams,
         uint128 assets
     ) external payable;
-    function allocate(address vault, address adapter, MarketParams calldata marketParams, uint128 assets)
+    function allocateFromIdle(address vault, address adapter, MarketParams calldata marketParams, uint128 assets)
         external
         payable;
 }
