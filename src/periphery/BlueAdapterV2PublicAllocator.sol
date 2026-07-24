@@ -118,29 +118,22 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
 
     function reallocate(
         address vault,
-        address deallocateAdapter,
+        address adapter,
         MarketParams calldata deallocateMarketParams,
-        address allocateAdapter,
         MarketParams calldata allocateMarketParams,
         uint128 assets
     ) external payable {
-        require(
-            IMorphoMarketV1AdapterV2Factory(adapterFactory).isMorphoMarketV1AdapterV2(deallocateAdapter),
-            NotBlueAdapter()
-        );
-        require(
-            IMorphoMarketV1AdapterV2Factory(adapterFactory).isMorphoMarketV1AdapterV2(allocateAdapter), NotBlueAdapter()
-        );
+        require(IMorphoMarketV1AdapterV2Factory(adapterFactory).isMorphoMarketV1AdapterV2(adapter), NotBlueAdapter());
         require(msg.value == _vaultData[vault].nativePenalty, IncorrectNativePenalty());
         // forge-lint: disable-next-item(unsafe-typecast) safe because msg.value == nativePenalty <= type(uint120).max.
         if (msg.value > 0) _vaultData[vault].accruedNativePenalty += uint120(msg.value);
-        bytes32 deallocateId = vaultBlueId(deallocateAdapter, deallocateMarketParams);
+        bytes32 deallocateId = vaultBlueId(adapter, deallocateMarketParams);
         require(canDeallocate[vault][deallocateId], CannotDeallocate());
 
-        IVaultV2(vault).deallocate(deallocateAdapter, abi.encode(deallocateMarketParams), assets);
-        IVaultV2(vault).allocate(allocateAdapter, abi.encode(allocateMarketParams), assets);
+        IVaultV2(vault).deallocate(adapter, abi.encode(deallocateMarketParams), assets);
+        IVaultV2(vault).allocate(adapter, abi.encode(allocateMarketParams), assets);
 
-        bytes32 allocateId = vaultBlueId(allocateAdapter, allocateMarketParams);
+        bytes32 allocateId = vaultBlueId(adapter, allocateMarketParams);
         require(IVaultV2(vault).allocation(allocateId) <= absoluteCap[vault][allocateId], AbsoluteCapExceeded());
 
         emit Reallocate(msg.sender, vault, allocateId, deallocateId, assets, msg.value);
