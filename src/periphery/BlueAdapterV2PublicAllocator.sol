@@ -5,6 +5,7 @@ pragma solidity 0.8.28;
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IBlueAdapterV2PublicAllocator} from "./interfaces/IBlueAdapterV2PublicAllocator.sol";
 import {IMorphoMarketV1AdapterV2Factory} from "../adapters/interfaces/IMorphoMarketV1AdapterV2Factory.sol";
+import {ErrorsLib} from "../libraries/ErrorsLib.sol";
 import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 /// @dev Specialized to Morpho Blue allocations through the MorphoMarketV1AdapterV2.
@@ -18,6 +19,15 @@ import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 /// @dev The vault's caps are still enforced on the allocation, so this call reverts if it would exceed them.
 /// @dev No-ops are allowed. Zero checks are not performed.
 contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
+    /* TYPES */
+
+    /// @dev Packed into a single storage slot: bool (1 byte) + uint120 (15 bytes) + uint120 (15 bytes) = 31 bytes.
+    struct VaultData {
+        bool canDeallocateFromIdle;
+        uint120 nativePenalty;
+        uint120 accruedNativePenalty;
+    }
+
     /* IMMUTABLES */
 
     address public immutable adapterFactory;
@@ -26,9 +36,7 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
 
     mapping(address vault => mapping(bytes32 id => uint256)) public absoluteCap;
     mapping(address vault => mapping(bytes32 id => bool)) public canDeallocate;
-    mapping(address vault => bool) public canDeallocateFromIdle;
-    mapping(address vault => uint256) public nativePenalty;
-    mapping(address vault => uint256) public accruedNativePenalty;
+    mapping(address vault => VaultData) internal _vaultData;
 
     /* CONSTRUCTOR */
 
@@ -36,11 +44,26 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
         adapterFactory = _adapterFactory;
     }
 
+    /* VIEW */
+
+    function canDeallocateFromIdle(address vault) external view returns (bool) {
+        return _vaultData[vault].canDeallocateFromIdle;
+    }
+
+    function nativePenalty(address vault) external view returns (uint256) {
+        return _vaultData[vault].nativePenalty;
+    }
+
+    function accruedNativePenalty(address vault) external view returns (uint256) {
+        return _vaultData[vault].accruedNativePenalty;
+    }
+
     /* AUTHORIZED FUNCTIONS */
 
     function setAbsoluteCap(address vault, address adapter, MarketParams calldata marketParams, uint256 newAbsoluteCap)
         external
     {
+        require(IMorphoMarketV1AdapterV2Factory(adapterFactory).isMorphoMarketV1AdapterV2(adapter), NotBlueAdapter());
         bytes32 id = vaultBlueId(adapter, marketParams);
         require(
             IVaultV2(vault).isAllocator(msg.sender)
@@ -54,6 +77,7 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
     function setCanDeallocate(address vault, address adapter, MarketParams calldata marketParams, bool newCanDeallocate)
         external
     {
+        require(IMorphoMarketV1AdapterV2Factory(adapterFactory).isMorphoMarketV1AdapterV2(adapter), NotBlueAdapter());
         require(
             IVaultV2(vault).isAllocator(msg.sender) || (newCanDeallocate && IVaultV2(vault).isSentinel(msg.sender)),
             Unauthorized()
@@ -67,21 +91,23 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
             IVaultV2(vault).isAllocator(msg.sender) || (!newCanDeallocate && IVaultV2(vault).isSentinel(msg.sender)),
             Unauthorized()
         );
-        canDeallocateFromIdle[vault] = newCanDeallocate;
+        _vaultData[vault].canDeallocateFromIdle = newCanDeallocate;
         emit SetCanDeallocateFromIdle(msg.sender, vault, newCanDeallocate);
     }
 
     function setNativePenalty(address vault, uint256 newNativePenalty) external {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
-        nativePenalty[vault] = newNativePenalty;
+        require(newNativePenalty <= type(uint120).max, ErrorsLib.CastOverflow());
+        // forge-lint: disable-next-item(unsafe-typecast) safe because newNativePenalty <= type(uint120).max.
+        _vaultData[vault].nativePenalty = uint120(newNativePenalty);
         emit SetNativePenalty(msg.sender, vault, newNativePenalty);
     }
 
     function claimNativePenalty(address vault, address payable receiver) external {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
 
-        uint256 claimed = accruedNativePenalty[vault];
-        accruedNativePenalty[vault] = 0;
+        uint256 claimed = _vaultData[vault].accruedNativePenalty;
+        _vaultData[vault].accruedNativePenalty = 0;
         (bool success,) = receiver.call{value: claimed}("");
         require(success, NativeTransferFailed());
 
@@ -98,8 +124,17 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
         MarketParams calldata allocateMarketParams,
         uint128 assets
     ) external payable {
-        require(msg.value == nativePenalty[vault], IncorrectNativePenalty());
-        if (msg.value > 0) accruedNativePenalty[vault] += msg.value;
+        require(
+            IMorphoMarketV1AdapterV2Factory(adapterFactory).isMorphoMarketV1AdapterV2(deallocateAdapter),
+            NotBlueAdapter()
+        );
+        require(
+            IMorphoMarketV1AdapterV2Factory(adapterFactory).isMorphoMarketV1AdapterV2(allocateAdapter),
+            NotBlueAdapter()
+        );
+        require(msg.value == _vaultData[vault].nativePenalty, IncorrectNativePenalty());
+        // forge-lint: disable-next-item(unsafe-typecast) safe because msg.value == nativePenalty <= type(uint120).max.
+        if (msg.value > 0) _vaultData[vault].accruedNativePenalty += uint120(msg.value);
         bytes32 deallocateId = vaultBlueId(deallocateAdapter, deallocateMarketParams);
         require(canDeallocate[vault][deallocateId], CannotDeallocate());
 
@@ -116,9 +151,11 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
         external
         payable
     {
-        require(msg.value == nativePenalty[vault], IncorrectNativePenalty());
-        if (msg.value > 0) accruedNativePenalty[vault] += msg.value;
-        require(canDeallocateFromIdle[vault], CannotDeallocate());
+        require(IMorphoMarketV1AdapterV2Factory(adapterFactory).isMorphoMarketV1AdapterV2(adapter), NotBlueAdapter());
+        require(msg.value == _vaultData[vault].nativePenalty, IncorrectNativePenalty());
+        // forge-lint: disable-next-item(unsafe-typecast) safe because msg.value == nativePenalty <= type(uint120).max.
+        if (msg.value > 0) _vaultData[vault].accruedNativePenalty += uint120(msg.value);
+        require(_vaultData[vault].canDeallocateFromIdle, CannotDeallocate());
 
         IVaultV2(vault).allocate(adapter, abi.encode(marketParams), assets);
 
@@ -131,9 +168,9 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
     /* INTERNAL */
 
     /// @dev Returns the market's per-market vault id, exactly as keyed by the MorphoMarketV1AdapterV2.
-    /// @dev Reverts if the adapter was not created by the expected factory, restricting all paths to Blue adapters.
-    function vaultBlueId(address adapter, MarketParams calldata marketParams) internal view returns (bytes32) {
-        require(IMorphoMarketV1AdapterV2Factory(adapterFactory).isMorphoMarketV1AdapterV2(adapter), NotBlueAdapter());
+    /// @dev The caller must have checked that `adapter` was created by the expected factory (see the entry points),
+    /// restricting all paths to Blue adapters.
+    function vaultBlueId(address adapter, MarketParams calldata marketParams) internal pure returns (bytes32) {
         return keccak256(abi.encode("this/marketParams", adapter, marketParams));
     }
 }
