@@ -17,6 +17,7 @@ import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 /// @dev Each reallocate call costs a penalty in native currency, set per vault by the curator. The penalty is accrued
 /// per vault and can be claimed by the vault's curator.
 /// @dev The vault's caps are still enforced on the allocation, so this call reverts if it would exceed them.
+/// @dev Relative caps can still be manipulated by allocators through short-term deposits, but it requires capital.
 /// @dev No-ops are allowed. Zero checks are not performed.
 contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
     /* TYPES */
