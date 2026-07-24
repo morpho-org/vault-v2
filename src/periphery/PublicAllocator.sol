@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
+import {IMorphoMarketV1AdapterV2Factory} from "../adapters/interfaces/IMorphoMarketV1AdapterV2Factory.sol";
 import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 /// @dev Specialized to Morpho Blue allocations through the MorphoMarketV1AdapterV2.
@@ -17,6 +18,10 @@ import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 /// @dev The vault's caps are still enforced on the allocation, so this call reverts if it would exceed them.
 /// @dev No-ops are allowed. Zero checks are not performed.
 contract PublicAllocator is IPublicAllocator {
+    /* IMMUTABLES */
+
+    address public immutable adapterFactory;
+
     /* STORAGE */
 
     mapping(address vault => mapping(bytes32 id => uint256)) public absoluteCap;
@@ -24,6 +29,12 @@ contract PublicAllocator is IPublicAllocator {
     mapping(address vault => bool) public canDeallocateFromIdle;
     mapping(address vault => uint256) public nativePenalty;
     mapping(address vault => uint256) public accruedNativePenalty;
+
+    /* CONSTRUCTOR */
+
+    constructor(address _adapterFactory) {
+        adapterFactory = _adapterFactory;
+    }
 
     /* AUTHORIZED FUNCTIONS */
 
@@ -120,7 +131,9 @@ contract PublicAllocator is IPublicAllocator {
     /* INTERNAL */
 
     /// @dev Returns the market's per-market vault id, exactly as keyed by the MorphoMarketV1AdapterV2.
-    function vaultBlueId(address adapter, MarketParams calldata marketParams) internal pure returns (bytes32) {
+    /// @dev Reverts if the adapter was not created by the expected factory, restricting all paths to Blue adapters.
+    function vaultBlueId(address adapter, MarketParams calldata marketParams) internal view returns (bytes32) {
+        require(IMorphoMarketV1AdapterV2Factory(adapterFactory).isMorphoMarketV1AdapterV2(adapter), NotBlueAdapter());
         return keccak256(abi.encode("this/marketParams", adapter, marketParams));
     }
 }

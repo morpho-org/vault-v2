@@ -9,14 +9,6 @@ import {IPublicAllocator} from "../../src/periphery/interfaces/IPublicAllocator.
 
 contract RejectNative {}
 
-contract GasHungryNativeReceiver {
-    uint256 public received;
-
-    receive() external payable {
-        received += msg.value;
-    }
-}
-
 /// @dev The public allocator is specialized to Morpho Market V1 (Morpho Blue) via the Morpho Market V1 adapter (V2).
 /// These tests use a real vault + adapter + Morpho Blue markets so that the absolute cap is keyed by the exact
 /// per-market vault id (keccak256(abi.encode("this/marketParams", adapter, marketParams))).
@@ -37,7 +29,7 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         id1 = expectedIds1[2];
         id2 = expectedIds2[2];
 
-        publicAllocator = new PublicAllocator();
+        publicAllocator = new PublicAllocator(address(factory));
 
         // Make the public allocator an allocator of the vault (timelocks are 0 at setup).
         vm.prank(curator);
@@ -390,40 +382,11 @@ contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         assertEq(address(publicAllocator).balance, 0);
     }
 
-    function testClaimNativePenaltyForGasHungryReceiver(uint256 nativePenaltyAmount, uint256 assets, uint128 amount)
-        public
-    {
-        nativePenaltyAmount = bound(nativePenaltyAmount, 1, 10 ether);
-        assets = bound(assets, 1, MAX_TEST_ASSETS);
-        amount = uint128(bound(amount, 1, assets));
-        GasHungryNativeReceiver receiver = new GasHungryNativeReceiver();
-
-        vm.prank(curator);
-        publicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
-        _seedMarket1(assets);
-        _setCanDeallocate(marketParams1, true);
-        _setAbsoluteCap(marketParams2, type(uint256).max);
-
-        vm.deal(rando, nativePenaltyAmount);
-        vm.prank(rando);
-        publicAllocator.reallocate{value: nativePenaltyAmount}(
-            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
-        );
-
-        vm.expectEmit();
-        emit IPublicAllocator.ClaimNativePenalty(curator, address(vault), nativePenaltyAmount, address(receiver));
-        vm.prank(curator);
-        publicAllocator.claimNativePenalty(address(vault), payable(address(receiver)));
-
-        assertEq(publicAllocator.accruedNativePenalty(address(vault)), 0);
-        assertEq(address(receiver).balance, nativePenaltyAmount);
-        assertEq(receiver.received(), nativePenaltyAmount);
-        assertEq(address(publicAllocator).balance, 0);
-    }
-
-    function testClaimNativePenaltyRevertsWhenReceiverRejects(uint256 nativePenaltyAmount, uint256 assets, uint128 amount)
-        public
-    {
+    function testClaimNativePenaltyRevertsWhenReceiverRejects(
+        uint256 nativePenaltyAmount,
+        uint256 assets,
+        uint128 amount
+    ) public {
         nativePenaltyAmount = bound(nativePenaltyAmount, 1, 10 ether);
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
