@@ -35,9 +35,11 @@ interface IPublicAllocator {
     error CannotDeallocate();
     error NativeTransferFailed();
     error IncorrectNativePenalty();
+    error NotBlueAdapter();
 
     /* VIEW */
 
+    function adapterFactory() external view returns (address);
     function absoluteCap(address vault, bytes32 id) external view returns (uint256);
     function canDeallocate(address vault, bytes32 id) external view returns (bool);
     function canDeallocateFromIdle(address vault) external view returns (bool);
