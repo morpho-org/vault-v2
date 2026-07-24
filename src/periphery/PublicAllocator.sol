@@ -30,7 +30,7 @@ contract PublicAllocator is IPublicAllocator {
     function setAbsoluteCap(address vault, address adapter, MarketParams calldata marketParams, uint256 newAbsoluteCap)
         external
     {
-        bytes32 id = marketId(adapter, marketParams);
+        bytes32 id = vaultBlueId(adapter, marketParams);
         require(
             IVaultV2(vault).isAllocator(msg.sender)
                 || (newAbsoluteCap <= absoluteCap[vault][id] && IVaultV2(vault).isSentinel(msg.sender)),
@@ -47,7 +47,7 @@ contract PublicAllocator is IPublicAllocator {
             IVaultV2(vault).isAllocator(msg.sender) || (newCanDeallocate && IVaultV2(vault).isSentinel(msg.sender)),
             Unauthorized()
         );
-        canDeallocate[vault][marketId(adapter, marketParams)] = newCanDeallocate;
+        canDeallocate[vault][vaultBlueId(adapter, marketParams)] = newCanDeallocate;
         emit SetCanDeallocate(msg.sender, vault, adapter, marketParams, newCanDeallocate);
     }
 
@@ -89,19 +89,19 @@ contract PublicAllocator is IPublicAllocator {
     ) external payable {
         require(msg.value == nativePenalty[vault], IncorrectNativePenalty());
         if (msg.value > 0) accruedNativePenalty[vault] += msg.value;
-        bytes32 deallocateId = marketId(deallocateAdapter, deallocateMarketParams);
+        bytes32 deallocateId = vaultBlueId(deallocateAdapter, deallocateMarketParams);
         require(canDeallocate[vault][deallocateId], CannotDeallocate());
 
         IVaultV2(vault).deallocate(deallocateAdapter, abi.encode(deallocateMarketParams), assets);
         IVaultV2(vault).allocate(allocateAdapter, abi.encode(allocateMarketParams), assets);
 
-        bytes32 allocateId = marketId(allocateAdapter, allocateMarketParams);
+        bytes32 allocateId = vaultBlueId(allocateAdapter, allocateMarketParams);
         require(IVaultV2(vault).allocation(allocateId) <= absoluteCap[vault][allocateId], AbsoluteCapExceeded());
 
         emit Reallocate(msg.sender, vault, allocateId, deallocateId, assets, msg.value);
     }
 
-    function allocate(address vault, address adapter, MarketParams calldata marketParams, uint128 assets)
+    function allocateFromIdle(address vault, address adapter, MarketParams calldata marketParams, uint128 assets)
         external
         payable
     {
@@ -111,16 +111,16 @@ contract PublicAllocator is IPublicAllocator {
 
         IVaultV2(vault).allocate(adapter, abi.encode(marketParams), assets);
 
-        bytes32 allocateId = marketId(adapter, marketParams);
+        bytes32 allocateId = vaultBlueId(adapter, marketParams);
         require(IVaultV2(vault).allocation(allocateId) <= absoluteCap[vault][allocateId], AbsoluteCapExceeded());
 
-        emit Allocate(msg.sender, vault, allocateId, assets, msg.value);
+        emit AllocateFromIdle(msg.sender, vault, allocateId, assets, msg.value);
     }
 
     /* INTERNAL */
 
     /// @dev Returns the market's per-market vault id, exactly as keyed by the MorphoMarketV1AdapterV2.
-    function marketId(address adapter, MarketParams calldata marketParams) internal pure returns (bytes32) {
+    function vaultBlueId(address adapter, MarketParams calldata marketParams) internal pure returns (bytes32) {
         return keccak256(abi.encode("this/marketParams", adapter, marketParams));
     }
 }
