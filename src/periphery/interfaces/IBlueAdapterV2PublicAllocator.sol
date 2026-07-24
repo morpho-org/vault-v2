@@ -25,6 +25,7 @@ interface IBlueAdapterV2PublicAllocator {
     error NativeTransferFailed();
     error IncorrectNativePenalty();
     error NotBlueAdapter();
+    error CastOverflow();
 
     /* VIEW */
 
