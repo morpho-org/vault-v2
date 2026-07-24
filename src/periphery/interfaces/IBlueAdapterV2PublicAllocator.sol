@@ -4,7 +4,7 @@ pragma solidity >=0.5.0;
 
 import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
-interface IPublicAllocator {
+interface IBlueAdapterV2PublicAllocator {
     /* EVENTS */
 
     event SetAbsoluteCap(
