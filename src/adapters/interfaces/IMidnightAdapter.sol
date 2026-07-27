@@ -39,12 +39,10 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error BufferTooLow();
     error BuyAtLoss();
     error IncorrectCallbackAddress();
-    error IncorrectDuration();
     error IncorrectOffer();
     error IncorrectOwner();
     error IncorrectReceiver();
     error IncorrectSigner();
-    error IncorrectStart();
     error InvalidProof();
     error LoanAssetMismatch();
     error NoDebtCreation();
