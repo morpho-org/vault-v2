@@ -3,6 +3,7 @@
 pragma solidity 0.8.34;
 
 import {IMidnight, Offer, Market} from "lib/midnight/src/interfaces/IMidnight.sol";
+import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
 import {MAX_TICK} from "lib/midnight/src/libraries/TickLib.sol";
 import {Signature, EIP712_DOMAIN_TYPEHASH} from "lib/midnight/src/ratifiers/interfaces/IEcrecoverRatifier.sol";
 import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
@@ -43,7 +44,8 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* ACCOUNTING */
 
-    uint8 public constant MAX_PENDING_MATURITIES = 6;
+    /// @dev Takers of offers of the adapter can fill slots with dust takes.
+    uint8 public constant MAX_PENDING_MATURITIES = 50;
 
     uint128 public totalAssets;
     uint128 public currentGrowth;
@@ -83,6 +85,8 @@ contract MidnightAdapter is IMidnightAdapter {
         return _markets[marketId];
     }
 
+    /// @dev Returns the durations that can be capped.
+    /// @dev A market position fills the cap of any duration that is <= its time to maturity.
     function durations() public view returns (uint256[] memory) {
         uint256[] memory _durations = new uint256[](durationsLength);
         for (uint256 i = 0; i < durationsLength; i++) {
@@ -111,11 +115,16 @@ contract MidnightAdapter is IMidnightAdapter {
     /* VAULT ALLOCATORS FUNCTIONS */
 
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external {
-        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
+        bytes32 marketId = IdLib.toId(market);
+        require(
+            IVaultV2(parentVault).isAllocator(msg.sender) || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
+
         accrueInterest();
         updateDurationCaps(market);
+
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
-        bytes32 marketId = IMidnight(midnight).toId(market);
         // current net credit cannot be > accounted net credit
         uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit(marketId);
 
@@ -196,7 +205,6 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /// @dev Returns an estimate of the real assets assigned to the adapter.
-    /// @dev Excludes assets reserved for users.
     function realAssets() external view returns (uint256) {
         (, uint256 newTotalAssets) = accrueInterestView();
         return newTotalAssets;
@@ -235,9 +243,9 @@ contract MidnightAdapter is IMidnightAdapter {
             updateDurationCaps(offer.market);
 
             // Skip onSell since we are already in a deallocate call.
-            bytes32 marketId = IMidnight(midnight).toId(offer.market);
+            bytes32 marketId = IdLib.toId(offer.market);
             uint256 takeUnits = TakeAmountsLib.sellerAssetsToUnits(midnight, marketId, offer, sellerAssets);
-            IMidnight(midnight).take(offer, takeUnits, address(this), address(this), address(0), hex"", ratifierData);
+            IMidnight(midnight).take(offer, ratifierData, takeUnits, address(this), address(this), address(0), hex"");
             // current net credit cannot be > accounted net credit
             uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit(marketId);
             decreaseNetCredit(marketId, offer.market.maturity, netCreditDecrease);
@@ -264,13 +272,13 @@ contract MidnightAdapter is IMidnightAdapter {
         emit CancelRoot(msg.sender, root);
     }
 
-    function isRatified(Offer memory offer, bytes memory data) external view returns (bytes32) {
+    function isRatified(Offer memory offer, bytes memory data, address) external view returns (bytes32) {
         // Collaterals will be checked through vault ids.
         require(offer.market.loanToken == asset, LoanAssetMismatch());
         require(offer.maker == address(this), IncorrectOwner());
         require(offer.callback == address(this), IncorrectCallbackAddress());
-        require(offer.receiverIfMakerIsSeller == address(this), IncorrectReceiver());
-        require(offer.start <= block.timestamp, IncorrectStart());
+        // For buy offers, Midnight enforces receiverIfMakerIsSeller == address(0).
+        require(offer.buy || offer.receiverIfMakerIsSeller == address(this), IncorrectReceiver());
         require(offer.buy || offer.reduceOnly, NoDebtCreation());
 
         (Signature memory sig, bytes32 root, uint256 leafIndex, bytes32[] memory proof) =
@@ -383,7 +391,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     function currentNetCredit(bytes32 marketId) internal view returns (uint256) {
         return
-            IMidnight(midnight).creditOf(marketId, address(this))
+            IMidnight(midnight).credit(marketId, address(this))
                 - IMidnight(midnight).pendingFee(marketId, address(this));
     }
 
@@ -422,7 +430,7 @@ contract MidnightAdapter is IMidnightAdapter {
         _maturities[lastMaturity].index = uint8(index);
     }
 
-    /// @dev Returns the number of durations in packedDurations that are most the time to maturity.
+    /// @dev Returns the number of durations in packedDurations that are at most the time to maturity.
     function durationCount(uint256 maturity) internal view returns (uint256 count) {
         uint256 timeToMaturity = maturity.zeroFloorSub(block.timestamp);
         while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;
