@@ -85,6 +85,13 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         publicAllocator.setAbsoluteCap(address(vault), address(adapter), marketParams2, cap);
     }
 
+    function testSetAbsoluteCapRevertsWhenAdapterNotInFactory(address badAdapter, uint256 cap) public {
+        vm.assume(badAdapter != address(0) && badAdapter != address(adapter));
+        vm.expectRevert(IBlueAdapterV2PublicAllocator.NotBlueAdapter.selector);
+        vm.prank(allocator);
+        publicAllocator.setAbsoluteCap(address(vault), badAdapter, marketParams2, cap);
+    }
+
     function testSetAbsoluteCapSentinelCanOnlyDecrease(uint256 cap, uint256 lower, uint256 higher) public {
         cap = bound(cap, 1, type(uint256).max - 1);
         lower = bound(lower, 0, cap);
@@ -120,6 +127,13 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.expectRevert(IBlueAdapterV2PublicAllocator.Unauthorized.selector);
         vm.prank(caller);
         publicAllocator.setCanDeallocate(address(vault), address(adapter), marketParams1, true);
+    }
+
+    function testSetCanDeallocateRevertsWhenAdapterNotInFactory(address badAdapter) public {
+        vm.assume(badAdapter != address(0) && badAdapter != address(adapter));
+        vm.expectRevert(IBlueAdapterV2PublicAllocator.NotBlueAdapter.selector);
+        vm.prank(allocator);
+        publicAllocator.setCanDeallocate(address(vault), badAdapter, marketParams1, true);
     }
 
     function testSetCanDeallocateSentinelCanOnlyEnable() public {
@@ -188,6 +202,13 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         assertGt(vault.allocation(id2), 0, "market2 supplied");
     }
 
+    function testReallocateRevertsWhenAdapterNotInFactory(address badAdapter, uint128 amount) public {
+        vm.assume(badAdapter != address(0) && badAdapter != address(adapter));
+        vm.expectRevert(IBlueAdapterV2PublicAllocator.NotBlueAdapter.selector);
+        vm.prank(rando);
+        publicAllocator.reallocate(address(vault), badAdapter, marketParams1, marketParams2, amount);
+    }
+
     function testReallocateCannotDeallocate(uint256 assets, uint128 amount) public {
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
@@ -243,6 +264,13 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         assertEq(underlyingToken.balanceOf(address(vault)), assets - amount, "idle");
         assertLe(vault.allocation(id2), amount, "market2 rounds down");
         assertGt(vault.allocation(id2), 0, "market2 supplied");
+    }
+
+    function testAllocateFromIdleRevertsWhenAdapterNotInFactory(address badAdapter, uint128 amount) public {
+        vm.assume(badAdapter != address(0) && badAdapter != address(adapter));
+        vm.expectRevert(IBlueAdapterV2PublicAllocator.NotBlueAdapter.selector);
+        vm.prank(rando);
+        publicAllocator.allocateFromIdle(address(vault), badAdapter, marketParams2, amount);
     }
 
     function testAllocateFromIdleCannotDeallocate(uint256 assets, uint128 amount) public {
