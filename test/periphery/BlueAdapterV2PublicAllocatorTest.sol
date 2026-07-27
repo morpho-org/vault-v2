@@ -305,6 +305,13 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         publicAllocator.setNativePenalty(address(vault), newNativePenalty);
     }
 
+    function testSetNativePenaltyRevertsWhenAboveUint120Max(uint256 newNativePenalty) public {
+        newNativePenalty = bound(newNativePenalty, uint256(type(uint120).max) + 1, type(uint256).max);
+        vm.expectRevert(IBlueAdapterV2PublicAllocator.CastOverflow.selector);
+        vm.prank(curator);
+        publicAllocator.setNativePenalty(address(vault), newNativePenalty);
+    }
+
     function testReallocateChargesNativePenalty(uint256 nativePenaltyAmount, uint256 assets, uint128 amount) public {
         nativePenaltyAmount = bound(nativePenaltyAmount, 1, 10 ether);
         assets = bound(assets, 1, MAX_TEST_ASSETS);
