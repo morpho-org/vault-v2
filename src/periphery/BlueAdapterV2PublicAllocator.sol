@@ -13,8 +13,8 @@ import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 /// and canDeallocate and canDeallocateFromIdle; the vault's sentinels can decrease the absolute cap, enable
 /// canDeallocate, and disable canDeallocateFromIdle, to cut off public inflows and allow public outflows for derisking;
 /// the vault's curator sets and claims the native penalty.
-/// @dev Each reallocate call costs a penalty in native currency, set per vault by the curator. The penalty is accrued
-/// per vault and can be claimed by the vault's curator.
+/// @dev Each reallocate and allocateFromIdle call costs a penalty in native currency, set per vault by the curator. The
+/// penalty is accrued per vault and can be claimed by the vault's curator.
 /// @dev The vault's caps are still enforced on the allocation, so this call reverts if it would exceed them.
 /// @dev The Public Allocator opens the door for anybody to manipulate relative caps through short-term deposits (but it
 /// requires capital).
