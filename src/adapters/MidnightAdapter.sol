@@ -49,6 +49,7 @@ contract MidnightAdapter is IMidnightAdapter {
     uint48 public lastUpdate;
     /// @dev Maximum steps of an accrual.
     /// @dev A maturity uses an availability slot iff it has some units and is > now after accrual.
+    /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_PENDING_MATURITIES = 50;
     uint8 public availableMaturities = MAX_PENDING_MATURITIES;
     mapping(uint256 timestamp => MaturityData) public _maturities;
@@ -82,7 +83,7 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /// @dev Returns the durations that can be capped.
-    /// @dev A market position fills the cap of any duration that is >= its time to maturity.
+    /// @dev A market position fills the cap of any duration that is <= its time to maturity.
     function durations() public view returns (uint256[] memory) {
         uint256[] memory _durations = new uint256[](durationsLength);
         for (uint256 i = 0; i < durationsLength; i++) {
@@ -112,7 +113,10 @@ contract MidnightAdapter is IMidnightAdapter {
 
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external {
         bytes32 marketId = IdLib.toId(market);
-        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
+        require(
+            IVaultV2(parentVault).isAllocator(msg.sender) || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
 
         accrueInterest();
         updateDurationCaps(market);
@@ -185,7 +189,6 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /// @dev Returns an estimate of the real assets assigned to the adapter.
-    /// @dev Excludes assets reserved for users.
     function realAssets() external view returns (uint256) {
         (,, uint256 newTotalAssets,) = accrueInterestView();
         return newTotalAssets;
@@ -260,7 +263,6 @@ contract MidnightAdapter is IMidnightAdapter {
         require(offer.callback == address(this), IncorrectCallbackAddress());
         // For buy offers, Midnight enforces receiverIfMakerIsSeller == address(0).
         require(offer.buy || offer.receiverIfMakerIsSeller == address(this), IncorrectReceiver());
-        require(offer.start <= block.timestamp, IncorrectStart());
         require(offer.buy || offer.reduceOnly, NoDebtCreation());
 
         (Signature memory sig, bytes32 root, uint256 leafIndex, bytes32[] memory proof) =
@@ -412,7 +414,7 @@ contract MidnightAdapter is IMidnightAdapter {
         }
     }
 
-    /// @dev Returns the number of durations in packedDurations that are most the time to maturity.
+    /// @dev Returns the number of durations in packedDurations that are at most the time to maturity.
     function durationCount(uint256 maturity) internal view returns (uint256 count) {
         uint256 timeToMaturity = maturity.zeroFloorSub(block.timestamp);
         while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;

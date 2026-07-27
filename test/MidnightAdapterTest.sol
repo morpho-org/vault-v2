@@ -273,16 +273,6 @@ contract MidnightAdapterTest is Test {
         adapter.isRatified(offer, data, taker);
     }
 
-    function testRatifyIncorrectStart(uint256 seed) public {
-        vm.setSeed(seed);
-        Offer memory offer = _ratificationSetup();
-        offer.start = vm.getBlockTimestamp() + 1;
-        bytes32 _root = root(offer);
-        bytes memory data = ratifierData(_root, signerAllocator);
-        vm.expectRevert(IMidnightAdapter.IncorrectStart.selector);
-        adapter.isRatified(offer, data, taker);
-    }
-
     function testRatifyIncorrectCallbackAddress(uint256 seed) public {
         vm.setSeed(seed);
         Offer memory offer = _ratificationSetup();
@@ -791,11 +781,20 @@ contract MidnightAdapterTest is Test {
     /* WITHDRAW TO VAULT */
 
     function testWithdrawToVaultUnauthorized(address nonAllocator) public {
-        vm.assume(!parentVault.isAllocator(nonAllocator));
+        vm.assume(!parentVault.isAllocator(nonAllocator) && !parentVault.isSentinel(nonAllocator));
         Market memory market = storedOffer.market;
         vm.prank(nonAllocator);
         vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
         adapter.withdrawToVault(market, 0);
+    }
+
+    function testWithdrawToVaultBySentinel(address sentinel) public {
+        vm.assume(sentinel != signerAllocator);
+        stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(sentinel).checked_write(true);
+        Offer memory boughtOffer = buy(7 days, 1e18);
+
+        vm.prank(sentinel);
+        adapter.withdrawToVault(boughtOffer.market, 0);
     }
 
     function testWithdrawToVaultOK() public {
