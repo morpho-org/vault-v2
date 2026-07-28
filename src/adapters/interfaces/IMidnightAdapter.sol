@@ -26,6 +26,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     /* EVENTS */
 
     event SetSkimRecipient(address indexed newSkimRecipient);
+    event SetIsAuthorizedRatifier(address indexed ratifier, bool authorized);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
     event UpdateDurationCaps(uint256 indexed maturity, uint256 newDurationCount, uint256 netCredit);
@@ -71,6 +72,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function skimRecipient() external view returns (address);
     function isRootCanceled(bytes32 root) external view returns (bool);
     function setSkimRecipient(address newSkimRecipient) external;
+    function setIsAuthorizedRatifier(address ratifier, bool authorized) external;
     function cancelRoot(bytes32 root) external;
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);

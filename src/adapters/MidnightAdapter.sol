@@ -109,6 +109,13 @@ contract MidnightAdapter is IMidnightAdapter {
         emit Skim(token, balance);
     }
 
+    /// @dev Authorizes or revokes `ratifier` as a valid IRatifier for this adapter's own offers on Midnight.
+    function setIsAuthorizedRatifier(address ratifier, bool authorized) external {
+        require(msg.sender == IVaultV2(parentVault).owner(), NotAuthorized());
+        IMidnight(midnight).setIsAuthorized(ratifier, authorized, address(this));
+        emit SetIsAuthorizedRatifier(ratifier, authorized);
+    }
+
     /* VAULT ALLOCATORS FUNCTIONS */
 
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external {
