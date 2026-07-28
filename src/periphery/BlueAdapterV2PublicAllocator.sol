@@ -138,7 +138,7 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
         bytes32 allocateId = vaultBlueId(adapter, allocateMarketParams);
         require(IVaultV2(vault).allocation(allocateId) <= absoluteCap[vault][allocateId], AbsoluteCapExceeded());
 
-        emit Reallocate(msg.sender, vault, allocateId, deallocateId, assets, msg.value);
+        emit Reallocate(msg.sender, vault, adapter, allocateId, deallocateId, assets, msg.value);
     }
 
     function allocateFromIdle(address vault, address adapter, MarketParams calldata marketParams, uint128 assets)
@@ -156,7 +156,7 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
         bytes32 allocateId = vaultBlueId(adapter, marketParams);
         require(IVaultV2(vault).allocation(allocateId) <= absoluteCap[vault][allocateId], AbsoluteCapExceeded());
 
-        emit AllocateFromIdle(msg.sender, vault, allocateId, assets, msg.value);
+        emit AllocateFromIdle(msg.sender, vault, adapter, allocateId, assets, msg.value);
     }
 
     /* INTERNAL */

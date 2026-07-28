@@ -14,8 +14,8 @@ interface IBlueAdapterV2PublicAllocator {
     event SetCanAllocateFromIdle(address indexed sender, address indexed vault, bool canDeallocate);
     event SetNativePenalty(address indexed sender, address indexed vault, uint256 newNativePenalty);
     event ClaimNativePenalty(address indexed sender, address indexed vault, uint256 claimed, address receiver);
-    event Reallocate(address sender, address indexed vault, bytes32 indexed allocateId, bytes32 indexed deallocateId, uint128 assets, uint256 value);
-    event AllocateFromIdle(address indexed sender, address indexed vault, bytes32 indexed allocateId, uint128 assets, uint256 value);
+    event Reallocate(address sender, address indexed vault, address adapter, bytes32 indexed allocateId, bytes32 indexed deallocateId, uint128 assets, uint256 value);
+    event AllocateFromIdle(address indexed sender, address indexed vault, address adapter, bytes32 indexed allocateId, uint128 assets, uint256 value);
 
     /* ERRORS */
 
