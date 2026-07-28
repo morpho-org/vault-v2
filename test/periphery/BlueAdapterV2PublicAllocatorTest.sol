@@ -50,9 +50,9 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         publicAllocator.setCanDeallocate(address(vault), address(adapter), marketParams, value);
     }
 
-    function _setCanDeallocateFromIdle(bool value) internal {
+    function _setCanAllocateFromIdle(bool value) internal {
         vm.prank(allocator);
-        publicAllocator.setCanDeallocateFromIdle(address(vault), value);
+        publicAllocator.setCanAllocateFromIdle(address(vault), value);
     }
 
     // Deposit into the vault and allocate to market1 so there is liquidity to reallocate away from.
@@ -152,32 +152,32 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         publicAllocator.setCanDeallocate(address(vault), address(adapter), marketParams1, false);
     }
 
-    function testSetCanDeallocateFromIdle(bool value) public {
+    function testSetCanAllocateFromIdle(bool value) public {
         vm.expectEmit();
-        emit IBlueAdapterV2PublicAllocator.SetCanDeallocateFromIdle(allocator, address(vault), value);
-        _setCanDeallocateFromIdle(value);
-        assertEq(publicAllocator.canDeallocateFromIdle(address(vault)), value);
+        emit IBlueAdapterV2PublicAllocator.SetCanAllocateFromIdle(allocator, address(vault), value);
+        _setCanAllocateFromIdle(value);
+        assertEq(publicAllocator.canAllocateFromIdle(address(vault)), value);
     }
 
-    function testSetCanDeallocateFromIdleUnauthorized(address caller) public {
+    function testSetCanAllocateFromIdleUnauthorized(address caller) public {
         vm.assume(!vault.isAllocator(caller) && !vault.isSentinel(caller));
         vm.expectRevert(IBlueAdapterV2PublicAllocator.Unauthorized.selector);
         vm.prank(caller);
-        publicAllocator.setCanDeallocateFromIdle(address(vault), true);
+        publicAllocator.setCanAllocateFromIdle(address(vault), true);
     }
 
-    function testSetCanDeallocateFromIdleSentinelCanOnlyDisable() public {
+    function testSetCanAllocateFromIdleSentinelCanOnlyDisable() public {
         vm.expectRevert(IBlueAdapterV2PublicAllocator.Unauthorized.selector);
         vm.prank(sentinel);
-        publicAllocator.setCanDeallocateFromIdle(address(vault), true);
+        publicAllocator.setCanAllocateFromIdle(address(vault), true);
 
-        _setCanDeallocateFromIdle(true);
+        _setCanAllocateFromIdle(true);
 
         vm.expectEmit();
-        emit IBlueAdapterV2PublicAllocator.SetCanDeallocateFromIdle(sentinel, address(vault), false);
+        emit IBlueAdapterV2PublicAllocator.SetCanAllocateFromIdle(sentinel, address(vault), false);
         vm.prank(sentinel);
-        publicAllocator.setCanDeallocateFromIdle(address(vault), false);
-        assertFalse(publicAllocator.canDeallocateFromIdle(address(vault)));
+        publicAllocator.setCanAllocateFromIdle(address(vault), false);
+        assertFalse(publicAllocator.canAllocateFromIdle(address(vault)));
     }
 
     /* REALLOCATE */
@@ -194,7 +194,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         assertEq(vault.allocation(id2), 0);
 
         vm.expectEmit();
-        emit IBlueAdapterV2PublicAllocator.Reallocate(rando, address(vault), id2, id1, amount, 0);
+        emit IBlueAdapterV2PublicAllocator.Reallocate(rando, address(vault), address(adapter), id2, id1, amount, 0);
         _reallocate(amount);
 
         assertEq(vault.allocation(id1), alloc1Before - amount, "market1");
@@ -253,11 +253,11 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 1, assets));
 
         vault.deposit(assets, address(this));
-        _setCanDeallocateFromIdle(true);
+        _setCanAllocateFromIdle(true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
         vm.expectEmit();
-        emit IBlueAdapterV2PublicAllocator.AllocateFromIdle(rando, address(vault), id2, amount, 0);
+        emit IBlueAdapterV2PublicAllocator.AllocateFromIdle(rando, address(vault), address(adapter), id2, amount, 0);
         vm.prank(rando);
         publicAllocator.allocateFromIdle(address(vault), address(adapter), marketParams2, amount);
 
@@ -290,7 +290,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 1, assets));
 
         vault.deposit(assets, address(this));
-        _setCanDeallocateFromIdle(true);
+        _setCanAllocateFromIdle(true);
 
         // address(0) is not a factory-created Blue adapter, so the top-level check rejects it first.
         vm.expectRevert(IBlueAdapterV2PublicAllocator.NotBlueAdapter.selector);

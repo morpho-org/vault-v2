@@ -11,11 +11,11 @@ interface IBlueAdapterV2PublicAllocator {
 
     event SetAbsoluteCap(address indexed sender, address indexed vault, address adapter, MarketParams marketParams, uint256 absoluteCap);
     event SetCanDeallocate(address indexed sender, address indexed vault, address adapter, MarketParams marketParams, bool canDeallocate);
-    event SetCanDeallocateFromIdle(address indexed sender, address indexed vault, bool canDeallocate);
+    event SetCanAllocateFromIdle(address indexed sender, address indexed vault, bool canDeallocate);
     event SetNativePenalty(address indexed sender, address indexed vault, uint256 newNativePenalty);
-    event ClaimNativePenalty(address indexed sender, address indexed vault, uint256 claimed, address receiver);
-    event Reallocate(address sender, address indexed vault, bytes32 indexed allocateId, bytes32 indexed deallocateId, uint128 assets, uint256 value);
-    event AllocateFromIdle(address indexed sender, address indexed vault, bytes32 indexed allocateId, uint128 assets, uint256 value);
+    event ClaimNativePenalty(address indexed sender, address indexed vault, uint256 claimed, address indexed receiver);
+    event Reallocate(address sender, address indexed vault, address adapter, bytes32 indexed allocateId, bytes32 indexed deallocateId, uint128 assets, uint256 value);
+    event AllocateFromIdle(address indexed sender, address indexed vault, address adapter, bytes32 indexed allocateId, uint128 assets, uint256 value);
 
     /* ERRORS */
 
@@ -32,7 +32,7 @@ interface IBlueAdapterV2PublicAllocator {
     function adapterFactory() external view returns (address);
     function absoluteCap(address vault, bytes32 id) external view returns (uint256);
     function canDeallocate(address vault, bytes32 id) external view returns (bool);
-    function canDeallocateFromIdle(address vault) external view returns (bool);
+    function canAllocateFromIdle(address vault) external view returns (bool);
     function nativePenalty(address vault) external view returns (uint256);
     function accruedNativePenalty(address vault) external view returns (uint256);
 
@@ -40,7 +40,7 @@ interface IBlueAdapterV2PublicAllocator {
 
     function setAbsoluteCap(address vault, address adapter, MarketParams calldata marketParams, uint256 newAbsoluteCap) external;
     function setCanDeallocate(address vault, address adapter, MarketParams calldata marketParams, bool newCanDeallocate) external;
-    function setCanDeallocateFromIdle(address vault, bool newCanDeallocate) external;
+    function setCanAllocateFromIdle(address vault, bool newCanDeallocate) external;
     function setNativePenalty(address vault, uint256 newNativePenalty) external;
     function claimNativePenalty(address vault, address payable receiver) external;
     function reallocate(address vault, address adapter, MarketParams calldata deallocateMarketParams, MarketParams calldata allocateMarketParams, uint128 assets) external payable;
