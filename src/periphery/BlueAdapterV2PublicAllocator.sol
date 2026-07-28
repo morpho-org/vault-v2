@@ -10,8 +10,8 @@ import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 /// @dev Specialized to Morpho Blue allocations through the MorphoMarketV1AdapterV2.
 /// @dev To be usable, the BlueAdapterV2PublicAllocator must be set as an allocator of the vault.
 /// @dev The BlueAdapterV2PublicAllocator inherits the vault's roles:
-/// - the vault's allocators can set the absolute cap, canDeallocate and canDeallocateFromIdle
-/// - the vault's sentinels can decrease the absolute cap, enable canDeallocate, and disable canDeallocateFromIdle, to
+/// - the vault's allocators can set the absolute cap, canDeallocate and canAllocateFromIdle
+/// - the vault's sentinels can decrease the absolute cap, enable canDeallocate, and disable canAllocateFromIdle, to
 /// cut off public inflows and allow public outflows for derisking
 /// - the vault's curator sets and claims the native penalty
 /// @dev Each reallocate and allocateFromIdle call costs a penalty in native currency, set per vault by the curator. The
@@ -24,7 +24,7 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
 
     /// @dev Packed into a single storage slot: bool (1 byte) + uint120 (15 bytes) + uint120 (15 bytes) = 31 bytes.
     struct VaultData {
-        bool canDeallocateFromIdle;
+        bool canAllocateFromIdle;
         uint120 nativePenalty;
         // uint120 max ~2^120 (~1e18 tokens at 18 decimals), so accrued native penalty cannot realistically overflow.
         uint120 accruedNativePenalty;
@@ -48,8 +48,8 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
 
     /* VIEW */
 
-    function canDeallocateFromIdle(address vault) external view returns (bool) {
-        return _vaultData[vault].canDeallocateFromIdle;
+    function canAllocateFromIdle(address vault) external view returns (bool) {
+        return _vaultData[vault].canAllocateFromIdle;
     }
 
     function nativePenalty(address vault) external view returns (uint256) {
@@ -88,13 +88,13 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
         emit SetCanDeallocate(msg.sender, vault, adapter, marketParams, newCanDeallocate);
     }
 
-    function setCanDeallocateFromIdle(address vault, bool newCanDeallocate) external {
+    function setCanAllocateFromIdle(address vault, bool newCanDeallocate) external {
         require(
             IVaultV2(vault).isAllocator(msg.sender) || (!newCanDeallocate && IVaultV2(vault).isSentinel(msg.sender)),
             Unauthorized()
         );
-        _vaultData[vault].canDeallocateFromIdle = newCanDeallocate;
-        emit SetCanDeallocateFromIdle(msg.sender, vault, newCanDeallocate);
+        _vaultData[vault].canAllocateFromIdle = newCanDeallocate;
+        emit SetCanAllocateFromIdle(msg.sender, vault, newCanDeallocate);
     }
 
     function setNativePenalty(address vault, uint256 newNativePenalty) external {
@@ -149,7 +149,7 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
         require(msg.value == _vaultData[vault].nativePenalty, IncorrectNativePenalty());
         // forge-lint: disable-next-item(unsafe-typecast) safe because msg.value == nativePenalty <= type(uint120).max.
         if (msg.value > 0) _vaultData[vault].accruedNativePenalty += uint120(msg.value);
-        require(_vaultData[vault].canDeallocateFromIdle, CannotDeallocate());
+        require(_vaultData[vault].canAllocateFromIdle, CannotDeallocate());
 
         IVaultV2(vault).allocate(adapter, abi.encode(marketParams), assets);
 
