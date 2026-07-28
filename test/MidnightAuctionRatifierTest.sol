@@ -6,7 +6,6 @@ import {MidnightAdapterTest} from "./MidnightAdapterTest.sol";
 import {MidnightAuctionRatifier} from "../src/adapters/ratifiers/MidnightAuctionRatifier.sol";
 import {IMidnightAuctionRatifier, Auction} from "../src/adapters/ratifiers/interfaces/IMidnightAuctionRatifier.sol";
 import {AuctionHashLib} from "../src/adapters/ratifiers/libraries/AuctionHashLib.sol";
-import {IMidnightAdapter} from "../src/adapters/interfaces/IMidnightAdapter.sol";
 import {Offer, Market} from "../lib/midnight/src/interfaces/IMidnight.sol";
 import {Signature, EIP712_DOMAIN_TYPEHASH} from "../lib/midnight/src/ratifiers/interfaces/IEcrecoverRatifier.sol";
 import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
@@ -17,11 +16,9 @@ import {IdLib} from "../lib/midnight/src/libraries/IdLib.sol";
 contract MidnightAuctionRatifierTest is MidnightAdapterTest {
     MidnightAuctionRatifier internal ratifier;
 
-    function setUp() public override {
-        super.setUp();
+    function auctionRatifierAddress() internal override returns (address) {
         ratifier = new MidnightAuctionRatifier();
-        vm.prank(owner);
-        adapter.setIsAuthorizedRatifier(address(ratifier), true);
+        return address(ratifier);
     }
 
     /* HELPERS */
@@ -253,21 +250,11 @@ contract MidnightAuctionRatifierTest is MidnightAdapterTest {
         ratifier.isRatified(offer, data, taker);
     }
 
-    /* AUTHORIZATION HOOK */
+    /* CONSTRUCTOR AUTHORIZATION */
 
-    function testSetIsAuthorizedRatifierUnauthorized(address nonOwner) public {
-        vm.assume(nonOwner != owner);
-        vm.prank(nonOwner);
-        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
-        adapter.setIsAuthorizedRatifier(address(ratifier), true);
-    }
-
-    function testSetIsAuthorizedRatifierOK() public {
-        vm.expectEmit(true, false, false, true, address(adapter));
-        emit IMidnightAdapter.SetIsAuthorizedRatifier(address(ratifier), false);
-        vm.prank(owner);
-        adapter.setIsAuthorizedRatifier(address(ratifier), false);
-        assertFalse(midnight.isAuthorized(address(adapter), address(ratifier)), "revoked");
+    function testConstructorAuthorizesAuctionRatifier() public view {
+        assertEq(adapter.auctionRatifier(), address(ratifier), "auctionRatifier");
+        assertTrue(midnight.isAuthorized(address(adapter), address(ratifier)), "authorized at construction");
     }
 
     /* FULL INTEGRATION VIA MIDNIGHT.TAKE */

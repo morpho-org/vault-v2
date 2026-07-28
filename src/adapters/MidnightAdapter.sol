@@ -31,6 +31,7 @@ contract MidnightAdapter is IMidnightAdapter {
     address public immutable asset;
     address public immutable parentVault;
     address public immutable midnight;
+    address public immutable auctionRatifier;
     bytes32 public immutable adapterId;
     /// @dev Sorted durations that can be used to cap the time to maturity.
     /// @dev Sorted in ascending order.
@@ -57,11 +58,15 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* CONSTRUCTOR */
 
-    constructor(address _parentVault, address _midnight, uint256[] memory _durations) {
+    constructor(address _parentVault, address _midnight, uint256[] memory _durations, address _auctionRatifier) {
         asset = IVaultV2(_parentVault).asset();
         parentVault = _parentVault;
         midnight = _midnight;
+        auctionRatifier = _auctionRatifier;
         IMidnight(_midnight).setIsAuthorized(address(this), true, address(this));
+        if (_auctionRatifier != address(0)) {
+            IMidnight(_midnight).setIsAuthorized(_auctionRatifier, true, address(this));
+        }
         lastUpdate = block.timestamp.toUint48();
         SafeERC20Lib.safeApprove(asset, _midnight, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
@@ -107,13 +112,6 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 balance = IERC20(token).balanceOf(address(this));
         SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
         emit Skim(token, balance);
-    }
-
-    /// @dev Authorizes or revokes `ratifier` as a valid IRatifier for this adapter's own offers on Midnight.
-    function setIsAuthorizedRatifier(address ratifier, bool authorized) external {
-        require(msg.sender == IVaultV2(parentVault).owner(), NotAuthorized());
-        IMidnight(midnight).setIsAuthorized(ratifier, authorized, address(this));
-        emit SetIsAuthorizedRatifier(ratifier, authorized);
     }
 
     /* VAULT ALLOCATORS FUNCTIONS */
