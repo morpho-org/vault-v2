@@ -9,16 +9,16 @@ import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 /// @dev Specialized to Morpho Blue allocations through the MorphoMarketV1AdapterV2.
 /// @dev To be usable, the BlueAdapterV2PublicAllocator must be set as an allocator of the vault.
-/// @dev The BlueAdapterV2PublicAllocator inherits the vault's roles. The vault's allocators can set the absolute cap
-/// and canDeallocate and canDeallocateFromIdle; the vault's sentinels can decrease the absolute cap, enable
-/// canDeallocate, and disable canDeallocateFromIdle, to cut off public inflows and allow public outflows for derisking;
-/// the vault's curator sets and claims the native penalty.
+/// @dev The BlueAdapterV2PublicAllocator inherits the vault's roles:
+/// - the vault's allocators can set the absolute cap, canDeallocate and canDeallocateFromIdle
+/// - the vault's sentinels can decrease the absolute cap, enable canDeallocate, and disable canDeallocateFromIdle, to
+/// cut off public inflows and allow public outflows for derisking
+/// - the vault's curator sets and claims the native penalty
 /// @dev Each reallocate and allocateFromIdle call costs a penalty in native currency, set per vault by the curator. The
 /// penalty is accrued per vault and can be claimed by the vault's curator.
-/// @dev The vault's caps are still enforced on the allocation, so this call reverts if it would exceed them.
-/// @dev The Public Allocator opens the door for anybody to manipulate relative caps through short-term deposits (but it
-/// requires capital).
-/// @dev No-ops are allowed. Zero checks are not performed.
+/// @dev The vault's caps are still enforced on the allocation, so allocation calls reverts if it would exceed them.
+/// @dev The BlueAdapterV2PublicAllocator opens the door for anybody to manipulate relative caps through short-term
+/// deposits (but it requires capital).
 contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
     /* TYPES */
 
