@@ -64,11 +64,11 @@ strong invariant decreaseTimelockTimelock()
     timelock(decreaseTimelockSelector()) == 0;
 
 strong invariant totalSupplyIsSumOfBalances()
-    to_mathint(totalSupply()) == (usum address a. balanceOfGhost[a]);
+    totalSupply() == (usum address a. balanceOfGhost[a]);
 
 rule balanceOfLeqTotalSupply(address account) {
     requireInvariant totalSupplyIsSumOfBalances();
-    assert to_mathint(balanceOf(account)) <= to_mathint(totalSupply());
+    assert balanceOf(account) <= totalSupply();
 }
 
 strong invariant allocationIsInt256(bytes32 id)
