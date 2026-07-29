@@ -3,7 +3,7 @@
 pragma solidity 0.8.28;
 
 import {IVaultV2} from "../../interfaces/IVaultV2.sol";
-import {IBluePublicAllocator} from "./interfaces/IBluePublicAllocator.sol";
+import {IBluePublicAllocator, VaultData} from "./interfaces/IBluePublicAllocator.sol";
 import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 /// @dev To be usable, the BluePublicAllocator must be set as an allocator of the vault.
@@ -26,7 +26,24 @@ contract BluePublicAllocator is IBluePublicAllocator {
     mapping(address vault => mapping(bytes32 id => uint256)) public absoluteCap;
     mapping(address vault => mapping(bytes32 id => bool)) public canDeallocate;
     mapping(address vault => mapping(address adapter => bool)) public activeAdapter;
-    mapping(address vault => IBluePublicAllocator.VaultData) public vaultData;
+    mapping(address vault => VaultData) public vaultData;
+
+    /* MULTICALL */
+
+    /// @dev Useful for EOAs to batch allocator calls.
+    /// @dev Nonpayable so it cannot be used with reallocate and allocateFromIdle.
+    /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do
+    /// the multicall themselves.
+    function multicall(bytes[] calldata data) external {
+        for (uint256 i = 0; i < data.length; i++) {
+            (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
+            if (!success) {
+                assembly ("memory-safe") {
+                    revert(add(32, returnData), mload(returnData))
+                }
+            }
+        }
+    }
 
     /* AUTHORIZED FUNCTIONS */
 
@@ -81,16 +98,16 @@ contract BluePublicAllocator is IBluePublicAllocator {
     function reallocate(
         address vault,
         address deallocateAdapter,
-        address allocateAdapter,
         MarketParams calldata deallocateMarketParams,
+        address allocateAdapter,
         MarketParams calldata allocateMarketParams,
         uint128 assets
     ) external payable {
         require(msg.value == vaultData[vault].nativePenalty, IncorrectNativePenalty());
-        require(activeAdapter[vault][deallocateAdapter], InactiveAdapter());
-        require(activeAdapter[vault][allocateAdapter], InactiveAdapter());
         // forge-lint: disable-next-item(unsafe-typecast) safe because msg.value == nativePenalty <= type(uint120).max.
         if (msg.value > 0) vaultData[vault].accruedNativePenalty += uint120(msg.value);
+        require(activeAdapter[vault][deallocateAdapter], InactiveAdapter());
+        require(activeAdapter[vault][allocateAdapter], InactiveAdapter());
         bytes32 deallocateId = vaultBlueId(deallocateAdapter, deallocateMarketParams);
         require(canDeallocate[vault][deallocateId], CannotDeallocate());
 
@@ -101,7 +118,7 @@ contract BluePublicAllocator is IBluePublicAllocator {
         require(IVaultV2(vault).allocation(allocateId) <= absoluteCap[vault][allocateId], AbsoluteCapExceeded());
 
         emit Reallocate(
-            msg.sender, vault, deallocateAdapter, allocateAdapter, allocateId, deallocateId, assets, msg.value
+            msg.sender, vault, deallocateAdapter, deallocateId, allocateAdapter, allocateId, assets, msg.value
         );
     }
 
@@ -110,9 +127,9 @@ contract BluePublicAllocator is IBluePublicAllocator {
         payable
     {
         require(msg.value == vaultData[vault].nativePenalty, IncorrectNativePenalty());
-        require(activeAdapter[vault][adapter], InactiveAdapter());
         // forge-lint: disable-next-item(unsafe-typecast) safe because msg.value == nativePenalty <= type(uint120).max.
         if (msg.value > 0) vaultData[vault].accruedNativePenalty += uint120(msg.value);
+        require(activeAdapter[vault][adapter], InactiveAdapter());
         require(vaultData[vault].canAllocateFromIdle, CannotDeallocate());
 
         IVaultV2(vault).allocate(adapter, abi.encode(marketParams), assets);

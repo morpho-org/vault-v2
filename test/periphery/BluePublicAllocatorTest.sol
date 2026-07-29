@@ -103,15 +103,55 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
     function _reallocate(uint128 assets) internal {
         vm.prank(rando);
         bluePublicAllocator.reallocate(
-            address(vault), address(adapter), address(adapter), marketParams1, marketParams2, assets
+            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, assets
         );
     }
 
     function _reallocateAcrossAdapters(uint128 assets) internal {
         vm.prank(rando);
         bluePublicAllocator.reallocate(
-            address(vault), address(adapter), address(secondAdapter), marketParams1, marketParams2, assets
+            address(vault), address(adapter), marketParams1, address(secondAdapter), marketParams2, assets
         );
+    }
+
+    /* MULTICALL */
+
+    function testMulticall(bool activeAdapter_, uint256 cap, bool canDeallocate_, bool canAllocateFromIdle_) public {
+        bytes[] memory data = new bytes[](4);
+        data[0] =
+            abi.encodeCall(IBluePublicAllocator.setActiveAdapter, (address(vault), address(adapter), activeAdapter_));
+        data[1] =
+            abi.encodeCall(IBluePublicAllocator.setAbsoluteCap, (address(vault), address(adapter), marketParams2, cap));
+        data[2] = abi.encodeCall(
+            IBluePublicAllocator.setCanDeallocate, (address(vault), address(adapter), marketParams1, canDeallocate_)
+        );
+        data[3] = abi.encodeCall(IBluePublicAllocator.setCanAllocateFromIdle, (address(vault), canAllocateFromIdle_));
+
+        vm.prank(allocator);
+        bluePublicAllocator.multicall(data);
+
+        assertEq(bluePublicAllocator.activeAdapter(address(vault), address(adapter)), activeAdapter_);
+        assertEq(bluePublicAllocator.absoluteCap(address(vault), id2), cap);
+        assertEq(bluePublicAllocator.canDeallocate(address(vault), id1), canDeallocate_);
+        (bool canAllocateFromIdleActual,,) = bluePublicAllocator.vaultData(address(vault));
+        assertEq(canAllocateFromIdleActual, canAllocateFromIdle_);
+    }
+
+    function testMulticallBubblesRevert(address caller, bool activeAdapter_) public {
+        vm.assume(!vault.isAllocator(caller));
+
+        bytes[] memory data = new bytes[](1);
+        data[0] =
+            abi.encodeCall(IBluePublicAllocator.setActiveAdapter, (address(vault), address(adapter), activeAdapter_));
+
+        vm.expectRevert(IBluePublicAllocator.Unauthorized.selector);
+        vm.prank(caller);
+        bluePublicAllocator.multicall(data);
+    }
+
+    function testMulticallEmpty() public {
+        vm.prank(allocator);
+        bluePublicAllocator.multicall(new bytes[](0));
     }
 
     /* SET ABSOLUTE CAP */
@@ -193,7 +233,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
         vm.expectEmit();
         emit IBluePublicAllocator.Reallocate(
-            rando, address(vault), address(adapter), address(adapter), id2, id1, amount, 0
+            rando, address(vault), address(adapter), id1, address(adapter), id2, amount, 0
         );
         _reallocate(amount);
 
@@ -217,7 +257,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
         vm.expectEmit();
         emit IBluePublicAllocator.Reallocate(
-            rando, address(vault), address(adapter), address(secondAdapter), secondAdapterId2, id1, amount, 0
+            rando, address(vault), address(adapter), id1, address(secondAdapter), secondAdapterId2, amount, 0
         );
         _reallocateAcrossAdapters(amount);
 
@@ -412,7 +452,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.deal(rando, nativePenaltyAmount);
         vm.prank(rando);
         bluePublicAllocator.reallocate{value: nativePenaltyAmount}(
-            address(vault), address(adapter), address(adapter), marketParams1, marketParams2, amount
+            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
         );
 
         assertEq(allocator.balance, allocatorBalanceBefore);
@@ -437,7 +477,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.deal(rando, nativePenaltyAmount);
         vm.prank(rando);
         bluePublicAllocator.reallocate{value: nativePenaltyAmount}(
-            address(vault), address(adapter), address(adapter), marketParams1, marketParams2, amount
+            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
         );
 
         vm.expectEmit();
@@ -471,7 +511,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.deal(rando, nativePenaltyAmount);
         vm.prank(rando);
         bluePublicAllocator.reallocate{value: nativePenaltyAmount}(
-            address(vault), address(adapter), address(adapter), marketParams1, marketParams2, amount
+            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
         );
 
         vm.expectRevert(IBluePublicAllocator.NativeTransferFailed.selector);
@@ -515,7 +555,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.expectRevert(IBluePublicAllocator.IncorrectNativePenalty.selector);
         vm.prank(rando);
         bluePublicAllocator.reallocate{value: sentValue}(
-            address(vault), address(adapter), address(adapter), marketParams1, marketParams2, amount
+            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
         );
     }
 }

@@ -4,16 +4,14 @@ pragma solidity >=0.8.0;
 
 import {MarketParams} from "../../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
+struct VaultData {
+    bool canAllocateFromIdle;
+    uint120 nativePenalty;
+    uint120 accruedNativePenalty;
+}
+
 // forgefmt: disable-start
-
 interface IBluePublicAllocator {
-    /* TYPES */
-
-    struct VaultData {
-        bool canAllocateFromIdle;
-        uint120 nativePenalty;
-        uint120 accruedNativePenalty;
-    }
 
     /* EVENTS */
 
@@ -23,7 +21,7 @@ interface IBluePublicAllocator {
     event SetActiveAdapter(address indexed sender, address indexed vault, address indexed adapter, bool activeAdapter);
     event SetNativePenalty(address indexed sender, address indexed vault, uint256 newNativePenalty);
     event ClaimNativePenalty(address indexed sender, address indexed vault, uint256 claimed, address indexed receiver);
-    event Reallocate(address sender, address indexed vault, address deallocateAdapter, address allocateAdapter, bytes32 indexed allocateId, bytes32 indexed deallocateId, uint128 assets, uint256 value);
+    event Reallocate(address sender, address indexed vault, address deallocateAdapter, bytes32 indexed deallocateId, address allocateAdapter, bytes32 indexed allocateId, uint128 assets, uint256 value);
     event AllocateFromIdle(address indexed sender, address indexed vault, address adapter, bytes32 indexed allocateId, uint128 assets, uint256 value);
 
     /* ERRORS */
@@ -45,14 +43,14 @@ interface IBluePublicAllocator {
 
     /* FUNCTIONS */
 
+    function multicall(bytes[] calldata data) external;
     function setActiveAdapter(address vault, address adapter, bool newActiveAdapter) external;
     function setAbsoluteCap(address vault, address adapter, MarketParams calldata marketParams, uint256 newAbsoluteCap) external;
     function setCanDeallocate(address vault, address adapter, MarketParams calldata marketParams, bool newCanDeallocate) external;
     function setCanAllocateFromIdle(address vault, bool newCanDeallocate) external;
     function setNativePenalty(address vault, uint256 newNativePenalty) external;
     function claimNativePenalty(address vault, address payable receiver) external;
-    function reallocate(address vault, address deallocateAdapter, address allocateAdapter, MarketParams calldata deallocateMarketParams, MarketParams calldata allocateMarketParams, uint128 assets) external payable;
+    function reallocate(address vault, address deallocateAdapter, MarketParams calldata deallocateMarketParams, address allocateAdapter, MarketParams calldata allocateMarketParams, uint128 assets) external payable;
     function allocateFromIdle(address vault, address adapter, MarketParams calldata marketParams, uint128 assets) external payable;
 }
-
 // forgefmt: disable-end
