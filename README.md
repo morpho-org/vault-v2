@@ -42,7 +42,7 @@ When users withdraw assets, the idle assets are taken in priority.
 If there is not enough idle liquidity, liquidity is taken from the liquidity adapter.
 When defined, the liquidity adapter is also used to forward deposited funds.
 
-A typical liquidity adapter would allow deposits/withdrawals to go through a very liquid Morpho Blue.
+A typical liquidity adapter would allow deposits/withdrawals to go through a very liquid Blue market.
 
 ### Timelocks
 
