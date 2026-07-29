@@ -12,11 +12,10 @@ wrap_comments = true
 [lint]
 exclude_lints = [
     "screaming-snake-case-immutable",
-    "asm-keccak256"
+    "asm-keccak256",
+    "block-timestamp",
 ]
-ignore = [
-    'test/**/*.sol'
-]
+ignore = ['test/**/*.sol']
 
 [profile.no_via_ir]
 via_ir = false

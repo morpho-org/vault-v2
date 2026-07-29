@@ -2,8 +2,8 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.28;
 
-import "../../src/VaultV2.sol";
-import "../../src/interfaces/IVaultV2.sol";
+import {VaultV2} from "../../src/VaultV2.sol";
+import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
 
 contract EarliestTime {
     VaultV2 public vault;
@@ -12,6 +12,7 @@ contract EarliestTime {
 
     function getSelector(bytes memory data) public pure returns (bytes4) {
         require(data.length >= 4, "Data too short");
+        // forge-lint: disable-next-line(unsafe-typecast)
         return bytes4(data);
     }
 
@@ -21,6 +22,7 @@ contract EarliestTime {
         returns (bytes4 targetSelector, uint256 newTimelock)
     {
         require(data.length >= 68, "Invalid decreaseTimelock data");
+        // forge-lint: disable-next-line(unsafe-typecast)
         bytes4 selector = bytes4(data);
         require(selector == IVaultV2.decreaseTimelock.selector, "Not decreaseTimelock");
 

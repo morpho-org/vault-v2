@@ -102,6 +102,7 @@ rule setIsSentinelRevertCondition(env e, address account, bool newIsSentinel) {
 
 rule setNameRevertCondition(env e, string newName) {
     address owner = owner();
+
     // String stored in name can be malformed, so we just call the getter to ensure that the encoding is correct.
     name();
 
@@ -112,6 +113,7 @@ rule setNameRevertCondition(env e, string newName) {
 
 rule setSymbolRevertCondition(env e, string newSymbol) {
     address owner = owner();
+
     // String stored in symbol can be malformed, so we just call the getter to ensure that the encoding is correct.
     symbol();
 
