@@ -20,7 +20,7 @@ methods {
 
 definition max_int256() returns mathint = (2 ^ 255) - 1;
 
-// An abitrary but fixed group id.
+// An abitrary but fixed group id (= common to multiple markets).
 persistent ghost bytes32 groupId;
 
 // The arbitrary but fixed set of leaf ids. Requires group id to not be a leaf id.
