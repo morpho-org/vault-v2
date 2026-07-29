@@ -8,7 +8,7 @@ import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol"
 
 /// @dev To be usable, the BluePublicAllocator must be set as an allocator of the vault.
 /// @dev Meant to be used with VaultV2 vaults only.
-/// @dev Active adapter must be MorphoMarketV1AdapterV2 adapters, otherwise the public allocator's absolute cap system
+/// @dev Active adapters must be MorphoMarketV1AdapterV2 adapters, otherwise the public allocator's absolute cap system
 /// could break.
 /// @dev The vault's allocators can manage the public allocators' settings.
 /// @dev Each reallocate and allocateFromIdle call costs a penalty in native currency, set per vault by the allocators.
