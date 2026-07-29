@@ -142,24 +142,36 @@ rule supplyLossIsAtMostOneAsset(env e, bytes data, uint256 assets) {
     require m >= assets;
 
     mathint VS = 1000000;
-    mathint D0 = TA0 + 1; mathint N0 = TS0 + VS;
-    mathint D1 = TA1 + 1; mathint N1 = TS1 + VS;
+    mathint D0 = TA0 + 1;
+    mathint N0 = TS0 + VS;
+    mathint D1 = TA1 + 1;
+    mathint N1 = TS1 + VS;
 
     mathint P;
-    require P * N1 <= s0 * D1; require s0 * D1 < (P + 1) * N1;
+    require P * N1 <= s0 * D1;
+    require s0 * D1 < (P + 1) * N1;
     mathint Q;
-    require Q * N1 <= m * D1; require m * D1 < (Q + 1) * N1;
+    require Q * N1 <= m * D1;
+    require m * D1 < (Q + 1) * N1;
 
-    require to_mathint(valueBefore) * N0 <= s0 * D0; require s0 * D0 < (to_mathint(valueBefore) + 1) * N0;
-    require to_mathint(valueAfter) * N1 <= s1 * D1; require s1 * D1 < (to_mathint(valueAfter) + 1) * N1;
-    require m * D0 <= assets * N0; require assets * N0 < (m + 1) * D0;
+    require to_mathint(valueBefore) * N0 <= s0 * D0;
+    require s0 * D0 < (to_mathint(valueBefore) + 1) * N0;
+    require to_mathint(valueAfter) * N1 <= s1 * D1;
+    require s1 * D1 < (to_mathint(valueAfter) + 1) * N1;
+    require m * D0 <= assets * N0;
+    require assets * N0 < (m + 1) * D0;
 
     // newly minted shares are worth at least assets - 1
-    assert Q + 1 >= assets; require Q + 1 >= assets;
+    assert Q + 1 >= assets;
+    require Q + 1 >= assets;
+
     // supplying does not lower the price: old shares revalue up
-    assert P >= to_mathint(valueBefore); require P >= to_mathint(valueBefore);
+    assert P >= to_mathint(valueBefore);
+    require P >= to_mathint(valueBefore);
+
     // floor superadditivity
-    assert to_mathint(valueAfter) >= P + Q; require to_mathint(valueAfter) >= P + Q;
+    assert to_mathint(valueAfter) >= P + Q;
+    require to_mathint(valueAfter) >= P + Q;
 
     assert to_mathint(valueAfter) + 1 >= to_mathint(valueBefore) + assets;
 }
