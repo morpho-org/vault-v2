@@ -16,6 +16,8 @@ import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 /// @dev The vault's caps are still enforced on the allocation, so allocation calls reverts if it would exceed them.
 /// @dev The BlueAdapterV2PublicAllocator opens the door for anybody to manipulate relative caps through short-term
 /// deposits (but it requires capital).
+/// @dev reallocate and allocateFromIdle can be made to revert by anyone frontrunning them (not only allocators):
+/// @dev an allocate reverts if the vault cap is filled first, a deallocate reverts if shares stop covering assets.
 contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
     /* TYPES */
 
@@ -85,10 +87,9 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
 
         uint256 claimed = _vaultData[vault].accruedNativePenalty;
         _vaultData[vault].accruedNativePenalty = 0;
+        emit ClaimNativePenalty(msg.sender, vault, claimed, receiver);
         (bool success,) = receiver.call{value: claimed}("");
         require(success, NativeTransferFailed());
-
-        emit ClaimNativePenalty(msg.sender, vault, claimed, receiver);
     }
 
     /* PUBLIC FUNCTION */
