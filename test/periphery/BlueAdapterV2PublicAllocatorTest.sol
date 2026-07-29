@@ -149,7 +149,8 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.expectEmit();
         emit IBlueAdapterV2PublicAllocator.SetCanAllocateFromIdle(allocator, address(vault), value);
         _setCanAllocateFromIdle(value);
-        assertEq(publicAllocator.canAllocateFromIdle(address(vault)), value);
+        (bool canAllocateFromIdle_,,) = publicAllocator.vaultData(address(vault));
+        assertEq(canAllocateFromIdle_, value);
     }
 
     function testSetCanAllocateFromIdleUnauthorized(address caller) public {
@@ -311,7 +312,8 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         emit IBlueAdapterV2PublicAllocator.SetNativePenalty(curator, address(vault), newNativePenalty);
         vm.prank(curator);
         publicAllocator.setNativePenalty(address(vault), newNativePenalty);
-        assertEq(publicAllocator.nativePenalty(address(vault)), newNativePenalty);
+        (, uint120 nativePenalty_,) = publicAllocator.vaultData(address(vault));
+        assertEq(nativePenalty_, newNativePenalty);
     }
 
     function testSetNativePenaltyUnauthorized(address caller, uint256 newNativePenalty) public {
@@ -348,7 +350,8 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         );
 
         assertEq(curator.balance, curatorBalanceBefore);
-        assertEq(publicAllocator.accruedNativePenalty(address(vault)), nativePenaltyAmount);
+        (,, uint120 accruedNativePenalty_) = publicAllocator.vaultData(address(vault));
+        assertEq(accruedNativePenalty_, nativePenaltyAmount);
         assertEq(address(publicAllocator).balance, nativePenaltyAmount);
     }
 
@@ -379,7 +382,8 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         );
 
         assertEq(nonPayableCurator.balance, 0);
-        assertEq(publicAllocator.accruedNativePenalty(address(vault)), nativePenaltyAmount);
+        (,, uint120 accruedNativePenalty_) = publicAllocator.vaultData(address(vault));
+        assertEq(accruedNativePenalty_, nativePenaltyAmount);
         assertEq(address(publicAllocator).balance, nativePenaltyAmount);
     }
 
@@ -406,7 +410,8 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.prank(curator);
         publicAllocator.claimNativePenalty(address(vault), receiver);
 
-        assertEq(publicAllocator.accruedNativePenalty(address(vault)), 0);
+        (,, uint120 accruedNativePenalty_) = publicAllocator.vaultData(address(vault));
+        assertEq(accruedNativePenalty_, 0);
         assertEq(receiver.balance, nativePenaltyAmount);
         assertEq(address(publicAllocator).balance, 0);
     }
@@ -437,7 +442,8 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.prank(curator);
         publicAllocator.claimNativePenalty(address(vault), receiver);
 
-        assertEq(publicAllocator.accruedNativePenalty(address(vault)), nativePenaltyAmount);
+        (,, uint120 accruedNativePenalty_) = publicAllocator.vaultData(address(vault));
+        assertEq(accruedNativePenalty_, nativePenaltyAmount);
         assertEq(receiver.balance, 0);
         assertEq(address(publicAllocator).balance, nativePenaltyAmount);
     }

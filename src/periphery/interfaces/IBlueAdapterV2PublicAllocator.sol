@@ -30,9 +30,7 @@ interface IBlueAdapterV2PublicAllocator {
 
     function absoluteCap(address vault, bytes32 id) external view returns (uint256);
     function canDeallocate(address vault, bytes32 id) external view returns (bool);
-    function canAllocateFromIdle(address vault) external view returns (bool);
-    function nativePenalty(address vault) external view returns (uint256);
-    function accruedNativePenalty(address vault) external view returns (uint256);
+    function vaultData(address vault) external view returns (bool canAllocateFromIdle, uint120 nativePenalty, uint120 accruedNativePenalty);
 
     /* FUNCTIONS */
 

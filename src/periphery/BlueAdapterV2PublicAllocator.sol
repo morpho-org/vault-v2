@@ -33,21 +33,7 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
 
     mapping(address vault => mapping(bytes32 id => uint256)) public absoluteCap;
     mapping(address vault => mapping(bytes32 id => bool)) public canDeallocate;
-    mapping(address vault => VaultData) internal _vaultData;
-
-    /* VIEW */
-
-    function canAllocateFromIdle(address vault) external view returns (bool) {
-        return _vaultData[vault].canAllocateFromIdle;
-    }
-
-    function nativePenalty(address vault) external view returns (uint256) {
-        return _vaultData[vault].nativePenalty;
-    }
-
-    function accruedNativePenalty(address vault) external view returns (uint256) {
-        return _vaultData[vault].accruedNativePenalty;
-    }
+    mapping(address vault => VaultData) public vaultData;
 
     /* AUTHORIZED FUNCTIONS */
 
@@ -70,7 +56,7 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
 
     function setCanAllocateFromIdle(address vault, bool newCanDeallocate) external {
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
-        _vaultData[vault].canAllocateFromIdle = newCanDeallocate;
+        vaultData[vault].canAllocateFromIdle = newCanDeallocate;
         emit SetCanAllocateFromIdle(msg.sender, vault, newCanDeallocate);
     }
 
@@ -78,15 +64,15 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
         require(newNativePenalty <= type(uint120).max, CastOverflow());
         // forge-lint: disable-next-item(unsafe-typecast) safe because newNativePenalty <= type(uint120).max.
-        _vaultData[vault].nativePenalty = uint120(newNativePenalty);
+        vaultData[vault].nativePenalty = uint120(newNativePenalty);
         emit SetNativePenalty(msg.sender, vault, newNativePenalty);
     }
 
     function claimNativePenalty(address vault, address payable receiver) external {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
 
-        uint256 claimed = _vaultData[vault].accruedNativePenalty;
-        _vaultData[vault].accruedNativePenalty = 0;
+        uint256 claimed = vaultData[vault].accruedNativePenalty;
+        vaultData[vault].accruedNativePenalty = 0;
         emit ClaimNativePenalty(msg.sender, vault, claimed, receiver);
         (bool success,) = receiver.call{value: claimed}("");
         require(success, NativeTransferFailed());
@@ -102,9 +88,9 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
         MarketParams calldata allocateMarketParams,
         uint128 assets
     ) external payable {
-        require(msg.value == _vaultData[vault].nativePenalty, IncorrectNativePenalty());
+        require(msg.value == vaultData[vault].nativePenalty, IncorrectNativePenalty());
         // forge-lint: disable-next-item(unsafe-typecast) safe because msg.value == nativePenalty <= type(uint120).max.
-        if (msg.value > 0) _vaultData[vault].accruedNativePenalty += uint120(msg.value);
+        if (msg.value > 0) vaultData[vault].accruedNativePenalty += uint120(msg.value);
         bytes32 deallocateId = vaultBlueId(deallocateAdapter, deallocateMarketParams);
         require(canDeallocate[vault][deallocateId], CannotDeallocate());
 
@@ -123,10 +109,10 @@ contract BlueAdapterV2PublicAllocator is IBlueAdapterV2PublicAllocator {
         external
         payable
     {
-        require(msg.value == _vaultData[vault].nativePenalty, IncorrectNativePenalty());
+        require(msg.value == vaultData[vault].nativePenalty, IncorrectNativePenalty());
         // forge-lint: disable-next-item(unsafe-typecast) safe because msg.value == nativePenalty <= type(uint120).max.
-        if (msg.value > 0) _vaultData[vault].accruedNativePenalty += uint120(msg.value);
-        require(_vaultData[vault].canAllocateFromIdle, CannotDeallocate());
+        if (msg.value > 0) vaultData[vault].accruedNativePenalty += uint120(msg.value);
+        require(vaultData[vault].canAllocateFromIdle, CannotDeallocate());
 
         IVaultV2(vault).allocate(adapter, abi.encode(marketParams), assets);
 
