@@ -109,6 +109,65 @@ function summaryToAssetsUp(uint256 shares, uint256 ta, uint256 ts) returns uint2
     return result;
 }
 
+// Floor is superadditive at a fixed price: floor((x+y)D/N) >= floor(xD/N) + floor(yD/N).
+rule floorSuperadditive(uint256 x, uint256 y, uint256 D, uint256 N) {
+    require N > 0;
+
+    mathint fx;
+    require fx * N <= to_mathint(x) * D;
+    require to_mathint(x) * D < (fx + 1) * N;
+
+    mathint fy;
+    require fy * N <= to_mathint(y) * D;
+    require to_mathint(y) * D < (fy + 1) * N;
+
+    mathint fs;
+    require fs * N <= (to_mathint(x) + y) * D;
+    require (to_mathint(x) + y) * D < (fs + 1) * N;
+
+    assert fs >= fx + fy;
+}
+
+// Supplying does not lower the share price, so existing shares revalue up: P >= vB.
+rule supplyDoesNotLowerValue(uint256 s0, uint256 assets, uint256 D0, uint256 N0, uint256 m) {
+    require assets > 0;
+    require D0 >= 1;
+    require N0 >= 1;
+    require to_mathint(m) * D0 <= to_mathint(assets) * N0;
+
+    mathint D1 = to_mathint(D0) + assets;
+    mathint N1 = to_mathint(N0) + m;
+
+    mathint P;
+    require P * N1 <= to_mathint(s0) * D1;
+    require to_mathint(s0) * D1 < (P + 1) * N1;
+
+    mathint vB;
+    require vB * N0 <= to_mathint(s0) * D0;
+    require to_mathint(s0) * D0 < (vB + 1) * N0;
+
+    assert P >= vB;
+}
+
+// The share-price check (m >= assets) makes the newly minted shares worth at least assets - 1.
+rule mintedSharesWorthAtLeastAssetsMinusOne(uint256 assets, uint256 D0, uint256 N0, uint256 m) {
+    require assets > 0;
+    require D0 >= 1;
+    require N0 >= 1;
+    require to_mathint(m) * D0 <= to_mathint(assets) * N0;
+    require to_mathint(assets) * N0 < (to_mathint(m) + 1) * D0;
+    require to_mathint(m) >= to_mathint(assets);
+
+    mathint D1 = to_mathint(D0) + assets;
+    mathint N1 = to_mathint(N0) + m;
+
+    mathint Q;
+    require Q * N1 <= to_mathint(m) * D1;
+    require to_mathint(m) * D1 < (Q + 1) * N1;
+
+    assert Q + 1 >= to_mathint(assets);
+}
+
 rule supplyLossIsAtMostOneAsset(env e, bytes data, uint256 assets) {
     require MorphoMarketV1 == 0x10, "ack";
     require MorphoMarketV1AdapterV2 == 0x11, "ack";
@@ -142,36 +201,20 @@ rule supplyLossIsAtMostOneAsset(env e, bytes data, uint256 assets) {
     require m >= assets;
 
     mathint VS = 1000000;
-    mathint D0 = TA0 + 1;
-    mathint N0 = TS0 + VS;
     mathint D1 = TA1 + 1;
     mathint N1 = TS1 + VS;
 
     mathint P;
     require P * N1 <= s0 * D1;
     require s0 * D1 < (P + 1) * N1;
+
     mathint Q;
     require Q * N1 <= m * D1;
     require m * D1 < (Q + 1) * N1;
 
-    require to_mathint(valueBefore) * N0 <= s0 * D0;
-    require s0 * D0 < (to_mathint(valueBefore) + 1) * N0;
-    require to_mathint(valueAfter) * N1 <= s1 * D1;
-    require s1 * D1 < (to_mathint(valueAfter) + 1) * N1;
-    require m * D0 <= assets * N0;
-    require assets * N0 < (m + 1) * D0;
-
-    // newly minted shares are worth at least assets - 1
-    assert Q + 1 >= assets;
-    require Q + 1 >= assets;
-
-    // supplying does not lower the price: old shares revalue up
-    assert P >= to_mathint(valueBefore);
-    require P >= to_mathint(valueBefore);
-
-    // floor superadditivity
-    assert to_mathint(valueAfter) >= P + Q;
     require to_mathint(valueAfter) >= P + Q;
+    require P >= to_mathint(valueBefore);
+    require Q + 1 >= assets;
 
     assert to_mathint(valueAfter) + 1 >= to_mathint(valueBefore) + assets;
 }
