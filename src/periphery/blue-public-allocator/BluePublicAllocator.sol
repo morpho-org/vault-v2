@@ -25,7 +25,7 @@ contract BluePublicAllocator is IBluePublicAllocator {
 
     mapping(address vault => mapping(bytes32 id => uint256)) public absoluteCap;
     mapping(address vault => mapping(bytes32 id => bool)) public canDeallocate;
-    mapping(address vault => mapping(address adapter => bool)) public activeAdapter;
+    mapping(address vault => mapping(address adapter => bool)) public isActiveAdapter;
     mapping(address vault => VaultData) public vaultData;
 
     /* MULTICALL */
@@ -47,10 +47,10 @@ contract BluePublicAllocator is IBluePublicAllocator {
 
     /* AUTHORIZED FUNCTIONS */
 
-    function setActiveAdapter(address vault, address adapter, bool newActiveAdapter) external {
+    function setIsActiveAdapter(address vault, address adapter, bool newIsActiveAdapter) external {
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
-        activeAdapter[vault][adapter] = newActiveAdapter;
-        emit SetActiveAdapter(msg.sender, vault, adapter, newActiveAdapter);
+        isActiveAdapter[vault][adapter] = newIsActiveAdapter;
+        emit SetIsActiveAdapter(msg.sender, vault, adapter, newIsActiveAdapter);
     }
 
     function setAbsoluteCap(address vault, address adapter, MarketParams calldata marketParams, uint256 newAbsoluteCap)
@@ -106,8 +106,8 @@ contract BluePublicAllocator is IBluePublicAllocator {
         require(msg.value == vaultData[vault].nativePenalty, IncorrectNativePenalty());
         // forge-lint: disable-next-item(unsafe-typecast) safe because msg.value == nativePenalty <= type(uint120).max.
         if (msg.value > 0) vaultData[vault].accruedNativePenalty += uint120(msg.value);
-        require(activeAdapter[vault][deallocateAdapter], InactiveAdapter());
-        require(activeAdapter[vault][allocateAdapter], InactiveAdapter());
+        require(isActiveAdapter[vault][deallocateAdapter], InactiveAdapter());
+        require(isActiveAdapter[vault][allocateAdapter], InactiveAdapter());
         bytes32 deallocateId = vaultBlueId(deallocateAdapter, deallocateMarketParams);
         require(canDeallocate[vault][deallocateId], CannotDeallocate());
 
@@ -129,7 +129,7 @@ contract BluePublicAllocator is IBluePublicAllocator {
         require(msg.value == vaultData[vault].nativePenalty, IncorrectNativePenalty());
         // forge-lint: disable-next-item(unsafe-typecast) safe because msg.value == nativePenalty <= type(uint120).max.
         if (msg.value > 0) vaultData[vault].accruedNativePenalty += uint120(msg.value);
-        require(activeAdapter[vault][adapter], InactiveAdapter());
+        require(isActiveAdapter[vault][adapter], InactiveAdapter());
         require(vaultData[vault].canAllocateFromIdle, CannotDeallocate());
 
         IVaultV2(vault).allocate(adapter, abi.encode(marketParams), assets);

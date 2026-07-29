@@ -64,9 +64,9 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
     /* HELPERS */
 
-    function _setActiveAdapter(address adapter_, bool value) internal {
+    function _setIsActiveAdapter(address adapter_, bool value) internal {
         vm.prank(allocator);
-        bluePublicAllocator.setActiveAdapter(address(vault), adapter_, value);
+        bluePublicAllocator.setIsActiveAdapter(address(vault), adapter_, value);
     }
 
     // The absolute cap is set by the vault's allocators (inherited role).
@@ -116,10 +116,11 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
     /* MULTICALL */
 
-    function testMulticall(bool activeAdapter_, uint256 cap, bool canDeallocate_, bool canAllocateFromIdle_) public {
+    function testMulticall(bool isActiveAdapter_, uint256 cap, bool canDeallocate_, bool canAllocateFromIdle_) public {
         bytes[] memory data = new bytes[](4);
-        data[0] =
-            abi.encodeCall(IBluePublicAllocator.setActiveAdapter, (address(vault), address(adapter), activeAdapter_));
+        data[0] = abi.encodeCall(
+            IBluePublicAllocator.setIsActiveAdapter, (address(vault), address(adapter), isActiveAdapter_)
+        );
         data[1] =
             abi.encodeCall(IBluePublicAllocator.setAbsoluteCap, (address(vault), address(adapter), marketParams2, cap));
         data[2] = abi.encodeCall(
@@ -130,19 +131,20 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.prank(allocator);
         bluePublicAllocator.multicall(data);
 
-        assertEq(bluePublicAllocator.activeAdapter(address(vault), address(adapter)), activeAdapter_);
+        assertEq(bluePublicAllocator.isActiveAdapter(address(vault), address(adapter)), isActiveAdapter_);
         assertEq(bluePublicAllocator.absoluteCap(address(vault), id2), cap);
         assertEq(bluePublicAllocator.canDeallocate(address(vault), id1), canDeallocate_);
         (bool canAllocateFromIdleActual,,) = bluePublicAllocator.vaultData(address(vault));
         assertEq(canAllocateFromIdleActual, canAllocateFromIdle_);
     }
 
-    function testMulticallBubblesRevert(address caller, bool activeAdapter_) public {
+    function testMulticallBubblesRevert(address caller, bool isActiveAdapter_) public {
         vm.assume(!vault.isAllocator(caller));
 
         bytes[] memory data = new bytes[](1);
-        data[0] =
-            abi.encodeCall(IBluePublicAllocator.setActiveAdapter, (address(vault), address(adapter), activeAdapter_));
+        data[0] = abi.encodeCall(
+            IBluePublicAllocator.setIsActiveAdapter, (address(vault), address(adapter), isActiveAdapter_)
+        );
 
         vm.expectRevert(IBluePublicAllocator.Unauthorized.selector);
         vm.prank(caller);
@@ -203,18 +205,18 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
     /* SET ACTIVE ADAPTER */
 
-    function testSetActiveAdapter(bool value) public {
+    function testSetIsActiveAdapter(bool value) public {
         vm.expectEmit();
-        emit IBluePublicAllocator.SetActiveAdapter(allocator, address(vault), address(adapter), value);
-        _setActiveAdapter(address(adapter), value);
-        assertEq(bluePublicAllocator.activeAdapter(address(vault), address(adapter)), value);
+        emit IBluePublicAllocator.SetIsActiveAdapter(allocator, address(vault), address(adapter), value);
+        _setIsActiveAdapter(address(adapter), value);
+        assertEq(bluePublicAllocator.isActiveAdapter(address(vault), address(adapter)), value);
     }
 
-    function testSetActiveAdapterUnauthorized(address caller) public {
+    function testSetIsActiveAdapterUnauthorized(address caller) public {
         vm.assume(!vault.isAllocator(caller));
         vm.expectRevert(IBluePublicAllocator.Unauthorized.selector);
         vm.prank(caller);
-        bluePublicAllocator.setActiveAdapter(address(vault), address(adapter), true);
+        bluePublicAllocator.setIsActiveAdapter(address(vault), address(adapter), true);
     }
 
     /* REALLOCATE */
@@ -224,7 +226,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 1, assets));
 
         _seedMarket1(assets);
-        _setActiveAdapter(address(adapter), true);
+        _setIsActiveAdapter(address(adapter), true);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
@@ -247,8 +249,8 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 1, assets));
 
         _seedMarket1(assets);
-        _setActiveAdapter(address(adapter), true);
-        _setActiveAdapter(address(secondAdapter), true);
+        _setIsActiveAdapter(address(adapter), true);
+        _setIsActiveAdapter(address(secondAdapter), true);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(address(secondAdapter), marketParams2, type(uint256).max);
 
@@ -271,7 +273,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 1, assets));
 
         _seedMarket1(assets);
-        _setActiveAdapter(address(adapter), true);
+        _setIsActiveAdapter(address(adapter), true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
         // market1 deallocation not enabled.
 
@@ -284,7 +286,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 2, assets));
 
         _seedMarket1(assets);
-        _setActiveAdapter(address(adapter), true);
+        _setIsActiveAdapter(address(adapter), true);
         _setCanDeallocate(marketParams1, true);
         // Absolute cap on market2 is 0: any non-zero resulting allocation must exceed it.
         _setAbsoluteCap(marketParams2, 0);
@@ -298,7 +300,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 1, assets));
 
         _seedMarket1(assets);
-        _setActiveAdapter(address(adapter), true);
+        _setIsActiveAdapter(address(adapter), true);
         _setCanDeallocate(marketParams1, true);
         // Resulting allocation is at most `amount` (Morpho rounds down), so `amount` is a valid cap upper bound.
         _setAbsoluteCap(marketParams2, amount);
@@ -313,7 +315,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 1, assets));
 
         vault.deposit(assets, address(this));
-        _setActiveAdapter(address(adapter), true);
+        _setIsActiveAdapter(address(adapter), true);
         _setCanAllocateFromIdle(true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
@@ -332,7 +334,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 1, assets));
 
         vault.deposit(assets, address(this));
-        _setActiveAdapter(address(adapter), true);
+        _setIsActiveAdapter(address(adapter), true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
         vm.expectRevert(IBluePublicAllocator.CannotDeallocate.selector);
@@ -370,7 +372,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 1, assets));
 
         _seedMarket1(assets);
-        _setActiveAdapter(address(secondAdapter), true);
+        _setIsActiveAdapter(address(secondAdapter), true);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(address(secondAdapter), marketParams2, type(uint256).max);
 
@@ -383,7 +385,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 1, assets));
 
         _seedMarket1(assets);
-        _setActiveAdapter(address(adapter), true);
+        _setIsActiveAdapter(address(adapter), true);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(address(secondAdapter), marketParams2, type(uint256).max);
 
@@ -396,7 +398,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 2, assets));
 
         _seedMarket1(assets);
-        _setActiveAdapter(address(adapter), true);
+        _setIsActiveAdapter(address(adapter), true);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
@@ -443,7 +445,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         bluePublicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
 
         _seedMarket1(assets);
-        _setActiveAdapter(address(adapter), true);
+        _setIsActiveAdapter(address(adapter), true);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
@@ -470,7 +472,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.prank(allocator);
         bluePublicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
         _seedMarket1(assets);
-        _setActiveAdapter(address(adapter), true);
+        _setIsActiveAdapter(address(adapter), true);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
@@ -504,7 +506,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.prank(allocator);
         bluePublicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
         _seedMarket1(assets);
-        _setActiveAdapter(address(adapter), true);
+        _setIsActiveAdapter(address(adapter), true);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
@@ -547,7 +549,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         bluePublicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
 
         _seedMarket1(assets);
-        _setActiveAdapter(address(adapter), true);
+        _setIsActiveAdapter(address(adapter), true);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 

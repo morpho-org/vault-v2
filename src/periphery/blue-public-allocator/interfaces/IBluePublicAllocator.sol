@@ -18,7 +18,7 @@ interface IBluePublicAllocator {
     event SetAbsoluteCap(address indexed sender, address indexed vault, address adapter, MarketParams marketParams, uint256 absoluteCap);
     event SetCanDeallocate(address indexed sender, address indexed vault, address adapter, MarketParams marketParams, bool canDeallocate);
     event SetCanAllocateFromIdle(address indexed sender, address indexed vault, bool canDeallocate);
-    event SetActiveAdapter(address indexed sender, address indexed vault, address indexed adapter, bool activeAdapter);
+    event SetIsActiveAdapter(address indexed sender, address indexed vault, address indexed adapter, bool isActiveAdapter);
     event SetNativePenalty(address indexed sender, address indexed vault, uint256 newNativePenalty);
     event ClaimNativePenalty(address indexed sender, address indexed vault, uint256 claimed, address indexed receiver);
     event Reallocate(address sender, address indexed vault, address deallocateAdapter, bytes32 indexed deallocateId, address allocateAdapter, bytes32 indexed allocateId, uint128 assets, uint256 value);
@@ -38,13 +38,13 @@ interface IBluePublicAllocator {
 
     function absoluteCap(address vault, bytes32 id) external view returns (uint256);
     function canDeallocate(address vault, bytes32 id) external view returns (bool);
-    function activeAdapter(address vault, address adapter) external view returns (bool);
+    function isActiveAdapter(address vault, address adapter) external view returns (bool);
     function vaultData(address vault) external view returns (bool canAllocateFromIdle, uint120 nativePenalty, uint120 accruedNativePenalty);
 
     /* FUNCTIONS */
 
     function multicall(bytes[] calldata data) external;
-    function setActiveAdapter(address vault, address adapter, bool newActiveAdapter) external;
+    function setIsActiveAdapter(address vault, address adapter, bool newIsActiveAdapter) external;
     function setAbsoluteCap(address vault, address adapter, MarketParams calldata marketParams, uint256 newAbsoluteCap) external;
     function setCanDeallocate(address vault, address adapter, MarketParams calldata marketParams, bool newCanDeallocate) external;
     function setCanAllocateFromIdle(address vault, bool newCanDeallocate) external;
