@@ -31,14 +31,14 @@ function summaryAllocate(env e, bytes data, uint256 assets, bytes4 selector, add
     bytes32[] ids;
     int256 change;
 
-    // Assume length 3 for simplicity. This covers MarketV1Adapter and the rule similarly holds for VaultV1Adapter with ids.length == 1.
+    // Assume length 3 for simplicity. This covers BlueAdapterV3 and the rule similarly holds for VaultV1Adapter with ids.length == 1.
     require ids.length == 3, "for simplicity, assume a fixed number of ids";
 
     require ids[0] != ids[1], "specification requires adapters to return unique ids";
     require ids[0] != ids[2], "specification requires adapters to return unique ids";
     require ids[1] != ids[2], "specification requires adapters to return unique ids";
 
-    require currentContract.firstTotalAssets() < 2 ^ 20 * 2 ^ 128, "market v1 fits total supply assets on 128 bits, and assume at most 2^20 markets";
+    require currentContract.firstTotalAssets() < 2 ^ 20 * 2 ^ 128, "Morpho Blue fits total supply assets on 128 bits, and assume at most 2^20 markets";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].relativeCap < 2 ^ 108, "see relativeCapBound invariant";
 
     // CVL does not allow function calls within quantifiers, hence explicitly listed here.
@@ -59,7 +59,7 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     bytes32[] ids;
     int256 change;
 
-    // assume MarketV1Adapter. The rule similarly holds for VaultV1Adapter with ids.length == 1.
+    // assume BlueAdapterV3. The rule similarly holds for VaultV1Adapter with ids.length == 1.
     require ids.length == 3, "for simplicity, assume a fixed number of ids";
 
     require ids[0] != ids[1], "specification requires adapters to return unique ids";

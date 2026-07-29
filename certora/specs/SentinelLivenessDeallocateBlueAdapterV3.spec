@@ -17,21 +17,21 @@ methods {
     function BlueAdapterV3.asset() external returns (address) envfree;
     function BlueAdapterV3.supplyShares(bytes32) external returns (uint256) envfree;
 
-    function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => morphoMarketV1AdapterDeallocateWrapper(calledContract, e, data, assets, selector, sender) expect(bytes32[], int256);
+    function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => morphoBlueAdapterV3DeallocateWrapper(calledContract, e, data, assets, selector, sender) expect(bytes32[], int256);
 
     // Assume that the adapter's withdraw call succeeds.
     function _.withdraw(BlueAdapterV3.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) external => summaryWithdraw(marketParams, assets, shares, onBehalf, receiver) expect(uint256, uint256);
 
-    // Transfers should not revert because market v1 sends back tokens to the adapter on withdraw.
+    // Transfers should not revert because Morpho Blue sends back tokens to the adapter on withdraw.
     function ERC20.transferFrom(address, address, uint256) external returns (bool) => NONDET;
 
-    // Assume that expectedSupplyAssets doesn't revert on market v1.
+    // Assume that expectedSupplyAssets doesn't revert on Morpho Blue.
     function BlueAdapterV3.expectedSupplyAssets(bytes32 marketId) internal returns (uint256) => summaryExpectedSupplyAssets(marketId);
 }
 
 function summaryExpectedSupplyAssets(bytes32 marketId) returns uint256 {
     uint256 assets;
-    require assets <= max_int256(), "safe because market v1 stores the total supply assets of the market in a uint128";
+    require assets <= max_int256(), "safe because Morpho Blue stores the total supply assets of the market in a uint128";
     return assets;
 }
 
@@ -43,7 +43,7 @@ function summaryWithdraw(BlueAdapterV3.MarketParams marketParams, uint256 assets
     return (assetsWithdrawn, sharesWithdrawn);
 }
 
-function morphoMarketV1AdapterDeallocateWrapper(address adapter, env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
+function morphoBlueAdapterV3DeallocateWrapper(address adapter, env e, bytes data, uint256 assets, bytes4 selector, address sender) returns (bytes32[], int256) {
     BlueAdapterV3.MarketParams marketParams = Utils.decodeMarketParams(data);
     require BlueAdapterV3.allocation(marketParams) <= max_int256(), "see allocationIsInt256";
 
@@ -51,7 +51,7 @@ function morphoMarketV1AdapterDeallocateWrapper(address adapter, env e, bytes da
     int256 change;
     ids, change = adapter.deallocate(e, data, assets, selector, sender);
 
-    require forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "see distinctMarketV1Ids";
+    require forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "see distinctBlueAdapterV3Ids";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation <= max_int256(), "see allocationIsInt256";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "safe because of changeForDeallocateIsBoundedByAllocation and other ids returned have greater allocation than this/marketParams id";
 

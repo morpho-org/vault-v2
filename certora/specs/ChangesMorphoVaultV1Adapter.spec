@@ -36,7 +36,7 @@ persistent ghost uint256 constantNewTotalAssets;
 persistent ghost uint256 constantNewLostAssets;
 
 function constantAccrueFeeAndAssets() returns (uint256, uint256, uint256) {
-    require constantNewTotalAssets < 30 * 2 ^ 128, "market v1 stores assets on 128 bits, and there are at most 30 markets in vault v1";
+    require constantNewTotalAssets < 30 * 2 ^ 128, "Morpho Blue stores assets on 128 bits, and there are at most 30 markets in vault v1";
     return (constantFeeShares, constantNewTotalAssets, constantNewLostAssets);
 }
 

@@ -2,9 +2,9 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MorphoMarketV1IntegrationTest.sol";
+import "./BlueIntegrationTest.sol";
 
-contract MorphoMarketV1IntegrationAllocationTest is MorphoMarketV1IntegrationTest {
+contract BlueIntegrationAllocationTest is BlueIntegrationTest {
     using MorphoBalancesLib for IMorpho;
 
     address internal immutable borrower = makeAddr("borrower");

@@ -2,9 +2,9 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity ^0.8.0;
 
-import "./MorphoMarketV1IntegrationTest.sol";
+import "./BlueIntegrationTest.sol";
 
-contract MorphoMarketV1IntegrationBurnSharesTest is MorphoMarketV1IntegrationTest {
+contract BlueIntegrationBurnSharesTest is BlueIntegrationTest {
     using MarketParamsLib for MarketParams;
 
     function testBurnShares(uint256 assets) public {

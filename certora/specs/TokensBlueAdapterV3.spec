@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Morpho Association
 
 using BlueAdapterV3 as BlueAdapterV3;
-using MorphoHarness as MorphoMarketV1;
+using MorphoHarness as MorphoBlue;
 using ERC20Helper as ERC20;
 
 methods {
@@ -32,14 +32,14 @@ rule depositTokenChange(env e, uint256 assets, address receiver) {
     require(BlueAdapterV3.asset == asset, "assume that the VaultV2's underlying asset is the same as the adapter's");
 
     // Trick to require that all the following addresses are different.
-    require(MorphoMarketV1 == 0x10, "ack");
+    require(MorphoBlue == 0x10, "ack");
     require(BlueAdapterV3 == 0x11, "ack");
     require(currentContract == 0x12, "ack");
     require(asset == 0x13, "ack");
     require(e.msg.sender == 0x14, "ack");
 
     uint256 balanceBlueAdapterV3Before = ERC20.balanceOf(asset, BlueAdapterV3);
-    uint256 balanceMorphoMarketV1Before = ERC20.balanceOf(asset, MorphoMarketV1);
+    uint256 balanceMorphoBlueBefore = ERC20.balanceOf(asset, MorphoBlue);
     uint256 balanceSenderBefore = ERC20.balanceOf(asset, e.msg.sender);
     uint256 balanceVaultV2Before = ERC20.balanceOf(asset, currentContract);
 
@@ -49,12 +49,12 @@ rule depositTokenChange(env e, uint256 assets, address receiver) {
     deposit(e, assets, receiver);
 
     uint256 balanceBlueAdapterV3After = ERC20.balanceOf(asset, BlueAdapterV3);
-    uint256 balanceMorphoMarketV1After = ERC20.balanceOf(asset, MorphoMarketV1);
+    uint256 balanceMorphoBlueAfter = ERC20.balanceOf(asset, MorphoBlue);
     uint256 balanceSenderAfter = ERC20.balanceOf(asset, e.msg.sender);
     uint256 balanceVaultV2After = ERC20.balanceOf(asset, currentContract);
 
     assert balanceBlueAdapterV3After == balanceBlueAdapterV3Before;
-    assert assert_uint256(balanceMorphoMarketV1After - balanceMorphoMarketV1Before) == assets;
+    assert assert_uint256(balanceMorphoBlueAfter - balanceMorphoBlueBefore) == assets;
     assert balanceVaultV2After == balanceVaultV2Before;
     assert assert_uint256(balanceSenderBefore - balanceSenderAfter) == assets;
 }
@@ -66,14 +66,14 @@ rule withdrawTokenChange(env e, uint256 assets, address receiver, address owner)
     require(BlueAdapterV3.asset == asset, "assume that the VaultV2's underlying asset is the same as the adapter's");
 
     // Trick to require that all the following addresses are different.
-    require(MorphoMarketV1 == 0x10, "ack");
+    require(MorphoBlue == 0x10, "ack");
     require(BlueAdapterV3 == 0x11, "ack");
     require(currentContract == 0x12, "ack");
     require(asset == 0x13, "ack");
     require(receiver == 0x14, "ack");
 
     uint256 balanceBlueAdapterV3Before = ERC20.balanceOf(asset, BlueAdapterV3);
-    uint256 balanceMorphoMarketV1Before = ERC20.balanceOf(asset, MorphoMarketV1);
+    uint256 balanceMorphoBlueBefore = ERC20.balanceOf(asset, MorphoBlue);
     uint256 balanceReceiverBefore = ERC20.balanceOf(asset, receiver);
     uint256 balanceVaultV2Before = ERC20.balanceOf(asset, currentContract);
 
@@ -83,15 +83,15 @@ rule withdrawTokenChange(env e, uint256 assets, address receiver, address owner)
     withdraw(e, assets, receiver, owner);
 
     uint256 balanceBlueAdapterV3After = ERC20.balanceOf(asset, BlueAdapterV3);
-    uint256 balanceMorphoMarketV1After = ERC20.balanceOf(asset, MorphoMarketV1);
+    uint256 balanceMorphoBlueAfter = ERC20.balanceOf(asset, MorphoBlue);
     uint256 balanceReceiverAfter = ERC20.balanceOf(asset, receiver);
     uint256 balanceVaultV2After = ERC20.balanceOf(asset, currentContract);
 
     assert balanceBlueAdapterV3After == balanceBlueAdapterV3Before;
 
-    assert balanceVaultV2Before > assets => balanceMorphoMarketV1After == balanceMorphoMarketV1Before && assert_uint256(balanceVaultV2Before - balanceVaultV2After) == assets;
+    assert balanceVaultV2Before > assets => balanceMorphoBlueAfter == balanceMorphoBlueBefore && assert_uint256(balanceVaultV2Before - balanceVaultV2After) == assets;
 
-    assert balanceVaultV2Before <= assets => balanceVaultV2After == 0 && assert_uint256((balanceMorphoMarketV1Before - balanceMorphoMarketV1After) + balanceVaultV2Before) == assets;
+    assert balanceVaultV2Before <= assets => balanceVaultV2After == 0 && assert_uint256((balanceMorphoBlueBefore - balanceMorphoBlueAfter) + balanceVaultV2Before) == assets;
 
     assert assert_uint256(balanceReceiverAfter - balanceReceiverBefore) == assets;
 }

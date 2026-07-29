@@ -47,7 +47,7 @@ rule matchingIdsOnAllocateOrDeallocate(env e, bytes data, uint256 assets, bytes4
 invariant valueOfAdapterId()
     adapterId() == Utils.adapterId(currentContract);
 
-rule distinctMarketV1Ids(BlueAdapterV3.MarketParams marketParams) {
+rule distinctBlueAdapterV3Ids(BlueAdapterV3.MarketParams marketParams) {
     bytes32[] ids = ids(marketParams);
 
     requireInvariant valueOfAdapterId();

@@ -190,7 +190,7 @@ contract BlueAdapterV3 is IBlueAdapterV3 {
 
         emit Allocate(marketId, newAllocation, mintedShares);
 
-        // forge-lint: disable-next-item(unsafe-typecast) safe because Market V1 bounds the total supply of the
+        // forge-lint: disable-next-item(unsafe-typecast) safe because Morpho Blue bounds the total supply of the
         // underlying token, and allocation is less than the max total assets of the vault.
         return (ids(marketParams), int256(newAllocation) - int256(oldAllocation));
     }
@@ -217,7 +217,7 @@ contract BlueAdapterV3 is IBlueAdapterV3 {
 
         emit Deallocate(marketId, newAllocation, burnedShares);
 
-        // forge-lint: disable-next-item(unsafe-typecast) safe because Market V1 bounds the total supply of the
+        // forge-lint: disable-next-item(unsafe-typecast) safe because Morpho Blue bounds the total supply of the
         // underlying token, and allocation is less than the max total assets of the vault.
         return (ids(marketParams), int256(newAllocation) - int256(oldAllocation));
     }

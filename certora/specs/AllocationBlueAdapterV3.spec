@@ -2,7 +2,7 @@
 // Copyright (c) 2025 Morpho Association
 
 using BlueAdapterV3 as BlueAdapterV3;
-using MorphoHarness as MorphoMarketV1;
+using MorphoHarness as MorphoBlue;
 using Utils as Utils;
 
 methods {
@@ -10,9 +10,9 @@ methods {
 
     function BlueAdapterV3.ids(MorphoHarness.MarketParams) external returns (bytes32[]) envfree;
     function BlueAdapterV3.allocation(MorphoHarness.MarketParams) external returns (uint256) envfree;
-    function MorphoMarketV1.totalSupplyShares(MorphoHarness.Id) external returns (uint256) envfree;
-    function MorphoMarketV1.supplyShares(MorphoHarness.Id, address) external returns (uint256) envfree;
-    function MorphoMarketV1.isAuthorized(address, address) external returns (bool) envfree;
+    function MorphoBlue.totalSupplyShares(MorphoHarness.Id) external returns (uint256) envfree;
+    function MorphoBlue.supplyShares(MorphoHarness.Id, address) external returns (uint256) envfree;
+    function MorphoBlue.isAuthorized(address, address) external returns (bool) envfree;
     function Utils.decodeMarketParams(bytes) external returns (MorphoHarness.MarketParams) envfree;
     function Utils.id(MorphoHarness.MarketParams) external returns (MorphoHarness.Id) envfree;
     function Utils.wrapId(bytes32) external returns (MorphoHarness.Id) envfree;
@@ -20,8 +20,8 @@ methods {
     function _.borrowRateView(bytes32, MorphoHarness.Market memory, address) internal => constantBorrowRate expect(uint256);
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
 
-    function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoMarketV1AdapterV2WrapperSummary(e, true, data, assets, bs, a) expect(bytes32[], int256);
-    function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoMarketV1AdapterV2WrapperSummary(e, false, data, assets, bs, a) expect(bytes32[], int256);
+    function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoBlueAdapterV3V2WrapperSummary(e, true, data, assets, bs, a) expect(bytes32[], int256);
+    function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoBlueAdapterV3V2WrapperSummary(e, false, data, assets, bs, a) expect(bytes32[], int256);
 
     function _.position(MorphoHarness.Id, address) external => DISPATCHER;
     function _.market(MorphoHarness.Id) external => DISPATCHER;
@@ -50,7 +50,7 @@ persistent ghost uint256 constantBorrowRate;
 persistent ghost int256 ghostChange;
 
 // Wrapper to record change returned by the adapter and ensure returned ids are distinct.
-function morphoMarketV1AdapterV2WrapperSummary(env e, bool isAllocateCall, bytes data, uint256 assets, bytes4 bs, address a) returns (bytes32[], int256) {
+function morphoBlueAdapterV3V2WrapperSummary(env e, bool isAllocateCall, bytes data, uint256 assets, bytes4 bs, address a) returns (bytes32[], int256) {
     bytes32[] ids;
     int256 change;
 
@@ -59,7 +59,7 @@ function morphoMarketV1AdapterV2WrapperSummary(env e, bool isAllocateCall, bytes
     } else {
         ids, change = BlueAdapterV3.deallocate(e, data, assets, bs, a);
     }
-    require forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "proven in the distinctMarketV1Ids rule";
+    require forall uint256 i. forall uint256 j. i < j && j < ids.length => ids[j] != ids[i], "proven in the distinctBlueAdapterV3Ids rule";
     ghostChange = change;
 
     return (ids, change);
@@ -67,7 +67,7 @@ function morphoMarketV1AdapterV2WrapperSummary(env e, bool isAllocateCall, bytes
 
 rule allocateChangesAllocationOfIds(env e, bytes data, uint256 assets) {
     // Trick to require that all the following addresses are different.
-    require MorphoMarketV1 == 0x10, "ack";
+    require MorphoBlue == 0x10, "ack";
     require BlueAdapterV3 == 0x11, "ack";
     require currentContract == 0x12, "ack";
 
@@ -90,7 +90,7 @@ rule allocateChangesAllocationOfIds(env e, bytes data, uint256 assets) {
 
 rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
     // Trick to require that all the following addresses are different.
-    require MorphoMarketV1 == 0x10, "ack";
+    require MorphoBlue == 0x10, "ack";
     require BlueAdapterV3 == 0x11, "ack";
     require currentContract == 0x12, "ack";
 
@@ -105,7 +105,7 @@ rule allocationAfterAllocate(env e, bytes data, uint256 assets) {
 
 rule deallocateChangesAllocationOfIds(env e, bytes data, uint256 assets) {
     // Trick to require that all the following addresses are different.
-    require MorphoMarketV1 == 0x10, "ack";
+    require MorphoBlue == 0x10, "ack";
     require BlueAdapterV3 == 0x11, "ack";
     require currentContract == 0x12, "ack";
 
@@ -128,7 +128,7 @@ rule deallocateChangesAllocationOfIds(env e, bytes data, uint256 assets) {
 
 rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
     // Trick to require that all the following addresses are different.
-    require MorphoMarketV1 == 0x10, "ack";
+    require MorphoBlue == 0x10, "ack";
     require BlueAdapterV3 == 0x11, "ack";
     require currentContract == 0x12, "ack";
 
@@ -143,16 +143,16 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
 
 rule expectedSupplyAssetsIsBounded(env e, bytes32 marketId) {
     requireInvariant adapterSupplySharesIsLessThanActualSupplyShares(marketId);
-    require MorphoMarketV1.supplyShares(Utils.wrapId(marketId), BlueAdapterV3) < MorphoMarketV1.totalSupplyShares(Utils.wrapId(marketId)), "total supply shares is the sum of all the supply shares";
+    require MorphoBlue.supplyShares(Utils.wrapId(marketId), BlueAdapterV3) < MorphoBlue.totalSupplyShares(Utils.wrapId(marketId)), "total supply shares is the sum of all the supply shares";
 
     assert BlueAdapterV3.expectedSupplyAssets(e, marketId) < 2 ^ 128;
 }
 
 invariant adapterSupplySharesIsLessThanActualSupplyShares(bytes32 marketId)
-    BlueAdapterV3.supplyShares[marketId] <= MorphoMarketV1.supplyShares(Utils.wrapId(marketId), BlueAdapterV3)
-    filtered { f -> f.contract == BlueAdapterV3 || f.contract == MorphoMarketV1 } {
-        preserved MorphoMarketV1.withdraw(MorphoHarness.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) with (env e) {
+    BlueAdapterV3.supplyShares[marketId] <= MorphoBlue.supplyShares(Utils.wrapId(marketId), BlueAdapterV3)
+    filtered { f -> f.contract == BlueAdapterV3 || f.contract == MorphoBlue } {
+        preserved MorphoBlue.withdraw(MorphoHarness.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) with (env e) {
             require e.msg.sender != BlueAdapterV3, "the adapter is not an EOA";
-            require !MorphoMarketV1.isAuthorized(BlueAdapterV3, e.msg.sender), "the adapter does not call setAuthorization and it cannot sign an authorization";
+            require !MorphoBlue.isAuthorized(BlueAdapterV3, e.msg.sender), "the adapter does not call setAuthorization and it cannot sign an authorization";
         }
     }

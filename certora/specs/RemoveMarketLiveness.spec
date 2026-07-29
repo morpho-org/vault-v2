@@ -55,15 +55,15 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     bytes32[] ids;
     int256 change;
     ids, change = BlueAdapterV3.deallocate(e, data, assets, selector, sender);
-    require ids.length == 3, "see IdsMorphoMarketV1Adapter";
+    require ids.length == 3, "see IdsBlueAdapterV3";
 
-    // See distinctMarketV1Ids rule.
+    // See distinctBlueAdapterV3Ids rule.
     require ids[0] != ids[1], "ack";
     require ids[0] != ids[2], "ack";
     require ids[1] != ids[2], "ack";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation < 2 ^ 20 * 2 ^ 128, "market v1 fits total supply assets on 128 bits, and assume at most 2^20 markets";
-    require change < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation < 2 ^ 20 * 2 ^ 128, "Morpho Blue fits total supply assets on 128 bits, and assume at most 2^20 markets";
+    require change < 2 ^ 128, "Morpho Blue fits total supply assets on 128 bits";
     require currentContract.caps[ids[0]].allocation >= currentContract.caps[ids[2]].allocation, "adapter id allocation is a sum of market id allocation";
     require currentContract.caps[ids[1]].allocation >= currentContract.caps[ids[2]].allocation, "collateral token id allocation is a sum of market id allocation";
     return (ids, change);
@@ -84,7 +84,7 @@ rule canDeallocateExpectedSupplyAssets(env e, bytes data) {
     require BlueAdapterV3.supplyShares(id) <= Morpho.supplyShares(marketId, BlueAdapterV3), "internal accounting of shares is less than actual held shares";
     require Morpho.supplyShares(marketId, BlueAdapterV3) <= Morpho.totalSupplyShares(marketId), "total supply shares is the sum of the market supply shares";
     require Morpho.supplyShares(marketId, BlueAdapterV3) < 2 ^ 128, "shares fit on 128 bits on Morpho";
-    require assets < 10 ^ 32, "safe because market v1 specifies that loan tokens should have less than 1e32 total supply";
+    require assets < 10 ^ 32, "safe because Morpho Blue specifies that loan tokens should have less than 1e32 total supply";
     require Morpho.lastUpdate(marketId) != 0, "assume the market is created";
     require isAdapter(BlueAdapterV3), "assume the adapter is enabled";
     require isSentinel(e.msg.sender) || isAllocator(e.msg.sender), "setup the call";
