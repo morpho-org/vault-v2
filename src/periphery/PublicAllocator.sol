@@ -7,7 +7,7 @@ import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
 import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 /// @dev To be usable, the PublicAllocator must be set as an allocator of the vault.
-/// @dev Meant to be used only with VaultV2.
+/// @dev Meant to be used with VaultV2 vaults only.
 /// @dev Active adapter must be MorphoMarketV1AdapterV2 adapters, otherwise the public allocator's absolute cap system
 /// could break.
 /// @dev The PublicAllocator inherits the vault's roles:
@@ -23,22 +23,12 @@ import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 /// @dev reallocate and allocateFromIdle can be made to revert by anyone frontrunning them (not only allocators): an
 /// allocate reverts if the vault cap is filled first, a deallocate reverts if shares stop covering assets.
 contract PublicAllocator is IPublicAllocator {
-    /* TYPES */
-
-    /// @dev Packed into a single storage slot: bool (1 byte) + uint120 (15 bytes) + uint120 (15 bytes) = 31 bytes.
-    struct VaultData {
-        bool canAllocateFromIdle;
-        uint120 nativePenalty;
-        // uint120 max ~2^120 (~1e18 tokens at 18 decimals), so accrued native penalty cannot realistically overflow.
-        uint120 accruedNativePenalty;
-    }
-
     /* STORAGE */
 
     mapping(address vault => mapping(bytes32 id => uint256)) public absoluteCap;
     mapping(address vault => mapping(bytes32 id => bool)) public canDeallocate;
     mapping(address vault => mapping(address adapter => bool)) public activeAdapter;
-    mapping(address vault => VaultData) public vaultData;
+    mapping(address vault => IPublicAllocator.VaultData) public vaultData;
 
     /* AUTHORIZED FUNCTIONS */
 
@@ -81,7 +71,6 @@ contract PublicAllocator is IPublicAllocator {
 
     function claimNativePenalty(address vault, address payable receiver) external {
         require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
-
         uint256 claimed = vaultData[vault].accruedNativePenalty;
         vaultData[vault].accruedNativePenalty = 0;
         emit ClaimNativePenalty(msg.sender, vault, claimed, receiver);

@@ -7,6 +7,14 @@ import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol"
 // forgefmt: disable-start
 
 interface IPublicAllocator {
+    /* TYPES */
+
+    struct VaultData {
+        bool canAllocateFromIdle;
+        uint120 nativePenalty;
+        uint120 accruedNativePenalty;
+    }
+
     /* EVENTS */
 
     event SetAbsoluteCap(address indexed sender, address indexed vault, address adapter, MarketParams marketParams, uint256 absoluteCap);
