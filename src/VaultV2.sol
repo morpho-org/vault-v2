@@ -150,10 +150,10 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 ///
 /// GATES
 /// @dev Set to 0 to disable a gate.
-/// @dev Gates must never revert, nor consume too much gas.
 /// @dev receiveSharesGate:
 ///     - Gates receiving shares.
 ///     - Can lock users out of getting back their shares deposited on an other contract.
+///     - Can block all vault interactions if it reverts or consumes too much gas.
 /// @dev sendSharesGate:
 ///     - Gates sending shares.
 ///     - Can lock users out of exiting the vault.

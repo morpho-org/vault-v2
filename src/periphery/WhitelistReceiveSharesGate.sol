@@ -13,16 +13,17 @@ import {DOMAIN_TYPEHASH} from "../libraries/ConstantsLib.sol";
 /// @dev No-ops are allowed.
 /// @dev Zero checks are not systematically performed.
 contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
-    address public whitelister;
-    mapping(address => uint256) public nonces;
-    mapping(address => bool) public isWhitelisted;
+    address public roleSetter;
+    mapping(address account => bool) public isWhitelister;
+    mapping(address whitelister => mapping(address account => uint256)) public nonces;
+    mapping(address account => bool) public isWhitelisted;
 
-    constructor(address _whitelister) {
-        whitelister = _whitelister;
-        emit Constructor(_whitelister);
+    constructor(address _roleSetter) {
+        roleSetter = _roleSetter;
+        emit Constructor(_roleSetter);
     }
 
-    /// @dev Useful for EOAs to batch admin calls.
+    /// @dev Useful for EOAs to batch privileged calls.
     /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do
     /// the multicall themselves.
     function multicall(bytes[] calldata data) external {
@@ -40,21 +41,28 @@ contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
         return isWhitelisted[account];
     }
 
-    function setWhitelister(address newWhitelister) external {
-        require(msg.sender == whitelister, NotWhitelister());
-        whitelister = newWhitelister;
-        emit SetWhitelister(newWhitelister);
+    function setRoleSetter(address newRoleSetter) external {
+        require(msg.sender == roleSetter, NotRoleSetter());
+        roleSetter = newRoleSetter;
+        emit SetRoleSetter(newRoleSetter);
+    }
+
+    function setIsWhitelister(address account, bool newIsWhitelister) external {
+        require(msg.sender == roleSetter, NotRoleSetter());
+        isWhitelister[account] = newIsWhitelister;
+        emit SetIsWhitelister(account, newIsWhitelister);
     }
 
     function setIsWhitelisted(address account, bool newIsWhitelisted) external {
-        require(msg.sender == whitelister, NotWhitelister());
+        require(isWhitelister[msg.sender], NotWhitelister());
         isWhitelisted[account] = newIsWhitelisted;
-        emit SetIsWhitelisted(account, newIsWhitelisted);
+        emit SetIsWhitelisted(msg.sender, account, newIsWhitelisted);
     }
 
     /// @dev Signature malleability is not explicitly prevented but it is not a problem thanks to the nonce.
     /// @dev Allows to batch setIsWhitelisted with the deposit, without requiring a transaction from the whitelister.
     function setIsWhitelistedWithSig(
+        address whitelister,
         address account,
         bool newIsWhitelisted,
         uint256 deadline,
@@ -63,13 +71,21 @@ contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
         bytes32 s
     ) external {
         require(deadline >= block.timestamp, DeadlineExpired());
-        bytes32 hashStruct =
-            keccak256(abi.encode(SET_IS_WHITELISTED_TYPEHASH, account, newIsWhitelisted, nonces[account]++, deadline));
+        bytes32 hashStruct = keccak256(
+            abi.encode(
+                SET_IS_WHITELISTED_TYPEHASH,
+                whitelister,
+                account,
+                newIsWhitelisted,
+                nonces[whitelister][account]++,
+                deadline
+            )
+        );
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
         address recovered = ecrecover(digest, v, r, s);
-        require(recovered != address(0) && recovered == whitelister, InvalidSigner());
+        require(recovered != address(0) && recovered == whitelister && isWhitelister[recovered], InvalidSigner());
         isWhitelisted[account] = newIsWhitelisted;
-        emit SetIsWhitelistedWithSig(account, newIsWhitelisted);
+        emit SetIsWhitelistedWithSig(recovered, account, newIsWhitelisted);
     }
 
     /// forge-lint: disable-next-item(mixed-case-function)

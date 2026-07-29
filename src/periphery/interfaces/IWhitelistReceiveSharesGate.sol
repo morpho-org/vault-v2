@@ -4,31 +4,37 @@ pragma solidity >=0.5.0;
 
 import {IReceiveSharesGate} from "../../interfaces/IGate.sol";
 
-bytes32 constant SET_IS_WHITELISTED_TYPEHASH =
-    keccak256("SetIsWhitelisted(address account,bool newIsWhitelisted,uint256 nonce,uint256 deadline)");
+bytes32 constant SET_IS_WHITELISTED_TYPEHASH = keccak256(
+    "SetIsWhitelisted(address whitelister,address account,bool newIsWhitelisted,uint256 nonce,uint256 deadline)"
+);
 
 interface IWhitelistReceiveSharesGate is IReceiveSharesGate {
     /* EVENTS */
 
-    event Constructor(address indexed whitelister);
-    event SetWhitelister(address indexed newWhitelister);
-    event SetIsWhitelisted(address indexed account, bool newIsWhitelisted);
-    event SetIsWhitelistedWithSig(address indexed account, bool newIsWhitelisted);
+    event Constructor(address indexed roleSetter);
+    event SetRoleSetter(address indexed newRoleSetter);
+    event SetIsWhitelister(address indexed account, bool newIsWhitelister);
+    event SetIsWhitelisted(address indexed whitelister, address indexed account, bool newIsWhitelisted);
+    event SetIsWhitelistedWithSig(address indexed whitelister, address indexed account, bool newIsWhitelisted);
 
     /* ERRORS */
 
+    error NotRoleSetter();
     error NotWhitelister();
     error DeadlineExpired();
     error InvalidSigner();
 
     /* FUNCTIONS */
 
-    function whitelister() external view returns (address);
-    function nonces(address account) external view returns (uint256);
+    function roleSetter() external view returns (address);
+    function isWhitelister(address account) external view returns (bool);
+    function nonces(address whitelister, address account) external view returns (uint256);
     function isWhitelisted(address account) external view returns (bool);
-    function setWhitelister(address newWhitelister) external;
+    function setRoleSetter(address newRoleSetter) external;
+    function setIsWhitelister(address account, bool newIsWhitelister) external;
     function setIsWhitelisted(address account, bool newIsWhitelisted) external;
     function setIsWhitelistedWithSig(
+        address whitelister,
         address account,
         bool newIsWhitelisted,
         uint256 deadline,
