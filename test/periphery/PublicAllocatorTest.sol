@@ -4,8 +4,8 @@ pragma solidity ^0.8.28;
 
 import "../integration/MorphoMarketV1IntegrationTest.sol";
 
-import {BlueAdapterV2PublicAllocator} from "../../src/periphery/BlueAdapterV2PublicAllocator.sol";
-import {IBlueAdapterV2PublicAllocator} from "../../src/periphery/interfaces/IBlueAdapterV2PublicAllocator.sol";
+import {PublicAllocator} from "../../src/periphery/PublicAllocator.sol";
+import {IPublicAllocator} from "../../src/periphery/interfaces/IPublicAllocator.sol";
 import {MorphoMarketV1AdapterV2} from "../../src/adapters/MorphoMarketV1AdapterV2.sol";
 
 contract RejectNative {}
@@ -13,10 +13,10 @@ contract RejectNative {}
 /// @dev The public allocator is specialized to Morpho Market V1 (Morpho Blue) via the Morpho Market V1 adapter (V2).
 /// These tests use a real vault + adapter + Morpho Blue markets so that the absolute cap is keyed by the exact
 /// per-market vault id (keccak256(abi.encode("this/marketParams", adapter, marketParams))).
-contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
+contract PublicAllocatorTest is MorphoMarketV1IntegrationTest {
     using MorphoBalancesLib for IMorpho;
 
-    BlueAdapterV2PublicAllocator internal publicAllocator;
+    PublicAllocator internal publicAllocator;
     IMorphoMarketV1AdapterV2 internal secondAdapter;
 
     address internal rando = makeAddr("rando");
@@ -37,7 +37,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
             address(new MorphoMarketV1AdapterV2(address(vault), address(morpho), address(irm)))
         );
 
-        publicAllocator = new BlueAdapterV2PublicAllocator();
+        publicAllocator = new PublicAllocator();
 
         bytes memory secondAdapterIdData = abi.encode("this", address(secondAdapter));
         bytes memory secondAdapterIdData1 = abi.encode("this/marketParams", address(secondAdapter), marketParams1);
@@ -63,6 +63,11 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
     }
 
     /* HELPERS */
+
+    function _setActiveAdapter(address adapter_, bool value) internal {
+        vm.prank(allocator);
+        publicAllocator.setActiveAdapter(address(vault), adapter_, value);
+    }
 
     // The absolute cap is set by the vault's allocators (inherited role).
     function _setAbsoluteCap(MarketParams memory marketParams, uint256 cap) internal {
@@ -113,16 +118,14 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
     function testSetAbsoluteCap(uint256 cap) public {
         vm.expectEmit();
-        emit IBlueAdapterV2PublicAllocator.SetAbsoluteCap(
-            allocator, address(vault), address(adapter), marketParams2, cap
-        );
+        emit IPublicAllocator.SetAbsoluteCap(allocator, address(vault), address(adapter), marketParams2, cap);
         _setAbsoluteCap(marketParams2, cap);
         assertEq(publicAllocator.absoluteCap(address(vault), id2), cap);
     }
 
     function testSetAbsoluteCapUnauthorized(address caller, uint256 cap) public {
         vm.assume(!vault.isAllocator(caller));
-        vm.expectRevert(IBlueAdapterV2PublicAllocator.Unauthorized.selector);
+        vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(caller);
         publicAllocator.setAbsoluteCap(address(vault), address(adapter), marketParams2, cap);
     }
@@ -131,23 +134,21 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
     function testSetCanDeallocate(bool value) public {
         vm.expectEmit();
-        emit IBlueAdapterV2PublicAllocator.SetCanDeallocate(
-            allocator, address(vault), address(adapter), marketParams1, value
-        );
+        emit IPublicAllocator.SetCanDeallocate(allocator, address(vault), address(adapter), marketParams1, value);
         _setCanDeallocate(marketParams1, value);
         assertEq(publicAllocator.canDeallocate(address(vault), id1), value);
     }
 
     function testSetCanDeallocateUnauthorized(address caller) public {
         vm.assume(!vault.isAllocator(caller));
-        vm.expectRevert(IBlueAdapterV2PublicAllocator.Unauthorized.selector);
+        vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(caller);
         publicAllocator.setCanDeallocate(address(vault), address(adapter), marketParams1, true);
     }
 
     function testSetCanAllocateFromIdle(bool value) public {
         vm.expectEmit();
-        emit IBlueAdapterV2PublicAllocator.SetCanAllocateFromIdle(allocator, address(vault), value);
+        emit IPublicAllocator.SetCanAllocateFromIdle(allocator, address(vault), value);
         _setCanAllocateFromIdle(value);
         (bool canAllocateFromIdle_,,) = publicAllocator.vaultData(address(vault));
         assertEq(canAllocateFromIdle_, value);
@@ -155,9 +156,25 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
     function testSetCanAllocateFromIdleUnauthorized(address caller) public {
         vm.assume(!vault.isAllocator(caller));
-        vm.expectRevert(IBlueAdapterV2PublicAllocator.Unauthorized.selector);
+        vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(caller);
         publicAllocator.setCanAllocateFromIdle(address(vault), true);
+    }
+
+    /* SET ACTIVE ADAPTER */
+
+    function testSetActiveAdapter(bool value) public {
+        vm.expectEmit();
+        emit IPublicAllocator.SetActiveAdapter(allocator, address(vault), address(adapter), value);
+        _setActiveAdapter(address(adapter), value);
+        assertEq(publicAllocator.activeAdapter(address(vault), address(adapter)), value);
+    }
+
+    function testSetActiveAdapterUnauthorized(address caller) public {
+        vm.assume(!vault.isAllocator(caller));
+        vm.expectRevert(IPublicAllocator.Unauthorized.selector);
+        vm.prank(caller);
+        publicAllocator.setActiveAdapter(address(vault), address(adapter), true);
     }
 
     /* REALLOCATE */
@@ -167,6 +184,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 1, assets));
 
         _seedMarket1(assets);
+        _setActiveAdapter(address(adapter), true);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
@@ -174,9 +192,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         assertEq(vault.allocation(id2), 0);
 
         vm.expectEmit();
-        emit IBlueAdapterV2PublicAllocator.Reallocate(
-            rando, address(vault), address(adapter), address(adapter), id2, id1, amount, 0
-        );
+        emit IPublicAllocator.Reallocate(rando, address(vault), address(adapter), address(adapter), id2, id1, amount, 0);
         _reallocate(amount);
 
         assertEq(vault.allocation(id1), alloc1Before - amount, "market1");
@@ -189,6 +205,8 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 1, assets));
 
         _seedMarket1(assets);
+        _setActiveAdapter(address(adapter), true);
+        _setActiveAdapter(address(secondAdapter), true);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(address(secondAdapter), marketParams2, type(uint256).max);
 
@@ -196,7 +214,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         assertEq(vault.allocation(secondAdapterId2), 0);
 
         vm.expectEmit();
-        emit IBlueAdapterV2PublicAllocator.Reallocate(
+        emit IPublicAllocator.Reallocate(
             rando, address(vault), address(adapter), address(secondAdapter), secondAdapterId2, id1, amount, 0
         );
         _reallocateAcrossAdapters(amount);
@@ -211,10 +229,11 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 1, assets));
 
         _seedMarket1(assets);
+        _setActiveAdapter(address(adapter), true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
         // market1 deallocation not enabled.
 
-        vm.expectRevert(IBlueAdapterV2PublicAllocator.CannotDeallocate.selector);
+        vm.expectRevert(IPublicAllocator.CannotDeallocate.selector);
         _reallocate(amount);
     }
 
@@ -223,11 +242,12 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 2, assets));
 
         _seedMarket1(assets);
+        _setActiveAdapter(address(adapter), true);
         _setCanDeallocate(marketParams1, true);
         // Absolute cap on market2 is 0: any non-zero resulting allocation must exceed it.
         _setAbsoluteCap(marketParams2, 0);
 
-        vm.expectRevert(IBlueAdapterV2PublicAllocator.AbsoluteCapExceeded.selector);
+        vm.expectRevert(IPublicAllocator.AbsoluteCapExceeded.selector);
         _reallocate(amount);
     }
 
@@ -236,6 +256,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 1, assets));
 
         _seedMarket1(assets);
+        _setActiveAdapter(address(adapter), true);
         _setCanDeallocate(marketParams1, true);
         // Resulting allocation is at most `amount` (Morpho rounds down), so `amount` is a valid cap upper bound.
         _setAbsoluteCap(marketParams2, amount);
@@ -250,11 +271,12 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 1, assets));
 
         vault.deposit(assets, address(this));
+        _setActiveAdapter(address(adapter), true);
         _setCanAllocateFromIdle(true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
         vm.expectEmit();
-        emit IBlueAdapterV2PublicAllocator.AllocateFromIdle(rando, address(vault), address(adapter), id2, amount, 0);
+        emit IPublicAllocator.AllocateFromIdle(rando, address(vault), address(adapter), id2, amount, 0);
         vm.prank(rando);
         publicAllocator.allocateFromIdle(address(vault), address(adapter), marketParams2, amount);
 
@@ -268,9 +290,10 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 1, assets));
 
         vault.deposit(assets, address(this));
+        _setActiveAdapter(address(adapter), true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
-        vm.expectRevert(IBlueAdapterV2PublicAllocator.CannotDeallocate.selector);
+        vm.expectRevert(IPublicAllocator.CannotDeallocate.selector);
         vm.prank(rando);
         publicAllocator.allocateFromIdle(address(vault), address(adapter), marketParams2, amount);
     }
@@ -282,9 +305,48 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vault.deposit(assets, address(this));
         _setCanAllocateFromIdle(true);
 
-        vm.expectRevert(ErrorsLib.NotAdapter.selector);
+        vm.expectRevert(IPublicAllocator.InactiveAdapter.selector);
         vm.prank(rando);
         publicAllocator.allocateFromIdle(address(vault), address(0), marketParams2, amount);
+    }
+
+    function testAllocateFromIdleInactiveAdapter(uint256 assets, uint128 amount) public {
+        assets = bound(assets, 1, MAX_TEST_ASSETS);
+        amount = uint128(bound(amount, 1, assets));
+
+        vault.deposit(assets, address(this));
+        _setCanAllocateFromIdle(true);
+        _setAbsoluteCap(marketParams2, type(uint256).max);
+
+        vm.expectRevert(IPublicAllocator.InactiveAdapter.selector);
+        vm.prank(rando);
+        publicAllocator.allocateFromIdle(address(vault), address(adapter), marketParams2, amount);
+    }
+
+    function testReallocateInactiveDeallocateAdapter(uint256 assets, uint128 amount) public {
+        assets = bound(assets, 1, MAX_TEST_ASSETS);
+        amount = uint128(bound(amount, 1, assets));
+
+        _seedMarket1(assets);
+        _setActiveAdapter(address(secondAdapter), true);
+        _setCanDeallocate(marketParams1, true);
+        _setAbsoluteCap(address(secondAdapter), marketParams2, type(uint256).max);
+
+        vm.expectRevert(IPublicAllocator.InactiveAdapter.selector);
+        _reallocateAcrossAdapters(amount);
+    }
+
+    function testReallocateInactiveAllocateAdapter(uint256 assets, uint128 amount) public {
+        assets = bound(assets, 1, MAX_TEST_ASSETS);
+        amount = uint128(bound(amount, 1, assets));
+
+        _seedMarket1(assets);
+        _setActiveAdapter(address(adapter), true);
+        _setCanDeallocate(marketParams1, true);
+        _setAbsoluteCap(address(secondAdapter), marketParams2, type(uint256).max);
+
+        vm.expectRevert(IPublicAllocator.InactiveAdapter.selector);
+        _reallocateAcrossAdapters(amount);
     }
 
     function testReallocateRespectsVaultCaps(uint256 assets, uint128 amount) public {
@@ -292,6 +354,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         amount = uint128(bound(amount, 2, assets));
 
         _seedMarket1(assets);
+        _setActiveAdapter(address(adapter), true);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
@@ -309,7 +372,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
     function testSetNativePenalty(uint256 newNativePenalty) public {
         newNativePenalty = bound(newNativePenalty, 0, type(uint120).max);
         vm.expectEmit();
-        emit IBlueAdapterV2PublicAllocator.SetNativePenalty(curator, address(vault), newNativePenalty);
+        emit IPublicAllocator.SetNativePenalty(curator, address(vault), newNativePenalty);
         vm.prank(curator);
         publicAllocator.setNativePenalty(address(vault), newNativePenalty);
         (, uint120 nativePenalty_,) = publicAllocator.vaultData(address(vault));
@@ -318,14 +381,14 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
     function testSetNativePenaltyUnauthorized(address caller, uint256 newNativePenalty) public {
         vm.assume(caller != curator);
-        vm.expectRevert(IBlueAdapterV2PublicAllocator.Unauthorized.selector);
+        vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(caller);
         publicAllocator.setNativePenalty(address(vault), newNativePenalty);
     }
 
     function testSetNativePenaltyRevertsWhenAboveUint120Max(uint256 newNativePenalty) public {
         newNativePenalty = bound(newNativePenalty, uint256(type(uint120).max) + 1, type(uint256).max);
-        vm.expectRevert(IBlueAdapterV2PublicAllocator.CastOverflow.selector);
+        vm.expectRevert(IPublicAllocator.CastOverflow.selector);
         vm.prank(curator);
         publicAllocator.setNativePenalty(address(vault), newNativePenalty);
     }
@@ -338,6 +401,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         publicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
 
         _seedMarket1(assets);
+        _setActiveAdapter(address(adapter), true);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
@@ -372,6 +436,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
         _seedMarket1(assets);
         // canDeallocate / absoluteCap are allocator-set roles, independent of the curator swap.
+        _setActiveAdapter(address(adapter), true);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
@@ -396,6 +461,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.prank(curator);
         publicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
         _seedMarket1(assets);
+        _setActiveAdapter(address(adapter), true);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
@@ -406,7 +472,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         );
 
         vm.expectEmit();
-        emit IBlueAdapterV2PublicAllocator.ClaimNativePenalty(curator, address(vault), nativePenaltyAmount, receiver);
+        emit IPublicAllocator.ClaimNativePenalty(curator, address(vault), nativePenaltyAmount, receiver);
         vm.prank(curator);
         publicAllocator.claimNativePenalty(address(vault), receiver);
 
@@ -429,6 +495,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.prank(curator);
         publicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
         _seedMarket1(assets);
+        _setActiveAdapter(address(adapter), true);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
@@ -438,7 +505,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
             address(vault), address(adapter), address(adapter), marketParams1, marketParams2, amount
         );
 
-        vm.expectRevert(IBlueAdapterV2PublicAllocator.NativeTransferFailed.selector);
+        vm.expectRevert(IPublicAllocator.NativeTransferFailed.selector);
         vm.prank(curator);
         publicAllocator.claimNativePenalty(address(vault), receiver);
 
@@ -451,7 +518,7 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
     function testClaimNativePenaltyUnauthorized(address caller, address payable receiver) public {
         vm.assume(caller != curator);
 
-        vm.expectRevert(IBlueAdapterV2PublicAllocator.Unauthorized.selector);
+        vm.expectRevert(IPublicAllocator.Unauthorized.selector);
         vm.prank(caller);
         publicAllocator.claimNativePenalty(address(vault), receiver);
     }
@@ -471,11 +538,12 @@ contract BlueAdapterV2PublicAllocatorTest is MorphoMarketV1IntegrationTest {
         publicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
 
         _seedMarket1(assets);
+        _setActiveAdapter(address(adapter), true);
         _setCanDeallocate(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
         vm.deal(rando, sentValue);
-        vm.expectRevert(IBlueAdapterV2PublicAllocator.IncorrectNativePenalty.selector);
+        vm.expectRevert(IPublicAllocator.IncorrectNativePenalty.selector);
         vm.prank(rando);
         publicAllocator.reallocate{value: sentValue}(
             address(vault), address(adapter), address(adapter), marketParams1, marketParams2, amount

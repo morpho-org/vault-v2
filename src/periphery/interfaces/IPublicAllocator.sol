@@ -6,12 +6,13 @@ import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol"
 
 // forgefmt: disable-start
 
-interface IBlueAdapterV2PublicAllocator {
+interface IPublicAllocator {
     /* EVENTS */
 
     event SetAbsoluteCap(address indexed sender, address indexed vault, address adapter, MarketParams marketParams, uint256 absoluteCap);
     event SetCanDeallocate(address indexed sender, address indexed vault, address adapter, MarketParams marketParams, bool canDeallocate);
     event SetCanAllocateFromIdle(address indexed sender, address indexed vault, bool canDeallocate);
+    event SetActiveAdapter(address indexed sender, address indexed vault, address indexed adapter, bool activeAdapter);
     event SetNativePenalty(address indexed sender, address indexed vault, uint256 newNativePenalty);
     event ClaimNativePenalty(address indexed sender, address indexed vault, uint256 claimed, address indexed receiver);
     event Reallocate(address sender, address indexed vault, address deallocateAdapter, address allocateAdapter, bytes32 indexed allocateId, bytes32 indexed deallocateId, uint128 assets, uint256 value);
@@ -24,16 +25,19 @@ interface IBlueAdapterV2PublicAllocator {
     error CannotDeallocate();
     error NativeTransferFailed();
     error IncorrectNativePenalty();
+    error InactiveAdapter();
     error CastOverflow();
 
     /* VIEW */
 
     function absoluteCap(address vault, bytes32 id) external view returns (uint256);
     function canDeallocate(address vault, bytes32 id) external view returns (bool);
+    function activeAdapter(address vault, address adapter) external view returns (bool);
     function vaultData(address vault) external view returns (bool canAllocateFromIdle, uint120 nativePenalty, uint120 accruedNativePenalty);
 
     /* FUNCTIONS */
 
+    function setActiveAdapter(address vault, address adapter, bool newActiveAdapter) external;
     function setAbsoluteCap(address vault, address adapter, MarketParams calldata marketParams, uint256 newAbsoluteCap) external;
     function setCanDeallocate(address vault, address adapter, MarketParams calldata marketParams, bool newCanDeallocate) external;
     function setCanAllocateFromIdle(address vault, bool newCanDeallocate) external;
