@@ -35,7 +35,6 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 /// @dev Burnt shares are lost forever.
 contract BlueAdapterV3 is IBlueAdapterV3 {
     using MarketParamsLib for MarketParams;
-    using MorphoBalancesLib for IMorpho;
     using SharesMathLib for uint256;
 
     /* IMMUTABLES */
@@ -246,7 +245,7 @@ contract BlueAdapterV3 is IBlueAdapterV3 {
         } else {
             MarketParams memory marketParams = IMorpho(morpho).idToMarketParams(Id.wrap(marketId));
             (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
-                IMorpho(morpho).expectedMarketBalances(marketParams);
+                MorphoBalancesLib.expectedMarketBalances(IMorpho(morpho), marketParams);
             return _supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
         }
     }
