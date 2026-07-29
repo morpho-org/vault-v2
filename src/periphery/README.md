@@ -15,7 +15,7 @@ Public callers must pay the vault's native penalty on each `reallocate` or `allo
 `WhitelistReceiveSharesGate` is an implementation of the vault's `receiveSharesGate`.
 It restricts who can receive vault shares, including shares minted on deposits/mints and shares received by transfer.
 A whitelisted account can still hold shares on behalf of non-whitelisted accounts, so this gate does not fully restrict who can access the vault's payoff.
-If an account transfers shares away, for example into another protocol, it may be unable to receive them back if it is un-whitelisted later.
+If an account transfers shares to another account, for example into another protocol, it may be unable to receive them back if that account is not whitelisted later.
 
 ## Whitelist Send Assets Gate
 
