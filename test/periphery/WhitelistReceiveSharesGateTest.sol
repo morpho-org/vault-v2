@@ -3,11 +3,11 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {WhitelistReceiveSharesGate} from "../../src/periphery/WhitelistReceiveSharesGate.sol";
+import {WhitelistReceiveSharesGate} from "../../src/periphery/gates/WhitelistReceiveSharesGate.sol";
 import {
     IWhitelistReceiveSharesGate,
     SET_IS_WHITELISTED_TYPEHASH
-} from "../../src/periphery/interfaces/IWhitelistReceiveSharesGate.sol";
+} from "../../src/periphery/gates/interfaces/IWhitelistReceiveSharesGate.sol";
 
 contract WhitelistReceiveSharesGateTest is Test {
     WhitelistReceiveSharesGate internal gate;

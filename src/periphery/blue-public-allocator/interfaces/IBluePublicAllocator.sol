@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity >=0.8.0;
 
-import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {MarketParams} from "../../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 // forgefmt: disable-start
 

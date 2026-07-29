@@ -4,8 +4,8 @@ pragma solidity ^0.8.28;
 
 import "../integration/MorphoMarketV1IntegrationTest.sol";
 
-import {BluePublicAllocator} from "../../src/periphery/BluePublicAllocator.sol";
-import {IBluePublicAllocator} from "../../src/periphery/interfaces/IBluePublicAllocator.sol";
+import {BluePublicAllocator} from "../../src/periphery/blue-public-allocator/BluePublicAllocator.sol";
+import {IBluePublicAllocator} from "../../src/periphery/blue-public-allocator/interfaces/IBluePublicAllocator.sol";
 import {MorphoMarketV1AdapterV2} from "../../src/adapters/MorphoMarketV1AdapterV2.sol";
 
 contract RejectNative {}

@@ -2,21 +2,27 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity 0.8.28;
 
-import {IWhitelistReceiveSharesGate, SET_IS_WHITELISTED_TYPEHASH} from "./interfaces/IWhitelistReceiveSharesGate.sol";
-import {DOMAIN_TYPEHASH} from "../libraries/ConstantsLib.sol";
+import {
+    IWhitelistSendAssetsGate,
+    IIntermediary,
+    SET_IS_WHITELISTED_TYPEHASH
+} from "./interfaces/IWhitelistSendAssetsGate.sol";
+import {DOMAIN_TYPEHASH} from "../../libraries/ConstantsLib.sol";
 
-/// @dev Using this gate allows to restrict who can own shares of a vault.
-/// @dev As with any receive shares gates, a whitelisted account could own shares to let other accounts access the
-/// vault's payoff.
-/// @dev CRITICAL NOTE: if a depositor transfers their shares (typically to deposit them on a DeFi protocol), they might
-/// not be able to get their shares back (typically to withdraw them) if they get un-whitelisted afterwards.
+/// @dev Using this gate allows to restrict who the funds are initially owned by in a vault's deposits/mints.
+/// @dev As with any send assets gate, nothing prevents whitelisted accounts from using a non whitelisted account's
+/// funds.
+/// @dev If account is registered as a trusted intermediary, IIntermediary(account).initiator() is checked for
+/// whitelisted status instead of account itself. Thus the intermediary should only deposit and mint using assets
+/// initially owned by its current initiator.
 /// @dev No-ops are allowed.
 /// @dev Zero checks are not systematically performed.
-contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
+contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
     address public roleSetter;
     mapping(address account => bool) public isWhitelister;
     mapping(address whitelister => mapping(address account => uint256)) public nonces;
     mapping(address account => bool) public isWhitelisted;
+    mapping(address account => bool) public isIntermediary;
 
     constructor(address _roleSetter) {
         roleSetter = _roleSetter;
@@ -37,8 +43,9 @@ contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
         }
     }
 
-    function canReceiveShares(address account) external view returns (bool) {
-        return isWhitelisted[account];
+    /// @dev Reverts if isIntermediary[account] but account reverts on initiator().
+    function canSendAssets(address account) external view returns (bool) {
+        return isWhitelisted[isIntermediary[account] ? IIntermediary(account).initiator() : account];
     }
 
     function setRoleSetter(address newRoleSetter) external {
@@ -57,6 +64,12 @@ contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
         require(isWhitelister[msg.sender], NotWhitelister());
         isWhitelisted[account] = newIsWhitelisted;
         emit SetIsWhitelisted(msg.sender, account, newIsWhitelisted);
+    }
+
+    function setIsIntermediary(address intermediary, bool newIsIntermediary) external {
+        require(isWhitelister[msg.sender], NotWhitelister());
+        isIntermediary[intermediary] = newIsIntermediary;
+        emit SetIsIntermediary(msg.sender, intermediary, newIsIntermediary);
     }
 
     /// @dev Signature malleability is not explicitly prevented but it is not a problem thanks to the nonce.

@@ -2,9 +2,9 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity 0.8.28;
 
-import {IVaultV2} from "../interfaces/IVaultV2.sol";
+import {IVaultV2} from "../../interfaces/IVaultV2.sol";
 import {IBluePublicAllocator} from "./interfaces/IBluePublicAllocator.sol";
-import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
+import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 /// @dev To be usable, the BluePublicAllocator must be set as an allocator of the vault.
 /// @dev Meant to be used with VaultV2 vaults only.

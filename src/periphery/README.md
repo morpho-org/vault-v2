@@ -1,16 +1,24 @@
 # Periphery
 
 Peripheral, non-core contracts that build on top of Vault V2.
+Blue public allocator contracts are in [blue-public-allocator](./blue-public-allocator/).
+Gate contracts are in [gates](./gates/).
 
 ## Blue Public Allocator
 
-`BluePublicAllocator` lets anyone (not only the vault's allocators) reallocate a Vault V2's liquidity between Morpho Blue markets reached through the `MorphoMarketV1AdapterV2`, within limits set by the vault's roles.
+`BluePublicAllocator` lets anyone (not only the vault's allocators) reallocate a Vault V2's liquidity between Morpho Blue markets reached through the `MorphoMarketV1AdapterV2`, within the vault's caps, and the public allocator's own limits.
+Vault allocators configure which adapters are active, which markets can be deallocated from, each market's absolute cap, and whether idle assets can be allocated publicly.
+Public callers must pay the vault's native penalty on each `reallocate` or `allocateFromIdle` call.
 
-To be usable, it must be set as an allocator of the vault.
+## Whitelist Receive Shares Gate
 
-It inherits the vault's roles:
+`WhitelistReceiveSharesGate` is an implementation of the vault's `receiveSharesGate`.
+It restricts who can receive vault shares, including shares minted on deposits/mints and shares received by transfer.
+A whitelisted account can still hold shares on behalf of non-whitelisted accounts, so this gate does not fully restrict who can access the vault's payoff.
+If an account transfers shares away, for example into another protocol, it may be unable to receive them back if it is un-whitelisted later.
 
-- the vault's allocators set active adapters, the per-market absolute cap, `canDeallocate` and `canAllocateFromIdle`;
-- the vault's allocators set and claim the native-currency penalty charged on each `reallocate` / `allocateFromIdle` call.
+## Whitelist Send Assets Gate
 
-The vault's own caps are still enforced, so an allocation reverts if it would exceed them. Because anyone can move liquidity, the contract opens the door to manipulating relative caps through short-term deposits (this requires capital).
+`WhitelistSendAssetsGate` is an implementation of the vault's `sendAssetsGate`.
+It restricts who can send assets into the vault on deposits and mints.
+Whitelisted accounts can still deposit assets that originally belong to non-whitelisted accounts, so this gate does not fully restrict whose funds can enter the vault.

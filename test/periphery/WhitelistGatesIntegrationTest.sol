@@ -3,8 +3,8 @@
 pragma solidity ^0.8.0;
 
 import {BaseTest} from "../BaseTest.sol";
-import {WhitelistReceiveSharesGate} from "../../src/periphery/WhitelistReceiveSharesGate.sol";
-import {WhitelistSendAssetsGate} from "../../src/periphery/WhitelistSendAssetsGate.sol";
+import {WhitelistReceiveSharesGate} from "../../src/periphery/gates/WhitelistReceiveSharesGate.sol";
+import {WhitelistSendAssetsGate} from "../../src/periphery/gates/WhitelistSendAssetsGate.sol";
 import {ErrorsLib} from "../../src/libraries/ErrorsLib.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
 
