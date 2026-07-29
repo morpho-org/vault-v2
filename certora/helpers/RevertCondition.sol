@@ -5,7 +5,7 @@ pragma solidity 0.8.28;
 import {VaultV2} from "../../src/VaultV2.sol";
 import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
 import {IAdapterRegistry} from "../../src/interfaces/IAdapterRegistry.sol";
-import {MorphoMarketV1AdapterV2} from "../../src/adapters/MorphoMarketV1AdapterV2.sol";
+import {BlueAdapterV3} from "../../src/adapters/BlueAdapterV3.sol";
 import {
     WAD,
     MAX_PERFORMANCE_FEE,
@@ -16,7 +16,7 @@ import {
 /// Helper in getting revert conditions for timelocked functions.
 contract RevertCondition {
     VaultV2 public vault;
-    MorphoMarketV1AdapterV2 public marketV1adapter;
+    BlueAdapterV3 public marketV1adapter;
 
     function timelockFails() internal view returns (bool) {
         uint256 executableAtData = vault.executableAt(msg.data);

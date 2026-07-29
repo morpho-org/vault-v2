@@ -4,17 +4,14 @@ pragma solidity 0.8.28;
 
 import {IMorpho, MarketParams, Id} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {MarketParamsLib} from "../../lib/morpho-blue/src/libraries/MarketParamsLib.sol";
+import {MorphoBalancesLib} from "../../lib/morpho-blue/src/libraries/periphery/MorphoBalancesLib.sol";
 import {SharesMathLib} from "../../lib/morpho-blue/src/libraries/SharesMathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
-import {IMorphoMarketV1AdapterV2} from "./interfaces/IMorphoMarketV1AdapterV2.sol";
+import {IBlueAdapterV3} from "./interfaces/IBlueAdapterV3.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
-import {
-    AdaptiveCurveIrmLib
-} from "../../lib/morpho-blue-irm/src/adaptive-curve-irm/libraries/periphery/AdaptiveCurveIrmLib.sol";
 
-/// @dev Morpho Market V1 is also known as Morpho Blue.
-/// @dev This adapter must be used with Morpho Market V1 that are protected against inflation attacks with an initial
+/// @dev This adapter must be used with Morpho Blue markets that are protected against inflation attacks with an initial
 /// supply. Following resource is relevant: https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
 /// @dev Rounding error losses on supply/withdraw are realizable.
 /// @dev If expectedSupplyAssets reverts for a market of the marketIds, realAssets will revert and the vault will not be
@@ -25,7 +22,6 @@ import {
 /// address(this), marketParams)).
 /// @dev Markets get removed from the marketIds when the allocation is zero, but it doesn't mean that the adapter has
 /// zero shares on the market.
-/// @dev This adapter can only be used for markets with the adaptive curve irm.
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev Donated shares are lost forever.
 ///
@@ -37,8 +33,9 @@ import {
 /// @dev Burning shares takes time, so reactive depositors might be able to exit before the share price reduction.
 /// @dev It is possible to burn the shares of a market whose IRM reverts.
 /// @dev Burnt shares are lost forever.
-contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
+contract BlueAdapterV3 is IBlueAdapterV3 {
     using MarketParamsLib for MarketParams;
+    using MorphoBalancesLib for IMorpho;
     using SharesMathLib for uint256;
 
     /* IMMUTABLES */
@@ -48,7 +45,6 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     address public immutable asset;
     address public immutable morpho;
     bytes32 public immutable adapterId;
-    address public immutable adaptiveCurveIrm;
 
     /* TIMELOCKS STORAGE */
 
@@ -70,13 +66,12 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
     /* CONSTRUCTOR */
 
-    constructor(address _parentVault, address _morpho, address _adaptiveCurveIrm) {
+    constructor(address _parentVault, address _morpho) {
         factory = msg.sender;
         parentVault = _parentVault;
         morpho = _morpho;
         asset = IVaultV2(_parentVault).asset();
         adapterId = keccak256(abi.encode("this", address(this)));
-        adaptiveCurveIrm = _adaptiveCurveIrm;
         SafeERC20Lib.safeApprove(asset, _morpho, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
     }
@@ -92,9 +87,8 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(data);
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the second bytes4.
-        uint256 _timelock = selector == IMorphoMarketV1AdapterV2.decreaseTimelock.selector
-            ? timelock[bytes4(data[4:8])]
-            : timelock[selector];
+        uint256 _timelock =
+            selector == IBlueAdapterV3.decreaseTimelock.selector ? timelock[bytes4(data[4:8])] : timelock[selector];
         executableAt[data] = block.timestamp + _timelock;
         emit Submit(selector, data, executableAt[data]);
     }
@@ -127,7 +121,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     /// executableAt.
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
-        require(selector != IMorphoMarketV1AdapterV2.decreaseTimelock.selector, AutomaticallyTimelocked());
+        require(selector != IBlueAdapterV3.decreaseTimelock.selector, AutomaticallyTimelocked());
         require(newDuration >= timelock[selector], TimelockNotIncreasing());
 
         timelock[selector] = newDuration;
@@ -136,7 +130,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
-        require(selector != IMorphoMarketV1AdapterV2.decreaseTimelock.selector, AutomaticallyTimelocked());
+        require(selector != IBlueAdapterV3.decreaseTimelock.selector, AutomaticallyTimelocked());
         require(newDuration <= timelock[selector], TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
@@ -181,7 +175,6 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         require(msg.sender == parentVault, Unauthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
-        require(marketParams.irm == adaptiveCurveIrm, IrmMismatch());
         bytes32 marketId = Id.unwrap(marketParams.id());
 
         uint256 mintedShares;
@@ -210,7 +203,6 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         MarketParams memory marketParams = abi.decode(data, (MarketParams));
         require(msg.sender == parentVault, Unauthorized());
         require(marketParams.loanToken == asset, LoanAssetMismatch());
-        require(marketParams.irm == adaptiveCurveIrm, IrmMismatch());
         bytes32 marketId = Id.unwrap(marketParams.id());
 
         uint256 burnedShares;
@@ -252,8 +244,9 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         if (_supplyShares == 0) {
             return 0;
         } else {
+            MarketParams memory marketParams = IMorpho(morpho).idToMarketParams(Id.wrap(marketId));
             (uint256 totalSupplyAssets, uint256 totalSupplyShares,,) =
-                AdaptiveCurveIrmLib.expectedMarketBalances(morpho, marketId, adaptiveCurveIrm);
+                IMorpho(morpho).expectedMarketBalances(marketParams);
             return _supplyShares.toAssetsDown(totalSupplyAssets, totalSupplyShares);
         }
     }
