@@ -6,7 +6,7 @@ import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol"
 
 // forgefmt: disable-start
 
-interface IPublicAllocator {
+interface IBluePublicAllocator {
     /* TYPES */
 
     struct VaultData {

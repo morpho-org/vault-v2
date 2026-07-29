@@ -3,32 +3,30 @@
 pragma solidity 0.8.28;
 
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {IPublicAllocator} from "./interfaces/IPublicAllocator.sol";
+import {IBluePublicAllocator} from "./interfaces/IBluePublicAllocator.sol";
 import {MarketParams} from "../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
-/// @dev To be usable, the PublicAllocator must be set as an allocator of the vault.
+/// @dev To be usable, the BluePublicAllocator must be set as an allocator of the vault.
 /// @dev Meant to be used with VaultV2 vaults only.
 /// @dev Active adapter must be MorphoMarketV1AdapterV2 adapters, otherwise the public allocator's absolute cap system
 /// could break.
-/// @dev The PublicAllocator inherits the vault's roles:
-/// - the vault's allocators can set activeAdapter, the absolute cap, canDeallocate and canAllocateFromIdle
-/// - the vault's curator sets and claims the native penalty
-/// @dev Each reallocate and allocateFromIdle call costs a penalty in native currency, set per vault by the curator. The
-/// penalty is accrued per vault and can be claimed by the vault's curator.
+/// @dev The vault's allocators can manage the public allocators' settings.
+/// @dev Each reallocate and allocateFromIdle call costs a penalty in native currency, set per vault by the allocators.
+/// The penalty is accrued per vault and can be claimed by the vault's allocators.
 /// @dev The vault's caps are still enforced on the allocation, so allocation calls reverts if it would exceed them.
 /// @dev The public allocator's caps are not checked on allocations from the vault (either by allocators or through
 /// deposits).
-/// @dev The PublicAllocator opens the door for anybody to manipulate relative caps through short-term deposits (but it
-/// requires capital).
+/// @dev The BluePublicAllocator opens the door for anybody to manipulate relative caps through short-term deposits (but
+/// it requires capital).
 /// @dev reallocate and allocateFromIdle can be made to revert by anyone frontrunning them (not only allocators): an
 /// allocate reverts if the vault cap is filled first, a deallocate reverts if shares stop covering assets.
-contract PublicAllocator is IPublicAllocator {
+contract BluePublicAllocator is IBluePublicAllocator {
     /* STORAGE */
 
     mapping(address vault => mapping(bytes32 id => uint256)) public absoluteCap;
     mapping(address vault => mapping(bytes32 id => bool)) public canDeallocate;
     mapping(address vault => mapping(address adapter => bool)) public activeAdapter;
-    mapping(address vault => IPublicAllocator.VaultData) public vaultData;
+    mapping(address vault => IBluePublicAllocator.VaultData) public vaultData;
 
     /* AUTHORIZED FUNCTIONS */
 
@@ -62,7 +60,7 @@ contract PublicAllocator is IPublicAllocator {
     }
 
     function setNativePenalty(address vault, uint256 newNativePenalty) external {
-        require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
+        require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         require(newNativePenalty <= type(uint120).max, CastOverflow());
         // forge-lint: disable-next-item(unsafe-typecast) safe because newNativePenalty <= type(uint120).max.
         vaultData[vault].nativePenalty = uint120(newNativePenalty);
@@ -70,7 +68,7 @@ contract PublicAllocator is IPublicAllocator {
     }
 
     function claimNativePenalty(address vault, address payable receiver) external {
-        require(msg.sender == IVaultV2(vault).curator(), Unauthorized());
+        require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         uint256 claimed = vaultData[vault].accruedNativePenalty;
         vaultData[vault].accruedNativePenalty = 0;
         emit ClaimNativePenalty(msg.sender, vault, claimed, receiver);
