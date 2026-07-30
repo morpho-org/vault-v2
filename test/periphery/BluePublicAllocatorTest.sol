@@ -116,7 +116,9 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
     /* MULTICALL */
 
-    function testMulticall(bool isActiveAdapter_, uint256 cap, bool canDeallocate_, bool canAllocateFromIdle_) public {
+    function testMulticall(bool isActiveAdapter_, uint256 cap, bool callPullFromMarket_, bool callPullFromIdle_)
+        public
+    {
         bytes[] memory data = new bytes[](4);
         data[0] = abi.encodeCall(
             IBluePublicAllocator.setIsActiveAdapter, (address(vault), address(adapter), isActiveAdapter_)
@@ -124,18 +126,19 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         data[1] =
             abi.encodeCall(IBluePublicAllocator.setAbsoluteCap, (address(vault), address(adapter), marketParams2, cap));
         data[2] = abi.encodeCall(
-            IBluePublicAllocator.setCanDeallocate, (address(vault), address(adapter), marketParams1, canDeallocate_)
+            IBluePublicAllocator.setCanDeallocate,
+            (address(vault), address(adapter), marketParams1, callPullFromMarket_)
         );
-        data[3] = abi.encodeCall(IBluePublicAllocator.setCanAllocateFromIdle, (address(vault), canAllocateFromIdle_));
+        data[3] = abi.encodeCall(IBluePublicAllocator.setCanAllocateFromIdle, (address(vault), callPullFromIdle_));
 
         vm.prank(allocator);
         bluePublicAllocator.multicall(data);
 
         assertEq(bluePublicAllocator.isActiveAdapter(address(vault), address(adapter)), isActiveAdapter_);
         assertEq(bluePublicAllocator.absoluteCap(address(vault), id2), cap);
-        assertEq(bluePublicAllocator.canDeallocate(address(vault), id1), canDeallocate_);
-        (bool canAllocateFromIdleActual,,) = bluePublicAllocator.vaultData(address(vault));
-        assertEq(canAllocateFromIdleActual, canAllocateFromIdle_);
+        assertEq(bluePublicAllocator.callPullFromMarket(address(vault), id1), callPullFromMarket_);
+        (bool callPullFromIdleActual,,) = bluePublicAllocator.vaultData(address(vault));
+        assertEq(callPullFromIdleActual, callPullFromIdle_);
     }
 
     function testMulticallBubblesRevert(address caller, bool isActiveAdapter_) public {
@@ -178,7 +181,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.expectEmit();
         emit IBluePublicAllocator.SetCanDeallocate(allocator, address(vault), address(adapter), marketParams1, value);
         _setCanDeallocate(marketParams1, value);
-        assertEq(bluePublicAllocator.canDeallocate(address(vault), id1), value);
+        assertEq(bluePublicAllocator.callPullFromMarket(address(vault), id1), value);
     }
 
     function testSetCanDeallocateUnauthorized(address caller) public {
@@ -192,8 +195,8 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.expectEmit();
         emit IBluePublicAllocator.SetCanAllocateFromIdle(allocator, address(vault), value);
         _setCanAllocateFromIdle(value);
-        (bool canAllocateFromIdle_,,) = bluePublicAllocator.vaultData(address(vault));
-        assertEq(canAllocateFromIdle_, value);
+        (bool callPullFromIdle_,,) = bluePublicAllocator.vaultData(address(vault));
+        assertEq(callPullFromIdle_, value);
     }
 
     function testSetCanAllocateFromIdleUnauthorized(address caller) public {
