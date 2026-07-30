@@ -116,9 +116,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
     /* MULTICALL */
 
-    function testMulticall(bool isActiveAdapter_, uint256 cap, bool canPullFromMarket_, bool canPullFromIdle_)
-        public
-    {
+    function testMulticall(bool isActiveAdapter_, uint256 cap, bool canPullFromMarket_, bool canPullFromIdle_) public {
         bytes[] memory data = new bytes[](4);
         data[0] = abi.encodeCall(
             IBluePublicAllocator.setIsActiveAdapter, (address(vault), address(adapter), isActiveAdapter_)
@@ -126,8 +124,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         data[1] =
             abi.encodeCall(IBluePublicAllocator.setAbsoluteCap, (address(vault), address(adapter), marketParams2, cap));
         data[2] = abi.encodeCall(
-            IBluePublicAllocator.setCanDeallocate,
-            (address(vault), address(adapter), marketParams1, canPullFromMarket_)
+            IBluePublicAllocator.setCanDeallocate, (address(vault), address(adapter), marketParams1, canPullFromMarket_)
         );
         data[3] = abi.encodeCall(IBluePublicAllocator.setCanAllocateFromIdle, (address(vault), canPullFromIdle_));
 
