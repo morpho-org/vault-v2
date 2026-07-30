@@ -179,7 +179,9 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
     function testSetCanDeallocate(bool value) public {
         vm.expectEmit();
-        emit IBluePublicAllocator.SetCanDeallocate(allocator, address(vault), address(adapter), marketParams1, value);
+        emit IBluePublicAllocator.SetCallPullFromMarket(
+            allocator, address(vault), address(adapter), marketParams1, value
+        );
         _setCanDeallocate(marketParams1, value);
         assertEq(bluePublicAllocator.callPullFromMarket(address(vault), id1), value);
     }
@@ -193,7 +195,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
     function testSetCanAllocateFromIdle(bool value) public {
         vm.expectEmit();
-        emit IBluePublicAllocator.SetCanAllocateFromIdle(allocator, address(vault), value);
+        emit IBluePublicAllocator.SetCallPullFromIdle(allocator, address(vault), value);
         _setCanAllocateFromIdle(value);
         (bool callPullFromIdle_,,) = bluePublicAllocator.vaultData(address(vault));
         assertEq(callPullFromIdle_, value);

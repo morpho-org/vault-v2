@@ -67,13 +67,13 @@ contract BluePublicAllocator is IBluePublicAllocator {
     {
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         callPullFromMarket[vault][vaultBlueId(adapter, marketParams)] = newCanDeallocate;
-        emit SetCanDeallocate(msg.sender, vault, adapter, marketParams, newCanDeallocate);
+        emit SetCallPullFromMarket(msg.sender, vault, adapter, marketParams, newCanDeallocate);
     }
 
     function setCanAllocateFromIdle(address vault, bool newCanDeallocate) external {
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         vaultData[vault].callPullFromIdle = newCanDeallocate;
-        emit SetCanAllocateFromIdle(msg.sender, vault, newCanDeallocate);
+        emit SetCallPullFromIdle(msg.sender, vault, newCanDeallocate);
     }
 
     function setNativePenalty(address vault, uint256 newNativePenalty) external {
