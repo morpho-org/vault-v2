@@ -11,11 +11,13 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
     mapping(address parentVault => mapping(address midnight => address)) public midnightAdapter;
     mapping(address account => bool) public isMidnightAdapter;
     uint256[] public durations;
+    address public immutable auctionRatifier;
 
     /* CONSTRUCTOR */
 
-    constructor(uint256[] memory _durations) {
+    constructor(uint256[] memory _durations, address _auctionRatifier) {
         durations = _durations;
+        auctionRatifier = _auctionRatifier;
     }
 
     /* GETTERS */
@@ -27,7 +29,8 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* FUNCTIONS */
 
     function createMidnightAdapter(address parentVault, address midnight) external returns (address) {
-        address _midnightAdapter = address(new MidnightAdapter{salt: bytes32(0)}(parentVault, midnight, durations));
+        address _midnightAdapter =
+            address(new MidnightAdapter{salt: bytes32(0)}(parentVault, midnight, durations, auctionRatifier));
         midnightAdapter[parentVault][midnight] = _midnightAdapter;
         isMidnightAdapter[_midnightAdapter] = true;
         emit CreateMidnightAdapter(parentVault, midnight, _midnightAdapter);

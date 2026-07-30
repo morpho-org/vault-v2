@@ -101,6 +101,11 @@ contract MidnightAdapterTest is Test {
 
     uint256[] internal allDurations = [1 days, 7 days, 30 days, 90 days, 180 days];
 
+    /// @dev Overridden by subclasses that need the adapter to authorize a specific ratifier at construction time.
+    function auctionRatifierAddress() internal virtual returns (address) {
+        return address(0);
+    }
+
     function setUp() public virtual {
         owner = makeAddr("owner");
         curator = makeAddr("curator");
@@ -119,7 +124,7 @@ contract MidnightAdapterTest is Test {
 
         parentVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
-        factory = new MidnightAdapterFactory(allDurations);
+        factory = new MidnightAdapterFactory(allDurations, auctionRatifierAddress());
         adapter = MidnightAdapter(factory.createMidnightAdapter(address(parentVault), address(midnight)));
 
         // Adapter authorizes itself as ratifier
