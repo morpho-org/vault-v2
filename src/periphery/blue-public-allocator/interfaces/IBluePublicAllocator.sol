@@ -5,7 +5,7 @@ pragma solidity >=0.8.0;
 import {MarketParams} from "../../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 struct VaultData {
-    bool callPullFromIdle;
+    bool canPullFromIdle;
     uint120 nativePenalty;
     uint120 accruedNativePenalty;
 }
@@ -16,8 +16,8 @@ interface IBluePublicAllocator {
     /* EVENTS */
 
     event SetAbsoluteCap(address indexed sender, address indexed vault, address adapter, MarketParams marketParams, uint256 absoluteCap);
-    event SetCallPullFromMarket(address indexed sender, address indexed vault, address adapter, MarketParams marketParams, bool callPullFromMarket);
-    event SetCallPullFromIdle(address indexed sender, address indexed vault, bool callPullFromMarket);
+    event SetCanPullFromMarket(address indexed sender, address indexed vault, address adapter, MarketParams marketParams, bool canPullFromMarket);
+    event SetCanPullFromIdle(address indexed sender, address indexed vault, bool canPullFromMarket);
     event SetIsActiveAdapter(address indexed sender, address indexed vault, address indexed adapter, bool isActiveAdapter);
     event SetNativePenalty(address indexed sender, address indexed vault, uint256 newNativePenalty);
     event ClaimNativePenalty(address indexed sender, address indexed vault, uint256 claimed, address indexed receiver);
@@ -37,9 +37,9 @@ interface IBluePublicAllocator {
     /* VIEW */
 
     function absoluteCap(address vault, bytes32 id) external view returns (uint256);
-    function callPullFromMarket(address vault, bytes32 id) external view returns (bool);
+    function canPullFromMarket(address vault, bytes32 id) external view returns (bool);
     function isActiveAdapter(address vault, address adapter) external view returns (bool);
-    function vaultData(address vault) external view returns (bool callPullFromIdle, uint120 nativePenalty, uint120 accruedNativePenalty);
+    function vaultData(address vault) external view returns (bool canPullFromIdle, uint120 nativePenalty, uint120 accruedNativePenalty);
 
     /* FUNCTIONS */
 
