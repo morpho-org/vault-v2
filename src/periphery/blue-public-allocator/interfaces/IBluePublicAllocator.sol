@@ -17,7 +17,7 @@ interface IBluePublicAllocator {
 
     event SetAbsoluteCap(address indexed sender, address indexed vault, address adapter, MarketParams marketParams, uint256 absoluteCap);
     event SetCanPullFromMarket(address indexed sender, address indexed vault, address adapter, MarketParams marketParams, bool canPullFromMarket);
-    event SetCanPullFromIdle(address indexed sender, address indexed vault, bool canPullFromMarket);
+    event SetCanPullFromIdle(address indexed sender, address indexed vault, bool canPullFromIdle);
     event SetIsActiveAdapter(address indexed sender, address indexed vault, address indexed adapter, bool isActiveAdapter);
     event SetNativePenalty(address indexed sender, address indexed vault, uint256 newNativePenalty);
     event ClaimNativePenalty(address indexed sender, address indexed vault, uint256 claimed, address indexed receiver);
