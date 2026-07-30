@@ -210,7 +210,7 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /// @dev Can be called by this adapter from a sell callback, a withdraw, or a loss realization.
-    /// @dev Can be called by a user through forceDeallocate to trigger a sell take by the adapter.
+    /// @dev Can be called through forceDeallocate to trigger a sell take by the adapter.
     function deallocate(bytes memory data, uint256 sellerAssets, bytes4 messageSig, address caller)
         external
         returns (bytes32[] memory, int256)

@@ -11,6 +11,7 @@ import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IAdapter} from "../src/interfaces/IAdapter.sol";
 import {IMidnightAdapter} from "../src/adapters/interfaces/IMidnightAdapter.sol";
+import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 import {IMidnightAdapterFactory} from "../src/adapters/interfaces/IMidnightAdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
 import {Midnight} from "../lib/midnight/src/Midnight.sol";
@@ -38,6 +39,35 @@ contract ExtraAssetsAdapter is IAdapter {
 
     function deallocate(bytes memory, uint256, bytes4, address) external pure returns (bytes32[] memory, int256) {
         return (new bytes32[](0), 0);
+    }
+}
+
+/// @notice Realizes the losses of a midnight adapter in a market.
+contract MidnightLossRealizer {
+    address public immutable midnight;
+
+    constructor(address _midnight) {
+        midnight = _midnight;
+        IMidnight(_midnight).setIsAuthorized(address(this), true, address(this));
+    }
+
+    function realizeLoss(IMidnightAdapter adapter, Market memory market) external {
+        Offer memory offer;
+        offer.market = market;
+        offer.buy = true;
+        offer.maker = address(this);
+        offer.expiry = block.timestamp;
+        offer.tick = MAX_TICK;
+        offer.ratifier = address(this);
+        offer.maxUnits = 1;
+        offer.continuousFeeCap = type(uint256).max;
+
+        IVaultV2(adapter.parentVault())
+            .forceDeallocate(address(adapter), abi.encode(offer, bytes("")), 0, address(this));
+    }
+
+    function isRatified(Offer memory, bytes memory, address) external view returns (bytes32) {
+        return CALLBACK_SUCCESS;
     }
 }
 
@@ -776,6 +806,30 @@ contract MidnightAdapterTest is Test {
         parentVault.forceDeallocate(
             address(adapter), abi.encode(offer, abi.encode(bytes32(0), 0, proof([offer]))), 0.5e18, address(this)
         );
+    }
+
+    function testForceDeallocateRealizesLoss() public {
+        Offer memory boughtOffer = buy(7 days, 1e18);
+        bytes32 marketId = _marketId(boughtOffer.market);
+
+        // Partial repay so the bad debt below does not max out the loss factor.
+        deal(address(loanToken), address(this), 0.7e18);
+        loanToken.approve(address(midnight), type(uint256).max);
+        midnight.repay(boughtOffer.market, 0.7e18, taker, address(0), "");
+
+        OracleMock(storedCollaterals[0].oracle).setPrice(0);
+        OracleMock(storedCollaterals[1].oracle).setPrice(0);
+        midnight.liquidate(boughtOffer.market, 0, 0, 0, taker, false, address(this), address(0), "");
+
+        // The slash is only pending: the position's raw credit is untouched.
+        assertEq(midnight.credit(marketId, address(adapter)), 1e18, "raw credit");
+
+        MidnightLossRealizer realizer = new MidnightLossRealizer(address(midnight));
+        realizer.realizeLoss(IMidnightAdapter(address(adapter)), boughtOffer.market);
+
+        (uint128 marketNetCredit,) = adapter._markets(marketId);
+        assertApproxEqAbs(marketNetCredit, 0.7e18, 1, "netCredit");
+        assertApproxEqAbs(parentVault.allocation(adapter.adapterId()), 0.7e18, 1, "allocation");
     }
 
     /* WITHDRAW TO VAULT */
