@@ -72,9 +72,9 @@ function summaryDeallocate(bytes data, uint256 assets, bytes4 selector, address 
     requireInvariant allocationIsInt256(ids[2]);
 
     // Post-conditions on the returned ids and change that ensures forceDeallocate with Zero does not revert:
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assumption on adapter's return values for the rule canForceDeallocateZero";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "assumption on adapter's return values for the rule canForceDeallocateZero";
-    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= max_int256(), "assumption on adapter's return values for the rule canForceDeallocateZero";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assumption on market-id allocations, else deallocate reverts (see deallocateInputValidation); see groupAllocationGteLeafAllocation in AllocationsHierarchy.spec for adapter-id/collateral-id";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change >= 0, "See changeForAllocateOrDeallocateIsBoundedByAllocation for the market id and groupAllocationGteLeafAllocation in AllocationsHierarchy.spec for adapter-id/collateral-id";
+    require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation + change <= max_int256(), "assumption on adapter's return values";
 
     return (ids, change);
 }
