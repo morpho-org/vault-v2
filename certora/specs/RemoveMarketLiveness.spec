@@ -64,8 +64,8 @@ function summaryDeallocate(env e, bytes data, uint256 assets, bytes4 selector, a
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation > 0, "assume that the allocation is positive";
     require forall uint256 i. i < ids.length => currentContract.caps[ids[i]].allocation < 2 ^ 20 * 2 ^ 128, "market v1 fits total supply assets on 128 bits, and assume at most 2^20 markets";
     require change < 2 ^ 128, "market v1 fits total supply assets on 128 bits";
-    require currentContract.caps[ids[0]].allocation >= currentContract.caps[ids[2]].allocation, "adapter id allocation is a sum of market id allocation";
-    require currentContract.caps[ids[1]].allocation >= currentContract.caps[ids[2]].allocation, "collateral token id allocation is a sum of market id allocation";
+    require currentContract.caps[ids[0]].allocation >= currentContract.caps[ids[2]].allocation, "see groupAllocationGteLeafAllocation in AllocationsHierarchy.spec";
+    require currentContract.caps[ids[1]].allocation >= currentContract.caps[ids[2]].allocation, "see groupAllocationGteLeafAllocation in AllocationsHierarchy.spec";
     return (ids, change);
 }
 
