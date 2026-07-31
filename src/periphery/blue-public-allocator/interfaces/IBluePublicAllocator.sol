@@ -5,7 +5,7 @@ pragma solidity >=0.8.0;
 import {MarketParams} from "../../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 struct VaultData {
-    bool canAllocateFromIdle;
+    bool canPullFromIdle;
     uint120 nativePenalty;
     uint120 accruedNativePenalty;
 }
@@ -16,8 +16,8 @@ interface IBluePublicAllocator {
     /* EVENTS */
 
     event SetAbsoluteCap(address indexed sender, address indexed vault, address adapter, MarketParams marketParams, uint256 absoluteCap);
-    event SetCanDeallocate(address indexed sender, address indexed vault, address adapter, MarketParams marketParams, bool canDeallocate);
-    event SetCanAllocateFromIdle(address indexed sender, address indexed vault, bool canDeallocate);
+    event SetCanPullFromMarket(address indexed sender, address indexed vault, address adapter, MarketParams marketParams, bool canPullFromMarket);
+    event SetCanPullFromIdle(address indexed sender, address indexed vault, bool canPullFromIdle);
     event SetIsActiveAdapter(address indexed sender, address indexed vault, address indexed adapter, bool isActiveAdapter);
     event SetNativePenalty(address indexed sender, address indexed vault, uint256 newNativePenalty);
     event ClaimNativePenalty(address indexed sender, address indexed vault, uint256 claimed, address indexed receiver);
@@ -28,7 +28,8 @@ interface IBluePublicAllocator {
 
     error Unauthorized();
     error AbsoluteCapExceeded();
-    error CannotDeallocate();
+    error CannotPullFromMarket();
+    error CannotPullFromIdle();
     error NativeTransferFailed();
     error IncorrectNativePenalty();
     error InactiveAdapter();
@@ -37,17 +38,17 @@ interface IBluePublicAllocator {
     /* VIEW */
 
     function absoluteCap(address vault, bytes32 id) external view returns (uint256);
-    function canDeallocate(address vault, bytes32 id) external view returns (bool);
+    function canPullFromMarket(address vault, bytes32 id) external view returns (bool);
     function isActiveAdapter(address vault, address adapter) external view returns (bool);
-    function vaultData(address vault) external view returns (bool canAllocateFromIdle, uint120 nativePenalty, uint120 accruedNativePenalty);
+    function vaultData(address vault) external view returns (bool canPullFromIdle, uint120 nativePenalty, uint120 accruedNativePenalty);
 
     /* FUNCTIONS */
 
     function multicall(bytes[] calldata data) external;
     function setIsActiveAdapter(address vault, address adapter, bool newIsActiveAdapter) external;
     function setAbsoluteCap(address vault, address adapter, MarketParams calldata marketParams, uint256 newAbsoluteCap) external;
-    function setCanDeallocate(address vault, address adapter, MarketParams calldata marketParams, bool newCanDeallocate) external;
-    function setCanAllocateFromIdle(address vault, bool newCanDeallocate) external;
+    function setCanPullFromMarket(address vault, address adapter, MarketParams calldata marketParams, bool newCanPullFromMarket) external;
+    function setCanPullFromIdle(address vault, bool newCanPullFromIdle) external;
     function setNativePenalty(address vault, uint256 newNativePenalty) external;
     function claimNativePenalty(address vault, address payable receiver) external;
     function reallocate(address vault, address deallocateAdapter, MarketParams calldata deallocateMarketParams, address allocateAdapter, MarketParams calldata allocateMarketParams, uint128 assets) external payable;

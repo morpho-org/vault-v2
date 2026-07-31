@@ -24,7 +24,7 @@ contract BluePublicAllocator is IBluePublicAllocator {
     /* STORAGE */
 
     mapping(address vault => mapping(bytes32 id => uint256)) public absoluteCap;
-    mapping(address vault => mapping(bytes32 id => bool)) public canDeallocate;
+    mapping(address vault => mapping(bytes32 id => bool)) public canPullFromMarket;
     mapping(address vault => mapping(address adapter => bool)) public isActiveAdapter;
     mapping(address vault => VaultData) public vaultData;
 
@@ -62,18 +62,21 @@ contract BluePublicAllocator is IBluePublicAllocator {
         emit SetAbsoluteCap(msg.sender, vault, adapter, marketParams, newAbsoluteCap);
     }
 
-    function setCanDeallocate(address vault, address adapter, MarketParams calldata marketParams, bool newCanDeallocate)
-        external
-    {
+    function setCanPullFromMarket(
+        address vault,
+        address adapter,
+        MarketParams calldata marketParams,
+        bool newCanPullFromMarket
+    ) external {
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
-        canDeallocate[vault][vaultBlueId(adapter, marketParams)] = newCanDeallocate;
-        emit SetCanDeallocate(msg.sender, vault, adapter, marketParams, newCanDeallocate);
+        canPullFromMarket[vault][vaultBlueId(adapter, marketParams)] = newCanPullFromMarket;
+        emit SetCanPullFromMarket(msg.sender, vault, adapter, marketParams, newCanPullFromMarket);
     }
 
-    function setCanAllocateFromIdle(address vault, bool newCanDeallocate) external {
+    function setCanPullFromIdle(address vault, bool newCanPullFromIdle) external {
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
-        vaultData[vault].canAllocateFromIdle = newCanDeallocate;
-        emit SetCanAllocateFromIdle(msg.sender, vault, newCanDeallocate);
+        vaultData[vault].canPullFromIdle = newCanPullFromIdle;
+        emit SetCanPullFromIdle(msg.sender, vault, newCanPullFromIdle);
     }
 
     function setNativePenalty(address vault, uint256 newNativePenalty) external {
@@ -109,7 +112,7 @@ contract BluePublicAllocator is IBluePublicAllocator {
         require(isActiveAdapter[vault][deallocateAdapter], InactiveAdapter());
         require(isActiveAdapter[vault][allocateAdapter], InactiveAdapter());
         bytes32 deallocateId = vaultBlueId(deallocateAdapter, deallocateMarketParams);
-        require(canDeallocate[vault][deallocateId], CannotDeallocate());
+        require(canPullFromMarket[vault][deallocateId], CannotPullFromMarket());
 
         IVaultV2(vault).deallocate(deallocateAdapter, abi.encode(deallocateMarketParams), assets);
         IVaultV2(vault).allocate(allocateAdapter, abi.encode(allocateMarketParams), assets);
@@ -130,7 +133,7 @@ contract BluePublicAllocator is IBluePublicAllocator {
         // forge-lint: disable-next-item(unsafe-typecast) safe because msg.value == nativePenalty <= type(uint120).max.
         if (msg.value > 0) vaultData[vault].accruedNativePenalty += uint120(msg.value);
         require(isActiveAdapter[vault][adapter], InactiveAdapter());
-        require(vaultData[vault].canAllocateFromIdle, CannotDeallocate());
+        require(vaultData[vault].canPullFromIdle, CannotPullFromIdle());
 
         IVaultV2(vault).allocate(adapter, abi.encode(marketParams), assets);
 
