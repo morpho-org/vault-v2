@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-// ERC4626 round-trip properties (a16z erc4626-tests/ERC4626.prop.sol L244-318):
-// no round trip lets a user extract more value than they put in, e.g.
-// previewRedeem(previewDeposit(a)) <= a and previewWithdraw(previewMint(s)) >= s.
-// Interest and fee accrual are summarized to arbitrary but fixed totals via
-// accrueInterestView (a sound over-approximation that removes the adapter loop
-// and external reads).
+// inspired by https://github.com/a16z/erc4626-tests/blob/ac485460e014f22807c1ff687e0b4dc3af96ee40/ERC4626.test.sol#L251-L317
 
 methods {
     function convertToShares(uint256) external returns (uint256) envfree;
