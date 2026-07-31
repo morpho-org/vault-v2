@@ -108,7 +108,6 @@ rule canForceDeallocateZero(env e, address adapter, bytes data, address onBehalf
 
     // ensure that withdraw within forceDeallocate will not revert due to gates.
     require canSendShares(onBehalf), "onBehalf must pass canSendShares check";
-    require canReceiveAssets(currentContract), "vault must pass canReceiveAssets check";
 
     // call set up
     require e.msg.value == 0, "forceDeallocate is non-payable";
