@@ -6,7 +6,7 @@ Gate contracts are in [gates](./gates/).
 
 ## Blue Public Allocator
 
-`BluePublicAllocator` lets anyone (not only the vault's allocators) reallocate a Vault V2's liquidity between Morpho Blue markets reached through the `MorphoMarketV1AdapterV2`, within the vault's caps, and the public allocator's own limits.
+`BluePublicAllocator` lets anyone (not only the vault's allocators) reallocate a Vault V2's liquidity between Morpho Blue markets reached through the `BlueAdapterV3`, within the vault's caps, and the public allocator's own limits.
 Vault allocators configure which adapters are active, which markets can be deallocated from, each market's absolute cap, and whether idle assets can be allocated publicly.
 Public callers must pay the vault's native penalty on each `reallocate` or `allocateFromIdle` call.
 
