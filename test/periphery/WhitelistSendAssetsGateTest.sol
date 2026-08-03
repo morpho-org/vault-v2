@@ -3,11 +3,11 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {WhitelistSendAssetsGate} from "../../src/periphery/WhitelistSendAssetsGate.sol";
+import {WhitelistSendAssetsGate} from "../../src/periphery/gates/WhitelistSendAssetsGate.sol";
 import {
     IWhitelistSendAssetsGate,
     SET_IS_WHITELISTED_TYPEHASH
-} from "../../src/periphery/interfaces/IWhitelistSendAssetsGate.sol";
+} from "../../src/periphery/gates/interfaces/IWhitelistSendAssetsGate.sol";
 
 contract IntermediaryMock {
     address public initiator;
