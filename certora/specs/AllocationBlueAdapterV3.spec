@@ -17,7 +17,7 @@ methods {
     function Utils.id(MorphoHarness.MarketParams) external returns (MorphoHarness.Id) envfree;
     function Utils.wrapId(bytes32) external returns (MorphoHarness.Id) envfree;
 
-    function _.borrowRateView(bytes32, MorphoHarness.Market memory, address) internal => constantBorrowRate expect(uint256);
+    function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
     function _.borrowRate(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
 
     function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoBlueAdapterV3V2WrapperSummary(e, true, data, assets, bs, a) expect(bytes32[], int256);
