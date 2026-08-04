@@ -145,6 +145,7 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
 rule expectedSupplyAssetsIsBounded(env e, bytes32 marketId) {
     requireInvariant adapterSupplySharesIsLessThanActualSupplyShares(marketId);
     require MorphoBlue.supplyShares(Utils.wrapId(marketId), BlueAdapterV3) < MorphoBlue.totalSupplyShares(Utils.wrapId(marketId)), "total supply shares is the sum of all the supply shares";
+
     // expectedSupplyAssets reconstructs the market params via idToMarketParams(marketId), and expectedMarketBalances
     // reads the market balances at the id() of those reconstructed params. Requiring that this id equals marketId
     // aligns the market bucket read by expectedMarketBalances with the one constrained above; this is sound because
