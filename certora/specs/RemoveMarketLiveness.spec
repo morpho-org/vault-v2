@@ -34,7 +34,7 @@ methods {
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => summaryDeallocate(e, data, assets, selector, sender) expect(bytes32[], int256);
 
     // Assume that the IRM doesn't revert.
-    function _.expectedMarketBalances(address, Morpho.MarketParams memory marketParams) internal => summaryExpectedMarketBalances(marketParams);
+    function _.expectedMarketBalances(address, Morpho.MarketParams memory marketParams) internal => summaryExpectedMarketBalances(marketParams) expect(uint256, uint256, uint256, uint256);
 }
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
