@@ -9,7 +9,7 @@ methods {
 
     // Assume the IRM borrow rate is constant, since skim does not interact with borrowing
     // and accrueInterest should not depend on the skim operation.
-    function _.borrowRateView(BlueAdapterV3.MarketParams, MorphoHarness.Market memory) external => CONSTANT;
+    function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => CONSTANT;
 
     // safeTransfer summarised to track the adapter's token balances in a ghost mapping,
     // avoiding the need to model full ERC20 contracts.
