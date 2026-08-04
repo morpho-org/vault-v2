@@ -5,7 +5,7 @@ import "Invariants.spec";
 
 using MorphoVaultV1Adapter as MorphoVaultV1Adapter;
 using MetaMorpho as MorphoVaultV1;
-using MorphoHarness as MorphoMarketV1;
+using MorphoHarness as MorphoBlue;
 
 methods {
     function _.extSloads(bytes32[]) external => NONDET DELETE;
@@ -14,7 +14,7 @@ methods {
     function MorphoVaultV1.balanceOf(address) external returns (uint256) envfree;
     function MorphoVaultV1Adapter.ids() external returns (bytes32[]) envfree;
     function MorphoVaultV1Adapter.allocation() external returns (uint256) envfree;
-    function MorphoMarketV1.supplyShares(MorphoHarness.Id, address) external returns (uint256) envfree;
+    function MorphoBlue.supplyShares(MorphoHarness.Id, address) external returns (uint256) envfree;
 
     function _.allocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoVaultV1AdapterWrapperSummary(e, true, data, assets, bs, a) expect(bytes32[], int256);
     function _.deallocate(bytes data, uint256 assets, bytes4 bs, address a) external with(env e) => morphoVaultV1AdapterWrapperSummary(e, false, data, assets, bs, a) expect(bytes32[], int256);
@@ -49,7 +49,7 @@ function mulDivSummary(uint256 x, uint256 y, uint256 denominator) returns uint25
 }
 
 function summarySupplyShares(MorphoHarness.Id id, address user) returns uint256 {
-    return MorphoMarketV1.supplyShares(id, user);
+    return MorphoBlue.supplyShares(id, user);
 }
 
 persistent ghost uint256 constantBorrowRate;

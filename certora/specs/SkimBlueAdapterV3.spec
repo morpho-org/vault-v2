@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2026 Morpho Association
 
-using MorphoMarketV1AdapterV2 as MorphoMarketV1AdapterV2;
-using MorphoHarness as MorphoMarketV1;
+using BlueAdapterV3 as BlueAdapterV3;
+using MorphoHarness as MorphoBlue;
 using RevertCondition as RevertCondition;
 
 methods {
 
-    // Assume the adaptive IRM borrow rate is constant, since skim does not interact with borrowing
+    // Assume the IRM borrow rate is constant, since skim does not interact with borrowing
     // and accrueInterest should not depend on the skim operation.
-    function _.borrowRateView(bytes32, MorphoHarness.Market memory, address) internal => CONSTANT;
+    function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => CONSTANT;
 
     // safeTransfer summarised to track the adapter's token balances in a ghost mapping,
     // avoiding the need to model full ERC20 contracts.
@@ -25,7 +25,7 @@ ghost mapping(address => uint256) adapterBalanceOf;
 
 // Returns the ghost-tracked balance for the adapter, and a non-deterministic value for all other accounts.
 function summaryBalanceOf(address token, address account) returns uint256 {
-    if (account == MorphoMarketV1AdapterV2) {
+    if (account == BlueAdapterV3) {
         return adapterBalanceOf[token];
     }
 
@@ -36,11 +36,11 @@ function summaryBalanceOf(address token, address account) returns uint256 {
 
 // Models safeTransfer by updating the adapter's ghost balances on sends/receives.
 function summarySafeTransferFrom(address token, address from, address to, uint256 amount) {
-    if (from == MorphoMarketV1AdapterV2) {
+    if (from == BlueAdapterV3) {
         // Safe require: mirrors the ERC20 revert on insufficient balance.
         adapterBalanceOf[token] = require_uint256(adapterBalanceOf[token] - amount);
     }
-    if (to == MorphoMarketV1AdapterV2) {
+    if (to == BlueAdapterV3) {
         // Safe require: mirrors the ERC20 revert on balance overflow.
         adapterBalanceOf[token] = require_uint256(adapterBalanceOf[token] + amount);
     }
@@ -48,7 +48,7 @@ function summarySafeTransferFrom(address token, address from, address to, uint25
 
 // Verifies that calling skim does not change the adapter's accounting (realAssets) and
 // skim only transfers tokens already held by the adapter to skimRecipient.
-rule skimDoesNotAffectAccountingMarketV1Adapter(env e, address token) {
+rule skimDoesNotAffectAccountingBlueAdapterV3(env e, address token) {
     uint256 realAssetsBefore = realAssets(e);
 
     skim(e, token);
@@ -61,9 +61,9 @@ rule skimDoesNotAffectAccountingMarketV1Adapter(env e, address token) {
 // 1. the call data was not submitted,
 // 2. the timelock has not expired,
 // 3. the function is abdicated.
-// See timelockFailsMarketV1Adapter() in "../helpers/RevertCondition.sol"
+// See timelockFailsBlueAdapterV3() in "../helpers/RevertCondition.sol"
 // The helper contract is called first, so this specification can miss trivial revert conditions like e.msg.value != 0.
-rule setSkimRecipientRevertConditionMarketV1Adapter(env e, address newRecipient) {
+rule setSkimRecipientRevertConditionBlueAdapterV3(env e, address newRecipient) {
     bool revertCondition = RevertCondition.setSkimRecipient(e, newRecipient);
 
     setSkimRecipient@withrevert(e, newRecipient);

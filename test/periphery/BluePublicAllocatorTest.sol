@@ -2,22 +2,23 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity ^0.8.28;
 
-import "../integration/MorphoMarketV1IntegrationTest.sol";
+import "../integration/BlueIntegrationTest.sol";
 
 import {BluePublicAllocator} from "../../src/periphery/blue-public-allocator/BluePublicAllocator.sol";
 import {IBluePublicAllocator} from "../../src/periphery/blue-public-allocator/interfaces/IBluePublicAllocator.sol";
-import {MorphoMarketV1AdapterV2} from "../../src/adapters/MorphoMarketV1AdapterV2.sol";
+import {BlueAdapterV3Factory} from "../../src/adapters/BlueAdapterV3Factory.sol";
+import {IBlueAdapterV3} from "../../src/adapters/interfaces/IBlueAdapterV3.sol";
 
 contract RejectNative {}
 
 /// @dev The public allocator is specialized to Morpho Market V1 (Morpho Blue) via the Morpho Market V1 adapter (V2).
 /// These tests use a real vault + adapter + Morpho Blue markets so that the absolute cap is keyed by the exact
 /// per-market vault id (keccak256(abi.encode("this/marketParams", adapter, marketParams))).
-contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
+contract BluePublicAllocatorTest is BlueIntegrationTest {
     using MorphoBalancesLib for IMorpho;
 
     BluePublicAllocator internal bluePublicAllocator;
-    IMorphoMarketV1AdapterV2 internal secondAdapter;
+    IBlueAdapterV3 internal secondAdapter;
 
     address internal rando = makeAddr("rando");
 
@@ -33,9 +34,9 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         id1 = expectedIds1[2];
         id2 = expectedIds2[2];
 
-        secondAdapter = IMorphoMarketV1AdapterV2(
-            address(new MorphoMarketV1AdapterV2(address(vault), address(morpho), address(irm)))
-        );
+        // A second factory instance is required: the factory deploys with CREATE2 salt bytes32(0), so a second adapter
+        // for the same (vault, morpho) must be created by a distinct factory to get a distinct address.
+        secondAdapter = IBlueAdapterV3(new BlueAdapterV3Factory(address(morpho)).createBlueAdapterV3(address(vault)));
 
         bluePublicAllocator = new BluePublicAllocator();
 

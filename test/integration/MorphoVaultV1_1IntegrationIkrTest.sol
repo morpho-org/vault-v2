@@ -64,7 +64,7 @@ contract MorphoVaultV1_1IntegrationIkrTest is MorphoVaultV1_1IntegrationTest {
     }
 
     // This method to redeem in-kind is not always available, notably when Morpho Vault V1 deposits are paused.
-    // In that case, use the redemption of Morpho Market V1 shares.
+    // In that case, use the redemption of Morpho Blue shares.
     function testRedeemSharesOfMorphoVaultV1_1(uint256 assets) public {
         assets = bound(assets, MIN_IKR_TEST_ASSETS, MAX_IKR_TEST_ASSETS);
         setUpAssets(assets);
@@ -89,7 +89,7 @@ contract MorphoVaultV1_1IntegrationIkrTest is MorphoVaultV1_1IntegrationTest {
         assertEq(expectedAssets, deallocatedAssets, "expectedAssets");
     }
 
-    function testRedeemSharesOfMorphoMarketV1(uint256 assets) public {
+    function testRedeemSharesOfBlue(uint256 assets) public {
         assets = bound(assets, MIN_IKR_TEST_ASSETS, MAX_IKR_TEST_ASSETS);
         setUpAssets(assets);
 

@@ -3,19 +3,19 @@
 using Utils as Utils;
 
 methods {
-    function allocation(MorphoMarketV1AdapterV2.MarketParams memory marketParams) internal returns (uint256) => summaryAllocation(marketParams);
+    function allocation(BlueAdapterV3.MarketParams memory marketParams) internal returns (uint256) => summaryAllocation(marketParams);
 
     function expectedSupplyAssets(bytes32 marketId) internal returns (uint256) => summaryExpectedSupplyAssets(marketId);
 
-    function Utils.id(MorphoMarketV1AdapterV2.MarketParams) external returns (MorphoMarketV1AdapterV2.Id) envfree;
+    function Utils.id(BlueAdapterV3.MarketParams) external returns (BlueAdapterV3.Id) envfree;
 }
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
 
-// Mimics the allocation in the vault corresponding to the function allocation of the MorphoMarketV1AdapterV2.
+// Mimics the allocation in the vault corresponding to the function allocation of the BlueAdapterV3.
 ghost mapping(bytes32 => uint256) ghostAllocation;
 
-function summaryAllocation(MorphoMarketV1AdapterV2.MarketParams marketParams) returns uint256 {
+function summaryAllocation(BlueAdapterV3.MarketParams marketParams) returns uint256 {
     return ghostAllocation[Utils.id(marketParams)];
 }
 

@@ -19,7 +19,7 @@ This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure t
 
 The following adapters are currently available:
 
-- [Morpho Market V1 Adapter V2](./src/adapters/MorphoMarketV1AdapterV2.sol).
+- [Blue Adapter V3](./src/adapters/BlueAdapterV3.sol).
 - [Morpho Vault V1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
 - Morpho Market V2 Adapter. WIP
 
@@ -42,7 +42,7 @@ When users withdraw assets, the idle assets are taken in priority.
 If there is not enough idle liquidity, liquidity is taken from the liquidity adapter.
 When defined, the liquidity adapter is also used to forward deposited funds.
 
-A typical liquidity adapter would allow deposits/withdrawals to go through a very liquid Market V1.
+A typical liquidity adapter would allow deposits/withdrawals to go through a very liquid Blue market.
 
 ### Timelocks
 

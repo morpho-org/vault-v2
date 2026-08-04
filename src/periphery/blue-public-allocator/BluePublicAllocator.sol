@@ -8,7 +8,7 @@ import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol"
 
 /// @dev To be usable, the BluePublicAllocator must be set as an allocator of the vault.
 /// @dev Meant to be used with VaultV2 vaults only.
-/// @dev Active adapters must be MorphoMarketV1AdapterV2 adapters, otherwise the public allocator's absolute cap system
+/// @dev Active adapters must be BlueAdapterV3 adapters, otherwise the public allocator's absolute cap system
 /// could break.
 /// @dev The vault's allocators can manage the public allocators' settings.
 /// @dev Each reallocate and allocateFromIdle call costs a penalty in native currency, set per vault by the allocators.
@@ -140,7 +140,7 @@ contract BluePublicAllocator is IBluePublicAllocator {
         emit AllocateFromIdle(msg.sender, vault, adapter, allocateId, assets, msg.value);
     }
 
-    /// @dev Returns the market's per-market vault id, exactly as keyed by the MorphoMarketV1AdapterV2.
+    /// @dev Returns the market's per-market vault id, exactly as keyed by the BlueAdapterV3.
     function vaultBlueId(address adapter, MarketParams calldata marketParams) internal pure returns (bytes32) {
         return keccak256(abi.encode("this/marketParams", adapter, marketParams));
     }

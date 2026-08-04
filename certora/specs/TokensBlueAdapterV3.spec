@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2025 Morpho Association
 
-using MorphoMarketV1AdapterV2 as MorphoMarketV1AdapterV2;
-using MorphoHarness as MorphoMarketV1;
+using BlueAdapterV3 as BlueAdapterV3;
+using MorphoHarness as MorphoBlue;
 using ERC20Helper as ERC20;
 
 methods {
@@ -29,32 +29,32 @@ methods {
 rule depositTokenChange(env e, uint256 assets, address receiver) {
     address asset = asset();
 
-    require(MorphoMarketV1AdapterV2.asset == asset, "assume that the VaultV2's underlying asset is the same as the adapter's");
+    require(BlueAdapterV3.asset == asset, "assume that the VaultV2's underlying asset is the same as the adapter's");
 
     // Trick to require that all the following addresses are different.
-    require(MorphoMarketV1 == 0x10, "ack");
-    require(MorphoMarketV1AdapterV2 == 0x11, "ack");
+    require(MorphoBlue == 0x10, "ack");
+    require(BlueAdapterV3 == 0x11, "ack");
     require(currentContract == 0x12, "ack");
     require(asset == 0x13, "ack");
     require(e.msg.sender == 0x14, "ack");
 
-    uint256 balanceMorphoMarketV1AdapterV2Before = ERC20.balanceOf(asset, MorphoMarketV1AdapterV2);
-    uint256 balanceMorphoMarketV1Before = ERC20.balanceOf(asset, MorphoMarketV1);
+    uint256 balanceBlueAdapterV3Before = ERC20.balanceOf(asset, BlueAdapterV3);
+    uint256 balanceMorphoBlueBefore = ERC20.balanceOf(asset, MorphoBlue);
     uint256 balanceSenderBefore = ERC20.balanceOf(asset, e.msg.sender);
     uint256 balanceVaultV2Before = ERC20.balanceOf(asset, currentContract);
 
     // Ensure the liquidity adapter is properly linked in the conf file.
-    assert currentContract.liquidityAdapter == MorphoMarketV1AdapterV2;
+    assert currentContract.liquidityAdapter == BlueAdapterV3;
 
     deposit(e, assets, receiver);
 
-    uint256 balanceMorphoMarketV1AdapterV2After = ERC20.balanceOf(asset, MorphoMarketV1AdapterV2);
-    uint256 balanceMorphoMarketV1After = ERC20.balanceOf(asset, MorphoMarketV1);
+    uint256 balanceBlueAdapterV3After = ERC20.balanceOf(asset, BlueAdapterV3);
+    uint256 balanceMorphoBlueAfter = ERC20.balanceOf(asset, MorphoBlue);
     uint256 balanceSenderAfter = ERC20.balanceOf(asset, e.msg.sender);
     uint256 balanceVaultV2After = ERC20.balanceOf(asset, currentContract);
 
-    assert balanceMorphoMarketV1AdapterV2After == balanceMorphoMarketV1AdapterV2Before;
-    assert assert_uint256(balanceMorphoMarketV1After - balanceMorphoMarketV1Before) == assets;
+    assert balanceBlueAdapterV3After == balanceBlueAdapterV3Before;
+    assert assert_uint256(balanceMorphoBlueAfter - balanceMorphoBlueBefore) == assets;
     assert balanceVaultV2After == balanceVaultV2Before;
     assert assert_uint256(balanceSenderBefore - balanceSenderAfter) == assets;
 }
@@ -63,35 +63,35 @@ rule depositTokenChange(env e, uint256 assets, address receiver) {
 rule withdrawTokenChange(env e, uint256 assets, address receiver, address owner) {
     address asset = asset();
 
-    require(MorphoMarketV1AdapterV2.asset == asset, "assume that the VaultV2's underlying asset is the same as the adapter's");
+    require(BlueAdapterV3.asset == asset, "assume that the VaultV2's underlying asset is the same as the adapter's");
 
     // Trick to require that all the following addresses are different.
-    require(MorphoMarketV1 == 0x10, "ack");
-    require(MorphoMarketV1AdapterV2 == 0x11, "ack");
+    require(MorphoBlue == 0x10, "ack");
+    require(BlueAdapterV3 == 0x11, "ack");
     require(currentContract == 0x12, "ack");
     require(asset == 0x13, "ack");
     require(receiver == 0x14, "ack");
 
-    uint256 balanceMorphoMarketV1AdapterV2Before = ERC20.balanceOf(asset, MorphoMarketV1AdapterV2);
-    uint256 balanceMorphoMarketV1Before = ERC20.balanceOf(asset, MorphoMarketV1);
+    uint256 balanceBlueAdapterV3Before = ERC20.balanceOf(asset, BlueAdapterV3);
+    uint256 balanceMorphoBlueBefore = ERC20.balanceOf(asset, MorphoBlue);
     uint256 balanceReceiverBefore = ERC20.balanceOf(asset, receiver);
     uint256 balanceVaultV2Before = ERC20.balanceOf(asset, currentContract);
 
     // Ensure the liquidity adapter is properly linked in the conf file.
-    assert currentContract.liquidityAdapter == MorphoMarketV1AdapterV2;
+    assert currentContract.liquidityAdapter == BlueAdapterV3;
 
     withdraw(e, assets, receiver, owner);
 
-    uint256 balanceMorphoMarketV1AdapterV2After = ERC20.balanceOf(asset, MorphoMarketV1AdapterV2);
-    uint256 balanceMorphoMarketV1After = ERC20.balanceOf(asset, MorphoMarketV1);
+    uint256 balanceBlueAdapterV3After = ERC20.balanceOf(asset, BlueAdapterV3);
+    uint256 balanceMorphoBlueAfter = ERC20.balanceOf(asset, MorphoBlue);
     uint256 balanceReceiverAfter = ERC20.balanceOf(asset, receiver);
     uint256 balanceVaultV2After = ERC20.balanceOf(asset, currentContract);
 
-    assert balanceMorphoMarketV1AdapterV2After == balanceMorphoMarketV1AdapterV2Before;
+    assert balanceBlueAdapterV3After == balanceBlueAdapterV3Before;
 
-    assert balanceVaultV2Before > assets => balanceMorphoMarketV1After == balanceMorphoMarketV1Before && assert_uint256(balanceVaultV2Before - balanceVaultV2After) == assets;
+    assert balanceVaultV2Before > assets => balanceMorphoBlueAfter == balanceMorphoBlueBefore && assert_uint256(balanceVaultV2Before - balanceVaultV2After) == assets;
 
-    assert balanceVaultV2Before <= assets => balanceVaultV2After == 0 && assert_uint256((balanceMorphoMarketV1Before - balanceMorphoMarketV1After) + balanceVaultV2Before) == assets;
+    assert balanceVaultV2Before <= assets => balanceVaultV2After == 0 && assert_uint256((balanceMorphoBlueBefore - balanceMorphoBlueAfter) + balanceVaultV2Before) == assets;
 
     assert assert_uint256(balanceReceiverAfter - balanceReceiverBefore) == assets;
 }
