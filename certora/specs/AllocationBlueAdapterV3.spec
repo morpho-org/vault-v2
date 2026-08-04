@@ -12,6 +12,7 @@ methods {
     function BlueAdapterV3.allocation(MorphoHarness.MarketParams) external returns (uint256) envfree;
     function MorphoBlue.totalSupplyShares(MorphoHarness.Id) external returns (uint256) envfree;
     function MorphoBlue.supplyShares(MorphoHarness.Id, address) external returns (uint256) envfree;
+    function MorphoBlue.idToMarketParams_(MorphoHarness.Id) external returns (MorphoHarness.MarketParams) envfree;
     function MorphoBlue.isAuthorized(address, address) external returns (bool) envfree;
     function Utils.decodeMarketParams(bytes) external returns (MorphoHarness.MarketParams) envfree;
     function Utils.id(MorphoHarness.MarketParams) external returns (MorphoHarness.Id) envfree;
@@ -144,6 +145,11 @@ rule allocationAfterDeallocate(env e, bytes data, uint256 assets) {
 rule expectedSupplyAssetsIsBounded(env e, bytes32 marketId) {
     requireInvariant adapterSupplySharesIsLessThanActualSupplyShares(marketId);
     require MorphoBlue.supplyShares(Utils.wrapId(marketId), BlueAdapterV3) < MorphoBlue.totalSupplyShares(Utils.wrapId(marketId)), "total supply shares is the sum of all the supply shares";
+    // expectedSupplyAssets reconstructs the market params via idToMarketParams(marketId), and expectedMarketBalances
+    // reads the market balances at the id() of those reconstructed params. Requiring that this id equals marketId
+    // aligns the market bucket read by expectedMarketBalances with the one constrained above; this is sound because
+    // Morpho stores params consistent with their id (see hashOfMarketParamsOf in Morpho-Blue ConsistentState.spec).
+    require Utils.id(MorphoBlue.idToMarketParams_(Utils.wrapId(marketId))) == Utils.wrapId(marketId), "idToMarketParams stores params consistent with the id";
 
     assert BlueAdapterV3.expectedSupplyAssets(e, marketId) < 2 ^ 128;
 }
