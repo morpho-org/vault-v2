@@ -17,6 +17,7 @@ methods {
     function Morpho.totalSupplyShares(Morpho.Id) external returns (uint256) envfree;
     function Morpho.totalSupplyAssets(Morpho.Id) external returns (uint256) envfree;
     function Morpho.totalBorrowAssets(Morpho.Id) external returns (uint256) envfree;
+    function Morpho.idToMarketParams_(Morpho.Id) external returns (Morpho.MarketParams) envfree;
     function BlueAdapterV3.asset() external returns (address) envfree;
     function BlueAdapterV3.marketIdsLength() external returns (uint256) envfree;
     function BlueAdapterV3.marketIds(uint256) external returns (bytes32) envfree;
@@ -75,6 +76,7 @@ rule canDeallocateExpectedSupplyAssets(env e, bytes data) {
     Morpho.Id marketId = Utils.id(marketParams);
     bytes32 id = Utils.unwrapId(marketId);
     require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM doesn't revert";
+    require Utils.id(Morpho.idToMarketParams_(marketId)) == marketId, "idToMarketParams stores params consistent with the id";
 
     uint256 assets = BlueAdapterV3.expectedSupplyAssets(e, marketId);
 
@@ -101,6 +103,7 @@ rule canPutExpectedSupplyAssetsToZero(env e, bytes data) {
     Morpho.MarketParams marketParams = Utils.decodeMarketParams(data);
     Morpho.Id marketId = Utils.id(marketParams);
     require Morpho.lastUpdate(marketId) == e.block.timestamp, "assume that the IRM doesn't revert";
+    require Utils.id(Morpho.idToMarketParams_(marketId)) == marketId, "idToMarketParams stores params consistent with the id";
 
     uint256 assets = BlueAdapterV3.expectedSupplyAssets(e, marketId);
 
