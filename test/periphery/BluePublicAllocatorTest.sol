@@ -35,7 +35,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
             address(new MorphoMarketV1AdapterV2(address(vault), address(morpho), address(irm)))
         );
 
-        bluePublicAllocator = new BluePublicAllocator();
+        bluePublicAllocator = new BluePublicAllocator(address(vaultFactory));
 
         bytes memory secondAdapterIdData = abi.encode("this", address(secondAdapter));
         bytes memory secondAdapterIdData1 = abi.encode("this/marketParams", address(secondAdapter), marketParams1);
@@ -110,6 +110,47 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         bluePublicAllocator.reallocate(
             address(vault), address(adapter), marketParams1, address(secondAdapter), marketParams2, assets
         );
+    }
+
+    /* VAULT V2 FACTORY CHECK */
+
+    function testVaultV2Factory() public view {
+        assertEq(bluePublicAllocator.vaultV2Factory(), address(vaultFactory));
+    }
+
+    function testSetIsActiveAdapterNotVaultV2(address notVault) public {
+        vm.assume(!vaultFactory.isVaultV2(notVault));
+        vm.expectRevert(IBluePublicAllocator.NotVaultV2.selector);
+        vm.prank(allocator);
+        bluePublicAllocator.setIsActiveAdapter(notVault, address(adapter), true);
+    }
+
+    function testSetAbsoluteCapNotVaultV2(address notVault, uint256 cap) public {
+        vm.assume(!vaultFactory.isVaultV2(notVault));
+        vm.expectRevert(IBluePublicAllocator.NotVaultV2.selector);
+        vm.prank(allocator);
+        bluePublicAllocator.setAbsoluteCap(notVault, address(adapter), marketParams2, cap);
+    }
+
+    function testSetCanPullFromMarketNotVaultV2(address notVault) public {
+        vm.assume(!vaultFactory.isVaultV2(notVault));
+        vm.expectRevert(IBluePublicAllocator.NotVaultV2.selector);
+        vm.prank(allocator);
+        bluePublicAllocator.setCanPullFromMarket(notVault, address(adapter), marketParams1, true);
+    }
+
+    function testSetCanPullFromIdleNotVaultV2(address notVault) public {
+        vm.assume(!vaultFactory.isVaultV2(notVault));
+        vm.expectRevert(IBluePublicAllocator.NotVaultV2.selector);
+        vm.prank(allocator);
+        bluePublicAllocator.setCanPullFromIdle(notVault, true);
+    }
+
+    function testSetPenaltyNotVaultV2(address notVault, uint64 newPenalty) public {
+        vm.assume(!vaultFactory.isVaultV2(notVault));
+        vm.expectRevert(IBluePublicAllocator.NotVaultV2.selector);
+        vm.prank(allocator);
+        bluePublicAllocator.setPenalty(notVault, newPenalty);
     }
 
     /* MULTICALL */
