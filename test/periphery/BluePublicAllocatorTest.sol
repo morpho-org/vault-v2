@@ -133,7 +133,8 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         assertEq(bluePublicAllocator.isActiveAdapter(address(vault), address(adapter)), isActiveAdapter_);
         assertEq(bluePublicAllocator.absoluteCap(address(vault), id2), cap);
         assertEq(bluePublicAllocator.canPullFromMarket(address(vault), id1), canPullFromMarket_);
-        assertEq(bluePublicAllocator.canPullFromIdle(address(vault)), canPullFromIdle_);
+        (bool canPullFromIdleActual,) = bluePublicAllocator.vaultData(address(vault));
+        assertEq(canPullFromIdleActual, canPullFromIdle_);
     }
 
     function testMulticallBubblesRevert(address caller, bool isActiveAdapter_) public {
@@ -192,7 +193,8 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.expectEmit();
         emit IBluePublicAllocator.SetCanPullFromIdle(allocator, address(vault), value);
         _setCanPullFromIdle(value);
-        assertEq(bluePublicAllocator.canPullFromIdle(address(vault)), value);
+        (bool canPullFromIdle_,) = bluePublicAllocator.vaultData(address(vault));
+        assertEq(canPullFromIdle_, value);
     }
 
     function testSetCanAllocateFromIdleUnauthorized(address caller) public {
@@ -418,7 +420,8 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         emit IBluePublicAllocator.SetPenalty(allocator, address(vault), newPenalty);
         vm.prank(allocator);
         bluePublicAllocator.setPenalty(address(vault), newPenalty);
-        assertEq(bluePublicAllocator.penalty(address(vault)), newPenalty);
+        (, uint64 penalty_) = bluePublicAllocator.vaultData(address(vault));
+        assertEq(penalty_, newPenalty);
     }
 
     function testSetPenaltyUnauthorized(address caller, uint256 newPenalty) public {

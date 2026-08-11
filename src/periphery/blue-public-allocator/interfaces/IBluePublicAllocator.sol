@@ -4,6 +4,11 @@ pragma solidity >=0.8.0;
 
 import {MarketParams} from "../../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
+struct VaultData {
+    bool canPullFromIdle;
+    uint64 penalty;
+}
+
 // forgefmt: disable-start
 interface IBluePublicAllocator {
 
@@ -31,8 +36,7 @@ interface IBluePublicAllocator {
     function absoluteCap(address vault, bytes32 id) external view returns (uint256);
     function canPullFromMarket(address vault, bytes32 id) external view returns (bool);
     function isActiveAdapter(address vault, address adapter) external view returns (bool);
-    function canPullFromIdle(address vault) external view returns (bool);
-    function penalty(address vault) external view returns (uint256);
+    function vaultData(address vault) external view returns (bool canPullFromIdle, uint64 penalty);
 
     /* FUNCTIONS */
 
