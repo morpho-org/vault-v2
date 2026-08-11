@@ -25,6 +25,8 @@ import {SafeERC20Lib} from "../../libraries/SafeERC20Lib.sol";
 /// it requires capital).
 /// @dev reallocate and allocateFromIdle can be made to revert by anyone frontrunning them (not only allocators): an
 /// allocate reverts if the vault cap is filled first, a deallocate reverts if shares stop covering assets.
+/// @dev Reallocations (notably through this contract) can reduce the vault's "direct" liquidity by pulling assets from
+/// idle and from the liquidity market. It can also block deposit by reaching the liquidity market's caps.
 contract BluePublicAllocator is IBluePublicAllocator {
     /* IMMUTABLES */
 
