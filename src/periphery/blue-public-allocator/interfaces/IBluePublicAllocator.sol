@@ -4,12 +4,6 @@ pragma solidity >=0.8.0;
 
 import {MarketParams} from "../../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
-struct VaultData {
-    bool canPullFromIdle;
-    uint64 penalty;
-    uint128 accruedPenalty;
-}
-
 // forgefmt: disable-start
 interface IBluePublicAllocator {
 
@@ -20,7 +14,6 @@ interface IBluePublicAllocator {
     event SetCanPullFromIdle(address indexed sender, address indexed vault, bool canPullFromIdle);
     event SetIsActiveAdapter(address indexed sender, address indexed vault, address indexed adapter, bool isActiveAdapter);
     event SetPenalty(address indexed sender, address indexed vault, uint256 newPenalty);
-    event ClaimPenalty(address indexed sender, address indexed vault, uint256 claimed, address indexed receiver);
     event Reallocate(address sender, address indexed vault, address deallocateAdapter, bytes32 indexed deallocateId, address allocateAdapter, bytes32 indexed allocateId, uint128 assets, uint256 penaltyAssets);
     event AllocateFromIdle(address indexed sender, address indexed vault, address adapter, bytes32 indexed allocateId, uint128 assets, uint256 penaltyAssets);
 
@@ -38,7 +31,8 @@ interface IBluePublicAllocator {
     function absoluteCap(address vault, bytes32 id) external view returns (uint256);
     function canPullFromMarket(address vault, bytes32 id) external view returns (bool);
     function isActiveAdapter(address vault, address adapter) external view returns (bool);
-    function vaultData(address vault) external view returns (bool canPullFromIdle, uint64 penalty, uint128 accruedPenalty);
+    function canPullFromIdle(address vault) external view returns (bool);
+    function penalty(address vault) external view returns (uint256);
 
     /* FUNCTIONS */
 
@@ -48,7 +42,6 @@ interface IBluePublicAllocator {
     function setCanPullFromMarket(address vault, address adapter, MarketParams calldata marketParams, bool newCanPullFromMarket) external;
     function setCanPullFromIdle(address vault, bool newCanPullFromIdle) external;
     function setPenalty(address vault, uint256 newPenalty) external;
-    function claimPenalty(address vault, address receiver) external;
     function reallocate(address vault, address deallocateAdapter, MarketParams calldata deallocateMarketParams, address allocateAdapter, MarketParams calldata allocateMarketParams, uint128 assets) external;
     function allocateFromIdle(address vault, address adapter, MarketParams calldata marketParams, uint128 assets) external;
 }

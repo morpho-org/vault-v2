@@ -133,8 +133,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         assertEq(bluePublicAllocator.isActiveAdapter(address(vault), address(adapter)), isActiveAdapter_);
         assertEq(bluePublicAllocator.absoluteCap(address(vault), id2), cap);
         assertEq(bluePublicAllocator.canPullFromMarket(address(vault), id1), canPullFromMarket_);
-        (bool canPullFromIdleActual,,) = bluePublicAllocator.vaultData(address(vault));
-        assertEq(canPullFromIdleActual, canPullFromIdle_);
+        assertEq(bluePublicAllocator.canPullFromIdle(address(vault)), canPullFromIdle_);
     }
 
     function testMulticallBubblesRevert(address caller, bool isActiveAdapter_) public {
@@ -193,8 +192,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.expectEmit();
         emit IBluePublicAllocator.SetCanPullFromIdle(allocator, address(vault), value);
         _setCanPullFromIdle(value);
-        (bool canPullFromIdle_,,) = bluePublicAllocator.vaultData(address(vault));
-        assertEq(canPullFromIdle_, value);
+        assertEq(bluePublicAllocator.canPullFromIdle(address(vault)), value);
     }
 
     function testSetCanAllocateFromIdleUnauthorized(address caller) public {
@@ -420,8 +418,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         emit IBluePublicAllocator.SetPenalty(allocator, address(vault), newPenalty);
         vm.prank(allocator);
         bluePublicAllocator.setPenalty(address(vault), newPenalty);
-        (, uint64 penalty_,) = bluePublicAllocator.vaultData(address(vault));
-        assertEq(penalty_, newPenalty);
+        assertEq(bluePublicAllocator.penalty(address(vault)), newPenalty);
     }
 
     function testSetPenaltyUnauthorized(address caller, uint256 newPenalty) public {
@@ -464,10 +461,9 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         );
         vm.stopPrank();
 
-        (,, uint128 accruedPenalty_) = bluePublicAllocator.vaultData(address(vault));
-        assertEq(accruedPenalty_, expectedPenaltyAssets);
         assertEq(underlyingToken.balanceOf(rando), 0);
-        assertEq(underlyingToken.balanceOf(address(bluePublicAllocator)), expectedPenaltyAssets);
+        assertEq(underlyingToken.balanceOf(address(vault)), expectedPenaltyAssets, "penalty donated to the vault");
+        assertEq(underlyingToken.balanceOf(address(bluePublicAllocator)), 0);
     }
 
     function testAllocateFromIdleChargesPenalty(uint256 penalty, uint256 assets, uint128 amount) public {
@@ -494,52 +490,13 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         bluePublicAllocator.allocateFromIdle(address(vault), address(adapter), marketParams2, amount);
         vm.stopPrank();
 
-        (,, uint128 accruedPenalty_) = bluePublicAllocator.vaultData(address(vault));
-        assertEq(accruedPenalty_, expectedPenaltyAssets);
         assertEq(underlyingToken.balanceOf(rando), 0);
-        assertEq(underlyingToken.balanceOf(address(bluePublicAllocator)), expectedPenaltyAssets);
-    }
-
-    function testClaimPenalty(uint256 penalty, uint256 assets, uint128 amount) public {
-        penalty = bound(penalty, 1, WAD);
-        assets = bound(assets, 1, MAX_TEST_ASSETS);
-        amount = uint128(bound(amount, 1, assets));
-        address receiver = makeAddr("receiver");
-
-        vm.prank(allocator);
-        bluePublicAllocator.setPenalty(address(vault), penalty);
-        _seedMarket1(assets);
-        _setIsActiveAdapter(address(adapter), true);
-        _setCanPullFromMarket(marketParams1, true);
-        _setAbsoluteCap(marketParams2, type(uint256).max);
-
-        uint256 expectedPenaltyAssets = (uint256(amount) * penalty + WAD - 1) / WAD;
-
-        deal(address(underlyingToken), rando, expectedPenaltyAssets);
-        vm.startPrank(rando);
-        underlyingToken.approve(address(bluePublicAllocator), expectedPenaltyAssets);
-        bluePublicAllocator.reallocate(
-            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
+        assertEq(
+            underlyingToken.balanceOf(address(vault)),
+            assets - amount + expectedPenaltyAssets,
+            "penalty donated to the vault"
         );
-        vm.stopPrank();
-
-        vm.expectEmit();
-        emit IBluePublicAllocator.ClaimPenalty(allocator, address(vault), expectedPenaltyAssets, receiver);
-        vm.prank(allocator);
-        bluePublicAllocator.claimPenalty(address(vault), receiver);
-
-        (,, uint128 accruedPenalty_) = bluePublicAllocator.vaultData(address(vault));
-        assertEq(accruedPenalty_, 0);
-        assertEq(underlyingToken.balanceOf(receiver), expectedPenaltyAssets);
         assertEq(underlyingToken.balanceOf(address(bluePublicAllocator)), 0);
-    }
-
-    function testClaimPenaltyUnauthorized(address caller, address receiver) public {
-        vm.assume(!vault.isAllocator(caller));
-
-        vm.expectRevert(IBluePublicAllocator.Unauthorized.selector);
-        vm.prank(caller);
-        bluePublicAllocator.claimPenalty(address(vault), receiver);
     }
 
     function testReallocatePenaltyNotPaid(uint256 penalty, uint256 assets, uint128 amount) public {

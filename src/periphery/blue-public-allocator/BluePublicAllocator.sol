@@ -3,7 +3,7 @@
 pragma solidity 0.8.28;
 
 import {IVaultV2} from "../../interfaces/IVaultV2.sol";
-import {IBluePublicAllocator, VaultData} from "./interfaces/IBluePublicAllocator.sol";
+import {IBluePublicAllocator} from "./interfaces/IBluePublicAllocator.sol";
 import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 import {WAD} from "../../libraries/ConstantsLib.sol";
 import {MathLib} from "../../libraries/MathLib.sol";
@@ -15,8 +15,8 @@ import {SafeERC20Lib} from "../../libraries/SafeERC20Lib.sol";
 /// could break.
 /// @dev The vault's allocators can manage the public allocators' settings.
 /// @dev Each reallocate and allocateFromIdle call costs a penalty proportional to the assets moved, paid by the caller
-/// in the market's loan token (the vault's asset). The penalty is set per vault by the allocators, accrued per vault
-/// and can be claimed by the vault's allocators.
+/// in the market's loan token (the vault's asset). The penalty is set per vault by the allocators and is transferred
+/// directly to the vault (a donation, which increases the rate like forceDeallocate penalties).
 /// @dev The vault's caps are still enforced on the allocation, so allocation calls reverts if it would exceed them.
 /// @dev The public allocator's caps are not checked on allocations from the vault (either by allocators or through
 /// deposits).
@@ -30,7 +30,8 @@ contract BluePublicAllocator is IBluePublicAllocator {
     mapping(address vault => mapping(bytes32 id => uint256)) public absoluteCap;
     mapping(address vault => mapping(bytes32 id => bool)) public canPullFromMarket;
     mapping(address vault => mapping(address adapter => bool)) public isActiveAdapter;
-    mapping(address vault => VaultData) public vaultData;
+    mapping(address vault => bool) public canPullFromIdle;
+    mapping(address vault => uint256) public penalty;
 
     /* MULTICALL */
 
@@ -78,7 +79,7 @@ contract BluePublicAllocator is IBluePublicAllocator {
 
     function setCanPullFromIdle(address vault, bool newCanPullFromIdle) external {
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
-        vaultData[vault].canPullFromIdle = newCanPullFromIdle;
+        canPullFromIdle[vault] = newCanPullFromIdle;
         emit SetCanPullFromIdle(msg.sender, vault, newCanPullFromIdle);
     }
 
@@ -86,17 +87,8 @@ contract BluePublicAllocator is IBluePublicAllocator {
     function setPenalty(address vault, uint256 newPenalty) external {
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         require(newPenalty <= WAD, PenaltyTooHigh());
-        // forge-lint: disable-next-item(unsafe-typecast) safe because newPenalty <= WAD.
-        vaultData[vault].penalty = uint64(newPenalty);
+        penalty[vault] = newPenalty;
         emit SetPenalty(msg.sender, vault, newPenalty);
-    }
-
-    function claimPenalty(address vault, address receiver) external {
-        require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
-        uint256 claimed = vaultData[vault].accruedPenalty;
-        vaultData[vault].accruedPenalty = 0;
-        emit ClaimPenalty(msg.sender, vault, claimed, receiver);
-        SafeERC20Lib.safeTransfer(IVaultV2(vault).asset(), receiver, claimed);
     }
 
     /* PUBLIC FUNCTION */
@@ -109,11 +101,10 @@ contract BluePublicAllocator is IBluePublicAllocator {
         MarketParams calldata allocateMarketParams,
         uint128 assets
     ) external {
-        uint256 penaltyAssets = MathLib.mulDivUp(assets, vaultData[vault].penalty, WAD);
+        // The penalty is sent to the vault: assets are given to the vault (a donation) without minting shares.
+        uint256 penaltyAssets = MathLib.mulDivUp(assets, penalty[vault], WAD);
         if (penaltyAssets > 0) {
-            SafeERC20Lib.safeTransferFrom(allocateMarketParams.loanToken, msg.sender, address(this), penaltyAssets);
-            // forge-lint: disable-next-item(unsafe-typecast) safe because penaltyAssets <= assets.
-            vaultData[vault].accruedPenalty += uint128(penaltyAssets);
+            SafeERC20Lib.safeTransferFrom(allocateMarketParams.loanToken, msg.sender, vault, penaltyAssets);
         }
         require(isActiveAdapter[vault][deallocateAdapter], InactiveAdapter());
         require(isActiveAdapter[vault][allocateAdapter], InactiveAdapter());
@@ -134,14 +125,13 @@ contract BluePublicAllocator is IBluePublicAllocator {
     function allocateFromIdle(address vault, address adapter, MarketParams calldata marketParams, uint128 assets)
         external
     {
-        uint256 penaltyAssets = MathLib.mulDivUp(assets, vaultData[vault].penalty, WAD);
+        // The penalty is sent to the vault: assets are given to the vault (a donation) without minting shares.
+        uint256 penaltyAssets = MathLib.mulDivUp(assets, penalty[vault], WAD);
         if (penaltyAssets > 0) {
-            SafeERC20Lib.safeTransferFrom(marketParams.loanToken, msg.sender, address(this), penaltyAssets);
-            // forge-lint: disable-next-item(unsafe-typecast) safe because penaltyAssets <= assets.
-            vaultData[vault].accruedPenalty += uint128(penaltyAssets);
+            SafeERC20Lib.safeTransferFrom(marketParams.loanToken, msg.sender, vault, penaltyAssets);
         }
         require(isActiveAdapter[vault][adapter], InactiveAdapter());
-        require(vaultData[vault].canPullFromIdle, CannotPullFromIdle());
+        require(canPullFromIdle[vault], CannotPullFromIdle());
 
         IVaultV2(vault).allocate(adapter, abi.encode(marketParams), assets);
 
