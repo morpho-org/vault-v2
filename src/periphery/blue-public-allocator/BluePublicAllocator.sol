@@ -13,6 +13,7 @@ import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol"
 /// @dev The vault's allocators can manage the public allocators' settings.
 /// @dev Each reallocate and allocateFromIdle call costs a penalty in native currency, set per vault by the allocators.
 /// The penalty is accrued per vault and can be claimed by the vault's allocators.
+/// @dev The vault's forceDeallocatePenalty is ignored by this contract.
 /// @dev The vault's caps are still enforced on the allocation, so allocation calls reverts if it would exceed them.
 /// @dev The public allocator's caps are not checked on allocations from the vault (either by allocators or through
 /// deposits).
