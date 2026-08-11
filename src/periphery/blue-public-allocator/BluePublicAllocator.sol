@@ -8,7 +8,7 @@ import {IBluePublicAllocator, VaultData} from "./interfaces/IBluePublicAllocator
 import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
 /// @dev To be usable, the BluePublicAllocator must be set as an allocator of the vault.
-/// @dev Meant to be used with VaultV2 vaults only, enforced with a factory check in the authorized functions.
+/// @dev Meant to be used with VaultV2 vaults only.
 /// @dev Active adapters must be MorphoMarketV1AdapterV2 adapters, otherwise the public allocator's absolute cap system
 /// could break.
 /// @dev The vault's allocators can manage the public allocators' settings.
