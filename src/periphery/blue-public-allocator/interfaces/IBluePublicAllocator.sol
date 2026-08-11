@@ -34,9 +34,11 @@ interface IBluePublicAllocator {
     error IncorrectNativePenalty();
     error InactiveAdapter();
     error CastOverflow();
+    error NotVaultV2();
 
     /* VIEW */
 
+    function vaultV2Factory() external view returns (address);
     function absoluteCap(address vault, bytes32 id) external view returns (uint256);
     function canPullFromMarket(address vault, bytes32 id) external view returns (bool);
     function isActiveAdapter(address vault, address adapter) external view returns (bool);

@@ -3,6 +3,7 @@
 pragma solidity 0.8.28;
 
 import {IVaultV2} from "../../interfaces/IVaultV2.sol";
+import {IVaultV2Factory} from "../../interfaces/IVaultV2Factory.sol";
 import {IBluePublicAllocator, VaultData} from "./interfaces/IBluePublicAllocator.sol";
 import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol";
 
@@ -21,12 +22,22 @@ import {MarketParams} from "../../../lib/morpho-blue/src/interfaces/IMorpho.sol"
 /// @dev reallocate and allocateFromIdle can be made to revert by anyone frontrunning them (not only allocators): an
 /// allocate reverts if the vault cap is filled first, a deallocate reverts if shares stop covering assets.
 contract BluePublicAllocator is IBluePublicAllocator {
+    /* IMMUTABLES */
+
+    address public immutable vaultV2Factory;
+
     /* STORAGE */
 
     mapping(address vault => mapping(bytes32 id => uint256)) public absoluteCap;
     mapping(address vault => mapping(bytes32 id => bool)) public canPullFromMarket;
     mapping(address vault => mapping(address adapter => bool)) public isActiveAdapter;
     mapping(address vault => VaultData) public vaultData;
+
+    /* CONSTRUCTOR */
+
+    constructor(address _vaultV2Factory) {
+        vaultV2Factory = _vaultV2Factory;
+    }
 
     /* MULTICALL */
 
@@ -49,6 +60,7 @@ contract BluePublicAllocator is IBluePublicAllocator {
     /* AUTHORIZED FUNCTIONS */
 
     function setIsActiveAdapter(address vault, address adapter, bool newIsActiveAdapter) external {
+        require(IVaultV2Factory(vaultV2Factory).isVaultV2(vault), NotVaultV2());
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         isActiveAdapter[vault][adapter] = newIsActiveAdapter;
         emit SetIsActiveAdapter(msg.sender, vault, adapter, newIsActiveAdapter);
@@ -57,6 +69,7 @@ contract BluePublicAllocator is IBluePublicAllocator {
     function setAbsoluteCap(address vault, address adapter, MarketParams calldata marketParams, uint256 newAbsoluteCap)
         external
     {
+        require(IVaultV2Factory(vaultV2Factory).isVaultV2(vault), NotVaultV2());
         bytes32 id = vaultBlueId(adapter, marketParams);
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         absoluteCap[vault][id] = newAbsoluteCap;
@@ -69,18 +82,21 @@ contract BluePublicAllocator is IBluePublicAllocator {
         MarketParams calldata marketParams,
         bool newCanPullFromMarket
     ) external {
+        require(IVaultV2Factory(vaultV2Factory).isVaultV2(vault), NotVaultV2());
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         canPullFromMarket[vault][vaultBlueId(adapter, marketParams)] = newCanPullFromMarket;
         emit SetCanPullFromMarket(msg.sender, vault, adapter, marketParams, newCanPullFromMarket);
     }
 
     function setCanPullFromIdle(address vault, bool newCanPullFromIdle) external {
+        require(IVaultV2Factory(vaultV2Factory).isVaultV2(vault), NotVaultV2());
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         vaultData[vault].canPullFromIdle = newCanPullFromIdle;
         emit SetCanPullFromIdle(msg.sender, vault, newCanPullFromIdle);
     }
 
     function setNativePenalty(address vault, uint256 newNativePenalty) external {
+        require(IVaultV2Factory(vaultV2Factory).isVaultV2(vault), NotVaultV2());
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         require(newNativePenalty <= type(uint120).max, CastOverflow());
         // forge-lint: disable-next-item(unsafe-typecast) safe because newNativePenalty <= type(uint120).max.
@@ -89,6 +105,7 @@ contract BluePublicAllocator is IBluePublicAllocator {
     }
 
     function claimNativePenalty(address vault, address payable receiver) external {
+        require(IVaultV2Factory(vaultV2Factory).isVaultV2(vault), NotVaultV2());
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         uint256 claimed = vaultData[vault].accruedNativePenalty;
         vaultData[vault].accruedNativePenalty = 0;
