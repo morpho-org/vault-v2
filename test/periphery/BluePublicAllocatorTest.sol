@@ -8,8 +8,6 @@ import {BluePublicAllocator} from "../../src/periphery/blue-public-allocator/Blu
 import {IBluePublicAllocator} from "../../src/periphery/blue-public-allocator/interfaces/IBluePublicAllocator.sol";
 import {MorphoMarketV1AdapterV2} from "../../src/adapters/MorphoMarketV1AdapterV2.sol";
 
-contract RejectNative {}
-
 /// @dev The public allocator is specialized to Morpho Market V1 (Morpho Blue) via the Morpho Market V1 adapter (V2).
 /// These tests use a real vault + adapter + Morpho Blue markets so that the absolute cap is keyed by the exact
 /// per-market vault id (keccak256(abi.encode("this/marketParams", adapter, marketParams))).
@@ -414,153 +412,149 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         _reallocate(amount);
     }
 
-    /* NATIVE PENALTY */
+    /* PENALTY */
 
-    function testSetNativePenalty(uint256 newNativePenalty) public {
-        newNativePenalty = bound(newNativePenalty, 0, type(uint120).max);
+    function testSetPenalty(uint256 newPenalty) public {
+        newPenalty = bound(newPenalty, 0, WAD);
         vm.expectEmit();
-        emit IBluePublicAllocator.SetNativePenalty(allocator, address(vault), newNativePenalty);
+        emit IBluePublicAllocator.SetPenalty(allocator, address(vault), newPenalty);
         vm.prank(allocator);
-        bluePublicAllocator.setNativePenalty(address(vault), newNativePenalty);
-        (, uint120 nativePenalty_,) = bluePublicAllocator.vaultData(address(vault));
-        assertEq(nativePenalty_, newNativePenalty);
+        bluePublicAllocator.setPenalty(address(vault), newPenalty);
+        (, uint64 penalty_,) = bluePublicAllocator.vaultData(address(vault));
+        assertEq(penalty_, newPenalty);
     }
 
-    function testSetNativePenaltyUnauthorized(address caller, uint256 newNativePenalty) public {
+    function testSetPenaltyUnauthorized(address caller, uint256 newPenalty) public {
         vm.assume(!vault.isAllocator(caller));
         vm.expectRevert(IBluePublicAllocator.Unauthorized.selector);
         vm.prank(caller);
-        bluePublicAllocator.setNativePenalty(address(vault), newNativePenalty);
+        bluePublicAllocator.setPenalty(address(vault), newPenalty);
     }
 
-    function testSetNativePenaltyRevertsWhenAboveUint120Max(uint256 newNativePenalty) public {
-        newNativePenalty = bound(newNativePenalty, uint256(type(uint120).max) + 1, type(uint256).max);
-        vm.expectRevert(IBluePublicAllocator.CastOverflow.selector);
+    function testSetPenaltyRevertsWhenAboveWad(uint256 newPenalty) public {
+        newPenalty = bound(newPenalty, WAD + 1, type(uint256).max);
+        vm.expectRevert(IBluePublicAllocator.PenaltyTooHigh.selector);
         vm.prank(allocator);
-        bluePublicAllocator.setNativePenalty(address(vault), newNativePenalty);
+        bluePublicAllocator.setPenalty(address(vault), newPenalty);
     }
 
-    function testReallocateChargesNativePenalty(uint256 nativePenaltyAmount, uint256 assets, uint128 amount) public {
-        nativePenaltyAmount = bound(nativePenaltyAmount, 1, 10 ether);
+    function testReallocateChargesPenalty(uint256 penalty, uint256 assets, uint128 amount) public {
+        penalty = bound(penalty, 1, WAD);
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
         vm.prank(allocator);
-        bluePublicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
+        bluePublicAllocator.setPenalty(address(vault), penalty);
 
         _seedMarket1(assets);
         _setIsActiveAdapter(address(adapter), true);
         _setCanPullFromMarket(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
-        uint256 allocatorBalanceBefore = allocator.balance;
+        uint256 expectedPenaltyAssets = (uint256(amount) * penalty + WAD - 1) / WAD;
 
-        vm.deal(rando, nativePenaltyAmount);
-        vm.prank(rando);
-        bluePublicAllocator.reallocate{value: nativePenaltyAmount}(
+        deal(address(underlyingToken), rando, expectedPenaltyAssets);
+        vm.startPrank(rando);
+        underlyingToken.approve(address(bluePublicAllocator), expectedPenaltyAssets);
+        vm.expectEmit();
+        emit IBluePublicAllocator.Reallocate(
+            rando, address(vault), address(adapter), id1, address(adapter), id2, amount, expectedPenaltyAssets
+        );
+        bluePublicAllocator.reallocate(
             address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
         );
+        vm.stopPrank();
 
-        assertEq(allocator.balance, allocatorBalanceBefore);
-        (,, uint120 accruedNativePenalty_) = bluePublicAllocator.vaultData(address(vault));
-        assertEq(accruedNativePenalty_, nativePenaltyAmount);
-        assertEq(address(bluePublicAllocator).balance, nativePenaltyAmount);
+        (,, uint128 accruedPenalty_) = bluePublicAllocator.vaultData(address(vault));
+        assertEq(accruedPenalty_, expectedPenaltyAssets);
+        assertEq(underlyingToken.balanceOf(rando), 0);
+        assertEq(underlyingToken.balanceOf(address(bluePublicAllocator)), expectedPenaltyAssets);
     }
 
-    function testClaimNativePenalty(uint256 nativePenaltyAmount, uint256 assets, uint128 amount) public {
-        nativePenaltyAmount = bound(nativePenaltyAmount, 1, 10 ether);
+    function testAllocateFromIdleChargesPenalty(uint256 penalty, uint256 assets, uint128 amount) public {
+        penalty = bound(penalty, 1, WAD);
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
-        address payable receiver = payable(makeAddr("receiver"));
+        vm.prank(allocator);
+        bluePublicAllocator.setPenalty(address(vault), penalty);
+
+        vault.deposit(assets, address(this));
+        _setIsActiveAdapter(address(adapter), true);
+        _setCanPullFromIdle(true);
+        _setAbsoluteCap(marketParams2, type(uint256).max);
+
+        uint256 expectedPenaltyAssets = (uint256(amount) * penalty + WAD - 1) / WAD;
+
+        deal(address(underlyingToken), rando, expectedPenaltyAssets);
+        vm.startPrank(rando);
+        underlyingToken.approve(address(bluePublicAllocator), expectedPenaltyAssets);
+        vm.expectEmit();
+        emit IBluePublicAllocator.AllocateFromIdle(
+            rando, address(vault), address(adapter), id2, amount, expectedPenaltyAssets
+        );
+        bluePublicAllocator.allocateFromIdle(address(vault), address(adapter), marketParams2, amount);
+        vm.stopPrank();
+
+        (,, uint128 accruedPenalty_) = bluePublicAllocator.vaultData(address(vault));
+        assertEq(accruedPenalty_, expectedPenaltyAssets);
+        assertEq(underlyingToken.balanceOf(rando), 0);
+        assertEq(underlyingToken.balanceOf(address(bluePublicAllocator)), expectedPenaltyAssets);
+    }
+
+    function testClaimPenalty(uint256 penalty, uint256 assets, uint128 amount) public {
+        penalty = bound(penalty, 1, WAD);
+        assets = bound(assets, 1, MAX_TEST_ASSETS);
+        amount = uint128(bound(amount, 1, assets));
+        address receiver = makeAddr("receiver");
 
         vm.prank(allocator);
-        bluePublicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
+        bluePublicAllocator.setPenalty(address(vault), penalty);
         _seedMarket1(assets);
         _setIsActiveAdapter(address(adapter), true);
         _setCanPullFromMarket(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
-        vm.deal(rando, nativePenaltyAmount);
-        vm.prank(rando);
-        bluePublicAllocator.reallocate{value: nativePenaltyAmount}(
+        uint256 expectedPenaltyAssets = (uint256(amount) * penalty + WAD - 1) / WAD;
+
+        deal(address(underlyingToken), rando, expectedPenaltyAssets);
+        vm.startPrank(rando);
+        underlyingToken.approve(address(bluePublicAllocator), expectedPenaltyAssets);
+        bluePublicAllocator.reallocate(
             address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
         );
+        vm.stopPrank();
 
         vm.expectEmit();
-        emit IBluePublicAllocator.ClaimNativePenalty(allocator, address(vault), nativePenaltyAmount, receiver);
+        emit IBluePublicAllocator.ClaimPenalty(allocator, address(vault), expectedPenaltyAssets, receiver);
         vm.prank(allocator);
-        bluePublicAllocator.claimNativePenalty(address(vault), receiver);
+        bluePublicAllocator.claimPenalty(address(vault), receiver);
 
-        (,, uint120 accruedNativePenalty_) = bluePublicAllocator.vaultData(address(vault));
-        assertEq(accruedNativePenalty_, 0);
-        assertEq(receiver.balance, nativePenaltyAmount);
-        assertEq(address(bluePublicAllocator).balance, 0);
+        (,, uint128 accruedPenalty_) = bluePublicAllocator.vaultData(address(vault));
+        assertEq(accruedPenalty_, 0);
+        assertEq(underlyingToken.balanceOf(receiver), expectedPenaltyAssets);
+        assertEq(underlyingToken.balanceOf(address(bluePublicAllocator)), 0);
     }
 
-    function testClaimNativePenaltyRevertsWhenReceiverRejects(
-        uint256 nativePenaltyAmount,
-        uint256 assets,
-        uint128 amount
-    ) public {
-        nativePenaltyAmount = bound(nativePenaltyAmount, 1, 10 ether);
-        assets = bound(assets, 1, MAX_TEST_ASSETS);
-        amount = uint128(bound(amount, 1, assets));
-        address payable receiver = payable(address(new RejectNative()));
-
-        vm.prank(allocator);
-        bluePublicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
-        _seedMarket1(assets);
-        _setIsActiveAdapter(address(adapter), true);
-        _setCanPullFromMarket(marketParams1, true);
-        _setAbsoluteCap(marketParams2, type(uint256).max);
-
-        vm.deal(rando, nativePenaltyAmount);
-        vm.prank(rando);
-        bluePublicAllocator.reallocate{value: nativePenaltyAmount}(
-            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
-        );
-
-        vm.expectRevert(IBluePublicAllocator.NativeTransferFailed.selector);
-        vm.prank(allocator);
-        bluePublicAllocator.claimNativePenalty(address(vault), receiver);
-
-        (,, uint120 accruedNativePenalty_) = bluePublicAllocator.vaultData(address(vault));
-        assertEq(accruedNativePenalty_, nativePenaltyAmount);
-        assertEq(receiver.balance, 0);
-        assertEq(address(bluePublicAllocator).balance, nativePenaltyAmount);
-    }
-
-    function testClaimNativePenaltyUnauthorized(address caller, address payable receiver) public {
+    function testClaimPenaltyUnauthorized(address caller, address receiver) public {
         vm.assume(!vault.isAllocator(caller));
 
         vm.expectRevert(IBluePublicAllocator.Unauthorized.selector);
         vm.prank(caller);
-        bluePublicAllocator.claimNativePenalty(address(vault), receiver);
+        bluePublicAllocator.claimPenalty(address(vault), receiver);
     }
 
-    function testReallocateIncorrectNativePenalty(
-        uint256 nativePenaltyAmount,
-        uint256 sentValue,
-        uint256 assets,
-        uint128 amount
-    ) public {
-        nativePenaltyAmount = bound(nativePenaltyAmount, 1, 10 ether);
-        sentValue = bound(sentValue, 0, 10 ether);
-        vm.assume(sentValue != nativePenaltyAmount);
+    function testReallocatePenaltyNotPaid(uint256 penalty, uint256 assets, uint128 amount) public {
+        penalty = bound(penalty, 1, WAD);
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
         vm.prank(allocator);
-        bluePublicAllocator.setNativePenalty(address(vault), nativePenaltyAmount);
+        bluePublicAllocator.setPenalty(address(vault), penalty);
 
         _seedMarket1(assets);
         _setIsActiveAdapter(address(adapter), true);
         _setCanPullFromMarket(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
-        vm.deal(rando, sentValue);
-        vm.expectRevert(IBluePublicAllocator.IncorrectNativePenalty.selector);
-        vm.prank(rando);
-        bluePublicAllocator.reallocate{value: sentValue}(
-            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
-        );
+        vm.expectRevert(ErrorsLib.TransferFromReverted.selector);
+        _reallocate(amount);
     }
 }
