@@ -82,11 +82,10 @@ contract BluePublicAllocator is IBluePublicAllocator {
         emit SetCanPullFromIdle(msg.sender, vault, newCanPullFromIdle);
     }
 
-    function setPenalty(address vault, uint256 newPenalty) external {
+    function setPenalty(address vault, uint64 newPenalty) external {
         require(IVaultV2(vault).isAllocator(msg.sender), Unauthorized());
         require(newPenalty <= WAD, PenaltyTooHigh());
-        // forge-lint: disable-next-item(unsafe-typecast) safe because newPenalty <= WAD.
-        vaultData[vault].penalty = uint64(newPenalty);
+        vaultData[vault].penalty = newPenalty;
         emit SetPenalty(msg.sender, vault, newPenalty);
     }
 

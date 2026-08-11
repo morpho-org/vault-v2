@@ -414,8 +414,8 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
     /* PENALTY */
 
-    function testSetPenalty(uint256 newPenalty) public {
-        newPenalty = bound(newPenalty, 0, WAD);
+    function testSetPenalty(uint64 newPenalty) public {
+        newPenalty = uint64(bound(newPenalty, 0, WAD));
         vm.expectEmit();
         emit IBluePublicAllocator.SetPenalty(allocator, address(vault), newPenalty);
         vm.prank(allocator);
@@ -424,22 +424,22 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         assertEq(penalty_, newPenalty);
     }
 
-    function testSetPenaltyUnauthorized(address caller, uint256 newPenalty) public {
+    function testSetPenaltyUnauthorized(address caller, uint64 newPenalty) public {
         vm.assume(!vault.isAllocator(caller));
         vm.expectRevert(IBluePublicAllocator.Unauthorized.selector);
         vm.prank(caller);
         bluePublicAllocator.setPenalty(address(vault), newPenalty);
     }
 
-    function testSetPenaltyRevertsWhenAboveWad(uint256 newPenalty) public {
-        newPenalty = bound(newPenalty, WAD + 1, type(uint256).max);
+    function testSetPenaltyRevertsWhenAboveWad(uint64 newPenalty) public {
+        newPenalty = uint64(bound(newPenalty, WAD + 1, type(uint64).max));
         vm.expectRevert(IBluePublicAllocator.PenaltyTooHigh.selector);
         vm.prank(allocator);
         bluePublicAllocator.setPenalty(address(vault), newPenalty);
     }
 
-    function testReallocateChargesPenalty(uint256 penalty, uint256 assets, uint128 amount) public {
-        penalty = bound(penalty, 1, WAD);
+    function testReallocateChargesPenalty(uint64 penalty, uint256 assets, uint128 amount) public {
+        penalty = uint64(bound(penalty, 1, WAD));
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
         vm.prank(allocator);
@@ -469,8 +469,8 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         assertEq(underlyingToken.balanceOf(address(bluePublicAllocator)), 0);
     }
 
-    function testAllocateFromIdleChargesPenalty(uint256 penalty, uint256 assets, uint128 amount) public {
-        penalty = bound(penalty, 1, WAD);
+    function testAllocateFromIdleChargesPenalty(uint64 penalty, uint256 assets, uint128 amount) public {
+        penalty = uint64(bound(penalty, 1, WAD));
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
         vm.prank(allocator);
@@ -502,8 +502,8 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         assertEq(underlyingToken.balanceOf(address(bluePublicAllocator)), 0);
     }
 
-    function testReallocatePenaltyNotPaid(uint256 penalty, uint256 assets, uint128 amount) public {
-        penalty = bound(penalty, 1, WAD);
+    function testReallocatePenaltyNotPaid(uint64 penalty, uint256 assets, uint128 amount) public {
+        penalty = uint64(bound(penalty, 1, WAD));
         assets = bound(assets, 1, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 1, assets));
         vm.prank(allocator);
