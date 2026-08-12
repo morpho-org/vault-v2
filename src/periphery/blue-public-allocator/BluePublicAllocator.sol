@@ -15,8 +15,8 @@ import {SafeERC20Lib} from "../../libraries/SafeERC20Lib.sol";
 /// @dev Active adapters must be MorphoMarketV1AdapterV2 adapters, otherwise the public allocator's absolute cap system
 /// could break.
 /// @dev The vault's allocators can manage the public allocators' settings.
-/// @dev Each reallocate and allocateFromIdle call costs a penalty proportional to the assets moved, paid by the caller
-/// in the market's loan token (the vault's asset). The penalty is set per vault by the allocators and is transferred
+/// @dev Each reallocate and allocateFromIdle call costs a proportional penalty, paid by the caller
+/// in the vault's asset. The penalty is set per vault by the allocators and is transferred
 /// directly to the vault (a donation, which increases the rate like forceDeallocate penalties).
 /// @dev The vault's caps are still enforced on the allocation, so allocation calls reverts if it would exceed them.
 /// @dev The public allocator's caps are not checked on allocations from the vault (either by allocators or through
@@ -150,9 +150,7 @@ contract BluePublicAllocator is IBluePublicAllocator {
     ) external {
         require(vaultData[vault].penalty == penalty, IncorrectPenalty());
         uint256 penaltyAssets = MathLib.mulDivUp(assets, penalty, WAD);
-        if (penaltyAssets > 0) {
-            SafeERC20Lib.safeTransferFrom(marketParams.loanToken, msg.sender, vault, penaltyAssets);
-        }
+        if (penaltyAssets > 0) SafeERC20Lib.safeTransferFrom(marketParams.loanToken, msg.sender, vault, penaltyAssets);
         require(isActiveAdapter[vault][adapter], InactiveAdapter());
         require(vaultData[vault].canPullFromIdle, CannotPullFromIdle());
 
