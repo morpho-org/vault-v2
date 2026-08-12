@@ -6,8 +6,7 @@ import {MarketParams} from "../../../../lib/morpho-blue/src/interfaces/IMorpho.s
 
 struct VaultData {
     bool canPullFromIdle;
-    uint120 nativePenalty;
-    uint120 accruedNativePenalty;
+    uint64 penalty;
 }
 
 // forgefmt: disable-start
@@ -19,10 +18,9 @@ interface IBluePublicAllocator {
     event SetCanPullFromMarket(address indexed sender, address indexed vault, address adapter, MarketParams marketParams, bool canPullFromMarket);
     event SetCanPullFromIdle(address indexed sender, address indexed vault, bool canPullFromIdle);
     event SetIsActiveAdapter(address indexed sender, address indexed vault, address indexed adapter, bool isActiveAdapter);
-    event SetNativePenalty(address indexed sender, address indexed vault, uint256 newNativePenalty);
-    event ClaimNativePenalty(address indexed sender, address indexed vault, uint256 claimed, address indexed receiver);
-    event Reallocate(address sender, address indexed vault, address deallocateAdapter, bytes32 indexed deallocateId, address allocateAdapter, bytes32 indexed allocateId, uint128 assets, uint256 value);
-    event AllocateFromIdle(address indexed sender, address indexed vault, address adapter, bytes32 indexed allocateId, uint128 assets, uint256 value);
+    event SetPenalty(address indexed sender, address indexed vault, uint64 newPenalty);
+    event Reallocate(address sender, address indexed vault, address deallocateAdapter, bytes32 indexed deallocateId, address allocateAdapter, bytes32 indexed allocateId, uint128 assets, uint256 penaltyAssets);
+    event AllocateFromIdle(address indexed sender, address indexed vault, address adapter, bytes32 indexed allocateId, uint128 assets, uint256 penaltyAssets);
 
     /* ERRORS */
 
@@ -30,17 +28,18 @@ interface IBluePublicAllocator {
     error AbsoluteCapExceeded();
     error CannotPullFromMarket();
     error CannotPullFromIdle();
-    error NativeTransferFailed();
-    error IncorrectNativePenalty();
     error InactiveAdapter();
-    error CastOverflow();
+    error PenaltyTooHigh();
+    error IncorrectPenalty();
+    error NotVaultV2();
 
     /* VIEW */
 
+    function vaultV2Factory() external view returns (address);
     function absoluteCap(address vault, bytes32 id) external view returns (uint256);
     function canPullFromMarket(address vault, bytes32 id) external view returns (bool);
     function isActiveAdapter(address vault, address adapter) external view returns (bool);
-    function vaultData(address vault) external view returns (bool canPullFromIdle, uint120 nativePenalty, uint120 accruedNativePenalty);
+    function vaultData(address vault) external view returns (bool canPullFromIdle, uint64 penalty);
 
     /* FUNCTIONS */
 
@@ -49,9 +48,8 @@ interface IBluePublicAllocator {
     function setAbsoluteCap(address vault, address adapter, MarketParams calldata marketParams, uint256 newAbsoluteCap) external;
     function setCanPullFromMarket(address vault, address adapter, MarketParams calldata marketParams, bool newCanPullFromMarket) external;
     function setCanPullFromIdle(address vault, bool newCanPullFromIdle) external;
-    function setNativePenalty(address vault, uint256 newNativePenalty) external;
-    function claimNativePenalty(address vault, address payable receiver) external;
-    function reallocate(address vault, address deallocateAdapter, MarketParams calldata deallocateMarketParams, address allocateAdapter, MarketParams calldata allocateMarketParams, uint128 assets) external payable;
-    function allocateFromIdle(address vault, address adapter, MarketParams calldata marketParams, uint128 assets) external payable;
+    function setPenalty(address vault, uint64 newPenalty) external;
+    function reallocate(address vault, address deallocateAdapter, MarketParams calldata deallocateMarketParams, address allocateAdapter, MarketParams calldata allocateMarketParams, uint128 assets, uint64 penalty) external;
+    function allocateFromIdle(address vault, address adapter, MarketParams calldata marketParams, uint128 assets, uint64 penalty) external;
 }
 // forgefmt: disable-end
