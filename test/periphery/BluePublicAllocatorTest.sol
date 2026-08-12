@@ -104,7 +104,12 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
     }
 
     function _reallocate(uint128 assets) internal {
-        uint64 penalty_ = _currentPenalty();
+        _reallocate(assets, _currentPenalty());
+    }
+
+    /// @dev Takes the penalty as a parameter so it can be read before vm.expectRevert, which would otherwise apply to
+    /// the vaultData getter call instead of the reallocate call.
+    function _reallocate(uint128 assets, uint64 penalty_) internal {
         vm.prank(rando);
         bluePublicAllocator.reallocate(
             address(vault), address(adapter), marketParams1, address(adapter), marketParams2, assets, penalty_
@@ -112,7 +117,12 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
     }
 
     function _reallocateAcrossAdapters(uint128 assets) internal {
-        uint64 penalty_ = _currentPenalty();
+        _reallocateAcrossAdapters(assets, _currentPenalty());
+    }
+
+    /// @dev Takes the penalty as a parameter so it can be read before vm.expectRevert, which would otherwise apply to
+    /// the vaultData getter call instead of the reallocate call.
+    function _reallocateAcrossAdapters(uint128 assets, uint64 penalty_) internal {
         vm.prank(rando);
         bluePublicAllocator.reallocate(
             address(vault), address(adapter), marketParams1, address(secondAdapter), marketParams2, assets, penalty_
@@ -326,8 +336,9 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         _setAbsoluteCap(marketParams2, type(uint256).max);
         // market1 deallocation not enabled.
 
+        uint64 penalty_ = _currentPenalty();
         vm.expectRevert(IBluePublicAllocator.CannotPullFromMarket.selector);
-        _reallocate(amount);
+        _reallocate(amount, penalty_);
     }
 
     function testReallocateAbsoluteCapExceeded(uint256 assets, uint128 amount) public {
@@ -340,8 +351,9 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         // Absolute cap on market2 is 0: any non-zero resulting allocation must exceed it.
         _setAbsoluteCap(marketParams2, 0);
 
+        uint64 penalty_ = _currentPenalty();
         vm.expectRevert(IBluePublicAllocator.AbsoluteCapExceeded.selector);
-        _reallocate(amount);
+        _reallocate(amount, penalty_);
     }
 
     function testReallocateWithinAbsoluteCap(uint256 assets, uint128 amount) public {
@@ -425,8 +437,9 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         _setCanPullFromMarket(marketParams1, true);
         _setAbsoluteCap(address(secondAdapter), marketParams2, type(uint256).max);
 
+        uint64 penalty_ = _currentPenalty();
         vm.expectRevert(IBluePublicAllocator.InactiveAdapter.selector);
-        _reallocateAcrossAdapters(amount);
+        _reallocateAcrossAdapters(amount, penalty_);
     }
 
     function testReallocateInactiveAllocateAdapter(uint256 assets, uint128 amount) public {
@@ -438,8 +451,9 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         _setCanPullFromMarket(marketParams1, true);
         _setAbsoluteCap(address(secondAdapter), marketParams2, type(uint256).max);
 
+        uint64 penalty_ = _currentPenalty();
         vm.expectRevert(IBluePublicAllocator.InactiveAdapter.selector);
-        _reallocateAcrossAdapters(amount);
+        _reallocateAcrossAdapters(amount, penalty_);
     }
 
     function testReallocateRespectsVaultCaps(uint256 assets, uint128 amount) public {
@@ -456,8 +470,9 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.prank(curator);
         vault.decreaseAbsoluteCap(expectedIdData2[2], amount - 1);
 
+        uint64 penalty_ = _currentPenalty();
         vm.expectRevert(ErrorsLib.AbsoluteCapExceeded.selector);
-        _reallocate(amount);
+        _reallocate(amount, penalty_);
     }
 
     /* PENALTY */
@@ -562,8 +577,9 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         _setCanPullFromMarket(marketParams1, true);
         _setAbsoluteCap(marketParams2, type(uint256).max);
 
+        uint64 penalty_ = _currentPenalty();
         vm.expectRevert(ErrorsLib.TransferFromReverted.selector);
-        _reallocate(amount);
+        _reallocate(amount, penalty_);
     }
 
     function testReallocateIncorrectPenalty(uint64 penalty, uint64 wrongPenalty, uint128 amount) public {
