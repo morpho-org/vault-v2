@@ -109,15 +109,18 @@ contract BluePublicAllocator is IBluePublicAllocator {
 
     /* PUBLIC FUNCTION */
 
+    /// @dev The penalty parameter protects callers against penalty changes between signing and execution.
     function reallocate(
         address vault,
         address deallocateAdapter,
         MarketParams calldata deallocateMarketParams,
         address allocateAdapter,
         MarketParams calldata allocateMarketParams,
-        uint128 assets
+        uint128 assets,
+        uint64 penalty
     ) external {
-        uint256 penaltyAssets = MathLib.mulDivUp(assets, vaultData[vault].penalty, WAD);
+        require(vaultData[vault].penalty == penalty, IncorrectPenalty());
+        uint256 penaltyAssets = MathLib.mulDivUp(assets, penalty, WAD);
         if (penaltyAssets > 0) {
             SafeERC20Lib.safeTransferFrom(allocateMarketParams.loanToken, msg.sender, vault, penaltyAssets);
         }
@@ -137,10 +140,16 @@ contract BluePublicAllocator is IBluePublicAllocator {
         );
     }
 
-    function allocateFromIdle(address vault, address adapter, MarketParams calldata marketParams, uint128 assets)
-        external
-    {
-        uint256 penaltyAssets = MathLib.mulDivUp(assets, vaultData[vault].penalty, WAD);
+    /// @dev The penalty parameter protects callers against penalty changes between signing and execution.
+    function allocateFromIdle(
+        address vault,
+        address adapter,
+        MarketParams calldata marketParams,
+        uint128 assets,
+        uint64 penalty
+    ) external {
+        require(vaultData[vault].penalty == penalty, IncorrectPenalty());
+        uint256 penaltyAssets = MathLib.mulDivUp(assets, penalty, WAD);
         if (penaltyAssets > 0) {
             SafeERC20Lib.safeTransferFrom(marketParams.loanToken, msg.sender, vault, penaltyAssets);
         }

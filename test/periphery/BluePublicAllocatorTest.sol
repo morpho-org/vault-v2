@@ -98,17 +98,24 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vault.allocate(address(adapter), abi.encode(marketParams1), assets);
     }
 
+    function _currentPenalty() internal view returns (uint64) {
+        (, uint64 penalty_) = bluePublicAllocator.vaultData(address(vault));
+        return penalty_;
+    }
+
     function _reallocate(uint128 assets) internal {
+        uint64 penalty_ = _currentPenalty();
         vm.prank(rando);
         bluePublicAllocator.reallocate(
-            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, assets
+            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, assets, penalty_
         );
     }
 
     function _reallocateAcrossAdapters(uint128 assets) internal {
+        uint64 penalty_ = _currentPenalty();
         vm.prank(rando);
         bluePublicAllocator.reallocate(
-            address(vault), address(adapter), marketParams1, address(secondAdapter), marketParams2, assets
+            address(vault), address(adapter), marketParams1, address(secondAdapter), marketParams2, assets, penalty_
         );
     }
 
@@ -364,7 +371,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.expectEmit();
         emit IBluePublicAllocator.AllocateFromIdle(rando, address(vault), address(adapter), id2, amount, 0);
         vm.prank(rando);
-        bluePublicAllocator.allocateFromIdle(address(vault), address(adapter), marketParams2, amount);
+        bluePublicAllocator.allocateFromIdle(address(vault), address(adapter), marketParams2, amount, 0);
 
         assertEq(underlyingToken.balanceOf(address(vault)), assets - amount, "idle");
         assertLe(vault.allocation(id2), amount, "market2 rounds down");
@@ -381,7 +388,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
         vm.expectRevert(IBluePublicAllocator.CannotPullFromIdle.selector);
         vm.prank(rando);
-        bluePublicAllocator.allocateFromIdle(address(vault), address(adapter), marketParams2, amount);
+        bluePublicAllocator.allocateFromIdle(address(vault), address(adapter), marketParams2, amount, 0);
     }
 
     function testAllocateFromIdleToIdleReverts(uint256 assets, uint128 amount) public {
@@ -393,7 +400,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
         vm.expectRevert(IBluePublicAllocator.InactiveAdapter.selector);
         vm.prank(rando);
-        bluePublicAllocator.allocateFromIdle(address(vault), address(0), marketParams2, amount);
+        bluePublicAllocator.allocateFromIdle(address(vault), address(0), marketParams2, amount, 0);
     }
 
     function testAllocateFromIdleInactiveAdapter(uint256 assets, uint128 amount) public {
@@ -406,7 +413,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
         vm.expectRevert(IBluePublicAllocator.InactiveAdapter.selector);
         vm.prank(rando);
-        bluePublicAllocator.allocateFromIdle(address(vault), address(adapter), marketParams2, amount);
+        bluePublicAllocator.allocateFromIdle(address(vault), address(adapter), marketParams2, amount, 0);
     }
 
     function testReallocateInactiveDeallocateAdapter(uint256 assets, uint128 amount) public {
@@ -501,7 +508,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
             rando, address(vault), address(adapter), id1, address(adapter), id2, amount, expectedPenaltyAssets
         );
         bluePublicAllocator.reallocate(
-            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount
+            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount, penalty
         );
         vm.stopPrank();
 
@@ -531,7 +538,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         emit IBluePublicAllocator.AllocateFromIdle(
             rando, address(vault), address(adapter), id2, amount, expectedPenaltyAssets
         );
-        bluePublicAllocator.allocateFromIdle(address(vault), address(adapter), marketParams2, amount);
+        bluePublicAllocator.allocateFromIdle(address(vault), address(adapter), marketParams2, amount, penalty);
         vm.stopPrank();
 
         assertEq(underlyingToken.balanceOf(rando), 0);
@@ -557,5 +564,31 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
         vm.expectRevert(ErrorsLib.TransferFromReverted.selector);
         _reallocate(amount);
+    }
+
+    function testReallocateIncorrectPenalty(uint64 penalty, uint64 wrongPenalty, uint128 amount) public {
+        penalty = uint64(bound(penalty, 0, WAD));
+        wrongPenalty = uint64(bound(wrongPenalty, 0, WAD));
+        vm.assume(wrongPenalty != penalty);
+        vm.prank(allocator);
+        bluePublicAllocator.setPenalty(address(vault), penalty);
+
+        vm.expectRevert(IBluePublicAllocator.IncorrectPenalty.selector);
+        vm.prank(rando);
+        bluePublicAllocator.reallocate(
+            address(vault), address(adapter), marketParams1, address(adapter), marketParams2, amount, wrongPenalty
+        );
+    }
+
+    function testAllocateFromIdleIncorrectPenalty(uint64 penalty, uint64 wrongPenalty, uint128 amount) public {
+        penalty = uint64(bound(penalty, 0, WAD));
+        wrongPenalty = uint64(bound(wrongPenalty, 0, WAD));
+        vm.assume(wrongPenalty != penalty);
+        vm.prank(allocator);
+        bluePublicAllocator.setPenalty(address(vault), penalty);
+
+        vm.expectRevert(IBluePublicAllocator.IncorrectPenalty.selector);
+        vm.prank(rando);
+        bluePublicAllocator.allocateFromIdle(address(vault), address(adapter), marketParams2, amount, wrongPenalty);
     }
 }
