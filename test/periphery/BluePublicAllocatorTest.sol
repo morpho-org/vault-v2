@@ -582,9 +582,8 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         _reallocate(amount, penalty_);
     }
 
-    function testReallocateIncorrectPenalty(uint64 penalty, uint64 wrongPenalty, uint128 amount) public {
+    function testReallocateIncorrectPenalty(uint64 penalty, uint256 wrongPenalty, uint128 amount) public {
         penalty = uint64(bound(penalty, 0, WAD));
-        wrongPenalty = uint64(bound(wrongPenalty, 0, WAD));
         vm.assume(wrongPenalty != penalty);
         vm.prank(allocator);
         bluePublicAllocator.setPenalty(address(vault), penalty);
@@ -596,9 +595,8 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         );
     }
 
-    function testAllocateFromIdleIncorrectPenalty(uint64 penalty, uint64 wrongPenalty, uint128 amount) public {
+    function testAllocateFromIdleIncorrectPenalty(uint64 penalty, uint256 wrongPenalty, uint128 amount) public {
         penalty = uint64(bound(penalty, 0, WAD));
-        wrongPenalty = uint64(bound(wrongPenalty, 0, WAD));
         vm.assume(wrongPenalty != penalty);
         vm.prank(allocator);
         bluePublicAllocator.setPenalty(address(vault), penalty);

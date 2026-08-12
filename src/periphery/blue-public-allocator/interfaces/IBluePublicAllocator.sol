@@ -49,7 +49,7 @@ interface IBluePublicAllocator {
     function setCanPullFromMarket(address vault, address adapter, MarketParams calldata marketParams, bool newCanPullFromMarket) external;
     function setCanPullFromIdle(address vault, bool newCanPullFromIdle) external;
     function setPenalty(address vault, uint64 newPenalty) external;
-    function reallocate(address vault, address deallocateAdapter, MarketParams calldata deallocateMarketParams, address allocateAdapter, MarketParams calldata allocateMarketParams, uint128 assets, uint64 penalty) external;
-    function allocateFromIdle(address vault, address adapter, MarketParams calldata marketParams, uint128 assets, uint64 penalty) external;
+    function reallocate(address vault, address deallocateAdapter, MarketParams calldata deallocateMarketParams, address allocateAdapter, MarketParams calldata allocateMarketParams, uint128 assets, uint256 penalty) external;
+    function allocateFromIdle(address vault, address adapter, MarketParams calldata marketParams, uint128 assets, uint256 penalty) external;
 }
 // forgefmt: disable-end

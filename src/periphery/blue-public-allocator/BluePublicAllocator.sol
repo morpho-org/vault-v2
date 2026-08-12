@@ -118,7 +118,7 @@ contract BluePublicAllocator is IBluePublicAllocator {
         address allocateAdapter,
         MarketParams calldata allocateMarketParams,
         uint128 assets,
-        uint64 penalty
+        uint256 penalty
     ) external {
         require(vaultData[vault].penalty == penalty, IncorrectPenalty());
         uint256 penaltyAssets = MathLib.mulDivUp(assets, penalty, WAD);
@@ -146,7 +146,7 @@ contract BluePublicAllocator is IBluePublicAllocator {
         address adapter,
         MarketParams calldata marketParams,
         uint128 assets,
-        uint64 penalty
+        uint256 penalty
     ) external {
         require(vaultData[vault].penalty == penalty, IncorrectPenalty());
         uint256 penaltyAssets = MathLib.mulDivUp(assets, penalty, WAD);
