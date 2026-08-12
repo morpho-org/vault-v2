@@ -15,9 +15,9 @@ import {SafeERC20Lib} from "../../libraries/SafeERC20Lib.sol";
 /// @dev Active adapters must be MorphoMarketV1AdapterV2 adapters, otherwise the public allocator's absolute cap system
 /// could break.
 /// @dev The vault's allocators can manage the public allocators' settings.
-/// @dev Each reallocate and allocateFromIdle call costs a proportional penalty, paid by the caller
-/// in the vault's asset. The penalty is set per vault by the allocators and is transferred
-/// directly to the vault (a donation, which increases the rate like forceDeallocate penalties).
+/// @dev Each reallocate and allocateFromIdle call costs a proportional penalty, paid by the caller in the vault's
+/// asset. The penalty is set per vault by the allocators and is transferred directly to the vault (a donation, which
+/// increases the rate like forceDeallocate penalties).
 /// @dev The vault's caps are still enforced on the allocation, so allocation calls reverts if it would exceed them.
 /// @dev The public allocator's caps are not checked on allocations from the vault (either by allocators or through
 /// deposits).
