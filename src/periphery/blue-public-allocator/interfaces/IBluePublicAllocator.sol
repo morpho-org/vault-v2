@@ -26,6 +26,7 @@ interface IBluePublicAllocator {
 
     error Unauthorized();
     error AbsoluteCapExceeded();
+    error ZeroAbsoluteCap();
     error CannotPullFromMarket();
     error CannotPullFromIdle();
     error InactiveAdapter();

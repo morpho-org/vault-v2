@@ -341,18 +341,17 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         _reallocate(amount, penalty_);
     }
 
-    function testReallocateAbsoluteCapExceeded(uint256 assets, uint128 amount) public {
+    function testReallocateZeroAbsoluteCap(uint256 assets, uint128 amount) public {
         assets = bound(assets, 2, MAX_TEST_ASSETS);
         amount = uint128(bound(amount, 2, assets));
 
         _seedMarket1(assets);
         _setIsActiveAdapter(address(adapter), true);
         _setCanPullFromMarket(marketParams1, true);
-        // Absolute cap on market2 is 0: any non-zero resulting allocation must exceed it.
         _setAbsoluteCap(marketParams2, 0);
 
         uint64 penalty_ = _currentPenalty();
-        vm.expectRevert(IBluePublicAllocator.AbsoluteCapExceeded.selector);
+        vm.expectRevert(IBluePublicAllocator.ZeroAbsoluteCap.selector);
         _reallocate(amount, penalty_);
     }
 
@@ -388,6 +387,19 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         assertEq(underlyingToken.balanceOf(address(vault)), assets - amount, "idle");
         assertLe(vault.allocation(id2), amount, "market2 rounds down");
         assertGt(vault.allocation(id2), 0, "market2 supplied");
+    }
+
+    function testAllocateFromIdleZeroAbsoluteCap(uint256 assets, uint128 amount) public {
+        assets = bound(assets, 1, MAX_TEST_ASSETS);
+        amount = uint128(bound(amount, 1, assets));
+
+        vault.deposit(assets, address(this));
+        _setIsActiveAdapter(address(adapter), true);
+        _setCanPullFromIdle(true);
+
+        vm.expectRevert(IBluePublicAllocator.ZeroAbsoluteCap.selector);
+        vm.prank(rando);
+        bluePublicAllocator.allocateFromIdle(address(vault), address(adapter), marketParams2, amount, 0);
     }
 
     function testAllocateFromIdleCannotPullFromIdle(uint256 assets, uint128 amount) public {
