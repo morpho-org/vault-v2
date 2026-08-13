@@ -129,11 +129,12 @@ contract BluePublicAllocator is IBluePublicAllocator {
         require(isActiveAdapter[vault][allocateAdapter], InactiveAdapter());
         bytes32 deallocateId = vaultBlueId(deallocateAdapter, deallocateMarketParams);
         require(canPullFromMarket[vault][deallocateId], CannotPullFromMarket());
+        bytes32 allocateId = vaultBlueId(allocateAdapter, allocateMarketParams);
+        require(absoluteCap[vault][allocateId] > 0, ZeroAbsoluteCap());
 
         IVaultV2(vault).deallocate(deallocateAdapter, abi.encode(deallocateMarketParams), assets);
         IVaultV2(vault).allocate(allocateAdapter, abi.encode(allocateMarketParams), assets);
 
-        bytes32 allocateId = vaultBlueId(allocateAdapter, allocateMarketParams);
         require(IVaultV2(vault).allocation(allocateId) <= absoluteCap[vault][allocateId], AbsoluteCapExceeded());
 
         emit Reallocate(
@@ -153,10 +154,11 @@ contract BluePublicAllocator is IBluePublicAllocator {
         if (penaltyAssets > 0) SafeERC20Lib.safeTransferFrom(marketParams.loanToken, msg.sender, vault, penaltyAssets);
         require(isActiveAdapter[vault][adapter], InactiveAdapter());
         require(vaultData[vault].canPullFromIdle, CannotPullFromIdle());
+        bytes32 allocateId = vaultBlueId(adapter, marketParams);
+        require(absoluteCap[vault][allocateId] > 0, ZeroAbsoluteCap());
 
         IVaultV2(vault).allocate(adapter, abi.encode(marketParams), assets);
 
-        bytes32 allocateId = vaultBlueId(adapter, marketParams);
         require(IVaultV2(vault).allocation(allocateId) <= absoluteCap[vault][allocateId], AbsoluteCapExceeded());
 
         emit AllocateFromIdle(msg.sender, vault, adapter, allocateId, assets, penaltyAssets);
