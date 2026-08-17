@@ -25,7 +25,7 @@ import {IdLib} from "../lib/midnight/src/libraries/IdLib.sol";
 import {stdStorage, StdStorage} from "../lib/forge-std/src/Test.sol";
 import {ORACLE_PRICE_SCALE} from "../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 import {CALLBACK_SUCCESS} from "../lib/midnight/src/libraries/ConstantsLib.sol";
-import {TakeAmountsLib} from "../lib/midnight/src/periphery/TakeAmountsLib.sol";
+import {TakeAmountsLib} from "../lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 import {SetterRatifier} from "../lib/midnight/src/ratifiers/SetterRatifier.sol";
 
 contract ExtraAssetsAdapter is IAdapter {
@@ -1133,11 +1133,13 @@ contract MidnightAdapterTest is Test {
         bytes[] memory idDatas = new bytes[](7);
         idDatas[0] = abi.encode("this", address(adapter));
         idDatas[1] = abi.encode("collateralToken", storedCollaterals[0].token);
-        idDatas[2] =
-            abi.encode("collateral", storedCollaterals[0].token, storedCollaterals[0].oracle, storedCollaterals[0].lltv);
+        idDatas[2] = abi.encode(
+            "collateral", storedCollaterals[0].token, storedCollaterals[0].oracle, storedCollaterals[0].lltv
+        );
         idDatas[3] = abi.encode("collateralToken", storedCollaterals[1].token);
-        idDatas[4] =
-            abi.encode("collateral", storedCollaterals[1].token, storedCollaterals[1].oracle, storedCollaterals[1].lltv);
+        idDatas[4] = abi.encode(
+            "collateral", storedCollaterals[1].token, storedCollaterals[1].oracle, storedCollaterals[1].lltv
+        );
         idDatas[5] = abi.encode("duration", uint256(1 days));
         idDatas[6] = abi.encode("duration", uint256(7 days));
         for (uint256 i = 0; i < idDatas.length; i++) {
