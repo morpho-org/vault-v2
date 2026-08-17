@@ -25,7 +25,7 @@ import {IdLib} from "../lib/midnight/src/libraries/IdLib.sol";
 import {stdStorage, StdStorage} from "../lib/forge-std/src/Test.sol";
 import {ORACLE_PRICE_SCALE} from "../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 import {CALLBACK_SUCCESS} from "../lib/midnight/src/libraries/ConstantsLib.sol";
-import {TakeAmountsLib} from "../lib/midnight/src/periphery/TakeAmountsLib.sol";
+import {TakeAmountsLib} from "../lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 import {SetterRatifier} from "../lib/midnight/src/ratifiers/SetterRatifier.sol";
 
 contract ExtraAssetsAdapter is IAdapter {

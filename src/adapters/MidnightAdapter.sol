@@ -7,7 +7,7 @@ import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
 import {MAX_TICK} from "lib/midnight/src/libraries/TickLib.sol";
 import {Signature, EIP712_DOMAIN_TYPEHASH} from "lib/midnight/src/ratifiers/interfaces/IEcrecoverRatifier.sol";
 import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
-import {TakeAmountsLib} from "lib/midnight/src/periphery/TakeAmountsLib.sol";
+import {TakeAmountsLib} from "lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 import {HashLib} from "lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
