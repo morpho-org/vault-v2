@@ -32,7 +32,7 @@ contract MidnightAdapter is IMidnightAdapter {
     address public immutable parentVault;
     address public immutable midnight;
     bytes32 public immutable adapterId;
-    /// @dev Sorted durations that can be used to cap the time to maturity.
+    /// @dev Durations that can be used to cap the time to maturity.
     /// @dev Sorted in ascending order.
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
@@ -48,7 +48,7 @@ contract MidnightAdapter is IMidnightAdapter {
     uint128 public currentGrowth;
     uint48 public lastUpdate;
     /// @dev Maximum steps of an accrual.
-    /// @dev A maturity uses an availability slot iff it has some units and is > now after accrual.
+    /// @dev After accrual, a maturity uses an availability slot iff it has some units and is > now.
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_PENDING_MATURITIES = 50;
     uint8 public availableMaturities = MAX_PENDING_MATURITIES;
@@ -154,11 +154,11 @@ contract MidnightAdapter is IMidnightAdapter {
     function accrueInterestView() public view returns (uint48, uint128, uint128, uint256) {
         if (block.timestamp == lastUpdate) return (_maturities[0].nextMaturity, currentGrowth, totalAssets, 0);
 
-        uint48 _firstMaturity = _maturities[0].nextMaturity;
-        uint128 newGrowth = currentGrowth;
-        uint256 removedMaturities = 0;
         uint256 gainedAssets = 0;
+        uint128 newGrowth = currentGrowth;
         uint256 accrueFrom = lastUpdate;
+        uint48 _firstMaturity = _maturities[0].nextMaturity;
+        uint256 removedMaturities = 0;
 
         while (_firstMaturity != 0 && _firstMaturity <= block.timestamp) {
             gainedAssets += uint256(newGrowth) * (_firstMaturity - accrueFrom);
