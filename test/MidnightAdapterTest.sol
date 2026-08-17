@@ -532,21 +532,33 @@ contract MidnightAdapterTest is Test {
         midnight.take(offer, sign([offer], signerAllocator), units, taker, taker, address(0), "");
     }
 
-    function testSellClearsMaturityAndReactivatesSlot() public {
-        Offer memory firstOffer;
-        Offer memory secondOffer;
+    function testSellClearsFirstMaturityAndReactivatesSlot() public {
+        checkSellClearsMaturityAndReactivatesSlot(0);
+    }
+
+    function testSellClearsMiddleMaturityAndReactivatesSlot() public {
+        checkSellClearsMaturityAndReactivatesSlot(25);
+    }
+
+    function testSellClearsLastMaturityAndReactivatesSlot() public {
+        checkSellClearsMaturityAndReactivatesSlot(49);
+    }
+
+    function checkSellClearsMaturityAndReactivatesSlot(uint256 soldIndex) internal {
+        Offer memory soldOffer;
         for (uint256 i = 0; i < 50; i++) {
             Offer memory offer = buy(1 days + i, 1e18);
-            if (i == 0) firstOffer = offer;
-            if (i == 1) secondOffer = offer;
+            if (i == soldIndex) soldOffer = offer;
         }
         assertEq(adapter.pendingMaturitiesLength(), 50, "pendingMaturitiesLength before");
 
         parentVault.setTotalAssets(1e18);
-        sell(secondOffer.market, 1e18);
+        sell(soldOffer.market, 1e18);
 
         assertEq(adapter.pendingMaturitiesLength(), 49, "pendingMaturitiesLength after");
-        assertEq(adapter.pendingMaturities(0), firstOffer.market.maturity, "first pending maturity after");
+        for (uint256 i = 0; i < 49; i++) {
+            assertNotEq(adapter.pendingMaturities(i), soldOffer.market.maturity, "sold maturity removed");
+        }
 
         buy(60 days, 1e18);
 
