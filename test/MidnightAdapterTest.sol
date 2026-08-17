@@ -11,6 +11,9 @@ import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IAdapter} from "../src/interfaces/IAdapter.sol";
 import {IMidnightAdapter} from "../src/adapters/interfaces/IMidnightAdapter.sol";
+import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
+import {ISendSharesGate} from "../src/interfaces/IGate.sol";
+import {ErrorsLib} from "../src/libraries/ErrorsLib.sol";
 import {IMidnightAdapterFactory} from "../src/adapters/interfaces/IMidnightAdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
 import {Midnight} from "../lib/midnight/src/Midnight.sol";
@@ -22,7 +25,7 @@ import {IdLib} from "../lib/midnight/src/libraries/IdLib.sol";
 import {stdStorage, StdStorage} from "../lib/forge-std/src/Test.sol";
 import {ORACLE_PRICE_SCALE} from "../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 import {CALLBACK_SUCCESS} from "../lib/midnight/src/libraries/ConstantsLib.sol";
-import {TakeAmountsLib} from "../lib/midnight/src/periphery/TakeAmountsLib.sol";
+import {TakeAmountsLib} from "../lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 
 contract ExtraAssetsAdapter is IAdapter {
     uint256 public realAssets;
@@ -40,6 +43,13 @@ contract ExtraAssetsAdapter is IAdapter {
     }
 }
 
+/// @notice Realizes the losses of a midnight adapter in a market.
+contract MidnightLossRealizer {
+    function realizeLoss(IMidnightAdapter adapter, Market memory market) external {
+        IVaultV2(adapter.parentVault()).forceDeallocate(address(adapter), abi.encode(market), 0, address(this));
+    }
+}
+
 contract MidnightAdapterTest is Test {
     using stdStorage for StdStorage;
     using MathLib for uint256;
@@ -48,6 +58,7 @@ contract MidnightAdapterTest is Test {
     IMidnightAdapterFactory internal factory;
     IMidnightAdapter internal adapter;
     VaultV2Mock internal parentVault;
+    IVaultV2 internal realVault;
     IERC20 internal loanToken;
     IERC20 internal rewardToken;
     address internal owner;
@@ -736,6 +747,127 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.shares(marketId, address(this)), 0.5e18);
     }
 
+    function testForceDeallocateWithoutRole() public {
+        Offer memory boughtOffer = buy(7 days, 1e18);
+        skip(1);
+
+        // Simulate the adapter having no role: any vault.deallocate call from the adapter reverts.
+        vm.mockCallRevert(address(parentVault), abi.encodeWithSelector(VaultV2Mock.deallocate.selector), "no role");
+
+        forceDeallocate(boughtOffer.market, 0.5e18);
+
+        assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day");
+        assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
+        (uint128 marketNetCredit,,,) = adapter._markets(_marketId(boughtOffer.market));
+        assertEq(marketNetCredit, 0.5e18, "netCredit");
+    }
+
+    /// forge-config: default.isolate = true
+    /// @dev Runs on a real VaultV2, with a non-zero penalty, fees and maxRate, and with the adapter's allocator role
+    /// revoked before the exit.
+    function testForceDeallocateRealVaultWithPenalty() public {
+        setUpRealVault();
+        Offer memory offer = buyOnRealVault(7 days, 1e18);
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), false)));
+
+        skip(1);
+
+        uint256 sharesBefore = realVault.balanceOf(address(this));
+        uint256 expectedPenaltyShares = realVault.previewWithdraw(0.01e18);
+        uint256 penaltyShares = forceDeallocateOnRealVault(offer.market, 0.5e18);
+
+        assertEq(penaltyShares, expectedPenaltyShares, "penalty shares");
+        assertEq(realVault.balanceOf(address(this)), sharesBefore - penaltyShares, "penalty charged to onBehalf");
+        assertGt(realVault.balanceOf(recipient), 0, "fee shares minted");
+        (uint128 marketNetCredit,,,) = adapter._markets(_marketId(offer.market));
+        assertEq(marketNetCredit, 0.5e18, "netCredit");
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days zeroed");
+        assertEq(realVault.allocation(durationId(1 days)), 0.5e18, "1 day");
+        assertEq(loanToken.balanceOf(address(realVault)), 9.5e18, "vault balance");
+    }
+
+    /// forge-config: default.isolate = true
+    /// @dev A sendSharesGate must allow the adapter: exits work when it does, and revert once a duration boundary
+    /// has been crossed when it does not.
+    function testForceDeallocateRealVaultWithGate() public {
+        setUpRealVault();
+        Offer memory offer = buyOnRealVault(7 days, 1e18);
+
+        address gate = makeAddr("gate");
+        vm.etch(gate, hex"01");
+        vm.mockCall(gate, abi.encodeWithSelector(ISendSharesGate.canSendShares.selector), abi.encode(true));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.setSendSharesGate, (gate)));
+
+        skip(1);
+
+        forceDeallocateOnRealVault(offer.market, 0.5e18);
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days zeroed");
+
+        vm.mockCall(
+            gate, abi.encodeWithSelector(ISendSharesGate.canSendShares.selector, address(adapter)), abi.encode(false)
+        );
+        skip(6 days);
+        vm.expectRevert(ErrorsLib.CannotSendShares.selector);
+        realVault.forceDeallocate(address(adapter), abi.encode(offer.market), 0.1e18, address(this));
+    }
+
+    /// forge-config: default.isolate = true
+    /// @dev A matured maturity zeroes all its duration ids at once, without the adapter having any role.
+    function testUpdateDurationCapsMaturedRealVault() public {
+        setUpRealVault();
+        Offer memory offer = buyOnRealVault(7 days, 1e18);
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), false)));
+
+        skip(7 days + 1);
+
+        adapter.updateDurationCaps(offer.market);
+
+        assertEq(realVault.allocation(durationId(1 days)), 0, "1 day zeroed");
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days zeroed");
+        assertEq(realVault.allocation(adapter.adapterId()), 1e18, "adapter id untouched");
+    }
+
+    /// forge-config: default.isolate = true
+    /// @dev Zeroing a maturity's stale duration id must not touch other maturities sharing that id.
+    function testForceDeallocateRealVaultSharedDurationId() public {
+        setUpRealVault();
+        Offer memory offerA = buyOnRealVault(7 days, 1e18);
+        buyOnRealVault(10 days, 1e18);
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), false)));
+
+        skip(1);
+
+        forceDeallocateOnRealVault(offerA.market, 0.5e18);
+
+        assertEq(realVault.allocation(durationId(7 days)), 1e18, "7 days keeps the other maturity's part");
+        assertEq(realVault.allocation(durationId(1 days)), 1.5e18, "1 day");
+        assertEq(realVault.allocation(adapter.adapterId()), 1.5e18, "adapter id");
+    }
+
+    function testForceDeallocateRealizesLoss() public {
+        Offer memory boughtOffer = buy(7 days, 1e18);
+        bytes32 marketId = _marketId(boughtOffer.market);
+
+        // Partial repay so the bad debt below does not max out the loss factor.
+        deal(address(loanToken), address(this), 0.7e18);
+        loanToken.approve(address(midnight), type(uint256).max);
+        midnight.repay(boughtOffer.market, 0.7e18, taker, address(0), "");
+
+        OracleMock(storedCollaterals[0].oracle).setPrice(0);
+        OracleMock(storedCollaterals[1].oracle).setPrice(0);
+        midnight.liquidate(boughtOffer.market, 0, 0, 0, taker, false, address(this), address(0), "");
+
+        // The slash is only pending: the position's raw credit is untouched.
+        assertEq(midnight.credit(marketId, address(adapter)), 1e18, "raw credit");
+
+        MidnightLossRealizer realizer = new MidnightLossRealizer();
+        realizer.realizeLoss(IMidnightAdapter(address(adapter)), boughtOffer.market);
+
+        (uint128 marketNetCredit,,,) = adapter._markets(marketId);
+        assertApproxEqAbs(marketNetCredit, 0.7e18, 1, "netCredit");
+        assertApproxEqAbs(parentVault.allocation(adapter.adapterId()), 0.7e18, 1, "allocation");
+    }
+
     /* WITHDRAW TO VAULT */
 
     function testWithdrawToVaultUnauthorized(address nonAllocator) public {
@@ -937,6 +1069,71 @@ contract MidnightAdapterTest is Test {
     function forceDeallocate(Market memory market, uint256 assets) internal {
         deal(address(loanToken), address(adapter), assets);
         parentVault.forceDeallocate(address(adapter), abi.encode(market), assets, address(this));
+    }
+
+    function setUpRealVault() internal {
+        realVault = IVaultV2(deployCode("VaultV2.sol:VaultV2", abi.encode(owner, address(loanToken))));
+        vm.prank(owner);
+        realVault.setCurator(curator);
+        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(realVault), address(midnight)));
+
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), true)));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (signerAllocator, true)));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(adapter), 0.02e18)));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (recipient)));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.setManagementFeeRecipient, (recipient)));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.setPerformanceFee, (0.1e18)));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.setManagementFee, (1e9)));
+        vm.prank(signerAllocator);
+        realVault.setMaxRate(1e18 / uint256(365 days));
+
+        bytes[] memory idDatas = new bytes[](7);
+        idDatas[0] = abi.encode("this", address(adapter));
+        idDatas[1] = abi.encode("collateralToken", storedCollaterals[0].token);
+        idDatas[2] = abi.encode(
+            "collateral", storedCollaterals[0].token, storedCollaterals[0].oracle, storedCollaterals[0].lltv
+        );
+        idDatas[3] = abi.encode("collateralToken", storedCollaterals[1].token);
+        idDatas[4] = abi.encode(
+            "collateral", storedCollaterals[1].token, storedCollaterals[1].oracle, storedCollaterals[1].lltv
+        );
+        idDatas[5] = abi.encode("duration", uint256(1 days));
+        idDatas[6] = abi.encode("duration", uint256(7 days));
+        for (uint256 i = 0; i < idDatas.length; i++) {
+            submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idDatas[i], type(uint128).max)));
+            submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idDatas[i], 1e18)));
+        }
+
+        deal(address(loanToken), address(this), 10e18);
+        loanToken.approve(address(realVault), type(uint256).max);
+        realVault.deposit(10e18, address(this));
+    }
+
+    function buyOnRealVault(uint256 duration, uint256 assets) internal returns (Offer memory offer) {
+        offer = makeBuyOffer(duration, assets, MAX_TICK);
+        offer.maker = address(adapter);
+        offer.callback = address(adapter);
+        offer.ratifier = address(adapter);
+        midnight.supplyCollateral(offer.market, 0, assets / 2, taker);
+        midnight.supplyCollateral(offer.market, 1, assets / 2, taker);
+        take(offer);
+    }
+
+    function forceDeallocateOnRealVault(Market memory market, uint256 assets) internal returns (uint256) {
+        deal(address(loanToken), address(adapter), assets);
+        return realVault.forceDeallocate(address(adapter), abi.encode(market), assets, address(this));
+    }
+
+    function submitAndCall(IVaultV2 vault, bytes memory call_) internal {
+        vm.prank(curator);
+        vault.submit(call_);
+        (bool success, bytes memory returnData) = address(vault).call(call_);
+        if (!success) {
+            assembly ("memory-safe") {
+                revert(add(32, returnData), mload(returnData))
+            }
+        }
     }
 
     function durationId(uint256 duration) internal pure returns (bytes32) {

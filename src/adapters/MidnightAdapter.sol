@@ -17,7 +17,9 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Approximates held assets by linearly accounting for interest per market, aggregated by maturity.
 /// @dev Losses are immediately accounted minus a discount applied to the remaining interest to be earned, in proportion
 /// to the relative sizes of the loss and the adapter's position in the market hit by the loss.
-/// @dev The adapter must have the allocator role in its parent vault to be able to buy & sell on markets.
+/// @dev The adapter must have the allocator role in its parent vault to buy, and the allocator or sentinel role to
+/// make sell offers and to withdraw to the vault.
+/// @dev If the parent vault has a sendSharesGate, the gate must allow the adapter to send shares.
 /// @dev Force deallocators get shares of the adapter's position instead of triggering a market sale. Their claims must
 /// stay redeemable even if the vault removes the adapter or its allocator role, so withdrawShares never interacts with
 /// the parent vault.
@@ -33,7 +35,7 @@ contract MidnightAdapter is IMidnightAdapter {
     address public immutable parentVault;
     address public immutable midnight;
     bytes32 public immutable adapterId;
-    /// @dev Sorted durations that can be used to cap the time to maturity.
+    /// @dev Durations that can be used to cap the time to maturity.
     /// @dev Sorted in ascending order.
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
@@ -49,7 +51,7 @@ contract MidnightAdapter is IMidnightAdapter {
     uint128 public currentGrowth;
     uint48 public lastUpdate;
     /// @dev Maximum steps of an accrual.
-    /// @dev A maturity uses an availability slot iff it has some units and is > now after accrual.
+    /// @dev After accrual, a maturity uses an availability slot iff it has some units and is > now.
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_PENDING_MATURITIES = 50;
     uint8 public availableMaturities = MAX_PENDING_MATURITIES;
@@ -172,16 +174,14 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 newDurationCount = durationCount(market.maturity);
         maturityData.durationCount = uint8(newDurationCount);
         emit UpdateDurationCaps(market.maturity, newDurationCount, maturityData.vaultNetCredit);
-        // VaultV2.deallocate requires allocation > 0 for each returned id.
+        // VaultV2.forceDeallocate requires allocation > 0 for each returned id.
         if (newDurationCount < oldDurationCount && maturityData.vaultNetCredit > 0) {
             bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationCount - newDurationCount);
             for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
                 zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
             }
-            IVaultV2(parentVault)
-                .deallocate(
-                    address(this), abi.encode(zeroedDurationsIds, -int256(uint256(maturityData.vaultNetCredit))), 0
-                );
+            bytes memory data = abi.encode(zeroedDurationsIds, -int256(uint256(maturityData.vaultNetCredit)));
+            IVaultV2(parentVault).forceDeallocate(address(this), data, 0, address(this));
         }
     }
 
@@ -190,11 +190,11 @@ contract MidnightAdapter is IMidnightAdapter {
     function accrueInterestView() public view returns (uint48, uint128, uint128, uint256) {
         if (block.timestamp == lastUpdate) return (_maturities[0].nextMaturity, currentGrowth, totalAssets, 0);
 
-        uint48 _firstMaturity = _maturities[0].nextMaturity;
-        uint128 newGrowth = currentGrowth;
-        uint256 removedMaturities = 0;
         uint256 gainedAssets = 0;
+        uint128 newGrowth = currentGrowth;
         uint256 accrueFrom = lastUpdate;
+        uint48 _firstMaturity = _maturities[0].nextMaturity;
+        uint256 removedMaturities = 0;
 
         while (_firstMaturity != 0 && _firstMaturity <= block.timestamp) {
             gainedAssets += uint256(newGrowth) * (_firstMaturity - accrueFrom);
@@ -246,15 +246,23 @@ contract MidnightAdapter is IMidnightAdapter {
         }
     }
 
-    /// @dev Can be called by this adapter from a sell callback, a withdraw, or a loss realization.
-    /// @dev Can be called by a user through forceDeallocate.
+    /// @dev Can be called by this adapter from a sell callback, a withdraw, or a duration caps update.
+    /// @dev Can be called by anyone through forceDeallocate.
     /// @dev A force deallocator forfeits all his share of the pending continuous fee.
     function deallocate(bytes memory data, uint256 deallocatedAmount, bytes4 messageSig, address caller)
         external
         returns (bytes32[] memory, int256)
     {
         require(msg.sender == parentVault, NotAuthorized());
-        if (messageSig == IVaultV2.forceDeallocate.selector) {
+        if (caller == address(this)) {
+            // Return exactly the data passed to the function.
+            // Used to update duration caps through forceDeallocate, sell as a maker, or withdraw to the vault.
+            assembly ("memory-safe") {
+                return(add(data, 32), mload(data))
+            }
+        } else {
+            require(messageSig == IVaultV2.forceDeallocate.selector, ForceDeallocateOnly());
+
             Market memory market = abi.decode(data, (Market));
             bytes32 marketId = IdLib.toId(market);
             MarketData storage marketData = _markets[marketId];
@@ -276,12 +284,6 @@ contract MidnightAdapter is IMidnightAdapter {
             unreportedVaultDecrease[marketId] = 0;
             emit ForceDeallocate(marketId, deallocatedAmount, reportedDecrease);
             return (ids(market), -reportedDecrease.toInt256());
-        } else {
-            require(caller == address(this), SelfAllocationOnly());
-            // Return exactly the data passed to the function.
-            assembly ("memory-safe") {
-                return(add(data, 32), mload(data))
-            }
         }
     }
 
