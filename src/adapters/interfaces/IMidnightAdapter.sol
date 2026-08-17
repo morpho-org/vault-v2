@@ -37,6 +37,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
 
     error BufferTooLow();
     error BuyAtLoss();
+    error ForceDeallocateOnly();
     error IncorrectCallbackAddress();
     error IncorrectOffer();
     error IncorrectOwner();
@@ -79,10 +80,10 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function parentVault() external view returns (address);
     function accrueInterestView() external view returns (uint128, uint256);
     function accrueInterest() external returns (uint128, uint256);
-    function allocate(bytes memory data, uint256 assets, bytes4, address vaultAllocator)
+    function allocate(bytes memory data, uint256 assets, bytes4, address caller)
         external
         returns (bytes32[] memory, int256);
-    function deallocate(bytes memory data, uint256 assets, bytes4, address vaultAllocator)
+    function deallocate(bytes memory data, uint256 assets, bytes4, address caller)
         external
         returns (bytes32[] memory, int256);
     function onBuy(
