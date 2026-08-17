@@ -10,7 +10,7 @@ import {Offer, Market} from "../lib/midnight/src/interfaces/IMidnight.sol";
 import {Signature, EIP712_DOMAIN_TYPEHASH} from "../lib/midnight/src/ratifiers/interfaces/IEcrecoverRatifier.sol";
 import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
 import {CALLBACK_SUCCESS} from "../lib/midnight/src/libraries/ConstantsLib.sol";
-import {TakeAmountsLib} from "../lib/midnight/src/periphery/TakeAmountsLib.sol";
+import {TakeAmountsLib} from "../lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 import {IdLib} from "../lib/midnight/src/libraries/IdLib.sol";
 
 contract MidnightAuctionRatifierTest is MidnightAdapterTest {
@@ -19,6 +19,11 @@ contract MidnightAuctionRatifierTest is MidnightAdapterTest {
     function auctionRatifierAddress() internal override returns (address) {
         ratifier = new MidnightAuctionRatifier();
         return address(ratifier);
+    }
+
+    /// forge-config: default.isolate = true
+    function testForceDeallocateRealVaultWithPenalty() public override {
+        super.testForceDeallocateRealVaultWithPenalty();
     }
 
     /* HELPERS */
