@@ -231,7 +231,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
 
     /* SET CAN DEALLOCATE */
 
-    function testSetCanDeallocate(bool value) public {
+    function testSetCanPullFromMarket(bool value) public {
         vm.expectEmit();
         emit IBluePublicAllocator.SetCanPullFromMarket(
             allocator, address(vault), address(adapter), marketParams1, value
@@ -240,14 +240,14 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         assertEq(bluePublicAllocator.canPullFromMarket(address(vault), id1), value);
     }
 
-    function testSetCanDeallocateUnauthorized(address caller) public {
+    function testSetCanPullFromMarketUnauthorized(address caller) public {
         vm.assume(!vault.isAllocator(caller));
         vm.expectRevert(IBluePublicAllocator.Unauthorized.selector);
         vm.prank(caller);
         bluePublicAllocator.setCanPullFromMarket(address(vault), address(adapter), marketParams1, true);
     }
 
-    function testSetCanAllocateFromIdle(bool value) public {
+    function testSetCanPullFromIdle(bool value) public {
         vm.expectEmit();
         emit IBluePublicAllocator.SetCanPullFromIdle(allocator, address(vault), value);
         _setCanPullFromIdle(value);
@@ -255,7 +255,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         assertEq(canPullFromIdle_, value);
     }
 
-    function testSetCanAllocateFromIdleUnauthorized(address caller) public {
+    function testSetCanPullFromIdleUnauthorized(address caller) public {
         vm.assume(!vault.isAllocator(caller));
         vm.expectRevert(IBluePublicAllocator.Unauthorized.selector);
         vm.prank(caller);
