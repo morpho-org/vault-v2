@@ -21,8 +21,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// make sell offers and to withdraw to the vault.
 /// @dev If the parent vault has a sendSharesGate, the gate must allow the adapter to send shares.
 /// @dev Force deallocators get shares of the adapter's position instead of triggering a market sale. Their claims must
-/// stay redeemable even if the vault removes the adapter or its allocator role, so withdrawShares never interacts with
-/// the parent vault.
+/// stay redeemable even if the vault removes the adapter, so withdrawShares never interacts with the parent vault.
 contract MidnightAdapter is IMidnightAdapter {
     using MathLib for uint256;
     using MathLib for uint128;
