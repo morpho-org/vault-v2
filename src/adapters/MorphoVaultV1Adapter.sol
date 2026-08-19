@@ -73,7 +73,7 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         uint256 newAllocation = IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)));
 
         // forge-lint: disable-next-item(unsafe-typecast) safe because Blue bounds the total supply per market to
-        // uint128, and the vault's allocation is a sum blue market positions.
+        // uint128, and the vault's allocation is a sum of blue market positions.
         return (ids(), int256(newAllocation) - int256(oldAllocation));
     }
 
@@ -91,7 +91,7 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         uint256 newAllocation = IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)));
 
         // forge-lint: disable-next-item(unsafe-typecast) safe because Blue bounds the total supply per market to
-        // uint128, and the vault's allocation is a sum blue market positions.
+        // uint128, and the vault's allocation is a sum of blue market positions.
         return (ids(), int256(newAllocation) - int256(oldAllocation));
     }
 
