@@ -56,6 +56,11 @@ evm_version = "cancun"
 paths = "src/adapters/MidnightAdapter.sol"
 optimizer_runs = 15000
 
+# Midnight is compiled with its home repo's settings so it fits under EIP-170.
+[[profile.default.compilation_restrictions]]
+paths = "lib/midnight/src/Midnight.sol"
+optimizer_runs = 466
+
 # For every restriction above there must be some compatible foundry profile.
 # The first matching profile will be used. For clarity, all profiles below should be incompatible with each other.
 
@@ -72,5 +77,9 @@ evm_version = "cancun"
 [[profile.default.additional_compiler_profiles]]
 name = "15000-osaka"
 optimizer_runs = 15000
+
+[[profile.default.additional_compiler_profiles]]
+name = "466-osaka"
+optimizer_runs = 466
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
