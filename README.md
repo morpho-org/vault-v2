@@ -79,6 +79,8 @@ Four gates are defined:
 - **Receive assets Gate** (`receiveAssetsGate`): Controls permissions related to receiving assets.
 - **Send assets Gate** (`sendAssetsGate`): Controls permissions related to sending assets.
 
+See [WhitelistSendAssetsGate](./src/periphery/gates/WhitelistSendAssetsGate.sol) which gives one possible implementation of the Send assets Gate.
+
 ### Max rate
 
 The vault's share price will not increase faster than the allocator-set `maxRate`.
@@ -117,6 +119,7 @@ Vault V2 is [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) and [ERC-2612](h
 ## Developers
 
 Compilation, testing and formatting with [forge](https://book.getfoundry.sh/getting-started/installation).
+Peripheral contracts are available in [src/periphery](./src/periphery/).
 
 ## Audits
 
