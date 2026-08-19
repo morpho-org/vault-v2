@@ -16,7 +16,6 @@ import {ISendSharesGate} from "../src/interfaces/IGate.sol";
 import {ErrorsLib} from "../src/libraries/ErrorsLib.sol";
 import {IMidnightAdapterFactory} from "../src/adapters/interfaces/IMidnightAdapterFactory.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
-import {Midnight} from "../lib/midnight/src/Midnight.sol";
 import {IMidnight, Offer, Market, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
 import {Signature, EIP712_DOMAIN_TYPEHASH} from "../lib/midnight/src/ratifiers/interfaces/IEcrecoverRatifier.sol";
 import {HashLib} from "../lib/midnight/src/ratifiers/libraries/HashLib.sol";
@@ -113,7 +112,8 @@ contract MidnightAdapterTest is Test {
         recipient = makeAddr("recipient");
         taker = makeAddr("taker");
 
-        midnight = IMidnight(address(new Midnight()));
+        // Deployed from the artifact so the test unit does not compile Midnight (see foundry.toml).
+        midnight = IMidnight(deployCode("Midnight.sol:Midnight"));
         midnight.enableLltv(1e18);
         midnight.enableLiquidationCursor(0.25e18);
 
@@ -688,6 +688,36 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.totalAssets(), 0);
     }
 
+    // Same buffer check, reached through the allocator take path: taking a buy offer makes the adapter sell,
+    // below par here, dropping the vault's real assets under its reported total.
+    function testTakeBufferTooLowReverts() public {
+        deal(address(loanToken), address(parentVault), 1e18);
+        Offer memory offer = buy(0, 1e18);
+        parentVault.setTotalAssets(1e18);
+
+        Offer memory buyOffer = makeExternalOffer(offer.market, true, 1e18, MAX_TICK - 4);
+        vm.expectRevert(IMidnightAdapter.BufferTooLow.selector);
+        vm.prank(signerAllocator);
+        adapter.take(buyOffer, "", 1e18);
+    }
+
+    function testTakeBufferBigEnough() public {
+        uint256 loss = 1e18 - TickLib.tickToPrice(MAX_TICK - 4);
+
+        deal(address(loanToken), address(parentVault), 1e18);
+        Offer memory offer = buy(0, 1e18);
+        extraAssetsAdapter.setRealAssets(loss);
+        parentVault.setTotalAssets(1e18);
+
+        Offer memory buyOffer = makeExternalOffer(offer.market, true, 1e18, MAX_TICK - 4);
+        vm.prank(signerAllocator);
+        adapter.take(buyOffer, "", 1e18);
+
+        (uint128 marketNetCredit,) = adapter._markets(_marketId(offer.market));
+        assertEq(marketNetCredit, 0);
+        assertEq(adapter.totalAssets(), 0);
+    }
+
     /* PENDING MATURITIES LIST */
 
     function testOutOfOrderInsertsStaySorted() public {
@@ -910,6 +940,40 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(adapter.adapterId()), 1.5e18, "adapter id");
     }
 
+    /// forge-config: default.isolate = true
+    /// @dev An allocator takes external offers directly: taking a sell offer buys credit, taking a buy offer
+    /// sells it. Both route through the same onBuy/onSell accounting as the maker flows.
+    function testAllocatorTakeRealVault() public {
+        setUpRealVault();
+        Market memory market = makeBuyOffer(7 days, 1e18, MAX_TICK).market;
+        bytes32 marketId = _marketId(market);
+
+        Offer memory sellOffer = makeExternalOffer(market, false, 1e18, MAX_TICK);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.take(sellOffer, "", uint256(sellOffer.maxUnits));
+
+        // Buy 1e18 credit by taking the external sell offer, funded by the vault.
+        vm.prank(signerAllocator);
+        adapter.take(sellOffer, "", uint256(sellOffer.maxUnits));
+
+        assertEq(realVault.allocation(adapter.adapterId()), 1e18, "allocation after buy");
+        assertEq(realVault.allocation(durationId(7 days)), 1e18, "duration allocation after buy");
+        assertEq(loanToken.balanceOf(address(realVault)), 9e18, "vault funded the buy");
+        assertEq(adapter.totalAssets(), 1e18, "adapter totalAssets after buy");
+
+        skip(1);
+
+        // Sell 0.5e18 credit by taking an external buy offer, proceeds forwarded to the vault.
+        Offer memory buyOffer = makeExternalOffer(market, true, 0.5e18, MAX_TICK);
+        vm.prank(signerAllocator);
+        adapter.take(buyOffer, "", uint256(buyOffer.maxUnits));
+
+        (uint128 marketNetCredit,) = adapter._markets(marketId);
+        assertEq(marketNetCredit, 0.5e18, "netCredit after sell");
+        assertEq(realVault.allocation(adapter.adapterId()), 0.5e18, "allocation after sell");
+        assertEq(loanToken.balanceOf(address(realVault)), 9.5e18, "proceeds back in the vault");
+    }
+
     function testForceDeallocateRealizesLoss() public {
         Offer memory boughtOffer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
@@ -1105,6 +1169,43 @@ contract MidnightAdapterTest is Test {
         root_ = root([offer]);
         approvalRatifier.setIsRootRatified(buyer, root_, true);
         vm.stopPrank();
+    }
+
+    /// @dev Builds an external offer at `tick`, ratified by this contract. Buy offers get a funded maker, sell
+    /// offers get a collateralized one.
+    function makeExternalOffer(Market memory market, bool buy, uint256 assets, uint256 tick)
+        internal
+        returns (Offer memory offer)
+    {
+        address maker = makeAddr(buy ? "externalBuyer" : "externalSeller");
+        vm.prank(maker);
+        midnight.setIsAuthorized(address(this), true, maker);
+
+        offer = storedOffer;
+        offer.market = market;
+        offer.buy = buy;
+        offer.maker = maker;
+        offer.tick = tick;
+        offer.maxUnits = uint128(assets * 1e18 / TickLib.tickToPrice(tick));
+        offer.expiry = block.timestamp;
+        offer.callback = address(0);
+        offer.receiverIfMakerIsSeller = buy ? address(0) : maker;
+        offer.ratifier = address(this);
+        offer.group = bytes32(vm.randomUint());
+
+        if (buy) {
+            deal(address(loanToken), maker, assets);
+            vm.prank(maker);
+            loanToken.approve(address(midnight), type(uint256).max);
+        } else {
+            midnight.supplyCollateral(market, 0, assets / 2, maker);
+            midnight.supplyCollateral(market, 1, assets / 2, maker);
+        }
+    }
+
+    /// @dev Ratifier for external offers built by makeExternalOffer.
+    function isRatified(Offer memory, bytes memory, address) external pure returns (bytes32) {
+        return CALLBACK_SUCCESS;
     }
 
     function forceDeallocate(Market memory market, uint256 assets) internal {
