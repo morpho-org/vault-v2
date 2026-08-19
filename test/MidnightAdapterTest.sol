@@ -965,6 +965,89 @@ contract MidnightAdapterTest is Test {
         assertEq(allocationBefore - parentVault.allocation(adapter.adapterId()), 0.2e18, "folded into report");
     }
 
+    // Early exit before maturity, per withdrawShares' doc comment: sell the credit on midnight (creating debt),
+    // then repay + withdrawShares in the sell callback. The repay itself creates the withdrawable liquidity that
+    // the redemption needs, and midnight's health check passes because the callback cleared the debt.
+    // The sale pays face value minus the settlement fee while the repay costs full face value, so the exiter needs
+    // preexisting assets for the difference. They can be flashloaned: simulated here by dealing them beforehand
+    // and checking they are left over at the end.
+    function testWithdrawSharesEarlyExitBeforeMaturity() public {
+        Offer memory boughtOffer = buy(7 days, 1e18);
+        bytes32 marketId = _marketId(boughtOffer.market);
+        forceDeallocate(boughtOffer.market, 0.5e18);
+
+        skip(1);
+
+        // Flat settlement fee over the [1 days, 7 days] time-to-maturity range.
+        uint256 fee = 0.000014e18;
+        midnight.setFeeSetter(address(this));
+        midnight.setMarketSettlementFee(marketId, 1, fee);
+        midnight.setMarketSettlementFee(marketId, 2, fee);
+
+        // Sell the 0.5e18 credit at price 1: the sale pays 0.5e18 - feeCost, the repay costs 0.5e18.
+        Offer memory offer = makeExternalBuyOffer(boughtOffer.market, 0.5e18);
+        uint256 feeCost = 0.5e18 * fee / 1e18;
+        loanToken.approve(address(midnight), type(uint256).max);
+
+        // Without preexisting assets, the sale proceeds cannot cover the repay in the callback.
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "ERC20InsufficientBalance(address,uint256,uint256)", address(this), 0.5e18 - feeCost, 0.5e18
+            )
+        );
+        midnight.take(offer, "", offer.maxUnits, address(this), address(this), address(this), "");
+
+        // "Flashloan" exactly the shortfall and exit.
+        uint256 flashloaned = feeCost;
+        deal(address(loanToken), address(this), flashloaned);
+        midnight.take(offer, "", offer.maxUnits, address(this), address(this), address(this), "");
+
+        // The flashloan can be paid back: the exit netted 0.5e18 minus the settlement fee, before maturity.
+        assertLt(block.timestamp, boughtOffer.market.maturity, "before maturity");
+        assertEq(loanToken.balanceOf(address(this)), flashloaned + 0.5e18 - feeCost, "flashloan back + net proceeds");
+        assertEq(adapter.shares(marketId, address(this)), 0, "shares burned");
+        (, uint128 userNetCredit, uint128 userShares,) = adapter._markets(marketId);
+        assertEq(userNetCredit, 0, "user tranche emptied");
+        assertEq(userShares, 0, "user shares emptied");
+    }
+
+    /// @dev Builds a buy offer at price 1 (MAX_TICK) from a funded external buyer, ratified by this contract.
+    function makeExternalBuyOffer(Market memory market, uint256 assets) internal returns (Offer memory offer) {
+        address buyer = makeAddr("externalBuyer");
+        deal(address(loanToken), buyer, assets);
+        vm.startPrank(buyer);
+        loanToken.approve(address(midnight), type(uint256).max);
+        midnight.setIsAuthorized(address(this), true, buyer);
+        vm.stopPrank();
+
+        offer = storedOffer;
+        offer.market = market;
+        offer.buy = true;
+        offer.maker = buyer;
+        offer.tick = MAX_TICK;
+        offer.maxUnits = uint128(assets * 1e18 / TickLib.tickToPrice(MAX_TICK));
+        offer.expiry = block.timestamp;
+        offer.callback = address(0);
+        offer.ratifier = address(this);
+        offer.group = bytes32("external buy");
+    }
+
+    // Ratifier for the external buyer's offer.
+    function isRatified(Offer memory, bytes memory, address) external pure returns (bytes32) {
+        return CALLBACK_SUCCESS;
+    }
+
+    // Sell callback of the early exit: repay the debt just created, then redeem the shares.
+    function onSell(bytes32, Market memory market, uint256, uint256 units, uint256, address, address, bytes memory)
+        external
+        returns (bytes32)
+    {
+        require(msg.sender == address(midnight), "not midnight");
+        midnight.repay(market, units, address(this), address(0), "");
+        adapter.withdrawShares(market, adapter.shares(IdLib.toId(market), address(this)));
+        return CALLBACK_SUCCESS;
+    }
+
     /* SKIM */
 
     function testSetSkimRecipientUnauthorized(address nonOwner) public {
