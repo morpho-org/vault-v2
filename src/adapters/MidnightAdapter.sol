@@ -167,6 +167,15 @@ contract MidnightAdapter is IMidnightAdapter {
         emit WithdrawShares(marketId, msg.sender, redeemedShares, withdrawnAssets);
     }
 
+    function take(Offer memory offer, bytes memory ratifierData, uint256 units) external {
+        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
+        require(offer.market.loanToken == asset, LoanAssetMismatch());
+        IMidnight(midnight)
+            .take(
+                offer, ratifierData, units, address(this), offer.buy ? address(this) : address(0), address(this), hex""
+            );
+    }
+
     function updateDurationCaps(Market memory market) public {
         MaturityData storage maturityData = _maturities[market.maturity];
         uint256 oldDurationCount = maturityData.durationCount;
