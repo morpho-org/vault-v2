@@ -70,14 +70,13 @@ rule totalAssetsForceDeallocate(env e, address adapter, bytes data, uint256 deal
 // Other non-view functions don't change totalAssets, assuming no interest accrual.
 rule totalAssetsUnchangedByOthers(env e, method f, calldataarg args)
 filtered {
-    f -> !f.isView &&
-    f.selector != sig:deposit(uint256,address).selector &&
-    f.selector != sig:mint(uint256,address).selector &&
-    f.selector != sig:withdraw(uint256,address,address).selector &&
-    f.selector != sig:redeem(uint256,address,address).selector &&
-    f.selector != sig:forceDeallocate(address,bytes,uint256,address).selector
-}
-{
+    f -> !f.isView
+        && f.selector != sig:deposit(uint256, address).selector
+        && f.selector != sig:mint(uint256, address).selector
+        && f.selector != sig:withdraw(uint256, address, address).selector
+        && f.selector != sig:redeem(uint256, address, address).selector
+        && f.selector != sig:forceDeallocate(address, bytes, uint256, address).selector
+} {
     mathint totalAssetsPre = currentContract._totalAssets;
 
     f(e, args);

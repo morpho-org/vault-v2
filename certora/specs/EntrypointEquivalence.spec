@@ -47,10 +47,7 @@ rule depositMintEquivalenceForEnter(env e, address onBehalf) {
     uint256 assetsMint = assetsEnter;
     uint256 sharesMint = sharesEnter;
 
-    assert sharesOutput == sharesInput && assetsOutput == assetsInput => 
-        onBehalfDeposit == onBehalfMint && 
-        assetsDeposit == assetsMint && 
-        sharesDeposit == sharesMint;
+    assert (sharesOutput == sharesInput && assetsOutput == assetsInput) => (onBehalfDeposit == onBehalfMint && assetsDeposit == assetsMint && sharesDeposit == sharesMint);
 }
 
 rule withdrawRedeemEquivalenceForExit(env e, uint256 assets, address receiver, address onBehalf) {
@@ -69,9 +66,5 @@ rule withdrawRedeemEquivalenceForExit(env e, uint256 assets, address receiver, a
     uint256 assetsRedeem = assetsExit;
     uint256 sharesRedeem = sharesExit;
 
-    assert sharesOutput == sharesInput && assetsOutput == assetsInput => 
-        receiverWithdraw == receiverRedeem && 
-        onBehalfWithdraw == onBehalfRedeem && 
-        assetsWithdraw == assetsRedeem && 
-        sharesWithdraw == sharesRedeem;
+    assert (sharesOutput == sharesInput && assetsOutput == assetsInput) => (receiverWithdraw == receiverRedeem && onBehalfWithdraw == onBehalfRedeem && assetsWithdraw == assetsRedeem && sharesWithdraw == sharesRedeem);
 }

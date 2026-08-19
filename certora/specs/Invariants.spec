@@ -24,16 +24,16 @@ persistent ghost mapping(address => mapping(address => bool)) ghostIsInRegistry;
 
 definition max_int256() returns int256 = (2 ^ 255) - 1;
 
-ghost mathint sumOfBalances {
-    init_state axiom sumOfBalances == 0;
+ghost mapping(address => uint256) balanceOfGhost {
+    init_state axiom forall address a. balanceOfGhost[a] == 0;
 }
 
 hook Sload uint256 balance balanceOf[KEY address addr] {
-    require sumOfBalances >= to_mathint(balance), "sum of balances is greater than any given balance";
+    require balanceOfGhost[addr] == balance;
 }
 
 hook Sstore balanceOf[KEY address addr] uint256 newValue (uint256 oldValue) {
-    sumOfBalances = sumOfBalances - oldValue + newValue;
+    balanceOfGhost[addr] = newValue;
 }
 
 strong invariant performanceFeeRecipientSetWhenPerformanceFeeIsSet()
@@ -52,7 +52,7 @@ strong invariant forceDeallocatePenaltyBound(address adapter)
     forceDeallocatePenalty(adapter) <= Utils.maxForceDeallocatePenalty();
 
 strong invariant relativeCapBound(bytes32 id)
-    relativeCap(id) <= 10^18;
+    relativeCap(id) <= 10 ^ 18;
 
 strong invariant maxRateBound()
     maxRate() <= Utils.maxMaxRate();
@@ -64,43 +64,48 @@ strong invariant decreaseTimelockTimelock()
     timelock(decreaseTimelockSelector()) == 0;
 
 strong invariant totalSupplyIsSumOfBalances()
-    totalSupply() == sumOfBalances;
+    totalSupply() == (usum address a. balanceOfGhost[a]);
+
+rule balanceOfLeqTotalSupply(address account) {
+    requireInvariant totalSupplyIsSumOfBalances();
+    assert balanceOf(account) <= totalSupply();
+}
 
 strong invariant allocationIsInt256(bytes32 id)
     allocation(id) <= max_int256();
 
 strong invariant registeredAdaptersAreSet()
     (forall uint256 i. i < currentContract.adapters.length => currentContract.isAdapter[currentContract.adapters[i]])
-{
-    preserved {
-        requireInvariant distinctAdapters();
+    {
+        preserved {
+            requireInvariant distinctAdapters();
+        }
     }
-}
 
 strong invariant distinctAdapters()
     forall uint256 i. forall uint256 j. (i < j && j < currentContract.adapters.length) => currentContract.adapters[j] != currentContract.adapters[i]
-{
-    preserved {
-        requireInvariant registeredAdaptersAreSet();
+    {
+        preserved {
+            requireInvariant registeredAdaptersAreSet();
+        }
     }
-}
 
 invariant virtualSharesBounds()
-    0 < currentContract.virtualShares && currentContract.virtualShares <= 10^18;
+    0 < currentContract.virtualShares && currentContract.virtualShares <= 10 ^ 18;
 
 invariant witnessForSetAdapters(address account)
     exists uint256 i. currentContract.isAdapter[account] => i < currentContract.adapters.length && currentContract.adapters[i] == account
-{
-    preserved {
-        require currentContract.adapters.length < 2 ^ 128, "would require an unrealistic amount of computation";
+    {
+        preserved {
+            require currentContract.adapters.length < 2 ^ 128, "would require an unrealistic amount of computation";
+        }
     }
-}
 
 // Note: ghostIsInRegistry makes it such that adapters can't be removed from registries. Without that, the invariant doesn't hold.
 strong invariant adaptersAreInRegistry(address account)
     adapterRegistry() != 0 => isAdapter(account) => ghostIsInRegistry[adapterRegistry()][account]
-{
-    preserved {
-        requireInvariant witnessForSetAdapters(account);
+    {
+        preserved {
+            requireInvariant witnessForSetAdapters(account);
+        }
     }
-}
