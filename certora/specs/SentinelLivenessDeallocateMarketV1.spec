@@ -21,7 +21,7 @@ methods {
     function _.deallocate(bytes data, uint256 assets, bytes4 selector, address sender) external with(env e) => morphoMarketV1AdapterDeallocateWrapper(calledContract, e, data, assets, selector, sender) expect(bytes32[], int256);
 
     // Assume that the adapter's withdraw call succeeds.
-    function _.withdraw(MorphoMarketV1AdapterV2.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) external => summaryWithdraw(marketParams, assets, shares, onBehalf, receiver) expect (uint256, uint256);
+    function _.withdraw(MorphoMarketV1AdapterV2.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) external => summaryWithdraw(marketParams, assets, shares, onBehalf, receiver) expect(uint256, uint256);
 
     // Transfers should not revert because market v1 sends back tokens to the adapter on withdraw.
     function ERC20.transferFrom(address, address, uint256) external returns (bool) => NONDET;
