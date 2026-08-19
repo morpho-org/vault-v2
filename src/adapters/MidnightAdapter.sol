@@ -144,7 +144,7 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /// @dev Does not interact with the parent vault, so that claims stay redeemable even if the adapter has been
-    /// removed from the vault or has lost its allocator role.
+    /// removed from the vault.
     /// @dev To withdraw early, users can sell on midnight and in a callback immediately repay & withdraw here.
     function withdrawShares(Market memory market, uint256 redeemedShares) external {
         bytes32 marketId = IdLib.toId(market);
