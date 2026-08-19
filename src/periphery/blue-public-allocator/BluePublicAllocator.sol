@@ -13,7 +13,7 @@ import {SafeERC20Lib} from "../../libraries/SafeERC20Lib.sol";
 /// @dev To be usable, the BluePublicAllocator must be set as an allocator of the vault.
 /// @dev Meant to be used with VaultV2 vaults only.
 /// @dev Active adapters must be MorphoMarketV1AdapterV2 adapters, otherwise the public allocator's absolute cap system
-/// could break.
+/// could break and the penalty could be paid in an arbitrary token.
 /// @dev The vault's allocators can manage the public allocators' settings.
 /// @dev Each reallocate and allocateFromIdle call costs a proportional penalty, paid by the caller in the vault's
 /// asset. The penalty is set per vault by the allocators and is transferred directly to the vault (a donation, which
