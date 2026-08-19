@@ -229,7 +229,7 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         bluePublicAllocator.setAbsoluteCap(address(vault), address(adapter), marketParams2, cap);
     }
 
-    /* SET CAN DEALLOCATE */
+    /* SET CAN PULL FROM MARKET */
 
     function testSetCanPullFromMarket(bool value) public {
         vm.expectEmit();
@@ -246,6 +246,8 @@ contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
         vm.prank(caller);
         bluePublicAllocator.setCanPullFromMarket(address(vault), address(adapter), marketParams1, true);
     }
+
+    /* SET CAN PULL FROM IDLE */
 
     function testSetCanPullFromIdle(bool value) public {
         vm.expectEmit();
