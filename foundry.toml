@@ -54,7 +54,7 @@ evm_version = "cancun"
 
 [[profile.default.compilation_restrictions]]
 paths = "src/adapters/MidnightAdapter.sol"
-optimizer_runs = 17000
+optimizer_runs = 15000
 
 # Midnight is compiled with its home repo's settings so it fits under EIP-170.
 [[profile.default.compilation_restrictions]]
@@ -75,8 +75,8 @@ optimizer_runs = 200
 evm_version = "cancun"
 
 [[profile.default.additional_compiler_profiles]]
-name = "17000-osaka"
-optimizer_runs = 17000
+name = "15000-osaka"
+optimizer_runs = 15000
 
 [[profile.default.additional_compiler_profiles]]
 name = "466-osaka"

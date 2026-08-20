@@ -22,6 +22,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The adapter must have the allocator role in its parent vault to buy, and the allocator or sentinel role to
 /// make sell offers and to withdraw to the vault.
 /// @dev If the parent vault has a sendSharesGate, the gate must allow the adapter to send shares.
+/// @dev On buys, the idle assets are used first. A liquidity adapter is used only if needed.
 contract MidnightAdapter is IMidnightAdapter {
     using MathLib for uint256;
     using MathLib for uint128;
@@ -38,6 +39,11 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Sorted in ascending order.
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
+
+    /* LIQUIDITY */
+
+    address public liquidityAdapter;
+    bytes public liquidityData;
 
     /* MANAGEMENT */
 
@@ -109,6 +115,16 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 balance = IERC20(token).balanceOf(address(this));
         SafeERC20Lib.safeTransfer(token, skimRecipient, balance);
         emit Skim(token, balance);
+    }
+
+    /* LIQUIDITY FUNCTIONS */
+
+    function setLiquidityAdapterAndData(address newLiquidityAdapter, bytes memory newLiquidityData) external {
+        require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
+        require(newLiquidityAdapter != address(this), SelfLiquidityAdapter());
+        liquidityAdapter = newLiquidityAdapter;
+        liquidityData = newLiquidityData;
+        emit SetLiquidityAdapterAndData(msg.sender, newLiquidityAdapter, newLiquidityData);
     }
 
     /* VAULT ALLOCATORS FUNCTIONS */
@@ -315,6 +331,10 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 netCreditLoss = uint256(marketData.netCredit) + boughtNetCredit - currentNetCredit(marketId);
         decreaseNetCredit(marketId, market.maturity, netCreditLoss);
 
+        uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
+        if (paidAssets > idleAssets && liquidityAdapter != address(0)) {
+            IVaultV2(parentVault).deallocate(liquidityAdapter, liquidityData, paidAssets - idleAssets);
+        }
         IVaultV2(parentVault)
             .allocate(
                 address(this),
