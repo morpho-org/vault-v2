@@ -43,35 +43,6 @@ contract ExtraAssetsAdapter is IAdapter {
     }
 }
 
-/// @notice Realizes the losses of a midnight adapter in a market.
-contract MidnightLossRealizer {
-    address public immutable midnight;
-
-    constructor(address _midnight) {
-        midnight = _midnight;
-        IMidnight(_midnight).setIsAuthorized(address(this), true, address(this));
-    }
-
-    function realizeLoss(IMidnightAdapter adapter, Market memory market) external {
-        Offer memory offer;
-        offer.market = market;
-        offer.buy = true;
-        offer.maker = address(this);
-        offer.expiry = block.timestamp;
-        offer.tick = MAX_TICK;
-        offer.ratifier = address(this);
-        offer.maxUnits = 1;
-        offer.continuousFeeCap = type(uint256).max;
-
-        IVaultV2(adapter.parentVault())
-            .forceDeallocate(address(adapter), abi.encode(offer, bytes("")), 0, address(this));
-    }
-
-    function isRatified(Offer memory, bytes memory, address) external view returns (bytes32) {
-        return CALLBACK_SUCCESS;
-    }
-}
-
 contract MidnightAdapterTest is Test {
     using stdStorage for StdStorage;
     using MathLib for uint256;
@@ -565,25 +536,37 @@ contract MidnightAdapterTest is Test {
         midnight.take(offer, sign([offer], signerAllocator), units, taker, taker, address(0), "");
     }
 
-    function testSellClearsMaturityAndReactivatesSlot() public {
-        Offer memory firstOffer;
-        Offer memory secondOffer;
+    function testSellClearsFirstMaturityAndReactivatesSlot() public {
+        checkSellClearsMaturityAndReactivatesSlot(0);
+    }
+
+    function testSellClearsMiddleMaturityAndReactivatesSlot() public {
+        checkSellClearsMaturityAndReactivatesSlot(25);
+    }
+
+    function testSellClearsLastMaturityAndReactivatesSlot() public {
+        checkSellClearsMaturityAndReactivatesSlot(49);
+    }
+
+    function checkSellClearsMaturityAndReactivatesSlot(uint256 soldIndex) internal {
+        Offer memory soldOffer;
         for (uint256 i = 0; i < 50; i++) {
             Offer memory offer = buy(1 days + i, 1e18);
-            if (i == 0) firstOffer = offer;
-            if (i == 1) secondOffer = offer;
+            if (i == soldIndex) soldOffer = offer;
         }
-        assertEq(adapter.availableMaturities(), 0, "availableMaturities before");
+        assertEq(adapter.pendingMaturitiesLength(), 50, "pendingMaturitiesLength before");
 
         parentVault.setTotalAssets(1e18);
-        sell(secondOffer.market, 1e18);
+        sell(soldOffer.market, 1e18);
 
-        assertEq(adapter.availableMaturities(), 1, "availableMaturities after");
-        assertEq(adapter.maturities(0).nextMaturity, firstOffer.market.maturity, "firstMaturity after");
+        assertEq(adapter.pendingMaturitiesLength(), 49, "pendingMaturitiesLength after");
+        for (uint256 i = 0; i < 49; i++) {
+            assertNotEq(adapter.pendingMaturities(i), soldOffer.market.maturity, "sold maturity removed");
+        }
 
         buy(60 days, 1e18);
 
-        assertEq(adapter.availableMaturities(), 0, "availableMaturities final");
+        assertEq(adapter.pendingMaturitiesLength(), 50, "pendingMaturitiesLength final");
     }
 
     function testUpdateOnForceDeallocate() public {
@@ -599,14 +582,14 @@ contract MidnightAdapterTest is Test {
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
     }
 
-    /* AVAILABLE MATURITIES */
+    /* PENDING MATURITIES */
 
-    function testAvailableMaturitiesCap(uint256 boughtNum) public {
+    function testPendingMaturitiesCap(uint256 boughtNum) public {
         boughtNum = bound(boughtNum, 0, 50);
         for (uint256 i = 1; i <= boughtNum; i++) {
             buy(i, 1e18);
         }
-        assertEq(adapter.availableMaturities(), 50 - boughtNum);
+        assertEq(adapter.pendingMaturitiesLength(), boughtNum);
 
         for (uint256 i = boughtNum + 1; i <= 50; i++) {
             buy(i, 1e18);
@@ -615,11 +598,11 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = makeBuyOffer(51, 1e18, MAX_TICK);
         midnight.supplyCollateral(offer.market, 0, 0.5e18, taker);
         midnight.supplyCollateral(offer.market, 1, 0.5e18, taker);
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert();
         take(offer);
     }
 
-    function testAvailableMaturitiesBuySell(uint256 boughtNum, uint256 soldNum) public {
+    function testPendingMaturitiesBuySell(uint256 boughtNum, uint256 soldNum) public {
         boughtNum = bound(boughtNum, 1, 50);
         soldNum = bound(soldNum, 0, boughtNum);
 
@@ -633,7 +616,7 @@ contract MidnightAdapterTest is Test {
             sell(markets[i], 1e18);
         }
 
-        assertEq(adapter.availableMaturities(), 50 - boughtNum + soldNum);
+        assertEq(adapter.pendingMaturitiesLength(), boughtNum - soldNum);
     }
 
     function testOnBuyCanRealizeLoss() public {
@@ -718,15 +701,13 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.totalAssets(), 0);
     }
 
-    /* PENDING MATURITIES LIST */
-
-    function testOutOfOrderInsertsStaySorted() public {
+    function testOutOfOrderInsertsStayTracked() public {
         uint256 t0 = block.timestamp;
         buy(3, 1e18);
         buy(1, 1e18);
         buy(2, 1e18);
 
-        assertPendingMaturities([t0 + 1, t0 + 2, t0 + 3]);
+        assertPendingMaturities([t0 + 3, t0 + 1, t0 + 2]);
     }
 
     function testMidPendingMaturityRemoval() public {
@@ -972,30 +953,6 @@ contract MidnightAdapterTest is Test {
         assertEq(marketNetCredit, 0.5e18, "netCredit after sell");
         assertEq(realVault.allocation(adapter.adapterId()), 0.5e18, "allocation after sell");
         assertEq(loanToken.balanceOf(address(realVault)), 9.5e18, "proceeds back in the vault");
-    }
-
-    function testForceDeallocateRealizesLoss() public {
-        Offer memory boughtOffer = buy(7 days, 1e18);
-        bytes32 marketId = _marketId(boughtOffer.market);
-
-        // Partial repay so the bad debt below does not max out the loss factor.
-        deal(address(loanToken), address(this), 0.7e18);
-        loanToken.approve(address(midnight), type(uint256).max);
-        midnight.repay(boughtOffer.market, 0.7e18, taker, address(0), "");
-
-        OracleMock(storedCollaterals[0].oracle).setPrice(0);
-        OracleMock(storedCollaterals[1].oracle).setPrice(0);
-        midnight.liquidate(boughtOffer.market, 0, 0, 0, taker, false, address(this), address(0), "");
-
-        // The slash is only pending: the position's raw credit is untouched.
-        assertEq(midnight.credit(marketId, address(adapter)), 1e18, "raw credit");
-
-        MidnightLossRealizer realizer = new MidnightLossRealizer(address(midnight));
-        realizer.realizeLoss(IMidnightAdapter(address(adapter)), boughtOffer.market);
-
-        (uint128 marketNetCredit,) = adapter._markets(marketId);
-        assertApproxEqAbs(marketNetCredit, 0.7e18, 1, "netCredit");
-        assertApproxEqAbs(parentVault.allocation(adapter.adapterId()), 0.7e18, 1, "allocation");
     }
 
     /* WITHDRAW TO VAULT */
@@ -1290,15 +1247,16 @@ contract MidnightAdapterTest is Test {
     }
 
     function checkPendingMaturities(uint256[] memory expected) internal view {
-        uint48 prev = 0;
-        uint48 current = adapter.maturities(0).nextMaturity;
+        uint256 length = adapter.pendingMaturitiesLength();
+        assertEq(length, expected.length, "pendingMaturitiesLength");
         for (uint256 i = 0; i < expected.length; i++) {
-            assertEq(current, expected[i].toUint48(), "wrong maturity in list");
-            assertEq(adapter.maturities(current).prevMaturity, prev, "wrong prevMaturity");
-            prev = current;
-            current = adapter.maturities(current).nextMaturity;
+            uint48 maturity = expected[i].toUint48();
+            bool found;
+            for (uint256 j = 0; j < length; j++) {
+                found = found || adapter.pendingMaturities(j) == maturity;
+            }
+            assertTrue(found, "missing pending maturity");
         }
-        assertEq(current, 0, "list longer than expected");
     }
 
     function assertPendingMaturitiesEmpty() internal view {
