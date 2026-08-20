@@ -10,7 +10,7 @@ import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 // Chain of maturities, each can represent multiple markets.
 // nextMaturity is 0 if no next maturity.
 struct MaturityData {
-    uint128 netCredit;
+    uint128 vaultNetCredit;
     uint128 growth;
     uint48 prevMaturity;
     uint48 nextMaturity;
@@ -18,7 +18,9 @@ struct MaturityData {
 }
 
 struct MarketData {
-    uint128 netCredit;
+    uint128 vaultNetCredit;
+    uint128 userNetCredit;
+    uint128 userShares;
     uint128 growth;
 }
 
@@ -28,9 +30,12 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event SetSkimRecipient(address indexed newSkimRecipient);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
+    event WithdrawShares(
+        bytes32 indexed marketId, address indexed user, uint256 redeemedShares, uint256 withdrawnAssets
+    );
     event UpdateDurationCaps(uint256 indexed maturity, uint256 newDurationCount, uint256 netCredit);
-    event ForceDeallocate(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
-    event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 netCreditIncrease, uint256 netCreditLoss);
+    event ForceDeallocate(bytes32 indexed marketId, uint256 deallocatedAmount, uint256 netCreditDecrease);
+    event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 netCreditIncrease, int256 netCreditChange);
     event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
     event AccrueInterest(uint128 currentGrowth, uint256 totalAssets);
     event RemoveMaturity(uint256 indexed maturity);
@@ -67,7 +72,12 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
-    function _markets(bytes32 marketId) external view returns (uint128 netCredit, uint128 growth);
+    function _markets(bytes32 marketId)
+        external
+        view
+        returns (uint128 vaultNetCredit, uint128 userNetCredit, uint128 userShares, uint128 growth);
+    function shares(bytes32 marketId, address user) external view returns (uint256);
+    function unreportedVaultDecrease(bytes32 marketId) external view returns (uint128);
     function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
     function isRootCanceled(bytes32 root) external view returns (bool);
@@ -78,6 +88,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function durationsLength() external view returns (uint256);
     function updateDurationCaps(Market memory market) external;
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
+    function withdrawShares(Market memory market, uint256 redeemedShares) external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
