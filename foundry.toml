@@ -38,6 +38,16 @@ paths = "src/imports/MetaMorphoImport.sol"
 optimizer_runs = 200
 evm_version = "cancun"
 
+# The registries are deployed on-chain with verified bytecode compiled in the
+# standalone morpho-org/vault-v2-adapter-registries repo (optimizer_runs = 999999).
+# vault-v2's default is 100000, so they need the standalone repo's setting to keep
+# identical bytecode. All other bytecode-relevant settings already match
+# (solc 0.8.28, via_ir, optimizer, cancun, bytecode_hash = "none").
+[[profile.default.compilation_restrictions]]
+paths = "src/periphery/registries/**"
+optimizer_runs = 999999
+evm_version = "cancun"
+
 # For every restriction above there must be some compatible foundry profile.
 # The first matching profile will be used. For clarity, all profiles below should be incompatible with each other.
 
@@ -49,6 +59,11 @@ evm_version = "paris"
 [[profile.default.additional_compiler_profiles]]
 name = "200-cancun"
 optimizer_runs = 200
+evm_version = "cancun"
+
+[[profile.default.additional_compiler_profiles]]
+name = "999999-cancun"
+optimizer_runs = 999999
 evm_version = "cancun"
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
