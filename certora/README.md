@@ -1,365 +1,105 @@
 This folder contains the formal verification of Vault V2 using CVL, Certora's Verification Language.
 
-The core concepts of Vault V2 are described in the [README](../README.md) at the root of the repository.
-These concepts have been verified using CVL.
-We first give a [high-level description](#high-level-description) of the verification and then describe the [folder and file structure](#folder-and-file-structure) of the specification files.
+Vault V2 is a non-custodial ERC-4626 vault that allocates assets across markets through adapters. See the repository [`README`](../README.md) and [`src/VaultV2.sol`](../src/VaultV2.sol) for the protocol itself. The verified properties are listed below by theme, followed by the verification setup.
 
-# High-level description
+# Verified properties
 
-Vault V2 enables anyone to create non-custodial vaults that allocate assets into different markets via adapters.
-Depositors earn from the underlying markets without having to actively manage their position.
+## Core state and accounting
 
-## Adapters and allocations
+Global invariants and the accounting effects of each entry point.
 
-Vault V2 allocates assets to underlying markets via separate contracts called adapters.
-The verification ensures that adapters are properly tracked and that allocations can only be modified through specific functions.
+* [`Invariants.spec`](specs/Invariants.spec) collects the core state invariants. Performance and management fees, force-deallocation penalties, relative caps, and the maximum rate stay within their bounds; a non-zero fee always has a recipient; and the zero address has no shares. Total supply equals the sum of all balances, every allocation fits in an `int256`, virtual shares stay within their configured range, and the timelock for `decreaseTimelock` has the required value. Registered adapters are non-zero and distinct, and, assuming an add-only registry, every adapter remains in the configured registry.
+* [`AccrueInterestReverts.spec`](specs/AccrueInterestReverts.spec) gives sufficient conditions under which `accrueInterestView` and `accrueInterest` do not revert. It bounds the returned total assets and fee shares and checks that a zero performance or management fee produces zero corresponding fee shares.
+* [`TotalAssetsChange.spec`](specs/TotalAssetsChange.spec) pins down changes to `_totalAssets` when no interest accrues. Deposits and mints add exactly the transferred or previewed assets, withdrawals and redemptions subtract exactly the withdrawn or previewed assets, and `forceDeallocate` subtracts exactly its rounded-up penalty. Every other non-view entry point leaves `_totalAssets` unchanged.
+* [`TotalAssetsIsUpToDate.spec`](specs/TotalAssetsIsUpToDate.spec) checks that every state-changing entry point other than `accrueInterest` updates `_totalAssets` before reading it.
+* [`AllocationVaultV2.spec`](specs/AllocationVaultV2.spec) checks that allocations change only through ERC-4626 entry and exit functions, `allocate`, `deallocate`, or `forceDeallocate`. An ERC-4626 operation can change allocations only when a liquidity adapter is set.
+* [`AllocationsHierarchy.spec`](specs/AllocationsHierarchy.spec) checks the leaf-group structure used by adapter ids. A group's allocation always equals the sum of its leaf allocations and is therefore at least every individual leaf allocation.
 
-The file [AllocationVaultV2.spec](specs/AllocationVaultV2.spec) verifies that only the expected functions can change allocations.
+## Shares and ERC-4626 behavior
 
-```solidity
-rule functionsChangingAllocation(env e, method f, calldataarg args)
-filtered {
-    f -> !f.isView &&
-    f.selector != sig:deposit(uint256,address).selector &&
-    f.selector != sig:mint(uint256,address).selector &&
-    // ...
-}
-{
-    bytes32 id;
-    uint256 allocationPre = allocation(id);
-    f(e, args);
-    assert allocation(id) == allocationPre;
-}
-```
+Share-price movement, rounding, previews, and equivalent entry points.
 
-Additionally, the [MarketIds.spec](specs/MarketIds.spec) file verifies that market IDs are properly maintained.
+* [`ExchangeRate.spec`](specs/ExchangeRate.spec) checks that the seeded vault's share price does not decrease when the management fee is zero and interest has already been accrued. It separately shows that realizing a loss does not increase the share price and that deposit, mint, withdraw, and redeem use the tight protocol-favoring rounding direction.
+* [`PreviewFunctions.spec`](specs/PreviewFunctions.spec) checks that `previewDeposit`, `previewMint`, `previewWithdraw`, and `previewRedeem` return exactly the value produced by the corresponding successful ERC-4626 operation. A preview never reverts when its corresponding operation can succeed.
+* [`EntrypointEquivalence.spec`](specs/EntrypointEquivalence.spec) checks that deposit and mint pass identical values to the internal entry path when their inputs and outputs match. It establishes the analogous equivalence between withdraw and redeem for the internal exit path.
+* [`RoundTrip.spec`](specs/RoundTrip.spec) checks the rounding inequalities between asset/share conversions and every relevant composition of deposit, mint, withdraw, and redeem previews. These round trips cannot create value through inconsistent rounding.
 
-```solidity
-strong invariant marketIdsWithNoAllocationIsNotInMarketIds()
-    forall bytes32 marketId.
-    forall uint256 i. i < currentContract.marketIds.length => ghostAllocation[marketId] == 0 => currentContract.marketIds[i] != marketId
-```
-
-## Shares and exchange rate
-
-When depositing into Vault V2, shares are minted to represent the user's position.
-The share price is verified to be monotonically non-decreasing, assuming the vault is seeded and the management fee is zero, and excluding loss realization (which is verified to decrease the share price, not increase it).
-
-The file [ExchangeRate.spec](specs/ExchangeRate.spec) checks this property with the following rule.
-
-```solidity
-rule sharePriceIsIncreasing(method f, env e, calldataarg a) {
-    // ...
-    mathint assetsBefore = assets();
-    mathint sharesBefore = shares();
-
-    f(e, a);
-
-    assert assetsBefore * shares() <= assets() * sharesBefore;
-}
-```
-
-The specification also verifies optimal rounding on deposit, withdraw, mint, and redeem operations, ensuring that small errors are in favor of the protocol.
-
-## Timelocks and earliest execution time
-
-Curator configuration changes are timelockable, meaning that an action must be submitted first, and only when the timelock has passed can it be executed.
-This mechanism is critical for the non-custodial guarantees of the vault.
-
-The file [EarliestTime.spec](specs/EarliestTime.spec) verifies that the earliest execution time is monotonically non-decreasing.
-
-```solidity
-rule earliestExecutionTimeIncreases(env e, method f, calldataarg args) {
-    // ...
-    mathint earliestTimeBefore = earliestExecutionTimeFromData(blockTimestampBefore, data);
-    f(e, args);
-    mathint earliestTimeAfter = earliestExecutionTimeFromData(e.block.timestamp, data);
-    assert earliestTimeAfter >= earliestTimeBefore;
-}
-```
+## Adapter ids and allocation tracking
 
-## Gates
+Adapters report stable risk ids and keep the vault's allocation accounting aligned with their underlying positions.
 
-Vault V2 can use external gate contracts to control share transfers and asset deposits/withdrawals.
-The file [Gates.spec](specs/Gates.spec) verifies that the gating mechanism works correctly for transfers initiated by the vault itself.
-The asset-side properties assume that adapters do not themselves move user balances in ways that would break the gates; only the vault's own transfer paths are verified.
-
-```solidity
-rule cantReceiveShares(env e, method f, calldataarg args, address user) {
-    require (!canReceiveShares(user), "setup gating");
-    uint256 sharesBefore = balanceOf(user);
-    f(e, args);
-    assert balanceOf(user) <= sharesBefore;
-}
-```
+* [`IdsMorphoMarketV1AdapterV2.spec`](specs/IdsMorphoMarketV1AdapterV2.spec) checks that the Morpho Market V1 adapter returns three deterministic and pairwise-distinct ids for a given market, including the id derived from the adapter address. The ids returned by `allocate` and `deallocate` match the adapter's reference list.
+* [`IdsMorphoVaultV1Adapter.spec`](specs/IdsMorphoVaultV1Adapter.spec) checks the same properties for the Morpho Vault V1 adapter's single, constant adapter id.
+* [`AllocationMorphoMarketV1AdapterV2.spec`](specs/AllocationMorphoMarketV1AdapterV2.spec) checks that allocation and deallocation change every returned id by exactly the change reported by the Morpho Market V1 adapter and leave all other ids untouched. After either call, the adapter's allocation equals its expected supply assets. It also bounds expected supply assets and relates the adapter's internal supply-share accounting to its actual Morpho position.
+* [`AllocationMorphoVaultV1Adapter.spec`](specs/AllocationMorphoVaultV1Adapter.spec) checks the equivalent allocation updates for the Morpho Vault V1 adapter. After allocation or deallocation, the reported allocation equals the assets previewed from the adapter's MetaMorpho shares.
+* [`ChangesMorphoMarketV1AdapterV2.spec`](specs/ChangesMorphoMarketV1AdapterV2.spec) and [`ChangesMorphoVaultV1Adapter.spec`](specs/ChangesMorphoVaultV1Adapter.spec) check each adapter's returned allocation change. Allocating and deallocating zero assets report the same change from the same state, and no reported change can make the current allocation negative.
+* [`MarketIds.spec`](specs/MarketIds.spec) checks the Morpho Market V1 adapter's active-market list. Its entries are distinct, and a market with zero allocation is absent from the list.
 
-This ensures that users who are not allowed to receive shares will never have their share balance increase.
+## Caps and configuration delays
 
-## Caps
+Risk limits and timelocked configuration cannot be bypassed.
 
-The funds allocation of the vault is constrained by an id-based caps system.
-Relative caps only constrain allocations, so they can be exceeded because of withdrawals from the vault.
-
-The file [RelativeCaps.spec](specs/RelativeCaps.spec) verifies that relative caps are respected.
-
-```solidity
-rule relativeCapValidity(env e, method f, calldataarg args) {
-    // ...
-    assert currentContract.caps[id].relativeCap < Utils.wad() =>
-    currentContract.caps[id].allocation <= (firstTotalAssetsAfter * currentContract.caps[id].relativeCap) / Utils.wad();
-}
-```
-
-## Authorization and owner safety
+* [`RelativeCaps.spec`](specs/RelativeCaps.spec) checks that state-changing functions preserve every relative cap except the operations that may legitimately move outside it: interest or loss accrual, exits, cap decreases, and deallocation. The latter can increase a recorded allocation while realizing interest, whereas allocation would reject the same cap excess.
+* [`EarliestTime.spec`](specs/EarliestTime.spec) checks the three ways a timelocked call can become executable: an existing submission, a fresh submission plus the current timelock, or a pending timelock decrease plus the new delay. For the covered configuration calls, the earliest execution time cannot move backward and the call cannot succeed before it.
+* [`AbdicatedFunctions.spec`](specs/AbdicatedFunctions.spec) checks that an abdicated timelocked function cannot be called, that abdication is permanent, and that each affected configuration value remains unchanged in the direction the abdicated function would have modified it.
+* [`Immutability.spec`](specs/Immutability.spec) checks that every `DELEGATECALL` targets the vault itself, preventing delegation to arbitrary implementation code.
 
-Vault V2 defines different roles: owner, curator, sentinels, and allocators.
-The verification covers two complementary properties for these roles: that authorized accounts can always perform their expected operations (liveness), and that unauthorized accounts cannot (safety, verified via the revert conditions in [Reverts.spec](specs/Reverts.spec)).
-
-The file [OwnerSafety.spec](specs/OwnerSafety.spec) covers the liveness side for the owner: the owner can always change the owner, curator, and sentinel set.
-
-```solidity
-rule ownerCanChangeOwner(env e, address newOwner) {
-    require (e.msg.sender == currentContract.owner, "setup the call to be performed by the owner");
-    require (e.msg.value == 0, "setup the call to have no ETH value");
-    setOwner@withrevert(e, newOwner);
-    assert !lastReverted;
-    assert owner() == newOwner;
-}
-```
-
-## Sentinel liveness
+## Authorization, input validation, and liveness
 
-Sentinels have the ability to revoke pending timelocked actions and decrease caps.
-The file [SentinelLiveness.spec](specs/SentinelLiveness.spec) verifies that sentinels can always perform these safety operations.
+Privileged actions enforce their roles, while authorized accounts retain the operations needed to operate or derisk the vault.
 
-```solidity
-rule sentinelCanRevoke(env e, bytes data) {
-    require executableAt(data) != 0, "assume that data is pending";
-    require isSentinel(e.msg.sender), "setup call to be performed by a sentinel";
-    require e.msg.value == 0, "setup call to have no ETH value";
-    revoke@withrevert(e, data);
-    assert !lastReverted;
-    assert executableAt(data) == 0;
-}
-```
+* [`Reverts.spec`](specs/Reverts.spec) checks the revert conditions or required input validation for timelocked configuration, ownership and metadata changes, submission and revocation, cap decreases, `forceDeallocate`, liquidity-adapter and max-rate changes, and share transfers. This covers role checks, timelocks and abdication, gates, allowances, balances, bounds, and non-payable calls.
+* [`AllocateDeallocateReverts.spec`](specs/AllocateDeallocateReverts.spec) checks the exact authorization-level revert conditions for `allocate` and `deallocate`, assuming the adapter returns unique ids and allocation changes that satisfy the required cap and integer bounds. Allocation requires an allocator and a registered adapter; deallocation accepts an allocator or sentinel and also requires a registered adapter.
+* [`AllocateDeallocateInputValidation.spec`](specs/AllocateDeallocateInputValidation.spec) checks that allocation rejects any returned id with a zero absolute cap and deallocation rejects any returned id with a zero recorded allocation, preventing interaction with unknown markets.
+* [`Liveness.spec`](specs/Liveness.spec) checks that a curator or sentinel can reduce an absolute or relative cap to zero and that the owner can set the owner, curator, and sentinel status without reverting.
+* [`OwnerSafety.spec`](specs/OwnerSafety.spec) additionally checks the post-state of owner actions: the owner can always transfer ownership, replace the curator, and add or remove a sentinel, and each call writes the requested value.
+* [`SentinelLiveness.spec`](specs/SentinelLiveness.spec) checks that a sentinel can always revoke pending data and decrease absolute or relative caps.
+* [`SentinelLivenessDeallocateMarketV1.spec`](specs/SentinelLivenessDeallocateMarketV1.spec) and [`SentinelLivenessDeallocateVaultV1.spec`](specs/SentinelLivenessDeallocateVaultV1.spec) check that a sentinel can deallocate through either supported adapter when the underlying withdrawal succeeds, the relevant allocations are positive, and the adapter's accounting result stays in range.
+* [`ForceDeallocate.spec`](specs/ForceDeallocate.spec) checks that `forceDeallocate` with zero requested assets remains callable to refresh allocation accounting, assuming the gates admit the exit, the adapter returns valid ids and changes, interest accrual is live, and the vault's accounting values are bounded.
+* [`RemoveMarketLiveness.spec`](specs/RemoveMarketLiveness.spec) checks that a liquid Morpho Market V1 position can be fully deallocated. Deallocating its expected supply assets reduces that value to zero, and a zero-allocation market is removed from the adapter's active-market list.
 
-## Abdication
+## Gates and token transfers
 
-Configuration can be abdicated, meaning it cannot be changed anymore.
-The file [AbdicatedFunctions.spec](specs/AbdicatedFunctions.spec) verifies that abdicated timelocked functions revert when called, that the state they would have changed stays put for every configuration function individually, and that abdication is permanent.
+Shares and assets move only through permitted paths and by the exact requested amounts.
 
-```solidity
-rule abdicatedFunctionsCantBeCalled(env e, method f, calldataarg args) filtered { f -> functionIsTimelocked(f) } {
-    require abdicated(to_bytes4(f.selector));
-    f@withrevert(e, args);
-    assert lastReverted;
-}
+* [`Gates.spec`](specs/Gates.spec) checks that a user who cannot receive shares never gains them and a user who cannot send shares never loses them. For asset transfers initiated by the vault, balances cannot increase or decrease contrary to the receive-assets or send-assets gate; adapter-initiated transfers are outside this property.
+* [`TokensNoAdapter.spec`](specs/TokensNoAdapter.spec) checks exact sender, receiver, and vault asset-balance changes on deposit and withdrawal when no liquidity adapter is configured.
+* [`TokensMorphoMarketV1AdapterV2.spec`](specs/TokensMorphoMarketV1AdapterV2.spec) checks the same flows through a Morpho Market V1 liquidity adapter. Deposits move assets from the sender into Morpho without leaving balances on the vault or adapter; withdrawals consume idle vault assets first, then Morpho liquidity, and pay the receiver exactly.
+* [`TokensMorphoVaultV1Adapter.spec`](specs/TokensMorphoVaultV1Adapter.spec) checks those token flows through a Morpho Vault V1 liquidity adapter and its underlying Morpho markets.
+* [`SkimMorphoMarketV1AdapterV2.spec`](specs/SkimMorphoMarketV1AdapterV2.spec) checks that `skim` transfers only tokens already held by the Morpho Market V1 adapter and does not change its reported assets. It also checks that changing the skim recipient follows the adapter's timelock and abdication conditions.
+* [`SkimMorphoVaultV1Adapter.spec`](specs/SkimMorphoVaultV1Adapter.spec) checks the corresponding skim accounting for the Morpho Vault V1 adapter and requires the vault owner, with no ETH value, to change the skim recipient.
 
-rule abdicatedCantBeDeabdicated(env e, method f, calldataarg args, bytes4 selector) {
-    require abdicated(selector);
-    f(e, args);
-    assert abdicated(selector);
-}
-```
+## External calls and reentrancy
 
-## ERC20 tokens and transfers
+The vault does not expose an untrusted callback after entering an unsafe intermediate state.
 
-Vault V2 relies on the fact that the underlying asset respects the ERC20 standard.
-In particular, in case of a transfer, it is assumed that the balance of the vault increases or decreases (depending if it's the recipient or the sender) of the amount transferred.
+* [`Reentrancy.spec`](specs/Reentrancy.spec) checks that state-changing entry points make no external calls outside the vault itself, registered supported adapters, the asset token, Morpho Market V1, and MetaMorpho V1. The token and underlying markets are modeled as trusted not to reenter.
+* [`ReentrancyView.spec`](specs/ReentrancyView.spec) checks read-only reentrancy ordering: after an external static call follows a storage write, the vault performs no later storage write. Calls to the asset's `balanceOf`, adapters' `realAssets`, gate checks, and the adapter registry are the explicitly modeled view dependencies.
 
-The verification is done for the most common implementations of the ERC20 standard, for which we distinguish three different implementations:
+# Verification setup
 
-- [ERC20Standard](../lib/metamorpho/certora/dispatch/ERC20Standard.sol) which respects the standard and reverts in case of insufficient funds or in case of insufficient allowance.
-- [ERC20NoRevert](../lib/metamorpho/certora/dispatch/ERC20NoRevert.sol) which respects the standard but does not revert (and returns false instead).
-- [ERC20USDT](../lib/metamorpho/certora/dispatch/ERC20USDT.sol) which does not strictly respect the standard because it omits the return value of the `transfer` and `transferFrom` functions.
+Verification is performed according to the following modeling conventions:
 
-These dispatch contracts are reused from the [MetaMorpho repository](https://github.com/morpho-org/metamorpho) via the `lib/metamorpho` submodule, and are linked into the relevant verification jobs through the configuration files in [`certora/confs`](confs).
+* loops are bounded according to each configuration file, using `loop_iter` and, where enabled, `optimistic_loop`; hashing loops are similarly modeled with `optimistic_hashing`;
+* vault-level properties summarize adapter calls with the id, cap, allocation, and liveness postconditions required by the rule, while adapter-level properties link the concrete adapters to Morpho Market V1 or MetaMorpho V1 harnesses;
+* ERC-20 behavior is checked against the [`ERC20Standard`](../lib/metamorpho/certora/dispatch/ERC20Standard.sol), [`ERC20NoRevert`](../lib/metamorpho/certora/dispatch/ERC20NoRevert.sol), and [`ERC20USDT`](../lib/metamorpho/certora/dispatch/ERC20USDT.sol) models. These cover standard reverting tokens, false-returning tokens, and tokens that omit return values; fee-on-transfer and reentrant tokens are not supported;
+* external market rates, balances, and view calls are summarized only where their concrete behavior is not the subject of the property. The specifications state the necessary bounds and non-reversion assumptions at those summaries;
+* `multicall` is removed in properties that reason about a single entry point. Because it only calls the vault itself, invariants preserved by every individual entry point are preserved by induction across a multicall;
+* the reentrancy proofs trust the configured ERC-20 token, Morpho Market V1, and MetaMorpho V1 not to reenter the vault. Adapter calls are restricted to registered instances of the two verified adapter implementations;
+* both rules in [`EarliestTime.spec`](specs/EarliestTime.spec) exclude `decreaseTimelock` because of a prover limitation around `msg.data`.
 
-The file [TokensNoAdapter.spec](specs/TokensNoAdapter.spec) checks that token balances change as expected on deposit and withdraw operations.
-
-```solidity
-rule depositTokenChange(env e, uint256 assets, address receiver) {
-    // ...
-    deposit(e, assets, receiver);
-    // ...
-    assert assert_uint256(balanceVaultV2After - balanceVaultV2Before) == assets;
-    assert assert_uint256(balanceSenderBefore - balanceSenderAfter) == assets;
-}
-```
-
-## Skim
-
-Adapters expose a `skim` function that lets a designated recipient recover tokens that were sent to the adapter outside of normal accounting.
-The verification ensures that `skim` only moves the adapter's idle balance and never affects the assets tracked by the vault.
-
-The files [SkimMorphoMarketV1AdapterV2.spec](specs/SkimMorphoMarketV1AdapterV2.spec) and [SkimMorphoVaultV1Adapter.spec](specs/SkimMorphoVaultV1Adapter.spec) check this property for both adapter implementations.
-
-```solidity
-rule skimDoesNotAffectAccountingMarketV1Adapter(env e, address token) {
-    uint256 realAssetsBefore = realAssets(e);
-    skim(e, token);
-    uint256 realAssetsAfter = realAssets(e);
-    assert realAssetsAfter == realAssetsBefore;
-}
-```
-
-The same files also verify that `setSkimRecipient` reverts exactly when its timelock conditions are not met.
-
-## Other safety properties
-
-### Invariants and ranges
-
-The file [Invariants.spec](specs/Invariants.spec) checks various invariants about the protocol state, including:
-
-- Fee bounds are respected (performance fee and management fee).
-- Fee recipients are set when fees are non-zero.
-- Total supply equals the sum of all balances.
-- Adapters are properly registered and distinct.
-- Virtual shares bounds are maintained.
-
-```solidity
-strong invariant performanceFeeBound()
-    performanceFee() <= Utils.maxPerformanceFee();
-
-strong invariant totalSupplyIsSumOfBalances()
-    totalSupply() == sumOfBalances;
-```
-
-### Immutability
-
-The file [Immutability.spec](specs/Immutability.spec) verifies that the contract does not delegate calls to arbitrary addresses: every `DELEGATECALL` targets the contract itself.
-
-### Input validation and revert conditions
-
-The file [Reverts.spec](specs/Reverts.spec) checks the exact conditions under which functions revert, ensuring proper input validation.
-
-```solidity
-rule setOwnerRevertCondition(env e, address newOwner) {
-    address owner = owner();
-    setOwner@withrevert(e, newOwner);
-    assert lastReverted <=> e.msg.value != 0 || e.msg.sender != owner;
-}
-```
-
-The file [AccrueInterestReverts.spec](specs/AccrueInterestReverts.spec) captures the revert conditions of `accrueInterest` and `accrueInterestView`, and shows that the values they return are bounded and consistent with the fee configuration.
-
-## Liveness properties
-
-On top of verifying that the protocol is secured, the verification also proves that it is usable.
-Such properties are called liveness properties.
-
-The file [Liveness.spec](specs/Liveness.spec) checks that authorized users can always perform their expected operations.
-
-```solidity
-rule livenessDecreaseAbsoluteCapZero(env e, bytes idData) {
-    require e.msg.sender == curator() || isSentinel(e.msg.sender);
-    require e.msg.value == 0;
-    decreaseAbsoluteCap@withrevert(e, idData, 0);
-    assert !lastReverted;
-}
-```
-
-The file [RemoveMarketLiveness.spec](specs/RemoveMarketLiveness.spec) verifies that it is always possible to deallocate from a market and remove it from the adapter.
-
-## ERC-4626 compliance
-
-The file [PreviewFunctions.spec](specs/PreviewFunctions.spec) verifies that the preview functions accurately predict the results of the corresponding operations, as required by the ERC-4626 standard.
-
-```solidity
-rule previewDepositValue(env e, uint256 assets, address onBehalf) {
-    uint256 previewDepositValue = previewDeposit(e, assets);
-    uint256 depositValue = deposit(e, assets, onBehalf);
-    assert previewDepositValue == depositValue;
-}
-```
-
-The file [TotalAssetsChange.spec](specs/TotalAssetsChange.spec) verifies that total assets change correctly on deposit, withdraw, mint, and redeem operations.
-
-## Reentrancy
-
-Reentrancy is a common attack vector that happens when a call to a contract allows, when in a temporary state, to call the same contract again.
-The Vault V2 contract is verified to make no external calls outside of a known trusted set: itself, the two adapter implementations ([MorphoMarketV1AdapterV2](../src/adapters/MorphoMarketV1AdapterV2.sol) and [MorphoVaultV1Adapter](../src/adapters/MorphoVaultV1Adapter.sol)), the underlying ERC20 asset, and the Morpho market / MetaMorpho V1 vault reached through an adapter. These last three targets are assumed not to reenter the vault.
-
-The file [Reentrancy.spec](specs/Reentrancy.spec) checks this absence of untrusted external calls.
-
-```solidity
-rule reentrancySafe(method f, env e, calldataarg data) {
-    require (!ignoredCall && !hasCall, "set up the initial ghost state");
-    f(e,data);
-    assert !hasCall;
-}
-```
-
-### Extraction of value
-
-The Vault V2 protocol uses a conservative approach to handle arithmetic operations.
-Rounding is done such that potential errors are in favor of the protocol, which ensures that it is not possible to extract value from other users.
-
-This is verified in [ExchangeRate.spec](specs/ExchangeRate.spec) with the optimal rounding rules.
-
-# Folder and file structure
-
-The [`certora/specs`](specs) folder contains the following files:
-
-- [`AbdicatedFunctions.spec`](specs/AbdicatedFunctions.spec) checks that abdicated functions cannot be called and that abdication is permanent for each function.
-- [`AccrueInterestReverts.spec`](specs/AccrueInterestReverts.spec) checks the revert conditions of `accrueInterest` and `accrueInterestView`, and bounds the values they return.
-- [`AllocateDeallocateInputValidation.spec`](specs/AllocateDeallocateInputValidation.spec) checks input validation for allocate and deallocate functions.
-- [`AllocateDeallocateReverts.spec`](specs/AllocateDeallocateReverts.spec) checks the revert conditions for allocate and deallocate functions.
-- [`AllocationMorphoMarketV1AdapterV2.spec`](specs/AllocationMorphoMarketV1AdapterV2.spec) checks allocation properties specific to the Morpho Market V1 Adapter V2.
-- [`AllocationMorphoVaultV1Adapter.spec`](specs/AllocationMorphoVaultV1Adapter.spec) checks allocation properties specific to the Morpho Vault V1 Adapter.
-- [`AllocationVaultV2.spec`](specs/AllocationVaultV2.spec) checks that only specific functions can change allocations.
-- [`ChangesMorphoMarketV1AdapterV2.spec`](specs/ChangesMorphoMarketV1AdapterV2.spec) checks state changes for the Morpho Market V1 Adapter V2.
-- [`ChangesMorphoVaultV1Adapter.spec`](specs/ChangesMorphoVaultV1Adapter.spec) checks state changes for the Morpho Vault V1 Adapter.
-- [`EarliestTime.spec`](specs/EarliestTime.spec) checks that the earliest execution time for timelocked functions is monotonically non-decreasing.
-- [`EntrypointEquivalence.spec`](specs/EntrypointEquivalence.spec) checks equivalence properties for entrypoint functions.
-- [`ExchangeRate.spec`](specs/ExchangeRate.spec) checks that the share price is monotonically increasing and that rounding is optimal.
-- [`Gates.spec`](specs/Gates.spec) checks that the gating mechanism correctly restricts share and asset transfers.
-- [`IdsMorphoMarketV1AdapterV2.spec`](specs/IdsMorphoMarketV1AdapterV2.spec) checks ID management for the Morpho Market V1 Adapter V2.
-- [`IdsMorphoVaultV1Adapter.spec`](specs/IdsMorphoVaultV1Adapter.spec) checks ID management for the Morpho Vault V1 Adapter.
-- [`Immutability.spec`](specs/Immutability.spec) checks that the contract is immutable and cannot delegate calls to arbitrary addresses.
-- [`Invariants.spec`](specs/Invariants.spec) checks various invariants about the protocol state, including fee bounds, total supply accounting, and adapter registration.
-- [`Liveness.spec`](specs/Liveness.spec) checks that authorized users can always perform their expected operations.
-- [`MarketIds.spec`](specs/MarketIds.spec) checks that market IDs are properly maintained and distinct.
-- [`OwnerSafety.spec`](specs/OwnerSafety.spec) checks that the owner can always perform their expected operations.
-- [`PreviewFunctions.spec`](specs/PreviewFunctions.spec) checks ERC-4626 compliance by verifying that preview functions accurately predict operation results.
-- [`Reentrancy.spec`](specs/Reentrancy.spec) checks that there are no untrusted external calls, ensuring reentrancy safety.
-- [`ReentrancyView.spec`](specs/ReentrancyView.spec) checks reentrancy safety for view functions.
-- [`RelativeCaps.spec`](specs/RelativeCaps.spec) checks that relative caps are properly enforced on allocations.
-- [`RemoveMarketLiveness.spec`](specs/RemoveMarketLiveness.spec) checks that it is always possible to deallocate from a market and remove it.
-- [`Reverts.spec`](specs/Reverts.spec) checks the exact revert conditions for various functions, ensuring proper input validation.
-- [`SentinelLiveness.spec`](specs/SentinelLiveness.spec) checks that sentinels can always revoke pending actions and decrease caps.
-- [`SentinelLivenessDeallocateMarketV1.spec`](specs/SentinelLivenessDeallocateMarketV1.spec) checks sentinel liveness for deallocating from Market V1.
-- [`SentinelLivenessDeallocateVaultV1.spec`](specs/SentinelLivenessDeallocateVaultV1.spec) checks sentinel liveness for deallocating from Vault V1.
-- [`SkimMorphoMarketV1AdapterV2.spec`](specs/SkimMorphoMarketV1AdapterV2.spec) checks that `skim` on the Morpho Market V1 Adapter V2 does not affect accounting, and the revert conditions of `setSkimRecipient`.
-- [`SkimMorphoVaultV1Adapter.spec`](specs/SkimMorphoVaultV1Adapter.spec) checks that `skim` on the Morpho Vault V1 Adapter does not affect accounting, and the revert conditions of `setSkimRecipient`.
-- [`TokensMorphoMarketV1AdapterV2.spec`](specs/TokensMorphoMarketV1AdapterV2.spec) checks token transfer properties for the Morpho Market V1 Adapter V2.
-- [`TokensMorphoVaultV1Adapter.spec`](specs/TokensMorphoVaultV1Adapter.spec) checks token transfer properties for the Morpho Vault V1 Adapter.
-- [`TokensNoAdapter.spec`](specs/TokensNoAdapter.spec) checks token balance changes on deposit and withdraw operations without adapters.
-- [`TotalAssetsChange.spec`](specs/TotalAssetsChange.spec) checks that total assets change correctly on ERC-4626 operations.
-- [`TotalAssetsIsUpToDate.spec`](specs/TotalAssetsIsUpToDate.spec) checks that total assets tracking is kept up to date.
-
-The [`certora/confs`](confs) folder contains a configuration file for each corresponding specification file.
-
-The [`certora/helpers`](helpers) folder contains contracts and specifications that enable the verification of Vault V2.
-Notably, this includes:
-- [ERC20Helper.sol](helpers/ERC20Helper.sol) for handling ERC20 balance queries.
-- [EarliestTime.sol](helpers/EarliestTime.sol) for computing earliest execution times of timelocked actions from the encoded call data.
-- [RevertCondition.sol](helpers/RevertCondition.sol) for expressing the revert conditions of timelocked functions on the vault and on the adapters.
-- [Utils.sol](helpers/Utils.sol) for utility functions and constants.
-- [UtilityVault.spec](helpers/UtilityVault.spec) and [UtilityAdapters.spec](helpers/UtilityAdapters.spec) for common specification helpers.
+The [`confs`](confs) folder contains one configuration for every specification. Shared CVL utilities and Solidity harnesses are in [`helpers`](helpers).
 
 # Getting started
 
-Install `certora-cli` package with `pip install certora-cli`.
-To verify specification files, pass to `certoraRun` the corresponding configuration file in the [`certora/confs`](confs) folder.
-It requires having set the `CERTORAKEY` environment variable to a valid Certora key.
-You can also pass additional arguments, notably to verify a specific rule.
-For example, at the root of the repository:
+Install the `certora-cli` package with `pip install certora-cli`. To verify a spec, pass its configuration file in [`certora/confs`](confs) to `certoraRun`. This requires a valid Certora key in the `CERTORAKEY` environment variable. The complete suite uses `solc-0.8.19`, `solc-0.8.21`, `solc-0.8.26`, and `solc-0.8.28`; the compiler versions required by a particular job are listed in its configuration.
 
-```
+Additional arguments can select a specific rule. For example, from the repository root:
+
+```sh
 certoraRun certora/confs/Invariants.conf --rule totalSupplyIsSumOfBalances
 ```
 
 # Acknowledgments
 
-Some rules and invariants are derived from those written by the Chainsecurity team during their audit of this repository.
+Some rules and invariants are derived from work by ChainSecurity during its audit of this repository.
