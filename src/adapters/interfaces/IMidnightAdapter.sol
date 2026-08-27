@@ -76,7 +76,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
-    function updateDurationCaps(Market memory market) external;
+    function updateDurationCaps(uint256 maturity) external;
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external;
     function ids(Market memory market) external view returns (bytes32[] memory);

@@ -121,7 +121,7 @@ contract MidnightAdapter is IMidnightAdapter {
         );
 
         accrueInterest();
-        updateDurationCaps(market);
+        updateDurationCaps(market.maturity);
 
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
         // current net credit cannot be > accounted net credit
@@ -143,12 +143,12 @@ contract MidnightAdapter is IMidnightAdapter {
             );
     }
 
-    function updateDurationCaps(Market memory market) public {
-        MaturityData storage maturityData = _maturities[market.maturity];
+    function updateDurationCaps(uint256 maturity) public {
+        MaturityData storage maturityData = _maturities[maturity];
         uint256 oldDurationCount = maturityData.durationCount;
-        uint256 newDurationCount = durationCount(market.maturity);
+        uint256 newDurationCount = durationCount(maturity);
         maturityData.durationCount = uint8(newDurationCount);
-        emit UpdateDurationCaps(market.maturity, newDurationCount, maturityData.netCredit);
+        emit UpdateDurationCaps(maturity, newDurationCount, maturityData.netCredit);
         // VaultV2.forceDeallocate requires allocation > 0 for each returned id.
         if (newDurationCount < oldDurationCount && maturityData.netCredit > 0) {
             bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationCount - newDurationCount);
@@ -243,7 +243,7 @@ contract MidnightAdapter is IMidnightAdapter {
             );
 
             accrueInterest();
-            updateDurationCaps(offer.market);
+            updateDurationCaps(offer.market.maturity);
 
             // Skip onSell since we are already in a deallocate call.
             bytes32 marketId = IdLib.toId(offer.market);
@@ -306,7 +306,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
         accrueInterest();
-        updateDurationCaps(market);
+        updateDurationCaps(market.maturity);
 
         MaturityData storage maturityData = _maturities[market.maturity];
         MarketData storage marketData = _markets[marketId];
@@ -370,7 +370,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(seller == address(this), NotSelf());
 
         accrueInterest();
-        updateDurationCaps(market);
+        updateDurationCaps(market.maturity);
 
         uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
         // current net credit cannot be > accounted net credit

@@ -23,8 +23,12 @@ import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
 import {IdLib} from "../lib/midnight/src/libraries/IdLib.sol";
 import {stdStorage, StdStorage} from "../lib/forge-std/src/Test.sol";
 import {ORACLE_PRICE_SCALE} from "../lib/morpho-blue/src/libraries/ConstantsLib.sol";
-import {CALLBACK_SUCCESS, DEFAULT_TICK_SPACING, MAX_CONTINUOUS_FEE, CBP} from
-    "../lib/midnight/src/libraries/ConstantsLib.sol";
+import {
+    CALLBACK_SUCCESS,
+    DEFAULT_TICK_SPACING,
+    MAX_CONTINUOUS_FEE,
+    CBP
+} from "../lib/midnight/src/libraries/ConstantsLib.sol";
 import {TakeAmountsLib} from "../lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 import {SetterRatifier} from "../lib/midnight/src/ratifiers/SetterRatifier.sol";
 
@@ -536,7 +540,7 @@ contract MidnightAdapterTest is Test {
 
         skip(timeToMaturity - duration + extraSkip);
 
-        adapter.updateDurationCaps(offer.market);
+        adapter.updateDurationCaps(offer.market.maturity);
 
         assertEq(parentVault.allocation(durationId(duration)), 0);
     }
@@ -551,9 +555,9 @@ contract MidnightAdapterTest is Test {
 
         Offer memory offer = buy(timeToMaturity, 1e18);
         skip(skipAmount);
-        adapter.updateDurationCaps(offer.market);
+        adapter.updateDurationCaps(offer.market.maturity);
         uint256 savedAllocation = parentVault.allocation(durationId(duration));
-        adapter.updateDurationCaps(offer.market);
+        adapter.updateDurationCaps(offer.market.maturity);
         assertEq(parentVault.allocation(durationId(duration)), savedAllocation);
     }
 
@@ -967,7 +971,9 @@ contract MidnightAdapterTest is Test {
     }
 
     function testForceDeallocateWithSettlementFee() public {
-        for (uint256 i = 0; i <= 6; i++) midnight.setDefaultSettlementFee(address(loanToken), i, 10 * CBP);
+        for (uint256 i = 0; i <= 6; i++) {
+            midnight.setDefaultSettlementFee(address(loanToken), i, 10 * CBP);
+        }
         Offer memory offer = buy(7 days, 1e18);
         skip(1);
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
@@ -1186,7 +1192,7 @@ contract MidnightAdapterTest is Test {
 
         skip(7 days + 1);
 
-        adapter.updateDurationCaps(offer.market);
+        adapter.updateDurationCaps(offer.market.maturity);
 
         assertEq(realVault.allocation(durationId(1 days)), 0, "1 day zeroed");
         assertEq(realVault.allocation(durationId(7 days)), 0, "7 days zeroed");
