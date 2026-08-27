@@ -103,4 +103,4 @@ certoraRun certora/confs/Invariants.conf --rule totalSupplyIsSumOfBalances
 
 # Acknowledgments
 
-Some rules and invariants are derived from work by ChainSecurity during its audit of this repository.
+Some rules and invariants are derived from work by ChainSecurity during its VaultV2 audit.
