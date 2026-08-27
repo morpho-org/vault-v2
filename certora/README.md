@@ -67,7 +67,7 @@ Shares and assets move only through permitted paths and by the exact requested a
 * [`TokensMorphoMarketV1AdapterV2.spec`](specs/TokensMorphoMarketV1AdapterV2.spec) checks the same flows through a Morpho Market V1 liquidity adapter. Deposits move assets from the sender into Morpho without leaving balances on the vault or adapter; withdrawals consume idle vault assets first, then Morpho liquidity, and pay the receiver exactly.
 * [`TokensMorphoVaultV1Adapter.spec`](specs/TokensMorphoVaultV1Adapter.spec) checks those token flows through a Morpho Vault V1 liquidity adapter and its underlying Morpho markets.
 * [`SkimMorphoMarketV1AdapterV2.spec`](specs/SkimMorphoMarketV1AdapterV2.spec) checks that `skim` transfers only tokens already held by the Morpho Market V1 adapter and does not change its reported assets. It also checks that changing the skim recipient follows the adapter's timelock and abdication conditions.
-* [`SkimMorphoVaultV1Adapter.spec`](specs/SkimMorphoVaultV1Adapter.spec) checks the corresponding skim accounting for the Morpho Vault V1 adapter and requires the vault owner, with no ETH value, to change the skim recipient.
+* [`SkimMorphoVaultV1Adapter.spec`](specs/SkimMorphoVaultV1Adapter.spec) checks the corresponding skim accounting for the Morpho Vault V1 adapter and requires the vault owner to change the skim recipient.
 
 ## External calls and reentrancy
 
