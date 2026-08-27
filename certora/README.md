@@ -38,7 +38,7 @@ Adapters report stable risk ids and keep the vault's allocation accounting align
 
 Risk limits and timelocked configuration cannot be bypassed.
 
-* [`RelativeCaps.spec`](specs/RelativeCaps.spec) checks that state-changing functions preserve every relative cap except the operations that may legitimately move outside it: interest or loss accrual, exits, cap decreases, and deallocation. The latter can increase a recorded allocation while realizing interest, whereas allocation would reject the same cap excess.
+* [`RelativeCaps.spec`](specs/RelativeCaps.spec) checks that relative caps are preserved, except by operations that may legitimately move outside it: interest or loss accrual, exits, cap decreases, and deallocation.
 * [`EarliestTime.spec`](specs/EarliestTime.spec) checks the three ways a timelocked call can become executable: an existing submission, a fresh submission plus the current timelock, or a pending timelock decrease plus the new delay. For the covered configuration calls, the earliest execution time cannot move backward and the call cannot succeed before it.
 * [`AbdicatedFunctions.spec`](specs/AbdicatedFunctions.spec) checks that an abdicated timelocked function cannot be called, that abdication is permanent, and that each affected configuration value remains unchanged in the direction the abdicated function would have modified it.
 * [`Immutability.spec`](specs/Immutability.spec) checks that every `DELEGATECALL` targets the vault itself, preventing delegation to arbitrary implementation code.
