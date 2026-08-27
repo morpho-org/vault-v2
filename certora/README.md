@@ -74,7 +74,7 @@ Shares and assets move only through permitted paths and by the exact requested a
 The vault does not expose an untrusted callback after entering an unsafe intermediate state.
 
 * [`Reentrancy.spec`](specs/Reentrancy.spec) checks that entry points make no external calls outside the vault itself, registered supported adapters, the asset token, Morpho Market V1, and MetaMorpho V1, ensuring no reentrancy if the token and underlying markets are trusted not to reenter.
-* [`ReentrancyView.spec`](specs/ReentrancyView.spec) checks read-only reentrancy ordering: after an external static call follows a storage write, the vault performs no later storage write. Calls to the asset's `balanceOf`, adapters' `realAssets`, gate checks, and the adapter registry are the explicitly modeled view dependencies. The rule excludes `forceDeallocate`, which composes the separately analyzed `deallocate` and `withdraw` paths.
+* [`ReentrancyView.spec`](specs/ReentrancyView.spec) checks read-only reentrancy ordering: after an external static call follows a storage write, the vault performs no later storage write. The rule assumes that calls to the asset’s balanceOf, adapters’ realAssets, gate checks, and the adapter registry do not reenter the vault. It excludes `forceDeallocate`, which composes the separately analyzed `deallocate` and `withdraw` paths.
 
 # Verification setup
 
