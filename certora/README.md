@@ -27,7 +27,7 @@ Share-price movement, rounding, previews, and equivalent entry points.
 
 Adapters report stable risk ids and keep the vault's allocation accounting aligned with their underlying positions.
 
-* [`IdsMorphoMarketV1AdapterV2.spec`](specs/IdsMorphoMarketV1AdapterV2.spec) checks that the Morpho Market V1 adapter returns three deterministic and pairwise-distinct ids for a given market, including the id derived from the adapter address. The ids returned by `allocate` and `deallocate` match the adapter's reference list.
+* [`IdsMorphoMarketV1AdapterV2.spec`](specs/IdsMorphoMarketV1AdapterV2.spec) checks that the Morpho Market V1 adapter returns the three expected ids.
 * [`IdsMorphoVaultV1Adapter.spec`](specs/IdsMorphoVaultV1Adapter.spec) checks the same properties for the Morpho Vault V1 adapter's single, constant adapter id.
 * [`AllocationMorphoMarketV1AdapterV2.spec`](specs/AllocationMorphoMarketV1AdapterV2.spec) checks that allocation and deallocation change every returned id by exactly the change reported by the Morpho Market V1 adapter and leave all other ids untouched. After either call, the adapter's allocation equals its expected supply assets. It also bounds expected supply assets and relates the adapter's internal supply-share accounting to its actual Morpho position.
 * [`AllocationMorphoVaultV1Adapter.spec`](specs/AllocationMorphoVaultV1Adapter.spec) checks the equivalent allocation updates for the Morpho Vault V1 adapter. After allocation or deallocation, the reported allocation equals the assets previewed from the adapter's MetaMorpho shares.
