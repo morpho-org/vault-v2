@@ -9,12 +9,15 @@ import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
 // Chain of maturities, each can represent multiple markets.
 // nextMaturity is 0 if no next maturity.
+// reportedVaultNetCredit is the allocation of the maturity on each of its duration ids in the vault: vaultNetCredit
+// plus the unreported vault decreases of its markets.
 struct MaturityData {
     uint128 vaultNetCredit;
     uint128 growth;
     uint48 prevMaturity;
     uint48 nextMaturity;
     uint8 durationCount;
+    uint128 reportedVaultNetCredit;
 }
 
 struct MarketData {
@@ -33,7 +36,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event WithdrawShares(
         bytes32 indexed marketId, address indexed user, uint256 redeemedShares, uint256 withdrawnAssets
     );
-    event UpdateDurationCaps(uint256 indexed maturity, uint256 newDurationCount, uint256 netCredit);
+    event UpdateDurationCaps(uint256 indexed maturity, uint256 newDurationCount, uint256 reportedVaultNetCredit);
     event ForceDeallocate(bytes32 indexed marketId, uint256 deallocatedAmount, uint256 netCreditDecrease);
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 netCreditIncrease, int256 netCreditChange);
     event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);

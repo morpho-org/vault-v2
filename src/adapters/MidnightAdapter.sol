@@ -138,6 +138,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         uint256 reportedDecrease = oldVaultNetCredit - marketData.vaultNetCredit + unreportedVaultDecrease[marketId];
         unreportedVaultDecrease[marketId] = 0;
+        _maturities[market.maturity].reportedVaultNetCredit -= reportedDecrease.toUint128();
         IVaultV2(parentVault)
             .deallocate(address(this), abi.encode(ids(market), -reportedDecrease.toInt256()), withdrawnAssets);
         emit WithdrawToVault(marketId, withdrawnAssets, reportedDecrease);
@@ -181,14 +182,14 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 oldDurationCount = maturityData.durationCount;
         uint256 newDurationCount = durationCount(market.maturity);
         maturityData.durationCount = uint8(newDurationCount);
-        emit UpdateDurationCaps(market.maturity, newDurationCount, maturityData.vaultNetCredit);
+        emit UpdateDurationCaps(market.maturity, newDurationCount, maturityData.reportedVaultNetCredit);
         // VaultV2.forceDeallocate requires allocation > 0 for each returned id.
-        if (newDurationCount < oldDurationCount && maturityData.vaultNetCredit > 0) {
+        if (newDurationCount < oldDurationCount && maturityData.reportedVaultNetCredit > 0) {
             bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationCount - newDurationCount);
             for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
                 zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
             }
-            bytes memory data = abi.encode(zeroedDurationsIds, -int256(uint256(maturityData.vaultNetCredit)));
+            bytes memory data = abi.encode(zeroedDurationsIds, -int256(uint256(maturityData.reportedVaultNetCredit)));
             IVaultV2(parentVault).forceDeallocate(address(this), data, 0, address(this));
         }
     }
@@ -290,6 +291,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
             uint256 reportedDecrease = oldVaultNetCredit - marketData.vaultNetCredit + unreportedVaultDecrease[marketId];
             unreportedVaultDecrease[marketId] = 0;
+            _maturities[market.maturity].reportedVaultNetCredit -= reportedDecrease.toUint128();
             emit ForceDeallocate(marketId, deallocatedAmount, reportedDecrease);
             return (ids(market), -reportedDecrease.toInt256());
         }
@@ -369,6 +371,8 @@ contract MidnightAdapter is IMidnightAdapter {
         int256 netCreditChange = int256(uint256(marketData.vaultNetCredit)) - int256(oldVaultNetCredit)
             - int256(uint256(unreportedVaultDecrease[marketId]));
         unreportedVaultDecrease[marketId] = 0;
+        maturityData.reportedVaultNetCredit =
+            (int256(uint256(maturityData.reportedVaultNetCredit)) + netCreditChange).toUint256().toUint128();
         IVaultV2(parentVault).allocate(address(this), abi.encode(ids(market), netCreditChange), paidAssets);
 
         // Insert the maturity in the list if needed
@@ -418,6 +422,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         uint256 reportedDecrease = oldVaultNetCredit - marketData.vaultNetCredit + unreportedVaultDecrease[marketId];
         unreportedVaultDecrease[marketId] = 0;
+        _maturities[market.maturity].reportedVaultNetCredit -= reportedDecrease.toUint128();
         IVaultV2(parentVault)
             .deallocate(address(this), abi.encode(ids(market), -reportedDecrease.toInt256()), sellerAssets);
 

@@ -1029,6 +1029,36 @@ contract MidnightAdapterTest is Test {
         assertEq(allocationBefore - parentVault.allocation(adapter.adapterId()), 0.2e18, "folded into report");
     }
 
+    /// forge-config: default.isolate = true
+    /// @dev A vault loss realized in withdrawShares stays on the duration ids until the next report. Crossing a
+    /// duration boundary in between must remove it from the dropped id along with the rest.
+    function testWithdrawSharesLossThenUpdateDurationCapsRealVault() public {
+        setUpRealVault();
+        Offer memory offer = buyOnRealVault(7 days, 1e18);
+        bytes32 marketId = _marketId(offer.market);
+        forceDeallocateOnRealVault(offer.market, 0.5e18);
+        assertEq(realVault.allocation(durationId(7 days)), 0.5e18, "7 days after exit");
+
+        // Partial repay so the user can redeem before maturity, then a 0.4e18 loss split evenly between the tranches.
+        vm.prank(taker);
+        midnight.repay(offer.market, 0.5e18, taker, address(0), "");
+        setMidnightCredit(marketId, address(adapter), 0.6e18);
+        adapter.withdrawShares(offer.market, adapter.shares(marketId, address(this)));
+        assertEq(adapter.unreportedVaultDecrease(marketId), 0.2e18, "decrease held back");
+        assertEq(adapter.maturities(offer.market.maturity).reportedVaultNetCredit, 0.5e18, "reported unchanged");
+
+        skip(1);
+        adapter.updateDurationCaps(offer.market);
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days fully removed");
+        assertEq(realVault.allocation(durationId(1 days)), 0.5e18, "1 day untouched");
+
+        vm.prank(signerAllocator);
+        adapter.withdrawToVault(offer.market, 0);
+        assertEq(realVault.allocation(durationId(1 days)), 0.3e18, "1 day after report");
+        assertEq(realVault.allocation(adapter.adapterId()), 0.3e18, "adapter id after report");
+        assertEq(adapter.maturities(offer.market.maturity).reportedVaultNetCredit, 0.3e18, "reported after report");
+    }
+
     // Early exit before maturity, per withdrawShares' doc comment: sell the credit on midnight (creating debt),
     // then repay + withdrawShares in the sell callback. The repay itself creates the withdrawable liquidity that
     // the redemption needs, and midnight's health check passes because the callback cleared the debt.
