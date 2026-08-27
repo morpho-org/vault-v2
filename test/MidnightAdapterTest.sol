@@ -23,7 +23,12 @@ import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
 import {IdLib} from "../lib/midnight/src/libraries/IdLib.sol";
 import {stdStorage, StdStorage} from "../lib/forge-std/src/Test.sol";
 import {ORACLE_PRICE_SCALE} from "../lib/morpho-blue/src/libraries/ConstantsLib.sol";
-import {CALLBACK_SUCCESS} from "../lib/midnight/src/libraries/ConstantsLib.sol";
+import {
+    CALLBACK_SUCCESS,
+    DEFAULT_TICK_SPACING,
+    MAX_CONTINUOUS_FEE,
+    CBP
+} from "../lib/midnight/src/libraries/ConstantsLib.sol";
 import {TakeAmountsLib} from "../lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 
 contract ExtraAssetsAdapter is IAdapter {
@@ -79,6 +84,7 @@ contract MidnightAdapterTest is Test {
     uint256 internal constant MAX_TEST_ASSETS = 1e24;
 
     uint256[] internal allDurations = [1 days, 7 days, 30 days, 90 days, 180 days];
+    uint256 internal discountTick = TickLib.priceToTick(0.95e18, DEFAULT_TICK_SPACING);
 
     function setUp() public virtual {
         owner = makeAddr("owner");
@@ -93,6 +99,7 @@ contract MidnightAdapterTest is Test {
         midnight = IMidnight(deployCode("Midnight.sol:Midnight"));
         midnight.enableLltv(1e18);
         midnight.enableLiquidationCursor(0.25e18);
+        midnight.setFeeSetter(address(this));
 
         loanToken = IERC20(address(new ERC20Mock(18)));
         rewardToken = IERC20(address(new ERC20Mock(18)));
@@ -293,12 +300,31 @@ contract MidnightAdapterTest is Test {
         adapter.isRatified(offer, data, taker);
     }
 
-    function testRatifyIncorrectExpiry(uint256 seed) public {
+    function testRatifyOK(uint256 seed) public {
         vm.setSeed(seed);
         Offer memory offer = _ratificationSetup();
         bytes32 _root = root(offer);
         bytes memory data = ratifierData(_root, signerAllocator);
-        adapter.isRatified(offer, data, taker);
+        assertEq(adapter.isRatified(offer, data, taker), CALLBACK_SUCCESS, "callback success");
+    }
+
+    function testRatifyTwoOfferTree(uint256 seed) public {
+        vm.setSeed(seed);
+        Offer memory offer = _ratificationSetup();
+        Offer memory sibling = _ratificationSetup();
+        bytes32 _root = root([offer, sibling]);
+
+        bytes memory data = ratifierData(_root, signerAllocator, 0, proof([offer, sibling]));
+        assertEq(adapter.isRatified(offer, data, taker), CALLBACK_SUCCESS, "first leaf");
+
+        bytes32[] memory siblingProof = new bytes32[](1);
+        siblingProof[0] = HashLib.hashOffer(offer);
+        data = ratifierData(_root, signerAllocator, 1, siblingProof);
+        assertEq(adapter.isRatified(sibling, data, taker), CALLBACK_SUCCESS, "second leaf");
+
+        data = ratifierData(_root, signerAllocator, 0, siblingProof);
+        vm.expectRevert(IMidnightAdapter.InvalidProof.selector);
+        adapter.isRatified(sibling, data, taker);
     }
 
     function testRatifyInvalidProof(uint256 seed) public {
@@ -393,6 +419,27 @@ contract MidnightAdapterTest is Test {
         adapter.cancelRoot(keccak256("some root"));
     }
 
+    /* FACTORY */
+
+    function testFactoryCreateMidnightAdapter() public {
+        VaultV2Mock newVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
+
+        vm.expectEmit(true, true, false, false, address(factory));
+        emit IMidnightAdapterFactory.CreateMidnightAdapter(address(newVault), address(midnight), address(0));
+        address newAdapter = factory.createMidnightAdapter(address(newVault), address(midnight));
+
+        assertEq(factory.midnightAdapter(address(newVault), address(midnight)), newAdapter, "midnightAdapter");
+        assertTrue(factory.isMidnightAdapter(newAdapter), "isMidnightAdapter");
+        assertEq(IMidnightAdapter(newAdapter).parentVault(), address(newVault), "parentVault");
+        assertEq(IMidnightAdapter(newAdapter).midnight(), address(midnight), "midnight");
+        assertEq(IMidnightAdapter(newAdapter).durations(), allDurations, "durations");
+        assertTrue(midnight.isAuthorized(newAdapter, newAdapter), "adapter is its own ratifier");
+
+        // Fixed salt: one adapter per (vault, midnight) pair.
+        vm.expectRevert();
+        factory.createMidnightAdapter(address(newVault), address(midnight));
+    }
+
     /* DURATIONS */
 
     function testConstructorGetters() public view {
@@ -415,7 +462,7 @@ contract MidnightAdapterTest is Test {
         for (uint256 i = 0; i < collateralCount; i++) {
             collateralParams[i].token = address(uint160(i));
         }
-        market.collateralParams = storedCollaterals;
+        market.collateralParams = collateralParams;
         market.maturity = bound(maturity, 1, 700 days);
 
         bytes32[] memory ids = adapter.ids(market);
@@ -435,19 +482,28 @@ contract MidnightAdapterTest is Test {
             );
         }
 
-        uint256[] memory durations = adapter.durations();
-        uint256 durationIdCount = 0;
-        for (uint256 i = 0; i < durations.length; i++) {
-            if ((market.maturity - block.timestamp) >= durations[i]) {
-                assertEq(
-                    ids[1 + market.collateralParams.length * 2 + durationIdCount],
-                    keccak256(abi.encode("duration", durations[i]))
-                );
-                durationIdCount++;
-            }
+        // Duration ids come from the stored duration count: none for a maturity that was never bought.
+        assertEq(ids.length, 1 + market.collateralParams.length * 2);
+    }
+
+    function testIdsDurations(uint256 durationIndex, uint256 elapsed) public {
+        durationIndex = bound(durationIndex, 0, allDurations.length - 1);
+        uint256 duration = allDurations[durationIndex];
+        elapsed = bound(elapsed, 0, duration);
+        Offer memory offer = buy(duration, 1e18);
+        uint256 fixedIds = 1 + offer.market.collateralParams.length * 2;
+
+        skip(elapsed);
+        bytes32[] memory ids = adapter.ids(offer.market);
+        assertEq(ids.length, fixedIds + durationIndex + 1, "stale until updated");
+        for (uint256 i = 0; i <= durationIndex; i++) {
+            assertEq(ids[fixedIds + i], durationId(allDurations[i]), "duration id");
         }
 
-        assertEq(ids.length, 1 + market.collateralParams.length * 2 + durationIdCount);
+        adapter.updateDurationCaps(offer.market.maturity);
+        uint256 count = 0;
+        while (count < allDurations.length && duration - elapsed >= allDurations[count]) count++;
+        assertEq(adapter.ids(offer.market).length, fixedIds + count, "updated");
     }
 
     /* ALLOCATION UPDATES */
@@ -470,7 +526,7 @@ contract MidnightAdapterTest is Test {
 
         skip(timeToMaturity - duration + extraSkip);
 
-        adapter.updateDurationCaps(offer.market);
+        adapter.updateDurationCaps(offer.market.maturity);
 
         assertEq(parentVault.allocation(durationId(duration)), 0);
     }
@@ -485,13 +541,13 @@ contract MidnightAdapterTest is Test {
 
         Offer memory offer = buy(timeToMaturity, 1e18);
         skip(skipAmount);
-        adapter.updateDurationCaps(offer.market);
+        adapter.updateDurationCaps(offer.market.maturity);
         uint256 savedAllocation = parentVault.allocation(durationId(duration));
-        adapter.updateDurationCaps(offer.market);
+        adapter.updateDurationCaps(offer.market.maturity);
         assertEq(parentVault.allocation(durationId(duration)), savedAllocation);
     }
 
-    function testUpdateOnWithdraw() public {
+    function testWithdrawThenUpdateDurationCaps() public {
         Offer memory offer = buy(7 days, 1e18);
         assertEq(parentVault.allocation(durationId(1 days)), 1e18, "1 day, before");
         assertEq(parentVault.allocation(durationId(7 days)), 1e18, "7 days, before");
@@ -503,11 +559,16 @@ contract MidnightAdapterTest is Test {
         vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, 0.5e18);
 
+        assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day, stale");
+        assertEq(parentVault.allocation(durationId(7 days)), 0.5e18, "7 days, stale");
+
+        adapter.updateDurationCaps(offer.market.maturity);
+
         assertEq(parentVault.allocation(durationId(1 days)), 0, "1 day");
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
     }
 
-    function testUpdateOnSell() public {
+    function testSellThenUpdateDurationCaps() public {
         Offer memory offer = buy(7 days, 1e18);
         assertEq(parentVault.allocation(durationId(1 days)), 1e18, "1 day, before");
         assertEq(parentVault.allocation(durationId(7 days)), 1e18, "7 days, before");
@@ -517,29 +578,38 @@ contract MidnightAdapterTest is Test {
         parentVault.setTotalAssets(1e18);
         sell(offer.market, 0.5e18);
 
+        assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day, stale");
+        assertEq(parentVault.allocation(durationId(7 days)), 0.5e18, "7 days, stale");
+
+        adapter.updateDurationCaps(offer.market.maturity);
+
         assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day");
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
     }
 
     function testOnBuyRemovesAndReinsertsMaturity() public {
+        uint256 t0 = block.timestamp;
         buy(1 days, 1e18);
         Offer memory offer = buy(7 days, 1e18);
         buy(30 days, 1e18);
         bytes32 marketId = _marketId(offer.market);
         setMidnightCredit(marketId, address(adapter), 0);
 
+        // Buying again books the full loss, which empties the maturity, then adds the bought net credit back.
         offer.group = bytes32("second buy");
-        uint256 units = 1e18 * 1e18 / TickLib.tickToPrice(MAX_TICK);
-        offer.maxUnits = uint128(units);
+        midnight.supplyCollateral(offer.market, 0, 1e18, taker);
+        midnight.supplyCollateral(offer.market, 1, 1e18, taker);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.RemoveMaturity(offer.market.maturity);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.InsertMaturity(offer.market.maturity);
+        take(offer);
 
-        vm.startPrank(taker);
-        midnight.supplyCollateral(offer.market, 0, 0.5e18, taker);
-        midnight.supplyCollateral(offer.market, 1, 0.5e18, taker);
-        vm.stopPrank();
-
-        offer.callbackData = hex"";
-        vm.prank(taker);
-        midnight.take(offer, sign([offer], signerAllocator), units, taker, taker, address(0), "");
+        (uint128 netCredit,,,) = adapter._markets(marketId);
+        assertEq(netCredit, 1e18, "netCredit");
+        assertEq(adapter.totalAssets(), 3e18, "totalAssets");
+        assertEq(adapter.availableMaturities(), 47, "availableMaturities");
+        assertPendingMaturities([t0 + 1 days, t0 + 7 days, t0 + 30 days]);
     }
 
     function testSellClearsMaturityAndReactivatesSlot() public {
@@ -563,7 +633,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.availableMaturities(), 0, "availableMaturities final");
     }
 
-    function testUpdateOnForceDeallocate() public {
+    function testForceDeallocateThenUpdateDurationCaps() public {
         Offer memory offer = buy(7 days, 1e18);
         assertEq(parentVault.allocation(durationId(1 days)), 1e18, "1 day, before");
         assertEq(parentVault.allocation(durationId(7 days)), 1e18, "7 days, before");
@@ -571,6 +641,11 @@ contract MidnightAdapterTest is Test {
         skip(1);
 
         forceDeallocate(offer.market, 0.5e18);
+
+        assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day, stale");
+        assertEq(parentVault.allocation(durationId(7 days)), 0.5e18, "7 days, stale");
+
+        adapter.updateDurationCaps(offer.market.maturity);
 
         assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day");
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
@@ -724,6 +799,8 @@ contract MidnightAdapterTest is Test {
         adapter.accrueInterest();
         assertPendingMaturitiesEmpty();
         assertEq(adapter.currentGrowth(), 0, "currentGrowth");
+        assertEq(adapter.totalAssets(), 2e18, "totalAssets");
+        assertEq(adapter.availableMaturities(), 50, "availableMaturities");
     }
 
     function testTwoMarketsSharingMaturity(uint256 assetsA, uint256 assetsB) public {
@@ -762,6 +839,204 @@ contract MidnightAdapterTest is Test {
         assertPendingMaturities([first.market.maturity]);
     }
 
+    /* ACCRUAL */
+
+    function testAccrueInterestLinear() public {
+        uint256 duration = 30 days;
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+        Offer memory offer = buy(duration, 1e18, discountTick);
+        uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
+        uint256 interest = offer.maxUnits - paid;
+        assertGt(interest, 0, "bought at a discount");
+
+        // The growth is an integer per second, the remainder is credited at buy time.
+        uint256 valueAtBuy = paid + interest % duration;
+        assertEq(adapter.realAssets(), valueAtBuy, "at buy");
+        skip(duration / 3);
+        assertEq(adapter.realAssets(), valueAtBuy + (interest / duration) * (duration / 3), "a third of the way");
+        skip(2 * duration / 3);
+        assertEq(adapter.realAssets(), offer.maxUnits, "net credit at maturity");
+        skip(365 days);
+        assertEq(adapter.realAssets(), offer.maxUnits, "flat after maturity");
+    }
+
+    function testAccrueInterestMatchesView() public {
+        buy(30 days, 1e18, discountTick);
+        buy(60 days, 2e18, discountTick);
+        skip(45 days);
+
+        (uint48 viewFirstMaturity, uint128 viewGrowth, uint128 viewTotalAssets, uint256 removedMaturities) =
+            adapter.accrueInterestView();
+        (uint48 firstMaturity, uint128 growth, uint256 totalAssets) = adapter.accrueInterest();
+
+        assertEq(removedMaturities, 1, "removedMaturities");
+        assertEq(firstMaturity, viewFirstMaturity, "firstMaturity");
+        assertEq(growth, viewGrowth, "growth");
+        assertEq(totalAssets, viewTotalAssets, "totalAssets");
+        assertEq(adapter.maturities(0).nextMaturity, firstMaturity, "stored firstMaturity");
+        assertEq(adapter.currentGrowth(), growth, "stored growth");
+        assertEq(adapter.totalAssets(), totalAssets, "stored totalAssets");
+    }
+
+    function testAccrueInterestPastAllMaturities() public {
+        Offer memory offerA = buy(7 days, 1e18, discountTick);
+        Offer memory offerB = buy(30 days, 2e18, discountTick);
+        Offer memory offerC = buy(90 days, 3e18, discountTick);
+        skip(100 days);
+
+        adapter.accrueInterest();
+
+        assertEq(adapter.totalAssets(), offerA.maxUnits + offerB.maxUnits + offerC.maxUnits, "sum of net credits");
+        assertEq(adapter.currentGrowth(), 0, "currentGrowth");
+        assertEq(adapter.availableMaturities(), 50, "availableMaturities");
+        assertPendingMaturitiesEmpty();
+    }
+
+    function testSellBeforeMaturityRemovesLinearValue() public {
+        uint256 duration = 30 days;
+        Offer memory offer = buy(duration, 1e18, discountTick);
+        skip(duration / 2);
+        uint256 valueBefore = adapter.realAssets();
+
+        sell(offer.market, offer.maxUnits / 2);
+
+        // The growth is an integer per second, so the rounding is bounded by the duration.
+        assertApproxEqAbs(adapter.realAssets(), valueBefore / 2, duration, "half the value is removed");
+        skip(duration / 2);
+        assertEq(adapter.realAssets(), offer.maxUnits - offer.maxUnits / 2, "the rest reaches its net credit");
+    }
+
+    function testSellAllBeforeMaturity() public {
+        Offer memory offer = buy(30 days, 1e18, discountTick);
+        skip(10 days);
+        deal(address(loanToken), taker, offer.maxUnits);
+
+        sell(offer.market, offer.maxUnits);
+
+        assertEq(adapter.totalAssets(), 0, "totalAssets");
+        assertEq(adapter.currentGrowth(), 0, "currentGrowth");
+        assertEq(adapter.availableMaturities(), 50, "availableMaturities");
+        assertPendingMaturitiesEmpty();
+    }
+
+    function testLossBeforeMaturityRemovesLinearValue() public {
+        uint256 duration = 30 days;
+        Offer memory offer = buy(duration, 1e18, discountTick);
+        bytes32 marketId = _marketId(offer.market);
+        skip(duration / 2);
+        uint256 valueBefore = adapter.realAssets();
+
+        uint256 loss = offer.maxUnits / 2;
+        setMidnightCredit(marketId, address(adapter), offer.maxUnits - loss);
+        new MidnightLossRealizer().realizeLoss(adapter, offer.market);
+
+        assertApproxEqAbs(adapter.realAssets(), valueBefore / 2, duration, "half the value is lost");
+        skip(duration / 2);
+        assertEq(adapter.realAssets(), offer.maxUnits - loss, "the rest reaches its net credit");
+    }
+
+    /* FEES */
+
+    function testContinuousFeeIsNotALoss() public {
+        midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
+        uint256 duration = 30 days;
+        Offer memory offer = buy(duration, 1e18, discountTick);
+        bytes32 marketId = _marketId(offer.market);
+
+        uint256 pendingFee = midnight.pendingFee(marketId, address(adapter));
+        assertGt(pendingFee, 0, "pendingFee");
+        (uint128 netCredit,,,) = adapter._markets(marketId);
+        assertEq(netCredit, offer.maxUnits - pendingFee, "net credit excludes the pending fee");
+
+        // The fee accrues out of the credit and of the pending fee alike, so the net credit does not move.
+        skip(duration / 2);
+        uint256 valueBefore = adapter.realAssets();
+        new MidnightLossRealizer().realizeLoss(adapter, offer.market);
+        assertLt(midnight.pendingFee(marketId, address(adapter)), pendingFee, "fee accrued");
+        (uint128 netCreditAfter,,,) = adapter._markets(marketId);
+        assertEq(netCreditAfter, netCredit, "net credit unchanged");
+        assertEq(adapter.realAssets(), valueBefore, "no loss booked");
+
+        skip(duration / 2);
+        assertEq(adapter.realAssets(), netCredit, "net credit at maturity");
+    }
+
+    function testBuyAtLossReverts() public {
+        midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
+        // At par, the pending fee makes the net credit lower than the assets paid.
+        Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
+        midnight.supplyCollateral(offer.market, 0, 1e18, taker);
+        midnight.supplyCollateral(offer.market, 1, 1e18, taker);
+        vm.expectRevert(IMidnightAdapter.BuyAtLoss.selector);
+        take(offer);
+    }
+
+    /* CALLBACKS */
+
+    function testOnBuyNotMidnight(address caller) public {
+        vm.assume(caller != address(midnight));
+        vm.prank(caller);
+        vm.expectRevert(IMidnightAdapter.NotMidnight.selector);
+        adapter.onBuy(bytes32(0), storedOffer.market, 0, 0, 0, address(adapter), "");
+    }
+
+    function testOnBuyNotSelf(address buyer) public {
+        vm.assume(buyer != address(adapter));
+        vm.prank(address(midnight));
+        vm.expectRevert(IMidnightAdapter.NotSelf.selector);
+        adapter.onBuy(bytes32(0), storedOffer.market, 0, 0, 0, buyer, "");
+    }
+
+    function testOnSellNotMidnight(address caller) public {
+        vm.assume(caller != address(midnight));
+        vm.prank(caller);
+        vm.expectRevert(IMidnightAdapter.NotMidnight.selector);
+        adapter.onSell(bytes32(0), storedOffer.market, 0, 0, 0, address(adapter), address(adapter), "");
+    }
+
+    function testOnSellNotSelf(address seller) public {
+        vm.assume(seller != address(adapter));
+        vm.prank(address(midnight));
+        vm.expectRevert(IMidnightAdapter.NotSelf.selector);
+        adapter.onSell(bytes32(0), storedOffer.market, 0, 0, 0, seller, address(adapter), "");
+    }
+
+    function testDeallocateNotParentVault(address caller) public {
+        vm.assume(caller != address(parentVault));
+        vm.prank(caller);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.deallocate("", 0, bytes4(0), caller);
+    }
+
+    /// @dev Only the adapter can allocate and deallocate through the vault, so it cannot be a liquidity adapter.
+    function testVaultAllocateAndDeallocateRevert() public {
+        vm.expectRevert(IMidnightAdapter.SelfAllocationOnly.selector);
+        parentVault.allocate(address(adapter), "", 0);
+        vm.expectRevert(IMidnightAdapter.SelfAllocationOnly.selector);
+        parentVault.deallocate(address(adapter), "", 0);
+    }
+
+    /* TAKE */
+
+    function testTakeLoanAssetMismatch() public {
+        Offer memory offer = storedOffer;
+        offer.market.loanToken = address(rewardToken);
+        vm.prank(signerAllocator);
+        vm.expectRevert(IMidnightAdapter.LoanAssetMismatch.selector);
+        adapter.take(offer, "", 0);
+    }
+
+    /// @dev Selling more than its credit would put the adapter in debt, which it has no collateral for. The adapter
+    /// reverts first, when it tries to account a net credit decrease larger than its position.
+    function testTakeMoreThanPositionReverts() public {
+        Offer memory offer = buy(7 days, 1e18);
+        Offer memory buyOffer = makeExternalOffer(offer.market, true, 2e18, MAX_TICK);
+
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        vm.prank(signerAllocator);
+        adapter.take(buyOffer, "", 2e18);
+    }
+
     /* FORCE DEALLOCATE */
 
     function testForceDeallocateOK() public {
@@ -787,9 +1062,12 @@ contract MidnightAdapterTest is Test {
         forceDeallocate(boughtOffer.market, 0.5e18);
 
         assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day");
-        assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
+        assertEq(parentVault.allocation(durationId(7 days)), 0.5e18, "7 days, stale");
         (uint128 marketNetCredit,,,) = adapter._markets(_marketId(boughtOffer.market));
         assertEq(marketNetCredit, 0.5e18, "netCredit");
+
+        vm.expectRevert(bytes("no role"));
+        adapter.updateDurationCaps(boughtOffer.market.maturity);
     }
 
     /// forge-config: default.isolate = true
@@ -811,14 +1089,13 @@ contract MidnightAdapterTest is Test {
         assertGt(realVault.balanceOf(recipient), 0, "fee shares minted");
         (uint128 marketNetCredit,,,) = adapter._markets(_marketId(offer.market));
         assertEq(marketNetCredit, 0.5e18, "netCredit");
-        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days zeroed");
+        assertEq(realVault.allocation(durationId(7 days)), 0.5e18, "7 days stale");
         assertEq(realVault.allocation(durationId(1 days)), 0.5e18, "1 day");
         assertEq(loanToken.balanceOf(address(realVault)), 9.5e18, "vault balance");
     }
 
     /// forge-config: default.isolate = true
-    /// @dev A sendSharesGate must allow the adapter: exits work when it does, and revert once a duration boundary
-    /// has been crossed when it does not.
+    /// @dev A sendSharesGate blocking the adapter affects neither exits nor duration caps updates.
     function testForceDeallocateRealVaultWithGate() public {
         setUpRealVault();
         Offer memory offer = buyOnRealVault(7 days, 1e18);
@@ -826,23 +1103,24 @@ contract MidnightAdapterTest is Test {
         address gate = makeAddr("gate");
         vm.etch(gate, hex"01");
         vm.mockCall(gate, abi.encodeWithSelector(ISendSharesGate.canSendShares.selector), abi.encode(true));
+        vm.mockCall(
+            gate, abi.encodeWithSelector(ISendSharesGate.canSendShares.selector, address(adapter)), abi.encode(false)
+        );
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setSendSharesGate, (gate)));
 
         skip(1);
 
         forceDeallocateOnRealVault(offer.market, 0.5e18);
-        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days zeroed");
+        assertEq(realVault.allocation(durationId(7 days)), 0.5e18, "7 days stale");
 
-        vm.mockCall(
-            gate, abi.encodeWithSelector(ISendSharesGate.canSendShares.selector, address(adapter)), abi.encode(false)
-        );
-        skip(6 days);
-        vm.expectRevert(ErrorsLib.CannotSendShares.selector);
-        realVault.forceDeallocate(address(adapter), abi.encode(offer.market), 0.1e18, address(this));
+        adapter.updateDurationCaps(offer.market.maturity);
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days zeroed");
+        assertEq(realVault.allocation(durationId(1 days)), 0.5e18, "1 day");
     }
 
     /// forge-config: default.isolate = true
-    /// @dev A matured maturity zeroes all its duration ids at once, without the adapter having any role.
+    /// @dev A matured maturity zeroes all its duration ids at once, without touching Midnight. The adapter needs the
+    /// allocator or sentinel role.
     function testUpdateDurationCapsMaturedRealVault() public {
         setUpRealVault();
         Offer memory offer = buyOnRealVault(7 days, 1e18);
@@ -850,7 +1128,12 @@ contract MidnightAdapterTest is Test {
 
         skip(7 days + 1);
 
-        adapter.updateDurationCaps(offer.market);
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        adapter.updateDurationCaps(offer.market.maturity);
+
+        vm.prank(owner);
+        realVault.setIsSentinel(address(adapter), true);
+        adapter.updateDurationCaps(offer.market.maturity);
 
         assertEq(realVault.allocation(durationId(1 days)), 0, "1 day zeroed");
         assertEq(realVault.allocation(durationId(7 days)), 0, "7 days zeroed");
@@ -863,11 +1146,13 @@ contract MidnightAdapterTest is Test {
         setUpRealVault();
         Offer memory offerA = buyOnRealVault(7 days, 1e18);
         buyOnRealVault(10 days, 1e18);
-        submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), false)));
 
         skip(1);
 
         forceDeallocateOnRealVault(offerA.market, 0.5e18);
+        assertEq(realVault.allocation(durationId(7 days)), 1.5e18, "7 days stale");
+
+        adapter.updateDurationCaps(offerA.market.maturity);
 
         assertEq(realVault.allocation(durationId(7 days)), 1e18, "7 days keeps the other maturity's part");
         assertEq(realVault.allocation(durationId(1 days)), 1.5e18, "1 day");
@@ -932,6 +1217,142 @@ contract MidnightAdapterTest is Test {
         assertApproxEqAbs(parentVault.allocation(adapter.adapterId()), 0.7e18, 1, "allocation");
     }
 
+    /* STALE DURATION IDS */
+
+    /// forge-config: default.isolate = true
+    /// @dev Duration ids go stale as time passes, a full sell still removes the maturity from all of them.
+    function testStaleDurationIdsSyncedOnFullSell(uint256 elapsed) public {
+        elapsed = bound(elapsed, 1, 7 days - 1);
+        setUpRealVault();
+        Offer memory offer = buyOnRealVault(7 days, 1e18);
+
+        skip(elapsed);
+        assertEq(realVault.allocation(durationId(7 days)), 1e18, "7 days stale before sell");
+
+        sellUnits(offer.market, 1e18, MAX_TICK);
+
+        assertEq(realVault.allocation(durationId(1 days)), 0, "1 day");
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days");
+        assertEq(realVault.allocation(adapter.adapterId()), 0, "adapter id");
+    }
+
+    /// forge-config: default.isolate = true
+    function testStaleDurationIdsSyncedOnFullWithdraw() public {
+        setUpRealVault();
+        Offer memory offer = buyOnRealVault(7 days, 1e18);
+
+        skip(7 days);
+        vm.prank(taker);
+        midnight.repay(offer.market, 1e18, taker, address(0), "");
+        assertEq(realVault.allocation(durationId(1 days)), 1e18, "1 day stale before withdraw");
+        assertEq(realVault.allocation(durationId(7 days)), 1e18, "7 days stale before withdraw");
+
+        vm.prank(signerAllocator);
+        adapter.withdrawToVault(offer.market, 1e18);
+
+        assertEq(realVault.allocation(durationId(1 days)), 0, "1 day");
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days");
+        assertEq(realVault.allocation(adapter.adapterId()), 0, "adapter id");
+    }
+
+    /// forge-config: default.isolate = true
+    function testStaleDurationIdsSyncedOnFullForceDeallocate() public {
+        setUpRealVault();
+        Offer memory offer = buyOnRealVault(7 days, 1e18);
+
+        skip(6 days + 1);
+        assertEq(realVault.allocation(durationId(1 days)), 1e18, "1 day stale before exit");
+        assertEq(realVault.allocation(durationId(7 days)), 1e18, "7 days stale before exit");
+
+        forceDeallocateOnRealVault(offer.market, 1e18);
+
+        assertEq(realVault.allocation(durationId(1 days)), 0, "1 day");
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days");
+        assertEq(realVault.allocation(adapter.adapterId()), 0, "adapter id");
+    }
+
+    /// forge-config: default.isolate = true
+    /// @dev Partial exits decrease stale ids too, so they stay consistent with the stored duration count.
+    function testStaleDurationIdsPartialSellThenUpdateThenFullSell() public {
+        setUpRealVault();
+        Offer memory offer = buyOnRealVault(7 days, 1e18);
+
+        skip(1 days);
+        sellUnits(offer.market, 0.25e18, MAX_TICK);
+        assertEq(realVault.allocation(durationId(1 days)), 0.75e18, "1 day after partial sell");
+        assertEq(realVault.allocation(durationId(7 days)), 0.75e18, "7 days stale after partial sell");
+
+        adapter.updateDurationCaps(offer.market.maturity);
+        assertEq(realVault.allocation(durationId(1 days)), 0.75e18, "1 day after update");
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days after update");
+
+        sellUnits(offer.market, 0.25e18, MAX_TICK);
+        assertEq(realVault.allocation(durationId(1 days)), 0.5e18, "1 day after second partial sell");
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days after second partial sell");
+
+        skip(5 days + 1);
+        sellUnits(offer.market, 0.5e18, MAX_TICK);
+        assertEq(realVault.allocation(durationId(1 days)), 0, "1 day");
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days");
+        assertEq(realVault.allocation(adapter.adapterId()), 0, "adapter id");
+    }
+
+    /// forge-config: default.isolate = true
+    /// @dev A buy on a maturity with stale ids is counted on them too, so that a full exit zeroes them.
+    function testStaleDurationIdsSecondBuyThenFullSell() public {
+        setUpRealVault();
+        Offer memory offer = buyOnRealVault(7 days, 1e18);
+
+        skip(1 days);
+        buyOnRealVault(6 days, 1e18);
+        assertEq(realVault.allocation(durationId(1 days)), 2e18, "1 day counts both buys");
+        assertEq(realVault.allocation(durationId(7 days)), 2e18, "7 days stale counts both buys");
+
+        sellUnits(offer.market, 2e18, MAX_TICK);
+
+        assertEq(realVault.allocation(durationId(1 days)), 0, "1 day");
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days");
+        assertEq(realVault.allocation(adapter.adapterId()), 0, "adapter id");
+    }
+
+    /// forge-config: default.isolate = true
+    /// @dev Once a maturity is emptied, its next buy is only counted on the durations it currently fills.
+    function testDurationIdsResetOnRebuyAfterFullSell() public {
+        setUpRealVault();
+        Offer memory offer = buyOnRealVault(7 days, 1e18);
+
+        skip(1 days);
+        sellUnits(offer.market, 1e18, MAX_TICK);
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days after full sell");
+
+        buyOnRealVault(6 days, 1e18);
+        assertEq(realVault.allocation(durationId(1 days)), 1e18, "1 day after rebuy");
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days after rebuy");
+    }
+
+    /// forge-config: default.isolate = true
+    /// @dev A full sell only removes its own maturity from the shared duration ids.
+    function testStaleDurationIdsFullSellKeepsOtherMaturity() public {
+        setUpRealVault();
+        bytes memory idData = abi.encode("duration", uint256(30 days));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
+        Offer memory offerA = buyOnRealVault(7 days, 1e18);
+        Offer memory offerB = buyOnRealVault(30 days, 2e18);
+
+        skip(6 days + 1);
+        sellUnits(offerA.market, 1e18, MAX_TICK);
+
+        assertEq(realVault.allocation(durationId(1 days)), 2e18, "1 day");
+        assertEq(realVault.allocation(durationId(7 days)), 2e18, "7 days");
+        assertEq(realVault.allocation(durationId(30 days)), 2e18, "30 days stale for the other maturity");
+        assertEq(realVault.allocation(adapter.adapterId()), 2e18, "adapter id");
+
+        adapter.updateDurationCaps(offerB.market.maturity);
+        assertEq(realVault.allocation(durationId(7 days)), 2e18, "7 days after update");
+        assertEq(realVault.allocation(durationId(30 days)), 0, "30 days after update");
+    }
+
     /* WITHDRAW TO VAULT */
 
     function testWithdrawToVaultUnauthorized(address nonAllocator) public {
@@ -964,14 +1385,38 @@ contract MidnightAdapterTest is Test {
         midnight.repay(boughtOffer.market, 1e18, taker, address(0), "");
 
         uint256 withdrawAmount = 0.5e18;
-        vm.expectEmit(true, false, false, false, address(adapter));
-        emit IMidnightAdapter.WithdrawToVault(marketId, withdrawAmount, 0);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.WithdrawToVault(marketId, withdrawAmount, withdrawAmount);
         vm.prank(signerAllocator);
         adapter.withdrawToVault(boughtOffer.market, withdrawAmount);
 
         (uint128 creditAfter,,,) = adapter._markets(marketId);
-        assertLt(creditAfter, creditBefore);
-        assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + withdrawAmount);
+        assertEq(creditAfter, creditBefore - withdrawAmount, "netCredit");
+        assertEq(adapter.totalAssets(), creditBefore - withdrawAmount, "totalAssets");
+        assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + withdrawAmount, "vault balance");
+    }
+
+    function testWithdrawToVaultAfterLoss() public {
+        Offer memory boughtOffer = buy(7 days, 1e18);
+        bytes32 marketId = _marketId(boughtOffer.market);
+
+        // The borrower repays 0.7e18 and defaults on the rest.
+        deal(address(loanToken), address(this), 0.7e18);
+        loanToken.approve(address(midnight), type(uint256).max);
+        midnight.repay(boughtOffer.market, 0.7e18, taker, address(0), "");
+        OracleMock(storedCollaterals[0].oracle).setPrice(0);
+        OracleMock(storedCollaterals[1].oracle).setPrice(0);
+        midnight.liquidate(boughtOffer.market, 0, 0, 0, taker, false, address(this), address(0), "");
+        skip(7 days);
+
+        vm.prank(signerAllocator);
+        adapter.withdrawToVault(boughtOffer.market, 0.5e18);
+
+        // 0.5e18 withdrawn, 0.3e18 lost.
+        (uint128 netCredit,,,) = adapter._markets(marketId);
+        assertApproxEqAbs(netCredit, 0.2e18, 1, "netCredit");
+        assertApproxEqAbs(adapter.totalAssets(), 0.2e18, 1, "totalAssets");
+        assertApproxEqAbs(parentVault.allocation(adapter.adapterId()), 0.2e18, 1, "allocation");
     }
 
     /* WITHDRAW SHARES */
@@ -1048,7 +1493,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.maturities(offer.market.maturity).reportedVaultNetCredit, 0.5e18, "reported unchanged");
 
         skip(1);
-        adapter.updateDurationCaps(offer.market);
+        adapter.updateDurationCaps(offer.market.maturity);
         assertEq(realVault.allocation(durationId(7 days)), 0, "7 days fully removed");
         assertEq(realVault.allocation(durationId(1 days)), 0.5e18, "1 day untouched");
 
@@ -1204,10 +1649,14 @@ contract MidnightAdapterTest is Test {
         midnight.take(offer, sign([offer], signerAllocator), offer.maxUnits, taker, taker, address(0), "");
     }
 
-    function buy(uint256 duration, uint256 assets) internal returns (Offer memory offer) {
-        offer = makeBuyOffer(duration, assets, MAX_TICK);
-        midnight.supplyCollateral(offer.market, 0, assets / 2, taker);
-        midnight.supplyCollateral(offer.market, 1, assets / 2, taker);
+    function buy(uint256 duration, uint256 assets) internal returns (Offer memory) {
+        return buy(duration, assets, MAX_TICK);
+    }
+
+    function buy(uint256 duration, uint256 assets, uint256 tick) internal returns (Offer memory offer) {
+        offer = makeBuyOffer(duration, assets, tick);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
         take(offer);
     }
 
@@ -1223,7 +1672,9 @@ contract MidnightAdapterTest is Test {
         offer.tick = tick;
         offer.maxUnits = uint128(units);
         offer.expiry = block.timestamp;
+        offer.maker = address(adapter);
         offer.callback = address(adapter);
+        offer.ratifier = address(adapter);
         offer.receiverIfMakerIsSeller = address(adapter);
         offer.group = bytes32(vm.randomUint());
         offer.callbackData = hex"";

@@ -49,7 +49,6 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
 
     error BufferTooLow();
     error BuyAtLoss();
-    error ForceDeallocateOnly();
     error IncorrectCallbackAddress();
     error IncorrectOffer();
     error IncorrectOwner();
@@ -89,7 +88,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
-    function updateDurationCaps(Market memory market) external;
+    function updateDurationCaps(uint256 maturity) external;
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
     function withdrawShares(Market memory market, uint256 redeemedShares) external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external;
