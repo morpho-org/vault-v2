@@ -41,7 +41,6 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
 
     error BufferTooLow();
     error BuyAtLoss();
-    error ForceDeallocateOnly();
     error IncorrectCallbackAddress();
     error IncorrectOffer();
     error IncorrectOwner();
