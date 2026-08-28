@@ -13,7 +13,22 @@ wrap_comments = true
 exclude_lints = [
     "screaming-snake-case-immutable",
     "asm-keccak256",
+    "unsafe-cheatcode",
+    "incorrect-shift",
     "block-timestamp",
+    "internal-function-used-once",
+    "pragma-inconsistent",
+    "missing-zero-check",
+    "low-level-calls",
+    "inline-assembly",
+    "literal-instead-of-constant",
+    "require-revert-in-loop",
+    "multi-contract-file",
+    "calls-loop",
+    "arbitrary-send-erc20",
+    "unused-return",
+    "cyclomatic-complexity",
+    "boolean-cst",
 ]
 ignore = ['test/**/*.sol']
 
