@@ -11,17 +11,9 @@ methods {
     function previewWithdraw(uint256) external returns (uint256) envfree;
     function previewRedeem(uint256) external returns (uint256) envfree;
 
-    function VaultV2.accrueInterestView() internal returns (uint256, uint256, uint256) => summaryAccrueInterestView();
-}
-
-ghost uint256 gNewTotalAssets;
-
-ghost uint256 gPerformanceFeeShares;
-
-ghost uint256 gManagementFeeShares;
-
-function summaryAccrueInterestView() returns (uint256, uint256, uint256) {
-    return (gNewTotalAssets, gPerformanceFeeShares, gManagementFeeShares);
+    // Constant summary so that 2 preview calls get the same view on the accrued state.
+    // Only view functions are called in this spec, so this only assumes accrueInterestView is constant on the same state.
+    function VaultV2.accrueInterestView() internal returns (uint256, uint256, uint256) => CONSTANT;
 }
 
 rule convertRoundTripAssets(uint256 assets) {
