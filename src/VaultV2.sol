@@ -300,6 +300,7 @@ contract VaultV2 is IVaultV2 {
     constructor(address _owner, address _asset) {
         asset = _asset;
         owner = _owner;
+        // forge-lint: disable-next-item(unsafe-typecast) safe because block.timestamp < 2**64.
         lastUpdate = uint64(block.timestamp);
         uint256 assetDecimals = IERC20(_asset).decimals();
         uint256 decimalOffset = uint256(18).zeroFloorSub(assetDecimals);
@@ -359,6 +360,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function timelocked() internal {
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(msg.data);
         require(executableAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
         require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
@@ -442,6 +444,8 @@ contract VaultV2 is IVaultV2 {
         if (isAdapter[account]) {
             for (uint256 i = 0; i < adapters.length; i++) {
                 if (adapters[i] == account) {
+                    // forge-lint: disable-next-item(costly-loop) the swap-and-pop writes storage once, then breaks out
+                    // of the loop.
                     adapters[i] = adapters[adapters.length - 1];
                     adapters.pop();
                     break;
@@ -585,8 +589,11 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets, msg.sig, msg.sender);
 
+        // forge-lint: disable-next-item(uninitialized-local) i is meant to start at zero.
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
+            // forge-lint: disable-next-item(missing-events-access-control,unsafe-typecast) the Allocate event below
+            // reports the change, and allocation is bounded by absoluteCap < 2**128.
             _caps.allocation = (int256(_caps.allocation) + change).toUint256();
 
             require(_caps.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
@@ -596,6 +603,8 @@ contract VaultV2 is IVaultV2 {
                 ErrorsLib.RelativeCapExceeded()
             );
         }
+        // forge-lint: disable-next-item(reentrancy-events) the event is emitted last so it reports the allocation after
+        // the adapter call.
         emit EventsLib.Allocate(msg.sender, adapter, assets, ids, change);
     }
 
@@ -610,15 +619,21 @@ contract VaultV2 is IVaultV2 {
     {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
+        // forge-lint: disable-next-item(reentrancy-no-eth) adapters are set through a timelock, so they are trusted.
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
 
+        // forge-lint: disable-next-item(uninitialized-local) i is meant to start at zero.
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
             require(_caps.allocation > 0, ErrorsLib.ZeroAllocation());
+            // forge-lint: disable-next-item(missing-events-access-control,unsafe-typecast) the Deallocate event below
+            // reports the change, and allocation is bounded by absoluteCap < 2**128.
             _caps.allocation = (int256(_caps.allocation) + change).toUint256();
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
+        // forge-lint: disable-next-item(reentrancy-events) the event is emitted last so it reports the allocation after
+        // the adapter call.
         emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, change);
         return ids;
     }
@@ -647,11 +662,14 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterest() public {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
+        // forge-lint: disable-next-item(reentrancy-events) the vic call comes first by construction, and the event
+        // reports what it returned.
         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         _totalAssets = newTotalAssets.toUint128();
         if (firstTotalAssets == 0) firstTotalAssets = newTotalAssets;
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
+        // forge-lint: disable-next-item(unsafe-typecast) safe because block.timestamp < 2**64.
         lastUpdate = uint64(block.timestamp);
     }
 
@@ -779,6 +797,8 @@ contract VaultV2 is IVaultV2 {
 
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
+        // forge-lint: disable-next-item(missing-events-access-control) the change is reported by the Deposit event
+        // below.
         _totalAssets += assets.toUint128();
         emit EventsLib.Deposit(msg.sender, onBehalf, assets, shares);
 
@@ -819,6 +839,7 @@ contract VaultV2 is IVaultV2 {
         deleteShares(onBehalf, shares);
         _totalAssets -= assets.toUint128();
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
+        // forge-lint: disable-next-item(reentrancy-events) the event is emitted after the asset transfer on purpose.
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }
 
@@ -838,6 +859,8 @@ contract VaultV2 is IVaultV2 {
         bytes32[] memory ids = deallocateInternal(adapter, data, assets);
         uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
         uint256 penaltyShares = withdraw(penaltyAssets, address(this), onBehalf);
+        // forge-lint: disable-next-item(reentrancy-events) the event is emitted last so it reports the ids returned by
+        // the deallocation.
         emit EventsLib.ForceDeallocate(msg.sender, adapter, assets, onBehalf, ids, penaltyAssets);
         return penaltyShares;
     }
@@ -851,6 +874,8 @@ contract VaultV2 is IVaultV2 {
         require(canSendShares(msg.sender), ErrorsLib.CannotSendShares());
         require(canReceiveShares(to), ErrorsLib.CannotReceiveShares());
 
+        // forge-lint: disable-next-item(missing-events-access-control) the change is reported by the Transfer event
+        // below.
         balanceOf[msg.sender] -= shares;
         balanceOf[to] += shares;
         emit EventsLib.Transfer(msg.sender, to, shares);
@@ -895,6 +920,7 @@ contract VaultV2 is IVaultV2 {
         uint256 nonce = nonces[_owner]++;
         bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, shares, nonce, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
+        // forge-lint: disable-next-item(ecrecover) malleability is ok thanks to the nonce.
         address recoveredAddress = ecrecover(digest, v, r, s);
         require(recoveredAddress != address(0) && recoveredAddress == _owner, ErrorsLib.InvalidSigner());
 
@@ -905,8 +931,14 @@ contract VaultV2 is IVaultV2 {
 
     function createShares(address to, uint256 shares) internal {
         require(to != address(0), ErrorsLib.ZeroAddress());
+        // forge-lint: disable-next-item(missing-events-access-control) the change is reported by the Transfer event
+        // below.
         balanceOf[to] += shares;
+        // forge-lint: disable-next-item(missing-events-access-control) the change is reported by the Transfer event
+        // below.
         totalSupply += shares;
+        // forge-lint: disable-next-item(reentrancy-events) the Transfer event must follow the balance update it
+        // reports.
         emit EventsLib.Transfer(address(0), to, shares);
     }
 
@@ -914,6 +946,8 @@ contract VaultV2 is IVaultV2 {
         require(from != address(0), ErrorsLib.ZeroAddress());
         balanceOf[from] -= shares;
         totalSupply -= shares;
+        // forge-lint: disable-next-item(reentrancy-events) the Transfer event must follow the balance update it
+        // reports.
         emit EventsLib.Transfer(from, address(0), shares);
     }
 
