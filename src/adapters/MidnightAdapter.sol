@@ -199,7 +199,6 @@ contract MidnightAdapter is IMidnightAdapter {
                 if (maturity <= block.timestamp) {
                     newTotalAssets += uint256(_maturities[maturity].growth) * (maturity - lastUpdate);
                     newGrowth -= _maturities[maturity].growth;
-                    emit RemoveMaturity(maturity);
                     pendingMaturitiesLength--;
                     pendingMaturities[i - 1] = pendingMaturities[pendingMaturitiesLength];
                 } else if (maturity < newMin) {
