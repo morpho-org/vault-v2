@@ -14,8 +14,6 @@ library ErrorsLib {
     error CannotReceiveAssets();
     error CannotSendShares();
     error CannotSendAssets();
-    // forge-lint: disable-next-item(unused-error) part of the error catalogue, kept even though no code path uses it.
-    error CapExceeded();
     error CastOverflow();
     error DataAlreadyPending();
     error DataNotTimelocked();
