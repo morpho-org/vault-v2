@@ -656,8 +656,7 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterest() public {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
-        // forge-lint: disable-next-item(reentrancy-events) the vic call comes first by construction, and the event
-        // reports what it returned.
+        // forge-lint: disable-next-item(reentrancy-events) ack.
         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         _totalAssets = newTotalAssets.toUint128();
         if (firstTotalAssets == 0) firstTotalAssets = newTotalAssets;
@@ -791,8 +790,7 @@ contract VaultV2 is IVaultV2 {
 
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
-        // forge-lint: disable-next-item(missing-events-access-control) the change is reported by the Deposit event
-        // below.
+        // forge-lint: disable-next-item(missing-events-access-control) ack.
         _totalAssets += assets.toUint128();
         emit EventsLib.Deposit(msg.sender, onBehalf, assets, shares);
 
@@ -833,7 +831,7 @@ contract VaultV2 is IVaultV2 {
         deleteShares(onBehalf, shares);
         _totalAssets -= assets.toUint128();
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
-        // forge-lint: disable-next-item(reentrancy-events) the event is emitted after the asset transfer on purpose.
+        // forge-lint: disable-next-item(reentrancy-events) ack.
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }
 
@@ -853,8 +851,7 @@ contract VaultV2 is IVaultV2 {
         bytes32[] memory ids = deallocateInternal(adapter, data, assets);
         uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
         uint256 penaltyShares = withdraw(penaltyAssets, address(this), onBehalf);
-        // forge-lint: disable-next-item(reentrancy-events) the event is emitted last so it reports the ids returned by
-        // the deallocation.
+        // forge-lint: disable-next-item(reentrancy-events) ack.
         emit EventsLib.ForceDeallocate(msg.sender, adapter, assets, onBehalf, ids, penaltyAssets);
         return penaltyShares;
     }
@@ -868,8 +865,7 @@ contract VaultV2 is IVaultV2 {
         require(canSendShares(msg.sender), ErrorsLib.CannotSendShares());
         require(canReceiveShares(to), ErrorsLib.CannotReceiveShares());
 
-        // forge-lint: disable-next-item(missing-events-access-control) the change is reported by the Transfer event
-        // below.
+        // forge-lint: disable-next-item(missing-events-access-control) ack.
         balanceOf[msg.sender] -= shares;
         balanceOf[to] += shares;
         emit EventsLib.Transfer(msg.sender, to, shares);
@@ -925,14 +921,11 @@ contract VaultV2 is IVaultV2 {
 
     function createShares(address to, uint256 shares) internal {
         require(to != address(0), ErrorsLib.ZeroAddress());
-        // forge-lint: disable-next-item(missing-events-access-control) the change is reported by the Transfer event
-        // below.
+        // forge-lint: disable-next-item(missing-events-access-control) ack.
         balanceOf[to] += shares;
-        // forge-lint: disable-next-item(missing-events-access-control) the change is reported by the Transfer event
-        // below.
+        // forge-lint: disable-next-item(missing-events-access-control) ack.
         totalSupply += shares;
-        // forge-lint: disable-next-item(reentrancy-events) the Transfer event must follow the balance update it
-        // reports.
+        // forge-lint: disable-next-item(reentrancy-events) ack.
         emit EventsLib.Transfer(address(0), to, shares);
     }
 
@@ -940,8 +933,7 @@ contract VaultV2 is IVaultV2 {
         require(from != address(0), ErrorsLib.ZeroAddress());
         balanceOf[from] -= shares;
         totalSupply -= shares;
-        // forge-lint: disable-next-item(reentrancy-events) the Transfer event must follow the balance update it
-        // reports.
+        // forge-lint: disable-next-item(reentrancy-events) ack.
         emit EventsLib.Transfer(from, address(0), shares);
     }
 

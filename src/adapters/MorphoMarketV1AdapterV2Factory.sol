@@ -32,8 +32,7 @@ contract MorphoMarketV1AdapterV2Factory is IMorphoMarketV1AdapterV2Factory {
             address(new MorphoMarketV1AdapterV2{salt: bytes32(0)}(parentVault, morpho, adaptiveCurveIrm));
         morphoMarketV1AdapterV2[parentVault] = _morphoMarketV1AdapterV2;
         isMorphoMarketV1AdapterV2[_morphoMarketV1AdapterV2] = true;
-        // forge-lint: disable-next-item(reentrancy-events) the external call is the deployment itself, whose address
-        // the event reports.
+        // forge-lint: disable-next-item(reentrancy-events) the external call is the deployment itself.
         emit CreateMorphoMarketV1AdapterV2(parentVault, _morphoMarketV1AdapterV2);
         return _morphoMarketV1AdapterV2;
     }

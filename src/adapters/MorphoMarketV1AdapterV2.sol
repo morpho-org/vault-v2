@@ -196,8 +196,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         uint256 newAllocation = expectedSupplyAssets(marketId);
         updateList(marketId, oldAllocation, newAllocation);
 
-        // forge-lint: disable-next-item(reentrancy-events,uninitialized-local) the event is emitted last, and
-        // mintedShares is zero exactly when no assets were supplied.
+        // forge-lint: disable-next-item(reentrancy-events,uninitialized-local) ack.
         emit Allocate(marketId, newAllocation, mintedShares);
 
         // forge-lint: disable-next-item(unsafe-typecast) safe because Market V1 bounds the total supply of the
@@ -226,8 +225,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         uint256 newAllocation = expectedSupplyAssets(marketId);
         updateList(marketId, oldAllocation, newAllocation);
 
-        // forge-lint: disable-next-item(reentrancy-events,uninitialized-local) the event is emitted last, and
-        // burnedShares is zero exactly when no assets were withdrawn.
+        // forge-lint: disable-next-item(reentrancy-events,uninitialized-local) ack.
         emit Deallocate(marketId, newAllocation, burnedShares);
 
         // forge-lint: disable-next-item(unsafe-typecast) safe because Market V1 bounds the total supply of the
