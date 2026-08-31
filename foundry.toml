@@ -38,11 +38,7 @@ paths = "src/imports/MetaMorphoImport.sol"
 optimizer_runs = 200
 evm_version = "cancun"
 
-# The registries are deployed on-chain with verified bytecode compiled in the
-# standalone morpho-org/vault-v2-adapter-registries repo (optimizer_runs = 999999).
-# vault-v2's default is 100000, so they need the standalone repo's setting to keep
-# identical bytecode. All other bytecode-relevant settings already match
-# (solc 0.8.28, via_ir, optimizer, cancun, bytecode_hash = "none").
+# Registries have been deployed with the following settings differences, which are enforced here to avoid bytecode drift.
 [[profile.default.compilation_restrictions]]
 paths = "src/periphery/registries/**"
 optimizer_runs = 999999
