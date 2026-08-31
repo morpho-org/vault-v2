@@ -152,6 +152,7 @@ contract MidnightAdapter is IMidnightAdapter {
         MarketData storage marketData = _markets[marketId];
 
         accrueInterest();
+        // forge-lint: disable-next-item(reentrancy-no-eth) updatePosition does not call back.
         IMidnight(midnight).updatePosition(market, address(this));
         uint256 oldVaultNetCredit = marketData.vaultNetCredit;
         realizeLoss(marketData, marketId, market.maturity, 0);
@@ -271,6 +272,7 @@ contract MidnightAdapter is IMidnightAdapter {
             uint256 oldVaultNetCredit = marketData.vaultNetCredit;
 
             accrueInterest();
+            // forge-lint: disable-next-item(reentrancy-no-eth) updatePosition does not call back.
             IMidnight(midnight).updatePosition(market, address(this));
             realizeLoss(marketData, marketId, market.maturity, 0);
 
@@ -374,6 +376,7 @@ contract MidnightAdapter is IMidnightAdapter {
         unreportedVaultDecrease[marketId] = 0;
         maturityData.reportedVaultNetCredit =
             (int256(uint256(maturityData.reportedVaultNetCredit)) + netCreditChange).toUint256().toUint128();
+        // forge-lint: disable-next-item(reentrancy-no-eth) reentry is expected.
         IVaultV2(parentVault).allocate(address(this), abi.encode(ids(market), netCreditChange), paidAssets);
 
         // Insert the maturity in the list if needed
