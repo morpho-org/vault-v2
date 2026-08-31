@@ -129,6 +129,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         uint256 oldVaultNetCredit = marketData.vaultNetCredit;
         uint256 oldAdapterNetCredit = currentNetCredit(marketId);
+        // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not call back.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
         uint256 withdrawNetCreditDecrease = oldAdapterNetCredit - currentNetCredit(marketId);
 
@@ -321,6 +322,7 @@ contract MidnightAdapter is IMidnightAdapter {
         bytes32 structHash = keccak256(abi.encode(HashLib.offerTreeTypeHash(proof.length), root));
         bytes32 domainSeparator = keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, block.chainid, address(this)));
         bytes32 digest = keccak256(bytes.concat("\x19\x01", domainSeparator, structHash));
+        // forge-lint: disable-next-item(ecrecover) offer sizes & cancellation protects against reuse.
         address signer = ecrecover(digest, sig.v, sig.r, sig.s);
         require(signer != address(0), IncorrectSigner());
         require(IVaultV2(parentVault).isAllocator(signer), IncorrectSigner());
