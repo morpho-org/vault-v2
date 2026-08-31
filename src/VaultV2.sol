@@ -599,7 +599,6 @@ contract VaultV2 is IVaultV2 {
                 ErrorsLib.RelativeCapExceeded()
             );
         }
-        // forge-lint: disable-next-item(reentrancy-events) ack.
         emit EventsLib.Allocate(msg.sender, adapter, assets, ids, change);
     }
 
@@ -625,7 +624,6 @@ contract VaultV2 is IVaultV2 {
         }
 
         SafeERC20Lib.safeTransferFrom(asset, adapter, address(this), assets);
-        // forge-lint: disable-next-item(reentrancy-events) ack.
         emit EventsLib.Deallocate(msg.sender, adapter, assets, ids, change);
         return ids;
     }
@@ -654,7 +652,6 @@ contract VaultV2 is IVaultV2 {
 
     function accrueInterest() public {
         (uint256 newTotalAssets, uint256 performanceFeeShares, uint256 managementFeeShares) = accrueInterestView();
-        // forge-lint: disable-next-item(reentrancy-events) ack.
         emit EventsLib.AccrueInterest(_totalAssets, newTotalAssets, performanceFeeShares, managementFeeShares);
         _totalAssets = newTotalAssets.toUint128();
         if (firstTotalAssets == 0) firstTotalAssets = newTotalAssets;
@@ -828,7 +825,6 @@ contract VaultV2 is IVaultV2 {
         deleteShares(onBehalf, shares);
         _totalAssets -= assets.toUint128();
         SafeERC20Lib.safeTransfer(asset, receiver, assets);
-        // forge-lint: disable-next-item(reentrancy-events) ack.
         emit EventsLib.Withdraw(msg.sender, receiver, onBehalf, assets, shares);
     }
 
@@ -848,7 +844,6 @@ contract VaultV2 is IVaultV2 {
         bytes32[] memory ids = deallocateInternal(adapter, data, assets);
         uint256 penaltyAssets = assets.mulDivUp(forceDeallocatePenalty[adapter], WAD);
         uint256 penaltyShares = withdraw(penaltyAssets, address(this), onBehalf);
-        // forge-lint: disable-next-item(reentrancy-events) ack.
         emit EventsLib.ForceDeallocate(msg.sender, adapter, assets, onBehalf, ids, penaltyAssets);
         return penaltyShares;
     }
@@ -919,7 +914,6 @@ contract VaultV2 is IVaultV2 {
         require(to != address(0), ErrorsLib.ZeroAddress());
         balanceOf[to] += shares;
         totalSupply += shares;
-        // forge-lint: disable-next-item(reentrancy-events) ack.
         emit EventsLib.Transfer(address(0), to, shares);
     }
 
@@ -927,7 +921,6 @@ contract VaultV2 is IVaultV2 {
         require(from != address(0), ErrorsLib.ZeroAddress());
         balanceOf[from] -= shares;
         totalSupply -= shares;
-        // forge-lint: disable-next-item(reentrancy-events) ack.
         emit EventsLib.Transfer(from, address(0), shares);
     }
 

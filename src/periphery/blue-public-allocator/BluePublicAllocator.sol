@@ -137,7 +137,6 @@ contract BluePublicAllocator is IBluePublicAllocator {
 
         require(IVaultV2(vault).allocation(allocateId) <= absoluteCap[vault][allocateId], AbsoluteCapExceeded());
 
-        // forge-lint: disable-next-item(reentrancy-events) ack.
         emit Reallocate(
             msg.sender, vault, deallocateAdapter, deallocateId, allocateAdapter, allocateId, assets, penaltyAssets
         );
@@ -162,7 +161,6 @@ contract BluePublicAllocator is IBluePublicAllocator {
 
         require(IVaultV2(vault).allocation(allocateId) <= absoluteCap[vault][allocateId], AbsoluteCapExceeded());
 
-        // forge-lint: disable-next-item(reentrancy-events) ack.
         emit AllocateFromIdle(msg.sender, vault, adapter, allocateId, assets, penaltyAssets);
     }
 

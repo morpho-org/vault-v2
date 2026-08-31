@@ -15,7 +15,6 @@ contract VaultV2Factory is IVaultV2Factory {
 
         isVaultV2[newVaultV2] = true;
         vaultV2[owner][asset][salt] = newVaultV2;
-        // forge-lint: disable-next-item(reentrancy-events) the external call is the deployment itself.
         emit CreateVaultV2(owner, asset, salt, newVaultV2);
 
         return newVaultV2;

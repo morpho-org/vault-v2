@@ -18,7 +18,6 @@ contract MorphoVaultV1AdapterFactory is IMorphoVaultV1AdapterFactory {
         address _morphoVaultV1Adapter = address(new MorphoVaultV1Adapter{salt: bytes32(0)}(parentVault, morphoVaultV1));
         morphoVaultV1Adapter[parentVault][morphoVaultV1] = _morphoVaultV1Adapter;
         isMorphoVaultV1Adapter[_morphoVaultV1Adapter] = true;
-        // forge-lint: disable-next-item(reentrancy-events) the external call is the deployment itself.
         emit CreateMorphoVaultV1Adapter(parentVault, morphoVaultV1, _morphoVaultV1Adapter);
         return _morphoVaultV1Adapter;
     }

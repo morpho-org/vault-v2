@@ -32,6 +32,7 @@ exclude_lints = [
     "costly-loop",
     "missing-events-access-control",
     "uninitialized-local",
+    "reentrancy-events",
 ]
 ignore = ['test/**/*.sol']
 
