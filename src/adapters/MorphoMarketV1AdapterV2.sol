@@ -185,7 +185,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         require(marketParams.irm == adaptiveCurveIrm, IrmMismatch());
         bytes32 marketId = Id.unwrap(marketParams.id());
 
-        uint256 mintedShares;
+        uint256 mintedShares = 0;
         if (assets > 0) {
             (, mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
             require(mintedShares >= assets, SharePriceAboveOne());
@@ -196,7 +196,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         uint256 newAllocation = expectedSupplyAssets(marketId);
         updateList(marketId, oldAllocation, newAllocation);
 
-        // forge-lint: disable-next-item(reentrancy-events,uninitialized-local) ack.
+        // forge-lint: disable-next-item(reentrancy-events) ack.
         emit Allocate(marketId, newAllocation, mintedShares);
 
         // forge-lint: disable-next-item(unsafe-typecast) safe because Market V1 bounds the total supply of the
@@ -215,7 +215,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         require(marketParams.irm == adaptiveCurveIrm, IrmMismatch());
         bytes32 marketId = Id.unwrap(marketParams.id());
 
-        uint256 burnedShares;
+        uint256 burnedShares = 0;
         if (assets > 0) {
             (, burnedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
             supplyShares[marketId] -= burnedShares;
@@ -225,7 +225,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         uint256 newAllocation = expectedSupplyAssets(marketId);
         updateList(marketId, oldAllocation, newAllocation);
 
-        // forge-lint: disable-next-item(reentrancy-events,uninitialized-local) ack.
+        // forge-lint: disable-next-item(reentrancy-events) ack.
         emit Deallocate(marketId, newAllocation, burnedShares);
 
         // forge-lint: disable-next-item(unsafe-typecast) safe because Market V1 bounds the total supply of the
@@ -279,8 +279,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
     function realAssets() external view returns (uint256) {
         uint256 _realAssets = 0;
-        // forge-lint: disable-next-item(cache-array-length) the loop does not modify marketIds; caching the length is a
-        // gas-only tweak.
+        // forge-lint: disable-next-item(cache-array-length) ack.
         for (uint256 i = 0; i < marketIds.length; i++) {
             _realAssets += expectedSupplyAssets(marketIds[i]);
         }
