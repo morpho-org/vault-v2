@@ -22,7 +22,7 @@ contract Utils {
     using MarketParamsLib for MarketParams;
     using SharesMathLib for uint256;
 
-    function toBytes4(bytes memory data) public pure returns (bytes4) {
+    function toBytes4(bytes memory data) external pure returns (bytes4) {
         // forge-lint: disable-next-line(unsafe-typecast)
         return bytes4(data);
     }
