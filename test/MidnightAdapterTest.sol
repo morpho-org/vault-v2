@@ -237,6 +237,8 @@ contract MidnightAdapterTest is Test {
     function testLastUpdate() public {
         assertEq(adapter.lastUpdate(), block.timestamp, "set at construction");
         skip(100);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.AccrueInterest(0, 0);
         adapter.accrueInterest();
         assertEq(adapter.lastUpdate(), block.timestamp, "refreshed by accrueInterest");
     }
@@ -435,6 +437,8 @@ contract MidnightAdapterTest is Test {
         bytes32 _root = root(offer);
         bytes memory data = ratifierData(_root, signerAllocator);
         assertEq(adapter.isRatified(offer, data, taker), CALLBACK_SUCCESS, "ratifies before cancel");
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.CancelRoot(signerAllocator, _root);
         vm.prank(signerAllocator);
         adapter.cancelRoot(_root);
         assertTrue(adapter.isRootCanceled(_root), "root canceled");
@@ -622,6 +626,8 @@ contract MidnightAdapterTest is Test {
         skip(1);
 
         parentVault.setTotalAssets(1e18);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.Sell(_marketId(offer.market), 0.5e18, 0.5e18);
         sell(offer.market, 0.5e18);
 
         assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day, stale");
@@ -649,6 +655,8 @@ contract MidnightAdapterTest is Test {
         emit IMidnightAdapter.RemoveMaturity(offer.market.maturity);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapter.InsertMaturity(offer.market.maturity);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.Buy(marketId, 1e18, 1e18, 1e18);
         take(offer);
 
         (uint128 netCredit,) = adapter._markets(marketId);
@@ -1114,7 +1122,12 @@ contract MidnightAdapterTest is Test {
         Offer memory boughtOffer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
 
-        forceDeallocate(boughtOffer.market, 0.5e18);
+        (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, 0.5e18);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.ForceDeallocate(marketId, 0.5e18, 0.5e18);
+        parentVault.forceDeallocate(
+            address(adapter), abi.encode(offer, abi.encode(root_, 0, proof([offer]))), 0.5e18, address(this)
+        );
 
         (uint128 marketNetCredit,) = adapter._markets(marketId);
         assertEq(marketNetCredit, 0.5e18);
@@ -1245,6 +1258,8 @@ contract MidnightAdapterTest is Test {
 
         vm.prank(owner);
         realVault.setIsSentinel(address(adapter), true);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.UpdateDurationCaps(offer.market.maturity, 0, 1e18);
         adapter.updateDurationCaps(offer.market.maturity);
 
         assertEq(realVault.allocation(durationId(1 days)), 0, "1 day zeroed");

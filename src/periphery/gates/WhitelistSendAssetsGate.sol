@@ -95,6 +95,7 @@ contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
             )
         );
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
+        // forge-lint: disable-next-item(ecrecover) malleability is ok thanks to the nonce.
         address recovered = ecrecover(digest, v, r, s);
         require(recovered != address(0) && recovered == whitelister && isWhitelister[recovered], InvalidSigner());
         isWhitelisted[account] = newIsWhitelisted;
