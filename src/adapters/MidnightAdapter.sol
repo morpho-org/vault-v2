@@ -138,6 +138,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         accrueInterest();
 
+        // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not call back.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
         // current net credit cannot be > accounted net credit
         uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit(marketId);
@@ -255,6 +256,7 @@ contract MidnightAdapter is IMidnightAdapter {
             // Skip onSell since we are already in a deallocate call.
             bytes32 marketId = IdLib.toId(offer.market);
             uint256 takeUnits = TakeAmountsLib.sellerAssetsToUnits(midnight, marketId, offer, sellerAssets);
+            // forge-lint: disable-next-item(reentrancy-no-eth) view reentry is possible through a ratifier.
             IMidnight(midnight).take(offer, ratifierData, takeUnits, address(this), address(this), address(0), hex"");
             // current net credit cannot be > accounted net credit
             uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit(marketId);
@@ -298,6 +300,7 @@ contract MidnightAdapter is IMidnightAdapter {
         bytes32 structHash = keccak256(abi.encode(HashLib.offerTreeTypeHash(proof.length), root));
         bytes32 domainSeparator = keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, block.chainid, address(this)));
         bytes32 digest = keccak256(bytes.concat("\x19\x01", domainSeparator, structHash));
+        // forge-lint: disable-next-item(ecrecover) offer sizes & cancellation protects against reuse.
         address signer = ecrecover(digest, sig.v, sig.r, sig.s);
         require(signer != address(0), IncorrectSigner());
         require(IVaultV2(parentVault).isAllocator(signer), IncorrectSigner());
@@ -332,6 +335,8 @@ contract MidnightAdapter is IMidnightAdapter {
         if (paidAssets > idleAssets && liquidityAdapter != address(0)) {
             IVaultV2(parentVault).deallocate(liquidityAdapter, liquidityData, paidAssets - idleAssets);
         }
+
+        // forge-lint: disable-next-item(reentrancy-no-eth) reentry is expected.
         IVaultV2(parentVault)
             .allocate(
                 address(this),

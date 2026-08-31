@@ -755,7 +755,10 @@ contract MidnightAdapterTest is Test {
 
         bytes32 marketId = _marketId(offer.market);
         uint256 loss = 0.5e18;
-        stdstore.target(address(midnight)).sig("credit(bytes32,address)").with_key(marketId).with_key(address(adapter))
+        stdstore.target(address(midnight))
+            .sig("credit(bytes32,address)")
+            .with_key(marketId)
+            .with_key(address(adapter))
             .checked_write(units - loss);
 
         offer.group = bytes32("second");
@@ -1880,7 +1883,10 @@ contract MidnightAdapterTest is Test {
     }
 
     function setMidnightCredit(bytes32 marketId, address account, uint256 credit) internal {
-        stdstore.target(address(midnight)).sig("credit(bytes32,address)").with_key(marketId).with_key(account)
+        stdstore.target(address(midnight))
+            .sig("credit(bytes32,address)")
+            .with_key(marketId)
+            .with_key(account)
             .checked_write(credit);
     }
 
