@@ -26,6 +26,7 @@ contract RegistryList is IRegistryList {
     }
 
     function setOwner(address newOwner) external {
+        // forge-lint: disable-next-item(custom-errors) ack.
         require(msg.sender == owner, "Not owner");
         owner = newOwner;
         emit SetOwner(newOwner);
@@ -34,6 +35,7 @@ contract RegistryList is IRegistryList {
     /// @dev Adding a subRegistry that reverts or makes looping too gas consuming will make new registries uneffective
     /// (vaults will not be able to validate adapters that would be validated by registries that have been added after).
     function addSubRegistry(address subRegistry) external {
+        // forge-lint: disable-next-item(custom-errors) ack.
         require(msg.sender == owner, "Not owner");
         subRegistries.push(subRegistry);
         emit AddSubRegistry(subRegistry);
