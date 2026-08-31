@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2026 Morpho Association
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.0;
 
 import {Test} from "../../lib/forge-std/src/Test.sol";
 import {RegistryList} from "../../src/periphery/registries/RegistryList.sol";
