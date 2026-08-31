@@ -10,7 +10,8 @@ contract EarliestTime {
     uint256 public lastExecutableAt;
     bytes4 public lastSelector;
 
-    function getSelector(bytes memory data) public pure returns (bytes4) {
+    function getSelector(bytes memory data) external pure returns (bytes4) {
+        // forge-lint: disable-next-item(custom-errors) ack.
         require(data.length >= 4, "Data too short");
         // forge-lint: disable-next-line(unsafe-typecast)
         return bytes4(data);
@@ -21,9 +22,11 @@ contract EarliestTime {
         pure
         returns (bytes4 targetSelector, uint256 newTimelock)
     {
+        // forge-lint: disable-next-item(custom-errors) ack.
         require(data.length >= 68, "Invalid decreaseTimelock data");
         // forge-lint: disable-next-line(unsafe-typecast)
         bytes4 selector = bytes4(data);
+        // forge-lint: disable-next-item(custom-errors) ack.
         require(selector == IVaultV2.decreaseTimelock.selector, "Not decreaseTimelock");
 
         bytes memory params = new bytes(data.length - 4);
@@ -36,6 +39,7 @@ contract EarliestTime {
 
     fallback() external {
         lastExecutableAt = vault.executableAt(msg.data);
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         lastSelector = bytes4(msg.data);
     }
 }
