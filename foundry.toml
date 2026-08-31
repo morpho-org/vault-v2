@@ -29,6 +29,7 @@ exclude_lints = [
     "unused-return",
     "cyclomatic-complexity",
     "boolean-cst",
+    "costly-loop",
 ]
 ignore = ['test/**/*.sol']
 

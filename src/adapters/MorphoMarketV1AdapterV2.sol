@@ -237,8 +237,6 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         if (oldAllocation > 0 && newAllocation == 0) {
             for (uint256 i = 0; i < marketIds.length; i++) {
                 if (marketIds[i] == marketId) {
-                    // forge-lint: disable-next-item(costly-loop) the swap-and-pop writes storage once, then breaks out
-                    // of the loop.
                     marketIds[i] = marketIds[marketIds.length - 1];
                     marketIds.pop();
                     break;

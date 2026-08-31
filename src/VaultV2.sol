@@ -444,8 +444,6 @@ contract VaultV2 is IVaultV2 {
         if (isAdapter[account]) {
             for (uint256 i = 0; i < adapters.length; i++) {
                 if (adapters[i] == account) {
-                    // forge-lint: disable-next-item(costly-loop) the swap-and-pop writes storage once, then breaks out
-                    // of the loop.
                     adapters[i] = adapters[adapters.length - 1];
                     adapters.pop();
                     break;
