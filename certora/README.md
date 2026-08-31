@@ -12,7 +12,7 @@ Global invariants and the accounting effects of each entry point.
 
 - [`Invariants.spec`](specs/Invariants.spec) collects the core state invariants.
   Variables stay within their bounds, every allocation fits in an `int256`, virtual shares stay within their configured range, a non-zero fee always has a recipient, and the zero address has no shares.
-  Total supply equals the sum of all balances
+  Total supply equals the sum of all balances.
   The adapter list and `isAdapter` mapping remain mutually consistent, list entries are distinct.
   Assuming an add-only registry, every adapter remains in the configured registry.
 - [`TotalAssetsChange.spec`](specs/TotalAssetsChange.spec) pins down changes to `_totalAssets` when no interest accrues.
