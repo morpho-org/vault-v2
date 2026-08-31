@@ -30,6 +30,8 @@ exclude_lints = [
     "cyclomatic-complexity",
     "boolean-cst",
     "costly-loop",
+    "missing-events-access-control",
+    "uninitialized-local",
 ]
 ignore = ['test/**/*.sol']
 

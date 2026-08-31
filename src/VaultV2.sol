@@ -587,9 +587,9 @@ contract VaultV2 is IVaultV2 {
         SafeERC20Lib.safeTransfer(asset, adapter, assets);
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).allocate(data, assets, msg.sig, msg.sender);
 
-        for (uint256 i = 0; i < ids.length; i++) {
+        for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
-            // forge-lint: disable-next-item(missing-events-access-control,unsafe-typecast) ack.
+            // forge-lint: disable-next-item(unsafe-typecast) ack.
             _caps.allocation = (int256(_caps.allocation) + change).toUint256();
 
             require(_caps.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
@@ -617,10 +617,10 @@ contract VaultV2 is IVaultV2 {
         // forge-lint: disable-next-item(reentrancy-no-eth) adapters are trusted to not reenter.
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
 
-        for (uint256 i = 0; i < ids.length; i++) {
+        for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
             require(_caps.allocation > 0, ErrorsLib.ZeroAllocation());
-            // forge-lint: disable-next-item(missing-events-access-control,unsafe-typecast) ack.
+            // forge-lint: disable-next-item(unsafe-typecast) ack.
             _caps.allocation = (int256(_caps.allocation) + change).toUint256();
         }
 
@@ -788,7 +788,6 @@ contract VaultV2 is IVaultV2 {
 
         SafeERC20Lib.safeTransferFrom(asset, msg.sender, address(this), assets);
         createShares(onBehalf, shares);
-        // forge-lint: disable-next-item(missing-events-access-control) ack.
         _totalAssets += assets.toUint128();
         emit EventsLib.Deposit(msg.sender, onBehalf, assets, shares);
 
@@ -863,7 +862,6 @@ contract VaultV2 is IVaultV2 {
         require(canSendShares(msg.sender), ErrorsLib.CannotSendShares());
         require(canReceiveShares(to), ErrorsLib.CannotReceiveShares());
 
-        // forge-lint: disable-next-item(missing-events-access-control) ack.
         balanceOf[msg.sender] -= shares;
         balanceOf[to] += shares;
         emit EventsLib.Transfer(msg.sender, to, shares);
@@ -919,9 +917,7 @@ contract VaultV2 is IVaultV2 {
 
     function createShares(address to, uint256 shares) internal {
         require(to != address(0), ErrorsLib.ZeroAddress());
-        // forge-lint: disable-next-item(missing-events-access-control) ack.
         balanceOf[to] += shares;
-        // forge-lint: disable-next-item(missing-events-access-control) ack.
         totalSupply += shares;
         // forge-lint: disable-next-item(reentrancy-events) ack.
         emit EventsLib.Transfer(address(0), to, shares);

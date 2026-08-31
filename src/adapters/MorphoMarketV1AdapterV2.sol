@@ -185,7 +185,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         require(marketParams.irm == adaptiveCurveIrm, IrmMismatch());
         bytes32 marketId = Id.unwrap(marketParams.id());
 
-        uint256 mintedShares = 0;
+        uint256 mintedShares;
         if (assets > 0) {
             (, mintedShares) = IMorpho(morpho).supply(marketParams, assets, 0, address(this), hex"");
             require(mintedShares >= assets, SharePriceAboveOne());
@@ -215,7 +215,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
         require(marketParams.irm == adaptiveCurveIrm, IrmMismatch());
         bytes32 marketId = Id.unwrap(marketParams.id());
 
-        uint256 burnedShares = 0;
+        uint256 burnedShares;
         if (assets > 0) {
             (, burnedShares) = IMorpho(morpho).withdraw(marketParams, assets, 0, address(this), address(this));
             supplyShares[marketId] -= burnedShares;
