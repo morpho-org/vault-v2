@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
+import {Test} from "../../lib/forge-std/src/Test.sol";
 import {MorphoMarketV1RegistryV2} from "../../src/periphery/registries/MorphoMarketV1RegistryV2.sol";
 import {IMorphoMarketV1RegistryV2} from "../../src/periphery/registries/interfaces/IMorphoMarketV1RegistryV2.sol";
 
