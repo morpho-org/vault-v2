@@ -333,6 +333,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
         if (paidAssets > idleAssets && liquidityAdapter != address(0)) {
+            // forge-lint: disable-next-item(reentrancy-no-eth) reentry is expected.
             IVaultV2(parentVault).deallocate(liquidityAdapter, liquidityData, paidAssets - idleAssets);
         }
 
