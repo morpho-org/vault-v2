@@ -80,6 +80,12 @@ optimizer_runs = 17000
 paths = "lib/midnight/src/Midnight.sol"
 optimizer_runs = 466
 
+# Registries have been deployed with the following settings differences, which are enforced here to avoid bytecode drift.
+[[profile.default.compilation_restrictions]]
+paths = "src/periphery/registries/**"
+optimizer_runs = 999999
+evm_version = "cancun"
+
 # For every restriction above there must be some compatible foundry profile.
 # The first matching profile will be used. For clarity, all profiles below should be incompatible with each other.
 
@@ -100,5 +106,10 @@ optimizer_runs = 17000
 [[profile.default.additional_compiler_profiles]]
 name = "466-osaka"
 optimizer_runs = 466
+
+[[profile.default.additional_compiler_profiles]]
+name = "999999-cancun"
+optimizer_runs = 999999
+evm_version = "cancun"
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
