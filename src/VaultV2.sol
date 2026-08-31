@@ -589,7 +589,7 @@ contract VaultV2 is IVaultV2 {
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
-            // forge-lint: disable-next-item(unsafe-typecast) ack.
+            // forge-lint: disable-next-item(unsafe-typecast) allocation < 2**255.
             _caps.allocation = (int256(_caps.allocation) + change).toUint256();
 
             require(_caps.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
@@ -619,7 +619,7 @@ contract VaultV2 is IVaultV2 {
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
             require(_caps.allocation > 0, ErrorsLib.ZeroAllocation());
-            // forge-lint: disable-next-item(unsafe-typecast) ack.
+            // forge-lint: disable-next-item(unsafe-typecast) allocation < 2**255.
             _caps.allocation = (int256(_caps.allocation) + change).toUint256();
         }
 
