@@ -100,6 +100,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     }
 
     function timelocked() internal {
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(msg.data);
         require(executableAt[msg.data] != 0, DataNotTimelocked());
         require(block.timestamp >= executableAt[msg.data], TimelockNotExpired());
@@ -274,6 +275,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
     function realAssets() external view returns (uint256) {
         uint256 _realAssets = 0;
+        // forge-lint: disable-next-item(cache-array-length) ack.
         for (uint256 i = 0; i < marketIds.length; i++) {
             _realAssets += expectedSupplyAssets(marketIds[i]);
         }

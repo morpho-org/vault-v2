@@ -22,6 +22,7 @@ contract RevertCondition {
         uint256 executableAtData = vault.executableAt(msg.data);
         bool dataNotSubmitted = executableAtData == 0;
         bool timelockNotExpired = block.timestamp < executableAtData;
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bool functionAbdicated = vault.abdicated(bytes4(msg.data));
         return dataNotSubmitted || timelockNotExpired || functionAbdicated;
     }
@@ -30,6 +31,7 @@ contract RevertCondition {
         uint256 executableAtData = marketV1adapter.executableAt(msg.data);
         bool dataNotSubmitted = executableAtData == 0;
         bool timelockNotExpired = block.timestamp < executableAtData;
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bool functionAbdicated = marketV1adapter.abdicated(bytes4(msg.data));
         return dataNotSubmitted || timelockNotExpired || functionAbdicated;
     }

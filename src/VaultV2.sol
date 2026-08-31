@@ -300,6 +300,7 @@ contract VaultV2 is IVaultV2 {
     constructor(address _owner, address _asset) {
         asset = _asset;
         owner = _owner;
+        // forge-lint: disable-next-item(unsafe-typecast) safe because block.timestamp < 2**64.
         lastUpdate = uint64(block.timestamp);
         uint256 assetDecimals = IERC20(_asset).decimals();
         uint256 decimalOffset = uint256(18).zeroFloorSub(assetDecimals);
@@ -359,6 +360,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     function timelocked() internal {
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(msg.data);
         require(executableAt[msg.data] != 0, ErrorsLib.DataNotTimelocked());
         require(block.timestamp >= executableAt[msg.data], ErrorsLib.TimelockNotExpired());
@@ -587,6 +589,7 @@ contract VaultV2 is IVaultV2 {
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
+            // forge-lint: disable-next-item(unsafe-typecast) allocation < 2**255.
             _caps.allocation = (int256(_caps.allocation) + change).toUint256();
 
             require(_caps.absoluteCap > 0, ErrorsLib.ZeroAbsoluteCap());
@@ -610,11 +613,13 @@ contract VaultV2 is IVaultV2 {
     {
         require(isAdapter[adapter], ErrorsLib.NotAdapter());
 
+        // forge-lint: disable-next-item(reentrancy-no-eth) adapters are trusted to not reenter.
         (bytes32[] memory ids, int256 change) = IAdapter(adapter).deallocate(data, assets, msg.sig, msg.sender);
 
         for (uint256 i; i < ids.length; i++) {
             Caps storage _caps = caps[ids[i]];
             require(_caps.allocation > 0, ErrorsLib.ZeroAllocation());
+            // forge-lint: disable-next-item(unsafe-typecast) allocation < 2**255.
             _caps.allocation = (int256(_caps.allocation) + change).toUint256();
         }
 
@@ -652,6 +657,7 @@ contract VaultV2 is IVaultV2 {
         if (firstTotalAssets == 0) firstTotalAssets = newTotalAssets;
         if (performanceFeeShares != 0) createShares(performanceFeeRecipient, performanceFeeShares);
         if (managementFeeShares != 0) createShares(managementFeeRecipient, managementFeeShares);
+        // forge-lint: disable-next-item(unsafe-typecast) safe because block.timestamp < 2**64.
         lastUpdate = uint64(block.timestamp);
     }
 
@@ -895,6 +901,7 @@ contract VaultV2 is IVaultV2 {
         uint256 nonce = nonces[_owner]++;
         bytes32 hashStruct = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, shares, nonce, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), hashStruct));
+        // forge-lint: disable-next-item(ecrecover) malleability is ok thanks to the nonce.
         address recoveredAddress = ecrecover(digest, v, r, s);
         require(recoveredAddress != address(0) && recoveredAddress == _owner, ErrorsLib.InvalidSigner());
 
