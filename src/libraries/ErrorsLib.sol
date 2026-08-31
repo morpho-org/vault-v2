@@ -14,7 +14,6 @@ library ErrorsLib {
     error CannotReceiveAssets();
     error CannotSendShares();
     error CannotSendAssets();
-    error CapExceeded();
     error CastOverflow();
     error DataAlreadyPending();
     error DataNotTimelocked();
