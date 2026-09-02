@@ -98,7 +98,11 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Sub-ratifiers can approve any offer of the adapter that passes the checks of isRatified, akin to
     /// allocators signing offer trees.
     function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        require(
+            IVaultV2(parentVault).isAllocator(msg.sender)
+                || (!newIsSubRatifier && IVaultV2(parentVault).isSentinel(msg.sender)),
+            NotAuthorized()
+        );
         isSubRatifier[subRatifier] = newIsSubRatifier;
         emit SetIsSubRatifier(subRatifier, newIsSubRatifier);
     }

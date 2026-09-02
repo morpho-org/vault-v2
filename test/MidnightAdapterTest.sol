@@ -148,7 +148,7 @@ contract MidnightAdapterTest is Test {
 
         ecrecoverRatifier = new MidnightAdapterEcrecoverRatifier();
         setterRatifier = new MidnightAdapterSetterRatifier();
-        vm.startPrank(curator);
+        vm.startPrank(signerAllocator);
         adapter.setIsSubRatifier(address(ecrecoverRatifier), true);
         adapter.setIsSubRatifier(address(setterRatifier), true);
         vm.stopPrank();
@@ -479,21 +479,35 @@ contract MidnightAdapterTest is Test {
     }
 
     function testSetIsSubRatifierUnauthorized(address caller, address subRatifier) public {
-        vm.assume(caller != curator);
+        vm.assume(!parentVault.isAllocator(caller) && !parentVault.isSentinel(caller));
         vm.prank(caller);
         vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
         adapter.setIsSubRatifier(subRatifier, true);
+        vm.prank(caller);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.setIsSubRatifier(subRatifier, false);
     }
 
     function testSetIsSubRatifierOK(address subRatifier) public {
         vm.expectEmit(address(adapter));
         emit IMidnightAdapter.SetIsSubRatifier(subRatifier, true);
-        vm.prank(curator);
+        vm.prank(signerAllocator);
         adapter.setIsSubRatifier(subRatifier, true);
         assertTrue(adapter.isSubRatifier(subRatifier), "authorized");
-        vm.prank(curator);
+        vm.prank(signerAllocator);
         adapter.setIsSubRatifier(subRatifier, false);
         assertFalse(adapter.isSubRatifier(subRatifier), "unauthorized");
+    }
+
+    function testSentinelCanOnlyDisableSubRatifier(address sentinel) public {
+        vm.assume(sentinel != signerAllocator);
+        stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(sentinel).checked_write(true);
+        vm.prank(sentinel);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.setIsSubRatifier(address(ecrecoverRatifier), true);
+        vm.prank(sentinel);
+        adapter.setIsSubRatifier(address(ecrecoverRatifier), false);
+        assertFalse(adapter.isSubRatifier(address(ecrecoverRatifier)), "disabled by sentinel");
     }
 
     function testRatifySubRatifierUnauthorized(uint256 seed, address subRatifier) public {
@@ -563,7 +577,7 @@ contract MidnightAdapterTest is Test {
 
     function testRogueSubRatifierCannotBypassShapeChecks() public {
         address attacker = makeAddr("attacker");
-        vm.prank(curator);
+        vm.prank(signerAllocator);
         adapter.setIsSubRatifier(address(this), true);
         bytes memory rogueData = abi.encode(address(this), bytes(""));
 
@@ -601,13 +615,13 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
         bytes memory data = sign([offer], signerAllocator);
 
-        vm.prank(curator);
+        vm.prank(signerAllocator);
         adapter.setIsSubRatifier(address(ecrecoverRatifier), false);
         vm.prank(taker);
         vm.expectRevert(IMidnightAdapter.SubRatifierUnauthorized.selector);
         midnight.take(offer, data, offer.maxUnits, taker, taker, address(0), "");
 
-        vm.prank(curator);
+        vm.prank(signerAllocator);
         adapter.setIsSubRatifier(address(ecrecoverRatifier), true);
         vm.prank(taker);
         midnight.take(offer, data, offer.maxUnits, taker, taker, address(0), "");
@@ -632,7 +646,7 @@ contract MidnightAdapterTest is Test {
         VaultV2Mock otherVault = new VaultV2Mock(address(loanToken), owner, curator, otherAllocator, address(0));
         IMidnightAdapter otherAdapter =
             IMidnightAdapter(factory.createMidnightAdapter(address(otherVault), address(midnight)));
-        vm.prank(curator);
+        vm.prank(otherAllocator);
         otherAdapter.setIsSubRatifier(address(ecrecoverRatifier), true);
         deal(address(loanToken), address(otherVault), 1_000_000e18);
 
@@ -675,7 +689,7 @@ contract MidnightAdapterTest is Test {
 
     function testGarbageSubRatifierRatifierFailed() public {
         GarbageSubRatifier garbage = new GarbageSubRatifier();
-        vm.prank(curator);
+        vm.prank(signerAllocator);
         adapter.setIsSubRatifier(address(garbage), true);
         Offer memory offer = makeBuyOffer(30 days, 1e18, discountTick);
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
@@ -2004,12 +2018,12 @@ contract MidnightAdapterTest is Test {
         vm.prank(owner);
         realVault.setCurator(curator);
         adapter = IMidnightAdapter(factory.createMidnightAdapter(address(realVault), address(midnight)));
-        vm.prank(curator);
-        adapter.setIsSubRatifier(address(ecrecoverRatifier), true);
 
         submitAndCall(realVault, abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), true)));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (signerAllocator, true)));
+        vm.prank(signerAllocator);
+        adapter.setIsSubRatifier(address(ecrecoverRatifier), true);
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setForceDeallocatePenalty, (address(adapter), 0.02e18)));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setPerformanceFeeRecipient, (recipient)));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setManagementFeeRecipient, (recipient)));
