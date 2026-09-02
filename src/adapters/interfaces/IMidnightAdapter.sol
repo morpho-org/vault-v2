@@ -25,6 +25,7 @@ struct MarketData {
 interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     /* EVENTS */
 
+    event SetIsSubRatifier(address indexed subRatifier, bool newIsSubRatifier);
     event SetSkimRecipient(address indexed newSkimRecipient);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
@@ -35,7 +36,6 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event AccrueInterest(uint128 currentGrowth, uint256 totalAssets);
     event RemoveMaturity(uint256 indexed maturity);
     event InsertMaturity(uint256 indexed maturity);
-    event CancelRoot(address indexed caller, bytes32 indexed root);
 
     /* ERRORS */
 
@@ -45,15 +45,13 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error IncorrectOffer();
     error IncorrectOwner();
     error IncorrectReceiver();
-    error IncorrectSigner();
-    error InvalidProof();
     error LoanAssetMismatch();
-    error NoDebtCreation();
     error NotAuthorized();
     error NotMidnight();
+    error NoDebtCreation();
     error NotSelf();
-    error RootCanceled();
     error SelfAllocationOnly();
+    error SubRatifierUnauthorized();
 
     /* FUNCTIONS */
 
@@ -69,9 +67,9 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function _markets(bytes32 marketId) external view returns (uint128 netCredit, uint128 growth);
     function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
-    function isRootCanceled(bytes32 root) external view returns (bool);
+    function isSubRatifier(address subRatifier) external view returns (bool);
+    function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external;
     function setSkimRecipient(address newSkimRecipient) external;
-    function cancelRoot(bytes32 root) external;
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
