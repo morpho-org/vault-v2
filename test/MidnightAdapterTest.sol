@@ -1080,10 +1080,26 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, 1e18, MAX_TICK - 4);
     }
 
-    function testSetSkipBufferCheckUnauthorized(address caller) public {
+    function testSetSkipBufferCheckNotTimelocked() public {
+        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
+        adapter.setSkipBufferCheck(true);
+    }
+
+    function testSetSkipBufferCheckNotAuthorized(address caller) public {
         vm.assume(caller != curator);
-        vm.prank(caller);
         vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
+    }
+
+    function testSetSkipBufferCheckTimelockNotExpired(uint256 timelockDuration) public {
+        timelockDuration = bound(timelockDuration, 1, 3650 days);
+        submitTimelock(IMidnightAdapter.setSkipBufferCheck.selector, timelockDuration);
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
+
+        vm.expectRevert(IMidnightAdapter.TimelockNotExpired.selector);
         adapter.setSkipBufferCheck(true);
     }
 
@@ -1093,6 +1109,7 @@ contract MidnightAdapterTest is Test {
         parentVault.setTotalAssets(1e18);
 
         vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
         vm.expectEmit(address(adapter));
         emit IMidnightAdapter.SetSkipBufferCheck(true);
         adapter.setSkipBufferCheck(true);
@@ -1652,6 +1669,42 @@ contract MidnightAdapterTest is Test {
         assertEq(loanToken.balanceOf(address(realVault)), 9.5e18, "proceeds back in the vault");
     }
 
+    /// forge-config: default.isolate = true
+    /// @dev Credit can be sold for zero to abandon a market whose oracle permanently reverts.
+    function testAbandonMarketWithRevertingOracle() public {
+        setUpRealVault();
+        Offer memory boughtOffer = buyOnRealVault(7 days, 1e18);
+        bytes32 marketId = _marketId(boughtOffer.market);
+
+        skip(7 days + 1);
+        vm.mockCallRevert(storedCollaterals[0].oracle, abi.encodeWithSignature("price()"), bytes("dead oracle"));
+
+        vm.expectRevert(bytes("dead oracle"));
+        midnight.liquidate(boughtOffer.market, 0, 0, 0, taker, true, address(this), address(0), "");
+        assertEq(midnight.lossFactor(marketId), 0, "loss not realized");
+        assertEq(realVault.totalAssets(), 10e18, "market still fully valued");
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
+        adapter.setSkipBufferCheck(true);
+
+        address buyer = makeAddr("buyer");
+        Offer memory sellOffer = makeSellOffer(boughtOffer.market, 1e18, 0);
+        vm.prank(buyer);
+        midnight.take(sellOffer, sign([sellOffer], signerAllocator), 1e18, buyer, address(0), address(0), "");
+
+        assertEq(midnight.credit(marketId, address(adapter)), 0, "adapter credit");
+        assertEq(midnight.credit(marketId, buyer), 1e18, "buyer credit");
+        assertEq(midnight.debt(marketId, taker), 1e18, "borrower debt");
+        assertEq(adapter.totalAssets(), 0, "adapter totalAssets");
+        assertEq(realVault.totalAssets(), 9e18, "loss realized");
+
+        bytes32[] memory marketIds = adapter.ids(boughtOffer.market);
+        for (uint256 i = 0; i < marketIds.length; i++) {
+            assertEq(realVault.allocation(marketIds[i]), 0, "allocation");
+        }
+    }
+
     /* STALE DURATION IDS */
 
     /// forge-config: default.isolate = true
@@ -1856,25 +1909,37 @@ contract MidnightAdapterTest is Test {
 
     /* SKIM */
 
-    function testSetSkimRecipientUnauthorized(address nonOwner) public {
-        vm.assume(nonOwner != owner);
-        vm.prank(nonOwner);
+    function testSetSkimRecipientNotAuthorized(address caller) public {
+        vm.assume(caller != curator);
         vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkimRecipient, (recipient)));
+    }
+
+    function testSetSkimRecipientNotTimelocked() public {
+        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
+        adapter.setSkimRecipient(recipient);
+    }
+
+    function testSetSkimRecipientTimelockNotExpired(uint256 timelockDuration) public {
+        timelockDuration = bound(timelockDuration, 1, 3650 days);
+        submitTimelock(IMidnightAdapter.setSkimRecipient.selector, timelockDuration);
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkimRecipient, (recipient)));
+
+        vm.expectRevert(IMidnightAdapter.TimelockNotExpired.selector);
         adapter.setSkimRecipient(recipient);
     }
 
     function testSetSkimRecipientOK() public {
         address newRecipient = makeAddr("newRecipient");
-        vm.expectEmit(true, false, false, false, address(adapter));
-        emit IMidnightAdapter.SetSkimRecipient(newRecipient);
-        vm.prank(owner);
-        adapter.setSkimRecipient(newRecipient);
+        setSkimRecipient(newRecipient);
         assertEq(adapter.skimRecipient(), newRecipient, "skimRecipient");
     }
 
     function testSkimUnauthorized(address caller) public {
-        vm.prank(owner);
-        adapter.setSkimRecipient(recipient);
+        setSkimRecipient(recipient);
         vm.assume(caller != recipient);
         vm.prank(caller);
         vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
@@ -1882,8 +1947,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testSkimOK() public {
-        vm.prank(owner);
-        adapter.setSkimRecipient(recipient);
+        setSkimRecipient(recipient);
 
         uint256 balance = 123e18;
         deal(address(rewardToken), address(adapter), balance);
@@ -1909,6 +1973,20 @@ contract MidnightAdapterTest is Test {
         offer.expiry = block.timestamp;
         offer.callback = address(adapter);
         offer.callbackData = hex"";
+    }
+
+    function setSkimRecipient(address newSkimRecipient) internal {
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkimRecipient, (newSkimRecipient)));
+        vm.expectEmit(true, false, false, false, address(adapter));
+        emit IMidnightAdapter.SetSkimRecipient(newSkimRecipient);
+        adapter.setSkimRecipient(newSkimRecipient);
+    }
+
+    function submitTimelock(bytes4 selector, uint256 duration) internal {
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.increaseTimelock, (selector, duration)));
+        adapter.increaseTimelock(selector, duration);
     }
 
     function take(Offer memory offer) internal {

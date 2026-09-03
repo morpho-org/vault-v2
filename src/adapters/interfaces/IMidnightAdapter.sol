@@ -21,6 +21,12 @@ struct MarketData {
 interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     /* EVENTS */
 
+    event Submit(bytes4 indexed selector, bytes data, uint256 executableAt);
+    event Revoke(address indexed sender, bytes4 indexed selector, bytes data);
+    event Accept(bytes4 indexed selector, bytes data);
+    event Abdicate(bytes4 indexed selector);
+    event IncreaseTimelock(bytes4 indexed selector, uint256 newDuration);
+    event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event SetIsSubRatifier(address indexed subRatifier, bool newIsSubRatifier);
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetSkipBufferCheck(bool newSkipBufferCheck);
@@ -36,7 +42,11 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
 
     /* ERRORS */
 
+    error Abdicated();
+    error AutomaticallyTimelocked();
     error BufferTooLow();
+    error DataAlreadyPending();
+    error DataNotTimelocked();
     error BuyAtLoss();
     error IncorrectCallbackAddress();
     error IncorrectOffer();
@@ -49,6 +59,9 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error NotSelf();
     error SelfAllocationOnly();
     error SubRatifierUnauthorized();
+    error TimelockNotDecreasing();
+    error TimelockNotExpired();
+    error TimelockNotIncreasing();
 
     /* FUNCTIONS */
 
@@ -67,6 +80,14 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
     function skipBufferCheck() external view returns (bool);
+    function timelock(bytes4 selector) external view returns (uint256);
+    function abdicated(bytes4 selector) external view returns (bool);
+    function executableAt(bytes memory data) external view returns (uint256);
+    function submit(bytes calldata data) external;
+    function revoke(bytes calldata data) external;
+    function increaseTimelock(bytes4 selector, uint256 newDuration) external;
+    function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
+    function abdicate(bytes4 selector) external;
     function setSkipBufferCheck(bool newSkipBufferCheck) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
     function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external;
