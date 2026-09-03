@@ -947,7 +947,7 @@ contract MidnightAdapterTest is Test {
         (uint128 netCredit,) = adapter._markets(marketId);
         assertEq(netCredit, 1e18, "netCredit");
         assertEq(adapter.totalAssets(), 3e18, "totalAssets");
-        assertEq(adapter.pendingMaturitiesLength(), 3, "pendingMaturitiesLength");
+        assertEq(pendingMaturitiesLength(), 3, "pendingMaturitiesLength");
         assertPendingMaturities([t0 + 1 days, t0 + 7 days, t0 + 30 days]);
     }
 
@@ -969,19 +969,20 @@ contract MidnightAdapterTest is Test {
             Offer memory offer = buy(1 days + i, 1e18);
             if (i == soldIndex) soldOffer = offer;
         }
-        assertEq(adapter.pendingMaturitiesLength(), 50, "pendingMaturitiesLength before");
+        assertEq(pendingMaturitiesLength(), 50, "pendingMaturitiesLength before");
 
         parentVault.setTotalAssets(1e18);
         sell(soldOffer.market, 1e18);
 
-        assertEq(adapter.pendingMaturitiesLength(), 49, "pendingMaturitiesLength after");
-        for (uint256 i = 0; i < 49; i++) {
-            assertNotEq(adapter.pendingMaturities(i), soldOffer.market.maturity, "sold maturity removed");
+        assertEq(pendingMaturitiesLength(), 49, "pendingMaturitiesLength after");
+        uint256[] memory list = pendingMaturities();
+        for (uint256 i = 0; i < list.length; i++) {
+            assertNotEq(list[i], soldOffer.market.maturity, "sold maturity removed");
         }
 
         buy(60 days, 1e18);
 
-        assertEq(adapter.pendingMaturitiesLength(), 50, "pendingMaturitiesLength final");
+        assertEq(pendingMaturitiesLength(), 50, "pendingMaturitiesLength final");
     }
 
     function testForceDeallocateThenUpdateDurationCaps() public {
@@ -1009,7 +1010,7 @@ contract MidnightAdapterTest is Test {
         for (uint256 i = 1; i <= boughtNum; i++) {
             buy(i, 1e18);
         }
-        assertEq(adapter.pendingMaturitiesLength(), boughtNum);
+        assertEq(pendingMaturitiesLength(), boughtNum);
 
         for (uint256 i = boughtNum + 1; i <= 50; i++) {
             buy(i, 1e18);
@@ -1036,7 +1037,7 @@ contract MidnightAdapterTest is Test {
             sell(markets[i], 1e18);
         }
 
-        assertEq(adapter.pendingMaturitiesLength(), boughtNum - soldNum);
+        assertEq(pendingMaturitiesLength(), boughtNum - soldNum);
     }
 
     function testOnBuyCanRealizeLoss() public {
@@ -1152,7 +1153,7 @@ contract MidnightAdapterTest is Test {
         assertPendingMaturitiesEmpty();
         assertEq(adapter.currentGrowth(), 0, "currentGrowth");
         assertEq(adapter.totalAssets(), 2e18, "totalAssets");
-        assertEq(adapter.pendingMaturitiesLength(), 0, "pendingMaturitiesLength");
+        assertEq(pendingMaturitiesLength(), 0, "pendingMaturitiesLength");
     }
 
     function testTwoMarketsSharingMaturity(uint256 assetsA, uint256 assetsB) public {
@@ -1222,7 +1223,7 @@ contract MidnightAdapterTest is Test {
 
         assertEq(adapter.totalAssets(), offerA.maxUnits + offerB.maxUnits + offerC.maxUnits, "sum of net credits");
         assertEq(adapter.currentGrowth(), 0, "currentGrowth");
-        assertEq(adapter.pendingMaturitiesLength(), 0, "pendingMaturitiesLength");
+        assertEq(pendingMaturitiesLength(), 0, "pendingMaturitiesLength");
         assertPendingMaturitiesEmpty();
     }
 
@@ -1249,7 +1250,7 @@ contract MidnightAdapterTest is Test {
 
         assertEq(adapter.totalAssets(), 0, "totalAssets");
         assertEq(adapter.currentGrowth(), 0, "currentGrowth");
-        assertEq(adapter.pendingMaturitiesLength(), 0, "pendingMaturitiesLength");
+        assertEq(pendingMaturitiesLength(), 0, "pendingMaturitiesLength");
         assertPendingMaturitiesEmpty();
     }
 
@@ -2061,16 +2062,32 @@ contract MidnightAdapterTest is Test {
             .checked_write(credit);
     }
 
+    function pendingMaturitiesLength() internal view returns (uint256) {
+        return adapter.MAX_PENDING_MATURITIES() - adapter.availableMaturities();
+    }
+
+    function pendingMaturities() internal view returns (uint256[] memory list) {
+        list = new uint256[](pendingMaturitiesLength());
+        uint256 maturity = adapter.maturities(0).nextMaturity;
+        for (uint256 i = 0; i < list.length; i++) {
+            list[i] = maturity;
+            maturity = adapter.maturities(maturity).nextMaturity;
+        }
+        assertEq(maturity, 0, "list longer than the used slots");
+    }
+
     function checkPendingMaturities(uint256[] memory expected) internal view {
-        uint256 length = adapter.pendingMaturitiesLength();
-        assertEq(length, expected.length, "pendingMaturitiesLength");
+        uint256[] memory list = pendingMaturities();
+        assertEq(list.length, expected.length, "pendingMaturitiesLength");
         for (uint256 i = 0; i < expected.length; i++) {
-            uint48 maturity = expected[i].toUint48();
             bool found;
-            for (uint256 j = 0; j < length; j++) {
-                found = found || adapter.pendingMaturities(j) == maturity;
+            for (uint256 j = 0; j < list.length; j++) {
+                found = found || list[j] == expected[i];
             }
             assertTrue(found, "missing pending maturity");
+        }
+        for (uint256 i = 1; i < list.length; i++) {
+            assertLt(list[i - 1], list[i], "pending maturities not sorted");
         }
     }
 
