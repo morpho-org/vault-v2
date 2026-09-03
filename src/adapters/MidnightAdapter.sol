@@ -3,12 +3,11 @@
 pragma solidity 0.8.34;
 
 import {IMidnight, Offer, Market} from "lib/midnight/src/interfaces/IMidnight.sol";
+import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
 import {MAX_TICK} from "lib/midnight/src/libraries/TickLib.sol";
-import {Signature, EIP712_DOMAIN_TYPEHASH} from "lib/midnight/src/ratifiers/interfaces/IEcrecoverRatifier.sol";
 import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
 import {TakeAmountsLib} from "lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
-import {HashLib} from "lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
@@ -42,7 +41,7 @@ contract MidnightAdapter is IMidnightAdapter {
     /* MANAGEMENT */
 
     address public skimRecipient;
-    mapping(bytes32 root => bool) public isRootCanceled;
+    mapping(address subRatifier => bool) public isSubRatifier;
 
     /* ACCOUNTING */
 
@@ -96,6 +95,35 @@ contract MidnightAdapter is IMidnightAdapter {
             _durations[i] = packedDurations.get(i);
         }
         return _durations;
+    }
+
+    /* RATIFIERS */
+
+    /// @dev Sub-ratifiers can approve any offer of the adapter that passes the checks of isRatified, akin to
+    /// allocators signing offer trees.
+    function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external {
+        require(
+            IVaultV2(parentVault).isAllocator(msg.sender)
+                || (!newIsSubRatifier && IVaultV2(parentVault).isSentinel(msg.sender)),
+            NotAuthorized()
+        );
+        isSubRatifier[subRatifier] = newIsSubRatifier;
+        emit SetIsSubRatifier(subRatifier, newIsSubRatifier);
+    }
+
+    function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {
+        // Collaterals will be checked through vault ids.
+        require(offer.market.loanToken == asset, LoanAssetMismatch());
+        require(offer.maker == address(this), IncorrectOwner());
+        require(offer.callback == address(this), IncorrectCallbackAddress());
+        // For buy offers, Midnight enforces receiverIfMakerIsSeller == address(0).
+        require(offer.buy || offer.receiverIfMakerIsSeller == address(this), IncorrectReceiver());
+        require(offer.buy || offer.reduceOnly, NoDebtCreation());
+
+        (address subRatifier, bytes memory subData) = abi.decode(data, (address, bytes));
+        require(isSubRatifier[subRatifier], SubRatifierUnauthorized());
+        // Midnight checks the returned value against CALLBACK_SUCCESS.
+        return IRatifier(subRatifier).isRatified(offer, subData, taker);
     }
 
     /* SKIM FUNCTIONS */
@@ -276,39 +304,6 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /* MIDNIGHT CALLBACKS */
-
-    function cancelRoot(bytes32 root) external {
-        require(
-            IVaultV2(parentVault).isAllocator(msg.sender) || IVaultV2(parentVault).isSentinel(msg.sender),
-            NotAuthorized()
-        );
-        isRootCanceled[root] = true;
-        emit CancelRoot(msg.sender, root);
-    }
-
-    function isRatified(Offer memory offer, bytes memory data, address) external view returns (bytes32) {
-        // Collaterals will be checked through vault ids.
-        require(offer.market.loanToken == asset, LoanAssetMismatch());
-        require(offer.maker == address(this), IncorrectOwner());
-        require(offer.callback == address(this), IncorrectCallbackAddress());
-        // For buy offers, Midnight enforces receiverIfMakerIsSeller == address(0).
-        require(offer.buy || offer.receiverIfMakerIsSeller == address(this), IncorrectReceiver());
-        require(offer.buy || offer.reduceOnly, NoDebtCreation());
-
-        (Signature memory sig, bytes32 root, uint256 leafIndex, bytes32[] memory proof) =
-            abi.decode(data, (Signature, bytes32, uint256, bytes32[]));
-        require(HashLib.isLeaf(root, HashLib.hashOffer(offer), leafIndex, proof), InvalidProof());
-        require(!isRootCanceled[root], RootCanceled());
-        bytes32 structHash = keccak256(abi.encode(HashLib.offerTreeTypeHash(proof.length), root));
-        bytes32 domainSeparator = keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, block.chainid, address(this)));
-        bytes32 digest = keccak256(bytes.concat("\x19\x01", domainSeparator, structHash));
-        // forge-lint: disable-next-item(ecrecover) offer sizes & cancellation protects against reuse.
-        address signer = ecrecover(digest, sig.v, sig.r, sig.s);
-        require(signer != address(0), IncorrectSigner());
-        require(IVaultV2(parentVault).isAllocator(signer), IncorrectSigner());
-
-        return CALLBACK_SUCCESS;
-    }
 
     function onBuy(
         bytes32 marketId,
