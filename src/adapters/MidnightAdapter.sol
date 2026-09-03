@@ -16,6 +16,7 @@ import {IMidnightAdapter, MaturityData, MarketData, IAdapter} from "./interfaces
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest per market, aggregated by maturity.
+/// @dev Any interest excluded from growth due to rounding is realized immediately.
 /// @dev Losses are immediately accounted minus a discount applied to the remaining interest to be earned, in proportion
 /// to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev The adapter must have the allocator role in its parent vault to buy, and the allocator or sentinel role to
