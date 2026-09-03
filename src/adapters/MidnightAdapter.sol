@@ -21,6 +21,12 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev The adapter must have the allocator role in its parent vault to buy, and the allocator or sentinel role to
 /// make sell offers, to withdraw to the vault and to update duration caps.
+/// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be
+/// deallocated, or to "" to take the liquidity in the vault's idle funds.
+/// @dev Before adding the adapter to the vault, its timelocks must be properly set.
+///
+/// TIMELOCKS
+/// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 contract MidnightAdapter is IMidnightAdapter {
     using MathLib for uint256;
     using MathLib for uint128;
@@ -39,9 +45,16 @@ contract MidnightAdapter is IMidnightAdapter {
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
 
+    /* TIMELOCKS STORAGE */
+
+    mapping(bytes4 selector => uint256) public timelock;
+    mapping(bytes4 selector => bool) public abdicated;
+    mapping(bytes data => uint256) public executableAt;
+
     /* MANAGEMENT */
 
     address public skimRecipient;
+    bool public skipBufferCheck;
     mapping(address subRatifier => bool) public isSubRatifier;
 
     /* ACCOUNTING */
@@ -122,17 +135,92 @@ contract MidnightAdapter is IMidnightAdapter {
 
         (address subRatifier, bytes memory subData) = abi.decode(data, (address, bytes));
         require(isSubRatifier[subRatifier], SubRatifierUnauthorized());
-        // Midnight checks the returned value against CALLBACK_SUCCESS.
         return IRatifier(subRatifier).isRatified(offer, subData, taker);
     }
 
-    /* SKIM FUNCTIONS */
+    /* TIMELOCKS FUNCTIONS */
+
+    /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block
+    /// timestamp.
+    function submit(bytes calldata data) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        require(executableAt[data] == 0, DataAlreadyPending());
+
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
+        bytes4 selector = bytes4(data);
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the second bytes4.
+        uint256 _timelock =
+            selector == IMidnightAdapter.decreaseTimelock.selector ? timelock[bytes4(data[4:8])] : timelock[selector];
+        executableAt[data] = block.timestamp + _timelock;
+        emit Submit(selector, data, executableAt[data]);
+    }
+
+    function timelocked() internal {
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
+        bytes4 selector = bytes4(msg.data);
+        require(executableAt[msg.data] != 0, DataNotTimelocked());
+        require(block.timestamp >= executableAt[msg.data], TimelockNotExpired());
+        require(!abdicated[selector], Abdicated());
+        executableAt[msg.data] = 0;
+        emit Accept(selector, msg.data);
+    }
+
+    function revoke(bytes calldata data) external {
+        require(
+            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
+        require(executableAt[data] != 0, DataNotTimelocked());
+        executableAt[data] = 0;
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
+        bytes4 selector = bytes4(data);
+        emit Revoke(msg.sender, selector, data);
+    }
+
+    /* CURATOR FUNCTIONS */
+
+    /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
+    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
+    /// executableAt.
+    function increaseTimelock(bytes4 selector, uint256 newDuration) external {
+        timelocked();
+        require(selector != IMidnightAdapter.decreaseTimelock.selector, AutomaticallyTimelocked());
+        require(newDuration >= timelock[selector], TimelockNotIncreasing());
+
+        timelock[selector] = newDuration;
+        emit IncreaseTimelock(selector, newDuration);
+    }
+
+    function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
+        timelocked();
+        require(selector != IMidnightAdapter.decreaseTimelock.selector, AutomaticallyTimelocked());
+        require(newDuration <= timelock[selector], TimelockNotDecreasing());
+
+        timelock[selector] = newDuration;
+        emit DecreaseTimelock(selector, newDuration);
+    }
+
+    /// @dev This function requires great caution because it will irreversibly disable submit for a selector.
+    /// @dev Existing pending operations submitted before abdicating can not be executed at the initial executableAt.
+    function abdicate(bytes4 selector) external {
+        timelocked();
+        abdicated[selector] = true;
+        emit Abdicate(selector);
+    }
+
+    function setSkipBufferCheck(bool newSkipBufferCheck) external {
+        timelocked();
+        skipBufferCheck = newSkipBufferCheck;
+        emit SetSkipBufferCheck(newSkipBufferCheck);
+    }
 
     function setSkimRecipient(address newSkimRecipient) external {
-        require(msg.sender == IVaultV2(parentVault).owner(), NotAuthorized());
+        timelocked();
         skimRecipient = newSkimRecipient;
         emit SetSkimRecipient(newSkimRecipient);
     }
+
+    /* SKIM FUNCTIONS */
 
     /// @dev Skims the adapter's balance of `token` and sends it to `skimRecipient`.
     /// @dev This is useful to handle rewards that the adapter has earned.
@@ -311,7 +399,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 boughtCredit,
         uint256 buyPendingFeeIncrease,
         address buyer,
-        bytes memory
+        bytes memory callbackData
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
@@ -326,6 +414,12 @@ contract MidnightAdapter is IMidnightAdapter {
         // current net credit cannot be > accounted net credit + bought net credit
         uint256 netCreditLoss = uint256(marketData.netCredit) + boughtNetCredit - currentNetCredit(marketId);
         decreaseNetCredit(marketId, market.maturity, netCreditLoss);
+        uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
+        if (callbackData.length > 0 && paidAssets > idleAssets) {
+            (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
+            // forge-lint: disable-next-item(reentrancy-no-eth) the adapter is trusted.
+            IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets - idleAssets);
+        }
 
         // forge-lint: disable-next-item(reentrancy-no-eth) reentry is expected.
         IVaultV2(parentVault)
@@ -392,12 +486,14 @@ contract MidnightAdapter is IMidnightAdapter {
         IVaultV2(parentVault)
             .deallocate(address(this), abi.encode(ids(market), -netCreditDecrease.toInt256()), sellerAssets);
 
-        uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(address(parentVault));
-        uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
-        for (uint256 i = 0; i < adaptersLength; i++) {
-            vaultRealAssetsAfter += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
+        if (!skipBufferCheck) {
+            uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(address(parentVault));
+            uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
+            for (uint256 i = 0; i < adaptersLength; i++) {
+                vaultRealAssetsAfter += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
+            }
+            require(vaultRealAssetsAfter >= vaultTotalAssetsBefore, BufferTooLow());
         }
-        require(vaultRealAssetsAfter >= vaultTotalAssetsBefore, BufferTooLow());
 
         emit Sell(marketId, sellerAssets, netCreditDecrease);
         return CALLBACK_SUCCESS;
