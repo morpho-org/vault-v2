@@ -21,6 +21,8 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev The adapter must have the allocator role in its parent vault to buy, and the allocator or sentinel role to
 /// make sell offers, to withdraw to the vault and to update duration caps.
+/// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be
+/// deallocated, or to "" to take the liquidity in the vault idle funds.
 contract MidnightAdapter is IMidnightAdapter {
     using MathLib for uint256;
     using MathLib for uint128;
@@ -123,7 +125,6 @@ contract MidnightAdapter is IMidnightAdapter {
 
         (address subRatifier, bytes memory subData) = abi.decode(data, (address, bytes));
         require(isSubRatifier[subRatifier], SubRatifierUnauthorized());
-        // Midnight checks the returned value against CALLBACK_SUCCESS.
         return IRatifier(subRatifier).isRatified(offer, subData, taker);
     }
 
@@ -313,7 +314,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 boughtCredit,
         uint256 buyPendingFeeIncrease,
         address buyer,
-        bytes memory
+        bytes memory callbackData
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
@@ -328,6 +329,12 @@ contract MidnightAdapter is IMidnightAdapter {
         // current net credit cannot be > accounted net credit + bought net credit
         uint256 netCreditLoss = uint256(marketData.netCredit) + boughtNetCredit - currentNetCredit(marketId);
         decreaseNetCredit(marketId, market.maturity, netCreditLoss);
+        uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
+        if (callbackData.length > 0 && paidAssets > idleAssets) {
+            (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
+            // forge-lint: disable-next-item(reentrancy-no-eth) the adapter is trusted.
+            IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets - idleAssets);
+        }
 
         // forge-lint: disable-next-item(reentrancy-no-eth) reentry is expected.
         IVaultV2(parentVault)

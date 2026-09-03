@@ -8,6 +8,7 @@ import {MidnightAdapterFactory} from "../src/adapters/MidnightAdapterFactory.sol
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
+import {AdapterMock} from "./mocks/AdapterMock.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IAdapter} from "../src/interfaces/IAdapter.sol";
 import {IMidnightAdapter} from "../src/adapters/interfaces/IMidnightAdapter.sol";
@@ -1335,6 +1336,33 @@ contract MidnightAdapterTest is Test {
         vm.prank(address(midnight));
         vm.expectRevert(IMidnightAdapter.NotSelf.selector);
         adapter.onBuy(bytes32(0), storedOffer.market, 0, 0, 0, buyer, "");
+    }
+
+    function testOnBuyFundsFromCallbackDataAdapter() public {
+        AdapterMock fundingAdapter = new AdapterMock(address(parentVault));
+        uint256 vaultBalance = loanToken.balanceOf(address(parentVault));
+        parentVault.allocate(address(fundingAdapter), hex"", vaultBalance);
+        assertEq(loanToken.balanceOf(address(parentVault)), 0, "vault has no idle assets");
+
+        Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
+        offer.callbackData = abi.encode(address(fundingAdapter), bytes(""));
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+        take(offer);
+
+        (uint128 netCredit,) = adapter._markets(_marketId(offer.market));
+        assertEq(netCredit, offer.maxUnits, "bought without idle assets");
+        assertEq(loanToken.balanceOf(address(fundingAdapter)), vaultBalance - 1e18, "funding adapter funded the buy");
+    }
+
+    function testOnBuyWithoutFundingRouteReverts() public {
+        parentVault.allocate(address(extraAssetsAdapter), hex"", loanToken.balanceOf(address(parentVault)));
+
+        Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+        vm.expectRevert();
+        take(offer);
     }
 
     function testOnSellNotMidnight(address caller) public {
