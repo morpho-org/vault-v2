@@ -1080,6 +1080,30 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, 1e18, MAX_TICK - 4);
     }
 
+    function testSetSkipBufferCheckUnauthorized(address caller) public {
+        vm.assume(caller != curator);
+        vm.prank(caller);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.setSkipBufferCheck(true);
+    }
+
+    function testOnSellBufferCheckSkipped() public {
+        deal(address(loanToken), address(parentVault), 1e18);
+        Offer memory offer = buy(0, 1e18);
+        parentVault.setTotalAssets(1e18);
+
+        vm.prank(curator);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.SetSkipBufferCheck(true);
+        adapter.setSkipBufferCheck(true);
+        assertTrue(adapter.skipBufferCheck());
+
+        sellUnits(offer.market, 1e18, MAX_TICK - 4);
+
+        (uint128 marketNetCredit,) = adapter._markets(_marketId(offer.market));
+        assertEq(marketNetCredit, 0, "sold below par with no buffer");
+    }
+
     function testOnSellBufferBigEnough() public {
         uint256 loss = 1e18 - TickLib.tickToPrice(MAX_TICK - 4);
 

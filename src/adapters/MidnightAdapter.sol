@@ -44,6 +44,7 @@ contract MidnightAdapter is IMidnightAdapter {
     /* MANAGEMENT */
 
     address public skimRecipient;
+    bool public skipBufferCheck;
     mapping(address subRatifier => bool) public isSubRatifier;
 
     /* ACCOUNTING */
@@ -126,6 +127,15 @@ contract MidnightAdapter is IMidnightAdapter {
         (address subRatifier, bytes memory subData) = abi.decode(data, (address, bytes));
         require(isSubRatifier[subRatifier], SubRatifierUnauthorized());
         return IRatifier(subRatifier).isRatified(offer, subData, taker);
+    }
+
+    /* CURATOR FUNCTIONS */
+
+    /// @dev Not timelocked.
+    function setSkipBufferCheck(bool newSkipBufferCheck) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        skipBufferCheck = newSkipBufferCheck;
+        emit SetSkipBufferCheck(newSkipBufferCheck);
     }
 
     /* SKIM FUNCTIONS */
@@ -393,12 +403,14 @@ contract MidnightAdapter is IMidnightAdapter {
         IVaultV2(parentVault)
             .deallocate(address(this), abi.encode(ids(market), -netCreditDecrease.toInt256()), sellerAssets);
 
-        uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(address(parentVault));
-        uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
-        for (uint256 i = 0; i < adaptersLength; i++) {
-            vaultRealAssetsAfter += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
+        if (!skipBufferCheck) {
+            uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(address(parentVault));
+            uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
+            for (uint256 i = 0; i < adaptersLength; i++) {
+                vaultRealAssetsAfter += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
+            }
+            require(vaultRealAssetsAfter >= vaultTotalAssetsBefore, BufferTooLow());
         }
-        require(vaultRealAssetsAfter >= vaultTotalAssetsBefore, BufferTooLow());
 
         emit Sell(marketId, sellerAssets, netCreditDecrease);
         return CALLBACK_SUCCESS;
