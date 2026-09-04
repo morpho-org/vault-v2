@@ -267,8 +267,10 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Remove the maturity allocation from the duration ids that are > its time to maturity.
     function updateDurationCaps(uint256 maturity) external {
         MaturityData storage maturityData = _maturities[maturity];
+        if (maturityData.netCredit == 0) return;
         uint256 oldDurationCount = maturityData.durationCount;
         uint256 newDurationCount = durationCount(maturity);
+        // forge-lint: disable-next-item(unsafe-typecast) newDurationCount <= MAX_DURATIONS.
         maturityData.durationCount = uint8(newDurationCount);
         emit UpdateDurationCaps(maturity, newDurationCount, maturityData.netCredit);
         // VaultV2.deallocate requires allocation > 0 for each returned id.
@@ -349,6 +351,7 @@ contract MidnightAdapter is IMidnightAdapter {
         view
         returns (bytes32[] memory, int256)
     {
+        require(msg.sender == parentVault, NotAuthorized());
         require(caller == address(this), SelfAllocationOnly());
         // Return exactly the data passed to the function.
         assembly ("memory-safe") {
@@ -411,6 +414,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         MaturityData storage maturityData = _maturities[market.maturity];
         MarketData storage marketData = _markets[marketId];
+        // forge-lint: disable-next-item(unsafe-typecast) durationCount <= MAX_DURATIONS.
         if (maturityData.netCredit == 0) maturityData.durationCount = uint8(durationCount(market.maturity));
         uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
         // current net credit cannot be > accounted net credit + bought net credit
@@ -536,6 +540,7 @@ contract MidnightAdapter is IMidnightAdapter {
         while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;
     }
 
+    /// @dev Liquidation cursors are omitted from collateral ids.
     function ids(Market memory market) public view returns (bytes32[] memory) {
         uint256 durationsCount = _maturities[market.maturity].durationCount;
 

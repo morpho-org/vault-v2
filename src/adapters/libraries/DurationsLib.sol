@@ -12,6 +12,7 @@ library DurationsLib {
     function get(bytes32 durations, uint256 index) internal pure returns (uint256) {
         require(index < MAX_DURATIONS, IndexOutOfBounds());
         unchecked {
+            // forge-lint: disable-next-item(unsafe-typecast) durations fit on 32 bits
             return uint32(uint256(durations >> (32 * index)));
         }
     }
