@@ -14,6 +14,7 @@ import {IMidnightAdapterSetterRatifier} from "./interfaces/IMidnightAdapterSette
 /// the root of the tree, the leaf index of the offer in the tree, and the proof of the offer in the tree.
 /// @dev The root should correspond to the root of the offer tree, which is a Merkle tree of offers.
 /// @dev The leaf index determines each hash order during merkle proof verification.
+/// @dev A root remains ratified if the allocator that ratified it loses its role.
 /// @dev Same tree format as Midnight's SetterRatifier.
 contract MidnightAdapterSetterRatifier is IMidnightAdapterSetterRatifier {
     mapping(address adapter => mapping(bytes32 root => bool)) public isRootRatified;
