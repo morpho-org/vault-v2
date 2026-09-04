@@ -54,13 +54,14 @@ contract MidnightAdapter is IMidnightAdapter {
     /* MANAGEMENT */
 
     address public skimRecipient;
+    uint256 public maturityModulo;
     bool public skipBufferCheck;
     mapping(address subRatifier => bool) public isSubRatifier;
 
     /* ACCOUNTING */
 
     /// @dev Maximum steps of an accrual.
-    /// @dev A maturity uses an availability slot iff it has some credit and is > now.
+    /// @dev A future maturity uses an availability slot once inserted, even if its credit returns to zero.
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_PENDING_MATURITIES = 50;
 
@@ -68,7 +69,7 @@ contract MidnightAdapter is IMidnightAdapter {
     uint128 public currentGrowth;
     uint48 public lastUpdate;
     uint8 public availableMaturities = MAX_PENDING_MATURITIES;
-    /// @dev Ascending linked list of the future maturities where the adapter has credit.
+    /// @dev Ascending linked list of the future maturities inserted by the adapter.
     /// @dev _maturities[0] is the list head, 0 terminates the list.
     mapping(uint256 timestamp => MaturityData) public _maturities;
     mapping(bytes32 marketId => MarketData) public _markets;
@@ -129,6 +130,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(offer.market.loanToken == asset, LoanAssetMismatch());
         require(offer.maker == address(this), IncorrectOwner());
         require(offer.callback == address(this), IncorrectCallbackAddress());
+        require(offer.market.maturity % maturityModulo == 0, IncorrectMaturity());
         // For buy offers, Midnight enforces receiverIfMakerIsSeller == address(0).
         require(offer.buy || offer.receiverIfMakerIsSeller == address(this), IncorrectReceiver());
         require(offer.buy || offer.reduceOnly, NoDebtCreation());
@@ -208,6 +210,12 @@ contract MidnightAdapter is IMidnightAdapter {
         emit Abdicate(selector);
     }
 
+    function setMaturityModulo(uint256 newMaturityModulo) external {
+        timelocked();
+        maturityModulo = newMaturityModulo;
+        emit SetMaturityModulo(newMaturityModulo);
+    }
+
     function setSkipBufferCheck(bool newSkipBufferCheck) external {
         timelocked();
         skipBufferCheck = newSkipBufferCheck;
@@ -257,6 +265,7 @@ contract MidnightAdapter is IMidnightAdapter {
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
         require(offer.market.loanToken == asset, LoanAssetMismatch());
+        require(offer.market.maturity % maturityModulo == 0, IncorrectMaturity());
         IMidnight(midnight)
             .take(
                 offer, ratifierData, units, address(this), offer.buy ? address(this) : address(0), address(this), hex""
@@ -321,7 +330,6 @@ contract MidnightAdapter is IMidnightAdapter {
         if (removedMaturities > 0) {
             availableMaturities += uint8(removedMaturities);
             _maturities[0].nextMaturity = maturity;
-            _maturities[maturity].prevMaturity = 0;
             currentGrowth = newGrowth;
         }
         newTotalAssets += uint256(newGrowth) * (block.timestamp - accrueFrom);
@@ -445,18 +453,18 @@ contract MidnightAdapter is IMidnightAdapter {
 
         // Insert the maturity in the list if needed
         if (maturityData.netCredit == boughtNetCredit && boughtNetCredit > 0 && market.maturity > block.timestamp) {
-            availableMaturities--;
             uint48 prevMaturity = 0;
             uint48 nextMaturity = _maturities[0].nextMaturity;
             while (nextMaturity != 0 && nextMaturity < market.maturity) {
                 prevMaturity = nextMaturity;
                 nextMaturity = _maturities[nextMaturity].nextMaturity;
             }
-            maturityData.prevMaturity = prevMaturity;
-            maturityData.nextMaturity = nextMaturity;
-            _maturities[prevMaturity].nextMaturity = market.maturity.toUint48();
-            _maturities[nextMaturity].prevMaturity = market.maturity.toUint48();
-            emit InsertMaturity(market.maturity);
+            if (nextMaturity != market.maturity) {
+                availableMaturities--;
+                maturityData.nextMaturity = nextMaturity;
+                _maturities[prevMaturity].nextMaturity = market.maturity.toUint48();
+                emit InsertMaturity(market.maturity);
+            }
         }
 
         emit Buy(marketId, paidAssets, boughtNetCredit, netCreditLoss);
@@ -526,13 +534,6 @@ contract MidnightAdapter is IMidnightAdapter {
         }
         maturityData.netCredit -= netCreditDecrease.toUint128();
         marketData.netCredit -= netCreditDecrease.toUint128();
-
-        if (maturityData.netCredit == 0 && maturity > block.timestamp) {
-            availableMaturities++;
-            _maturities[maturityData.prevMaturity].nextMaturity = maturityData.nextMaturity;
-            _maturities[maturityData.nextMaturity].prevMaturity = maturityData.prevMaturity;
-            emit RemoveMaturity(maturity);
-        }
     }
 
     /// @dev Returns the number of durations in packedDurations that are at most the time to maturity.

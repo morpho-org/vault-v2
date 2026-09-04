@@ -11,7 +11,6 @@ struct MaturityData {
     uint128 netCredit;
     uint120 growth;
     uint8 durationCount;
-    uint48 prevMaturity;
     uint48 nextMaturity;
 }
 
@@ -29,6 +28,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event Abdicate(bytes4 indexed selector);
     event IncreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
+    event SetMaturityModulo(uint256 newMaturityModulo);
     event SetIsSubRatifier(address indexed subRatifier, bool newIsSubRatifier);
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetSkipBufferCheck(bool newSkipBufferCheck);
@@ -51,6 +51,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error DataNotTimelocked();
     error BuyAtLoss();
     error IncorrectCallbackAddress();
+    error IncorrectMaturity();
     error IncorrectOffer();
     error IncorrectOwner();
     error IncorrectReceiver();
@@ -76,6 +77,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
+    function maturityModulo() external view returns (uint256);
     function _markets(bytes32 marketId) external view returns (uint128 netCredit, uint120 growth);
     function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
@@ -88,6 +90,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicate(bytes4 selector) external;
+    function setMaturityModulo(uint256 newMaturityModulo) external;
     function setSkipBufferCheck(bool newSkipBufferCheck) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
     function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external;
