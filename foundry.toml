@@ -21,11 +21,9 @@ ignore = [
     "test/**/*.sol",
 ]
 exclude_lints = [
-    "unsafe-typecast",
     "erc20-unchecked-transfer",
     "screaming-snake-case-immutable",
     "unaliased-plain-import",
-    "unused-import",
     "asm-keccak256",
     "mixed-case-function",
     "unsafe-cheatcode",
@@ -73,7 +71,7 @@ evm_version = "cancun"
 
 [[profile.default.compilation_restrictions]]
 paths = "src/adapters/MidnightAdapter.sol"
-optimizer_runs = 14733
+optimizer_runs = 14949
 
 # Midnight is compiled with its home repo's settings so it fits under EIP-170.
 [[profile.default.compilation_restrictions]]
@@ -100,8 +98,8 @@ optimizer_runs = 200
 evm_version = "cancun"
 
 [[profile.default.additional_compiler_profiles]]
-name = "14733-osaka"
-optimizer_runs = 14733
+name = "14949-osaka"
+optimizer_runs = 14949
 
 [[profile.default.additional_compiler_profiles]]
 name = "466-osaka"

@@ -70,8 +70,8 @@ contract MidnightAdapter is IMidnightAdapter {
     uint8 public availableMaturities = MAX_PENDING_MATURITIES;
     /// @dev Ascending linked list of the future maturities where the adapter has credit.
     /// @dev _maturities[0] is the list head, 0 terminates the list.
-    mapping(uint256 timestamp => MaturityData) public _maturities;
-    mapping(bytes32 marketId => MarketData) public _markets;
+    mapping(uint256 timestamp => MaturityData) internal _maturities;
+    mapping(bytes32 marketId => MarketData) internal _markets;
     /* CONSTRUCTOR */
 
     constructor(address _parentVault, address _midnight, uint256[] memory _durations) {
@@ -127,7 +127,7 @@ contract MidnightAdapter is IMidnightAdapter {
     function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {
         // Collaterals will be checked through vault ids.
         require(offer.market.loanToken == asset, LoanAssetMismatch());
-        require(offer.maker == address(this), IncorrectOwner());
+        require(offer.maker == address(this), IncorrectMaker());
         require(offer.callback == address(this), IncorrectCallbackAddress());
         // For buy offers, Midnight enforces receiverIfMakerIsSeller == address(0).
         require(offer.buy || offer.receiverIfMakerIsSeller == address(this), IncorrectReceiver());
@@ -266,12 +266,14 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Remove the maturity allocation from the duration ids that are > its time to maturity.
     function updateDurationCaps(uint256 maturity) external {
         MaturityData storage maturityData = _maturities[maturity];
+        if (maturityData.netCredit == 0) return;
         uint256 oldDurationCount = maturityData.durationCount;
         uint256 newDurationCount = durationCount(maturity);
+        // forge-lint: disable-next-item(unsafe-typecast) newDurationCount <= MAX_DURATIONS.
         maturityData.durationCount = uint8(newDurationCount);
         emit UpdateDurationCaps(maturity, newDurationCount, maturityData.netCredit);
         // VaultV2.deallocate requires allocation > 0 for each returned id.
-        if (newDurationCount < oldDurationCount && maturityData.netCredit > 0) {
+        if (newDurationCount < oldDurationCount) {
             bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationCount - newDurationCount);
             for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
                 zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
@@ -319,6 +321,7 @@ contract MidnightAdapter is IMidnightAdapter {
             removedMaturities++;
         }
         if (removedMaturities > 0) {
+            // forge-lint: disable-next-item(unsafe-typecast) removedMaturities <= MAX_PENDING_MATURITIES.
             availableMaturities += uint8(removedMaturities);
             _maturities[0].nextMaturity = maturity;
             _maturities[maturity].prevMaturity = 0;
@@ -347,6 +350,7 @@ contract MidnightAdapter is IMidnightAdapter {
         view
         returns (bytes32[] memory, int256)
     {
+        require(msg.sender == parentVault, NotAuthorized());
         require(caller == address(this), SelfAllocationOnly());
         // Return exactly the data passed to the function.
         assembly ("memory-safe") {
@@ -409,6 +413,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         MaturityData storage maturityData = _maturities[market.maturity];
         MarketData storage marketData = _markets[marketId];
+        // forge-lint: disable-next-item(unsafe-typecast) durationCount returns at most MAX_DURATIONS.
         if (maturityData.netCredit == 0) maturityData.durationCount = uint8(durationCount(market.maturity));
         uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
         // current net credit cannot be > accounted net credit + bought net credit
@@ -541,6 +546,7 @@ contract MidnightAdapter is IMidnightAdapter {
         while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;
     }
 
+    /// @dev Liquidation cursors are omitted from collateral ids.
     function ids(Market memory market) public view returns (bytes32[] memory) {
         uint256 durationsCount = _maturities[market.maturity].durationCount;
 
