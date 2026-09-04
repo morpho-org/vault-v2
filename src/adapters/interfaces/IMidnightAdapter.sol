@@ -53,7 +53,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error IncorrectCallbackAddress();
     error IncorrectMaturity();
     error IncorrectOffer();
-    error IncorrectOwner();
+    error IncorrectMaker();
     error IncorrectReceiver();
     error LoanAssetMismatch();
     error NotAuthorized();
@@ -78,7 +78,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
     function maturityModulo() external view returns (uint256);
-    function _markets(bytes32 marketId) external view returns (uint128 netCredit, uint120 growth);
+    function markets(bytes32 marketId) external view returns (MarketData memory);
     function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
     function skipBufferCheck() external view returns (bool);
