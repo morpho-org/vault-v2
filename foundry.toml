@@ -21,11 +21,8 @@ ignore = [
     "test/**/*.sol",
 ]
 exclude_lints = [
-    "erc20-unchecked-transfer",
     "screaming-snake-case-immutable",
-    "unaliased-plain-import",
     "asm-keccak256",
-    "mixed-case-function",
     "unsafe-cheatcode",
     "incorrect-shift",
     "block-timestamp",
