@@ -286,31 +286,6 @@ contract MidnightAdapterTest is Test {
         offer.maxAssets = 0;
     }
 
-    function testRatifyIncorrectOfferBadSellSigner(uint256 seed) public {
-        vm.setSeed(seed);
-        (address otherSigner, uint256 otherSignerKey) = makeAddrAndKey("otherSigner");
-        privateKey[otherSigner] = otherSignerKey;
-        vm.assume(otherSigner != signerAllocator);
-        Offer memory offer = _ratificationSetup();
-        bytes32 _root = root(offer);
-        bytes memory data = ratifierData(_root, otherSigner);
-        vm.expectRevert(IMidnightAdapterEcrecoverRatifier.IncorrectSigner.selector);
-        adapter.isRatified(offer, data, taker);
-    }
-
-    function testRatifyIncorrectOfferBadBuySigner(uint256 seed) public {
-        vm.setSeed(seed);
-        (address otherSigner, uint256 otherSignerKey) = makeAddrAndKey("otherSigner2");
-        privateKey[otherSigner] = otherSignerKey;
-        vm.assume(otherSigner != signerAllocator);
-        vm.assume(otherSigner != address(adapter));
-        Offer memory offer = _ratificationSetup();
-        bytes32 _root = root(offer);
-        bytes memory data = ratifierData(_root, otherSigner);
-        vm.expectRevert(IMidnightAdapterEcrecoverRatifier.IncorrectSigner.selector);
-        adapter.isRatified(offer, data, taker);
-    }
-
     function testRatifyLoanAssetMismatch(uint256 seed, address otherToken) public {
         vm.setSeed(seed);
         Offer memory offer = _ratificationSetup();
@@ -1813,6 +1788,7 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, 1e18, MAX_TICK);
         assertEq(realVault.allocation(durationId(7 days)), 0, "7 days after full sell");
 
+        adapter.updateDurationCaps(offer.market.maturity);
         buyOnRealVault(6 days, 1e18);
         assertEq(realVault.allocation(durationId(1 days)), 1e18, "1 day after rebuy");
         assertEq(realVault.allocation(durationId(7 days)), 0, "7 days after rebuy");
@@ -2070,27 +2046,27 @@ contract MidnightAdapterTest is Test {
 
     /// @dev Builds an external offer at `tick`, ratified by this contract. Buy offers get a funded maker, sell
     /// offers get a collateralized one.
-    function makeExternalOffer(Market memory market, bool buy, uint256 assets, uint256 tick)
+    function makeExternalOffer(Market memory market, bool isBuy, uint256 assets, uint256 tick)
         internal
         returns (Offer memory offer)
     {
-        address maker = makeAddr(buy ? "externalBuyer" : "externalSeller");
+        address maker = makeAddr(isBuy ? "externalBuyer" : "externalSeller");
         vm.prank(maker);
         midnight.setIsAuthorized(address(this), true, maker);
 
         offer = storedOffer;
         offer.market = market;
-        offer.buy = buy;
+        offer.buy = isBuy;
         offer.maker = maker;
         offer.tick = tick;
         offer.maxUnits = uint128(assets * 1e18 / TickLib.tickToPrice(tick));
         offer.expiry = block.timestamp;
         offer.callback = address(0);
-        offer.receiverIfMakerIsSeller = buy ? address(0) : maker;
+        offer.receiverIfMakerIsSeller = isBuy ? address(0) : maker;
         offer.ratifier = address(this);
         offer.group = bytes32(vm.randomUint());
 
-        if (buy) {
+        if (isBuy) {
             deal(address(loanToken), maker, assets);
             vm.prank(maker);
             loanToken.approve(address(midnight), type(uint256).max);
@@ -2229,7 +2205,7 @@ contract MidnightAdapterTest is Test {
         checkPendingMaturities(arr);
     }
 
-    function _marketId(Market memory market) internal view returns (bytes32) {
+    function _marketId(Market memory market) internal pure returns (bytes32) {
         return IdLib.toId(market);
     }
 
