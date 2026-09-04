@@ -421,7 +421,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         MaturityData storage maturityData = _maturities[market.maturity];
         MarketData storage marketData = _markets[marketId];
-        // forge-lint: disable-next-item(unsafe-typecast) durationCount returns at most MAX_DURATIONS.
+        // forge-lint: disable-next-item(unsafe-typecast) durationCount <= MAX_DURATIONS.
         if (maturityData.netCredit == 0) maturityData.durationCount = uint8(durationCount(market.maturity));
         uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
         // current net credit cannot be > accounted net credit + bought net credit
