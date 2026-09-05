@@ -29,9 +29,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 contract MidnightAdapter is IMidnightAdapter {
     using MathLib for uint256;
-    using MathLib for uint128;
     using MathLib for uint120;
-    using MathLib for int256;
     using DurationsLib for bytes32;
 
     /* IMMUTABLES */
@@ -246,12 +244,13 @@ contract MidnightAdapter is IMidnightAdapter {
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not call back.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
         // current net credit cannot be > accounted net credit
-        uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit(marketId);
+        uint256 netCreditDecrease = _markets[marketId].netCredit - currentNetCredit(marketId);
 
         decreaseNetCredit(marketId, market.maturity, netCreditDecrease);
 
+        // forge-lint: disable-next-item(unsafe-typecast) netCreditDecrease <= type(uint128).max.
         IVaultV2(parentVault)
-            .deallocate(address(this), abi.encode(ids(market), -netCreditDecrease.toInt256()), withdrawnAssets);
+            .deallocate(address(this), abi.encode(ids(market), -int256(netCreditDecrease)), withdrawnAssets);
         emit WithdrawToVault(marketId, withdrawnAssets, netCreditDecrease);
     }
 
@@ -267,14 +266,13 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Remove the maturity allocation from the duration ids that are > its time to maturity.
     function updateDurationCaps(uint256 maturity) external {
         MaturityData storage maturityData = _maturities[maturity];
-        if (maturityData.netCredit == 0) return;
         uint256 oldDurationCount = maturityData.durationCount;
         uint256 newDurationCount = durationCount(maturity);
-        // forge-lint: disable-next-item(unsafe-typecast) newDurationCount <= MAX_DURATIONS.
-        maturityData.durationCount = uint8(newDurationCount);
-        emit UpdateDurationCaps(maturity, newDurationCount, maturityData.netCredit);
         // VaultV2.deallocate requires allocation > 0 for each returned id.
-        if (newDurationCount < oldDurationCount) {
+        if (newDurationCount < oldDurationCount && maturityData.netCredit > 0) {
+            // forge-lint: disable-next-item(unsafe-typecast) newDurationCount <= MAX_DURATIONS.
+            maturityData.durationCount = uint8(newDurationCount);
+            emit UpdateDurationCaps(maturity, newDurationCount, maturityData.netCredit);
             bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationCount - newDurationCount);
             for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
                 zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
@@ -301,7 +299,7 @@ contract MidnightAdapter is IMidnightAdapter {
                 }
             }
         }
-        newTotalAssets += uint256(newGrowth) * (block.timestamp - lastUpdate);
+        newTotalAssets += newGrowth * (block.timestamp - lastUpdate);
 
         return (newGrowth, newTotalAssets);
     }
@@ -328,7 +326,7 @@ contract MidnightAdapter is IMidnightAdapter {
             nextMaturityFloor = newMin;
             currentGrowth = newGrowth;
         }
-        newTotalAssets += uint256(newGrowth) * (block.timestamp - lastUpdate);
+        newTotalAssets += newGrowth * (block.timestamp - lastUpdate);
 
         totalAssets = newTotalAssets.toUint128();
         lastUpdate = block.timestamp.toUint48();
@@ -381,11 +379,12 @@ contract MidnightAdapter is IMidnightAdapter {
             // forge-lint: disable-next-item(reentrancy-no-eth) view reentry is possible through a ratifier.
             IMidnight(midnight).take(offer, ratifierData, takeUnits, address(this), address(this), address(0), hex"");
             // current net credit cannot be > accounted net credit
-            uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit(marketId);
+            uint256 netCreditDecrease = _markets[marketId].netCredit - currentNetCredit(marketId);
             decreaseNetCredit(marketId, offer.market.maturity, netCreditDecrease);
 
             emit ForceDeallocate(marketId, sellerAssets, netCreditDecrease);
-            return (ids(offer.market), -netCreditDecrease.toInt256());
+            // forge-lint: disable-next-item(unsafe-typecast) netCreditDecrease <= type(uint128).max.
+            return (ids(offer.market), -int256(netCreditDecrease));
         } else {
             require(caller == address(this), SelfAllocationOnly());
             // Return exactly the data passed to the function.
@@ -418,7 +417,7 @@ contract MidnightAdapter is IMidnightAdapter {
         if (maturityData.netCredit == 0) maturityData.durationCount = uint8(durationCount(market.maturity));
         uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
         // current net credit cannot be > accounted net credit + bought net credit
-        uint256 netCreditLoss = uint256(marketData.netCredit) + boughtNetCredit - currentNetCredit(marketId);
+        uint256 netCreditLoss = marketData.netCredit + boughtNetCredit - currentNetCredit(marketId);
         decreaseNetCredit(marketId, market.maturity, netCreditLoss);
         uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
         if (callbackData.length > 0 && paidAssets > idleAssets) {
@@ -442,20 +441,19 @@ contract MidnightAdapter is IMidnightAdapter {
             marketData.growth += growthIncrease;
             maturityData.growth += growthIncrease;
             currentGrowth += growthIncrease;
+
+            if (maturityData.netCredit == 0 && boughtNetCredit > 0) {
+                pendingMaturities[pendingMaturitiesLength] = market.maturity.toUint48();
+                pendingMaturitiesLength++;
+                if (market.maturity < nextMaturityFloor) nextMaturityFloor = market.maturity.toUint48();
+                emit InsertMaturity(market.maturity);
+            }
         } else {
             totalAssets += boughtNetCredit.toUint128();
         }
 
         maturityData.netCredit += boughtNetCredit.toUint128();
         marketData.netCredit += boughtNetCredit.toUint128();
-
-        // Insert the maturity in the list if needed
-        if (maturityData.netCredit == boughtNetCredit && boughtNetCredit > 0 && market.maturity > block.timestamp) {
-            pendingMaturities[pendingMaturitiesLength] = market.maturity.toUint48();
-            pendingMaturitiesLength++;
-            if (market.maturity < nextMaturityFloor) nextMaturityFloor = market.maturity.toUint48();
-            emit InsertMaturity(market.maturity);
-        }
 
         emit Buy(marketId, paidAssets, boughtNetCredit, netCreditLoss);
         return CALLBACK_SUCCESS;
@@ -478,14 +476,15 @@ contract MidnightAdapter is IMidnightAdapter {
 
         uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
         // current net credit cannot be > accounted net credit
-        uint256 netCreditDecrease = uint256(_markets[marketId].netCredit) - currentNetCredit(marketId);
+        uint256 netCreditDecrease = _markets[marketId].netCredit - currentNetCredit(marketId);
         decreaseNetCredit(marketId, market.maturity, netCreditDecrease);
 
+        // forge-lint: disable-next-item(unsafe-typecast) netCreditDecrease <= type(uint128).max.
         IVaultV2(parentVault)
-            .deallocate(address(this), abi.encode(ids(market), -netCreditDecrease.toInt256()), sellerAssets);
+            .deallocate(address(this), abi.encode(ids(market), -int256(netCreditDecrease)), sellerAssets);
 
         if (!skipBufferCheck) {
-            uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(address(parentVault));
+            uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(parentVault);
             uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
             for (uint256 i = 0; i < adaptersLength; i++) {
                 vaultRealAssetsAfter += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
@@ -563,6 +562,4 @@ contract MidnightAdapter is IMidnightAdapter {
 
         return idsArray;
     }
-
-    /* UNUSED CALLBACKS */
 }
