@@ -147,6 +147,9 @@ contract MidnightAdapterTest is Test {
 
         factory = new MidnightAdapterFactory(allDurations);
         adapter = MidnightAdapter(factory.createMidnightAdapter(address(parentVault), address(midnight)));
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setMaturityModulo, (1)));
+        adapter.setMaturityModulo(1);
 
         ecrecoverRatifier = new MidnightAdapterEcrecoverRatifier();
         setterRatifier = new MidnightAdapterSetterRatifier();
@@ -794,6 +797,9 @@ contract MidnightAdapterTest is Test {
         VaultV2Mock otherVault = new VaultV2Mock(address(loanToken), owner, curator, otherAllocator, address(0));
         IMidnightAdapter otherAdapter =
             IMidnightAdapter(factory.createMidnightAdapter(address(otherVault), address(midnight)));
+        vm.prank(curator);
+        otherAdapter.submit(abi.encodeCall(IMidnightAdapter.setMaturityModulo, (1)));
+        otherAdapter.setMaturityModulo(1);
         vm.prank(otherAllocator);
         otherAdapter.setIsSubRatifier(address(ecrecoverRatifier), true);
         deal(address(loanToken), address(otherVault), 1_000_000e18);
@@ -916,6 +922,7 @@ contract MidnightAdapterTest is Test {
         assertEq(IMidnightAdapter(newAdapter).parentVault(), address(newVault), "parentVault");
         assertEq(IMidnightAdapter(newAdapter).midnight(), address(midnight), "midnight");
         assertEq(IMidnightAdapter(newAdapter).durations(), allDurations, "durations");
+        assertEq(IMidnightAdapter(newAdapter).maturityModulo(), 0, "maturityModulo");
         assertTrue(midnight.isAuthorized(newAdapter, newAdapter), "adapter is its own ratifier");
 
         // Fixed salt: one adapter per (vault, midnight) pair.
@@ -936,6 +943,36 @@ contract MidnightAdapterTest is Test {
             expectedPackedDurations |= bytes32(allDurations[i] << (32 * i));
         }
         assertEq(adapter.packedDurations(), expectedPackedDurations, "packedDurations");
+        assertEq(adapter.maturityModulo(), 1, "maturityModulo");
+    }
+
+    function testMaturityModulo() public {
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setMaturityModulo, (1 days)));
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.SetMaturityModulo(1 days);
+        adapter.setMaturityModulo(1 days);
+
+        Offer memory offer = storedOffer;
+        offer.market.maturity = 1;
+        vm.expectRevert(IMidnightAdapter.IncorrectMaturity.selector);
+        adapter.isRatified(offer, "", taker);
+
+        vm.prank(signerAllocator);
+        vm.expectRevert(IMidnightAdapter.IncorrectMaturity.selector);
+        adapter.take(offer, "", 0);
+    }
+
+    function testSetMaturityModuloUnauthorized(address caller) public {
+        vm.assume(caller != curator);
+        vm.prank(caller);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setMaturityModulo, (1 days)));
+    }
+
+    function testSetMaturityModuloNotTimelocked() public {
+        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
+        adapter.setMaturityModulo(1 days);
     }
 
     /* IDS */
@@ -1076,7 +1113,7 @@ contract MidnightAdapterTest is Test {
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
     }
 
-    function testOnBuyRemovesAndReinsertsMaturity() public {
+    function testOnBuyDoesNotReinsertMaturity() public {
         uint256 t0 = block.timestamp;
         buy(1 days, 1e18);
         Offer memory offer = buy(7 days, 1e18);
@@ -1089,10 +1126,6 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 0, 1e18, taker);
         midnight.supplyCollateral(offer.market, 1, 1e18, taker);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.RemoveMaturity(offer.market.maturity);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.InsertMaturity(offer.market.maturity);
-        vm.expectEmit(address(adapter));
         emit IMidnightAdapter.Buy(marketId, 1e18, 1e18, 1e18);
         take(offer);
 
@@ -1103,19 +1136,19 @@ contract MidnightAdapterTest is Test {
         assertPendingMaturities([t0 + 1 days, t0 + 7 days, t0 + 30 days]);
     }
 
-    function testSellClearsFirstMaturityAndReactivatesSlot() public {
-        checkSellClearsMaturityAndReactivatesSlot(0);
+    function testFullSellKeepsFirstMaturity() public {
+        checkFullSellKeepsMaturity(0);
     }
 
-    function testSellClearsMiddleMaturityAndReactivatesSlot() public {
-        checkSellClearsMaturityAndReactivatesSlot(25);
+    function testFullSellKeepsMiddleMaturity() public {
+        checkFullSellKeepsMaturity(25);
     }
 
-    function testSellClearsLastMaturityAndReactivatesSlot() public {
-        checkSellClearsMaturityAndReactivatesSlot(49);
+    function testFullSellKeepsLastMaturity() public {
+        checkFullSellKeepsMaturity(49);
     }
 
-    function checkSellClearsMaturityAndReactivatesSlot(uint256 soldIndex) internal {
+    function checkFullSellKeepsMaturity(uint256 soldIndex) internal {
         Offer memory soldOffer;
         for (uint256 i = 0; i < 50; i++) {
             Offer memory offer = buy(1 days + i, 1e18);
@@ -1126,15 +1159,13 @@ contract MidnightAdapterTest is Test {
         parentVault.setTotalAssets(1e18);
         sell(soldOffer.market, 1e18);
 
-        assertEq(pendingMaturitiesLength(), 49, "pendingMaturitiesLength after");
+        assertEq(pendingMaturitiesLength(), 50, "pendingMaturitiesLength after");
         uint256[] memory list = pendingMaturities();
+        bool found;
         for (uint256 i = 0; i < list.length; i++) {
-            assertNotEq(list[i], soldOffer.market.maturity, "sold maturity removed");
+            found = found || list[i] == soldOffer.market.maturity;
         }
-
-        buy(60 days, 1e18);
-
-        assertEq(pendingMaturitiesLength(), 50, "pendingMaturitiesLength final");
+        assertTrue(found, "sold maturity retained");
     }
 
     function testForceDeallocateThenUpdateDurationCaps() public {
@@ -1189,7 +1220,7 @@ contract MidnightAdapterTest is Test {
             sell(markets[i], 1e18);
         }
 
-        assertEq(pendingMaturitiesLength(), boughtNum - soldNum);
+        assertEq(pendingMaturitiesLength(), boughtNum);
     }
 
     function testOnBuyCanRealizeLoss() public {
@@ -1327,7 +1358,7 @@ contract MidnightAdapterTest is Test {
         assertPendingMaturities([t0 + 3, t0 + 1, t0 + 2]);
     }
 
-    function testMidPendingMaturityRemoval() public {
+    function testFullSellKeepsPendingMaturity() public {
         Offer memory smallest = buy(1, 1e18);
         Offer memory middle = buy(2, 1e18);
         Offer memory largest = buy(3, 1e18);
@@ -1335,7 +1366,19 @@ contract MidnightAdapterTest is Test {
         parentVault.setTotalAssets(1e18);
         sell(middle.market, 1e18);
 
-        assertPendingMaturities([smallest.market.maturity, largest.market.maturity]);
+        assertPendingMaturities([smallest.market.maturity, middle.market.maturity, largest.market.maturity]);
+    }
+
+    function testFullSellMaturityReactivatesOnExpiry() public {
+        Offer memory offer = buy(1, 1e18);
+
+        parentVault.setTotalAssets(1e18);
+        sell(offer.market, 1e18);
+        skip(1);
+        adapter.accrueInterest();
+
+        assertEq(adapter.availableMaturities(), 50, "availableMaturities");
+        assertPendingMaturitiesEmpty();
     }
 
     function testMultipleConsecutiveElapsedMaturitiesInOneAccrual() public {
@@ -1443,8 +1486,8 @@ contract MidnightAdapterTest is Test {
 
         assertEq(adapter.totalAssets(), 0, "totalAssets");
         assertEq(adapter.currentGrowth(), 0, "currentGrowth");
-        assertEq(pendingMaturitiesLength(), 0, "pendingMaturitiesLength");
-        assertPendingMaturitiesEmpty();
+        assertEq(pendingMaturitiesLength(), 1, "pendingMaturitiesLength");
+        assertPendingMaturities([offer.market.maturity]);
     }
 
     function testLossBeforeMaturityRemovesLinearValue() public {
@@ -2365,6 +2408,9 @@ contract MidnightAdapterTest is Test {
         vm.prank(owner);
         realVault.setCurator(curator);
         adapter = IMidnightAdapter(factory.createMidnightAdapter(address(realVault), address(midnight)));
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setMaturityModulo, (1)));
+        adapter.setMaturityModulo(1);
 
         submitAndCall(realVault, abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), true)));
