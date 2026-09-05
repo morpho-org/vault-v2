@@ -57,18 +57,17 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* ACCOUNTING */
 
+    /// @dev Maximum steps of an accrual.
+    /// @dev A maturity uses an availability slot iff it has some credit and is > now.
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_PENDING_MATURITIES = 50;
 
     uint128 public totalAssets;
     uint128 public currentGrowth;
     uint48 public lastUpdate;
-    uint8 public pendingMaturitiesLength;
-    /// @dev Used to avoid reading the entire pendingMaturities array most of the time.
-    uint48 public nextMaturityFloor = type(uint48).max;
-    /// @dev Unordered array of future maturities where the adapter has credit.
-    /// @dev Elements at index >= pendingMaturitiesLength should be ignored.
-    uint48[MAX_PENDING_MATURITIES] public pendingMaturities;
+    uint8 public availableMaturities = MAX_PENDING_MATURITIES;
+    /// @dev Ascending linked list of the future maturities where the adapter has credit.
+    /// @dev _maturities[0] is the list head, 0 terminates the list.
     mapping(uint256 timestamp => MaturityData) internal _maturities;
     mapping(bytes32 marketId => MarketData) internal _markets;
     /* CONSTRUCTOR */
@@ -289,17 +288,16 @@ contract MidnightAdapter is IMidnightAdapter {
 
         uint128 newGrowth = currentGrowth;
         uint256 newTotalAssets = totalAssets;
+        uint256 accrueFrom = lastUpdate;
+        uint48 maturity = _maturities[0].nextMaturity;
 
-        if (block.timestamp >= nextMaturityFloor) {
-            for (uint256 i = pendingMaturitiesLength; i > 0; i--) {
-                uint48 maturity = pendingMaturities[i - 1];
-                if (maturity <= block.timestamp) {
-                    newTotalAssets += uint256(_maturities[maturity].growth) * (maturity - lastUpdate);
-                    newGrowth -= _maturities[maturity].growth;
-                }
-            }
+        while (maturity != 0 && maturity <= block.timestamp) {
+            newTotalAssets += uint256(newGrowth) * (maturity - accrueFrom);
+            newGrowth -= _maturities[maturity].growth;
+            accrueFrom = maturity;
+            maturity = _maturities[maturity].nextMaturity;
         }
-        newTotalAssets += newGrowth * (block.timestamp - lastUpdate);
+        newTotalAssets += newGrowth * (block.timestamp - accrueFrom);
 
         return (newGrowth, newTotalAssets);
     }
@@ -309,24 +307,25 @@ contract MidnightAdapter is IMidnightAdapter {
 
         uint128 newGrowth = currentGrowth;
         uint256 newTotalAssets = totalAssets;
+        uint256 accrueFrom = lastUpdate;
+        uint48 maturity = _maturities[0].nextMaturity;
+        uint256 removedMaturities;
 
-        if (block.timestamp >= nextMaturityFloor) {
-            uint48 newMin = type(uint48).max;
-            for (uint256 i = pendingMaturitiesLength; i > 0; i--) {
-                uint48 maturity = pendingMaturities[i - 1];
-                if (maturity <= block.timestamp) {
-                    newTotalAssets += uint256(_maturities[maturity].growth) * (maturity - lastUpdate);
-                    newGrowth -= _maturities[maturity].growth;
-                    pendingMaturitiesLength--;
-                    pendingMaturities[i - 1] = pendingMaturities[pendingMaturitiesLength];
-                } else if (maturity < newMin) {
-                    newMin = maturity;
-                }
-            }
-            nextMaturityFloor = newMin;
+        while (maturity != 0 && maturity <= block.timestamp) {
+            newTotalAssets += uint256(newGrowth) * (maturity - accrueFrom);
+            newGrowth -= _maturities[maturity].growth;
+            accrueFrom = maturity;
+            maturity = _maturities[maturity].nextMaturity;
+            removedMaturities++;
+        }
+        if (removedMaturities > 0) {
+            // forge-lint: disable-next-item(unsafe-typecast) removedMaturities <= MAX_PENDING_MATURITIES.
+            availableMaturities += uint8(removedMaturities);
+            _maturities[0].nextMaturity = maturity;
+            _maturities[maturity].prevMaturity = 0;
             currentGrowth = newGrowth;
         }
-        newTotalAssets += newGrowth * (block.timestamp - lastUpdate);
+        newTotalAssets += newGrowth * (block.timestamp - accrueFrom);
 
         totalAssets = newTotalAssets.toUint128();
         lastUpdate = block.timestamp.toUint48();
@@ -443,9 +442,17 @@ contract MidnightAdapter is IMidnightAdapter {
             currentGrowth += growthIncrease;
 
             if (maturityData.netCredit == 0 && boughtNetCredit > 0) {
-                pendingMaturities[pendingMaturitiesLength] = market.maturity.toUint48();
-                pendingMaturitiesLength++;
-                if (market.maturity < nextMaturityFloor) nextMaturityFloor = market.maturity.toUint48();
+                availableMaturities--;
+                uint48 prevMaturity = 0;
+                uint48 nextMaturity = _maturities[0].nextMaturity;
+                while (nextMaturity != 0 && nextMaturity < market.maturity) {
+                    prevMaturity = nextMaturity;
+                    nextMaturity = _maturities[nextMaturity].nextMaturity;
+                }
+                maturityData.prevMaturity = prevMaturity;
+                maturityData.nextMaturity = nextMaturity;
+                _maturities[prevMaturity].nextMaturity = market.maturity.toUint48();
+                _maturities[nextMaturity].prevMaturity = market.maturity.toUint48();
                 emit InsertMaturity(market.maturity);
             }
         } else {
@@ -525,11 +532,10 @@ contract MidnightAdapter is IMidnightAdapter {
         marketData.netCredit -= netCreditDecrease.toUint128();
 
         if (maturityData.netCredit == 0 && maturity > block.timestamp) {
-            uint256 index;
-            while (pendingMaturities[index] != maturity) index++;
+            availableMaturities++;
+            _maturities[maturityData.prevMaturity].nextMaturity = maturityData.nextMaturity;
+            _maturities[maturityData.nextMaturity].prevMaturity = maturityData.prevMaturity;
             emit RemoveMaturity(maturity);
-            pendingMaturitiesLength--;
-            pendingMaturities[index] = pendingMaturities[pendingMaturitiesLength];
         }
     }
 
