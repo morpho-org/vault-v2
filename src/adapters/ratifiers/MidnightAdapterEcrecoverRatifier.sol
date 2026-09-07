@@ -42,7 +42,7 @@ contract MidnightAdapterEcrecoverRatifier is IMidnightAdapterEcrecoverRatifier {
         bytes32 structHash = keccak256(abi.encode(HashLib.offerTreeTypeHash(proof.length), root));
         bytes32 domainSeparator = keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, block.chainid, address(this)));
         bytes32 digest = keccak256(bytes.concat("\x19\x01", domainSeparator, structHash));
-        // forge-lint: disable-next-item(ecrecover) offer sizes & cancellation protects against reuse.
+        // forge-lint: disable-next-item(ecrecover) signature is meant to be reused.
         address signer = ecrecover(digest, sig.v, sig.r, sig.s);
         require(signer != address(0), IncorrectSigner());
         require(IVaultV2(IMidnightAdapter(offer.maker).parentVault()).isAllocator(signer), IncorrectSigner());
