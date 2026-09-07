@@ -13,8 +13,8 @@ import {
     AdaptiveCurveIrmLib
 } from "../../lib/morpho-blue-irm/src/adaptive-curve-irm/libraries/periphery/AdaptiveCurveIrmLib.sol";
 
-/// @dev Morpho Market V1 is also known as Morpho Blue.
-/// @dev This adapter must be used with Morpho Market V1 that are protected against inflation attacks with an initial
+/// @dev Morpho Blue is also known as Morpho Market V1; this adapter's name uses the latter.
+/// @dev This adapter must be used with Morpho Blue markets that are protected against inflation attacks with an initial
 /// supply. Following resource is relevant: https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
 /// @dev Rounding error losses on supply/withdraw are realizable.
 /// @dev If expectedSupplyAssets reverts for a market of the marketIds, realAssets will revert and the vault will not be
@@ -198,7 +198,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
         emit Allocate(marketId, newAllocation, mintedShares);
 
-        // forge-lint: disable-next-item(unsafe-typecast) safe because Market V1 bounds the total supply of the
+        // forge-lint: disable-next-item(unsafe-typecast) safe because Blue bounds the total supply of the
         // underlying token, and allocation is less than the max total assets of the vault.
         return (ids(marketParams), int256(newAllocation) - int256(oldAllocation));
     }
@@ -226,7 +226,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
         emit Deallocate(marketId, newAllocation, burnedShares);
 
-        // forge-lint: disable-next-item(unsafe-typecast) safe because Market V1 bounds the total supply of the
+        // forge-lint: disable-next-item(unsafe-typecast) safe because Blue bounds the total supply of the
         // underlying token, and allocation is less than the max total assets of the vault.
         return (ids(marketParams), int256(newAllocation) - int256(oldAllocation));
     }
