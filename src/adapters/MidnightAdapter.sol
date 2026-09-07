@@ -24,8 +24,8 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be
 /// deallocated, or to "" to take the liquidity in the vault's idle funds.
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
-/// @dev The array of capped durations must be of size <= 8, and strictly increasing. Durations must be > 0 and fit on 32 bits.
-///
+/// @dev The array of capped durations must be of size <= 8, and strictly increasing. Durations must be > 0 and fit on
+/// 32 bits.
 /// TIMELOCKS
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 contract MidnightAdapter is IMidnightAdapter {
