@@ -41,16 +41,16 @@ Share-price movement, rounding, previews, and equivalent entry points.
 
 Adapters report stable ids and keep the vault's allocation accounting aligned with their underlying positions.
 
-- [`IdsMorphoMarketV1AdapterV2.spec`](specs/IdsMorphoMarketV1AdapterV2.spec) checks that the Morpho Market V1 adapter always returns the three expected distinct ids.
+- [`IdsMorphoMarketV1AdapterV2.spec`](specs/IdsMorphoMarketV1AdapterV2.spec) checks that the Morpho Blue adapter always returns the three expected distinct ids.
 - [`IdsMorphoVaultV1Adapter.spec`](specs/IdsMorphoVaultV1Adapter.spec) checks the same properties for the Morpho Vault V1 adapter's single, constant adapter id.
-- [`AllocationMorphoMarketV1AdapterV2.spec`](specs/AllocationMorphoMarketV1AdapterV2.spec) checks that allocation and deallocation change every returned id by exactly the change reported by the Morpho Market V1 adapter and leave all other ids untouched.
+- [`AllocationMorphoMarketV1AdapterV2.spec`](specs/AllocationMorphoMarketV1AdapterV2.spec) checks that allocation and deallocation change every returned id by exactly the change reported by the Morpho Blue adapter and leave all other ids untouched.
   After either call, the adapter's allocation equals its expected supply assets.
   It also bounds the adapter's expected supply assets and shows that the adapter's internal supply-share is lower than or equal to its actual Morpho position.
 - [`AllocationMorphoVaultV1Adapter.spec`](specs/AllocationMorphoVaultV1Adapter.spec) checks that allocation and deallocation change every returned id by exactly the change reported by the Morpho Vault V1 adapter and leave all other ids untouched.
   After allocation or deallocation, the reported allocation equals the assets previewed from the adapter's MetaMorpho shares.
 - [`ChangesMorphoMarketV1AdapterV2.spec`](specs/ChangesMorphoMarketV1AdapterV2.spec) and [`ChangesMorphoVaultV1Adapter.spec`](specs/ChangesMorphoVaultV1Adapter.spec) check each adapter's returned allocation change.
   Allocating and deallocating zero assets report the same change from the same state, and no reported change can make the current allocation negative.
-- [`MarketIds.spec`](specs/MarketIds.spec) checks the Morpho Market V1 adapter's market list.
+- [`MarketIds.spec`](specs/MarketIds.spec) checks the Morpho Blue adapter's market list.
   Its entries are distinct, and a market with zero allocation is absent from the list.
 
 ## Caps and configuration delays
@@ -77,7 +77,7 @@ Privileged actions enforce their roles, while authorized accounts retain the ope
 - [`SentinelLiveness.spec`](specs/SentinelLiveness.spec) checks that a sentinel can always revoke pending data and decrease absolute or relative caps.
 - [`SentinelLivenessDeallocateMarketV1.spec`](specs/SentinelLivenessDeallocateMarketV1.spec) and [`SentinelLivenessDeallocateVaultV1.spec`](specs/SentinelLivenessDeallocateVaultV1.spec) check that a sentinel can deallocate through either supported adapter when the underlying withdrawal succeeds, the relevant allocations are positive, and the adapter's accounting result stays in range.
 - [`ForceDeallocate.spec`](specs/ForceDeallocate.spec) checks that `forceDeallocate` with zero requested assets remains callable to refresh allocation accounting, assuming the gates admit the exit, the adapter returns valid ids and changes, interest accrual is live, and the vault's accounting values are bounded.
-- [`RemoveMarketLiveness.spec`](specs/RemoveMarketLiveness.spec) checks that a liquid Morpho Market V1 position can be fully deallocated and removed.
+- [`RemoveMarketLiveness.spec`](specs/RemoveMarketLiveness.spec) checks that a liquid Morpho Blue position can be fully deallocated and removed.
   Deallocating its expected supply assets reduces that value to zero, and a zero-allocation market is removed from the adapter's active-market list.
 
 ## Gates and token transfers
@@ -87,7 +87,7 @@ Shares and assets move only through permitted paths and by the exact requested a
 - [`Gates.spec`](specs/Gates.spec) checks that a user who cannot receive shares never gains them and a user who cannot send shares never loses them.
   For asset transfers initiated by the vault, balances cannot increase or decrease contrary to the receive-assets or send-assets gate; adapter-initiated transfers are outside this property.
 - [`TokensNoAdapter.spec`](specs/TokensNoAdapter.spec) checks exact sender, receiver, and vault asset-balance changes on deposit and withdrawal when no liquidity adapter is configured.
-- [`TokensMorphoMarketV1AdapterV2.spec`](specs/TokensMorphoMarketV1AdapterV2.spec) checks the same flows through a Morpho Market V1 liquidity adapter.
+- [`TokensMorphoMarketV1AdapterV2.spec`](specs/TokensMorphoMarketV1AdapterV2.spec) checks the same flows through a Morpho Blue liquidity adapter.
   Deposits move assets from the sender into Morpho without leaving balances on the vault or adapter; withdrawals consume idle vault assets first, then Morpho liquidity, and pay the receiver exactly.
 - [`TokensMorphoVaultV1Adapter.spec`](specs/TokensMorphoVaultV1Adapter.spec) checks those token flows through a Morpho Vault V1 liquidity adapter and its underlying Morpho markets.
 - [`SkimMorphoMarketV1AdapterV2.spec`](specs/SkimMorphoMarketV1AdapterV2.spec) checks that `skim` does not change its reported assets.
@@ -99,7 +99,7 @@ Shares and assets move only through permitted paths and by the exact requested a
 
 The vault does not expose an untrusted callback after entering an unsafe intermediate state.
 
-- [`Reentrancy.spec`](specs/Reentrancy.spec) checks that entry points make no external calls outside the vault itself, registered supported adapters, the asset token, Morpho Market V1, and MetaMorpho V1, ensuring no reentrancy if the token and underlying markets are trusted not to reenter.
+- [`Reentrancy.spec`](specs/Reentrancy.spec) checks that entry points make no external calls outside the vault itself, registered supported adapters, the asset token, Morpho Blue, and Morpho Vault V1 (MetaMorpho), ensuring no reentrancy if the token and underlying markets are trusted not to reenter.
 - [`ReentrancyView.spec`](specs/ReentrancyView.spec) checks read-only reentrancy ordering: no external static calls in between storage writes.
   The rule assumes that calls to the asset’s `balanceOf`, adapters’ `realAssets`, gate checks, and the adapter registry do not reenter the vault.
   It excludes `forceDeallocate`, which composes the separately analyzed `deallocate` and `withdraw` paths.
@@ -109,7 +109,7 @@ The vault does not expose an untrusted callback after entering an unsafe interme
 Verification is performed according to the following modeling conventions:
 
 - loops are bounded according to each configuration file, using `loop_iter` and, where enabled, `optimistic_loop`; hashing loops are similarly modeled with `optimistic_hashing`;
-- vault-level properties summarize adapter calls with the id, cap, allocation, and liveness postconditions required by the rule, while adapter-level properties link the concrete adapters to Morpho Market V1 or MetaMorpho V1 harnesses;
+- vault-level properties summarize adapter calls with the id, cap, allocation, and liveness postconditions required by the rule, while adapter-level properties link the concrete adapters to Morpho Blue or Morpho Vault V1 (MetaMorpho) harnesses;
 - ERC-20 behavior is checked against the [`ERC20Standard`](https://github.com/morpho-org/metamorpho/blob/00da9ad27da8051bce663eeac02f3b9c0c0aa8d8/certora/dispatch/ERC20Standard.sol), [`ERC20NoRevert`](https://github.com/morpho-org/metamorpho/blob/00da9ad27da8051bce663eeac02f3b9c0c0aa8d8/certora/dispatch/ERC20NoRevert.sol), and [`ERC20USDT`](https://github.com/morpho-org/metamorpho/blob/00da9ad27da8051bce663eeac02f3b9c0c0aa8d8/certora/dispatch/ERC20USDT.sol) models.
   These cover standard reverting tokens, false-returning tokens, and tokens that omit return values; fee-on-transfer and reentrant tokens are not supported;
 - `multicall` is removed in properties that reason about a single entry point.

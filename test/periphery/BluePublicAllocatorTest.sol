@@ -8,7 +8,7 @@ import {BluePublicAllocator} from "../../src/periphery/blue-public-allocator/Blu
 import {IBluePublicAllocator} from "../../src/periphery/blue-public-allocator/interfaces/IBluePublicAllocator.sol";
 import {MorphoMarketV1AdapterV2} from "../../src/adapters/MorphoMarketV1AdapterV2.sol";
 
-/// @dev The public allocator is specialized to Morpho Market V1 (Morpho Blue) via the Morpho Market V1 adapter (V2).
+/// @dev The public allocator is specialized to Morpho Blue, via the MorphoMarketV1AdapterV2 adapter.
 /// These tests use a real vault + adapter + Morpho Blue markets so that the absolute cap is keyed by the exact
 /// per-market vault id (keccak256(abi.encode("this/marketParams", adapter, marketParams))).
 contract BluePublicAllocatorTest is MorphoMarketV1IntegrationTest {
