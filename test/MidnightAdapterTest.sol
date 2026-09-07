@@ -126,6 +126,7 @@ contract MidnightAdapterTest is Test {
     uint256 internal discountTick = TickLib.priceToTick(0.95e18, DEFAULT_TICK_SPACING);
 
     function setUp() public virtual {
+        vm.setEvmVersion("osaka");
         owner = makeAddr("owner");
         curator = makeAddr("curator");
         (signerAllocator, signerAllocatorPrivateKey) = makeAddrAndKey("signerAllocator");
