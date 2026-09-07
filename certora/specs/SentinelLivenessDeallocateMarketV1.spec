@@ -23,16 +23,16 @@ methods {
     // Assume that the adapter's withdraw call succeeds.
     function _.withdraw(MorphoMarketV1AdapterV2.MarketParams marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) external => summaryWithdraw(marketParams, assets, shares, onBehalf, receiver) expect(uint256, uint256);
 
-    // Transfers should not revert because market v1 sends back tokens to the adapter on withdraw.
+    // Transfers should not revert because Blue sends back tokens to the adapter on withdraw.
     function ERC20.transferFrom(address, address, uint256) external returns (bool) => NONDET;
 
-    // Assume that expectedSupplyAssets doesn't revert on market v1.
+    // Assume that expectedSupplyAssets doesn't revert on Blue.
     function MorphoMarketV1AdapterV2.expectedSupplyAssets(bytes32 marketId) internal returns (uint256) => summaryExpectedSupplyAssets(marketId);
 }
 
 function summaryExpectedSupplyAssets(bytes32 marketId) returns uint256 {
     uint256 assets;
-    require assets <= max_int256(), "safe because market v1 stores the total supply assets of the market in a uint128";
+    require assets <= max_int256(), "safe because Blue stores the total supply assets of the market in a uint128";
     return assets;
 }
 
