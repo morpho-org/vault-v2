@@ -21,7 +21,7 @@ The following adapters are currently available:
 
 - [Morpho Market V1 Adapter V2](./src/adapters/MorphoMarketV1AdapterV2.sol) — Morpho Market V1 is also known as Morpho Blue.
 - [Morpho Vault V1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
-- Morpho Market V2 Adapter. WIP
+- Midnight Adapter. WIP
 
 ### Caps
 
