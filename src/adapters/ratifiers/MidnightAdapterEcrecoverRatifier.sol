@@ -44,8 +44,8 @@ contract MidnightAdapterEcrecoverRatifier is IMidnightAdapterEcrecoverRatifier {
         bytes32 digest = keccak256(bytes.concat("\x19\x01", domainSeparator, structHash));
         // forge-lint: disable-next-item(ecrecover) signature is meant to be reused.
         address recovered = ecrecover(digest, sig.v, sig.r, sig.s);
-        require(signer != address(0), IncorrectSigner());
-        require(IVaultV2(IMidnightAdapter(offer.maker).parentVault()).isAllocator(signer), IncorrectSigner());
+        require(recovered != address(0), IncorrectSigner());
+        require(IVaultV2(IMidnightAdapter(offer.maker).parentVault()).isAllocator(recovered), IncorrectSigner());
 
         return CALLBACK_SUCCESS;
     }
