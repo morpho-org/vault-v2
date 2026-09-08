@@ -13,7 +13,7 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapter, MaturityData, MarketData, IAdapter} from "./interfaces/IMidnightAdapter.sol";
-import {DurationsLib} from "./libraries/DurationsLib.sol";
+import {DURATION_1, DURATION_2, DURATION_3, DURATION_4, DURATION_5} from "./interfaces/IMidnightAdapter.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest per market, aggregated by maturity.
 /// @dev Any interest excluded from growth due to rounding is realized immediately.
@@ -30,7 +30,6 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 contract MidnightAdapter is IMidnightAdapter {
     using MathLib for uint256;
     using MathLib for uint120;
-    using DurationsLib for bytes32;
 
     /* IMMUTABLES */
 
@@ -38,10 +37,6 @@ contract MidnightAdapter is IMidnightAdapter {
     address public immutable parentVault;
     address public immutable midnight;
     bytes32 public immutable adapterId;
-    /// @dev Durations that can be used to cap the time to maturity.
-    /// @dev Sorted in ascending order.
-    bytes32 public immutable packedDurations;
-    uint256 public immutable durationsLength;
 
     /* TIMELOCKS STORAGE */
 
@@ -74,7 +69,7 @@ contract MidnightAdapter is IMidnightAdapter {
     mapping(bytes32 marketId => MarketData) internal _markets;
     /* CONSTRUCTOR */
 
-    constructor(address _parentVault, address _midnight, uint256[] memory _durations) {
+    constructor(address _parentVault, address _midnight) {
         asset = IVaultV2(_parentVault).asset();
         parentVault = _parentVault;
         midnight = _midnight;
@@ -83,9 +78,6 @@ contract MidnightAdapter is IMidnightAdapter {
         SafeERC20Lib.safeApprove(asset, _midnight, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
         adapterId = keccak256(abi.encode("this", address(this)));
-
-        packedDurations = DurationsLib.pack(_durations);
-        durationsLength = _durations.length;
     }
 
     /* GETTERS */
@@ -97,17 +89,6 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Returns the growth of the market. Can be stale after maturity.
     function markets(bytes32 marketId) public view returns (MarketData memory) {
         return _markets[marketId];
-    }
-
-    /// @dev Returns the durations that can be capped.
-    /// @dev A market position fills the cap of any duration that was <= its time to maturity at the first buy of its
-    /// maturity, or at the last updateDurationCaps call for its maturity.
-    function durations() public view returns (uint256[] memory) {
-        uint256[] memory _durations = new uint256[](durationsLength);
-        for (uint256 i = 0; i < durationsLength; i++) {
-            _durations[i] = packedDurations.get(i);
-        }
-        return _durations;
     }
 
     /* RATIFIERS */
@@ -271,12 +252,25 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 newDurationCount = durationCount(maturity);
         // VaultV2.deallocate requires allocation > 0 for each returned id.
         if (newDurationCount < oldDurationCount && maturityData.netCredit > 0) {
-            // forge-lint: disable-next-item(unsafe-typecast) newDurationCount <= MAX_DURATIONS.
+            // forge-lint: disable-next-item(unsafe-typecast) newDurationCount <= 5.
             maturityData.durationCount = uint8(newDurationCount);
             emit UpdateDurationCaps(maturity, newDurationCount, maturityData.netCredit);
             bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationCount - newDurationCount);
-            for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
-                zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
+            uint256 i;
+            if (oldDurationCount >= 1) {
+                if (newDurationCount < 1) zeroedDurationsIds[i++] = durationId(DURATION_1);
+                if (oldDurationCount >= 2) {
+                    if (newDurationCount < 2) zeroedDurationsIds[i++] = durationId(DURATION_2);
+                    if (oldDurationCount >= 3) {
+                        if (newDurationCount < 3) zeroedDurationsIds[i++] = durationId(DURATION_3);
+                        if (oldDurationCount >= 4) {
+                            if (newDurationCount < 4) zeroedDurationsIds[i++] = durationId(DURATION_4);
+                            if (oldDurationCount >= 5) {
+                                if (newDurationCount < 5) zeroedDurationsIds[i++] = durationId(DURATION_5);
+                            }
+                        }
+                    }
+                }
             }
             bytes memory data = abi.encode(zeroedDurationsIds, -int256(uint256(maturityData.netCredit)));
             IVaultV2(parentVault).deallocate(address(this), data, 0);
@@ -414,7 +408,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         MaturityData storage maturityData = _maturities[market.maturity];
         MarketData storage marketData = _markets[marketId];
-        // forge-lint: disable-next-item(unsafe-typecast) durationCount <= MAX_DURATIONS.
+        // forge-lint: disable-next-item(unsafe-typecast) durationCount <= 5.
         if (maturityData.netCredit == 0) maturityData.durationCount = uint8(durationCount(market.maturity));
         uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
         // current net credit cannot be > accounted net credit + bought net credit
@@ -538,10 +532,19 @@ contract MidnightAdapter is IMidnightAdapter {
         }
     }
 
-    /// @dev Returns the number of durations in packedDurations that are at most the time to maturity.
-    function durationCount(uint256 maturity) internal view returns (uint256 count) {
+    function durationId(uint256 duration) internal pure returns (bytes32) {
+        return keccak256(abi.encode("duration", duration));
+    }
+
+    /// @dev Returns the number of duration thresholds that are at most the time to maturity.
+    function durationCount(uint256 maturity) internal view returns (uint256) {
         uint256 timeToMaturity = maturity.zeroFloorSub(block.timestamp);
-        while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;
+        if (timeToMaturity < DURATION_1) return 0;
+        else if (timeToMaturity < DURATION_2) return 1;
+        else if (timeToMaturity < DURATION_3) return 2;
+        else if (timeToMaturity < DURATION_4) return 3;
+        else if (timeToMaturity < DURATION_5) return 4;
+        else return 5;
     }
 
     /// @dev Liquidation cursors are omitted from collateral ids.
@@ -561,8 +564,18 @@ contract MidnightAdapter is IMidnightAdapter {
                 )
             );
         }
-        for (uint256 i = 0; i < durationsCount; i++) {
-            idsArray[j++] = keccak256(abi.encode("duration", packedDurations.get(i)));
+        if (durationsCount >= 1) {
+            idsArray[j++] = durationId(DURATION_1);
+            if (durationsCount >= 2) {
+                idsArray[j++] = durationId(DURATION_2);
+                if (durationsCount >= 3) {
+                    idsArray[j++] = durationId(DURATION_3);
+                    if (durationsCount >= 4) {
+                        idsArray[j++] = durationId(DURATION_4);
+                        if (durationsCount >= 5) idsArray[j++] = durationId(DURATION_5);
+                    }
+                }
+            }
         }
 
         return idsArray;

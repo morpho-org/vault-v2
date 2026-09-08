@@ -7,6 +7,12 @@ import {Market, Offer} from "lib/midnight/src/interfaces/IMidnight.sol";
 import {IBuyCallback, ISellCallback} from "lib/midnight/src/interfaces/ICallbacks.sol";
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
+uint256 constant DURATION_1 = 1 days;
+uint256 constant DURATION_2 = 7 days;
+uint256 constant DURATION_3 = 30 days;
+uint256 constant DURATION_4 = 90 days;
+uint256 constant DURATION_5 = 180 days;
+
 struct MaturityData {
     uint128 netCredit;
     uint120 growth;
@@ -75,7 +81,6 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function MAX_PENDING_MATURITIES() external view returns (uint8);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
-    function packedDurations() external view returns (bytes32);
     function markets(bytes32 marketId) external view returns (MarketData memory);
     function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
@@ -93,8 +98,6 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external;
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
-    function durations() external view returns (uint256[] memory);
-    function durationsLength() external view returns (uint256);
     function updateDurationCaps(uint256 maturity) external;
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external;
