@@ -474,6 +474,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(seller == address(this), NotSelf());
 
         accrueInterest();
+        // forge-lint: disable-next-item(reentrancy-no-eth) updatePosition does not call back.
         IMidnight(midnight).updatePosition(market, address(this));
 
         uint256 vaultRealAssetsBefore = IERC20(asset).balanceOf(parentVault);
