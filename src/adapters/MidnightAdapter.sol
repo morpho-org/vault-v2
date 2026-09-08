@@ -474,6 +474,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(seller == address(this), NotSelf());
 
         accrueInterest();
+        IMidnight(midnight).updatePosition(market, address(this));
 
         uint256 vaultRealAssetsBefore = IERC20(asset).balanceOf(parentVault);
         uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
