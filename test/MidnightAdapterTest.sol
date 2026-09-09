@@ -1377,6 +1377,23 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.netCredit(_marketId(offer.market)), 0);
     }
 
+    function testTakeDoesNotChargeRoundingLoss() public {
+        deal(address(loanToken), address(parentVault), 10);
+        Offer memory offer = buy(30 days, 10, discountTick);
+        assertEq(adapter.netCredit(_marketId(offer.market)), 10);
+        assertEq(adapter.realAssets(), 9);
+        parentVault.setTotalAssets(10);
+
+        Offer memory buyOffer = makeExternalOffer(offer.market, true, 5, discountTick);
+        vm.prank(signerAllocator);
+        adapter.take(buyOffer, "", 5);
+
+        assertEq(adapter.skipBufferAllowance(), 0);
+        assertEq(adapter.netCredit(_marketId(offer.market)), 5);
+        assertEq(adapter.realAssets(), 4);
+        assertEq(loanToken.balanceOf(address(parentVault)), 5);
+    }
+
     function testOutOfOrderInsertsStayTracked() public {
         Offer memory first = buy(3, 1e18);
         Offer memory second = buy(1, 1e18);
