@@ -50,10 +50,7 @@ contract MidnightAdapterLossRealizationFunder is IMidnightAdapterLossRealization
         emit WithdrawEth(receiver, assets);
     }
 
-    function realizeLoss(Market[] memory markets, address payable receiver)
-        external
-        returns (uint256 loss, uint256 paid)
-    {
+    function realizeLoss(Market[] memory markets, address payable receiver) external returns (uint256, uint256) {
         uint256 adapterAssets = IMidnightAdapter(adapter).realAssets();
         address asset = IMidnightAdapter(adapter).asset();
 
@@ -64,9 +61,9 @@ contract MidnightAdapterLossRealizationFunder is IMidnightAdapterLossRealization
             marketIds[i] = IdLib.toId(markets[i]);
         }
 
-        loss = adapterAssets - IMidnightAdapter(adapter).realAssets();
+        uint256 loss = adapterAssets - IMidnightAdapter(adapter).realAssets();
         if (loss > 0 && minimumLossBeforeIncentive > 0 && loss >= minimumLossBeforeIncentive) {
-            paid = incentive;
+            uint256 paid = incentive;
             // forge-lint: disable-next-item(arbitrary-send-eth) caller chooses the incentive receiver.
             (bool success,) = receiver.call{value: paid}("");
             require(success, EthTransferFailed());

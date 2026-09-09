@@ -26,7 +26,5 @@ interface IMidnightAdapterLossRealizationFunder {
     function setIncentive(uint256 newIncentive) external;
     function setMinimumLossBeforeIncentive(uint256 newMinimumLossBeforeIncentive) external;
     function withdraw(uint256 assets, address payable receiver) external;
-    function realizeLoss(Market[] memory markets, address payable receiver)
-        external
-        returns (uint256 loss, uint256 paid);
+    function realizeLoss(Market[] memory markets, address payable receiver) external returns (uint256, uint256);
 }
