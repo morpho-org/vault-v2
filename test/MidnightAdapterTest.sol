@@ -869,7 +869,8 @@ contract MidnightAdapterTest is Test {
                         "collateral",
                         market.collateralParams[i].token,
                         market.collateralParams[i].oracle,
-                        market.collateralParams[i].lltv
+                        market.collateralParams[i].lltv,
+                        market.collateralParams[i].liquidationCursor
                     )
                 )
             );
@@ -2442,11 +2443,19 @@ contract MidnightAdapterTest is Test {
         idDatas[0] = abi.encode("this", address(adapter));
         idDatas[1] = abi.encode("collateralToken", storedCollaterals[0].token);
         idDatas[2] = abi.encode(
-            "collateral", storedCollaterals[0].token, storedCollaterals[0].oracle, storedCollaterals[0].lltv
+            "collateral",
+            storedCollaterals[0].token,
+            storedCollaterals[0].oracle,
+            storedCollaterals[0].lltv,
+            storedCollaterals[0].liquidationCursor
         );
         idDatas[3] = abi.encode("collateralToken", storedCollaterals[1].token);
         idDatas[4] = abi.encode(
-            "collateral", storedCollaterals[1].token, storedCollaterals[1].oracle, storedCollaterals[1].lltv
+            "collateral",
+            storedCollaterals[1].token,
+            storedCollaterals[1].oracle,
+            storedCollaterals[1].lltv,
+            storedCollaterals[1].liquidationCursor
         );
         idDatas[5] = abi.encode("duration", uint256(1 days));
         idDatas[6] = abi.encode("duration", uint256(7 days));
