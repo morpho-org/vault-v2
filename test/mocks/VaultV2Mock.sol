@@ -14,6 +14,8 @@ contract VaultV2Mock {
     mapping(address => bool) public isSentinel;
     mapping(bytes32 => uint256) public allocation;
     uint256 public totalAssets;
+    /// @dev This stub is always accrued; real-vault tests cover transaction-scoped accrual.
+    uint256 public firstTotalAssets = 1;
     uint256 public adaptersLength;
     address[] public adapters;
     uint256 public _timelock;
