@@ -10,7 +10,7 @@ import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 struct MarketData {
     uint128 netCredit;
     uint128 lossFactor;
-    uint128 discount;
+    uint128 assets;
     uint48 maturity;
     uint48 lastUpdate;
     uint8 index;

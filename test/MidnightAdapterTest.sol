@@ -1617,6 +1617,8 @@ contract MidnightAdapterTest is Test {
         uint256 packed = uint256(vm.load(address(adapter), reads[0]));
         assertEq(uint128(packed), credit - pendingFee, "packed net credit");
         assertEq(packed >> 128, midnight.lossFactor(marketId), "packed loss factor");
+        uint256 packedAssets = uint256(vm.load(address(adapter), bytes32(uint256(reads[0]) + 1)));
+        assertEq(uint128(packedAssets), expectedValue, "assets packed in second market slot");
     }
 
     function testLossBeforeMaturityIsVisibleWithoutPing() public {
