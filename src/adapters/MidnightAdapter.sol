@@ -294,7 +294,7 @@ contract MidnightAdapter is IMidnightAdapter {
             } else {
                 newNetCredit = currentNetCredit(marketId, IMidnight(midnight).toMarket(marketId));
             }
-            assets += currentAssets(marketData, newNetCredit);
+            assets += currentAssets(marketData, uint256(marketData.netCredit) - newNetCredit);
         }
         return assets;
     }
@@ -381,7 +381,8 @@ contract MidnightAdapter is IMidnightAdapter {
         IVaultV2(parentVault)
             .allocate(
                 address(this),
-                abi.encode(ids(market), boughtNetCredit.toInt256() - netCreditLoss.toInt256()),
+                // forge-lint: disable-next-line(unsafe-typecast) both values are < 2**130.
+                abi.encode(ids(market), int256(boughtNetCredit) - int256(netCreditLoss)),
                 paidAssets
             );
 
@@ -403,7 +404,12 @@ contract MidnightAdapter is IMidnightAdapter {
         require(seller == address(this), NotSelf());
 
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        uint256 loss = currentAssets(_markets[marketId], soldNetCredit).zeroFloorSub(sellerAssets);
+        MarketData memory beforeUpdate = _markets[marketId];
+        uint256 soldAssets = soldNetCredit;
+        if (beforeUpdate.netCredit > 0) {
+            soldAssets = currentAssets(beforeUpdate, 0).mulDivDown(soldNetCredit, beforeUpdate.netCredit);
+        }
+        uint256 loss = soldAssets.zeroFloorSub(sellerAssets);
         uint256 netCreditDecrease = updateMarket(marketId, market, 0, 0);
 
         // forge-lint: disable-next-item(unsafe-typecast) netCreditDecrease <= type(uint128).max.
@@ -432,51 +438,63 @@ contract MidnightAdapter is IMidnightAdapter {
         return credit - pendingFee;
     }
 
-    function currentAssets(MarketData memory marketData, uint256 newNetCredit) internal view returns (uint256) {
-        if (marketData.assets == marketData.netCredit || block.timestamp >= marketData.maturity) return newNetCredit;
-        uint256 assets = marketData.assets
-            + (uint256(marketData.netCredit) - marketData.assets)
-            .mulDivDown(block.timestamp - marketData.lastUpdate, marketData.maturity - marketData.lastUpdate);
-        if (newNetCredit == marketData.netCredit) return assets;
-        return assets.mulDivDown(newNetCredit, marketData.netCredit);
+    function currentAssets(MarketData memory marketDataBeforeUpdate, uint256 netCreditDecrease)
+        internal
+        view
+        returns (uint256)
+    {
+        uint256 remainingNetCredit = uint256(marketDataBeforeUpdate.netCredit) - netCreditDecrease;
+        if (marketDataBeforeUpdate.netCredit == 0 || block.timestamp >= marketDataBeforeUpdate.maturity) {
+            return remainingNetCredit;
+        }
+        uint256 assets = marketDataBeforeUpdate.assets
+            + (uint256(marketDataBeforeUpdate.netCredit) - marketDataBeforeUpdate.assets)
+            .mulDivDown(
+                block.timestamp - marketDataBeforeUpdate.lastUpdate,
+                marketDataBeforeUpdate.maturity - marketDataBeforeUpdate.lastUpdate
+            );
+        return assets.mulDivDown(remainingNetCredit, marketDataBeforeUpdate.netCredit);
     }
 
+    /// @dev Returns the net credit decrease.
     function updateMarket(bytes32 marketId, Market memory market, uint256 boughtNetCredit, uint256 paidAssets)
         internal
-        returns (uint256 netCreditDecrease)
+        returns (uint256)
     {
         MarketData storage marketData = _markets[marketId];
         uint256 oldNetCredit = marketData.netCredit;
         uint256 newNetCredit = currentNetCredit(marketId, market);
-        // current net credit cannot be > accounted net credit + bought net credit
-        netCreditDecrease = oldNetCredit + boughtNetCredit - newNetCredit;
+        uint256 netCreditDecrease = oldNetCredit + boughtNetCredit - newNetCredit;
         marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
-        if (oldNetCredit == newNetCredit && boughtNetCredit == 0) return netCreditDecrease;
-
-        uint256 maturity = market.maturity;
-        uint256 assets = currentAssets(marketData, newNetCredit - boughtNetCredit);
-        assets += block.timestamp < maturity ? paidAssets : boughtNetCredit;
-        marketData.netCredit = newNetCredit.toUint128();
-        marketData.assets = assets.toUint128();
+        // forge-lint: disable-next-item(unsafe-typecast) assets <= newNetCredit <= type(uint128).max.
+        marketData.assets = uint128(
+            currentAssets(marketData, netCreditDecrease)
+                + (block.timestamp < market.maturity ? paidAssets : boughtNetCredit)
+        );
+        // forge-lint: disable-next-item(unsafe-typecast) currentNetCredit subtracts two uint128 values.
+        marketData.netCredit = uint128(newNetCredit);
         marketData.lastUpdate = block.timestamp.toUint48();
-        _maturities[maturity].netCredit =
-            (uint256(_maturities[maturity].netCredit) + newNetCredit - oldNetCredit).toUint128();
-
-        if (newNetCredit == 0) {
-            bytes32 lastMarketId = marketIds[marketIds.length - 1];
-            marketIds[marketData.index] = lastMarketId;
-            _markets[lastMarketId].index = marketData.index;
-            marketIds.pop();
-            marketData.index = 0;
-            emit RemoveMarket(marketId);
-        } else if (oldNetCredit == 0) {
-            require(marketIds.length < MAX_MARKETS, TooManyMarkets());
-            marketData.maturity = maturity.toUint48();
-            // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
-            marketData.index = uint8(marketIds.length);
-            marketIds.push(marketId);
-            emit InsertMarket(marketId);
+        _maturities[market.maturity].netCredit =
+            (uint256(_maturities[market.maturity].netCredit) + newNetCredit - oldNetCredit).toUint128();
+        if (oldNetCredit != newNetCredit || boughtNetCredit > 0) {
+            if (newNetCredit == 0 && oldNetCredit > 0) {
+                bytes32 lastMarketId = marketIds[marketIds.length - 1];
+                marketIds[marketData.index] = lastMarketId;
+                _markets[lastMarketId].index = marketData.index;
+                marketIds.pop();
+                marketData.index = 0;
+                emit RemoveMarket(marketId);
+            } else if (oldNetCredit == 0 && newNetCredit > 0) {
+                require(marketIds.length < MAX_MARKETS, TooManyMarkets());
+                marketData.maturity = market.maturity.toUint48();
+                // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
+                marketData.index = uint8(marketIds.length);
+                marketIds.push(marketId);
+                emit InsertMarket(marketId);
+            }
         }
+        // current net credit cannot be > accounted net credit + bought net credit
+        return oldNetCredit + boughtNetCredit - newNetCredit;
     }
 
     /// @dev Returns the number of durations in packedDurations that are at most the time to maturity.
