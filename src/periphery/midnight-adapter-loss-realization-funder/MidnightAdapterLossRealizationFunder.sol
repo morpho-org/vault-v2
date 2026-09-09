@@ -65,8 +65,9 @@ contract MidnightAdapterLossRealizationFunder is IMidnightAdapterLossRealization
         }
 
         loss = adapterAssets - IMidnightAdapter(adapter).realAssets();
-        if (loss >= minimumLossBeforeIncentive) {
+        if (loss > 0 && loss >= minimumLossBeforeIncentive) {
             paid = incentive;
+            // forge-lint: disable-next-item(arbitrary-send-eth) caller chooses the incentive receiver.
             (bool success,) = receiver.call{value: paid}("");
             require(success, EthTransferFailed());
             emit RealizeLoss(msg.sender, marketIds, loss, paid, receiver);
