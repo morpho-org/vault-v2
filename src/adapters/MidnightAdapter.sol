@@ -444,40 +444,38 @@ contract MidnightAdapter is IMidnightAdapter {
         internal
         returns (uint256 netCreditDecrease)
     {
-        MarketData memory marketData = _markets[marketId];
+        MarketData storage marketData = _markets[marketId];
         uint256 oldNetCredit = marketData.netCredit;
         uint256 newNetCredit = currentNetCredit(marketId, market);
         // current net credit cannot be > accounted net credit + bought net credit
         netCreditDecrease = oldNetCredit + boughtNetCredit - newNetCredit;
-        if (oldNetCredit == newNetCredit && boughtNetCredit == 0) {
-            _markets[marketId].lossFactor = IMidnight(midnight).lossFactor(marketId);
-            return netCreditDecrease;
-        }
+        marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
+        if (oldNetCredit == newNetCredit && boughtNetCredit == 0) return netCreditDecrease;
+
         uint256 maturity = market.maturity;
         uint256 discount = remainingDiscount(marketData, newNetCredit - boughtNetCredit);
         if (block.timestamp < maturity) discount += boughtNetCredit - paidAssets;
+        marketData.netCredit = newNetCredit.toUint128();
+        marketData.discount = discount.toUint128();
+        marketData.lastUpdate = block.timestamp.toUint48();
         _maturities[maturity].netCredit =
             (uint256(_maturities[maturity].netCredit) + newNetCredit - oldNetCredit).toUint128();
-        if (oldNetCredit > 0 && newNetCredit == 0) {
+
+        if (newNetCredit == 0) {
             bytes32 lastMarketId = marketIds[marketIds.length - 1];
             marketIds[marketData.index] = lastMarketId;
             _markets[lastMarketId].index = marketData.index;
             marketIds.pop();
             marketData.index = 0;
             emit RemoveMarket(marketId);
-        } else if (oldNetCredit == 0 && newNetCredit > 0) {
+        } else if (oldNetCredit == 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
+            marketData.maturity = maturity.toUint48();
             // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
             marketData.index = uint8(marketIds.length);
             marketIds.push(marketId);
             emit InsertMarket(marketId);
         }
-        marketData.netCredit = newNetCredit.toUint128();
-        marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
-        marketData.discount = discount.toUint128();
-        marketData.maturity = maturity.toUint48();
-        marketData.lastUpdate = block.timestamp.toUint48();
-        _markets[marketId] = marketData;
     }
 
     /// @dev Returns the number of durations in packedDurations that are at most the time to maturity.
