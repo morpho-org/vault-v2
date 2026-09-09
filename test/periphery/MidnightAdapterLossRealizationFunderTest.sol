@@ -196,7 +196,7 @@ contract MidnightAdapterLossRealizationFunderTest is Test {
         adapter.setLoss(markets[0], pendingLoss);
         vm.prank(owner);
         funder.setMinimumLossBeforeIncentive(minimumLoss);
-        uint256 expectedPaid = pendingLoss > 0 && pendingLoss >= minimumLoss ? 0.01 ether : 0;
+        uint256 expectedPaid = pendingLoss > 0 && minimumLoss > 0 && pendingLoss >= minimumLoss ? 0.01 ether : 0;
 
         vm.expectEmit(address(funder));
         emit IMidnightAdapterLossRealizationFunder.RealizeLoss(caller, marketIds(), pendingLoss, expectedPaid, receiver);
@@ -283,6 +283,19 @@ contract MidnightAdapterLossRealizationFunderTest is Test {
         assertEq(loss, 0);
         assertEq(paid, 0);
         assertEq(receiver.balance, 0);
+    }
+
+    function testZeroThresholdDoesNotPayForPositiveLoss() public {
+        vm.prank(owner);
+        funder.setMinimumLossBeforeIncentive(0);
+        adapter.setLoss(markets[0], 1e18);
+        contractReceiver.setRejects(true);
+        (uint256 loss, uint256 paid) = funder.realizeLoss(markets, payable(address(contractReceiver)));
+        assertEq(loss, 1e18);
+        assertEq(paid, 0);
+        assertEq(adapter.realAssets(), 99e18);
+        assertEq(contractReceiver.calls(), 0);
+        assertEq(address(funder).balance, 1 ether);
     }
 
     function testZeroIncentiveStillCallsReceiver() public {
