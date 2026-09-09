@@ -546,7 +546,6 @@ contract MidnightAdapter is IMidnightAdapter {
         while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;
     }
 
-    /// @dev Liquidation cursors are omitted from collateral ids.
     function ids(Market memory market) public view returns (bytes32[] memory) {
         uint256 durationsCount = _maturities[market.maturity].durationCount;
 
@@ -559,7 +558,11 @@ contract MidnightAdapter is IMidnightAdapter {
             idsArray[j++] = keccak256(abi.encode("collateralToken", collateralToken));
             idsArray[j++] = keccak256(
                 abi.encode(
-                    "collateral", collateralToken, market.collateralParams[i].oracle, market.collateralParams[i].lltv
+                    "collateral",
+                    collateralToken,
+                    market.collateralParams[i].oracle,
+                    market.collateralParams[i].lltv,
+                    market.collateralParams[i].liquidationCursor
                 )
             );
         }
