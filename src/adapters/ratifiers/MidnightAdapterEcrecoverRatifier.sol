@@ -10,8 +10,8 @@ import {IVaultV2} from "../../interfaces/IVaultV2.sol";
 import {IMidnightAdapter} from "../interfaces/IMidnightAdapter.sol";
 import {IMidnightAdapterEcrecoverRatifier} from "./interfaces/IMidnightAdapterEcrecoverRatifier.sol";
 
-/// @dev Sub-ratifier for MidnightAdapter offers: checks that the offer has been signed by an allocator of the maker
-/// adapter's parent vault in a Merkle tree of offers. To that end, it expects the ratifier data to contain the
+/// @dev Ratifier for MidnightAdapter offers: enforces offer checks and verifies that the offer has been signed by an
+/// allocator of the maker adapter's parent vault in a Merkle tree of offers. The ratifier data must contain the
 /// signature, the root of the tree, the leaf index of the offer, and the proof of the offer in the tree.
 /// @dev The root should correspond to the root of the offer tree, which is a Merkle tree of offers.
 /// @dev The leaf index determines each sibling's left/right position.
@@ -35,6 +35,13 @@ contract MidnightAdapterEcrecoverRatifier is IMidnightAdapterEcrecoverRatifier {
     }
 
     function isRatified(Offer memory offer, bytes memory ratifierData, address) external view returns (bytes32) {
+        // Collaterals will be checked through vault ids.
+        require(offer.market.loanToken == IMidnightAdapter(offer.maker).asset(), LoanAssetMismatch());
+        require(offer.callback == offer.maker, IncorrectCallbackAddress());
+        // For buy offers, Midnight enforces receiverIfMakerIsSeller == address(0).
+        require(offer.buy || offer.receiverIfMakerIsSeller == offer.maker, IncorrectReceiver());
+        require(offer.buy || offer.reduceOnly, NoDebtCreation());
+
         (Signature memory sig, bytes32 root, uint256 leafIndex, bytes32[] memory proof) =
             abi.decode(ratifierData, (Signature, bytes32, uint256, bytes32[]));
         require(HashLib.isLeaf(root, HashLib.hashOffer(offer), leafIndex, proof), InvalidProof());

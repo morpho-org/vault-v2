@@ -3,7 +3,6 @@
 pragma solidity 0.8.34;
 
 import {IMidnight, Offer, Market} from "lib/midnight/src/interfaces/IMidnight.sol";
-import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
 import {MAX_TICK} from "lib/midnight/src/libraries/TickLib.sol";
 import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
@@ -54,7 +53,6 @@ contract MidnightAdapter is IMidnightAdapter {
     address public skimRecipient;
     /// @dev Remaining allowance for losses not covered by the vault's buffer, in asset units.
     uint256 public skipBufferAllowance;
-    mapping(address subRatifier => bool) public isSubRatifier;
 
     /* ACCOUNTING */
 
@@ -78,7 +76,6 @@ contract MidnightAdapter is IMidnightAdapter {
         asset = IVaultV2(_parentVault).asset();
         parentVault = _parentVault;
         midnight = _midnight;
-        IMidnight(_midnight).setIsAuthorized(address(this), true, address(this));
         lastUpdate = block.timestamp.toUint48();
         SafeERC20Lib.safeApprove(asset, _midnight, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
@@ -108,34 +105,6 @@ contract MidnightAdapter is IMidnightAdapter {
             _durations[i] = packedDurations.get(i);
         }
         return _durations;
-    }
-
-    /* RATIFIERS */
-
-    /// @dev Sub-ratifiers can approve any offer of the adapter that passes the checks of isRatified, akin to
-    /// allocators signing offer trees.
-    function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external {
-        require(
-            IVaultV2(parentVault).isAllocator(msg.sender)
-                || (!newIsSubRatifier && IVaultV2(parentVault).isSentinel(msg.sender)),
-            NotAuthorized()
-        );
-        isSubRatifier[subRatifier] = newIsSubRatifier;
-        emit SetIsSubRatifier(subRatifier, newIsSubRatifier);
-    }
-
-    function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {
-        // Collaterals will be checked through vault ids.
-        require(offer.market.loanToken == asset, LoanAssetMismatch());
-        require(offer.maker == address(this), IncorrectMaker());
-        require(offer.callback == address(this), IncorrectCallbackAddress());
-        // For buy offers, Midnight enforces receiverIfMakerIsSeller == address(0).
-        require(offer.buy || offer.receiverIfMakerIsSeller == address(this), IncorrectReceiver());
-        require(offer.buy || offer.reduceOnly, NoDebtCreation());
-
-        (address subRatifier, bytes memory subData) = abi.decode(data, (address, bytes));
-        require(isSubRatifier[subRatifier], SubRatifierUnauthorized());
-        return IRatifier(subRatifier).isRatified(offer, subData, taker);
     }
 
     /* TIMELOCKS FUNCTIONS */
@@ -212,6 +181,13 @@ contract MidnightAdapter is IMidnightAdapter {
         timelocked();
         skipBufferAllowance = newSkipBufferAllowance;
         emit SetSkipBufferAllowance(newSkipBufferAllowance);
+    }
+
+    /// @dev The ratifier has full Midnight authorization and must enforce the adapter's offer checks.
+    function setIsRatifier(address ratifier, bool newIsRatifier) external {
+        timelocked();
+        IMidnight(midnight).setIsAuthorized(ratifier, newIsRatifier, address(this));
+        emit SetIsRatifier(ratifier, newIsRatifier);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {

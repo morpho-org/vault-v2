@@ -11,8 +11,12 @@ interface IMidnightAdapterEcrecoverRatifier is IRatifier {
 
     /* ERRORS */
 
+    error IncorrectCallbackAddress();
+    error IncorrectReceiver();
     error IncorrectSigner();
     error InvalidProof();
+    error LoanAssetMismatch();
+    error NoDebtCreation();
     error NotAuthorized();
     error RootCanceled();
 

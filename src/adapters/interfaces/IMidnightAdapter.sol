@@ -5,7 +5,6 @@ pragma solidity >=0.5.0;
 import {IAdapter} from "../../interfaces/IAdapter.sol";
 import {Market, Offer} from "lib/midnight/src/interfaces/IMidnight.sol";
 import {IBuyCallback, ISellCallback} from "lib/midnight/src/interfaces/ICallbacks.sol";
-import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
 struct MaturityData {
     uint128 netCredit;
@@ -18,7 +17,7 @@ struct MarketData {
     uint120 growth;
 }
 
-interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
+interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback {
     /* EVENTS */
 
     event Submit(bytes4 indexed selector, bytes data, uint256 executableAt);
@@ -27,7 +26,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event Abdicate(bytes4 indexed selector);
     event IncreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
-    event SetIsSubRatifier(address indexed subRatifier, bool newIsSubRatifier);
+    event SetIsRatifier(address indexed ratifier, bool newIsRatifier);
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetSkipBufferAllowance(uint256 newSkipBufferAllowance);
     event ConsumeSkipBufferAllowance(uint256 assets);
@@ -48,17 +47,12 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error DataAlreadyPending();
     error DataNotTimelocked();
     error BuyAtLoss();
-    error IncorrectCallbackAddress();
     error IncorrectOffer();
-    error IncorrectMaker();
-    error IncorrectReceiver();
     error LoanAssetMismatch();
     error NotAuthorized();
     error NotMidnight();
-    error NoDebtCreation();
     error NotSelf();
     error SelfAllocationOnly();
-    error SubRatifierUnauthorized();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();
@@ -89,8 +83,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicate(bytes4 selector) external;
     function setSkipBufferAllowance(uint256 newSkipBufferAllowance) external;
-    function isSubRatifier(address subRatifier) external view returns (bool);
-    function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external;
+    function setIsRatifier(address ratifier, bool newIsRatifier) external;
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);
