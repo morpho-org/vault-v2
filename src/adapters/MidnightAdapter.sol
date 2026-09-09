@@ -438,22 +438,13 @@ contract MidnightAdapter is IMidnightAdapter {
         return credit - pendingFee;
     }
 
-    function currentAssets(MarketData memory marketDataBeforeUpdate, uint256 netCreditDecrease)
-        internal
-        view
-        returns (uint256)
-    {
-        uint256 remainingNetCredit = uint256(marketDataBeforeUpdate.netCredit) - netCreditDecrease;
-        if (marketDataBeforeUpdate.netCredit == 0 || block.timestamp >= marketDataBeforeUpdate.maturity) {
-            return remainingNetCredit;
-        }
-        uint256 assets = marketDataBeforeUpdate.assets
-            + (uint256(marketDataBeforeUpdate.netCredit) - marketDataBeforeUpdate.assets)
-            .mulDivDown(
-                block.timestamp - marketDataBeforeUpdate.lastUpdate,
-                marketDataBeforeUpdate.maturity - marketDataBeforeUpdate.lastUpdate
-            );
-        return assets.mulDivDown(remainingNetCredit, marketDataBeforeUpdate.netCredit);
+    function currentAssets(MarketData memory marketData, uint256 netCreditDecrease) internal view returns (uint256) {
+        uint256 remainingNetCredit = uint256(marketData.netCredit) - netCreditDecrease;
+        if (marketData.netCredit == 0 || block.timestamp >= marketData.maturity) return remainingNetCredit;
+        uint256 assets = marketData.assets
+            + (uint256(marketData.netCredit) - marketData.assets)
+            .mulDivDown(block.timestamp - marketData.lastUpdate, marketData.maturity - marketData.lastUpdate);
+        return assets.mulDivDown(remainingNetCredit, marketData.netCredit);
     }
 
     /// @dev Returns the net credit decrease.
