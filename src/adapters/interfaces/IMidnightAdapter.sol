@@ -7,6 +7,11 @@ import {Market, Offer} from "lib/midnight/src/interfaces/IMidnight.sol";
 import {IBuyCallback, ISellCallback} from "lib/midnight/src/interfaces/ICallbacks.sol";
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
+struct MarketData {
+    uint128 netCredit;
+    uint128 lossFactor;
+}
+
 struct MaturityData {
     uint128 netCredit;
     uint8 durationCount;

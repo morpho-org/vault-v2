@@ -1441,6 +1441,55 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketIdsLength(), 0, "marketIdsLength");
     }
 
+    function testRealAssetsUsesCachedNetCredit(uint256 elapsed) public {
+        elapsed = bound(elapsed, 0, 60 days);
+        midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
+        Offer memory offer = buy(30 days, 1e18, discountTick);
+        bytes32 marketId = _marketId(offer.market);
+        uint128 netCredit = adapter.netCredit(marketId);
+
+        skip(elapsed);
+        (uint128 credit, uint128 pendingFee,) = midnight.updatePosition(offer.market, address(adapter));
+        assertEq(credit - pendingFee, netCredit, "continuous fees preserve net credit");
+
+        vm.mockCallRevert(address(midnight), abi.encodeCall(IMidnight.toMarket, (marketId)), "position read");
+        assertEq(adapter.realAssets(), netCredit, "cached net credit");
+    }
+
+    function testRealAssetsLossFallbackAndCacheSynchronization(uint256 units) public {
+        units = bound(units, 1000, 100e18);
+        midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
+        Offer memory offer = buy(30 days, units, discountTick);
+        bytes32 marketId = _marketId(offer.market);
+        uint128 netCreditBefore = adapter.netCredit(marketId);
+        skip(15 days);
+
+        OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE / 4);
+        OracleMock(storedCollaterals[1].oracle).setPrice(ORACLE_PRICE_SCALE / 4);
+        midnight.liquidate(offer.market, 0, 0, 0, taker, false, address(this), address(0), "");
+
+        (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(offer.market, marketId, address(adapter));
+        assertLt(credit - pendingFee, netCreditBefore, "loss realized");
+        assertEq(adapter.realAssets(), credit - pendingFee, "exact Midnight rounding");
+        assertEq(adapter.netCredit(marketId), netCreditBefore, "view does not update the cache");
+
+        midnight.updatePosition(offer.market, address(adapter));
+        assertEq(adapter.realAssets(), credit - pendingFee, "permissionless position update");
+
+        vm.prank(signerAllocator);
+        adapter.withdrawToVault(offer.market, 0);
+        vm.mockCallRevert(address(midnight), abi.encodeCall(IMidnight.toMarket, (marketId)), "position read");
+        assertEq(adapter.realAssets(), credit - pendingFee, "cached after synchronization");
+
+        vm.record();
+        assertEq(adapter.netCredit(marketId), credit - pendingFee, "netCredit");
+        (bytes32[] memory reads,) = vm.accesses(address(adapter));
+        assertEq(reads.length, 1, "one cache slot");
+        uint256 packed = uint256(vm.load(address(adapter), reads[0]));
+        assertEq(uint128(packed), credit - pendingFee, "packed net credit");
+        assertEq(packed >> 128, midnight.lossFactor(marketId), "packed loss factor");
+    }
+
     function testLossBeforeMaturityIsVisibleWithoutPing() public {
         uint256 duration = 30 days;
         Offer memory offer = buy(duration, 1e18, discountTick);
