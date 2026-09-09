@@ -12,7 +12,7 @@ import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {IMidnightAdapter, MaturityData, IAdapter} from "./interfaces/IMidnightAdapter.sol";
+import {IMidnightAdapter, MarketData, MaturityData, IAdapter} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// @dev Values all tracked markets at their current credit minus pending fees, including unrealized position losses.
@@ -61,8 +61,8 @@ contract MidnightAdapter is IMidnightAdapter {
     uint8 public constant MAX_MARKETS = 250;
 
     bytes32[] public marketIds;
-    /// @dev Net credit last reported to the vault's caps.
-    mapping(bytes32 marketId => uint128) public netCredit;
+    /// @dev Net credit last reported to the vault's caps and its associated loss factor.
+    mapping(bytes32 marketId => MarketData) internal _markets;
     mapping(uint256 timestamp => MaturityData) internal _maturities;
     /* CONSTRUCTOR */
 
@@ -80,6 +80,10 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /* GETTERS */
+
+    function netCredit(bytes32 marketId) external view returns (uint128) {
+        return _markets[marketId].netCredit;
+    }
 
     function maturities(uint256 date) public view returns (MaturityData memory) {
         return _maturities[date];
@@ -237,7 +241,7 @@ contract MidnightAdapter is IMidnightAdapter {
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
         // current net credit cannot be > accounted net credit
         uint256 newNetCredit = currentNetCredit(marketId);
-        uint256 netCreditDecrease = netCredit[marketId] - newNetCredit;
+        uint256 netCreditDecrease = _markets[marketId].netCredit - newNetCredit;
 
         updateMarket(marketId, market.maturity, newNetCredit);
 
@@ -282,7 +286,17 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 assets;
         uint256 length = marketIds.length;
         for (uint256 i = 0; i < length; i++) {
-            assets += currentNetCredit(marketIds[i]);
+            bytes32 marketId = marketIds[i];
+            MarketData memory marketData = _markets[marketId];
+            // An unsettled sale changes credit even when the loss factor is unchanged.
+            if (
+                marketData.lossFactor == IMidnight(midnight).lossFactor(marketId)
+                    && !IMidnight(midnight).liquidationLocked(marketId, address(this))
+            ) {
+                assets += marketData.netCredit;
+            } else {
+                assets += currentNetCredit(marketId);
+            }
         }
         return assets;
     }
@@ -326,7 +340,7 @@ contract MidnightAdapter is IMidnightAdapter {
             IMidnight(midnight).take(offer, ratifierData, takeUnits, address(this), address(this), address(0), hex"");
             // current net credit cannot be > accounted net credit
             uint256 newNetCredit = currentNetCredit(marketId);
-            uint256 netCreditDecrease = netCredit[marketId] - newNetCredit;
+            uint256 netCreditDecrease = _markets[marketId].netCredit - newNetCredit;
             updateMarket(marketId, offer.market.maturity, newNetCredit);
 
             emit ForceDeallocate(marketId, sellerAssets, netCreditDecrease);
@@ -362,7 +376,7 @@ contract MidnightAdapter is IMidnightAdapter {
         if (maturityData.netCredit == 0) maturityData.durationCount = uint8(durationCount(market.maturity));
         // current net credit cannot be > accounted net credit + bought net credit
         uint256 newNetCredit = currentNetCredit(marketId);
-        uint256 netCreditLoss = netCredit[marketId] + boughtNetCredit - newNetCredit;
+        uint256 netCreditLoss = _markets[marketId].netCredit + boughtNetCredit - newNetCredit;
         updateMarket(marketId, market.maturity, newNetCredit);
         uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
         if (callbackData.length > 0 && paidAssets > idleAssets) {
@@ -398,7 +412,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         // current net credit cannot be > accounted net credit
         uint256 newNetCredit = currentNetCredit(marketId);
-        uint256 netCreditDecrease = netCredit[marketId] - newNetCredit;
+        uint256 netCreditDecrease = _markets[marketId].netCredit - newNetCredit;
         updateMarket(marketId, market.maturity, newNetCredit);
 
         // forge-lint: disable-next-item(unsafe-typecast) netCreditDecrease <= type(uint128).max.
@@ -430,10 +444,11 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     function updateMarket(bytes32 marketId, uint256 maturity, uint256 newNetCredit) internal {
-        uint256 oldNetCredit = netCredit[marketId];
+        uint256 oldNetCredit = _markets[marketId].netCredit;
         _maturities[maturity].netCredit =
             (uint256(_maturities[maturity].netCredit) + newNetCredit - oldNetCredit).toUint128();
-        netCredit[marketId] = newNetCredit.toUint128();
+        _markets[marketId] =
+            MarketData({netCredit: newNetCredit.toUint128(), lossFactor: IMidnight(midnight).lossFactor(marketId)});
 
         if (oldNetCredit > 0 && newNetCredit == 0) {
             uint256 index;
