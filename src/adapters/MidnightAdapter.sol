@@ -435,9 +435,9 @@ contract MidnightAdapter is IMidnightAdapter {
     function currentAssets(MarketData memory marketData, uint256 netCreditDecrease) internal view returns (uint256) {
         uint256 remainingNetCredit = uint256(marketData.netCredit) - netCreditDecrease;
         if (marketData.netCredit == 0 || block.timestamp >= marketData.maturity) return remainingNetCredit;
-        uint256 assets = marketData.assets
-            + (uint256(marketData.netCredit) - marketData.assets)
-            .mulDivDown(block.timestamp - marketData.lastUpdate, marketData.maturity - marketData.lastUpdate);
+        uint256 futureInterest = (uint256(marketData.netCredit) - marketData.assets)
+        .mulDivUp(marketData.maturity - block.timestamp, marketData.maturity - marketData.lastUpdate);
+        uint256 assets = marketData.netCredit - futureInterest;
         return assets.mulDivDown(remainingNetCredit, marketData.netCredit);
     }
 
