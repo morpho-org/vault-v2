@@ -437,6 +437,8 @@ contract MidnightAdapter is IMidnightAdapter {
         return credit - pendingFee;
     }
 
+    /// @dev Interpolates the position assets to now, then scale them down if the position decreased since the last
+    /// update.
     function currentAssets(MarketData memory marketData, uint256 netCreditDecrease) internal view returns (uint256) {
         uint256 remainingNetCredit = uint256(marketData.netCredit) - netCreditDecrease;
         if (marketData.netCredit == 0 || block.timestamp >= marketData.maturity) return remainingNetCredit;
