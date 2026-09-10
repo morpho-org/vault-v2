@@ -36,7 +36,6 @@ import {
 } from "../lib/midnight/src/libraries/ConstantsLib.sol";
 import {TakeAmountsLib} from "../lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 import {SetterRatifier} from "../lib/midnight/src/ratifiers/SetterRatifier.sol";
-import {stdError} from "../lib/forge-std/src/StdError.sol";
 
 contract ExtraAssetsAdapter is IAdapter {
     uint256 public realAssets;
@@ -1173,142 +1172,8 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = buy(0, 1e18);
         parentVault.setTotalAssets(1e18);
 
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.BufferTooLow.selector);
         sellUnits(offer.market, 1e18, MAX_TICK - 4);
-    }
-
-    function testSetSkipBufferAllowanceNotTimelocked() public {
-        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
-        adapter.setSkipBufferAllowance(1e18);
-    }
-
-    function testSetSkipBufferAllowanceNotAuthorized(address caller) public {
-        vm.assume(caller != curator);
-        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
-        vm.prank(caller);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferAllowance, (1e18)));
-    }
-
-    function testSetSkipBufferAllowanceTimelockNotExpired(uint256 timelockDuration) public {
-        timelockDuration = bound(timelockDuration, 1, 3650 days);
-        submitTimelock(IMidnightAdapter.setSkipBufferAllowance.selector, timelockDuration);
-
-        vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferAllowance, (1e18)));
-
-        vm.expectRevert(IMidnightAdapter.TimelockNotExpired.selector);
-        adapter.setSkipBufferAllowance(1e18);
-
-        skip(timelockDuration);
-        adapter.setSkipBufferAllowance(1e18);
-        assertEq(adapter.skipBufferAllowance(), 1e18);
-    }
-
-    function testSetSkipBufferAllowanceAbdicated() public {
-        vm.startPrank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferAllowance, (1e18)));
-        adapter.submit(abi.encodeCall(IMidnightAdapter.abdicate, (IMidnightAdapter.setSkipBufferAllowance.selector)));
-        vm.stopPrank();
-        adapter.abdicate(IMidnightAdapter.setSkipBufferAllowance.selector);
-
-        vm.expectRevert(IMidnightAdapter.Abdicated.selector);
-        adapter.setSkipBufferAllowance(1e18);
-        assertEq(adapter.skipBufferAllowance(), 0);
-    }
-
-    function testOnSellSkipBufferAllowanceConsumed(uint256 allowance) public {
-        uint256 loss = 1e18 - TickLib.tickToPrice(MAX_TICK - 4);
-        allowance = bound(allowance, loss, type(uint256).max);
-        deal(address(loanToken), address(parentVault), 1e18);
-        Offer memory offer = buy(0, 1e18);
-        parentVault.setTotalAssets(1e18);
-
-        vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferAllowance, (allowance)));
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.SetSkipBufferAllowance(allowance);
-        adapter.setSkipBufferAllowance(allowance);
-        assertEq(adapter.skipBufferAllowance(), allowance);
-
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.ConsumeSkipBufferAllowance(loss);
-        sellUnits(offer.market, 1e18, MAX_TICK - 4);
-
-        uint128 marketNetCredit = adapter.netCredit(_marketId(offer.market));
-        assertEq(marketNetCredit, 0, "sold below par with no buffer");
-        assertEq(adapter.skipBufferAllowance(), allowance - loss);
-    }
-
-    function testOnSellSkipBufferAllowanceTooLowReverts(uint256 allowance) public {
-        uint256 loss = 1e18 - TickLib.tickToPrice(MAX_TICK - 4);
-        allowance = bound(allowance, 0, loss - 1);
-        deal(address(loanToken), address(parentVault), 1e18);
-        Offer memory offer = buy(0, 1e18);
-        parentVault.setTotalAssets(1e18);
-
-        setSkipBufferAllowance(allowance);
-
-        vm.expectRevert(stdError.arithmeticError);
-        sellUnits(offer.market, 1e18, MAX_TICK - 4);
-
-        assertEq(adapter.skipBufferAllowance(), allowance);
-        assertEq(adapter.netCredit(_marketId(offer.market)), 1e18);
-        assertEq(adapter.realAssets(), 1e18);
-    }
-
-    function testOnSellSkipBufferAllowanceUsesBuffer(uint256 buffer) public {
-        uint256 loss = 1e18 - TickLib.tickToPrice(MAX_TICK - 4);
-        buffer = bound(buffer, 0, 2 * loss);
-        deal(address(loanToken), address(parentVault), 1e18);
-        Offer memory offer = buy(0, 1e18);
-        extraAssetsAdapter.setRealAssets(buffer);
-        parentVault.setTotalAssets(1e18);
-
-        setSkipBufferAllowance(loss);
-        sellUnits(offer.market, 1e18, MAX_TICK - 4);
-
-        assertEq(adapter.skipBufferAllowance(), loss - loss.zeroFloorSub(buffer));
-    }
-
-    function testOnSellSkipBufferAllowanceSharedAcrossMarkets() public {
-        deal(address(loanToken), address(parentVault), 2e18);
-        Offer memory offerA = buy(0, 1e18);
-        Offer memory offerB = buy(1 days, 1e18);
-        parentVault.setTotalAssets(2e18);
-
-        setSkipBufferAllowance(1.5e18);
-        sellUnits(offerA.market, 0.75e18, 0);
-        assertEq(adapter.skipBufferAllowance(), 0.75e18);
-        sellUnits(offerB.market, 0.75e18, 0);
-        assertEq(adapter.skipBufferAllowance(), 0);
-
-        vm.expectRevert(stdError.arithmeticError);
-        sellUnits(offerA.market, 0.25e18, 0);
-    }
-
-    function testOnSellSkipBufferAllowanceCoversNetCredit() public {
-        deal(address(loanToken), address(parentVault), 1e18);
-        Offer memory offer = buy(7 days, 1e18, discountTick);
-        uint256 value = adapter.realAssets();
-        parentVault.setTotalAssets(value + loanToken.balanceOf(address(parentVault)));
-
-        setSkipBufferAllowance(value);
-        sellUnits(offer.market, offer.maxUnits, 0);
-
-        assertEq(adapter.skipBufferAllowance(), 0);
-        assertEq(adapter.realAssets(), 0);
-    }
-
-    function testOnSellSkipBufferAllowanceDoesNotIncreaseOnProfit() public {
-        deal(address(loanToken), address(parentVault), 1e18);
-        Offer memory offer = buy(7 days, 1e18, discountTick);
-        deal(address(loanToken), taker, offer.maxUnits);
-        parentVault.setTotalAssets(adapter.realAssets() + loanToken.balanceOf(address(parentVault)));
-
-        setSkipBufferAllowance(1e18);
-        sellUnits(offer.market, offer.maxUnits, MAX_TICK);
-
-        assertEq(adapter.skipBufferAllowance(), 1e18);
     }
 
     function testOnSellBufferBigEnough() public {
@@ -1334,7 +1199,7 @@ contract MidnightAdapterTest is Test {
         parentVault.setTotalAssets(1e18);
 
         Offer memory buyOffer = makeExternalOffer(offer.market, true, 1e18, MAX_TICK - 4);
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.BufferTooLow.selector);
         vm.prank(signerAllocator);
         adapter.take(buyOffer, "", 1e18);
     }
@@ -1356,22 +1221,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), 0);
     }
 
-    function testTakeSkipBufferAllowanceConsumed() public {
-        uint256 loss = 1e18 - TickLib.tickToPrice(MAX_TICK - 4);
-        deal(address(loanToken), address(parentVault), 1e18);
-        Offer memory offer = buy(0, 1e18);
-        parentVault.setTotalAssets(1e18);
-
-        setSkipBufferAllowance(loss);
-        Offer memory buyOffer = makeExternalOffer(offer.market, true, 1e18, MAX_TICK - 4);
-        vm.prank(signerAllocator);
-        adapter.take(buyOffer, "", 1e18);
-
-        assertEq(adapter.skipBufferAllowance(), 0);
-        assertEq(adapter.netCredit(_marketId(offer.market)), 0);
-    }
-
-    function testTakeDoesNotChargeRoundingLoss() public {
+    function testTakeRoundingShortfallRequiresBuffer() public {
         deal(address(loanToken), address(parentVault), 10);
         Offer memory offer = buy(30 days, 10, discountTick);
         assertEq(adapter.netCredit(_marketId(offer.market)), 10);
@@ -1379,10 +1229,14 @@ contract MidnightAdapterTest is Test {
         parentVault.setTotalAssets(10);
 
         Offer memory buyOffer = makeExternalOffer(offer.market, true, 5, discountTick);
+        vm.expectRevert(IMidnightAdapter.BufferTooLow.selector);
         vm.prank(signerAllocator);
         adapter.take(buyOffer, "", 5);
 
-        assertEq(adapter.skipBufferAllowance(), 0);
+        extraAssetsAdapter.setRealAssets(1);
+        vm.prank(signerAllocator);
+        adapter.take(buyOffer, "", 5);
+
         assertEq(adapter.netCredit(_marketId(offer.market)), 5);
         assertEq(adapter.realAssets(), 4);
         assertEq(loanToken.balanceOf(address(parentVault)), 5);
@@ -1526,11 +1380,11 @@ contract MidnightAdapterTest is Test {
         parentVault.setTotalAssets(1e18);
         uint256 sellTick = TickLib.priceToTick(0.93e18, DEFAULT_TICK_SPACING);
 
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.BufferTooLow.selector);
         sellUnits(offer.market, offer.maxUnits / 2, sellTick);
     }
 
-    function testSaleAtAmortizedCostAfterLossDoesNotConsumeAllowance() public {
+    function testSaleAtAmortizedCostRequiresVaultLossRealization() public {
         deal(address(loanToken), address(parentVault), 1e18);
         Offer memory offer = buy(30 days, 1e18, discountTick);
         parentVault.setTotalAssets(1e18);
@@ -1540,9 +1394,13 @@ contract MidnightAdapterTest is Test {
         midnight.liquidate(offer.market, 0, 0, 0, taker, false, address(this), address(0), "");
         (uint128 credit,,) = midnight.updatePositionView(offer.market, _marketId(offer.market), address(adapter));
 
+        vm.expectRevert(IMidnightAdapter.BufferTooLow.selector);
         sellUnits(offer.market, credit, discountTick);
 
-        assertEq(adapter.skipBufferAllowance(), 0, "no allowance needed");
+        parentVault.setTotalAssets(adapter.realAssets() + loanToken.balanceOf(address(parentVault)));
+        sellUnits(offer.market, credit, discountTick);
+
+        assertGe(loanToken.balanceOf(address(parentVault)), parentVault.totalAssets(), "vault assets covered");
         assertEq(adapter.realAssets(), 0, "position sold");
         assertLt(loanToken.balanceOf(address(parentVault)), 1e18, "market loss remains");
     }
@@ -2143,8 +2001,8 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev Credit can be sold for zero to abandon a market whose oracle permanently reverts.
-    function testAbandonMarketWithRevertingOracle() public {
+    /// @dev Credit can be sold for zero with sufficient buffer to abandon a market whose oracle permanently reverts.
+    function testAbandonMarketWithRevertingOracleUsingBuffer() public {
         setUpRealVault();
         Offer memory boughtOffer = buyOnRealVault(7 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
@@ -2157,9 +2015,8 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.lossFactor(marketId), 0, "loss not realized");
         assertEq(realVault.totalAssets(), 10e18, "market still fully valued");
 
-        vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferAllowance, (1e18)));
-        adapter.setSkipBufferAllowance(1e18);
+        realVault.accrueInterest();
+        deal(address(loanToken), address(realVault), loanToken.balanceOf(address(realVault)) + 1e18);
 
         address buyer = makeAddr("buyer");
         Offer memory sellOffer = makeSellOffer(boughtOffer.market, 1e18, 0);
@@ -2169,52 +2026,12 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.credit(marketId, buyer), 1e18, "buyer credit");
         assertEq(midnight.debt(marketId, taker), 1e18, "borrower debt");
         assertEq(adapter.realAssets(), 0, "adapter realAssets");
-        assertEq(realVault.totalAssets(), 9e18, "loss realized");
-        assertEq(adapter.skipBufferAllowance(), 0, "allowance consumed");
+        assertEq(realVault.totalAssets(), 10e18, "buffer covers the loss");
 
         bytes32[] memory marketIds = adapter.ids(boughtOffer.market);
         for (uint256 i = 0; i < marketIds.length; i++) {
             assertEq(realVault.allocation(marketIds[i]), 0, "allocation");
         }
-    }
-
-    /// forge-config: default.isolate = false
-    function testSkipBufferAllowanceConsumedSameTransactionRealVault() public {
-        setUpRealVault();
-        Offer memory offer = buyOnRealVault(7 days, 2e18);
-        realVault.accrueInterest();
-        assertEq(realVault.firstTotalAssets(), 10e18);
-
-        setSkipBufferAllowance(2e18);
-        sellUnits(offer.market, 1e18, 0);
-        assertEq(adapter.skipBufferAllowance(), 1e18);
-        sellUnits(offer.market, 1e18, 0);
-        assertEq(adapter.skipBufferAllowance(), 0);
-        assertEq(realVault.totalAssets(), 10e18, "vault accounting fixed for transaction");
-        assertEq(loanToken.balanceOf(address(realVault)), 8e18);
-        assertEq(adapter.realAssets(), 0);
-    }
-
-    /// forge-config: default.isolate = true
-    function testSkipBufferAllowanceNotReusedAfterLossRealized() public {
-        setUpRealVault();
-        Offer memory offer = buyOnRealVault(7 days, 2e18);
-
-        setSkipBufferAllowance(1e18);
-        sellUnits(offer.market, 1e18, 0);
-        assertEq(adapter.skipBufferAllowance(), 0);
-        realVault.accrueInterest();
-        assertEq(realVault.totalAssets(), 9e18);
-
-        vm.expectRevert(stdError.arithmeticError);
-        sellUnits(offer.market, 1e18, 0);
-        assertEq(adapter.skipBufferAllowance(), 0);
-        assertEq(adapter.netCredit(_marketId(offer.market)), 1e18);
-
-        setSkipBufferAllowance(1e18);
-        sellUnits(offer.market, 1e18, 0);
-        assertEq(adapter.skipBufferAllowance(), 0);
-        assertEq(realVault.totalAssets(), 8e18);
     }
 
     /* STALE DURATION IDS */
@@ -2588,12 +2405,6 @@ contract MidnightAdapterTest is Test {
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMidnightAdapter.increaseTimelock, (selector, duration)));
         adapter.increaseTimelock(selector, duration);
-    }
-
-    function setSkipBufferAllowance(uint256 allowance) internal {
-        vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferAllowance, (allowance)));
-        adapter.setSkipBufferAllowance(allowance);
     }
 
     function take(Offer memory offer) internal {

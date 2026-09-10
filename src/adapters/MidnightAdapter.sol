@@ -51,8 +51,6 @@ contract MidnightAdapter is IMidnightAdapter {
     /* MANAGEMENT */
 
     address public skimRecipient;
-    /// @dev Remaining allowance for losses not covered by the vault's buffer, in asset units.
-    uint256 public skipBufferAllowance;
     mapping(address subRatifier => bool) public isSubRatifier;
 
     /* ACCOUNTING */
@@ -201,12 +199,6 @@ contract MidnightAdapter is IMidnightAdapter {
         timelocked();
         abdicated[selector] = true;
         emit Abdicate(selector);
-    }
-
-    function setSkipBufferAllowance(uint256 newSkipBufferAllowance) external {
-        timelocked();
-        skipBufferAllowance = newSkipBufferAllowance;
-        emit SetSkipBufferAllowance(newSkipBufferAllowance);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -385,8 +377,8 @@ contract MidnightAdapter is IMidnightAdapter {
         bytes32 marketId,
         Market memory market,
         uint256 sellerAssets,
-        uint256 soldCredit,
-        uint256 sellPendingFeeDecrease,
+        uint256,
+        uint256,
         address seller,
         address,
         bytes memory
@@ -394,10 +386,6 @@ contract MidnightAdapter is IMidnightAdapter {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
 
-        uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        MarketData memory beforeUpdate = _markets[marketId];
-        uint256 soldAssets = soldNetCredit - futureInterest(beforeUpdate, soldNetCredit);
-        uint256 loss = soldAssets.zeroFloorSub(sellerAssets);
         int256 change = updateMarket(marketId, market, 0, 0);
 
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
@@ -407,11 +395,7 @@ contract MidnightAdapter is IMidnightAdapter {
         for (uint256 i = 0; i < adaptersLength; i++) {
             vaultRealAssetsAfter += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
         }
-        uint256 consumed = MathLib.min(loss, IVaultV2(parentVault).totalAssets().zeroFloorSub(vaultRealAssetsAfter));
-        if (consumed > 0) {
-            skipBufferAllowance -= consumed;
-            emit ConsumeSkipBufferAllowance(consumed);
-        }
+        require(vaultRealAssetsAfter >= IVaultV2(parentVault).totalAssets(), BufferTooLow());
 
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
         emit Sell(marketId, sellerAssets, uint256(-change));
