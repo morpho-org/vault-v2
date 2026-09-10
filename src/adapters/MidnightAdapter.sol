@@ -285,7 +285,6 @@ contract MidnightAdapter is IMidnightAdapter {
             bytes32 marketId = marketIds[i];
             MarketData memory marketData = _markets[marketId];
             uint256 newNetCredit;
-            // An unsettled sale changes credit even when the loss factor is unchanged.
             if (
                 marketData.lossFactor == IMidnight(midnight).lossFactor(marketId)
                     && !IMidnight(midnight).liquidationLocked(marketId, address(this))
@@ -433,7 +432,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* INTERNAL FUNCTIONS */
 
-    function currentNetCredit(bytes32 marketId, Market memory market) internal view returns (uint256) {
+    function currentNetCredit(bytes32 marketId, Market memory market) internal view returns (uint128) {
         (uint128 credit, uint128 pendingFee,) = IMidnight(midnight).updatePositionView(market, marketId, address(this));
         return credit - pendingFee;
     }
@@ -454,7 +453,7 @@ contract MidnightAdapter is IMidnightAdapter {
     {
         MarketData storage marketData = _markets[marketId];
         uint256 oldNetCredit = marketData.netCredit;
-        uint256 newNetCredit = currentNetCredit(marketId, market);
+        uint128 newNetCredit = currentNetCredit(marketId, market);
         uint256 netCreditDecrease = oldNetCredit + boughtNetCredit - newNetCredit;
         marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
         // forge-lint: disable-next-item(unsafe-typecast) assets <= newNetCredit <= type(uint128).max.
@@ -462,28 +461,24 @@ contract MidnightAdapter is IMidnightAdapter {
             currentAssets(marketData, netCreditDecrease)
                 + (block.timestamp < market.maturity ? paidAssets : boughtNetCredit)
         );
-        // forge-lint: disable-next-item(unsafe-typecast) currentNetCredit subtracts two uint128 values.
-        marketData.netCredit = uint128(newNetCredit);
+        marketData.netCredit = newNetCredit;
         marketData.lastUpdate = block.timestamp.toUint48();
         _maturities[market.maturity].netCredit =
             (uint256(_maturities[market.maturity].netCredit) + newNetCredit - oldNetCredit).toUint128();
-        if (oldNetCredit != newNetCredit || boughtNetCredit > 0) {
-            if (newNetCredit == 0 && oldNetCredit > 0) {
-                bytes32 lastMarketId = marketIds[marketIds.length - 1];
-                marketIds[marketData.index] = lastMarketId;
-                _markets[lastMarketId].index = marketData.index;
-                marketIds.pop();
-                marketData.index = 0;
-                emit RemoveMarket(marketId);
-            } else if (oldNetCredit == 0 && newNetCredit > 0) {
-                require(marketIds.length < MAX_MARKETS, TooManyMarkets());
-                marketData.maturity = market.maturity.toUint48();
-                // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
-                marketData.index = uint8(marketIds.length);
-                marketIds.push(marketId);
-                emit InsertMarket(marketId);
-            }
+        if (newNetCredit == 0 && oldNetCredit > 0) {
+            bytes32 lastMarketId = marketIds[marketIds.length - 1];
+            marketIds[marketData.index] = lastMarketId;
+            _markets[lastMarketId].index = marketData.index;
+            marketIds.pop();
+            marketData.index = 0;
+        } else if (oldNetCredit == 0 && newNetCredit > 0) {
+            require(marketIds.length < MAX_MARKETS, TooManyMarkets());
+            marketData.maturity = market.maturity.toUint48();
+            // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
+            marketData.index = uint8(marketIds.length);
+            marketIds.push(marketId);
         }
+        emit UpdateMarket(marketId, marketData.netCredit, marketData.assets);
         // current net credit cannot be > accounted net credit + bought net credit
         return oldNetCredit + boughtNetCredit - newNetCredit;
     }

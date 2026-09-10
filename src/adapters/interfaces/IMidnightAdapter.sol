@@ -40,8 +40,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event ForceDeallocate(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 netCreditLoss);
     event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
-    event RemoveMarket(bytes32 indexed marketId);
-    event InsertMarket(bytes32 indexed marketId);
+    event UpdateMarket(bytes32 indexed marketId, uint256 netCredit, uint256 assets);
 
     /* ERRORS */
 

@@ -1025,7 +1025,7 @@ contract MidnightAdapterTest is Test {
         parentVault.setTotalAssets(1e18);
         bytes32 movedMarket = adapter.marketIds(249);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.RemoveMarket(_marketId(soldOffer.market));
+        emit IMidnightAdapter.UpdateMarket(_marketId(soldOffer.market), 0, 0);
         sell(soldOffer.market, 1e18);
 
         assertEq(adapter.marketIdsLength(), 249, "marketIdsLength after");
@@ -1458,6 +1458,15 @@ contract MidnightAdapterTest is Test {
         assertMarkets([_marketId(first.market)]);
     }
 
+    function testUpdateMarketOnBuy() public {
+        Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.UpdateMarket(_marketId(offer.market), 1e18, 1e18);
+        take(offer);
+    }
+
     /* ACCRUAL */
 
     function testPurchaseDiscountAccruesLinearly() public {
@@ -1506,6 +1515,8 @@ contract MidnightAdapterTest is Test {
         skip(1 days);
         uint256 valueBefore = adapter.realAssets();
 
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.UpdateMarket(_marketId(offer.market), offer.maxUnits, valueBefore);
         vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, 0);
         assertEq(adapter.realAssets(), valueBefore, "no discount realized by synchronization");
@@ -1622,6 +1633,8 @@ contract MidnightAdapterTest is Test {
         midnight.updatePosition(offer.market, address(adapter));
         assertEq(adapter.realAssets(), expectedValue, "permissionless position update");
 
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.UpdateMarket(marketId, credit - pendingFee, expectedValue);
         vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, 0);
         vm.mockCallRevert(address(midnight), abi.encodeCall(IMidnight.toMarket, (marketId)), "position read");
@@ -1688,7 +1701,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketIdsLength(), 1, "market still tracked");
 
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.RemoveMarket(marketId);
+        emit IMidnightAdapter.UpdateMarket(marketId, 0, 0);
         vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, 0);
 
