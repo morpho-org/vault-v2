@@ -67,6 +67,8 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
 
     function asset() external view returns (address);
     function totalNetCredit() external view returns (uint256);
+    function lastFutureInterest() external view returns (uint256);
+    function lastUpdate() external view returns (uint48);
     function pendingMaturities(uint256) external view returns (uint48);
     function MAX_PENDING_MATURITIES() external view returns (uint8);
     function midnight() external view returns (address);
@@ -96,6 +98,8 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
+    function futureInterest() external view returns (uint256);
+    function updateFutureInterest() external;
     function allocate(bytes memory data, uint256 assets, bytes4, address caller)
         external
         returns (bytes32[] memory, int256);

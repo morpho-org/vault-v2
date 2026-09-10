@@ -63,6 +63,9 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /// @dev Includes matured positions until their credit is withdrawn, sold, or lost.
     uint256 public totalNetCredit;
+    /// @dev Cached future interest at lastUpdate.
+    uint256 public lastFutureInterest;
+    uint48 public lastUpdate;
     /// @dev Reusable maturity slots. Zero denotes an empty slot; expired maturities can be overwritten.
     uint48[MAX_PENDING_MATURITIES] public pendingMaturities;
     mapping(uint256 timestamp => MaturityData) internal _maturities;
@@ -234,6 +237,8 @@ contract MidnightAdapter is IMidnightAdapter {
             NotAuthorized()
         );
 
+        updateFutureInterest();
+
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not call back.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
         // current net credit cannot be > accounted net credit
@@ -277,15 +282,29 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* VALUATION */
 
-    /// @dev Returns an estimate of the real assets assigned to the adapter.
-    function realAssets() public view returns (uint256) {
-        uint256 newTotalAssets = totalNetCredit;
+    function futureInterest() public view returns (uint256) {
+        if (block.timestamp == lastUpdate) return lastFutureInterest;
+
+        uint256 newFutureInterest;
         for (uint256 i = 0; i < MAX_PENDING_MATURITIES; i++) {
             uint48 maturity = pendingMaturities[i];
             if (maturity > block.timestamp) {
-                newTotalAssets -= uint256(_maturities[maturity].growth) * (maturity - block.timestamp);
+                newFutureInterest += uint256(_maturities[maturity].growth) * (maturity - block.timestamp);
             }
         }
+        return newFutureInterest;
+    }
+
+    function updateFutureInterest() public {
+        if (block.timestamp != lastUpdate) {
+            lastFutureInterest = futureInterest();
+            lastUpdate = block.timestamp.toUint48();
+        }
+    }
+
+    /// @dev Returns an estimate of the real assets assigned to the adapter.
+    function realAssets() public view returns (uint256) {
+        uint256 newTotalAssets = totalNetCredit - futureInterest();
         return newTotalAssets;
     }
 
@@ -318,6 +337,8 @@ contract MidnightAdapter is IMidnightAdapter {
                 offer.buy && offer.market.loanToken == asset && offer.tick == MAX_TICK && offer.callback == address(0),
                 IncorrectOffer()
             );
+
+            updateFutureInterest();
 
             // Skip onSell since we are already in a deallocate call.
             bytes32 marketId = IdLib.toId(offer.market);
@@ -355,6 +376,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(buyer == address(this), NotSelf());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
+        updateFutureInterest();
 
         MaturityData storage maturityData = _maturities[market.maturity];
         MarketData storage marketData = _markets[marketId];
@@ -384,6 +406,7 @@ contract MidnightAdapter is IMidnightAdapter {
             uint120 growthIncrease = (interest / timeToMaturity).toUint120();
             marketData.growth += growthIncrease;
             maturityData.growth += growthIncrease;
+            lastFutureInterest += uint256(growthIncrease) * timeToMaturity;
 
             if (maturityData.netCredit == 0 && boughtNetCredit > 0) {
                 uint256 index;
@@ -414,6 +437,8 @@ contract MidnightAdapter is IMidnightAdapter {
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
+
+        updateFutureInterest();
 
         // forge-lint: disable-next-item(reentrancy-no-eth) updatePosition does not call back.
         IMidnight(midnight).updatePosition(market, address(this));
@@ -463,6 +488,7 @@ contract MidnightAdapter is IMidnightAdapter {
             uint120 growthDecrease = marketData.growth.mulDivUp(netCreditDecrease, marketData.netCredit).toUint120();
             marketData.growth -= growthDecrease;
             maturityData.growth -= growthDecrease;
+            lastFutureInterest -= uint256(growthDecrease) * (maturity - block.timestamp);
         }
         totalNetCredit -= netCreditDecrease;
         maturityData.netCredit -= netCreditDecrease.toUint128();
