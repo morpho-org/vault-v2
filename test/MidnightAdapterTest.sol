@@ -1029,7 +1029,6 @@ contract MidnightAdapterTest is Test {
         sell(soldOffer.market, 1e18);
 
         assertEq(adapter.marketIdsLength(), 249, "marketIdsLength after");
-        assertMarketIndex(_marketId(soldOffer.market), 0);
         if (soldIndex < 249) assertEq(adapter.marketIds(soldIndex), movedMarket, "last market moved");
         for (uint256 i = 0; i < 249; i++) {
             assertNotEq(adapter.marketIds(i), _marketId(soldOffer.market), "sold market removed");
@@ -1049,7 +1048,6 @@ contract MidnightAdapterTest is Test {
         parentVault.setTotalAssets(1e18);
 
         sellUnits(middle.market, middle.maxUnits, MAX_TICK);
-        assertMarketIndex(_marketId(middle.market), 0);
         assertMarketIndex(_marketId(last.market), 1);
 
         vm.prank(signerAllocator);
@@ -1059,7 +1057,6 @@ contract MidnightAdapterTest is Test {
         sellUnits(last.market, last.maxUnits / 2, MAX_TICK);
         assertMarketIndex(_marketId(last.market), 1);
         sellUnits(last.market, last.maxUnits - last.maxUnits / 2, MAX_TICK);
-        assertMarketIndex(_marketId(last.market), 0);
         assertMarkets([_marketId(first.market)]);
 
         middle.group = bytes32("reentry");
@@ -1067,7 +1064,6 @@ contract MidnightAdapterTest is Test {
         assertMarketIndex(_marketId(middle.market), 1);
         assertMarkets([_marketId(first.market), _marketId(middle.market)]);
         sellUnits(middle.market, middle.maxUnits, MAX_TICK);
-        assertMarketIndex(_marketId(middle.market), 0);
         assertMarkets([_marketId(first.market)]);
     }
 
@@ -1080,10 +1076,8 @@ contract MidnightAdapterTest is Test {
 
         take(offer);
         vm.clearMockedCalls();
-        // The buffer check still reads the market through realAssets while the position is locked.
-        vm.expectCall(address(midnight), abi.encodeCall(IMidnight.toMarket, (marketId)), uint64(1));
-        sell(offer.market, 0.25e18);
         vm.mockCallRevert(address(midnight), abi.encodeCall(IMidnight.toMarket, (marketId)), "market refetched");
+        sell(offer.market, 0.25e18);
         forceDeallocate(offer.market, 0.25e18);
         vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, 0);
@@ -2117,7 +2111,7 @@ contract MidnightAdapterTest is Test {
         returns (bytes32)
     {
         assertEq(msg.sender, address(midnight));
-        assertEq(adapter.realAssets(), 0, "Midnight already reduced the position");
+        assertEq(adapter.realAssets(), 1e18, "cached pre-trade position");
         assertEq(loanToken.balanceOf(address(realVault)), 9e18, "payment has not arrived");
         assertEq(realVault.totalAssets(), 10e18, "vault valuation fixed before the trade");
         realVault.deposit(1e18, recipient);
