@@ -284,15 +284,12 @@ contract MidnightAdapter is IMidnightAdapter {
             bytes32 marketId = marketIds[i];
             MarketData memory marketData = _markets[marketId];
             uint256 newNetCredit;
-            if (
-                marketData.lossFactor == IMidnight(midnight).lossFactor(marketId)
-                    && !IMidnight(midnight).liquidationLocked(marketId, address(this))
-            ) {
+            if (marketData.lossFactor == IMidnight(midnight).lossFactor(marketId)) {
                 newNetCredit = marketData.netCredit;
             } else {
                 newNetCredit = currentNetCredit(marketId, IMidnight(midnight).toMarket(marketId));
             }
-            assets += currentAssets(marketData, uint256(marketData.netCredit) - newNetCredit);
+            assets += newNetCredit - futureInterest(marketData, newNetCredit);
         }
         return assets;
     }
@@ -361,6 +358,7 @@ contract MidnightAdapter is IMidnightAdapter {
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
+        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
 
@@ -398,10 +396,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
         MarketData memory beforeUpdate = _markets[marketId];
-        uint256 soldAssets = soldNetCredit;
-        if (beforeUpdate.netCredit > 0) {
-            soldAssets = currentAssets(beforeUpdate, 0).mulDivDown(soldNetCredit, beforeUpdate.netCredit);
-        }
+        uint256 soldAssets = soldNetCredit - futureInterest(beforeUpdate, soldNetCredit);
         uint256 loss = soldAssets.zeroFloorSub(sellerAssets);
         int256 change = updateMarket(marketId, market, 0, 0);
 
@@ -430,15 +425,12 @@ contract MidnightAdapter is IMidnightAdapter {
         return credit - pendingFee;
     }
 
-    /// @dev Interpolates the position assets to now, then scale them down if the position decreased since the last
-    /// update.
-    function currentAssets(MarketData memory marketData, uint256 netCreditDecrease) internal view returns (uint256) {
-        uint256 remainingNetCredit = uint256(marketData.netCredit) - netCreditDecrease;
-        if (marketData.netCredit == 0 || block.timestamp >= marketData.maturity) return remainingNetCredit;
-        uint256 futureInterest = (uint256(marketData.netCredit) - marketData.assets)
+    /// @dev Returns the remaining interest attributable to credit in the market.
+    function futureInterest(MarketData memory marketData, uint256 credit) internal view returns (uint256) {
+        if (marketData.netCredit == 0 || block.timestamp >= marketData.maturity) return 0;
+        uint256 interest = (uint256(marketData.netCredit) - marketData.assets)
         .mulDivUp(marketData.maturity - block.timestamp, marketData.maturity - marketData.lastUpdate);
-        uint256 assets = marketData.netCredit - futureInterest;
-        return assets.mulDivDown(remainingNetCredit, marketData.netCredit);
+        return interest.mulDivUp(credit, marketData.netCredit);
     }
 
     /// @dev Returns the change in net credit reported to the vault's caps.
@@ -449,13 +441,12 @@ contract MidnightAdapter is IMidnightAdapter {
         MarketData storage marketData = _markets[marketId];
         uint256 oldNetCredit = marketData.netCredit;
         uint128 newNetCredit = currentNetCredit(marketId, market);
-        uint256 netCreditDecrease = oldNetCredit + boughtNetCredit - newNetCredit;
         marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
+        uint256 newFutureInterest = block.timestamp >= market.maturity
+            ? 0
+            : futureInterest(marketData, newNetCredit - boughtNetCredit) + boughtNetCredit - paidAssets;
         // forge-lint: disable-next-item(unsafe-typecast) assets <= newNetCredit <= type(uint128).max.
-        marketData.assets = uint128(
-            currentAssets(marketData, netCreditDecrease)
-                + (block.timestamp < market.maturity ? paidAssets : boughtNetCredit)
-        );
+        marketData.assets = uint128(newNetCredit - newFutureInterest);
         marketData.netCredit = newNetCredit;
         marketData.lastUpdate = block.timestamp.toUint48();
         _maturities[market.maturity].netCredit =
@@ -465,7 +456,6 @@ contract MidnightAdapter is IMidnightAdapter {
             marketIds[marketData.index] = lastMarketId;
             _markets[lastMarketId].index = marketData.index;
             marketIds.pop();
-            marketData.index = 0;
         } else if (oldNetCredit == 0 && newNetCredit > 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
             marketData.maturity = market.maturity.toUint48();
