@@ -61,14 +61,9 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_PENDING_MATURITIES = 50;
 
-    uint128 public totalAssets;
-    uint128 public currentGrowth;
-    uint48 public lastUpdate;
-    uint8 public pendingMaturitiesLength;
-    /// @dev Used to avoid reading the entire pendingMaturities array most of the time.
-    uint48 public nextMaturityFloor = type(uint48).max;
-    /// @dev Unordered array of future maturities where the adapter has credit.
-    /// @dev Elements at index >= pendingMaturitiesLength should be ignored.
+    /// @dev Includes matured positions until their credit is withdrawn, sold, or lost.
+    uint256 public totalNetCredit;
+    /// @dev Reusable maturity slots. Zero denotes an empty slot; expired maturities can be overwritten.
     uint48[MAX_PENDING_MATURITIES] public pendingMaturities;
     mapping(uint256 timestamp => MaturityData) internal _maturities;
     mapping(bytes32 marketId => MarketData) internal _markets;
@@ -79,7 +74,6 @@ contract MidnightAdapter is IMidnightAdapter {
         parentVault = _parentVault;
         midnight = _midnight;
         IMidnight(_midnight).setIsAuthorized(address(this), true, address(this));
-        lastUpdate = block.timestamp.toUint48();
         SafeERC20Lib.safeApprove(asset, _midnight, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
         adapterId = keccak256(abi.encode("this", address(this)));
@@ -240,8 +234,6 @@ contract MidnightAdapter is IMidnightAdapter {
             NotAuthorized()
         );
 
-        accrueInterest();
-
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not call back.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
         // current net credit cannot be > accounted net credit
@@ -283,62 +275,17 @@ contract MidnightAdapter is IMidnightAdapter {
         }
     }
 
-    /* ACCRUAL */
-
-    function accrueInterestView() public view returns (uint128, uint256) {
-        if (block.timestamp == lastUpdate) return (currentGrowth, totalAssets);
-
-        uint128 newGrowth = currentGrowth;
-        uint256 newTotalAssets = totalAssets;
-
-        if (block.timestamp >= nextMaturityFloor) {
-            for (uint256 i = pendingMaturitiesLength; i > 0; i--) {
-                uint48 maturity = pendingMaturities[i - 1];
-                if (maturity <= block.timestamp) {
-                    newTotalAssets += uint256(_maturities[maturity].growth) * (maturity - lastUpdate);
-                    newGrowth -= _maturities[maturity].growth;
-                }
-            }
-        }
-        newTotalAssets += newGrowth * (block.timestamp - lastUpdate);
-
-        return (newGrowth, newTotalAssets);
-    }
-
-    function accrueInterest() public returns (uint128, uint256) {
-        if (block.timestamp == lastUpdate) return (currentGrowth, totalAssets);
-
-        uint128 newGrowth = currentGrowth;
-        uint256 newTotalAssets = totalAssets;
-
-        if (block.timestamp >= nextMaturityFloor) {
-            uint48 newMin = type(uint48).max;
-            for (uint256 i = pendingMaturitiesLength; i > 0; i--) {
-                uint48 maturity = pendingMaturities[i - 1];
-                if (maturity <= block.timestamp) {
-                    newTotalAssets += uint256(_maturities[maturity].growth) * (maturity - lastUpdate);
-                    newGrowth -= _maturities[maturity].growth;
-                    pendingMaturitiesLength--;
-                    pendingMaturities[i - 1] = pendingMaturities[pendingMaturitiesLength];
-                } else if (maturity < newMin) {
-                    newMin = maturity;
-                }
-            }
-            nextMaturityFloor = newMin;
-            currentGrowth = newGrowth;
-        }
-        newTotalAssets += newGrowth * (block.timestamp - lastUpdate);
-
-        totalAssets = newTotalAssets.toUint128();
-        lastUpdate = block.timestamp.toUint48();
-        emit AccrueInterest(newGrowth, newTotalAssets);
-
-        return (newGrowth, newTotalAssets);
-    }
+    /* VALUATION */
 
     /// @dev Returns an estimate of the real assets assigned to the adapter.
-    function realAssets() external view returns (uint256) {
-        (, uint256 newTotalAssets) = accrueInterestView();
+    function realAssets() public view returns (uint256) {
+        uint256 newTotalAssets = totalNetCredit;
+        for (uint256 i = 0; i < MAX_PENDING_MATURITIES; i++) {
+            uint48 maturity = pendingMaturities[i];
+            if (maturity > block.timestamp) {
+                newTotalAssets -= uint256(_maturities[maturity].growth) * (maturity - block.timestamp);
+            }
+        }
         return newTotalAssets;
     }
 
@@ -371,8 +318,6 @@ contract MidnightAdapter is IMidnightAdapter {
                 offer.buy && offer.market.loanToken == asset && offer.tick == MAX_TICK && offer.callback == address(0),
                 IncorrectOffer()
             );
-
-            accrueInterest();
 
             // Skip onSell since we are already in a deallocate call.
             bytes32 marketId = IdLib.toId(offer.market);
@@ -410,7 +355,6 @@ contract MidnightAdapter is IMidnightAdapter {
         require(buyer == address(this), NotSelf());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
-        accrueInterest();
 
         MaturityData storage maturityData = _maturities[market.maturity];
         MarketData storage marketData = _markets[marketId];
@@ -438,21 +382,19 @@ contract MidnightAdapter is IMidnightAdapter {
         if (timeToMaturity > 0) {
             uint256 interest = boughtNetCredit - paidAssets;
             uint120 growthIncrease = (interest / timeToMaturity).toUint120();
-            totalAssets += (paidAssets + interest % timeToMaturity).toUint128();
             marketData.growth += growthIncrease;
             maturityData.growth += growthIncrease;
-            currentGrowth += growthIncrease;
 
             if (maturityData.netCredit == 0 && boughtNetCredit > 0) {
-                pendingMaturities[pendingMaturitiesLength] = market.maturity.toUint48();
-                pendingMaturitiesLength++;
-                if (market.maturity < nextMaturityFloor) nextMaturityFloor = market.maturity.toUint48();
+                uint256 index;
+                while (index < MAX_PENDING_MATURITIES && pendingMaturities[index] > block.timestamp) index++;
+                require(index < MAX_PENDING_MATURITIES, TooManyPendingMaturities());
+                pendingMaturities[index] = market.maturity.toUint48();
                 emit InsertMaturity(market.maturity);
             }
-        } else {
-            totalAssets += boughtNetCredit.toUint128();
         }
 
+        totalNetCredit += boughtNetCredit;
         maturityData.netCredit += boughtNetCredit.toUint128();
         marketData.netCredit += boughtNetCredit.toUint128();
 
@@ -473,7 +415,6 @@ contract MidnightAdapter is IMidnightAdapter {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
 
-        accrueInterest();
         // forge-lint: disable-next-item(reentrancy-no-eth) updatePosition does not call back.
         IMidnight(midnight).updatePosition(market, address(this));
 
@@ -483,7 +424,7 @@ contract MidnightAdapter is IMidnightAdapter {
             vaultRealAssetsBefore += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
         }
         uint256 vaultBuffer = vaultRealAssetsBefore.zeroFloorSub(IVaultV2(parentVault).totalAssets());
-        uint256 adapterTotalAssetsBefore = totalAssets;
+        uint256 adapterTotalAssetsBefore = realAssets();
         // current net credit cannot be > accounted net credit
         uint256 netCreditDecrease = _markets[marketId].netCredit - currentNetCredit(marketId);
         decreaseNetCredit(marketId, market.maturity, netCreditDecrease);
@@ -492,7 +433,7 @@ contract MidnightAdapter is IMidnightAdapter {
         IVaultV2(parentVault)
             .deallocate(address(this), abi.encode(ids(market), -int256(netCreditDecrease)), sellerAssets);
 
-        uint256 loss = adapterTotalAssetsBefore.zeroFloorSub(uint256(totalAssets) + sellerAssets);
+        uint256 loss = adapterTotalAssetsBefore.zeroFloorSub(realAssets() + sellerAssets);
         uint256 consumed = loss.zeroFloorSub(vaultBuffer);
         if (consumed > 0) {
             skipBufferAllowance -= consumed;
@@ -519,24 +460,19 @@ contract MidnightAdapter is IMidnightAdapter {
         MarketData storage marketData = _markets[marketId];
 
         if (maturity > block.timestamp) {
-            uint256 timeToMaturity = maturity - block.timestamp;
             uint120 growthDecrease = marketData.growth.mulDivUp(netCreditDecrease, marketData.netCredit).toUint120();
             marketData.growth -= growthDecrease;
             maturityData.growth -= growthDecrease;
-            currentGrowth -= growthDecrease;
-            totalAssets = (totalAssets + (growthDecrease * timeToMaturity) - netCreditDecrease).toUint128();
-        } else {
-            totalAssets -= netCreditDecrease.toUint128();
         }
+        totalNetCredit -= netCreditDecrease;
         maturityData.netCredit -= netCreditDecrease.toUint128();
         marketData.netCredit -= netCreditDecrease.toUint128();
 
         if (maturityData.netCredit == 0 && maturity > block.timestamp) {
             uint256 index;
             while (pendingMaturities[index] != maturity) index++;
+            pendingMaturities[index] = 0;
             emit RemoveMaturity(maturity);
-            pendingMaturitiesLength--;
-            pendingMaturities[index] = pendingMaturities[pendingMaturitiesLength];
         }
     }
 
