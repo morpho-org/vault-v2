@@ -61,12 +61,10 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_PENDING_MATURITIES = 50;
 
-    /// @dev Includes matured positions until their credit is withdrawn, sold, or lost.
     uint256 public totalNetCredit;
-    /// @dev Cached future interest at lastUpdate.
     uint256 public lastFutureInterest;
     uint48 public lastUpdate;
-    /// @dev Reusable maturity slots. Zero denotes an empty slot; expired maturities can be overwritten.
+    /// @dev Reusable maturity slots. Zero is an empty slot.
     uint48[MAX_PENDING_MATURITIES] public pendingMaturities;
     mapping(uint256 timestamp => MaturityData) internal _maturities;
     mapping(bytes32 marketId => MarketData) internal _markets;
@@ -280,7 +278,7 @@ contract MidnightAdapter is IMidnightAdapter {
         }
     }
 
-    /* VALUATION */
+    /* ACCRUAL */
 
     function futureInterest() public view returns (uint256) {
         if (block.timestamp == lastUpdate) return lastFutureInterest;
@@ -497,8 +495,8 @@ contract MidnightAdapter is IMidnightAdapter {
         if (maturityData.netCredit == 0 && maturity > block.timestamp) {
             uint256 index;
             while (pendingMaturities[index] != maturity) index++;
-            pendingMaturities[index] = 0;
             emit RemoveMaturity(maturity);
+            pendingMaturities[index] = 0;
         }
     }
 
