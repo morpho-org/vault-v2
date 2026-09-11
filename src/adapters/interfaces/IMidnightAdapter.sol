@@ -66,7 +66,8 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     /* FUNCTIONS */
 
     function asset() external view returns (address);
-    function totalAssets() external view returns (uint128);
+    function totalAssets() external view returns (uint256);
+    function totalAssetsWad() external view returns (uint256);
     function lastUpdate() external view returns (uint48);
     function nextMaturityFloor() external view returns (uint48);
     function currentGrowth() external view returns (uint128);

@@ -11,6 +11,7 @@ import {TakeAmountsLib} from "lib/midnight/src/periphery/libraries/TakeAmountsLi
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
+import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapter, MaturityData, MarketData, IAdapter} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
@@ -61,7 +62,8 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_PENDING_MATURITIES = 50;
 
-    uint128 public totalAssets;
+    uint256 public totalAssetsWad;
+    /// @dev Scaled by WAD.
     uint128 public currentGrowth;
     uint48 public lastUpdate;
     uint8 public pendingMaturitiesLength;
@@ -89,6 +91,10 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /* GETTERS */
+
+    function totalAssets() public view returns (uint256) {
+        return totalAssetsWad / WAD;
+    }
 
     function maturities(uint256 date) public view returns (MaturityData memory) {
         return _maturities[date];
@@ -286,10 +292,10 @@ contract MidnightAdapter is IMidnightAdapter {
     /* ACCRUAL */
 
     function accrueInterestView() public view returns (uint128, uint256) {
-        if (block.timestamp == lastUpdate) return (currentGrowth, totalAssets);
+        if (block.timestamp == lastUpdate) return (currentGrowth, totalAssets());
 
         uint128 newGrowth = currentGrowth;
-        uint256 newTotalAssets = totalAssets;
+        uint256 newTotalAssets = totalAssetsWad;
 
         if (block.timestamp >= nextMaturityFloor) {
             for (uint256 i = pendingMaturitiesLength; i > 0; i--) {
@@ -302,14 +308,14 @@ contract MidnightAdapter is IMidnightAdapter {
         }
         newTotalAssets += newGrowth * (block.timestamp - lastUpdate);
 
-        return (newGrowth, newTotalAssets);
+        return (newGrowth, newTotalAssets / WAD);
     }
 
     function accrueInterest() public returns (uint128, uint256) {
-        if (block.timestamp == lastUpdate) return (currentGrowth, totalAssets);
+        if (block.timestamp == lastUpdate) return (currentGrowth, totalAssets());
 
         uint128 newGrowth = currentGrowth;
-        uint256 newTotalAssets = totalAssets;
+        uint256 newTotalAssets = totalAssetsWad;
 
         if (block.timestamp >= nextMaturityFloor) {
             uint48 newMin = type(uint48).max;
@@ -329,11 +335,11 @@ contract MidnightAdapter is IMidnightAdapter {
         }
         newTotalAssets += newGrowth * (block.timestamp - lastUpdate);
 
-        totalAssets = newTotalAssets.toUint128();
+        totalAssetsWad = newTotalAssets;
         lastUpdate = block.timestamp.toUint48();
-        emit AccrueInterest(newGrowth, newTotalAssets);
+        emit AccrueInterest(newGrowth, newTotalAssets / WAD);
 
-        return (newGrowth, newTotalAssets);
+        return (newGrowth, newTotalAssets / WAD);
     }
 
     /// @dev Returns an estimate of the real assets assigned to the adapter.
@@ -436,9 +442,9 @@ contract MidnightAdapter is IMidnightAdapter {
             );
 
         if (timeToMaturity > 0) {
-            uint256 interest = boughtNetCredit - paidAssets;
-            uint120 growthIncrease = (interest / timeToMaturity).toUint120();
-            totalAssets += (paidAssets + interest % timeToMaturity).toUint128();
+            uint256 scaledInterest = (boughtNetCredit - paidAssets) * WAD;
+            uint120 growthIncrease = (scaledInterest / timeToMaturity).toUint120();
+            totalAssetsWad += paidAssets * WAD + scaledInterest % timeToMaturity;
             marketData.growth += growthIncrease;
             maturityData.growth += growthIncrease;
             currentGrowth += growthIncrease;
@@ -450,7 +456,7 @@ contract MidnightAdapter is IMidnightAdapter {
                 emit InsertMaturity(market.maturity);
             }
         } else {
-            totalAssets += boughtNetCredit.toUint128();
+            totalAssetsWad += boughtNetCredit * WAD;
         }
 
         maturityData.netCredit += boughtNetCredit.toUint128();
@@ -483,7 +489,7 @@ contract MidnightAdapter is IMidnightAdapter {
             vaultRealAssetsBefore += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
         }
         uint256 vaultBuffer = vaultRealAssetsBefore.zeroFloorSub(IVaultV2(parentVault).totalAssets());
-        uint256 adapterTotalAssetsBefore = totalAssets;
+        uint256 adapterTotalAssetsBefore = totalAssets();
         // current net credit cannot be > accounted net credit
         uint256 netCreditDecrease = _markets[marketId].netCredit - currentNetCredit(marketId);
         decreaseNetCredit(marketId, market.maturity, netCreditDecrease);
@@ -492,7 +498,7 @@ contract MidnightAdapter is IMidnightAdapter {
         IVaultV2(parentVault)
             .deallocate(address(this), abi.encode(ids(market), -int256(netCreditDecrease)), sellerAssets);
 
-        uint256 loss = adapterTotalAssetsBefore.zeroFloorSub(uint256(totalAssets) + sellerAssets);
+        uint256 loss = adapterTotalAssetsBefore.zeroFloorSub(totalAssets() + sellerAssets);
         uint256 consumed = loss.zeroFloorSub(vaultBuffer);
         if (consumed > 0) {
             skipBufferAllowance -= consumed;
@@ -524,9 +530,9 @@ contract MidnightAdapter is IMidnightAdapter {
             marketData.growth -= growthDecrease;
             maturityData.growth -= growthDecrease;
             currentGrowth -= growthDecrease;
-            totalAssets = (totalAssets + (growthDecrease * timeToMaturity) - netCreditDecrease).toUint128();
+            totalAssetsWad = totalAssetsWad + (growthDecrease * timeToMaturity) - netCreditDecrease * WAD;
         } else {
-            totalAssets -= netCreditDecrease.toUint128();
+            totalAssetsWad -= netCreditDecrease * WAD;
         }
         maturityData.netCredit -= netCreditDecrease.toUint128();
         marketData.netCredit -= netCreditDecrease.toUint128();
