@@ -482,7 +482,8 @@ contract MidnightAdapterTest is Test {
     }
 
     function testMinRateBoundary(uint256 duration, uint256 assets, uint256 continuousFee) public {
-        duration = bound(duration, 1, 365 days);
+        // WAD-scaled growth per second must fit in uint120.
+        duration = bound(duration, 1 days, 365 days);
         assets = bound(assets, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
         continuousFee = bound(continuousFee, 0, MAX_CONTINUOUS_FEE);
         midnight.setDefaultContinuousFee(address(loanToken), continuousFee);
