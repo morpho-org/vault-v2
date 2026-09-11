@@ -482,7 +482,8 @@ contract MidnightAdapterTest is Test {
     }
 
     function testMinRateBoundary(uint256 duration, uint256 assets, uint256 continuousFee) public {
-        duration = bound(duration, 1, 365 days);
+        // WAD-scaled growth per second must fit in uint120.
+        duration = bound(duration, 1 days, 365 days);
         assets = bound(assets, MIN_TEST_ASSETS, MAX_TEST_ASSETS);
         continuousFee = bound(continuousFee, 0, MAX_CONTINUOUS_FEE);
         midnight.setDefaultContinuousFee(address(loanToken), continuousFee);
@@ -1305,7 +1306,9 @@ contract MidnightAdapterTest is Test {
         uint256 units = offer.maxUnits;
         midnight.supplyCollateral(offer.market, 0, units, taker);
         midnight.supplyCollateral(offer.market, 1, units, taker);
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         take(offer);
+        uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
 
         bytes32 marketId = _marketId(offer.market);
         uint256 loss = 0.5e18;
@@ -1320,7 +1323,7 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 1, units, taker);
         take(offer);
 
-        uint128 growth = uint128((units - assets) / duration);
+        uint128 growth = uint128((units - paid) * 1e18 / duration);
         uint128 removedGrowth = uint128(uint256(growth).mulDivUp(loss, units));
         assertEq(adapter.maturities(offer.market.maturity).growth, 2 * growth - removedGrowth);
         uint128 marketNetCredit = adapter.markets(marketId).netCredit;
@@ -1499,15 +1502,41 @@ contract MidnightAdapterTest is Test {
         uint256 interest = offer.maxUnits - paid;
         assertGt(interest, 0, "bought at a discount");
 
-        // The growth is an integer per second, the remainder is credited at buy time.
-        uint256 valueAtBuy = paid + interest % duration;
-        assertEq(adapter.realAssets(), valueAtBuy, "at buy");
+        // The growth is an integer per second scaled by WAD, the remainder is credited at buy time.
+        uint256 scaledValueAtBuy = paid * 1e18 + (interest * 1e18) % duration;
+        assertEq(adapter.realAssets(), scaledValueAtBuy / 1e18, "at buy");
         skip(duration / 3);
-        assertEq(adapter.realAssets(), valueAtBuy + (interest / duration) * (duration / 3), "a third of the way");
+        assertEq(
+            adapter.realAssets(),
+            (scaledValueAtBuy + (interest * 1e18 / duration) * (duration / 3)) / 1e18,
+            "a third of the way"
+        );
         skip(2 * duration / 3);
         assertEq(adapter.realAssets(), offer.maxUnits, "net credit at maturity");
         skip(365 days);
         assertEq(adapter.realAssets(), offer.maxUnits, "flat after maturity");
+    }
+
+    /// @dev growth is interest * WAD / timeToMaturity and must fit in a uint120.
+    function testGrowthOverflowsUint120() public {
+        uint256 maxGrowth = type(uint120).max;
+        uint256 duration = 1;
+        // interest is ~5.26% of assets at a 0.95 price.
+        uint256 assets = 1e18;
+        Offer memory offer = makeBuyOffer(duration, assets, discountTick);
+        uint256 interest = offer.maxUnits - assets;
+        assertLe(interest * 1e18 / duration, maxGrowth, "fits");
+        buy(duration, assets, discountTick);
+
+        assets = 100e18;
+        offer = makeBuyOffer(duration, assets, discountTick);
+        offer.group = bytes32("second");
+        interest = offer.maxUnits - assets;
+        assertGt(interest * 1e18 / duration, maxGrowth, "does not fit");
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        take(offer);
     }
 
     function testAccrueInterestPastAllMaturities() public {
