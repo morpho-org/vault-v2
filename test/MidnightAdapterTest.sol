@@ -37,6 +37,12 @@ import {
 import {TakeAmountsLib} from "../lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 import {SetterRatifier} from "../lib/midnight/src/ratifiers/SetterRatifier.sol";
 import {stdError} from "../lib/forge-std/src/StdError.sol";
+import {
+    MidnightAdapterLossRealizationFunder
+} from "../src/periphery/midnight-adapter-loss-realization-funder/MidnightAdapterLossRealizationFunder.sol";
+import {
+    IMidnightAdapterLossRealizationFunder
+} from "../src/periphery/midnight-adapter-loss-realization-funder/interfaces/IMidnightAdapterLossRealizationFunder.sol";
 
 contract ExtraAssetsAdapter is IAdapter {
     uint256 public realAssets;
@@ -1902,12 +1908,13 @@ contract MidnightAdapterTest is Test {
 
     /* WITHDRAW TO VAULT */
 
-    function testWithdrawToVaultUnauthorized(address nonAllocator) public {
+    function testWithdrawToVaultPermissionless(address nonAllocator) public {
         vm.assume(!parentVault.isAllocator(nonAllocator) && !parentVault.isSentinel(nonAllocator));
-        Market memory market = storedOffer.market;
+        Offer memory offer = buy(7 days, 1e18);
         vm.prank(nonAllocator);
-        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
-        adapter.withdrawToVault(market, 0);
+        adapter.withdrawToVault(offer.market, 0);
+        assertEq(adapter.realAssets(), 1e18);
+        assertEq(adapter.markets(_marketId(offer.market)).netCredit, 1e18);
     }
 
     function testWithdrawToVaultBySentinel(address sentinel) public {
@@ -1964,6 +1971,125 @@ contract MidnightAdapterTest is Test {
         assertApproxEqAbs(netCredit, 0.2e18, 1, "netCredit");
         assertApproxEqAbs(adapter.totalAssets(), 0.2e18, 1, "totalAssets");
         assertApproxEqAbs(parentVault.allocation(adapter.adapterId()), 0.2e18, 1, "allocation");
+    }
+
+    /* LOSS REALIZATION FUNDER */
+
+    function testFunderWrongLoanToken(address wrongLoanToken) public {
+        vm.assume(wrongLoanToken != address(loanToken));
+        MidnightAdapterLossRealizationFunder funder = newLossRealizationFunder(1e18);
+        Market[] memory markets = new Market[](1);
+        markets[0] = storedOffer.market;
+        markets[0].loanToken = wrongLoanToken;
+        vm.expectRevert(IMidnightAdapter.LoanAssetMismatch.selector);
+        funder.realizeLoss(markets, payable(recipient));
+    }
+
+    /// forge-config: default.isolate = true
+    function testFunderRealizesLiquidationLosses() public {
+        setUpRealVault();
+        Offer memory offer = buyOnRealVault(7 days, 1e18);
+        bytes32 marketId = _marketId(offer.market);
+        MidnightAdapterLossRealizationFunder funder = newLossRealizationFunder(1e18);
+
+        OracleMock(storedCollaterals[0].oracle).setPrice(0);
+        OracleMock(storedCollaterals[1].oracle).setPrice(0);
+        midnight.liquidate(offer.market, 0, 0, 0, taker, false, address(this), address(0), "");
+
+        assertGt(midnight.lossFactor(marketId), midnight.lastLossFactor(marketId, address(adapter)));
+        assertEq(midnight.credit(marketId, address(adapter)), 1e18, "position not updated");
+        assertEq(adapter.realAssets(), 1e18, "adapter loss not recognized");
+        assertEq(realVault.totalAssets(), 10e18, "vault loss not recognized");
+
+        Market[] memory markets = new Market[](1);
+        markets[0] = offer.market;
+        vm.prank(taker);
+        (uint256 loss, uint256 paid) = funder.realizeLoss(markets, payable(recipient));
+
+        assertEq(loss, 1e18);
+        assertEq(paid, 0.01 ether);
+        assertEq(recipient.balance, 0.01 ether);
+        assertEq(midnight.credit(marketId, address(adapter)), 0);
+        assertEq(adapter.realAssets(), 0);
+        assertEq(realVault.allocation(adapter.adapterId()), 0);
+        assertEq(realVault.totalAssets(), 9e18, "vault loss recognized");
+    }
+
+    function testFunderBatchRealizesLossesAcrossMaturities() public {
+        Offer memory offerA = buy(7 days, 1e18);
+        Offer memory offerB = buy(30 days, 1e18);
+        MidnightAdapterLossRealizationFunder funder = newLossRealizationFunder(2e18);
+
+        OracleMock(storedCollaterals[0].oracle).setPrice(0);
+        OracleMock(storedCollaterals[1].oracle).setPrice(0);
+        midnight.liquidate(offerA.market, 0, 0, 0, taker, false, address(this), address(0), "");
+        midnight.liquidate(offerB.market, 0, 0, 0, taker, false, address(this), address(0), "");
+        assertEq(adapter.realAssets(), 2e18, "losses not recognized");
+
+        Market[] memory markets = new Market[](2);
+        markets[0] = offerA.market;
+        markets[1] = offerB.market;
+        (uint256 loss, uint256 paid) = funder.realizeLoss(markets, payable(recipient));
+
+        assertEq(loss, 2e18);
+        assertEq(paid, 0.01 ether);
+        assertEq(recipient.balance, 0.01 ether, "one reward for the batch");
+        assertEq(adapter.realAssets(), 0);
+        assertEq(parentVault.allocation(adapter.adapterId()), 0);
+        assertPendingMaturitiesEmpty();
+    }
+
+    function testFunderDoesNotRewardInterestOrContinuousFees() public {
+        midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
+        Offer memory offer = buy(30 days, 1e18, discountTick);
+        bytes32 marketId = _marketId(offer.market);
+        MidnightAdapterLossRealizationFunder funder = newLossRealizationFunder(1);
+        uint256 feeBefore = midnight.pendingFee(marketId, address(adapter));
+        skip(15 days);
+        uint256 assetsBefore = adapter.realAssets();
+        assertGt(assetsBefore, adapter.totalAssets(), "interest pending");
+
+        Market[] memory markets = new Market[](1);
+        markets[0] = offer.market;
+        (uint256 loss, uint256 paid) = funder.realizeLoss(markets, payable(recipient));
+
+        assertEq(loss, 0);
+        assertEq(paid, 0);
+        assertEq(recipient.balance, 0);
+        assertEq(adapter.realAssets(), assetsBefore);
+        assertLt(midnight.pendingFee(marketId, address(adapter)), feeBefore, "fees accrued");
+    }
+
+    function testFunderFailedPaymentRollsBackRealization() public {
+        Offer memory offer = buy(7 days, 1e18);
+        bytes32 marketId = _marketId(offer.market);
+        MidnightAdapterLossRealizationFunder funder = newLossRealizationFunder(1e18);
+        deal(address(funder), 0);
+
+        OracleMock(storedCollaterals[0].oracle).setPrice(0);
+        OracleMock(storedCollaterals[1].oracle).setPrice(0);
+        midnight.liquidate(offer.market, 0, 0, 0, taker, false, address(this), address(0), "");
+
+        Market[] memory markets = new Market[](1);
+        markets[0] = offer.market;
+        vm.expectRevert(IMidnightAdapterLossRealizationFunder.EthTransferFailed.selector);
+        funder.realizeLoss(markets, payable(recipient));
+
+        assertEq(adapter.realAssets(), 1e18);
+        assertEq(midnight.credit(marketId, address(adapter)), 1e18);
+        assertGt(midnight.lossFactor(marketId), midnight.lastLossFactor(marketId, address(adapter)));
+        assertEq(parentVault.allocation(adapter.adapterId()), 1e18);
+        assertEq(recipient.balance, 0);
+    }
+
+    function newLossRealizationFunder(uint256 minimumLoss)
+        internal
+        returns (MidnightAdapterLossRealizationFunder funder)
+    {
+        funder = new MidnightAdapterLossRealizationFunder(address(adapter), address(this));
+        funder.setIncentive(0.01 ether);
+        funder.setMinimumLossBeforeIncentive(minimumLoss);
+        deal(address(funder), 1 ether);
     }
 
     /* SKIM */
