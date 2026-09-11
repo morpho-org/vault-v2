@@ -229,12 +229,11 @@ contract MidnightAdapterTest is Test {
     /* LAST UPDATE */
 
     function testLastUpdate() public {
-        assertEq(adapter.lastUpdate(), block.timestamp, "set at construction");
+        assertEq(adapter.lastUpdate(), 0, "not updated at construction");
         skip(100);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.AccrueInterest(0, 0);
-        adapter.accrueInterest();
-        assertEq(adapter.lastUpdate(), block.timestamp, "refreshed by accrueInterest");
+        adapter.updateFutureInterest();
+        assertEq(adapter.lastUpdate(), block.timestamp, "refreshed by updateFutureInterest");
+        assertEq(adapter.lastFutureInterest(), 0, "empty portfolio");
     }
 
     /* TIMELOCKS */
@@ -700,7 +699,7 @@ contract MidnightAdapterTest is Test {
         adapter.setIsSubRatifier(address(ecrecoverRatifier), true);
         vm.prank(taker);
         midnight.take(offer, data, offer.maxUnits, taker, taker, address(0), "");
-        assertGt(adapter.totalAssets(), 0, "position opened");
+        assertGt(adapter.realAssets(), 0, "position opened");
     }
 
     function testRemovedAllocatorSignatureRejected() public {
@@ -743,7 +742,7 @@ contract MidnightAdapterTest is Test {
         ecrecoverRatifier.cancelRoot(address(otherAdapter), root(offerA));
         vm.prank(taker);
         midnight.take(offerA, sign([offerA], signerAllocator), offerA.maxUnits, taker, taker, address(0), "");
-        assertGt(adapter.totalAssets(), 0, "A position opened");
+        assertGt(adapter.realAssets(), 0, "A position opened");
 
         // B takes with its own allocator through the same ratifier deployment.
         vm.prank(taker);
@@ -756,7 +755,7 @@ contract MidnightAdapterTest is Test {
             address(0),
             ""
         );
-        assertGt(otherAdapter.totalAssets(), 0, "B position opened");
+        assertGt(otherAdapter.realAssets(), 0, "B position opened");
     }
 
     function testGarbageSubRatifierRatifierFailed() public {
@@ -1005,8 +1004,8 @@ contract MidnightAdapterTest is Test {
 
         uint128 netCredit = adapter.markets(marketId).netCredit;
         assertEq(netCredit, 1e18, "netCredit");
-        assertEq(adapter.totalAssets(), 3e18, "totalAssets");
-        assertEq(adapter.pendingMaturitiesLength(), 3, "pendingMaturitiesLength");
+        assertEq(adapter.realAssets(), 3e18, "totalAssets");
+        assertEq(pendingMaturitiesCount(), 3, "pendingMaturitiesLength");
         assertPendingMaturities([t0 + 1 days, t0 + 7 days, t0 + 30 days]);
     }
 
@@ -1028,19 +1027,21 @@ contract MidnightAdapterTest is Test {
             Offer memory offer = buy(1 days + i, 1e18);
             if (i == soldIndex) soldOffer = offer;
         }
-        assertEq(adapter.pendingMaturitiesLength(), 50, "pendingMaturitiesLength before");
+        assertEq(pendingMaturitiesCount(), 50, "pendingMaturitiesLength before");
 
         parentVault.setTotalAssets(1e18);
         sell(soldOffer.market, 1e18);
 
-        assertEq(adapter.pendingMaturitiesLength(), 49, "pendingMaturitiesLength after");
-        for (uint256 i = 0; i < 49; i++) {
+        assertEq(pendingMaturitiesCount(), 49, "pendingMaturitiesLength after");
+        assertEq(adapter.pendingMaturities(soldIndex), 0, "slot cleared");
+        for (uint256 i = 0; i < 50; i++) {
             assertNotEq(adapter.pendingMaturities(i), soldOffer.market.maturity, "sold maturity removed");
         }
 
         buy(60 days, 1e18);
 
-        assertEq(adapter.pendingMaturitiesLength(), 50, "pendingMaturitiesLength final");
+        assertEq(pendingMaturitiesCount(), 50, "pendingMaturitiesLength final");
+        assertEq(adapter.pendingMaturities(soldIndex), block.timestamp + 60 days, "slot reused");
     }
 
     function testForceDeallocateThenUpdateDurationCaps() public {
@@ -1068,7 +1069,7 @@ contract MidnightAdapterTest is Test {
         for (uint256 i = 1; i <= boughtNum; i++) {
             buy(i, 1e18);
         }
-        assertEq(adapter.pendingMaturitiesLength(), boughtNum);
+        assertEq(pendingMaturitiesCount(), boughtNum);
 
         for (uint256 i = boughtNum + 1; i <= 50; i++) {
             buy(i, 1e18);
@@ -1077,7 +1078,7 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = makeBuyOffer(51, 1e18, MAX_TICK);
         midnight.supplyCollateral(offer.market, 0, 0.5e18, taker);
         midnight.supplyCollateral(offer.market, 1, 0.5e18, taker);
-        vm.expectRevert(stdError.indexOOBError);
+        vm.expectRevert(IMidnightAdapter.TooManyPendingMaturities.selector);
         take(offer);
     }
 
@@ -1095,7 +1096,7 @@ contract MidnightAdapterTest is Test {
             sell(markets[i], 1e18);
         }
 
-        assertEq(adapter.pendingMaturitiesLength(), boughtNum - soldNum);
+        assertEq(pendingMaturitiesCount(), boughtNum - soldNum);
     }
 
     function testOnBuyCanRealizeLoss() public {
@@ -1191,7 +1192,7 @@ contract MidnightAdapterTest is Test {
 
         uint128 marketNetCredit = adapter.markets(_marketId(offer.market)).netCredit;
         assertEq(marketNetCredit, 0);
-        assertEq(adapter.totalAssets(), 0);
+        assertEq(adapter.realAssets(), 0);
     }
 
     // Same buffer check, reached through the allocator take path: taking a buy offer makes the adapter sell,
@@ -1221,7 +1222,7 @@ contract MidnightAdapterTest is Test {
 
         uint128 marketNetCredit = adapter.markets(_marketId(offer.market)).netCredit;
         assertEq(marketNetCredit, 0);
-        assertEq(adapter.totalAssets(), 0);
+        assertEq(adapter.realAssets(), 0);
     }
 
     function testOutOfOrderInsertsStayTracked() public {
@@ -1248,11 +1249,11 @@ contract MidnightAdapterTest is Test {
         buy(1, 1e18);
         buy(2, 1e18);
         skip(3);
-        adapter.accrueInterest();
+        adapter.updateFutureInterest();
         assertPendingMaturitiesEmpty();
-        assertEq(adapter.currentGrowth(), 0, "currentGrowth");
-        assertEq(adapter.totalAssets(), 2e18, "totalAssets");
-        assertEq(adapter.pendingMaturitiesLength(), 0, "pendingMaturitiesLength");
+        assertEq(adapter.futureInterest(), 0, "futureInterest");
+        assertEq(adapter.realAssets(), 2e18, "totalAssets");
+        assertEq(pendingMaturitiesCount(), 0, "pendingMaturitiesLength");
     }
 
     function testTwoMarketsSharingMaturity(uint256 assetsA, uint256 assetsB) public {
@@ -1276,7 +1277,7 @@ contract MidnightAdapterTest is Test {
         assertEq(netCreditA, assetsA, "netCredit A");
         assertEq(netCreditB, assetsB, "netCredit B");
         assertEq(adapter.maturities(block.timestamp).netCredit, assetsA + assetsB, "shared netCredit");
-        assertEq(adapter.totalAssets(), assetsA + assetsB, "totalAssets");
+        assertEq(adapter.realAssets(), assetsA + assetsB, "totalAssets");
     }
 
     function testSecondBuyAtSameMaturityDoesNotReinsert() public {
@@ -1318,11 +1319,11 @@ contract MidnightAdapterTest is Test {
         Offer memory offerC = buy(90 days, 3e18, discountTick);
         skip(100 days);
 
-        adapter.accrueInterest();
+        adapter.updateFutureInterest();
 
-        assertEq(adapter.totalAssets(), offerA.maxUnits + offerB.maxUnits + offerC.maxUnits, "sum of net credits");
-        assertEq(adapter.currentGrowth(), 0, "currentGrowth");
-        assertEq(adapter.pendingMaturitiesLength(), 0, "pendingMaturitiesLength");
+        assertEq(adapter.realAssets(), offerA.maxUnits + offerB.maxUnits + offerC.maxUnits, "sum of net credits");
+        assertEq(adapter.futureInterest(), 0, "futureInterest");
+        assertEq(pendingMaturitiesCount(), 0, "pendingMaturitiesLength");
         assertPendingMaturitiesEmpty();
     }
 
@@ -1347,9 +1348,9 @@ contract MidnightAdapterTest is Test {
 
         sell(offer.market, offer.maxUnits);
 
-        assertEq(adapter.totalAssets(), 0, "totalAssets");
-        assertEq(adapter.currentGrowth(), 0, "currentGrowth");
-        assertEq(adapter.pendingMaturitiesLength(), 0, "pendingMaturitiesLength");
+        assertEq(adapter.realAssets(), 0, "totalAssets");
+        assertEq(adapter.futureInterest(), 0, "futureInterest");
+        assertEq(pendingMaturitiesCount(), 0, "pendingMaturitiesLength");
         assertPendingMaturitiesEmpty();
     }
 
@@ -1712,7 +1713,7 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(adapter.adapterId()), 1e18, "allocation after buy");
         assertEq(realVault.allocation(durationId(7 days)), 1e18, "duration allocation after buy");
         assertEq(loanToken.balanceOf(address(realVault)), 9e18, "vault funded the buy");
-        assertEq(adapter.totalAssets(), 1e18, "adapter totalAssets after buy");
+        assertEq(adapter.realAssets(), 1e18, "adapter totalAssets after buy");
 
         skip(1);
 
@@ -1754,7 +1755,7 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.credit(marketId, address(adapter)), 0, "adapter credit");
         assertEq(midnight.credit(marketId, buyer), 1e18, "buyer credit");
         assertEq(midnight.debt(marketId, taker), 1e18, "borrower debt");
-        assertEq(adapter.totalAssets(), 0, "adapter totalAssets");
+        assertEq(adapter.realAssets(), 0, "adapter totalAssets");
         assertEq(realVault.totalAssets(), 9e18, "loss realized");
 
         bytes32[] memory marketIds = adapter.ids(boughtOffer.market);
@@ -1939,7 +1940,7 @@ contract MidnightAdapterTest is Test {
 
         uint128 creditAfter = adapter.markets(marketId).netCredit;
         assertEq(creditAfter, creditBefore - withdrawAmount, "netCredit");
-        assertEq(adapter.totalAssets(), creditBefore - withdrawAmount, "totalAssets");
+        assertEq(adapter.realAssets(), creditBefore - withdrawAmount, "totalAssets");
         assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + withdrawAmount, "vault balance");
     }
 
@@ -1962,7 +1963,7 @@ contract MidnightAdapterTest is Test {
         // 0.5e18 withdrawn, 0.3e18 lost.
         uint128 netCredit = adapter.markets(marketId).netCredit;
         assertApproxEqAbs(netCredit, 0.2e18, 1, "netCredit");
-        assertApproxEqAbs(adapter.totalAssets(), 0.2e18, 1, "totalAssets");
+        assertApproxEqAbs(adapter.realAssets(), 0.2e18, 1, "totalAssets");
         assertApproxEqAbs(parentVault.allocation(adapter.adapterId()), 0.2e18, 1, "allocation");
     }
 
@@ -2048,7 +2049,7 @@ contract MidnightAdapterTest is Test {
 
         assertEq(adapter.markets(marketId).netCredit, expectedNetCredit, "market netCredit");
         assertEq(adapter.maturities(offer.market.maturity).netCredit, expectedNetCredit, "maturity netCredit");
-        assertEq(adapter.totalAssets(), expectedNetCredit, "totalAssets");
+        assertEq(adapter.realAssets(), expectedNetCredit, "totalAssets");
         assertEq(parentVault.allocation(adapter.adapterId()), expectedNetCredit, "allocation");
     }
 
@@ -2063,7 +2064,7 @@ contract MidnightAdapterTest is Test {
 
         assertEq(adapter.markets(marketId).netCredit, 1, "market netCredit");
         assertEq(adapter.maturities(offer.market.maturity).netCredit, 1, "maturity netCredit");
-        assertEq(adapter.totalAssets(), 1, "totalAssets");
+        assertEq(adapter.realAssets(), 1, "totalAssets");
         assertEq(parentVault.allocation(adapter.adapterId()), 1, "allocation");
         assertEq(loanToken.balanceOf(address(parentVault)), assets, "vault balance");
     }
@@ -2083,7 +2084,7 @@ contract MidnightAdapterTest is Test {
         assertEq(change, -int256(assets), "change");
         assertEq(adapter.markets(marketId).netCredit, 1, "market netCredit");
         assertEq(adapter.maturities(offer.market.maturity).netCredit, 1, "maturity netCredit");
-        assertEq(adapter.totalAssets(), 1, "totalAssets");
+        assertEq(adapter.realAssets(), 1, "totalAssets");
         assertEq(parentVault.allocation(adapter.adapterId()), 1, "allocation");
         assertEq(loanToken.balanceOf(address(parentVault)), assets, "vault balance");
     }
@@ -2103,7 +2104,7 @@ contract MidnightAdapterTest is Test {
 
         assertEq(adapter.markets(marketId).netCredit, 1, "market netCredit");
         assertEq(adapter.maturities(offer.market.maturity).netCredit, 1, "maturity netCredit");
-        assertEq(adapter.totalAssets(), 1, "totalAssets");
+        assertEq(adapter.realAssets(), 1, "totalAssets");
         assertEq(parentVault.allocation(adapter.adapterId()), 1, "allocation");
         assertEq(loanToken.balanceOf(address(parentVault)), assets, "vault balance");
     }
@@ -2354,13 +2355,19 @@ contract MidnightAdapterTest is Test {
             .checked_write(credit);
     }
 
+    function pendingMaturitiesCount() internal view returns (uint256 count) {
+        for (uint256 i = 0; i < adapter.MAX_PENDING_MATURITIES(); i++) {
+            if (adapter.pendingMaturities(i) > block.timestamp) count++;
+        }
+    }
+
     function checkPendingMaturities(uint256[] memory expected) internal view {
-        uint256 length = adapter.pendingMaturitiesLength();
+        uint256 length = pendingMaturitiesCount();
         assertEq(length, expected.length, "pendingMaturitiesLength");
         for (uint256 i = 0; i < expected.length; i++) {
             uint48 maturity = expected[i].toUint48();
             bool found;
-            for (uint256 j = 0; j < length; j++) {
+            for (uint256 j = 0; j < adapter.MAX_PENDING_MATURITIES(); j++) {
                 found = found || adapter.pendingMaturities(j) == maturity;
             }
             assertTrue(found, "missing pending maturity");
