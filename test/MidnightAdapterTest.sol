@@ -5,6 +5,13 @@ pragma solidity ^0.8.0;
 import "../lib/forge-std/src/Test.sol";
 import {MidnightAdapter} from "../src/adapters/MidnightAdapter.sol";
 import {MidnightAdapterFactory} from "../src/adapters/MidnightAdapterFactory.sol";
+import {
+    DURATION_1,
+    DURATION_2,
+    DURATION_3,
+    DURATION_4,
+    DURATION_5
+} from "../src/adapters/interfaces/IMidnightAdapter.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {VaultV2Mock} from "./mocks/VaultV2Mock.sol";
@@ -119,7 +126,7 @@ contract MidnightAdapterTest is Test {
     uint256 internal constant MIN_TEST_ASSETS = 10;
     uint256 internal constant MAX_TEST_ASSETS = 1e24;
 
-    uint256[] internal allDurations = [1 days, 7 days, 30 days, 90 days, 180 days];
+    uint256[] internal allDurations = [DURATION_1, DURATION_2, DURATION_3, DURATION_4, DURATION_5];
     uint256 internal discountTick = TickLib.priceToTick(0.95e18, DEFAULT_TICK_SPACING);
 
     function setUp() public virtual {
@@ -143,7 +150,7 @@ contract MidnightAdapterTest is Test {
 
         parentVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
-        factory = new MidnightAdapterFactory(allDurations);
+        factory = new MidnightAdapterFactory();
         adapter = MidnightAdapter(factory.createMidnightAdapter(address(parentVault), address(midnight)));
 
         ecrecoverRatifier = new MidnightAdapterEcrecoverRatifier();
@@ -821,7 +828,6 @@ contract MidnightAdapterTest is Test {
         assertTrue(factory.isMidnightAdapter(newAdapter), "isMidnightAdapter");
         assertEq(IMidnightAdapter(newAdapter).parentVault(), address(newVault), "parentVault");
         assertEq(IMidnightAdapter(newAdapter).midnight(), address(midnight), "midnight");
-        assertEq(IMidnightAdapter(newAdapter).durations(), allDurations, "durations");
         assertTrue(midnight.isAuthorized(newAdapter, newAdapter), "adapter is its own ratifier");
 
         // Fixed salt: one adapter per (vault, midnight) pair.
@@ -836,12 +842,6 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.parentVault(), address(parentVault), "parentVault");
         assertEq(adapter.midnight(), address(midnight), "midnight");
         assertEq(adapter.skimRecipient(), address(0), "skimRecipient");
-        assertEq(adapter.durationsLength(), allDurations.length, "durationsLength");
-        bytes32 expectedPackedDurations;
-        for (uint256 i = 0; i < allDurations.length; i++) {
-            expectedPackedDurations |= bytes32(allDurations[i] << (32 * i));
-        }
-        assertEq(adapter.packedDurations(), expectedPackedDurations, "packedDurations");
     }
 
     /* IDS */
@@ -897,21 +897,41 @@ contract MidnightAdapterTest is Test {
         adapter.updateDurationCaps(offer.market.maturity);
         uint256 count = 0;
         while (count < allDurations.length && duration - elapsed >= allDurations[count]) count++;
-        assertEq(adapter.ids(offer.market).length, fixedIds + count, "updated");
+        ids = adapter.ids(offer.market);
+        assertEq(ids.length, fixedIds + count, "updated");
+        for (uint256 i = 0; i < allDurations.length; i++) {
+            if (i < count) assertEq(ids[fixedIds + i], durationId(allDurations[i]), "updated duration id");
+            assertEq(parentVault.allocation(durationId(allDurations[i])), i < count ? 1e18 : 0, "allocation");
+        }
+    }
+
+    function testIdsDurationBoundary(uint256 durationIndex, uint256 offset) public {
+        durationIndex = bound(durationIndex, 0, allDurations.length - 1);
+        offset = bound(offset, 0, 2);
+        Offer memory offer = buy(allDurations[durationIndex] - 1 + offset, 1e18);
+        uint256 fixedIds = 1 + offer.market.collateralParams.length * 2;
+        uint256 count = durationIndex + (offset == 0 ? 0 : 1);
+
+        bytes32[] memory ids = adapter.ids(offer.market);
+        assertEq(ids.length, fixedIds + count, "length");
+        for (uint256 i = 0; i < allDurations.length; i++) {
+            if (i < count) assertEq(ids[fixedIds + i], durationId(allDurations[i]), "duration id");
+            assertEq(parentVault.allocation(durationId(allDurations[i])), i < count ? 1e18 : 0, "allocation");
+        }
     }
 
     /* ALLOCATION UPDATES */
 
     function testExactDuration(uint32 durationIndex) public {
-        durationIndex = uint32(bound(durationIndex, 0, adapter.durationsLength() - 1));
-        uint256 duration = adapter.durations()[durationIndex];
+        durationIndex = uint32(bound(durationIndex, 0, allDurations.length - 1));
+        uint256 duration = allDurations[durationIndex];
         buy(duration, 1e18);
         assertEq(parentVault.allocation(durationId(duration)), 1e18);
     }
 
     function testExitDuration(uint256 durationIndex, uint256 timeToMaturity, uint256 extraSkip) public {
-        durationIndex = bound(durationIndex, 0, adapter.durationsLength() - 1);
-        uint256 duration = adapter.durations()[durationIndex];
+        durationIndex = bound(durationIndex, 0, allDurations.length - 1);
+        uint256 duration = allDurations[durationIndex];
         timeToMaturity = bound(timeToMaturity, duration, 100 * 365 days);
         extraSkip = bound(extraSkip, 1, 10 * 365 days);
 
@@ -928,8 +948,8 @@ contract MidnightAdapterTest is Test {
     function testRepeatDeallocateExpiredDurations(uint256 durationIndex, uint256 timeToMaturity, uint256 skipAmount)
         public
     {
-        durationIndex = bound(durationIndex, 0, adapter.durationsLength() - 1);
-        uint256 duration = adapter.durations()[durationIndex];
+        durationIndex = bound(durationIndex, 0, allDurations.length - 1);
+        uint256 duration = allDurations[durationIndex];
         timeToMaturity = bound(timeToMaturity, duration, 100 * 365 days);
         skipAmount = bound(skipAmount, 0, duration * 2);
 
