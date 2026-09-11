@@ -54,6 +54,8 @@ contract MidnightAdapter is IMidnightAdapter {
 
     address public skimRecipient;
     bool public skipBufferCheck;
+    /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
+    uint256 public minRate;
     mapping(address subRatifier => bool) public isSubRatifier;
 
     /* ACCOUNTING */
@@ -217,6 +219,12 @@ contract MidnightAdapter is IMidnightAdapter {
         timelocked();
         skipBufferCheck = newSkipBufferCheck;
         emit SetSkipBufferCheck(newSkipBufferCheck);
+    }
+
+    function setMinRate(uint256 newMinRate) external {
+        timelocked();
+        minRate = newMinRate;
+        emit SetMinRate(newMinRate);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -442,6 +450,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         if (timeToMaturity > 0) {
             uint256 scaledInterest = (boughtNetCredit - paidAssets) * WAD;
+            require(paidAssets == 0 || scaledInterest / paidAssets / timeToMaturity >= minRate, RateTooLow());
             uint120 growthIncrease = (scaledInterest / timeToMaturity).toUint120();
             totalAssetsWad += paidAssets * WAD + scaledInterest % timeToMaturity;
             marketData.growth += growthIncrease;
