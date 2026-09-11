@@ -243,10 +243,6 @@ contract MidnightAdapter is IMidnightAdapter {
 
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external {
         bytes32 marketId = IdLib.toId(market);
-        require(
-            IVaultV2(parentVault).isAllocator(msg.sender) || IVaultV2(parentVault).isSentinel(msg.sender),
-            NotAuthorized()
-        );
 
         IVaultV2(parentVault).accrueInterest();
         accrueInterest();
