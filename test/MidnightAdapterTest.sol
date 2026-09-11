@@ -581,7 +581,6 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.markets(_marketId(offer.market)).netCredit, 0, "sell accepted");
     }
 
-    /// forge-config: default.isolate = true
     function testMinRateAllocatorTakeRealVault() public {
         setUpRealVault();
         Market memory market = makeBuyOffer(7 days, 1e18, MAX_TICK).market;
@@ -600,7 +599,6 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(adapter.adapterId()), 1e18, "buy accepted");
     }
 
-    /// forge-config: default.isolate = true
     function testMinRateAllocatorTakeNetRate() public {
         setUpRealVault();
         uint256 duration = 7 days;
@@ -1836,7 +1834,6 @@ contract MidnightAdapterTest is Test {
         adapter.updateDurationCaps(boughtOffer.market.maturity);
     }
 
-    /// forge-config: default.isolate = true
     /// @dev Runs on a real VaultV2, with a non-zero penalty, fees and maxRate, and with the adapter's allocator role
     /// revoked before the exit.
     function testForceDeallocateRealVaultWithPenalty() public {
@@ -1860,7 +1857,6 @@ contract MidnightAdapterTest is Test {
         assertEq(loanToken.balanceOf(address(realVault)), 9.5e18, "vault balance");
     }
 
-    /// forge-config: default.isolate = true
     /// @dev A sendSharesGate blocking the adapter affects neither exits nor duration caps updates.
     function testForceDeallocateRealVaultWithGate() public {
         setUpRealVault();
@@ -1884,7 +1880,6 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(durationId(1 days)), 0.5e18, "1 day");
     }
 
-    /// forge-config: default.isolate = true
     /// @dev A matured maturity zeroes all its duration ids at once, without touching Midnight. The adapter needs the
     /// allocator or sentinel role.
     function testUpdateDurationCapsMaturedRealVault() public {
@@ -1908,7 +1903,6 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(adapter.adapterId()), 1e18, "adapter id untouched");
     }
 
-    /// forge-config: default.isolate = true
     /// @dev Zeroing a maturity's stale duration id must not touch other maturities sharing that id.
     function testForceDeallocateRealVaultSharedDurationId() public {
         setUpRealVault();
@@ -1927,7 +1921,6 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(adapter.adapterId()), 1.5e18, "adapter id");
     }
 
-    /// forge-config: default.isolate = true
     /// @dev An allocator takes external offers directly: taking a sell offer buys credit, taking a buy offer
     /// sells it. Both route through the same onBuy/onSell accounting as the maker flows.
     function testAllocatorTakeRealVault() public {
@@ -1961,7 +1954,6 @@ contract MidnightAdapterTest is Test {
         assertEq(loanToken.balanceOf(address(realVault)), 9.5e18, "proceeds back in the vault");
     }
 
-    /// forge-config: default.isolate = true
     /// @dev Credit can be sold for zero to abandon a market whose oracle permanently reverts.
     function testAbandonMarketWithRevertingOracle() public {
         setUpRealVault();
@@ -1999,7 +1991,6 @@ contract MidnightAdapterTest is Test {
 
     /* STALE DURATION IDS */
 
-    /// forge-config: default.isolate = true
     /// @dev Duration ids go stale as time passes, a full sell still removes the maturity from all of them.
     function testStaleDurationIdsSyncedOnFullSell(uint256 elapsed) public {
         elapsed = bound(elapsed, 1, 7 days - 1);
@@ -2016,7 +2007,6 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(adapter.adapterId()), 0, "adapter id");
     }
 
-    /// forge-config: default.isolate = true
     function testStaleDurationIdsSyncedOnFullWithdraw() public {
         setUpRealVault();
         Offer memory offer = buyOnRealVault(7 days, 1e18);
@@ -2035,7 +2025,6 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(adapter.adapterId()), 0, "adapter id");
     }
 
-    /// forge-config: default.isolate = true
     function testStaleDurationIdsSyncedOnFullForceDeallocate() public {
         setUpRealVault();
         Offer memory offer = buyOnRealVault(7 days, 1e18);
@@ -2051,7 +2040,6 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(adapter.adapterId()), 0, "adapter id");
     }
 
-    /// forge-config: default.isolate = true
     /// @dev Partial exits decrease stale ids too, so they stay consistent with the stored duration count.
     function testStaleDurationIdsPartialSellThenUpdateThenFullSell() public {
         setUpRealVault();
@@ -2077,7 +2065,6 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(adapter.adapterId()), 0, "adapter id");
     }
 
-    /// forge-config: default.isolate = true
     /// @dev A buy on a maturity with stale ids is counted on them too, so that a full exit zeroes them.
     function testStaleDurationIdsSecondBuyThenFullSell() public {
         setUpRealVault();
@@ -2095,7 +2082,6 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(adapter.adapterId()), 0, "adapter id");
     }
 
-    /// forge-config: default.isolate = true
     /// @dev Once a maturity is emptied, its next buy is only counted on the durations it currently fills.
     function testDurationIdsResetOnRebuyAfterFullSell() public {
         setUpRealVault();
@@ -2111,7 +2097,6 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.allocation(durationId(7 days)), 0, "7 days after rebuy");
     }
 
-    /// forge-config: default.isolate = true
     /// @dev A full sell only removes its own maturity from the shared duration ids.
     function testStaleDurationIdsFullSellKeepsOtherMaturity() public {
         setUpRealVault();
