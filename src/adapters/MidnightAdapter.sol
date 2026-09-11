@@ -53,8 +53,7 @@ contract MidnightAdapter is IMidnightAdapter {
     /* MANAGEMENT */
 
     address public skimRecipient;
-    /// @dev Remaining allowance for losses not covered by the vault's buffer, in asset units.
-    uint256 public skipBufferAllowance;
+    bool public skipBufferCheck;
     mapping(address subRatifier => bool) public isSubRatifier;
 
     /* ACCOUNTING */
@@ -214,10 +213,10 @@ contract MidnightAdapter is IMidnightAdapter {
         emit Abdicate(selector);
     }
 
-    function setSkipBufferAllowance(uint256 newSkipBufferAllowance) external {
+    function setSkipBufferCheck(bool newSkipBufferCheck) external {
         timelocked();
-        skipBufferAllowance = newSkipBufferAllowance;
-        emit SetSkipBufferAllowance(newSkipBufferAllowance);
+        skipBufferCheck = newSkipBufferCheck;
+        emit SetSkipBufferCheck(newSkipBufferCheck);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -483,13 +482,7 @@ contract MidnightAdapter is IMidnightAdapter {
         // forge-lint: disable-next-item(reentrancy-no-eth) updatePosition does not call back.
         IMidnight(midnight).updatePosition(market, address(this));
 
-        uint256 vaultRealAssetsBefore = IERC20(asset).balanceOf(parentVault);
-        uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
-        for (uint256 i = 0; i < adaptersLength; i++) {
-            vaultRealAssetsBefore += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
-        }
-        uint256 vaultBuffer = vaultRealAssetsBefore.zeroFloorSub(IVaultV2(parentVault).totalAssets());
-        uint256 adapterTotalAssetsBefore = totalAssets();
+        uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
         // current net credit cannot be > accounted net credit
         uint256 netCreditDecrease = _markets[marketId].netCredit - currentNetCredit(marketId);
         decreaseNetCredit(marketId, market.maturity, netCreditDecrease);
@@ -498,11 +491,13 @@ contract MidnightAdapter is IMidnightAdapter {
         IVaultV2(parentVault)
             .deallocate(address(this), abi.encode(ids(market), -int256(netCreditDecrease)), sellerAssets);
 
-        uint256 loss = adapterTotalAssetsBefore.zeroFloorSub(totalAssets() + sellerAssets);
-        uint256 consumed = loss.zeroFloorSub(vaultBuffer);
-        if (consumed > 0) {
-            skipBufferAllowance -= consumed;
-            emit ConsumeSkipBufferAllowance(consumed);
+        if (!skipBufferCheck) {
+            uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(parentVault);
+            uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
+            for (uint256 i = 0; i < adaptersLength; i++) {
+                vaultRealAssetsAfter += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
+            }
+            require(vaultRealAssetsAfter >= vaultTotalAssetsBefore, BufferTooLow());
         }
 
         emit Sell(marketId, sellerAssets, netCreditDecrease);
@@ -564,7 +559,7 @@ contract MidnightAdapter is IMidnightAdapter {
             idsArray[j++] = keccak256(abi.encode("collateralToken", collateralToken));
             idsArray[j++] = keccak256(
                 abi.encode(
-                    "collateral",
+                    "collateralParams",
                     collateralToken,
                     market.collateralParams[i].oracle,
                     market.collateralParams[i].lltv,

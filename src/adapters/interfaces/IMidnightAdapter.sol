@@ -29,8 +29,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event SetIsSubRatifier(address indexed subRatifier, bool newIsSubRatifier);
     event SetSkimRecipient(address indexed newSkimRecipient);
-    event SetSkipBufferAllowance(uint256 newSkipBufferAllowance);
-    event ConsumeSkipBufferAllowance(uint256 assets);
+    event SetSkipBufferCheck(bool newSkipBufferCheck);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
     event UpdateDurationCaps(uint256 indexed maturity, uint256 newDurationCount, uint256 netCredit);
@@ -45,6 +44,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
 
     error Abdicated();
     error AutomaticallyTimelocked();
+    error BufferTooLow();
     error DataAlreadyPending();
     error DataNotTimelocked();
     error BuyAtLoss();
@@ -80,7 +80,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function markets(bytes32 marketId) external view returns (MarketData memory);
     function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
-    function skipBufferAllowance() external view returns (uint256);
+    function skipBufferCheck() external view returns (bool);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
     function executableAt(bytes memory data) external view returns (uint256);
@@ -89,7 +89,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicate(bytes4 selector) external;
-    function setSkipBufferAllowance(uint256 newSkipBufferAllowance) external;
+    function setSkipBufferCheck(bool newSkipBufferCheck) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
     function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external;
     function setSkimRecipient(address newSkimRecipient) external;
