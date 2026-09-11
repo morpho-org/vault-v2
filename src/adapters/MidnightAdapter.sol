@@ -248,6 +248,7 @@ contract MidnightAdapter is IMidnightAdapter {
             NotAuthorized()
         );
 
+        IVaultV2(parentVault).accrueInterest();
         accrueInterest();
 
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not call back.
@@ -380,6 +381,7 @@ contract MidnightAdapter is IMidnightAdapter {
                 IncorrectOffer()
             );
 
+            IVaultV2(parentVault).accrueInterest();
             accrueInterest();
 
             // Skip onSell since we are already in a deallocate call.
@@ -418,6 +420,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(buyer == address(this), NotSelf());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
+        IVaultV2(parentVault).accrueInterest();
         accrueInterest();
 
         MaturityData storage maturityData = _maturities[market.maturity];
@@ -482,6 +485,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
 
+        IVaultV2(parentVault).accrueInterest();
         accrueInterest();
         // forge-lint: disable-next-item(reentrancy-no-eth) updatePosition does not call back.
         IMidnight(midnight).updatePosition(market, address(this));
