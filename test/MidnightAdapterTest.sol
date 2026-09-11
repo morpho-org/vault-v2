@@ -89,6 +89,35 @@ contract GarbageSubRatifier {
     }
 }
 
+/// @dev Taker of adapter sell offers that performs a stored call from its buy callback, i.e. after Midnight has
+/// decremented the adapter's credit but before the adapter's onSell runs.
+contract NestedTaker {
+    address public target;
+    bytes public data;
+
+    constructor(IERC20 loanToken, address midnight) {
+        loanToken.approve(midnight, type(uint256).max);
+    }
+
+    function setNestedCall(address newTarget, bytes memory newData) external {
+        target = newTarget;
+        data = newData;
+    }
+
+    function onBuy(bytes32, Market memory, uint256, uint256, uint256, address, bytes memory)
+        external
+        returns (bytes32)
+    {
+        (bool success, bytes memory returnData) = target.call(data);
+        if (!success) {
+            assembly ("memory-safe") {
+                revert(add(32, returnData), mload(returnData))
+            }
+        }
+        return CALLBACK_SUCCESS;
+    }
+}
+
 contract MidnightAdapterTest is Test {
     using stdStorage for StdStorage;
     using MathLib for uint256;
@@ -1332,49 +1361,142 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = buy(0, 1e18);
         parentVault.setTotalAssets(1e18);
 
-        vm.expectRevert(IMidnightAdapter.BufferTooLow.selector);
+        vm.expectRevert(stdError.arithmeticError);
         sellUnits(offer.market, 1e18, MAX_TICK - 4);
     }
 
-    function testSetSkipBufferCheckNotTimelocked() public {
+    function testSetSkipBufferAllowanceNotTimelocked() public {
         vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
-        adapter.setSkipBufferCheck(true);
+        adapter.setSkipBufferAllowance(1e18);
     }
 
-    function testSetSkipBufferCheckNotAuthorized(address caller) public {
+    function testSetSkipBufferAllowanceNotAuthorized(address caller) public {
         vm.assume(caller != curator);
         vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
         vm.prank(caller);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferAllowance, (1e18)));
     }
 
-    function testSetSkipBufferCheckTimelockNotExpired(uint256 timelockDuration) public {
+    function testSetSkipBufferAllowanceTimelockNotExpired(uint256 timelockDuration) public {
         timelockDuration = bound(timelockDuration, 1, 3650 days);
-        submitTimelock(IMidnightAdapter.setSkipBufferCheck.selector, timelockDuration);
+        submitTimelock(IMidnightAdapter.setSkipBufferAllowance.selector, timelockDuration);
 
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferAllowance, (1e18)));
 
         vm.expectRevert(IMidnightAdapter.TimelockNotExpired.selector);
-        adapter.setSkipBufferCheck(true);
+        adapter.setSkipBufferAllowance(1e18);
+
+        skip(timelockDuration);
+        adapter.setSkipBufferAllowance(1e18);
+        assertEq(adapter.skipBufferAllowance(), 1e18);
     }
 
-    function testOnSellBufferCheckSkipped() public {
+    function testSetSkipBufferAllowanceAbdicated() public {
+        vm.startPrank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferAllowance, (1e18)));
+        adapter.submit(abi.encodeCall(IMidnightAdapter.abdicate, (IMidnightAdapter.setSkipBufferAllowance.selector)));
+        vm.stopPrank();
+        adapter.abdicate(IMidnightAdapter.setSkipBufferAllowance.selector);
+
+        vm.expectRevert(IMidnightAdapter.Abdicated.selector);
+        adapter.setSkipBufferAllowance(1e18);
+        assertEq(adapter.skipBufferAllowance(), 0);
+    }
+
+    function testOnSellSkipBufferAllowanceConsumed(uint256 allowance) public {
+        uint256 loss = 1e18 - TickLib.tickToPrice(MAX_TICK - 4);
+        allowance = bound(allowance, loss, type(uint256).max);
         deal(address(loanToken), address(parentVault), 1e18);
         Offer memory offer = buy(0, 1e18);
         parentVault.setTotalAssets(1e18);
 
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferAllowance, (allowance)));
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.SetSkipBufferCheck(true);
-        adapter.setSkipBufferCheck(true);
-        assertTrue(adapter.skipBufferCheck());
+        emit IMidnightAdapter.SetSkipBufferAllowance(allowance);
+        adapter.setSkipBufferAllowance(allowance);
+        assertEq(adapter.skipBufferAllowance(), allowance);
 
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.ConsumeSkipBufferAllowance(loss);
         sellUnits(offer.market, 1e18, MAX_TICK - 4);
 
         uint128 marketNetCredit = adapter.markets(_marketId(offer.market)).netCredit;
         assertEq(marketNetCredit, 0, "sold below par with no buffer");
+        assertEq(adapter.skipBufferAllowance(), allowance - loss);
+    }
+
+    function testOnSellSkipBufferAllowanceTooLowReverts(uint256 allowance) public {
+        uint256 loss = 1e18 - TickLib.tickToPrice(MAX_TICK - 4);
+        allowance = bound(allowance, 0, loss - 1);
+        deal(address(loanToken), address(parentVault), 1e18);
+        Offer memory offer = buy(0, 1e18);
+        parentVault.setTotalAssets(1e18);
+
+        setSkipBufferAllowance(allowance);
+
+        vm.expectRevert(stdError.arithmeticError);
+        sellUnits(offer.market, 1e18, MAX_TICK - 4);
+
+        assertEq(adapter.skipBufferAllowance(), allowance);
+        assertEq(adapter.markets(_marketId(offer.market)).netCredit, 1e18);
+        assertEq(adapter.totalAssets(), 1e18);
+    }
+
+    function testOnSellSkipBufferAllowanceUsesBuffer(uint256 buffer) public {
+        uint256 loss = 1e18 - TickLib.tickToPrice(MAX_TICK - 4);
+        buffer = bound(buffer, 0, 2 * loss);
+        deal(address(loanToken), address(parentVault), 1e18);
+        Offer memory offer = buy(0, 1e18);
+        extraAssetsAdapter.setRealAssets(buffer);
+        parentVault.setTotalAssets(1e18);
+
+        setSkipBufferAllowance(loss);
+        sellUnits(offer.market, 1e18, MAX_TICK - 4);
+
+        assertEq(adapter.skipBufferAllowance(), loss - loss.zeroFloorSub(buffer));
+    }
+
+    function testOnSellSkipBufferAllowanceSharedAcrossMarkets() public {
+        deal(address(loanToken), address(parentVault), 2e18);
+        Offer memory offerA = buy(0, 1e18);
+        Offer memory offerB = buy(1 days, 1e18);
+        parentVault.setTotalAssets(2e18);
+
+        setSkipBufferAllowance(1.5e18);
+        sellUnits(offerA.market, 0.75e18, 0);
+        assertEq(adapter.skipBufferAllowance(), 0.75e18);
+        sellUnits(offerB.market, 0.75e18, 0);
+        assertEq(adapter.skipBufferAllowance(), 0);
+
+        vm.expectRevert(stdError.arithmeticError);
+        sellUnits(offerA.market, 0.25e18, 0);
+    }
+
+    function testOnSellSkipBufferAllowanceExcludesUnearnedInterest() public {
+        deal(address(loanToken), address(parentVault), 1e18);
+        Offer memory offer = buy(7 days, 1e18, discountTick);
+        uint256 value = adapter.totalAssets();
+        parentVault.setTotalAssets(value + loanToken.balanceOf(address(parentVault)));
+
+        setSkipBufferAllowance(value);
+        sellUnits(offer.market, offer.maxUnits, 0);
+
+        assertEq(adapter.skipBufferAllowance(), 0);
+        assertEq(adapter.totalAssets(), 0);
+    }
+
+    function testOnSellSkipBufferAllowanceDoesNotIncreaseOnProfit() public {
+        deal(address(loanToken), address(parentVault), 1e18);
+        Offer memory offer = buy(7 days, 1e18, discountTick);
+        deal(address(loanToken), taker, offer.maxUnits);
+        parentVault.setTotalAssets(adapter.totalAssets() + loanToken.balanceOf(address(parentVault)));
+
+        setSkipBufferAllowance(1e18);
+        sellUnits(offer.market, offer.maxUnits, MAX_TICK);
+
+        assertEq(adapter.skipBufferAllowance(), 1e18);
     }
 
     function testOnSellBufferBigEnough() public {
@@ -1392,6 +1514,117 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.totalAssets(), 0);
     }
 
+    /* NESTED OPERATIONS */
+
+    // Nested operations run between Midnight's decrement of the adapter's credit and the adapter's onSell. Any path
+    // computing `accounted - current` there absorbs the outer sale's decrement, so the outer onSell sees no loss.
+
+    function nestedSellSetup(uint256 vaultAssets) internal returns (Offer memory offer, NestedTaker attacker) {
+        deal(address(loanToken), address(parentVault), vaultAssets);
+        offer = buy(0, 1e18);
+        parentVault.setTotalAssets(vaultAssets);
+        attacker = new NestedTaker(loanToken, address(midnight));
+        deal(address(loanToken), address(attacker), 1e18);
+    }
+
+    function takeNested(Offer memory sellOffer, NestedTaker attacker) internal {
+        vm.expectRevert(IMidnightAdapter.PositionLocked.selector);
+        vm.prank(address(attacker));
+        midnight.take(
+            sellOffer, sign([sellOffer], signerAllocator), 0.5e18, address(attacker), address(0), address(attacker), ""
+        );
+    }
+
+    function testNestedForceDeallocateInSellReverts() public {
+        (Offer memory offer, NestedTaker attacker) = nestedSellSetup(1e18);
+        Offer memory sellOffer = makeSellOffer(offer.market, 0.5e18, MAX_TICK - 4);
+        (Offer memory fdOffer, bytes32 fdRoot) = makeForceDeallocateOffer(offer.market, 0.25e18);
+        bytes memory fdData = abi.encode(fdOffer, abi.encode(fdRoot, 0, proof([fdOffer])));
+        attacker.setNestedCall(
+            address(parentVault),
+            abi.encodeCall(VaultV2Mock.forceDeallocate, (address(adapter), fdData, 0.25e18, address(attacker)))
+        );
+
+        takeNested(sellOffer, attacker);
+    }
+
+    function testNestedSellInSellReverts() public {
+        (Offer memory offer, NestedTaker attacker) = nestedSellSetup(1e18);
+        setSkipBufferAllowance(1e18);
+        Offer memory sellOffer = makeSellOffer(offer.market, 0.5e18, MAX_TICK - 4);
+        Offer memory nestedSellOffer = makeSellOffer(offer.market, 0.25e18, MAX_TICK - 4);
+        attacker.setNestedCall(
+            address(midnight),
+            abi.encodeCall(
+                IMidnight.take,
+                (
+                    nestedSellOffer,
+                    sign([nestedSellOffer], signerAllocator),
+                    0.25e18,
+                    address(attacker),
+                    address(0),
+                    address(0),
+                    ""
+                )
+            )
+        );
+
+        takeNested(sellOffer, attacker);
+    }
+
+    function testNestedBuyInSellReverts() public {
+        (Offer memory offer, NestedTaker attacker) = nestedSellSetup(1.5e18);
+        Offer memory sellOffer = makeSellOffer(offer.market, 0.5e18, MAX_TICK - 4);
+        // The attacker sells back the credit it just received in the outer take.
+        Offer memory nestedBuyOffer = makeBuyOffer(0, 0.5e18, MAX_TICK);
+        nestedBuyOffer.group = bytes32(vm.randomUint());
+        attacker.setNestedCall(
+            address(midnight),
+            abi.encodeCall(
+                IMidnight.take,
+                (
+                    nestedBuyOffer,
+                    sign([nestedBuyOffer], signerAllocator),
+                    0.5e18,
+                    address(attacker),
+                    address(attacker),
+                    address(0),
+                    ""
+                )
+            )
+        );
+
+        takeNested(sellOffer, attacker);
+    }
+
+    function testNestedWithdrawToVaultInSellReverts() public {
+        (Offer memory offer, NestedTaker attacker) = nestedSellSetup(1e18);
+        skip(1);
+        vm.prank(taker);
+        midnight.repay(offer.market, 1e18, taker, address(0), "");
+        stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(address(attacker)).checked_write(true);
+        Offer memory sellOffer = makeSellOffer(offer.market, 0.5e18, MAX_TICK - 4);
+        attacker.setNestedCall(
+            address(adapter), abi.encodeCall(IMidnightAdapter.withdrawToVault, (offer.market, 0.25e18))
+        );
+
+        takeNested(sellOffer, attacker);
+    }
+
+    function testNestedTakeInSellReverts() public {
+        (Offer memory offer, NestedTaker attacker) = nestedSellSetup(1e18);
+        setSkipBufferAllowance(1e18);
+        stdstore.target(address(parentVault))
+            .sig("isAllocator(address)")
+            .with_key(address(attacker))
+            .checked_write(true);
+        Offer memory sellOffer = makeSellOffer(offer.market, 0.5e18, MAX_TICK - 4);
+        Offer memory buyOffer = makeExternalOffer(offer.market, true, 0.25e18, MAX_TICK - 4);
+        attacker.setNestedCall(address(adapter), abi.encodeCall(IMidnightAdapter.take, (buyOffer, "", 0.25e18)));
+
+        takeNested(sellOffer, attacker);
+    }
+
     // Same buffer check, reached through the allocator take path: taking a buy offer makes the adapter sell,
     // below par here, dropping the vault's real assets under its reported total.
     function testTakeBufferTooLowReverts() public {
@@ -1400,7 +1633,7 @@ contract MidnightAdapterTest is Test {
         parentVault.setTotalAssets(1e18);
 
         Offer memory buyOffer = makeExternalOffer(offer.market, true, 1e18, MAX_TICK - 4);
-        vm.expectRevert(IMidnightAdapter.BufferTooLow.selector);
+        vm.expectRevert(stdError.arithmeticError);
         vm.prank(signerAllocator);
         adapter.take(buyOffer, "", 1e18);
     }
@@ -1420,6 +1653,21 @@ contract MidnightAdapterTest is Test {
         uint128 marketNetCredit = adapter.markets(_marketId(offer.market)).netCredit;
         assertEq(marketNetCredit, 0);
         assertEq(adapter.totalAssets(), 0);
+    }
+
+    function testTakeSkipBufferAllowanceConsumed() public {
+        uint256 loss = 1e18 - TickLib.tickToPrice(MAX_TICK - 4);
+        deal(address(loanToken), address(parentVault), 1e18);
+        Offer memory offer = buy(0, 1e18);
+        parentVault.setTotalAssets(1e18);
+
+        setSkipBufferAllowance(loss);
+        Offer memory buyOffer = makeExternalOffer(offer.market, true, 1e18, MAX_TICK - 4);
+        vm.prank(signerAllocator);
+        adapter.take(buyOffer, "", 1e18);
+
+        assertEq(adapter.skipBufferAllowance(), 0);
+        assertEq(adapter.markets(_marketId(offer.market)).netCredit, 0);
     }
 
     function testOutOfOrderInsertsStayTracked() public {
@@ -1941,8 +2189,8 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.totalAssets(), 10e18, "market still fully valued");
 
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
-        adapter.setSkipBufferCheck(true);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferAllowance, (1e18)));
+        adapter.setSkipBufferAllowance(1e18);
 
         address buyer = makeAddr("buyer");
         Offer memory sellOffer = makeSellOffer(boughtOffer.market, 1e18, 0);
@@ -1954,11 +2202,51 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.debt(marketId, taker), 1e18, "borrower debt");
         assertEq(adapter.totalAssets(), 0, "adapter totalAssets");
         assertEq(realVault.totalAssets(), 9e18, "loss realized");
+        assertEq(adapter.skipBufferAllowance(), 0, "allowance consumed");
 
         bytes32[] memory marketIds = adapter.ids(boughtOffer.market);
         for (uint256 i = 0; i < marketIds.length; i++) {
             assertEq(realVault.allocation(marketIds[i]), 0, "allocation");
         }
+    }
+
+    /// forge-config: default.isolate = false
+    function testSkipBufferAllowanceConsumedSameTransactionRealVault() public {
+        setUpRealVault();
+        Offer memory offer = buyOnRealVault(7 days, 2e18);
+        realVault.accrueInterest();
+        assertEq(realVault.firstTotalAssets(), 10e18);
+
+        setSkipBufferAllowance(2e18);
+        sellUnits(offer.market, 1e18, 0);
+        assertEq(adapter.skipBufferAllowance(), 1e18);
+        sellUnits(offer.market, 1e18, 0);
+        assertEq(adapter.skipBufferAllowance(), 0);
+        assertEq(realVault.totalAssets(), 10e18, "vault accounting fixed for transaction");
+        assertEq(loanToken.balanceOf(address(realVault)), 8e18);
+        assertEq(adapter.totalAssets(), 0);
+    }
+
+    /// forge-config: default.isolate = true
+    function testSkipBufferAllowanceNotReusedAfterLossRealized() public {
+        setUpRealVault();
+        Offer memory offer = buyOnRealVault(7 days, 2e18);
+
+        setSkipBufferAllowance(1e18);
+        sellUnits(offer.market, 1e18, 0);
+        assertEq(adapter.skipBufferAllowance(), 0);
+        realVault.accrueInterest();
+        assertEq(realVault.totalAssets(), 9e18);
+
+        vm.expectRevert(stdError.arithmeticError);
+        sellUnits(offer.market, 1e18, 0);
+        assertEq(adapter.skipBufferAllowance(), 0);
+        assertEq(adapter.markets(_marketId(offer.market)).netCredit, 1e18);
+
+        setSkipBufferAllowance(1e18);
+        sellUnits(offer.market, 1e18, 0);
+        assertEq(adapter.skipBufferAllowance(), 0);
+        assertEq(realVault.totalAssets(), 8e18);
     }
 
     /* STALE DURATION IDS */
@@ -2332,6 +2620,12 @@ contract MidnightAdapterTest is Test {
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMidnightAdapter.increaseTimelock, (selector, duration)));
         adapter.increaseTimelock(selector, duration);
+    }
+
+    function setSkipBufferAllowance(uint256 allowance) internal {
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferAllowance, (allowance)));
+        adapter.setSkipBufferAllowance(allowance);
     }
 
     function setMinRate(uint256 newMinRate) internal {
