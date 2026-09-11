@@ -51,6 +51,7 @@ contract MidnightAdapter is IMidnightAdapter {
     /* MANAGEMENT */
 
     address public skimRecipient;
+    bool public skipBufferCheck;
     mapping(address subRatifier => bool) public isSubRatifier;
 
     /* ACCOUNTING */
@@ -199,6 +200,12 @@ contract MidnightAdapter is IMidnightAdapter {
         timelocked();
         abdicated[selector] = true;
         emit Abdicate(selector);
+    }
+
+    function setSkipBufferCheck(bool newSkipBufferCheck) external {
+        timelocked();
+        skipBufferCheck = newSkipBufferCheck;
+        emit SetSkipBufferCheck(newSkipBufferCheck);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -389,16 +396,19 @@ contract MidnightAdapter is IMidnightAdapter {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
 
+        uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
         int256 change = updateMarket(marketId, market, 0, 0);
 
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 
-        uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(parentVault);
-        uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
-        for (uint256 i = 0; i < adaptersLength; i++) {
-            vaultRealAssetsAfter += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
+        if (!skipBufferCheck) {
+            uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(parentVault);
+            uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
+            for (uint256 i = 0; i < adaptersLength; i++) {
+                vaultRealAssetsAfter += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
+            }
+            require(vaultRealAssetsAfter >= vaultTotalAssetsBefore, BufferTooLow());
         }
-        require(vaultRealAssetsAfter >= IVaultV2(parentVault).totalAssets(), BufferTooLow());
 
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
         emit Sell(marketId, sellerAssets, uint256(-change));
@@ -461,7 +471,6 @@ contract MidnightAdapter is IMidnightAdapter {
         while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;
     }
 
-    /// @dev Liquidation cursors are omitted from collateral ids.
     function ids(Market memory market) public view returns (bytes32[] memory) {
         uint256 durationsCount = _maturities[market.maturity].durationCount;
 
@@ -474,7 +483,11 @@ contract MidnightAdapter is IMidnightAdapter {
             idsArray[j++] = keccak256(abi.encode("collateralToken", collateralToken));
             idsArray[j++] = keccak256(
                 abi.encode(
-                    "collateral", collateralToken, market.collateralParams[i].oracle, market.collateralParams[i].lltv
+                    "collateralParams",
+                    collateralToken,
+                    market.collateralParams[i].oracle,
+                    market.collateralParams[i].lltv,
+                    market.collateralParams[i].liquidationCursor
                 )
             );
         }

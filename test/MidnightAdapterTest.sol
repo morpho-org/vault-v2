@@ -864,10 +864,11 @@ contract MidnightAdapterTest is Test {
                 ids[i * 2 + 2],
                 keccak256(
                     abi.encode(
-                        "collateral",
+                        "collateralParams",
                         market.collateralParams[i].token,
                         market.collateralParams[i].oracle,
-                        market.collateralParams[i].lltv
+                        market.collateralParams[i].lltv,
+                        market.collateralParams[i].liquidationCursor
                     )
                 )
             );
@@ -1174,6 +1175,47 @@ contract MidnightAdapterTest is Test {
 
         vm.expectRevert(IMidnightAdapter.BufferTooLow.selector);
         sellUnits(offer.market, 1e18, MAX_TICK - 4);
+    }
+
+    function testSetSkipBufferCheckNotTimelocked() public {
+        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
+        adapter.setSkipBufferCheck(true);
+    }
+
+    function testSetSkipBufferCheckNotAuthorized(address caller) public {
+        vm.assume(caller != curator);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
+    }
+
+    function testSetSkipBufferCheckTimelockNotExpired(uint256 timelockDuration) public {
+        timelockDuration = bound(timelockDuration, 1, 3650 days);
+        submitTimelock(IMidnightAdapter.setSkipBufferCheck.selector, timelockDuration);
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
+
+        vm.expectRevert(IMidnightAdapter.TimelockNotExpired.selector);
+        adapter.setSkipBufferCheck(true);
+    }
+
+    function testOnSellBufferCheckSkipped() public {
+        deal(address(loanToken), address(parentVault), 1e18);
+        Offer memory offer = buy(0, 1e18);
+        parentVault.setTotalAssets(1e18);
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.SetSkipBufferCheck(true);
+        adapter.setSkipBufferCheck(true);
+        assertTrue(adapter.skipBufferCheck());
+
+        sellUnits(offer.market, 1e18, MAX_TICK - 4);
+
+        uint128 marketNetCredit = adapter.netCredit(_marketId(offer.market));
+        assertEq(marketNetCredit, 0, "sold below par with no buffer");
     }
 
     function testOnSellBufferBigEnough() public {
@@ -2015,8 +2057,9 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.lossFactor(marketId), 0, "loss not realized");
         assertEq(realVault.totalAssets(), 10e18, "market still fully valued");
 
-        realVault.accrueInterest();
-        deal(address(loanToken), address(realVault), loanToken.balanceOf(address(realVault)) + 1e18);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
+        adapter.setSkipBufferCheck(true);
 
         address buyer = makeAddr("buyer");
         Offer memory sellOffer = makeSellOffer(boughtOffer.market, 1e18, 0);
@@ -2026,7 +2069,7 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.credit(marketId, buyer), 1e18, "buyer credit");
         assertEq(midnight.debt(marketId, taker), 1e18, "borrower debt");
         assertEq(adapter.realAssets(), 0, "adapter realAssets");
-        assertEq(realVault.totalAssets(), 10e18, "buffer covers the loss");
+        assertEq(realVault.totalAssets(), 9e18, "loss realized");
 
         bytes32[] memory marketIds = adapter.ids(boughtOffer.market);
         for (uint256 i = 0; i < marketIds.length; i++) {
@@ -2564,11 +2607,19 @@ contract MidnightAdapterTest is Test {
         idDatas[0] = abi.encode("this", address(adapter));
         idDatas[1] = abi.encode("collateralToken", storedCollaterals[0].token);
         idDatas[2] = abi.encode(
-            "collateral", storedCollaterals[0].token, storedCollaterals[0].oracle, storedCollaterals[0].lltv
+            "collateralParams",
+            storedCollaterals[0].token,
+            storedCollaterals[0].oracle,
+            storedCollaterals[0].lltv,
+            storedCollaterals[0].liquidationCursor
         );
         idDatas[3] = abi.encode("collateralToken", storedCollaterals[1].token);
         idDatas[4] = abi.encode(
-            "collateral", storedCollaterals[1].token, storedCollaterals[1].oracle, storedCollaterals[1].lltv
+            "collateralParams",
+            storedCollaterals[1].token,
+            storedCollaterals[1].oracle,
+            storedCollaterals[1].lltv,
+            storedCollaterals[1].liquidationCursor
         );
         idDatas[5] = abi.encode("duration", uint256(1 days));
         idDatas[6] = abi.encode("duration", uint256(7 days));
