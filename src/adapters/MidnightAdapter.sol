@@ -11,6 +11,7 @@ import {TakeAmountsLib} from "lib/midnight/src/periphery/libraries/TakeAmountsLi
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
+import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapter, MarketData, MaturityData, IAdapter} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
@@ -52,6 +53,8 @@ contract MidnightAdapter is IMidnightAdapter {
 
     address public skimRecipient;
     bool public skipBufferCheck;
+    /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
+    uint256 public minRate;
     mapping(address subRatifier => bool) public isSubRatifier;
 
     /* ACCOUNTING */
@@ -206,6 +209,12 @@ contract MidnightAdapter is IMidnightAdapter {
         timelocked();
         skipBufferCheck = newSkipBufferCheck;
         emit SetSkipBufferCheck(newSkipBufferCheck);
+    }
+
+    function setMinRate(uint256 newMinRate) external {
+        timelocked();
+        minRate = newMinRate;
+        emit SetMinRate(newMinRate);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -363,6 +372,12 @@ contract MidnightAdapter is IMidnightAdapter {
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
+        uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
+        require(
+            timeToMaturity == 0 || paidAssets == 0
+                || (boughtNetCredit - paidAssets).mulDivDown(WAD, paidAssets) / timeToMaturity >= minRate,
+            RateTooLow()
+        );
 
         MaturityData storage maturityData = _maturities[market.maturity];
         // forge-lint: disable-next-item(unsafe-typecast) durationCount <= MAX_DURATIONS.
