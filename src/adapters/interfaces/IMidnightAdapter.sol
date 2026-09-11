@@ -57,6 +57,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error NotMidnight();
     error NoDebtCreation();
     error NotSelf();
+    error PositionLocked();
     error SelfAllocationOnly();
     error SubRatifierUnauthorized();
     error TimelockNotDecreasing();
