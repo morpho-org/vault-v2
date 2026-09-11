@@ -279,7 +279,10 @@ contract MidnightAdapter is IMidnightAdapter {
             if (marketData.lossFactor == IMidnight(midnight).lossFactor(marketId)) {
                 newNetCredit = marketData.netCredit;
             } else {
-                newNetCredit = currentNetCredit(marketId, IMidnight(midnight).toMarket(marketId));
+                // updatePositionView only reads market.maturity.
+                Market memory market;
+                market.maturity = marketData.maturity;
+                newNetCredit = currentNetCredit(marketId, market);
             }
             assets += newNetCredit - futureInterest(marketData, newNetCredit);
         }
