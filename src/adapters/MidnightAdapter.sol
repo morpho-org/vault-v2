@@ -562,7 +562,7 @@ contract MidnightAdapter is IMidnightAdapter {
             idsArray[j++] = keccak256(abi.encode("collateralToken", collateralToken));
             idsArray[j++] = keccak256(
                 abi.encode(
-                    "collateral",
+                    "collateralParams",
                     collateralToken,
                     market.collateralParams[i].oracle,
                     market.collateralParams[i].lltv,

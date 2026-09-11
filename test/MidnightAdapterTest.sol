@@ -895,7 +895,7 @@ contract MidnightAdapterTest is Test {
                 ids[i * 2 + 2],
                 keccak256(
                     abi.encode(
-                        "collateral",
+                        "collateralParams",
                         market.collateralParams[i].token,
                         market.collateralParams[i].oracle,
                         market.collateralParams[i].lltv,
@@ -2583,7 +2583,7 @@ contract MidnightAdapterTest is Test {
         idDatas[0] = abi.encode("this", address(adapter));
         idDatas[1] = abi.encode("collateralToken", storedCollaterals[0].token);
         idDatas[2] = abi.encode(
-            "collateral",
+            "collateralParams",
             storedCollaterals[0].token,
             storedCollaterals[0].oracle,
             storedCollaterals[0].lltv,
@@ -2591,7 +2591,7 @@ contract MidnightAdapterTest is Test {
         );
         idDatas[3] = abi.encode("collateralToken", storedCollaterals[1].token);
         idDatas[4] = abi.encode(
-            "collateral",
+            "collateralParams",
             storedCollaterals[1].token,
             storedCollaterals[1].oracle,
             storedCollaterals[1].lltv,
