@@ -11,6 +11,7 @@ import {TakeAmountsLib} from "lib/midnight/src/periphery/libraries/TakeAmountsLi
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
+import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapter, MaturityData, MarketData, IAdapter} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
@@ -54,6 +55,8 @@ contract MidnightAdapter is IMidnightAdapter {
     address public skimRecipient;
     /// @dev Remaining allowance for losses not covered by the vault's buffer, in asset units.
     uint256 public skipBufferAllowance;
+    /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
+    uint256 public minRate;
     mapping(address subRatifier => bool) public isSubRatifier;
 
     /* ACCOUNTING */
@@ -213,6 +216,12 @@ contract MidnightAdapter is IMidnightAdapter {
         timelocked();
         skipBufferAllowance = newSkipBufferAllowance;
         emit SetSkipBufferAllowance(newSkipBufferAllowance);
+    }
+
+    function setMinRate(uint256 newMinRate) external {
+        timelocked();
+        minRate = newMinRate;
+        emit SetMinRate(newMinRate);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -441,6 +450,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         if (timeToMaturity > 0) {
             uint256 interest = boughtNetCredit - paidAssets;
+            require(paidAssets == 0 || interest.mulDivDown(WAD, paidAssets) / timeToMaturity >= minRate, RateTooLow());
             uint120 growthIncrease = (interest / timeToMaturity).toUint120();
             totalAssets += (paidAssets + interest % timeToMaturity).toUint128();
             marketData.growth += growthIncrease;

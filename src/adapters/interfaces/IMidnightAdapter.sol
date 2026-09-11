@@ -31,6 +31,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetSkipBufferAllowance(uint256 newSkipBufferAllowance);
     event ConsumeSkipBufferAllowance(uint256 assets);
+    event SetMinRate(uint256 newMinRate);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
     event UpdateDurationCaps(uint256 indexed maturity, uint256 newDurationCount, uint256 netCredit);
@@ -58,6 +59,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error NoDebtCreation();
     error NotSelf();
     error PositionLocked();
+    error RateTooLow();
     error SelfAllocationOnly();
     error SubRatifierUnauthorized();
     error TimelockNotDecreasing();
@@ -81,6 +83,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
     function skipBufferAllowance() external view returns (uint256);
+    function minRate() external view returns (uint256);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
     function executableAt(bytes memory data) external view returns (uint256);
@@ -90,6 +93,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicate(bytes4 selector) external;
     function setSkipBufferAllowance(uint256 newSkipBufferAllowance) external;
+    function setMinRate(uint256 newMinRate) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
     function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external;
     function setSkimRecipient(address newSkimRecipient) external;
