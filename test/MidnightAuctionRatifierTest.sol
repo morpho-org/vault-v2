@@ -286,7 +286,7 @@ contract MidnightAuctionRatifierTest is MidnightAdapterTest {
         vm.prank(taker);
         midnight.take(offer, data, offer.maxUnits, taker, address(0), address(0), "");
 
-        (uint128 marketNetCredit,) = adapter._markets(marketId);
+        uint128 marketNetCredit = adapter.markets(marketId).netCredit;
         assertLt(marketNetCredit, 1e18, "position was partially unwound");
     }
 

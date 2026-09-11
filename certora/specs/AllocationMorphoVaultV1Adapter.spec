@@ -23,7 +23,7 @@ methods {
     function _.borrowRateView(MorphoHarness.MarketParams, MorphoHarness.Market) external => constantBorrowRate expect(uint256);
 
     function Math.mulDiv(uint256 x, uint256 y, uint256 denominator) internal returns (uint256) => mulDivSummary(x, y, denominator);
-    function _.supplyShares(address, MorphoHarness.Id id, address user) internal => summarySupplyShares(id, user) expect uint256;
+    function _.supplyShares(address, MorphoHarness.Id id, address user) internal => summarySupplyShares(id, user) expect(uint256);
 
     // Avoids having to prove the invariant: vault v1 always calls Morpho with markets where the loan token is the same as the vault asset.
     // This invariant is a corollary of MarketInteractions and ConsistentState.enabledHasConsistentAsset.
@@ -47,7 +47,6 @@ function mulDivSummary(uint256 x, uint256 y, uint256 denominator) returns uint25
     if (result >= 2 ^ 256) revert();
     return assert_uint256(result);
 }
-
 
 function summarySupplyShares(MorphoHarness.Id id, address user) returns uint256 {
     return MorphoMarketV1.supplyShares(id, user);

@@ -23,7 +23,7 @@ methods {
     function _.balanceOf(address) external => NONDET;
 
     // Assume that previewRedeem doesn't revert on vault v1, this implies that underlying expectedSupplyAssets calls don't revert.
-    function _.previewRedeem(uint256 shares) external => summaryPreviewRedeem(shares) expect uint256;
+    function _.previewRedeem(uint256 shares) external => summaryPreviewRedeem(shares) expect(uint256);
 }
 
 function summaryPreviewRedeem(uint256 shares) returns (uint256) {

@@ -19,9 +19,9 @@ This is notably useful when abdicated (see [timelocks](#timelocks)), to ensure t
 
 The following adapters are currently available:
 
-- [Morpho Market V1 Adapter V2](./src/adapters/MorphoMarketV1AdapterV2.sol).
+- [Morpho Market V1 Adapter V2](./src/adapters/MorphoMarketV1AdapterV2.sol) (Morpho Blue).
 - [Morpho Vault V1 Adapter](./src/adapters/MorphoVaultV1Adapter.sol).
-- Morpho Market V2 Adapter. WIP
+- Midnight Adapter. WIP
 
 ### Caps
 
@@ -42,7 +42,7 @@ When users withdraw assets, the idle assets are taken in priority.
 If there is not enough idle liquidity, liquidity is taken from the liquidity adapter.
 When defined, the liquidity adapter is also used to forward deposited funds.
 
-A typical liquidity adapter would allow deposits/withdrawals to go through a very liquid Market V1.
+A typical liquidity adapter would allow deposits/withdrawals to go through a very liquid Morpho Blue market.
 
 ### Timelocks
 
@@ -78,6 +78,8 @@ Four gates are defined:
 - **Send shares gate** (`sendSharesGate`): Controls the permission to send shares.
 - **Receive assets Gate** (`receiveAssetsGate`): Controls permissions related to receiving assets.
 - **Send assets Gate** (`sendAssetsGate`): Controls permissions related to sending assets.
+
+See [WhitelistSendAssetsGate](./src/periphery/gates/WhitelistSendAssetsGate.sol) which gives one possible implementation of the Send assets Gate.
 
 ### Max rate
 
@@ -117,6 +119,7 @@ Vault V2 is [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) and [ERC-2612](h
 ## Developers
 
 Compilation, testing and formatting with [forge](https://book.getfoundry.sh/getting-started/installation).
+Peripheral contracts are available in [src/periphery](./src/periphery/).
 
 ## Audits
 

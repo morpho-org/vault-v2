@@ -4,7 +4,6 @@ pragma solidity >=0.5.0;
 
 import {Market} from "lib/midnight/src/interfaces/IMidnight.sol";
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
-import {Signature} from "lib/midnight/src/ratifiers/interfaces/IEcrecoverRatifier.sol";
 
 /// @dev Describes a Dutch auction for a reduce-only sell offer of a MidnightAdapter.
 /// @dev Every Offer field is fixed by the auction except `tick`, which is free to be anything at least as good for

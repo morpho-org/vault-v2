@@ -15,6 +15,7 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
 
     /* CONSTRUCTOR */
 
+    /// @dev Durations are checked only when an adapter is created.
     constructor(uint256[] memory _durations, address _auctionRatifier) {
         durations = _durations;
         auctionRatifier = _auctionRatifier;

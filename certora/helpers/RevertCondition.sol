@@ -2,11 +2,10 @@
 // Copyright (c) 2025 Morpho Association
 pragma solidity 0.8.28;
 
-import "../../src/VaultV2.sol";
-import "../../src/interfaces/IVaultV2.sol";
-import "../../src/interfaces/IAdapterRegistry.sol";
-import "../../src/adapters/MorphoMarketV1AdapterV2.sol";
-import "../../src/adapters/interfaces/IMorphoMarketV1AdapterV2.sol";
+import {VaultV2} from "../../src/VaultV2.sol";
+import {IVaultV2} from "../../src/interfaces/IVaultV2.sol";
+import {IAdapterRegistry} from "../../src/interfaces/IAdapterRegistry.sol";
+import {MorphoMarketV1AdapterV2} from "../../src/adapters/MorphoMarketV1AdapterV2.sol";
 import {
     WAD,
     MAX_PERFORMANCE_FEE,
@@ -23,6 +22,7 @@ contract RevertCondition {
         uint256 executableAtData = vault.executableAt(msg.data);
         bool dataNotSubmitted = executableAtData == 0;
         bool timelockNotExpired = block.timestamp < executableAtData;
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bool functionAbdicated = vault.abdicated(bytes4(msg.data));
         return dataNotSubmitted || timelockNotExpired || functionAbdicated;
     }
@@ -31,6 +31,7 @@ contract RevertCondition {
         uint256 executableAtData = marketV1adapter.executableAt(msg.data);
         bool dataNotSubmitted = executableAtData == 0;
         bool timelockNotExpired = block.timestamp < executableAtData;
+        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bool functionAbdicated = marketV1adapter.abdicated(bytes4(msg.data));
         return dataNotSubmitted || timelockNotExpired || functionAbdicated;
     }
