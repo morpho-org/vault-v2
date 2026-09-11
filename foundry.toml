@@ -68,7 +68,7 @@ evm_version = "cancun"
 
 [[profile.default.compilation_restrictions]]
 paths = "src/adapters/MidnightAdapter.sol"
-optimizer_runs = 10999
+optimizer_runs = 6449
 evm_version = "osaka"
 
 [[profile.default.compilation_restrictions]]
@@ -101,8 +101,8 @@ optimizer_runs = 200
 evm_version = "cancun"
 
 [[profile.default.additional_compiler_profiles]]
-name = "10999-osaka"
-optimizer_runs = 10999
+name = "6449-osaka"
+optimizer_runs = 6449
 evm_version = "osaka"
 
 [[profile.default.additional_compiler_profiles]]
