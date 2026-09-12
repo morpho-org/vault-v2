@@ -6,6 +6,7 @@ import {IMidnightAdapterLossRealizationFunder} from "./interfaces/IMidnightAdapt
 import {IMidnightAdapter} from "../../adapters/interfaces/IMidnightAdapter.sol";
 import {Market} from "lib/midnight/src/interfaces/IMidnight.sol";
 import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
+import {MathLib} from "../../libraries/MathLib.sol";
 
 /// @dev Rewards realizing a loss in the Midnight Adapter.
 contract MidnightAdapterLossRealizationFunder is IMidnightAdapterLossRealizationFunder {
@@ -13,8 +14,8 @@ contract MidnightAdapterLossRealizationFunder is IMidnightAdapterLossRealization
     address public immutable parentVault;
 
     address public owner;
-    uint256 public incentive;
-    uint256 public minimumLossBeforeIncentive;
+    uint256 public maxIncentive;
+    uint256 public minLossForMaxIncentive;
 
     constructor(address _adapter, address _owner) payable {
         adapter = _adapter;
@@ -31,16 +32,16 @@ contract MidnightAdapterLossRealizationFunder is IMidnightAdapterLossRealization
         emit SetOwner(newOwner);
     }
 
-    function setIncentive(uint256 newIncentive) external {
+    function setMaxIncentive(uint256 newMaxIncentive) external {
         require(msg.sender == owner, NotOwner());
-        incentive = newIncentive;
-        emit SetIncentive(newIncentive);
+        maxIncentive = newMaxIncentive;
+        emit SetMaxIncentive(newMaxIncentive);
     }
 
-    function setMinimumLossBeforeIncentive(uint256 newMinimumLossBeforeIncentive) external {
+    function setMinLossForMaxIncentive(uint256 newMinLossForMaxIncentive) external {
         require(msg.sender == owner, NotOwner());
-        minimumLossBeforeIncentive = newMinimumLossBeforeIncentive;
-        emit SetMinimumLossBeforeIncentive(newMinimumLossBeforeIncentive);
+        minLossForMaxIncentive = newMinLossForMaxIncentive;
+        emit SetMinLossForMaxIncentive(newMinLossForMaxIncentive);
     }
 
     function withdraw(uint256 assets, address payable receiver) external {
@@ -62,16 +63,11 @@ contract MidnightAdapterLossRealizationFunder is IMidnightAdapterLossRealization
         }
 
         uint256 loss = adapterAssets - IMidnightAdapter(adapter).realAssets();
-        if (loss > 0 && minimumLossBeforeIncentive > 0 && loss >= minimumLossBeforeIncentive) {
-            uint256 paid = incentive;
-            // forge-lint: disable-next-item(arbitrary-send-eth) caller chooses the incentive receiver.
-            (bool success,) = receiver.call{value: paid}("");
-            require(success, EthTransferFailed());
-            emit RealizeLoss(msg.sender, marketIds, loss, paid, receiver);
-            return (loss, paid);
-        } else {
-            emit RealizeLoss(msg.sender, marketIds, loss, 0, receiver);
-            return (loss, 0);
-        }
+        uint256 paid = MathLib.min(maxIncentive, maxIncentive * loss / minLossForMaxIncentive);
+        // forge-lint: disable-next-item(arbitrary-send-eth) caller chooses the incentive receiver.
+        (bool success,) = receiver.call{value: paid}("");
+        require(success, EthTransferFailed());
+        emit RealizeLoss(msg.sender, marketIds, loss, paid, receiver);
+        return (loss, paid);
     }
 }

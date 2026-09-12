@@ -2124,7 +2124,7 @@ contract MidnightAdapterTest is Test {
 
     function testFunderWrongLoanToken(address wrongLoanToken) public {
         vm.assume(wrongLoanToken != address(loanToken));
-        MidnightAdapterLossRealizationFunder funder = newLossRealizationFunder(1e18);
+        MidnightAdapterLossRealizationFunder funder = newLossRealizationFunder();
         Market[] memory markets = new Market[](1);
         markets[0] = storedOffer.market;
         markets[0].loanToken = wrongLoanToken;
@@ -2137,7 +2137,7 @@ contract MidnightAdapterTest is Test {
         setUpRealVault();
         Offer memory offer = buyOnRealVault(7 days, 1e18);
         bytes32 marketId = _marketId(offer.market);
-        MidnightAdapterLossRealizationFunder funder = newLossRealizationFunder(1e18);
+        MidnightAdapterLossRealizationFunder funder = newLossRealizationFunder();
 
         OracleMock(storedCollaterals[0].oracle).setPrice(0);
         OracleMock(storedCollaterals[1].oracle).setPrice(0);
@@ -2165,7 +2165,7 @@ contract MidnightAdapterTest is Test {
     function testFunderBatchRealizesLossesAcrossMaturities() public {
         Offer memory offerA = buy(7 days, 1e18);
         Offer memory offerB = buy(30 days, 1e18);
-        MidnightAdapterLossRealizationFunder funder = newLossRealizationFunder(2e18);
+        MidnightAdapterLossRealizationFunder funder = newLossRealizationFunder();
 
         OracleMock(storedCollaterals[0].oracle).setPrice(0);
         OracleMock(storedCollaterals[1].oracle).setPrice(0);
@@ -2179,8 +2179,8 @@ contract MidnightAdapterTest is Test {
         (uint256 loss, uint256 paid) = funder.realizeLoss(markets, payable(recipient));
 
         assertEq(loss, 2e18);
-        assertEq(paid, 0.01 ether);
-        assertEq(recipient.balance, 0.01 ether, "one reward for the batch");
+        assertEq(paid, 0.02 ether);
+        assertEq(recipient.balance, 0.02 ether);
         assertEq(adapter.realAssets(), 0);
         assertEq(parentVault.allocation(adapter.adapterId()), 0);
         assertPendingMaturitiesEmpty();
@@ -2190,7 +2190,7 @@ contract MidnightAdapterTest is Test {
         midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
         Offer memory offer = buy(30 days, 1e18, discountTick);
         bytes32 marketId = _marketId(offer.market);
-        MidnightAdapterLossRealizationFunder funder = newLossRealizationFunder(1);
+        MidnightAdapterLossRealizationFunder funder = newLossRealizationFunder();
         uint256 feeBefore = midnight.pendingFee(marketId, address(adapter));
         skip(15 days);
         uint256 assetsBefore = adapter.realAssets();
@@ -2210,7 +2210,7 @@ contract MidnightAdapterTest is Test {
     function testFunderFailedPaymentRollsBackRealization() public {
         Offer memory offer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(offer.market);
-        MidnightAdapterLossRealizationFunder funder = newLossRealizationFunder(1e18);
+        MidnightAdapterLossRealizationFunder funder = newLossRealizationFunder();
         deal(address(funder), 0);
 
         OracleMock(storedCollaterals[0].oracle).setPrice(0);
@@ -2229,13 +2229,10 @@ contract MidnightAdapterTest is Test {
         assertEq(recipient.balance, 0);
     }
 
-    function newLossRealizationFunder(uint256 minimumLoss)
-        internal
-        returns (MidnightAdapterLossRealizationFunder funder)
-    {
+    function newLossRealizationFunder() internal returns (MidnightAdapterLossRealizationFunder funder) {
         funder = new MidnightAdapterLossRealizationFunder(address(adapter), address(this));
-        funder.setIncentive(0.01 ether);
-        funder.setMinimumLossBeforeIncentive(minimumLoss);
+        funder.setMaxIncentive(1 ether);
+        funder.setMinLossForMaxIncentive(100e18);
         deal(address(funder), 1 ether);
     }
 

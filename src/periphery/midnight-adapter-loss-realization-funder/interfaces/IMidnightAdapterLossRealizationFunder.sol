@@ -7,8 +7,8 @@ import {Market} from "lib/midnight/src/interfaces/IMidnight.sol";
 interface IMidnightAdapterLossRealizationFunder {
     event Constructor(address indexed adapter, address indexed owner);
     event SetOwner(address indexed newOwner);
-    event SetIncentive(uint256 incentive);
-    event SetMinimumLossBeforeIncentive(uint256 minimumLossBeforeIncentive);
+    event SetMaxIncentive(uint256 maxIncentive);
+    event SetMinLossForMaxIncentive(uint256 minLossForMaxIncentive);
     event WithdrawEth(address indexed receiver, uint256 assets);
     event RealizeLoss(
         address indexed caller, bytes32[] marketIds, uint256 loss, uint256 incentive, address indexed receiver
@@ -20,11 +20,11 @@ interface IMidnightAdapterLossRealizationFunder {
     function adapter() external view returns (address);
     function parentVault() external view returns (address);
     function owner() external view returns (address);
-    function incentive() external view returns (uint256);
-    function minimumLossBeforeIncentive() external view returns (uint256);
+    function maxIncentive() external view returns (uint256);
+    function minLossForMaxIncentive() external view returns (uint256);
     function setOwner(address newOwner) external;
-    function setIncentive(uint256 newIncentive) external;
-    function setMinimumLossBeforeIncentive(uint256 newMinimumLossBeforeIncentive) external;
+    function setMaxIncentive(uint256 newMaxIncentive) external;
+    function setMinLossForMaxIncentive(uint256 newMinLossForMaxIncentive) external;
     function withdraw(uint256 assets, address payable receiver) external;
     function realizeLoss(Market[] memory markets, address payable receiver) external returns (uint256, uint256);
 }

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity ^0.8.0;
 
-import {Test} from "../../lib/forge-std/src/Test.sol";
+import {Test, stdError} from "../../lib/forge-std/src/Test.sol";
 import {
     MidnightAdapterLossRealizationFunder
 } from "../../src/periphery/midnight-adapter-loss-realization-funder/MidnightAdapterLossRealizationFunder.sol";
@@ -80,8 +80,8 @@ contract MidnightAdapterLossRealizationFunderTest is Test {
         contractReceiver = new LossRealizationReceiver();
         deal(address(funder), 1 ether);
         vm.startPrank(owner);
-        funder.setIncentive(0.01 ether);
-        funder.setMinimumLossBeforeIncentive(1e18);
+        funder.setMaxIncentive(1 ether);
+        funder.setMinLossForMaxIncentive(100e18);
         vm.stopPrank();
         markets.push();
         markets[0].loanToken = adapter.asset();
@@ -101,8 +101,8 @@ contract MidnightAdapterLossRealizationFunderTest is Test {
         assertEq(deployed.adapter(), address(adapter));
         assertEq(deployed.parentVault(), parentVault);
         assertEq(deployed.owner(), newOwner);
-        assertEq(deployed.incentive(), 0);
-        assertEq(deployed.minimumLossBeforeIncentive(), 0);
+        assertEq(deployed.maxIncentive(), 0);
+        assertEq(deployed.minLossForMaxIncentive(), 0);
         assertEq(address(deployed).balance, assets);
     }
 
@@ -126,28 +126,26 @@ contract MidnightAdapterLossRealizationFunderTest is Test {
         funder.setOwner(caller);
         vm.expectRevert(IMidnightAdapterLossRealizationFunder.NotOwner.selector);
         vm.prank(owner);
-        funder.setIncentive(1);
+        funder.setMaxIncentive(1);
         vm.prank(caller);
-        funder.setIncentive(1);
-        assertEq(funder.incentive(), 1);
+        funder.setMaxIncentive(1);
+        assertEq(funder.maxIncentive(), 1);
     }
 
-    function testSetIncentive(uint256 newIncentive) public {
+    function testSetMaxIncentive(uint256 newMaxIncentive) public {
         vm.expectEmit(address(funder));
-        emit IMidnightAdapterLossRealizationFunder.SetIncentive(newIncentive);
+        emit IMidnightAdapterLossRealizationFunder.SetMaxIncentive(newMaxIncentive);
         vm.prank(owner);
-        funder.setIncentive(newIncentive);
-        assertEq(funder.incentive(), newIncentive);
-        assertEq(funder.minimumLossBeforeIncentive(), 1e18);
+        funder.setMaxIncentive(newMaxIncentive);
+        assertEq(funder.maxIncentive(), newMaxIncentive);
     }
 
-    function testSetMinimumLossBeforeIncentive(uint256 newMinimumLossBeforeIncentive) public {
+    function testSetMinLossForMaxIncentive(uint256 newMinLoss) public {
         vm.expectEmit(address(funder));
-        emit IMidnightAdapterLossRealizationFunder.SetMinimumLossBeforeIncentive(newMinimumLossBeforeIncentive);
+        emit IMidnightAdapterLossRealizationFunder.SetMinLossForMaxIncentive(newMinLoss);
         vm.prank(owner);
-        funder.setMinimumLossBeforeIncentive(newMinimumLossBeforeIncentive);
-        assertEq(funder.minimumLossBeforeIncentive(), newMinimumLossBeforeIncentive);
-        assertEq(funder.incentive(), 0.01 ether);
+        funder.setMinLossForMaxIncentive(newMinLoss);
+        assertEq(funder.minLossForMaxIncentive(), newMinLoss);
     }
 
     function testOwnerFunctionsUnauthorized(address nonOwner) public {
@@ -156,9 +154,9 @@ contract MidnightAdapterLossRealizationFunderTest is Test {
         vm.expectRevert(IMidnightAdapterLossRealizationFunder.NotOwner.selector);
         funder.setOwner(nonOwner);
         vm.expectRevert(IMidnightAdapterLossRealizationFunder.NotOwner.selector);
-        funder.setIncentive(0);
+        funder.setMaxIncentive(0);
         vm.expectRevert(IMidnightAdapterLossRealizationFunder.NotOwner.selector);
-        funder.setMinimumLossBeforeIncentive(0);
+        funder.setMinLossForMaxIncentive(0);
         vm.expectRevert(IMidnightAdapterLossRealizationFunder.NotOwner.selector);
         funder.withdraw(0, payable(nonOwner));
         vm.stopPrank();
@@ -190,13 +188,13 @@ contract MidnightAdapterLossRealizationFunderTest is Test {
         assertEq(address(funder).balance, 1 ether);
     }
 
-    function testRealizeLossThreshold(uint256 pendingLoss, uint256 minimumLoss) public {
-        pendingLoss = bound(pendingLoss, 0, 2e18);
-        minimumLoss = bound(minimumLoss, 0, 2e18);
+    function testRealizeLossLinear(uint256 pendingLoss, uint256 minLoss) public {
+        pendingLoss = bound(pendingLoss, 0, 100e18);
+        minLoss = bound(minLoss, 1, 100e18);
         adapter.setLoss(markets[0], pendingLoss);
         vm.prank(owner);
-        funder.setMinimumLossBeforeIncentive(minimumLoss);
-        uint256 expectedPaid = pendingLoss > 0 && minimumLoss > 0 && pendingLoss >= minimumLoss ? 0.01 ether : 0;
+        funder.setMinLossForMaxIncentive(minLoss);
+        uint256 expectedPaid = pendingLoss >= minLoss ? 1 ether : 1 ether * pendingLoss / minLoss;
 
         vm.expectEmit(address(funder));
         emit IMidnightAdapterLossRealizationFunder.RealizeLoss(caller, marketIds(), pendingLoss, expectedPaid, receiver);
@@ -214,39 +212,42 @@ contract MidnightAdapterLossRealizationFunderTest is Test {
         assertEq(adapter.calls(IdLib.toId(markets[1])), 1);
     }
 
-    function testRealizeLossExactlyAtThreshold() public {
-        adapter.setLoss(markets[0], 1e18);
-        (uint256 loss, uint256 paid) = funder.realizeLoss(markets, payable(receiver));
-        assertEq(loss, 1e18);
-        assertEq(paid, 0.01 ether);
-    }
-
-    function testRealizeLossBelowThresholdDoesNotCallReceiver() public {
-        adapter.setLoss(markets[0], 1e18 - 1);
-        contractReceiver.setRejects(true);
-        (uint256 loss, uint256 paid) = funder.realizeLoss(markets, payable(address(contractReceiver)));
-        assertEq(loss, 1e18 - 1);
-        assertEq(paid, 0);
-        assertEq(adapter.realAssets(), 99e18 + 1);
-        assertEq(contractReceiver.calls(), 0);
-    }
-
-    function testRealizeLossBatchAggregatesSmallLosses() public {
-        adapter.setLoss(markets[0], 0.4e18);
-        adapter.setLoss(markets[1], 0.6e18);
-        (uint256 loss, uint256 paid) = funder.realizeLoss(markets, payable(receiver));
-        assertEq(loss, 1e18);
-        assertEq(paid, 0.01 ether);
-        assertEq(receiver.balance, 0.01 ether);
-    }
-
-    function testRealizeLossBatchPaysOnce() public {
+    function testRealizeLossBatchPaysForTotalLoss() public {
         adapter.setLoss(markets[0], 1e18);
         adapter.setLoss(markets[1], 2e18);
         (uint256 loss, uint256 paid) = funder.realizeLoss(markets, payable(receiver));
         assertEq(loss, 3e18);
-        assertEq(paid, 0.01 ether);
-        assertEq(receiver.balance, 0.01 ether);
+        assertEq(paid, 0.03 ether);
+        assertEq(receiver.balance, 0.03 ether);
+    }
+
+    function testRealizeLossGiantLossPaysMax() public {
+        adapter.setLoss(markets[0], 100e18);
+        vm.prank(owner);
+        funder.setMinLossForMaxIncentive(10e18);
+        (uint256 loss, uint256 paid) = funder.realizeLoss(markets, payable(receiver));
+        assertEq(loss, 100e18);
+        assertEq(paid, 1 ether);
+        assertEq(receiver.balance, 1 ether);
+    }
+
+    function testZeroMinLossReverts() public {
+        adapter.setLoss(markets[0], 1e18);
+        vm.prank(owner);
+        funder.setMinLossForMaxIncentive(0);
+        vm.expectRevert(stdError.divisionError);
+        funder.realizeLoss(markets, payable(receiver));
+        assertEq(adapter.realAssets(), 100e18);
+    }
+
+    function testRealizeLossSplitPaysSameTotal(uint256 lossA, uint256 lossB) public {
+        lossA = bound(lossA, 0, 50e18);
+        lossB = bound(lossB, 0, 50e18);
+        adapter.setLoss(markets[0], lossA);
+        funder.realizeLoss(markets, payable(receiver));
+        adapter.setLoss(markets[0], lossB);
+        funder.realizeLoss(markets, payable(receiver));
+        assertApproxEqAbs(receiver.balance, (lossA + lossB) * 0.01 ether / 1e18, 1);
     }
 
     function testRealizeLossRepeatedPositionCountedOnce() public {
@@ -276,31 +277,9 @@ contract MidnightAdapterLossRealizationFunderTest is Test {
         assertEq(receiver.balance, 0);
     }
 
-    function testZeroThresholdDoesNotPayForEmptyBatch() public {
-        vm.prank(owner);
-        funder.setMinimumLossBeforeIncentive(0);
-        (uint256 loss, uint256 paid) = funder.realizeLoss(new Market[](0), payable(receiver));
-        assertEq(loss, 0);
-        assertEq(paid, 0);
-        assertEq(receiver.balance, 0);
-    }
-
-    function testZeroThresholdDoesNotPayForPositiveLoss() public {
-        vm.prank(owner);
-        funder.setMinimumLossBeforeIncentive(0);
-        adapter.setLoss(markets[0], 1e18);
-        contractReceiver.setRejects(true);
-        (uint256 loss, uint256 paid) = funder.realizeLoss(markets, payable(address(contractReceiver)));
-        assertEq(loss, 1e18);
-        assertEq(paid, 0);
-        assertEq(adapter.realAssets(), 99e18);
-        assertEq(contractReceiver.calls(), 0);
-        assertEq(address(funder).balance, 1 ether);
-    }
-
     function testZeroIncentiveStillCallsReceiver() public {
         vm.prank(owner);
-        funder.setIncentive(0);
+        funder.setMaxIncentive(0);
         adapter.setLoss(markets[0], 1e18);
         (uint256 loss, uint256 paid) = funder.realizeLoss(markets, payable(address(contractReceiver)));
         assertEq(loss, 1e18);
@@ -389,7 +368,7 @@ contract MidnightAdapterLossRealizationFunderTest is Test {
         vm.prank(owner);
         funder.setOwner(address(contractReceiver));
         contractReceiver.setCallback(
-            address(funder), abi.encodeCall(IMidnightAdapterLossRealizationFunder.setIncentive, (1 ether))
+            address(funder), abi.encodeCall(IMidnightAdapterLossRealizationFunder.setMaxIncentive, (100 ether))
         );
         vm.expectEmit(address(funder));
         emit IMidnightAdapterLossRealizationFunder.RealizeLoss(
@@ -399,7 +378,7 @@ contract MidnightAdapterLossRealizationFunderTest is Test {
         assertEq(loss, 1e18);
         assertEq(paid, 0.01 ether);
         assertTrue(contractReceiver.callbackSuccess());
-        assertEq(funder.incentive(), 1 ether);
+        assertEq(funder.maxIncentive(), 100 ether);
         assertEq(address(contractReceiver).balance, 0.01 ether);
     }
 
