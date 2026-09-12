@@ -151,6 +151,11 @@ contract MidnightAdapterTest is Test {
     uint256[] internal allDurations = [1 days, 7 days, 30 days, 90 days, 180 days];
     uint256 internal discountTick = TickLib.priceToTick(0.95e18, DEFAULT_TICK_SPACING);
 
+    /// @dev Overridden by subclasses that need the adapter to authorize a specific ratifier at construction time.
+    function auctionRatifierAddress() internal virtual returns (address) {
+        return address(0);
+    }
+
     function setUp() public virtual {
         vm.setEvmVersion("osaka");
         owner = makeAddr("owner");
@@ -172,7 +177,7 @@ contract MidnightAdapterTest is Test {
 
         parentVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
-        factory = new MidnightAdapterFactory(allDurations);
+        factory = new MidnightAdapterFactory(allDurations, auctionRatifierAddress());
         adapter = MidnightAdapter(factory.createMidnightAdapter(address(parentVault), address(midnight)));
 
         ecrecoverRatifier = new MidnightAdapterEcrecoverRatifier();
@@ -1938,7 +1943,7 @@ contract MidnightAdapterTest is Test {
 
     /// @dev Runs on a real VaultV2, with a non-zero penalty, fees and maxRate, and with the adapter's allocator role
     /// revoked before the exit.
-    function testForceDeallocateRealVaultWithPenalty() public {
+    function testForceDeallocateRealVaultWithPenalty() public virtual {
         setUpRealVault();
         Offer memory offer = buyOnRealVault(7 days, 1e18);
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), false)));
