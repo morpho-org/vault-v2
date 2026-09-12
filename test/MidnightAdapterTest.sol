@@ -83,45 +83,38 @@ contract MidnightLossRealizer {
     }
 }
 
-/// @notice Taker of an adapter sell offer that performs arbitrary calls in its buy callback.
+contract GarbageSubRatifier {
+    function isRatified(Offer memory, bytes memory, address) external pure returns (bytes32) {
+        return bytes32(uint256(1));
+    }
+}
+
+/// @dev Taker of adapter sell offers that performs a stored call from its buy callback, i.e. after Midnight has
+/// decremented the adapter's credit but before the adapter's onSell runs.
 contract NestedTaker {
-    struct Call {
-        address target;
-        bytes data;
+    address public target;
+    bytes public data;
+
+    constructor(IERC20 loanToken, address midnight) {
+        loanToken.approve(midnight, type(uint256).max);
     }
 
-    address internal immutable midnight;
-    Call[] internal calls;
-
-    constructor(address _midnight, address loanToken) {
-        midnight = _midnight;
-        IERC20(loanToken).approve(_midnight, type(uint256).max);
-    }
-
-    function push(address target, bytes memory data) external {
-        calls.push(Call(target, data));
+    function setNestedCall(address newTarget, bytes memory newData) external {
+        target = newTarget;
+        data = newData;
     }
 
     function onBuy(bytes32, Market memory, uint256, uint256, uint256, address, bytes memory)
         external
         returns (bytes32)
     {
-        require(msg.sender == midnight);
-        for (uint256 i = 0; i < calls.length; i++) {
-            (bool success, bytes memory returnData) = calls[i].target.call(calls[i].data);
-            if (!success) {
-                assembly ("memory-safe") {
-                    revert(add(32, returnData), mload(returnData))
-                }
+        (bool success, bytes memory returnData) = target.call(data);
+        if (!success) {
+            assembly ("memory-safe") {
+                revert(add(32, returnData), mload(returnData))
             }
         }
         return CALLBACK_SUCCESS;
-    }
-}
-
-contract GarbageSubRatifier {
-    function isRatified(Offer memory, bytes memory, address) external pure returns (bytes32) {
-        return bytes32(uint256(1));
     }
 }
 
@@ -1426,6 +1419,115 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.totalAssets(), 0);
     }
 
+    /* NESTED OPERATIONS */
+
+    // Nested operations run between Midnight's decrement of the adapter's credit and the adapter's onSell. Any path
+    // computing `accounted - current` there absorbs the outer sale's decrement, so the outer onSell sees no loss.
+
+    function nestedSellSetup(uint256 vaultAssets) internal returns (Offer memory offer, NestedTaker attacker) {
+        deal(address(loanToken), address(parentVault), vaultAssets);
+        offer = buy(0, 1e18);
+        parentVault.setTotalAssets(vaultAssets);
+        attacker = new NestedTaker(loanToken, address(midnight));
+        deal(address(loanToken), address(attacker), 1e18);
+    }
+
+    function takeNested(Offer memory sellOffer, NestedTaker attacker) internal {
+        vm.expectRevert(IMidnightAdapter.PositionLocked.selector);
+        vm.prank(address(attacker));
+        midnight.take(
+            sellOffer, sign([sellOffer], signerAllocator), 0.5e18, address(attacker), address(0), address(attacker), ""
+        );
+    }
+
+    function testNestedForceDeallocateInSellReverts() public {
+        (Offer memory offer, NestedTaker attacker) = nestedSellSetup(1e18);
+        Offer memory sellOffer = makeSellOffer(offer.market, 0.5e18, MAX_TICK - 4);
+        (Offer memory fdOffer, bytes32 fdRoot) = makeForceDeallocateOffer(offer.market, 0.25e18);
+        bytes memory fdData = abi.encode(fdOffer, abi.encode(fdRoot, 0, proof([fdOffer])));
+        attacker.setNestedCall(
+            address(parentVault),
+            abi.encodeCall(VaultV2Mock.forceDeallocate, (address(adapter), fdData, 0.25e18, address(attacker)))
+        );
+
+        takeNested(sellOffer, attacker);
+    }
+
+    function testNestedSellInSellReverts() public {
+        (Offer memory offer, NestedTaker attacker) = nestedSellSetup(1e18);
+        Offer memory sellOffer = makeSellOffer(offer.market, 0.5e18, MAX_TICK - 4);
+        Offer memory nestedSellOffer = makeSellOffer(offer.market, 0.25e18, MAX_TICK - 4);
+        attacker.setNestedCall(
+            address(midnight),
+            abi.encodeCall(
+                IMidnight.take,
+                (
+                    nestedSellOffer,
+                    sign([nestedSellOffer], signerAllocator),
+                    0.25e18,
+                    address(attacker),
+                    address(0),
+                    address(0),
+                    ""
+                )
+            )
+        );
+
+        takeNested(sellOffer, attacker);
+    }
+
+    function testNestedBuyInSellReverts() public {
+        (Offer memory offer, NestedTaker attacker) = nestedSellSetup(1.5e18);
+        Offer memory sellOffer = makeSellOffer(offer.market, 0.5e18, MAX_TICK - 4);
+        // The attacker sells back the credit it just received in the outer take.
+        Offer memory nestedBuyOffer = makeBuyOffer(0, 0.5e18, MAX_TICK);
+        nestedBuyOffer.group = bytes32(vm.randomUint());
+        attacker.setNestedCall(
+            address(midnight),
+            abi.encodeCall(
+                IMidnight.take,
+                (
+                    nestedBuyOffer,
+                    sign([nestedBuyOffer], signerAllocator),
+                    0.5e18,
+                    address(attacker),
+                    address(attacker),
+                    address(0),
+                    ""
+                )
+            )
+        );
+
+        takeNested(sellOffer, attacker);
+    }
+
+    function testNestedWithdrawToVaultInSellReverts() public {
+        (Offer memory offer, NestedTaker attacker) = nestedSellSetup(1e18);
+        skip(1);
+        vm.prank(taker);
+        midnight.repay(offer.market, 1e18, taker, address(0), "");
+        stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(address(attacker)).checked_write(true);
+        Offer memory sellOffer = makeSellOffer(offer.market, 0.5e18, MAX_TICK - 4);
+        attacker.setNestedCall(
+            address(adapter), abi.encodeCall(IMidnightAdapter.withdrawToVault, (offer.market, 0.25e18))
+        );
+
+        takeNested(sellOffer, attacker);
+    }
+
+    function testNestedTakeInSellReverts() public {
+        (Offer memory offer, NestedTaker attacker) = nestedSellSetup(1e18);
+        stdstore.target(address(parentVault))
+            .sig("isAllocator(address)")
+            .with_key(address(attacker))
+            .checked_write(true);
+        Offer memory sellOffer = makeSellOffer(offer.market, 0.5e18, MAX_TICK - 4);
+        Offer memory buyOffer = makeExternalOffer(offer.market, true, 0.25e18, MAX_TICK - 4);
+        attacker.setNestedCall(address(adapter), abi.encodeCall(IMidnightAdapter.take, (buyOffer, "", 0.25e18)));
+
+        takeNested(sellOffer, attacker);
+    }
+
     // Same buffer check, reached through the allocator take path: taking a buy offer makes the adapter sell,
     // below par here, dropping the vault's real assets under its reported total.
     function testTakeBufferTooLowReverts() public {
@@ -2315,125 +2417,6 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.totalAssets(), 1, "totalAssets");
         assertEq(parentVault.allocation(adapter.adapterId()), 1, "allocation");
         assertEq(loanToken.balanceOf(address(parentVault)), assets, "vault balance");
-    }
-
-    /* NESTED TRADES */
-
-    /// @dev Sets up a real vault holding 10e18 with 8e18 invested at par, and a taker that will buy 4e18 units from
-    /// the adapter at `price` while running nested calls in its buy callback.
-    function setUpNestedSale(uint256 price)
-        internal
-        returns (Offer memory initial, Offer memory outer, NestedTaker cb)
-    {
-        setUpRealVault();
-        initial = buyOnRealVault(7 days, 8e18);
-        cb = new NestedTaker(address(midnight), address(loanToken));
-        deal(address(loanToken), address(cb), 10e18);
-        vm.prank(address(cb));
-        midnight.setIsAuthorized(address(this), true, address(cb));
-        outer = makeSellOffer(initial.market, 4e18, TickLib.priceToTick(price, DEFAULT_TICK_SPACING));
-        assertEq(loanToken.balanceOf(address(realVault)) + adapter.realAssets(), 10e18, "no initial buffer");
-    }
-
-    function nestedSale(Offer memory outer, NestedTaker cb) internal {
-        midnight.take(outer, sign([outer], signerAllocator), outer.maxUnits, address(cb), address(0), address(cb), "");
-    }
-
-    function nestedBuyCall(Offer memory initial, NestedTaker cb) internal view returns (bytes memory) {
-        Offer memory inner = makeBuyOffer(7 days, 1e18, MAX_TICK / 2);
-        inner.market = initial.market;
-        inner.maker = address(adapter);
-        inner.ratifier = address(adapter);
-        inner.maxUnits = 2e18;
-        inner.group = bytes32("nested buy");
-        return abi.encodeCall(
-            IMidnight.take,
-            (inner, sign([inner], signerAllocator), inner.maxUnits, address(cb), address(cb), address(0), "")
-        );
-    }
-
-    function nestedSellCall(Offer memory initial, NestedTaker cb) internal view returns (bytes memory) {
-        Offer memory inner = makeSellOffer(initial.market, 2e18, MAX_TICK);
-        inner.group = bytes32("nested sell");
-        return abi.encodeCall(
-            IMidnight.take,
-            (inner, sign([inner], signerAllocator), inner.maxUnits, address(cb), address(0), address(0), "")
-        );
-    }
-
-    function nestedForceDeallocateCall(Offer memory initial, NestedTaker cb) internal returns (bytes memory) {
-        (Offer memory fd, bytes32 root_) = makeForceDeallocateOffer(initial.market, 1e15);
-        bytes memory fdData = abi.encode(fd, abi.encode(root_, 0, proof([fd])));
-        realVault.transfer(address(cb), 1e15);
-        return abi.encodeCall(IVaultV2.forceDeallocate, (address(adapter), fdData, 1e15, address(cb)));
-    }
-
-    function testNestedBuyDuringSaleAtLossReverts() public {
-        (Offer memory initial, Offer memory outer, NestedTaker cb) = setUpNestedSale(0.75e18);
-        cb.push(address(midnight), nestedBuyCall(initial, cb));
-        vm.expectRevert(IMidnightAdapter.BufferTooLow.selector);
-        nestedSale(outer, cb);
-    }
-
-    function testNestedForceDeallocateDuringSaleAtLossReverts() public {
-        (Offer memory initial, Offer memory outer, NestedTaker cb) = setUpNestedSale(0.75e18);
-        cb.push(address(realVault), nestedForceDeallocateCall(initial, cb));
-        vm.expectRevert(IMidnightAdapter.BufferTooLow.selector);
-        nestedSale(outer, cb);
-    }
-
-    /// @dev A nested force deallocate must not turn a par sale into a recorded loss, even without the buffer check.
-    function testNestedForceDeallocateDuringParSaleAccounting() public {
-        (Offer memory initial, Offer memory outer, NestedTaker cb) = setUpNestedSale(1e18);
-        vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
-        adapter.setSkipBufferCheck(true);
-        cb.push(address(realVault), nestedForceDeallocateCall(initial, cb));
-        nestedSale(outer, cb);
-        uint256 penaltyAssets = uint256(1e15).mulDivUp(0.02e18, 1e18);
-        assertEq(loanToken.balanceOf(address(realVault)) + adapter.realAssets(), 10e18, "real backing");
-        assertEq(realVault._totalAssets(), 10e18 - penaltyAssets, "accounted assets");
-        assertEq(realVault.previewRedeem(1e18), 1e18, "share price");
-    }
-
-    /// @dev A nested buy inside a par sale works and leaves the vault's accounted assets untouched.
-    function testNestedBuyDuringParSaleAccounting() public {
-        (Offer memory initial, Offer memory outer, NestedTaker cb) = setUpNestedSale(1e18);
-        cb.push(address(midnight), nestedBuyCall(initial, cb));
-        nestedSale(outer, cb);
-        assertEq(realVault._totalAssets(), 10e18, "accounted assets");
-        assertGe(loanToken.balanceOf(address(realVault)) + adapter.realAssets(), 10e18, "real backing");
-    }
-
-    /// @dev A nested sell in the same market checks the buffer while the outer sale's proceeds are still pending, so
-    /// it needs a buffer covering the outer units.
-    function testNestedSellDuringParSaleNeedsBuffer() public {
-        (Offer memory initial, Offer memory outer, NestedTaker cb) = setUpNestedSale(1e18);
-        cb.push(address(midnight), nestedSellCall(initial, cb));
-        vm.expectRevert(IMidnightAdapter.BufferTooLow.selector);
-        nestedSale(outer, cb);
-
-        deal(address(loanToken), address(realVault), loanToken.balanceOf(address(realVault)) + 4e18);
-        nestedSale(outer, cb);
-        assertEq(realVault._totalAssets(), 10e18, "accounted assets");
-        assertEq(loanToken.balanceOf(address(realVault)) + adapter.realAssets(), 14e18, "real backing");
-    }
-
-    /// @dev A sentinel taking an adapter sell offer after maturity withdraws to the vault and accrues it in its
-    /// callback. The vault's accounted assets must not drop by the outer sale.
-    function testNestedWithdrawToVaultDuringParSaleAccounting() public {
-        (Offer memory initial,, NestedTaker cb) = setUpNestedSale(1e18);
-        vm.prank(owner);
-        realVault.setIsSentinel(address(cb), true);
-        skip(7 days);
-        vm.prank(taker);
-        midnight.repay(initial.market, 8e18, taker, address(0), "");
-        Offer memory outer = makeSellOffer(initial.market, 4e18, MAX_TICK);
-        cb.push(address(adapter), abi.encodeCall(IMidnightAdapter.withdrawToVault, (initial.market, 1e18)));
-        cb.push(address(realVault), abi.encodeCall(IVaultV2.accrueInterest, ()));
-        nestedSale(outer, cb);
-        assertEq(realVault._totalAssets(), 10e18, "accounted assets");
-        assertEq(loanToken.balanceOf(address(realVault)) + adapter.realAssets(), 10e18, "real backing");
     }
 
     /* HELPERS */
