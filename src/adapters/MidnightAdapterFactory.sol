@@ -8,30 +8,30 @@ import {IMidnightAdapterFactory} from "./interfaces/IMidnightAdapterFactory.sol"
 contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* STORAGE */
 
-    mapping(address parentVault => mapping(address midnight => address)) public midnightAdapter;
+    mapping(address parentVault => mapping(address midnight => mapping(bytes32 durationsHash => address))) private
+        _midnightAdapters;
     mapping(address account => bool) public isMidnightAdapter;
-    uint256[] public durations;
-
-    /* CONSTRUCTOR */
-
-    /// @dev Durations are checked only when an adapter is created.
-    constructor(uint256[] memory _durations) {
-        durations = _durations;
-    }
 
     /* GETTERS */
 
-    function durationsLength() external view returns (uint256) {
-        return durations.length;
+    function midnightAdapter(address parentVault, address midnight, uint256[] calldata durations)
+        external
+        view
+        returns (address)
+    {
+        return _midnightAdapters[parentVault][midnight][keccak256(abi.encode(durations))];
     }
 
     /* FUNCTIONS */
 
-    function createMidnightAdapter(address parentVault, address midnight) external returns (address) {
+    function createMidnightAdapter(address parentVault, address midnight, uint256[] calldata durations)
+        external
+        returns (address)
+    {
         address _midnightAdapter = address(new MidnightAdapter{salt: bytes32(0)}(parentVault, midnight, durations));
-        midnightAdapter[parentVault][midnight] = _midnightAdapter;
+        _midnightAdapters[parentVault][midnight][keccak256(abi.encode(durations))] = _midnightAdapter;
         isMidnightAdapter[_midnightAdapter] = true;
-        emit CreateMidnightAdapter(parentVault, midnight, _midnightAdapter);
+        emit CreateMidnightAdapter(parentVault, midnight, durations, _midnightAdapter);
         return _midnightAdapter;
     }
 }
