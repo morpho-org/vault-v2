@@ -131,6 +131,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(offer.market.loanToken == asset, LoanAssetMismatch());
         require(offer.maker == address(this), IncorrectMaker());
         require(offer.callback == address(this), IncorrectCallbackAddress());
+        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), PositionLocked());
         // For buy offers, Midnight enforces receiverIfMakerIsSeller == address(0).
         require(offer.buy || offer.receiverIfMakerIsSeller == address(this), IncorrectReceiver());
         require(offer.buy || offer.reduceOnly, NoDebtCreation());
@@ -243,8 +244,8 @@ contract MidnightAdapter is IMidnightAdapter {
 
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external {
         bytes32 marketId = IdLib.toId(market);
+        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), PositionLocked());
 
-        IVaultV2(parentVault).accrueInterest();
         accrueInterest();
 
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not call back.
@@ -263,6 +264,7 @@ contract MidnightAdapter is IMidnightAdapter {
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
         require(offer.market.loanToken == asset, LoanAssetMismatch());
+        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), PositionLocked());
         IMidnight(midnight)
             .take(
                 offer, ratifierData, units, address(this), offer.buy ? address(this) : address(0), address(this), hex""
@@ -376,12 +378,12 @@ contract MidnightAdapter is IMidnightAdapter {
                 offer.buy && offer.market.loanToken == asset && offer.tick == MAX_TICK && offer.callback == address(0),
                 IncorrectOffer()
             );
+            bytes32 marketId = IdLib.toId(offer.market);
+            require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), PositionLocked());
 
-            IVaultV2(parentVault).accrueInterest();
             accrueInterest();
 
             // Skip onSell since we are already in a deallocate call.
-            bytes32 marketId = IdLib.toId(offer.market);
             uint256 takeUnits = TakeAmountsLib.sellerAssetsToUnits(midnight, marketId, offer, sellerAssets);
             // forge-lint: disable-next-item(reentrancy-no-eth) view reentry is possible through a ratifier.
             IMidnight(midnight).take(offer, ratifierData, takeUnits, address(this), address(this), address(0), hex"");
@@ -416,7 +418,6 @@ contract MidnightAdapter is IMidnightAdapter {
         require(buyer == address(this), NotSelf());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
-        IVaultV2(parentVault).accrueInterest();
         accrueInterest();
 
         MaturityData storage maturityData = _maturities[market.maturity];
@@ -481,7 +482,6 @@ contract MidnightAdapter is IMidnightAdapter {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
 
-        IVaultV2(parentVault).accrueInterest();
         accrueInterest();
         // forge-lint: disable-next-item(reentrancy-no-eth) updatePosition does not call back.
         IMidnight(midnight).updatePosition(market, address(this));
