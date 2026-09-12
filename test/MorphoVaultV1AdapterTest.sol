@@ -44,6 +44,8 @@ contract MorphoVaultV1AdapterTest is Test {
 
         factory = new MorphoVaultV1AdapterFactory();
         adapter = MorphoVaultV1Adapter(factory.createMorphoVaultV1Adapter(address(parentVault), address(morphoVaultV1)));
+        vm.prank(address(adapter));
+        asset.approve(address(morphoVaultV1), type(uint256).max);
 
         deal(address(asset), address(this), type(uint256).max);
         asset.approve(address(morphoVaultV1), type(uint256).max);
@@ -76,9 +78,9 @@ contract MorphoVaultV1AdapterTest is Test {
 
     function testAllocate(uint256 assets) public {
         assets = bound(assets, 0, MAX_TEST_ASSETS);
-        deal(address(asset), address(adapter), assets);
 
-        (bytes32[] memory ids, int256 change) = parentVault.allocateMocked(address(adapter), hex"", assets);
+        deal(address(asset), address(parentVault), assets);
+        (bytes32[] memory ids, int256 change) = parentVault.allocate(address(adapter), hex"", assets);
 
         uint256 adapterShares = morphoVaultV1.balanceOf(address(adapter));
         assertEq(adapterShares, assets * EXCHANGE_RATE, "Incorrect share balance after deposit");
@@ -91,20 +93,21 @@ contract MorphoVaultV1AdapterTest is Test {
         initialAssets = bound(initialAssets, 0, MAX_TEST_ASSETS);
         withdrawAssets = bound(withdrawAssets, 0, initialAssets);
 
-        deal(address(asset), address(adapter), initialAssets);
-        parentVault.allocateMocked(address(adapter), hex"", initialAssets);
+        deal(address(asset), address(parentVault), initialAssets);
+        parentVault.allocate(address(adapter), hex"", initialAssets);
 
         uint256 beforeShares = morphoVaultV1.balanceOf(address(adapter));
         assertEq(beforeShares, initialAssets * EXCHANGE_RATE, "Precondition failed: shares not set");
 
-        (bytes32[] memory ids, int256 change) = parentVault.deallocateMocked(address(adapter), hex"", withdrawAssets);
+        (bytes32[] memory ids, int256 change) = parentVault.deallocate(address(adapter), hex"", withdrawAssets);
 
         assertEq(adapter.allocation(), initialAssets - withdrawAssets, "incorrect allocation");
         uint256 afterShares = morphoVaultV1.balanceOf(address(adapter));
         assertEq(afterShares, (initialAssets - withdrawAssets) * EXCHANGE_RATE, "Share balance not decreased correctly");
 
-        uint256 adapterBalance = asset.balanceOf(address(adapter));
-        assertEq(adapterBalance, withdrawAssets, "Adapter did not receive withdrawn tokens");
+        uint256 parentVaultBalance = asset.balanceOf(address(parentVault));
+        assertEq(parentVaultBalance, withdrawAssets, "Parent vault did not receive withdrawn tokens");
+        assertEq(ids.length, expectedIds.length, "Incorrect ids returned");
         assertEq(ids, expectedIds, "Incorrect ids returned");
         assertEq(change, -int256(withdrawAssets), "Incorrect change returned");
     }
@@ -217,8 +220,8 @@ contract MorphoVaultV1AdapterTest is Test {
         ERC4626MockExtended otherVault = new ERC4626MockExtended(address(asset));
 
         // Deposit some assets
-        deal(address(asset), address(adapter), deposit * 2);
-        parentVault.allocateMocked(address(adapter), hex"", deposit);
+        deal(address(asset), address(parentVault), deposit);
+        parentVault.allocate(address(adapter), hex"", deposit);
 
         uint256 realAssetsBefore = adapter.realAssets();
 
@@ -239,8 +242,8 @@ contract MorphoVaultV1AdapterTest is Test {
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
         loss = bound(loss, 1, deposit);
 
-        deal(address(asset), address(adapter), deposit);
-        parentVault.allocateMocked(address(adapter), hex"", deposit);
+        deal(address(asset), address(parentVault), deposit);
+        parentVault.allocate(address(adapter), hex"", deposit);
         morphoVaultV1.lose(loss);
 
         assertEq(adapter.realAssets(), deposit - loss, "realAssets");
@@ -250,8 +253,8 @@ contract MorphoVaultV1AdapterTest is Test {
         deposit = bound(deposit, 1, MAX_TEST_ASSETS);
         interest = bound(interest, 1, deposit);
 
-        deal(address(asset), address(adapter), deposit);
-        parentVault.allocateMocked(address(adapter), hex"", deposit);
+        deal(address(asset), address(parentVault), deposit);
+        parentVault.allocate(address(adapter), hex"", deposit);
         asset.transfer(address(morphoVaultV1), interest);
 
         // approx because of the virtual shares.
