@@ -18,8 +18,6 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// @dev Values all tracked markets after position losses and amortizes purchase discounts linearly until maturity.
 /// @dev The vault's max rate further limits the distribution of interest.
-/// @dev The vault must accrue interest before an adapter offer is taken, in the same transaction, so its share price
-/// cannot reflect an unsettled trade during Midnight's callbacks.
 /// @dev The adapter must have the allocator role in its parent vault to buy, and the allocator or sentinel role to
 /// make sell offers, to withdraw to the vault and to update duration caps.
 /// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be
@@ -66,6 +64,8 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Net credit last reported to the vault's caps and its associated loss factor.
     mapping(bytes32 marketId => MarketData) internal _markets;
     mapping(uint256 timestamp => MaturityData) internal _maturities;
+    bytes32 transient overridenMarketId;
+    uint256 transient overridenMarketNetCredit;
     /* CONSTRUCTOR */
 
     constructor(address _parentVault, address _midnight, uint256[] memory _durations) {
@@ -121,7 +121,7 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {
-        require(IVaultV2(parentVault).firstTotalAssets() != 0, VaultNotAccrued());
+        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
         // Collaterals will be checked through vault ids.
         require(offer.market.loanToken == asset, LoanAssetMismatch());
         require(offer.maker == address(this), IncorrectMaker());
@@ -243,6 +243,7 @@ contract MidnightAdapter is IMidnightAdapter {
             NotAuthorized()
         );
 
+        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         IVaultV2(parentVault).accrueInterest();
 
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not call back.
@@ -257,7 +258,7 @@ contract MidnightAdapter is IMidnightAdapter {
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
         require(offer.market.loanToken == asset, LoanAssetMismatch());
-        IVaultV2(parentVault).accrueInterest();
+        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
         IMidnight(midnight)
             .take(
                 offer, ratifierData, units, address(this), offer.buy ? address(this) : address(0), address(this), hex""
@@ -288,17 +289,18 @@ contract MidnightAdapter is IMidnightAdapter {
     function realAssets() external view returns (uint256) {
         uint256 assets;
         uint256 length = marketIds.length;
+        // updatePositionView only reads market.maturity.
+        Market memory dummyMarket;
         for (uint256 i = 0; i < length; i++) {
             bytes32 marketId = marketIds[i];
             MarketData memory marketData = _markets[marketId];
             uint256 newNetCredit;
-            if (marketData.lossFactor == IMidnight(midnight).lossFactor(marketId)) {
-                newNetCredit = marketData.netCredit;
+            if (marketId == overridenMarketId) {
+                newNetCredit = overridenMarketNetCredit;
             } else {
-                // updatePositionView only reads market.maturity.
-                Market memory market;
-                market.maturity = marketData.maturity;
-                newNetCredit = currentNetCredit(marketId, market);
+                require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+                dummyMarket.maturity = marketData.maturity;
+                newNetCredit = currentNetCredit(marketId, dummyMarket);
             }
             assets += newNetCredit - futureInterest(marketData, newNetCredit);
         }
@@ -335,10 +337,11 @@ contract MidnightAdapter is IMidnightAdapter {
                 IncorrectOffer()
             );
 
+            bytes32 marketId = IdLib.toId(offer.market);
+            require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             IVaultV2(parentVault).accrueInterest();
 
             // Skip onSell since we are already in a deallocate call.
-            bytes32 marketId = IdLib.toId(offer.market);
             uint256 takeUnits = TakeAmountsLib.sellerAssetsToUnits(midnight, marketId, offer, sellerAssets);
             // forge-lint: disable-next-item(reentrancy-no-eth) view reentry is possible through a ratifier.
             IMidnight(midnight).take(offer, ratifierData, takeUnits, address(this), address(this), address(0), hex"");
@@ -358,6 +361,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* MIDNIGHT CALLBACKS */
 
+    /// @dev Between updateMarket and vault.allocate's transfer, realAssets() includes the purchase but the vault has not paid yet.
     function onBuy(
         bytes32 marketId,
         Market memory market,
@@ -369,7 +373,6 @@ contract MidnightAdapter is IMidnightAdapter {
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
-        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
         uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
@@ -378,6 +381,11 @@ contract MidnightAdapter is IMidnightAdapter {
                 || (boughtNetCredit - paidAssets).mulDivDown(WAD, paidAssets) / timeToMaturity >= minRate,
             RateTooLow()
         );
+
+        // Cache corrected net credit before call to allocate
+        (overridenMarketId, overridenMarketNetCredit) = (marketId, currentNetCredit(marketId, market) - boughtNetCredit);
+        IVaultV2(parentVault).accrueInterest();
+        (overridenMarketId, overridenMarketNetCredit) = (bytes32(0), 0);
 
         MaturityData storage maturityData = _maturities[market.maturity];
         // forge-lint: disable-next-item(unsafe-typecast) durationCount <= MAX_DURATIONS.
@@ -402,8 +410,8 @@ contract MidnightAdapter is IMidnightAdapter {
         bytes32 marketId,
         Market memory market,
         uint256 sellerAssets,
-        uint256,
-        uint256,
+        uint256 soldCredit,
+        uint256 sellPendingFeeDecrease,
         address seller,
         address,
         bytes memory
@@ -411,17 +419,26 @@ contract MidnightAdapter is IMidnightAdapter {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
 
-        uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
-        int256 change = updateMarket(marketId, market, 0, 0);
+        int256 change;
+        if (skipBufferCheck) {
+            change = updateMarket(marketId, market, 0, 0);
+            IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
+        } else {
+            (overridenMarketId, overridenMarketNetCredit) =
+            (marketId, currentNetCredit(marketId, market) + soldCredit - sellPendingFeeDecrease);
+            uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
+            (overridenMarketId, overridenMarketNetCredit) = (bytes32(0), 0);
 
-        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
+            change = updateMarket(marketId, market, 0, 0);
+            IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 
-        if (!skipBufferCheck) {
+            (overridenMarketId, overridenMarketNetCredit) = (marketId, _markets[marketId].netCredit);
             uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(parentVault);
             uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
             for (uint256 i = 0; i < adaptersLength; i++) {
                 vaultRealAssetsAfter += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
             }
+            (overridenMarketId, overridenMarketNetCredit) = (bytes32(0), 0);
             require(vaultRealAssetsAfter >= vaultTotalAssetsBefore, BufferTooLow());
         }
 
