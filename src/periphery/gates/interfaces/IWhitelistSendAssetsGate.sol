@@ -4,7 +4,6 @@ pragma solidity >=0.5.0;
 
 import {ISendAssetsGate} from "../../../interfaces/IGate.sol";
 
-/// @dev The nonce is per-whitelister, thus the whitelister needs to be part of the signed data.
 bytes32 constant SET_IS_WHITELISTED_TYPEHASH = keccak256(
     "SetIsWhitelisted(address whitelister,address account,bool newIsWhitelisted,uint256 nonce,uint256 deadline)"
 );
