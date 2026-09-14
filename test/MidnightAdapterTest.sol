@@ -1789,6 +1789,235 @@ contract MidnightAdapterTest is Test {
         assertEq(loanToken.balanceOf(address(fundingAdapter)), vaultBalance - 1e18, "funding adapter funded the buy");
     }
 
+    /// forge-config: default.isolate = true
+    function testOnBuySelfFunding(bool loss, bool sameMarket) public {
+        setUpRealVault();
+        storedOffer.maker = address(adapter);
+        storedOffer.ratifier = address(adapter);
+        Offer memory fundingOffer = buyOnRealVault(7 days, 8e18);
+        vm.prank(taker);
+        midnight.repay(fundingOffer.market, 2e18, taker, address(0), "");
+        if (loss) {
+            OracleMock(storedCollaterals[0].oracle).setPrice(0);
+            OracleMock(storedCollaterals[1].oracle).setPrice(0);
+            midnight.liquidate(fundingOffer.market, 0, 0, 0, taker, false, address(this), address(0), "");
+            OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE);
+            OracleMock(storedCollaterals[1].oracle).setPrice(ORACLE_PRICE_SCALE);
+        }
+
+        uint256 paidAssets = loss ? 3e18 : 4e18;
+        Offer memory offer = makeBuyOffer(sameMarket ? 7 days : 1 days, paidAssets, MAX_TICK);
+        offer.group = bytes32("self-funded purchase");
+        offer.callbackData = abi.encode(address(adapter), abi.encode(fundingOffer.market));
+        midnight.supplyCollateral(offer.market, 0, paidAssets / 2, taker);
+        midnight.supplyCollateral(offer.market, 1, paidAssets / 2, taker);
+        take(offer);
+
+        uint256 expectedNetCredit = loss ? 4e18 : 10e18;
+        assertApproxEqAbs(
+            adapter.markets(_marketId(fundingOffer.market)).netCredit,
+            sameMarket ? expectedNetCredit : (loss ? 1e18 : 6e18),
+            1
+        );
+        assertApproxEqAbs(
+            adapter.markets(_marketId(offer.market)).netCredit, sameMarket ? expectedNetCredit : paidAssets, 1
+        );
+        assertEq(loanToken.balanceOf(address(realVault)), 0, "only the shortfall withdrawn");
+        assertEq(midnight.withdrawable(_marketId(fundingOffer.market)), loss ? 1e18 : 0, "remaining liquidity");
+        assertApproxEqAbs(realVault._totalAssets(), loss ? 4e18 : 10e18, 1, "coherent first accrual");
+        assertApproxEqAbs(adapter.realAssets(), loss ? 4e18 : 10e18, 1, "adapter assets");
+        assertEq(realVault.allocation(adapter.adapterId()), adapter.realAssets(), "caps include the withdrawal");
+    }
+
+    /// forge-config: default.isolate = true
+    function testOnBuySelfFundingSameMarket(bool fullWithdrawal) public {
+        setUpRealVault();
+        storedOffer.maker = address(adapter);
+        storedOffer.ratifier = address(adapter);
+        Offer memory fundingOffer = buyOnRealVault(7 days, 8e18);
+        vm.prank(taker);
+        midnight.repay(fundingOffer.market, 8e18, taker, address(0), "");
+        skip(6 days);
+
+        uint256 withdrawnAssets = fullWithdrawal ? 8e18 : 2e18;
+        Offer memory offer = makeBuyOffer(1 days, 2e18 + withdrawnAssets, MAX_TICK);
+        offer.group = bytes32("self-funded purchase");
+        offer.callbackData = abi.encode(address(adapter), abi.encode(fundingOffer.market));
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.WithdrawToVault(_marketId(offer.market), withdrawnAssets, withdrawnAssets);
+        take(offer);
+
+        assertEq(adapter.markets(_marketId(offer.market)).netCredit, 10e18, "net credit");
+        assertEq(adapter.maturities(offer.market.maturity).netCredit, 10e18, "maturity credit");
+        assertEq(adapter.maturities(offer.market.maturity).durationCount, 2, "duration ids retained");
+        assertEq(adapter.pendingMaturitiesLength(), 1, "maturity tracked once");
+        assertEq(midnight.withdrawable(_marketId(offer.market)), 8e18 - withdrawnAssets, "remaining liquidity");
+        assertEq(realVault.allocation(adapter.adapterId()), 10e18, "adapter allocation");
+        assertEq(realVault.allocation(durationId(7 days)), 10e18, "previous duration allocated");
+        assertEq(realVault.allocation(durationId(1 days)), 10e18, "current duration allocated");
+        assertEq(loanToken.balanceOf(address(realVault)), 0, "only the shortfall withdrawn");
+        assertEq(realVault._totalAssets(), 10e18, "coherent first accrual");
+        assertEq(adapter.realAssets(), 10e18, "adapter assets");
+    }
+
+    function testOnBuySelfFundingSameMarketWithFeeAndGrowth() public {
+        midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
+        Offer memory fundingOffer = buy(7 days, 1e18, discountTick);
+        bytes32 marketId = _marketId(fundingOffer.market);
+        uint256 oldNetCredit = adapter.markets(marketId).netCredit;
+        uint256 oldGrowth = adapter.markets(marketId).growth;
+        uint256 oldAssets = adapter.totalAssets();
+        vm.prank(taker);
+        midnight.repay(fundingOffer.market, 0.5e18, taker, address(0), "");
+        deal(address(loanToken), address(parentVault), 0);
+
+        Offer memory offer = makeBuyOffer(7 days, 0.25e18, discountTick);
+        offer.group = bytes32("self-funded purchase");
+        offer.callbackData = abi.encode(address(adapter), abi.encode(fundingOffer.market));
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+        uint256 paidAssets = uint256(offer.maxUnits).mulDivDown(TickLib.tickToPrice(offer.tick), 1e18);
+        uint256 boughtPendingFee = uint256(offer.maxUnits).mulDivDown(uint256(MAX_CONTINUOUS_FEE) * 7 days, 1e18);
+        uint256 boughtNetCredit = offer.maxUnits - boughtPendingFee;
+        uint256 credit = midnight.credit(marketId, address(adapter)) + offer.maxUnits;
+        uint256 pendingFee = midnight.pendingFee(marketId, address(adapter)) + boughtPendingFee;
+        uint256 netCreditDecrease = paidAssets - pendingFee.mulDivUp(paidAssets, credit);
+        uint256 growthDecrease = oldGrowth.mulDivUp(netCreditDecrease, oldNetCredit);
+        uint256 interest = boughtNetCredit - paidAssets;
+
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.WithdrawToVault(marketId, paidAssets, netCreditDecrease);
+        take(offer);
+
+        uint256 expectedNetCredit = oldNetCredit - netCreditDecrease + boughtNetCredit;
+        uint256 expectedGrowth = oldGrowth - growthDecrease + interest / 7 days;
+        assertEq(adapter.markets(marketId).netCredit, expectedNetCredit, "net credit");
+        assertEq(adapter.maturities(offer.market.maturity).netCredit, expectedNetCredit, "maturity credit");
+        assertEq(adapter.markets(marketId).growth, expectedGrowth, "market growth");
+        assertEq(adapter.currentGrowth(), expectedGrowth, "total growth");
+        assertEq(
+            adapter.totalAssets(),
+            oldAssets + growthDecrease * 7 days - netCreditDecrease + paidAssets + interest % 7 days,
+            "accounted assets"
+        );
+        assertEq(parentVault.allocation(adapter.adapterId()), expectedNetCredit, "allocation");
+    }
+
+    function testOnBuySelfFundingSkippedWithEnoughIdleAssets() public {
+        Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
+        offer.callbackData = abi.encode(address(adapter), abi.encode(offer.market));
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+        take(offer);
+
+        assertEq(adapter.markets(_marketId(offer.market)).netCredit, 1e18, "no self-withdrawal needed");
+    }
+
+    function testOnBuySelfFundingInsufficientLiquidityReverts() public {
+        Offer memory fundingOffer = buy(7 days, 1e18);
+        deal(address(loanToken), address(parentVault), 0);
+        Offer memory offer = makeBuyOffer(1 days, 1e18, MAX_TICK);
+        offer.callbackData = abi.encode(address(adapter), abi.encode(fundingOffer.market));
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+
+        vm.expectRevert(stdError.arithmeticError);
+        take(offer);
+
+        assertEq(adapter.markets(_marketId(fundingOffer.market)).netCredit, 1e18, "withdrawal reverted");
+        assertEq(adapter.markets(_marketId(offer.market)).netCredit, 0, "purchase reverted");
+    }
+
+    /// forge-config: default.isolate = true
+    function testOnBuySelfFundingSharedMaturity() public {
+        setUpRealVault();
+        storedOffer.maker = address(adapter);
+        storedOffer.ratifier = address(adapter);
+        Offer memory fundingOffer = buyOnRealVault(7 days, 8e18);
+        vm.prank(taker);
+        midnight.repay(fundingOffer.market, 8e18, taker, address(0), "");
+        skip(6 days);
+
+        Offer memory offer = makeBuyOffer(1 days, 10e18, MAX_TICK);
+        offer.market.rcfThreshold = 1;
+        offer.callbackData = abi.encode(address(adapter), abi.encode(fundingOffer.market));
+        midnight.supplyCollateral(offer.market, 0, 5e18, taker);
+        midnight.supplyCollateral(offer.market, 1, 5e18, taker);
+        take(offer);
+
+        assertEq(adapter.markets(_marketId(fundingOffer.market)).netCredit, 0, "funding market emptied");
+        assertEq(adapter.markets(_marketId(offer.market)).netCredit, 10e18, "new market funded");
+        assertEq(adapter.maturities(offer.market.maturity).netCredit, 10e18, "shared maturity");
+        assertEq(adapter.maturities(offer.market.maturity).durationCount, 2, "duration ids retained");
+        assertEq(adapter.pendingMaturitiesLength(), 1, "maturity reinserted once");
+        assertEq(realVault.allocation(durationId(7 days)), 10e18, "previous duration allocated");
+        assertEq(realVault.allocation(durationId(1 days)), 10e18, "current duration allocated");
+        assertEq(realVault._totalAssets(), 10e18, "coherent first accrual");
+        assertEq(adapter.realAssets(), 10e18, "adapter assets");
+    }
+
+    /// forge-config: default.isolate = true
+    function testOnBuySelfFundingNestedSale(bool lockedSource, bool discountedSale) public {
+        setUpRealVault();
+        storedOffer.maker = address(adapter);
+        storedOffer.ratifier = address(adapter);
+        Offer memory outerPosition = buyOnRealVault(7 days, 6e18);
+        Offer memory fundingPosition = buyOnRealVault(2 days, 4e18);
+        Market memory fundingMarket = lockedSource ? outerPosition.market : fundingPosition.market;
+        vm.prank(taker);
+        midnight.repay(fundingMarket, 2e18, taker, address(0), "");
+
+        NestedTaker attacker = new NestedTaker(loanToken, address(midnight));
+        deal(address(loanToken), address(attacker), 2e18);
+        Offer memory innerOffer = makeBuyOffer(1 days, 2e18, MAX_TICK);
+        innerOffer.callbackData = abi.encode(address(adapter), abi.encode(fundingMarket));
+        for (uint256 i; i < 2; i++) {
+            deal(storedCollaterals[i].token, address(attacker), 1e18);
+            vm.startPrank(address(attacker));
+            IERC20(storedCollaterals[i].token).approve(address(midnight), type(uint256).max);
+            midnight.supplyCollateral(innerOffer.market, i, 1e18, address(attacker));
+            vm.stopPrank();
+        }
+        attacker.setNestedCall(
+            address(midnight),
+            abi.encodeCall(
+                IMidnight.take,
+                (
+                    innerOffer,
+                    sign([innerOffer], signerAllocator),
+                    innerOffer.maxUnits,
+                    address(attacker),
+                    address(attacker),
+                    address(0),
+                    ""
+                )
+            )
+        );
+        Offer memory outerOffer = makeSellOffer(outerPosition.market, 2e18, discountedSale ? discountTick : MAX_TICK);
+        if (lockedSource) vm.expectRevert(IMidnightAdapter.PositionLocked.selector);
+        else if (discountedSale) vm.expectRevert(IMidnightAdapter.BufferTooLow.selector);
+        vm.prank(address(attacker));
+        midnight.take(
+            outerOffer,
+            sign([outerOffer], signerAllocator),
+            outerOffer.maxUnits,
+            address(attacker),
+            address(0),
+            address(attacker),
+            ""
+        );
+
+        bool reverted = lockedSource || discountedSale;
+        assertEq(adapter.markets(_marketId(outerPosition.market)).netCredit, reverted ? 6e18 : 4e18);
+        assertEq(adapter.markets(_marketId(fundingPosition.market)).netCredit, reverted ? 4e18 : 2e18);
+        assertEq(adapter.markets(_marketId(innerOffer.market)).netCredit, reverted ? 0 : 2e18);
+        assertEq(realVault._totalAssets(), 10e18, "outer sale cannot lower the snapshot");
+        assertEq(adapter.realAssets() + loanToken.balanceOf(address(realVault)), 10e18, "real assets");
+    }
+
     function testOnBuyWithoutFundingRouteReverts() public {
         parentVault.allocate(address(extraAssetsAdapter), hex"", loanToken.balanceOf(address(parentVault)));
 

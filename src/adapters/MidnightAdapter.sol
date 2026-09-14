@@ -24,6 +24,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// make sell offers, to withdraw to the vault and to update duration caps.
 /// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be
 /// deallocated, or to "" to take the liquidity in the vault's idle funds.
+/// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 ///
 /// TIMELOCKS
@@ -238,6 +239,12 @@ contract MidnightAdapter is IMidnightAdapter {
     /* VAULT ALLOCATORS FUNCTIONS */
 
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external {
+        withdrawToVaultInternal(market, withdrawnAssets, 0);
+    }
+
+    function withdrawToVaultInternal(Market memory market, uint256 withdrawnAssets, uint256 pendingBoughtNetCredit)
+        internal
+    {
         bytes32 marketId = IdLib.toId(market);
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), PositionLocked());
 
@@ -245,8 +252,8 @@ contract MidnightAdapter is IMidnightAdapter {
 
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not call back.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
-        // current net credit cannot be > accounted net credit
-        uint256 netCreditDecrease = _markets[marketId].netCredit - currentNetCredit(marketId);
+        // current net credit cannot be > accounted net credit + pending bought net credit
+        uint256 netCreditDecrease = _markets[marketId].netCredit + pendingBoughtNetCredit - currentNetCredit(marketId);
 
         decreaseNetCredit(marketId, market.maturity, netCreditDecrease);
 
@@ -395,8 +402,15 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
         if (callbackData.length > 0 && paidAssets > idleAssets) {
             (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
-            // forge-lint: disable-next-item(reentrancy-no-eth) the adapter is trusted.
-            IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets - idleAssets);
+            if (fundingAdapter == address(this)) {
+                Market memory fundingMarket = abi.decode(fundingData, (Market));
+                withdrawToVaultInternal(
+                    fundingMarket, paidAssets - idleAssets, IdLib.toId(fundingMarket) == marketId ? boughtNetCredit : 0
+                );
+            } else {
+                // forge-lint: disable-next-item(reentrancy-no-eth) the adapter is trusted.
+                IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets - idleAssets);
+            }
         }
 
         // forge-lint: disable-next-item(reentrancy-no-eth) reentry is expected.
