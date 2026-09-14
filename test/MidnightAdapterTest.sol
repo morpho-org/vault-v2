@@ -501,7 +501,7 @@ contract MidnightAdapterTest is Test {
         vm.prank(taker);
         vm.expectRevert(IMidnightAdapter.RateTooLow.selector);
         midnight.take(offer, data, offer.maxUnits, taker, taker, address(0), "");
-        assertEq(adapter.totalAssets(), 0, "failed buy leaves no assets");
+        assertEq(adapter.realAssets(), 0, "failed buy leaves no assets");
         assertEq(midnight.consumed(address(adapter), offer.group), 0, "offer not consumed");
 
         setMinRate(0);
@@ -1851,7 +1851,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.markets(_marketId(offer.market)).netCredit, 10e18, "net credit");
         assertEq(adapter.maturities(offer.market.maturity).netCredit, 10e18, "maturity credit");
         assertEq(adapter.maturities(offer.market.maturity).durationCount, 2, "duration ids retained");
-        assertEq(adapter.pendingMaturitiesLength(), 1, "maturity tracked once");
+        assertEq(pendingMaturitiesCount(), 1, "maturity tracked once");
         assertEq(midnight.withdrawable(_marketId(offer.market)), 8e18 - withdrawnAssets, "remaining liquidity");
         assertEq(realVault.allocation(adapter.adapterId()), 10e18, "adapter allocation");
         assertEq(realVault.allocation(durationId(7 days)), 10e18, "previous duration allocated");
@@ -1867,7 +1867,7 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(fundingOffer.market);
         uint256 oldNetCredit = adapter.markets(marketId).netCredit;
         uint256 oldGrowth = adapter.markets(marketId).growth;
-        uint256 oldAssets = adapter.totalAssets();
+        uint256 oldAssets = adapter.realAssets();
         vm.prank(taker);
         midnight.repay(fundingOffer.market, 0.5e18, taker, address(0), "");
         deal(address(loanToken), address(parentVault), 0);
@@ -1895,9 +1895,9 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.markets(marketId).netCredit, expectedNetCredit, "net credit");
         assertEq(adapter.maturities(offer.market.maturity).netCredit, expectedNetCredit, "maturity credit");
         assertEq(adapter.markets(marketId).growth, expectedGrowth, "market growth");
-        assertEq(adapter.currentGrowth(), expectedGrowth, "total growth");
+        assertEq(adapter.futureInterest(), expectedGrowth * 7 days, "future interest");
         assertEq(
-            adapter.totalAssets(),
+            adapter.realAssets(),
             oldAssets + growthDecrease * 7 days - netCreditDecrease + paidAssets + interest % 7 days,
             "accounted assets"
         );
@@ -1950,7 +1950,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.markets(_marketId(offer.market)).netCredit, 10e18, "new market funded");
         assertEq(adapter.maturities(offer.market.maturity).netCredit, 10e18, "shared maturity");
         assertEq(adapter.maturities(offer.market.maturity).durationCount, 2, "duration ids retained");
-        assertEq(adapter.pendingMaturitiesLength(), 1, "maturity reinserted once");
+        assertEq(pendingMaturitiesCount(), 1, "maturity reinserted once");
         assertEq(realVault.allocation(durationId(7 days)), 10e18, "previous duration allocated");
         assertEq(realVault.allocation(durationId(1 days)), 10e18, "current duration allocated");
         assertEq(realVault._totalAssets(), 10e18, "coherent first accrual");
