@@ -127,10 +127,9 @@ contract MidnightAdapter is IMidnightAdapter {
         require(offer.market.loanToken == asset, LoanAssetMismatch());
         require(offer.maker == address(this), IncorrectMaker());
         require(offer.callback == address(this), IncorrectCallbackAddress());
-        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), PositionLocked());
+        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
         // For buy offers, Midnight enforces receiverIfMakerIsSeller == address(0).
         require(offer.buy || offer.receiverIfMakerIsSeller == address(this), IncorrectReceiver());
-        require(offer.buy || offer.reduceOnly, NoDebtCreation());
 
         (address subRatifier, bytes memory subData) = abi.decode(data, (address, bytes));
         require(isSubRatifier[subRatifier], SubRatifierUnauthorized());
@@ -246,7 +245,7 @@ contract MidnightAdapter is IMidnightAdapter {
         internal
     {
         bytes32 marketId = IdLib.toId(market);
-        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), PositionLocked());
+        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
 
         updateFutureInterest();
 
@@ -266,7 +265,7 @@ contract MidnightAdapter is IMidnightAdapter {
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external {
         require(IVaultV2(parentVault).isAllocator(msg.sender), NotAuthorized());
         require(offer.market.loanToken == asset, LoanAssetMismatch());
-        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), PositionLocked());
+        require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
         IMidnight(midnight)
             .take(
                 offer, ratifierData, units, address(this), offer.buy ? address(this) : address(0), address(this), hex""
@@ -350,7 +349,7 @@ contract MidnightAdapter is IMidnightAdapter {
                 IncorrectOffer()
             );
             bytes32 marketId = IdLib.toId(offer.market);
-            require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), PositionLocked());
+            require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
 
             updateFutureInterest();
 
@@ -533,17 +532,8 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 j;
         idsArray[j++] = adapterId;
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
-            address collateralToken = market.collateralParams[i].token;
-            idsArray[j++] = keccak256(abi.encode("collateralToken", collateralToken));
-            idsArray[j++] = keccak256(
-                abi.encode(
-                    "collateralParams",
-                    collateralToken,
-                    market.collateralParams[i].oracle,
-                    market.collateralParams[i].lltv,
-                    market.collateralParams[i].liquidationCursor
-                )
-            );
+            idsArray[j++] = keccak256(abi.encode("collateralToken", market.collateralParams[i].token));
+            idsArray[j++] = keccak256(abi.encode("collateralParams", market.collateralParams[i]));
         }
         for (uint256 i = 0; i < durationsCount; i++) {
             idsArray[j++] = keccak256(abi.encode("duration", packedDurations.get(i)));

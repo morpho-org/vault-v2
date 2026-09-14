@@ -55,9 +55,8 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error LoanAssetMismatch();
     error NotAuthorized();
     error NotMidnight();
-    error NoDebtCreation();
     error NotSelf();
-    error PositionLocked();
+    error SellInProgress();
     error RateTooLow();
     error SelfAllocationOnly();
     error SubRatifierUnauthorized();
