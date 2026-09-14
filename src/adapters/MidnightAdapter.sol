@@ -16,13 +16,14 @@ import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapter, MarketData, MaturityData, IAdapter} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
-/// @dev Values all tracked markets after position losses and amortizes purchase discounts linearly until maturity.
-/// @dev The vault's max rate further limits the distribution of interest.
+/// @dev Approximates held assets by linearly accounting for interest per market.
+/// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be
+/// earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev The adapter must have the allocator role in its parent vault to buy, and the allocator or sentinel role to
 /// make sell offers, to withdraw to the vault and to update duration caps.
 /// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be
 /// deallocated, or to "" to take the liquidity in the vault's idle funds.
-/// @dev When funding from this adapter, data must be abi.encode(market) for the market to withdraw from.
+/// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 ///
 /// TIMELOCKS
@@ -244,7 +245,6 @@ contract MidnightAdapter is IMidnightAdapter {
         );
 
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-        IVaultV2(parentVault).accrueInterest();
 
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not call back.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
@@ -361,7 +361,8 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* MIDNIGHT CALLBACKS */
 
-    /// @dev Between updateMarket and vault.allocate's transfer, realAssets() includes the purchase but the vault has not paid yet.
+    /// @dev Between updateMarket and vault.allocate's transfer, realAssets() includes the purchase but the vault has
+    /// not paid yet.
     function onBuy(
         bytes32 marketId,
         Market memory market,
@@ -375,12 +376,6 @@ contract MidnightAdapter is IMidnightAdapter {
         require(buyer == address(this), NotSelf());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
-        uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
-        require(
-            timeToMaturity == 0 || paidAssets == 0
-                || (boughtNetCredit - paidAssets).mulDivDown(WAD, paidAssets) / timeToMaturity >= minRate,
-            RateTooLow()
-        );
 
         // Cache corrected net credit before call to allocate
         (overridenMarketId, overridenMarketNetCredit) = (marketId, currentNetCredit(marketId, market) - boughtNetCredit);
@@ -404,6 +399,13 @@ contract MidnightAdapter is IMidnightAdapter {
 
         // forge-lint: disable-next-item(reentrancy-no-eth) reentry is expected.
         IVaultV2(parentVault).allocate(address(this), abi.encode(ids(market), change), paidAssets);
+
+        uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
+        require(
+            timeToMaturity == 0 || paidAssets == 0
+                || (boughtNetCredit - paidAssets).mulDivDown(WAD, paidAssets) / timeToMaturity >= minRate,
+            RateTooLow()
+        );
 
         // forge-lint: disable-next-item(unsafe-typecast) boughtNetCredit and the credit loss fit in uint128.
         emit Buy(marketId, paidAssets, boughtNetCredit, uint256(int256(boughtNetCredit) - change));
