@@ -20,6 +20,7 @@ import {DOMAIN_TYPEHASH} from "../../libraries/ConstantsLib.sol";
 contract WhitelistSendAssetsGate is IWhitelistSendAssetsGate {
     address public roleSetter;
     mapping(address account => bool) public isWhitelister;
+    /// @dev The nonce is per-whitelister, thus the whitelister needs to be part of the signed data.
     mapping(address whitelister => mapping(address account => uint256)) public nonces;
     mapping(address account => bool) public isWhitelisted;
     mapping(address account => bool) public isIntermediary;
