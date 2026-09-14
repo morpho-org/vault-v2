@@ -2162,7 +2162,7 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    function testMakerTakeRequiresAccrualInSameTransaction(bool isBuy) public {
+    function testMakerTakeWithoutAccrualInSameTransaction(bool isBuy) public {
         setUpRealVault();
         Offer memory boughtOffer = buyOnRealVault(7 days, 1e18);
         Offer memory offer;
@@ -2180,12 +2180,10 @@ contract MidnightAdapterTest is Test {
         realVault.accrueInterest();
         assertEq(realVault.firstTotalAssets(), 0, "previous transaction does not count");
         bytes memory data = sign([offer], signerAllocator);
-        vm.expectRevert(IMidnightAdapter.VaultNotAccrued.selector);
         vm.prank(taker);
         midnight.take(offer, data, offer.maxUnits, taker, isBuy ? taker : address(0), address(0), "");
 
-        this.takeWithAccrual(offer, data, taker, address(0));
-        assertEq(adapter.realAssets(), isBuy ? 2e18 : 0, "take succeeds after accrual");
+        assertEq(adapter.realAssets(), isBuy ? 2e18 : 0, "take succeeds without pre-accrual");
     }
 
     /// forge-config: default.isolate = true
@@ -2209,7 +2207,8 @@ contract MidnightAdapterTest is Test {
         returns (bytes32)
     {
         assertEq(msg.sender, address(midnight));
-        assertEq(adapter.realAssets(), 1e18, "cached pre-trade position");
+        vm.expectRevert(IMidnightAdapter.SellInProgress.selector);
+        adapter.realAssets();
         assertEq(loanToken.balanceOf(address(realVault)), 9e18, "payment has not arrived");
         assertEq(realVault.totalAssets(), 10e18, "vault valuation fixed before the trade");
         realVault.deposit(1e18, recipient);
