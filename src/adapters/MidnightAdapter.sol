@@ -129,7 +129,6 @@ contract MidnightAdapter is IMidnightAdapter {
         require(offer.callback == address(this), IncorrectCallbackAddress());
         // For buy offers, Midnight enforces receiverIfMakerIsSeller == address(0).
         require(offer.buy || offer.receiverIfMakerIsSeller == address(this), IncorrectReceiver());
-        require(offer.buy || offer.reduceOnly, NoDebtCreation());
 
         (address subRatifier, bytes memory subData) = abi.decode(data, (address, bytes));
         require(isSubRatifier[subRatifier], SubRatifierUnauthorized());
@@ -516,17 +515,8 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 j;
         idsArray[j++] = adapterId;
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
-            address collateralToken = market.collateralParams[i].token;
-            idsArray[j++] = keccak256(abi.encode("collateralToken", collateralToken));
-            idsArray[j++] = keccak256(
-                abi.encode(
-                    "collateralParams",
-                    collateralToken,
-                    market.collateralParams[i].oracle,
-                    market.collateralParams[i].lltv,
-                    market.collateralParams[i].liquidationCursor
-                )
-            );
+            idsArray[j++] = keccak256(abi.encode("collateralToken", market.collateralParams[i].token));
+            idsArray[j++] = keccak256(abi.encode("collateralParams", market.collateralParams[i]));
         }
         for (uint256 i = 0; i < durationsCount; i++) {
             idsArray[j++] = keccak256(abi.encode("duration", packedDurations.get(i)));
