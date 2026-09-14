@@ -256,6 +256,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         decreaseNetCredit(marketId, market.maturity, netCreditDecrease);
 
+        // forge-lint: disable-next-item(reentrancy-no-eth) deallocate in this adapter does not make calls here
         // forge-lint: disable-next-item(unsafe-typecast) netCreditDecrease <= type(uint128).max.
         IVaultV2(parentVault)
             .deallocate(address(this), abi.encode(ids(market), -int256(netCreditDecrease)), withdrawnAssets);
