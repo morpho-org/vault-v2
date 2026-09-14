@@ -250,6 +250,7 @@ contract MidnightAdapter is IMidnightAdapter {
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
         int256 change = updateMarket(marketId, market, 0, 0);
 
+        // forge-lint: disable-next-item(reentrancy-no-eth) deallocate in this adapter does not make calls here
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), withdrawnAssets);
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
         emit WithdrawToVault(marketId, withdrawnAssets, uint256(-change));
