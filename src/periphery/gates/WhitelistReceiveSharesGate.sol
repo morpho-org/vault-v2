@@ -61,6 +61,7 @@ contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
 
     /// @dev Signature malleability is not explicitly prevented but it is not a problem thanks to the nonce.
     /// @dev Allows to batch setIsWhitelisted with the deposit, without requiring a transaction from the whitelister.
+    /// @dev The nonce is per-whitelister, thus the whitelister needs to be part of the signed data.
     function setIsWhitelistedWithSig(
         address whitelister,
         address account,
