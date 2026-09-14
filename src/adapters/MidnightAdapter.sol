@@ -22,6 +22,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// make sell offers, to withdraw to the vault and to update duration caps.
 /// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be
 /// deallocated, or to "" to take the liquidity in the vault's idle funds.
+/// @dev When funding from this adapter, data must be abi.encode(market) for the market to withdraw from.
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 ///
 /// TIMELOCKS
@@ -394,8 +395,12 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
         if (callbackData.length > 0 && paidAssets > idleAssets) {
             (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
-            // forge-lint: disable-next-item(reentrancy-no-eth) the adapter is trusted.
-            IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets - idleAssets);
+            if (fundingAdapter == address(this)) {
+                this.withdrawToVault(abi.decode(fundingData, (Market)), paidAssets - idleAssets);
+            } else {
+                // forge-lint: disable-next-item(reentrancy-no-eth) the adapter is trusted.
+                IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets - idleAssets);
+            }
         }
 
         // forge-lint: disable-next-item(reentrancy-no-eth) reentry is expected.
