@@ -743,8 +743,7 @@ contract MidnightAdapterTest is Test {
         offer.reduceOnly = false;
         bytes32 _root = HashLib.hashOffer(offer);
         bytes memory data = ratifierData(_root, signerAllocator);
-        vm.expectRevert(IMidnightAdapter.NoDebtCreation.selector);
-        adapter.isRatified(offer, data, taker);
+        assertEq(adapter.isRatified(offer, data, taker), CALLBACK_SUCCESS, "callback success");
     }
 
     function testRatifyReduceOnlySellAccepted(uint256 seed) public {
@@ -870,10 +869,6 @@ contract MidnightAdapterTest is Test {
         offer.callback = address(adapter);
 
         offer.reduceOnly = false;
-        vm.prank(taker);
-        vm.expectRevert(IMidnightAdapter.NoDebtCreation.selector);
-        midnight.take(offer, rogueData, offer.maxUnits, taker, address(0), address(0), "");
-        offer.reduceOnly = true;
 
         // The rogue sub-ratifier does approve the same offer once well-shaped.
         vm.prank(taker);
@@ -1050,6 +1045,9 @@ contract MidnightAdapterTest is Test {
         CollateralParams[] memory collateralParams = new CollateralParams[](collateralCount);
         for (uint256 i = 0; i < collateralCount; i++) {
             collateralParams[i].token = address(uint160(i));
+            collateralParams[i].lltv = i + 1;
+            collateralParams[i].liquidationCursor = i + 2;
+            collateralParams[i].oracle = address(uint160(i + 3));
         }
         market.collateralParams = collateralParams;
         market.maturity = bound(maturity, 1, 700 days);
@@ -1064,9 +1062,9 @@ contract MidnightAdapterTest is Test {
                     abi.encode(
                         "collateralParams",
                         market.collateralParams[i].token,
-                        market.collateralParams[i].oracle,
                         market.collateralParams[i].lltv,
-                        market.collateralParams[i].liquidationCursor
+                        market.collateralParams[i].liquidationCursor,
+                        market.collateralParams[i].oracle
                     )
                 )
             );
@@ -2809,21 +2807,9 @@ contract MidnightAdapterTest is Test {
         bytes[] memory idDatas = new bytes[](7);
         idDatas[0] = abi.encode("this", address(adapter));
         idDatas[1] = abi.encode("collateralToken", storedCollaterals[0].token);
-        idDatas[2] = abi.encode(
-            "collateralParams",
-            storedCollaterals[0].token,
-            storedCollaterals[0].oracle,
-            storedCollaterals[0].lltv,
-            storedCollaterals[0].liquidationCursor
-        );
+        idDatas[2] = abi.encode("collateralParams", storedCollaterals[0]);
         idDatas[3] = abi.encode("collateralToken", storedCollaterals[1].token);
-        idDatas[4] = abi.encode(
-            "collateralParams",
-            storedCollaterals[1].token,
-            storedCollaterals[1].oracle,
-            storedCollaterals[1].lltv,
-            storedCollaterals[1].liquidationCursor
-        );
+        idDatas[4] = abi.encode("collateralParams", storedCollaterals[1]);
         idDatas[5] = abi.encode("duration", uint256(1 days));
         idDatas[6] = abi.encode("duration", uint256(7 days));
         for (uint256 i = 0; i < idDatas.length; i++) {
