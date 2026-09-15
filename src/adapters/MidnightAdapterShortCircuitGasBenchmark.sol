@@ -13,8 +13,17 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {IMidnightAdapter, MarketData, MaturityData, IAdapter} from "./interfaces/IMidnightAdapter.sol";
+import {IMidnightAdapter, MaturityData, IAdapter} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
+
+struct MarketData {
+    uint128 netCredit;
+    uint128 lossFactor;
+    uint128 assets;
+    uint48 maturity;
+    uint48 lastUpdate;
+    uint8 index;
+}
 
 /// @dev Approximates held assets by linearly accounting for interest per market.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be
@@ -28,7 +37,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 ///
 /// TIMELOCKS
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
-contract MidnightAdapter is IMidnightAdapter {
+contract MidnightAdapterShortCircuitGasBenchmark is IMidnightAdapter {
     using MathLib for uint256;
     using DurationsLib for bytes32;
 
@@ -239,6 +248,10 @@ contract MidnightAdapter is IMidnightAdapter {
 
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external {
         bytes32 marketId = IdLib.toId(market);
+        require(
+            IVaultV2(parentVault).isAllocator(msg.sender) || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
 
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
 
@@ -296,8 +309,12 @@ contract MidnightAdapter is IMidnightAdapter {
                 newNetCredit = overridenMarketNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-                dummyMarket.maturity = marketData.maturity;
-                newNetCredit = currentNetCredit(marketId, dummyMarket);
+                if (marketData.lossFactor == IMidnight(midnight).lossFactor(marketId)) {
+                    newNetCredit = marketData.netCredit;
+                } else {
+                    dummyMarket.maturity = marketData.maturity;
+                    newNetCredit = currentNetCredit(marketId, dummyMarket);
+                }
             }
             assets += newNetCredit - futureInterest(marketData, newNetCredit);
         }
@@ -473,6 +490,7 @@ contract MidnightAdapter is IMidnightAdapter {
         MarketData storage marketData = _markets[marketId];
         uint256 oldNetCredit = marketData.netCredit;
         uint128 newNetCredit = currentNetCredit(marketId, market);
+        marketData.lossFactor = IMidnight(midnight).lossFactor(marketId);
         uint256 newFutureInterest = block.timestamp >= market.maturity
             ? 0
             : futureInterest(marketData, newNetCredit - boughtNetCredit) + boughtNetCredit - paidAssets;
