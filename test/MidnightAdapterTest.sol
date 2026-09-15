@@ -1736,9 +1736,7 @@ contract MidnightAdapterTest is Test {
         assertEq(reads.length, 1, "one cache slot");
         uint256 packed = uint256(vm.load(address(adapter), reads[0]));
         assertEq(uint128(packed), credit - pendingFee, "packed net credit");
-        assertEq(packed >> 128, midnight.lossFactor(marketId), "packed loss factor");
-        uint256 packedAssets = uint256(vm.load(address(adapter), bytes32(uint256(reads[0]) + 1)));
-        assertEq(uint128(packedAssets), expectedValue, "assets packed in second market slot");
+        assertEq(packed >> 128, expectedValue, "assets packed in first market slot");
     }
 
     function testLossBeforeMaturityIsVisibleWithoutPing() public {
@@ -2411,24 +2409,14 @@ contract MidnightAdapterTest is Test {
 
     /* WITHDRAW TO VAULT */
 
-    function testWithdrawToVaultUnauthorized(address nonAllocator) public {
-        vm.assume(!parentVault.isAllocator(nonAllocator) && !parentVault.isSentinel(nonAllocator));
-        Market memory market = storedOffer.market;
-        vm.prank(nonAllocator);
-        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
-        adapter.withdrawToVault(market, 0);
-    }
-
-    function testWithdrawToVaultBySentinel(address sentinel) public {
-        vm.assume(sentinel != signerAllocator);
-        stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(sentinel).checked_write(true);
+    function testWithdrawToVaultByAnyone(address caller) public {
         Offer memory boughtOffer = buy(7 days, 1e18);
 
-        vm.prank(sentinel);
+        vm.prank(caller);
         adapter.withdrawToVault(boughtOffer.market, 0);
     }
 
-    function testWithdrawToVaultOK() public {
+    function testWithdrawToVaultOK(address caller) public {
         Offer memory boughtOffer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
         uint128 creditBefore = adapter.netCredit(marketId);
@@ -2443,7 +2431,7 @@ contract MidnightAdapterTest is Test {
         uint256 withdrawAmount = 0.5e18;
         vm.expectEmit(address(adapter));
         emit IMidnightAdapter.WithdrawToVault(marketId, withdrawAmount, withdrawAmount);
-        vm.prank(signerAllocator);
+        vm.prank(caller);
         adapter.withdrawToVault(boughtOffer.market, withdrawAmount);
 
         uint128 creditAfter = adapter.netCredit(marketId);
@@ -2867,7 +2855,7 @@ contract MidnightAdapterTest is Test {
         (bytes32[] memory reads,) = vm.accesses(address(adapter));
         assertEq(reads.length, 1, "one cache slot");
         uint256 packed = uint256(vm.load(address(adapter), bytes32(uint256(reads[0]) + 1)));
-        assertEq(uint8(packed >> 224), expected, "index packed in second market slot");
+        assertEq(uint8(packed >> 96), expected, "index packed in second market slot");
     }
 
     function checkMarkets(bytes32[] memory expected) internal view {
