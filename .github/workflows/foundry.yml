@@ -47,6 +47,9 @@ jobs:
       - name: Run forge build
         run: forge build --force --sizes
 
+      - name: Check foundry.lock matches submodule pins
+        run: forge build --locked
+
   test:
     needs: sizes
     strategy:
