@@ -422,21 +422,13 @@ contract MidnightAdapter is IMidnightAdapter {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
 
-        int256 change;
-        if (skipBufferCheck) {
-            change = updateMarket(marketId, market, 0, 0);
-            IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
-        } else {
+        if (!skipBufferCheck) {
+            uint256 newNetCredit = currentNetCredit(marketId, market);
             (overridenMarketId, overridenMarketNetCredit) =
-            (marketId, currentNetCredit(marketId, market) + soldCredit - sellPendingFeeDecrease);
+            (marketId, newNetCredit + soldCredit - sellPendingFeeDecrease);
             uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
-            (overridenMarketId, overridenMarketNetCredit) = (bytes32(0), 0);
-
-            change = updateMarket(marketId, market, 0, 0);
-            IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
-
-            (overridenMarketId, overridenMarketNetCredit) = (marketId, _markets[marketId].netCredit);
-            uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(parentVault);
+            overridenMarketNetCredit = newNetCredit;
+            uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(parentVault) + sellerAssets;
             uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
             for (uint256 i = 0; i < adaptersLength; i++) {
                 vaultRealAssetsAfter += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
@@ -444,6 +436,9 @@ contract MidnightAdapter is IMidnightAdapter {
             (overridenMarketId, overridenMarketNetCredit) = (bytes32(0), 0);
             require(vaultRealAssetsAfter >= vaultTotalAssetsBefore, BufferTooLow());
         }
+
+        int256 change = updateMarket(marketId, market, 0, 0);
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
         emit Sell(marketId, sellerAssets, uint256(-change));
