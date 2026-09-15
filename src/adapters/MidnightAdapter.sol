@@ -16,7 +16,7 @@ import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {IMidnightAdapter, MarketData, MaturityData} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
-/// @dev Values credit at net face value, with adapter-wide interest recognition limited by maxRate.
+/// @dev Values credit at net face value, with interest recognition limited by maxRate at the adapter level.
 /// @dev Every accrual reads all positions for losses. Unrecognized interest absorbs losses first.
 /// @dev The adapter must have the allocator role in its parent vault to buy, and the allocator or sentinel role to
 /// make sell offers, to withdraw to the vault and to update duration caps.
