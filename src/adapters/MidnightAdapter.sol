@@ -17,6 +17,7 @@ import {IMidnightAdapter, MarketData, MaturityData, IAdapter} from "./interfaces
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest per market.
+/// @dev Growth is rounded down. Interest excluded from growth is realized immediately.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be
 /// earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev The adapter must have the allocator role in its parent vault to buy, and the allocator or sentinel role to
@@ -299,7 +300,8 @@ contract MidnightAdapter is IMidnightAdapter {
                 dummyMarket.maturity = marketData.maturity;
                 newNetCredit = currentNetCredit(marketId, dummyMarket);
             }
-            assets += newNetCredit - futureInterest(marketData, newNetCredit);
+            uint256 timeToMaturity = uint256(marketData.maturity).zeroFloorSub(block.timestamp);
+            assets += newNetCredit.mulDivDown(WAD - uint256(marketData.growth) * timeToMaturity, WAD);
         }
         return assets;
     }
@@ -433,6 +435,7 @@ contract MidnightAdapter is IMidnightAdapter {
             for (uint256 i = 0; i < adaptersLength; i++) {
                 vaultRealAssetsAfter += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
             }
+
             (overridenMarketId, overridenMarketNetCredit) = (bytes32(0), 0);
             require(vaultRealAssetsAfter >= vaultTotalAssetsBefore, BufferTooLow());
         }
@@ -452,14 +455,6 @@ contract MidnightAdapter is IMidnightAdapter {
         return credit - pendingFee;
     }
 
-    /// @dev Returns the remaining interest attributable to credit in the market.
-    function futureInterest(MarketData memory marketData, uint256 credit) internal view returns (uint256) {
-        if (marketData.netCredit == 0 || block.timestamp >= marketData.maturity) return 0;
-        uint256 interest = (uint256(marketData.netCredit) - marketData.assets)
-        .mulDivUp(marketData.maturity - block.timestamp, marketData.maturity - marketData.lastUpdate);
-        return interest.mulDivUp(credit, marketData.netCredit);
-    }
-
     /// @dev Returns the change in net credit reported to the vault's caps.
     function updateMarket(bytes32 marketId, Market memory market, uint256 boughtNetCredit, uint256 paidAssets)
         internal
@@ -468,13 +463,13 @@ contract MidnightAdapter is IMidnightAdapter {
         MarketData storage marketData = _markets[marketId];
         uint256 oldNetCredit = marketData.netCredit;
         uint128 newNetCredit = currentNetCredit(marketId, market);
-        uint256 newFutureInterest = block.timestamp >= market.maturity
-            ? 0
-            : futureInterest(marketData, newNetCredit - boughtNetCredit) + boughtNetCredit - paidAssets;
-        // forge-lint: disable-next-item(unsafe-typecast) assets <= newNetCredit <= type(uint128).max.
-        marketData.assets = uint128(newNetCredit - newFutureInterest);
+        if (boughtNetCredit > 0 && block.timestamp < market.maturity) {
+            uint256 remainingGrowth = (newNetCredit - boughtNetCredit) * marketData.growth;
+            uint256 boughtGrowth = (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
+            // forge-lint: disable-next-item(unsafe-typecast) growth <= WAD < 2**64.
+            marketData.growth = uint64((remainingGrowth + boughtGrowth) / newNetCredit);
+        }
         marketData.netCredit = newNetCredit;
-        marketData.lastUpdate = block.timestamp.toUint48();
         _maturities[market.maturity].netCredit =
             (uint256(_maturities[market.maturity].netCredit) + newNetCredit - oldNetCredit).toUint128();
         if (newNetCredit == 0 && oldNetCredit > 0) {
@@ -489,7 +484,7 @@ contract MidnightAdapter is IMidnightAdapter {
             marketData.index = uint8(marketIds.length);
             marketIds.push(marketId);
         }
-        emit UpdateMarket(marketId, marketData.netCredit, marketData.assets);
+        emit UpdateMarket(marketId, marketData.netCredit, marketData.growth);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         change = int256(uint256(newNetCredit)) - int256(oldNetCredit);
     }
