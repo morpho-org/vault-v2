@@ -9,10 +9,7 @@ import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
 struct MarketData {
     uint128 netCredit;
-    uint128 lossFactor;
-    uint128 assets;
     uint48 maturity;
-    uint48 lastUpdate;
     uint8 index;
 }
 
@@ -32,7 +29,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event SetIsSubRatifier(address indexed subRatifier, bool newIsSubRatifier);
     event SetSkimRecipient(address indexed newSkimRecipient);
-    event SetSkipBufferCheck(bool newSkipBufferCheck);
+    event SetMaxRate(uint256 newMaxRate);
     event SetMinRate(uint256 newMinRate);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
@@ -40,13 +37,13 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event ForceDeallocate(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 netCreditLoss);
     event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
-    event UpdateMarket(bytes32 indexed marketId, uint256 netCredit, uint256 assets);
+    event UpdateMarket(bytes32 indexed marketId, uint256 netCredit);
+    event AccrueInterest(uint256 oldTotalAssets, uint256 newTotalAssets, uint256 totalNetCredit);
 
     /* ERRORS */
 
     error Abdicated();
     error AutomaticallyTimelocked();
-    error BufferTooLow();
     error DataAlreadyPending();
     error DataNotTimelocked();
     error BuyAtLoss();
@@ -55,6 +52,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error IncorrectMaker();
     error IncorrectReceiver();
     error LoanAssetMismatch();
+    error MaxRateTooHigh();
     error NotAuthorized();
     error NotMidnight();
     error NotSelf();
@@ -66,7 +64,6 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error TimelockNotExpired();
     error TimelockNotIncreasing();
     error TooManyMarkets();
-    error VaultNotAccrued();
 
     /* FUNCTIONS */
 
@@ -80,7 +77,11 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function netCredit(bytes32 marketId) external view returns (uint128);
     function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
-    function skipBufferCheck() external view returns (bool);
+    function _totalAssets() external view returns (uint128);
+    function lastUpdate() external view returns (uint64);
+    function maxRate() external view returns (uint64);
+    function totalNetCredit() external view returns (uint256);
+    function accrueInterest() external returns (uint256 newTotalNetCredit);
     function minRate() external view returns (uint256);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
@@ -90,7 +91,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicate(bytes4 selector) external;
-    function setSkipBufferCheck(bool newSkipBufferCheck) external;
+    function setMaxRate(uint256 newMaxRate) external;
     function setMinRate(uint256 newMinRate) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
     function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external;
