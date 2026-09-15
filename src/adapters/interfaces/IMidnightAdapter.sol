@@ -7,15 +7,17 @@ import {Market, Offer} from "lib/midnight/src/interfaces/IMidnight.sol";
 import {IBuyCallback, ISellCallback} from "lib/midnight/src/interfaces/ICallbacks.sol";
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
-struct MaturityData {
-    uint128 netCredit;
-    uint120 growth;
-    uint8 durationCount;
-}
-
 struct MarketData {
     uint128 netCredit;
-    uint120 growth;
+    uint128 assets;
+    uint48 maturity;
+    uint48 lastUpdate;
+    uint8 index;
+}
+
+struct MaturityData {
+    uint128 netCredit;
+    uint8 durationCount;
 }
 
 interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
@@ -37,8 +39,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event ForceDeallocate(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 netCreditLoss);
     event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
-    event RemoveMaturity(uint256 indexed maturity);
-    event InsertMaturity(uint256 indexed maturity);
+    event UpdateMarket(bytes32 indexed marketId, uint256 netCredit, uint256 assets);
 
     /* ERRORS */
 
@@ -56,27 +57,26 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error NotAuthorized();
     error NotMidnight();
     error NotSelf();
-    error SellInProgress();
     error RateTooLow();
     error SelfAllocationOnly();
+    error SellInProgress();
     error SubRatifierUnauthorized();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();
-    error TooManyPendingMaturities();
+    error TooManyMarkets();
+    error VaultNotAccrued();
 
     /* FUNCTIONS */
 
     function asset() external view returns (address);
-    function totalNetCredit() external view returns (uint256);
-    function lastFutureInterest() external view returns (uint256);
-    function lastUpdate() external view returns (uint48);
-    function pendingMaturities(uint256) external view returns (uint48);
-    function MAX_PENDING_MATURITIES() external view returns (uint8);
+    function marketIds(uint256) external view returns (bytes32);
+    function marketIdsLength() external view returns (uint256);
+    function MAX_MARKETS() external view returns (uint8);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
-    function markets(bytes32 marketId) external view returns (MarketData memory);
+    function netCredit(bytes32 marketId) external view returns (uint128);
     function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
     function skipBufferCheck() external view returns (bool);
@@ -102,8 +102,6 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
-    function futureInterest() external view returns (uint256);
-    function updateFutureInterest() external;
     function allocate(bytes memory data, uint256 assets, bytes4, address caller)
         external
         returns (bytes32[] memory, int256);
