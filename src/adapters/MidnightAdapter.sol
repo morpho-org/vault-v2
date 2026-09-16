@@ -137,13 +137,16 @@ contract MidnightAdapter is IMidnightAdapter {
     /* TIMELOCKS FUNCTIONS */
 
     function timelockOperation(Operation op, bytes calldata data) external {
-        if (op == Operation.Submit) require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        else if (op == Operation.Revoke) {
+        if (op == Operation.Submit) {
+            require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        } else if (op == Operation.Revoke) {
             require(
                 msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
                 NotAuthorized()
             );
-        } else timelocked();
+        } else {
+            timelocked();
+        }
         ITimelock(timelock).operation(op, data);
     }
 

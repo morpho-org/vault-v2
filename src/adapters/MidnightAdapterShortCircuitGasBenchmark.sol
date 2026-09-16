@@ -144,15 +144,18 @@ contract MidnightAdapterShortCircuitGasBenchmark is IMidnightAdapter {
 
     /* TIMELOCKS FUNCTIONS */
 
-    function timelockOperation(Operation op, bytes calldata data) external {
-        if (op == Operation.Submit) require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        else if (op == Operation.Revoke) {
+    function timelockOperation(Operation op, bytes32 key, bytes calldata data) external {
+        if (op == Operation.Submit) {
+            require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        } else if (op == Operation.Revoke) {
             require(
                 msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
                 NotAuthorized()
             );
-        } else timelocked();
-        ITimelock(timelock).operation(op, data);
+        } else {
+            timelocked();
+        }
+        ITimelock(timelock).operation(op, key, data);
     }
 
     function timelockStatus(bytes calldata data) external view returns (TimelockStatus memory) {

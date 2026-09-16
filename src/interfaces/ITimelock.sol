@@ -21,17 +21,17 @@ struct TimelockStatus {
     uint256 executableAt;
 }
 
-bytes4 constant TIMELOCK_OPERATION_SELECTOR = bytes4(keccak256("timelockOperation(uint8,bytes)"));
+bytes4 constant TIMELOCK_OPERATION_SELECTOR = bytes4(keccak256("timelockOperation(uint8,bytes32,bytes)"));
 
 bytes32 constant DECREASE_TIMELOCK_KEY = bytes32(uint256(Operation.DecreaseTimelock) + 1);
 
 interface ITimelock {
-    event Submit(address indexed consumer, bytes32 indexed key, bytes data, uint256 executableAt);
-    event Revoke(address indexed consumer, bytes32 indexed key, bytes data);
-    event Accept(address indexed consumer, bytes32 indexed key, bytes data);
-    event Abdicate(address indexed consumer, bytes32 indexed key);
-    event IncreaseTimelock(address indexed consumer, bytes32 indexed key, uint256 newDuration);
-    event DecreaseTimelock(address indexed consumer, bytes32 indexed key, uint256 newDuration);
+    event Submit(address indexed account, bytes32 indexed key, bytes data, uint256 executableAt);
+    event Revoke(address indexed account, bytes32 indexed key, bytes data);
+    event Accept(address indexed account, bytes32 indexed key, bytes data);
+    event Abdicate(address indexed account, bytes32 indexed key);
+    event IncreaseTimelock(address indexed account, bytes32 indexed key, uint256 newDuration);
+    event DecreaseTimelock(address indexed account, bytes32 indexed key, uint256 newDuration);
 
     error Abdicated();
     error AutomaticallyTimelocked();
@@ -41,8 +41,8 @@ interface ITimelock {
     error TimelockNotDecreasing();
     error TimelockNotIncreasing();
 
-    function operation(Operation op, bytes calldata data) external;
+    function operation(Operation op, bytes32 key, bytes calldata data) external;
     function useTimelock(bytes calldata data) external;
-    function status(address consumer, bytes calldata data) external view returns (TimelockStatus memory);
+    function status(address account, bytes calldata data) external view returns (TimelockStatus memory);
     function getKey(bytes calldata data) external pure returns (bytes32);
 }

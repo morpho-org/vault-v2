@@ -11,12 +11,13 @@ import {
     DECREASE_TIMELOCK_KEY
 } from "./interfaces/ITimelock.sol";
 
-/// @dev Consumers authorize Submit/Revoke locally and call useTimelock before configuration operations.
-/// @dev A key identifies an operation. It is either a right-padded arbitrary selector or a left-padded member of the Operation enum.
+/// @dev Contracts authorize Submit/Revoke locally and call useTimelock before configuration operations.
+/// @dev A key identifies an operation. It is either a right-padded arbitrary selector or a left-padded member of the
+/// Operation enum.
 /// @dev All writes are scoped to msg.sender.
 contract Timelock is ITimelock {
-    mapping(address consumer => mapping(bytes32 key => Config)) internal configs;
-    mapping(address consumer => mapping(bytes data => uint256)) internal executableAt;
+    mapping(address account => mapping(bytes32 key => Config)) internal configs;
+    mapping(address account => mapping(bytes data => uint256)) internal executableAt;
 
     function operation(Operation op, bytes calldata data) external {
         if (op == Operation.Submit) {
@@ -62,14 +63,16 @@ contract Timelock is ITimelock {
         emit Accept(msg.sender, key, data);
     }
 
-    function status(address consumer, bytes calldata data) external view returns (TimelockStatus memory) {
-        Config memory config = configs[consumer][getKey(data)];
-        return TimelockStatus(config.delay, config.abdicated, executableAt[consumer][data]);
+    function status(address account, bytes calldata data) external view returns (TimelockStatus memory) {
+        Config memory config = configs[account][getKey(data)];
+        return TimelockStatus(config.delay, config.abdicated, executableAt[account][data]);
     }
 
     /// @dev Ordinary selectors are right-padded; op + 1 occupies the low byte, so their keys cannot collide.
     function getKey(bytes calldata data) public pure returns (bytes32) {
-        if (bytes4(data) == TIMELOCK_OPERATION_SELECTOR) return bytes32(uint256(abi.decode(data[4:], (Operation))) + 1);
+        if (bytes4(data) == TIMELOCK_OPERATION_SELECTOR) {
+            return bytes32(uint256(abi.decode(data[4:], (Operation))) + 1);
+        }
         return bytes32(bytes4(data));
     }
 }
