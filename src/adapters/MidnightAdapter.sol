@@ -242,7 +242,7 @@ contract MidnightAdapter is IMidnightAdapter {
         emit SetMaxRate(newMaxRate);
     }
 
-    function withdrawToVault(Market memory market, uint256 withdrawnAssets) external {
+    function withdrawToVault(Market memory market, uint256 withdrawnAssets) public {
         bytes32 marketId = IdLib.toId(market);
 
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
@@ -409,7 +409,7 @@ contract MidnightAdapter is IMidnightAdapter {
         if (callbackData.length > 0 && paidAssets > idleAssets) {
             (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
             if (fundingAdapter == address(this)) {
-                this.withdrawToVault(abi.decode(fundingData, (Market)), paidAssets - idleAssets);
+                withdrawToVault(abi.decode(fundingData, (Market)), paidAssets - idleAssets);
             } else {
                 // forge-lint: disable-next-item(reentrancy-no-eth) the adapter is trusted.
                 IVaultV2(parentVault).deallocate(fundingAdapter, fundingData, paidAssets - idleAssets);
