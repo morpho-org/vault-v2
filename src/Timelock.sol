@@ -70,9 +70,11 @@ contract Timelock is ITimelock {
 
     /// @dev Ordinary selectors are right-padded; op + 1 occupies the low byte, so their keys cannot collide.
     function getKey(bytes calldata data) public pure returns (bytes32) {
+        // forge-lint: disable-next-line(unsafe-typecast) we explicitly want only the first bytes4.
         if (bytes4(data) == TIMELOCK_OPERATION_SELECTOR) {
             return bytes32(uint256(abi.decode(data[4:], (Operation))) + 1);
         }
+        // forge-lint: disable-next-line(unsafe-typecast) we right-pad the first bytes4 to form the key.
         return bytes32(bytes4(data));
     }
 }

@@ -21,7 +21,8 @@ struct TimelockStatus {
     uint256 executableAt;
 }
 
-bytes4 constant TIMELOCK_OPERATION_SELECTOR = bytes4(keccak256("timelockOperation(uint8,bytes32,bytes)"));
+// forge-lint: disable-next-item(unsafe-typecast) selectors use the first four bytes of the signature hash.
+bytes4 constant TIMELOCK_OPERATION_SELECTOR = bytes4(keccak256("timelockOperation(uint8,bytes)"));
 
 bytes32 constant DECREASE_TIMELOCK_KEY = bytes32(uint256(Operation.DecreaseTimelock) + 1);
 
@@ -41,7 +42,7 @@ interface ITimelock {
     error TimelockNotDecreasing();
     error TimelockNotIncreasing();
 
-    function operation(Operation op, bytes32 key, bytes calldata data) external;
+    function operation(Operation op, bytes calldata data) external;
     function useTimelock(bytes calldata data) external;
     function status(address account, bytes calldata data) external view returns (TimelockStatus memory);
     function getKey(bytes calldata data) external pure returns (bytes32);
