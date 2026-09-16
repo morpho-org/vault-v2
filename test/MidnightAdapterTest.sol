@@ -4,6 +4,8 @@ pragma solidity ^0.8.0;
 
 import "../lib/forge-std/src/Test.sol";
 import {MidnightAdapter} from "../src/adapters/MidnightAdapter.sol";
+import {Timelock} from "../src/Timelock.sol";
+import {ITimelock, Operation, TimelockStatus} from "../src/interfaces/ITimelock.sol";
 import {MidnightAdapterFactory} from "../src/adapters/MidnightAdapterFactory.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
@@ -95,6 +97,7 @@ contract MidnightAdapterTest is Test {
     IMidnight internal midnight;
     IMidnightAdapterFactory internal factory;
     IMidnightAdapter internal adapter;
+    Timelock internal sharedTimelock;
     MidnightAdapterEcrecoverRatifier internal ecrecoverRatifier;
     VaultV2Mock internal parentVault;
     IVaultV2 internal realVault;
@@ -142,7 +145,8 @@ contract MidnightAdapterTest is Test {
 
         parentVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
-        factory = new MidnightAdapterFactory(allDurations);
+        sharedTimelock = new Timelock();
+        factory = new MidnightAdapterFactory(address(sharedTimelock), allDurations);
         adapter = MidnightAdapter(factory.createMidnightAdapter(address(parentVault), address(midnight)));
 
         ecrecoverRatifier = new MidnightAdapterEcrecoverRatifier();
@@ -243,17 +247,19 @@ contract MidnightAdapterTest is Test {
 
         vm.prank(caller);
         vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
-        adapter.submit(data);
+        adapter.timelockOperation(Operation.Submit, data);
 
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.Submit(IMidnightAdapter.setSkimRecipient.selector, data, block.timestamp);
+        vm.expectEmit(address(sharedTimelock));
+        emit ITimelock.Submit(
+            address(adapter), bytes32(IMidnightAdapter.setSkimRecipient.selector), data, block.timestamp
+        );
         vm.prank(curator);
-        adapter.submit(data);
-        assertEq(adapter.executableAt(data), block.timestamp, "executableAt");
+        adapter.timelockOperation(Operation.Submit, data);
+        assertEq(adapter.timelockStatus(data).executableAt, block.timestamp, "executableAt");
 
         vm.prank(curator);
-        vm.expectRevert(IMidnightAdapter.DataAlreadyPending.selector);
-        adapter.submit(data);
+        vm.expectRevert(ITimelock.DataAlreadyPending.selector);
+        adapter.timelockOperation(Operation.Submit, data);
     }
 
     function testRevoke(address caller) public {
@@ -263,29 +269,29 @@ contract MidnightAdapterTest is Test {
         bytes memory data = abi.encodeCall(IMidnightAdapter.setSkimRecipient, (recipient));
 
         vm.prank(sentinel);
-        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
-        adapter.revoke(data);
+        vm.expectRevert(ITimelock.DataNotTimelocked.selector);
+        adapter.timelockOperation(Operation.Revoke, data);
 
         vm.prank(curator);
-        adapter.submit(data);
+        adapter.timelockOperation(Operation.Submit, data);
 
         vm.prank(caller);
         vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
-        adapter.revoke(data);
+        adapter.timelockOperation(Operation.Revoke, data);
 
         uint256 snapshot = vm.snapshotState();
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.Revoke(curator, IMidnightAdapter.setSkimRecipient.selector, data);
+        vm.expectEmit(address(sharedTimelock));
+        emit ITimelock.Revoke(address(adapter), bytes32(IMidnightAdapter.setSkimRecipient.selector), data);
         vm.prank(curator);
-        adapter.revoke(data);
-        assertEq(adapter.executableAt(data), 0, "revoked by curator");
+        adapter.timelockOperation(Operation.Revoke, data);
+        assertEq(adapter.timelockStatus(data).executableAt, 0, "revoked by curator");
 
         vm.revertToStateAndDelete(snapshot);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.Revoke(sentinel, IMidnightAdapter.setSkimRecipient.selector, data);
+        vm.expectEmit(address(sharedTimelock));
+        emit ITimelock.Revoke(address(adapter), bytes32(IMidnightAdapter.setSkimRecipient.selector), data);
         vm.prank(sentinel);
-        adapter.revoke(data);
-        assertEq(adapter.executableAt(data), 0, "revoked by sentinel");
+        adapter.timelockOperation(Operation.Revoke, data);
+        assertEq(adapter.timelockStatus(data).executableAt, 0, "revoked by sentinel");
     }
 
     function testIncreaseAndDecreaseTimelock(uint256 oldDuration, uint256 newDuration) public {
@@ -293,60 +299,66 @@ contract MidnightAdapterTest is Test {
         newDuration = bound(newDuration, 0, oldDuration);
         bytes4 selector = IMidnightAdapter.setSkimRecipient.selector;
 
-        bytes memory increaseData = abi.encodeCall(IMidnightAdapter.increaseTimelock, (selector, oldDuration));
+        bytes memory increaseData = managementCall(Operation.IncreaseTimelock, abi.encode(selector, oldDuration));
         vm.prank(curator);
-        adapter.submit(increaseData);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.Accept(IMidnightAdapter.increaseTimelock.selector, increaseData);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.IncreaseTimelock(selector, oldDuration);
-        adapter.increaseTimelock(selector, oldDuration);
-        assertEq(adapter.timelock(selector), oldDuration, "increased timelock");
+        adapter.timelockOperation(Operation.Submit, increaseData);
+        vm.expectEmit(address(sharedTimelock));
+        emit ITimelock.Accept(address(adapter), managementKey(Operation.IncreaseTimelock), increaseData);
+        vm.expectEmit(address(sharedTimelock));
+        emit ITimelock.IncreaseTimelock(address(adapter), selector, oldDuration);
+        adapter.timelockOperation(Operation.IncreaseTimelock, abi.encode(selector, oldDuration));
+        assertEq(adapter.timelockStatus(abi.encodePacked(selector)).delay, oldDuration, "increased timelock");
 
         bytes memory invalidIncreaseData =
-            abi.encodeCall(IMidnightAdapter.increaseTimelock, (selector, oldDuration - 1));
+            managementCall(Operation.IncreaseTimelock, abi.encode(selector, oldDuration - 1));
         vm.prank(curator);
-        adapter.submit(invalidIncreaseData);
-        vm.expectRevert(IMidnightAdapter.TimelockNotIncreasing.selector);
-        adapter.increaseTimelock(selector, oldDuration - 1);
+        adapter.timelockOperation(Operation.Submit, invalidIncreaseData);
+        vm.expectRevert(ITimelock.TimelockNotIncreasing.selector);
+        adapter.timelockOperation(Operation.IncreaseTimelock, abi.encode(selector, oldDuration - 1));
 
         bytes memory invalidDecreaseData =
-            abi.encodeCall(IMidnightAdapter.decreaseTimelock, (selector, oldDuration + 1));
+            managementCall(Operation.DecreaseTimelock, abi.encode(selector, oldDuration + 1));
         vm.prank(curator);
-        adapter.submit(invalidDecreaseData);
-        assertEq(adapter.executableAt(invalidDecreaseData), block.timestamp + oldDuration, "invalid decrease delay");
+        adapter.timelockOperation(Operation.Submit, invalidDecreaseData);
+        assertEq(
+            adapter.timelockStatus(invalidDecreaseData).executableAt,
+            block.timestamp + oldDuration,
+            "invalid decrease delay"
+        );
         skip(oldDuration);
-        vm.expectRevert(IMidnightAdapter.TimelockNotDecreasing.selector);
-        adapter.decreaseTimelock(selector, oldDuration + 1);
+        vm.expectRevert(ITimelock.TimelockNotDecreasing.selector);
+        adapter.timelockOperation(Operation.DecreaseTimelock, abi.encode(selector, oldDuration + 1));
 
-        bytes memory decreaseData = abi.encodeCall(IMidnightAdapter.decreaseTimelock, (selector, newDuration));
+        bytes memory decreaseData = managementCall(Operation.DecreaseTimelock, abi.encode(selector, newDuration));
         vm.prank(curator);
-        adapter.submit(decreaseData);
-        assertEq(adapter.executableAt(decreaseData), block.timestamp + oldDuration, "decrease delay");
+        adapter.timelockOperation(Operation.Submit, decreaseData);
+        assertEq(adapter.timelockStatus(decreaseData).executableAt, block.timestamp + oldDuration, "decrease delay");
         skip(oldDuration);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.Accept(IMidnightAdapter.decreaseTimelock.selector, decreaseData);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.DecreaseTimelock(selector, newDuration);
-        adapter.decreaseTimelock(selector, newDuration);
-        assertEq(adapter.timelock(selector), newDuration, "decreased timelock");
+        vm.expectEmit(address(sharedTimelock));
+        emit ITimelock.Accept(address(adapter), managementKey(Operation.DecreaseTimelock), decreaseData);
+        vm.expectEmit(address(sharedTimelock));
+        emit ITimelock.DecreaseTimelock(address(adapter), selector, newDuration);
+        adapter.timelockOperation(Operation.DecreaseTimelock, abi.encode(selector, newDuration));
+        assertEq(adapter.timelockStatus(abi.encodePacked(selector)).delay, newDuration, "decreased timelock");
     }
 
     function testCannotSetDecreaseTimelock() public {
-        bytes4 selector = IMidnightAdapter.decreaseTimelock.selector;
-        bytes memory increaseData = abi.encodeCall(IMidnightAdapter.increaseTimelock, (selector, 1 days));
+        bytes32 selector = managementKey(Operation.DecreaseTimelock);
+        bytes memory increaseData = managementCall(Operation.IncreaseTimelock, abi.encode(selector, 1 days));
         vm.prank(curator);
-        adapter.submit(increaseData);
-        vm.expectRevert(IMidnightAdapter.AutomaticallyTimelocked.selector);
-        adapter.increaseTimelock(selector, 1 days);
+        adapter.timelockOperation(Operation.Submit, increaseData);
+        vm.expectRevert(ITimelock.AutomaticallyTimelocked.selector);
+        adapter.timelockOperation(Operation.IncreaseTimelock, abi.encode(selector, 1 days));
 
-        bytes memory decreaseData = abi.encodeCall(IMidnightAdapter.decreaseTimelock, (selector, 0));
+        bytes memory decreaseData = managementCall(Operation.DecreaseTimelock, abi.encode(selector, 0));
         vm.prank(curator);
-        adapter.submit(decreaseData);
-        vm.expectRevert(IMidnightAdapter.AutomaticallyTimelocked.selector);
-        adapter.decreaseTimelock(selector, 0);
+        adapter.timelockOperation(Operation.Submit, decreaseData);
+        vm.expectRevert(ITimelock.AutomaticallyTimelocked.selector);
+        adapter.timelockOperation(Operation.DecreaseTimelock, abi.encode(selector, 0));
 
-        assertEq(adapter.timelock(selector), 0, "decreaseTimelock timelock");
+        assertEq(
+            adapter.timelockStatus(managementCall(Operation.DecreaseTimelock, "")).delay, 0, "decreaseTimelock timelock"
+        );
     }
 
     function testTimelockedCall(uint256 duration) public {
@@ -355,43 +367,115 @@ contract MidnightAdapterTest is Test {
 
         bytes memory data = abi.encodeCall(IMidnightAdapter.setSkimRecipient, (recipient));
         vm.prank(curator);
-        adapter.submit(data);
+        adapter.timelockOperation(Operation.Submit, data);
 
         skip(duration - 1);
-        vm.expectRevert(IMidnightAdapter.TimelockNotExpired.selector);
+        vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x11));
         adapter.setSkimRecipient(recipient);
 
         skip(1);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.Accept(IMidnightAdapter.setSkimRecipient.selector, data);
+        vm.expectEmit(address(sharedTimelock));
+        emit ITimelock.Accept(address(adapter), bytes32(IMidnightAdapter.setSkimRecipient.selector), data);
         adapter.setSkimRecipient(recipient);
         assertEq(adapter.skimRecipient(), recipient, "skimRecipient");
-        assertEq(adapter.executableAt(data), 0, "executableAt");
+        assertEq(adapter.timelockStatus(data).executableAt, 0, "executableAt");
 
-        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
+        vm.expectRevert(ITimelock.Invalid.selector);
         adapter.setSkimRecipient(recipient);
     }
 
     function testAbdicate() public {
         bytes4 selector = IMidnightAdapter.setSkimRecipient.selector;
-        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
-        adapter.abdicate(selector);
+        vm.expectRevert(ITimelock.Invalid.selector);
+        adapter.timelockOperation(Operation.Abdicate, abi.encode(selector));
 
-        bytes memory abdicateData = abi.encodeCall(IMidnightAdapter.abdicate, (selector));
+        bytes memory abdicateData = managementCall(Operation.Abdicate, abi.encode(selector));
         vm.prank(curator);
-        adapter.submit(abdicateData);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.Accept(IMidnightAdapter.abdicate.selector, abdicateData);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.Abdicate(selector);
-        adapter.abdicate(selector);
-        assertTrue(adapter.abdicated(selector), "abdicated");
+        adapter.timelockOperation(Operation.Submit, abdicateData);
+        vm.expectEmit(address(sharedTimelock));
+        emit ITimelock.Accept(address(adapter), managementKey(Operation.Abdicate), abdicateData);
+        vm.expectEmit(address(sharedTimelock));
+        emit ITimelock.Abdicate(address(adapter), selector);
+        adapter.timelockOperation(Operation.Abdicate, abi.encode(selector));
+        assertTrue(adapter.timelockStatus(abi.encodePacked(selector)).abdicated, "abdicated");
 
         bytes memory data = abi.encodeCall(IMidnightAdapter.setSkimRecipient, (recipient));
         vm.prank(curator);
-        adapter.submit(data);
-        vm.expectRevert(IMidnightAdapter.Abdicated.selector);
+        adapter.timelockOperation(Operation.Submit, data);
+        vm.expectRevert(ITimelock.Abdicated.selector);
         adapter.setSkimRecipient(recipient);
+    }
+
+    function testTimelockSentinelPermissionsFollowVault() public {
+        setUpRealVault();
+        address sentinel = makeAddr("liveTimelockSentinel");
+        bytes memory data = abi.encodeCall(IMidnightAdapter.setMinRate, (1));
+        vm.prank(curator);
+        adapter.timelockOperation(Operation.Submit, data);
+        vm.prank(sentinel);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.timelockOperation(Operation.Revoke, data);
+
+        vm.prank(owner);
+        realVault.setIsSentinel(sentinel, true);
+        vm.prank(sentinel);
+        adapter.timelockOperation(Operation.Revoke, data);
+        assertEq(adapter.timelockStatus(data).executableAt, 0);
+        vm.prank(sentinel);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.timelockOperation(Operation.Submit, data);
+
+        vm.prank(curator);
+        adapter.timelockOperation(Operation.Submit, data);
+        vm.prank(owner);
+        realVault.setIsSentinel(sentinel, false);
+        vm.prank(sentinel);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.timelockOperation(Operation.Revoke, data);
+        assertEq(adapter.timelockStatus(data).executableAt, block.timestamp);
+    }
+
+    function testTimelockCuratorPermissionsFollowVault() public {
+        setUpRealVault();
+        bytes memory data = abi.encodeCall(IMidnightAdapter.setMinRate, (1));
+        vm.prank(curator);
+        adapter.timelockOperation(Operation.Submit, data);
+        address newCurator = makeAddr("newTimelockCurator");
+        vm.prank(owner);
+        realVault.setCurator(newCurator);
+        vm.prank(curator);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.timelockOperation(Operation.Revoke, data);
+        vm.prank(newCurator);
+        adapter.timelockOperation(Operation.Revoke, data);
+        vm.prank(curator);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.timelockOperation(Operation.Submit, data);
+        vm.prank(newCurator);
+        adapter.timelockOperation(Operation.Submit, data);
+        vm.prank(curator);
+        adapter.setMinRate(1);
+        assertEq(adapter.minRate(), 1);
+    }
+
+    function testTimelockSharedAcrossFactories() public {
+        MidnightAdapterFactory otherFactory = new MidnightAdapterFactory(address(sharedTimelock), allDurations);
+        IMidnightAdapter other =
+            IMidnightAdapter(otherFactory.createMidnightAdapter(address(parentVault), address(midnight)));
+        assertEq(factory.timelock(), address(sharedTimelock));
+        assertEq(adapter.timelock(), address(sharedTimelock));
+        assertEq(other.timelock(), address(sharedTimelock));
+        bytes memory data = abi.encodeCall(IMidnightAdapter.setMinRate, (1));
+        vm.startPrank(curator);
+        adapter.timelockOperation(Operation.Submit, data);
+        other.timelockOperation(Operation.Submit, data);
+        adapter.timelockOperation(Operation.Revoke, data);
+        vm.stopPrank();
+        assertEq(adapter.timelockStatus(data).executableAt, 0);
+        assertEq(other.timelockStatus(data).executableAt, block.timestamp);
+        other.setMinRate(1);
+        assertEq(adapter.minRate(), 0);
+        assertEq(other.minRate(), 1);
     }
 
     /* MIN RATE */
@@ -400,11 +484,11 @@ contract MidnightAdapterTest is Test {
         vm.assume(caller != curator);
         vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
         vm.prank(caller);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setMinRate, (newMinRate)));
+        adapter.timelockOperation(Operation.Submit, abi.encodeCall(IMidnightAdapter.setMinRate, (newMinRate)));
     }
 
     function testSetMinRateNotTimelocked(uint256 newMinRate) public {
-        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
+        vm.expectRevert(ITimelock.Invalid.selector);
         adapter.setMinRate(newMinRate);
     }
 
@@ -413,22 +497,22 @@ contract MidnightAdapterTest is Test {
         submitTimelock(IMidnightAdapter.setMinRate.selector, duration);
         bytes memory data = abi.encodeCall(IMidnightAdapter.setMinRate, (newMinRate));
         vm.prank(curator);
-        adapter.submit(data);
+        adapter.timelockOperation(Operation.Submit, data);
 
         skip(duration - 1);
-        vm.expectRevert(IMidnightAdapter.TimelockNotExpired.selector);
+        vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x11));
         adapter.setMinRate(newMinRate);
 
         skip(1);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.Accept(IMidnightAdapter.setMinRate.selector, data);
+        vm.expectEmit(address(sharedTimelock));
+        emit ITimelock.Accept(address(adapter), bytes32(IMidnightAdapter.setMinRate.selector), data);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapter.SetMinRate(newMinRate);
         adapter.setMinRate(newMinRate);
         assertEq(adapter.minRate(), newMinRate, "minRate");
-        assertEq(adapter.executableAt(data), 0, "executableAt");
+        assertEq(adapter.timelockStatus(data).executableAt, 0, "executableAt");
 
-        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
+        vm.expectRevert(ITimelock.Invalid.selector);
         adapter.setMinRate(newMinRate);
     }
 
@@ -442,22 +526,24 @@ contract MidnightAdapterTest is Test {
     function testSetMinRateRevoked() public {
         bytes memory data = abi.encodeCall(IMidnightAdapter.setMinRate, (1));
         vm.startPrank(curator);
-        adapter.submit(data);
-        adapter.revoke(data);
+        adapter.timelockOperation(Operation.Submit, data);
+        adapter.timelockOperation(Operation.Revoke, data);
         vm.stopPrank();
 
-        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
+        vm.expectRevert(ITimelock.Invalid.selector);
         adapter.setMinRate(1);
     }
 
     function testSetMinRateAbdicated() public {
         vm.startPrank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setMinRate, (1)));
-        adapter.submit(abi.encodeCall(IMidnightAdapter.abdicate, (IMidnightAdapter.setMinRate.selector)));
+        adapter.timelockOperation(Operation.Submit, abi.encodeCall(IMidnightAdapter.setMinRate, (1)));
+        adapter.timelockOperation(
+            Operation.Submit, managementCall(Operation.Abdicate, abi.encode(IMidnightAdapter.setMinRate.selector))
+        );
         vm.stopPrank();
-        adapter.abdicate(IMidnightAdapter.setMinRate.selector);
+        adapter.timelockOperation(Operation.Abdicate, abi.encode(IMidnightAdapter.setMinRate.selector));
 
-        vm.expectRevert(IMidnightAdapter.Abdicated.selector);
+        vm.expectRevert(ITimelock.Abdicated.selector);
         adapter.setMinRate(1);
     }
 
@@ -1342,9 +1428,11 @@ contract MidnightAdapterTest is Test {
         uint256 units = offer.maxUnits;
         midnight.supplyCollateral(offer.market, 0, units, taker);
         midnight.supplyCollateral(offer.market, 1, units, taker);
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         take(offer);
 
-        uint256 paid = adapter.realAssets();
+        uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
+        uint256 growth = (units - paid) * 1e18 / (units * duration);
         bytes32 marketId = _marketId(offer.market);
         uint256 loss = 0.5e18;
         stdstore.target(address(midnight))
@@ -1359,7 +1447,8 @@ contract MidnightAdapterTest is Test {
         take(offer);
 
         assertEq(adapter.maturities(offer.market.maturity).netCredit, 2 * units - loss);
-        assertEq(adapter.realAssets(), paid + paid.mulDivDown(units - loss, units));
+        uint256 expectedValue = 2 * units - loss - (2 * units - loss).mulDivUp(growth * duration, 1e18);
+        assertEq(adapter.realAssets(), expectedValue);
         uint128 marketNetCredit = adapter.netCredit(marketId);
         assertEq(marketNetCredit, 2 * units - loss);
     }
@@ -1374,7 +1463,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testSetSkipBufferCheckNotTimelocked() public {
-        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
+        vm.expectRevert(ITimelock.Invalid.selector);
         adapter.setSkipBufferCheck(true);
     }
 
@@ -1382,7 +1471,7 @@ contract MidnightAdapterTest is Test {
         vm.assume(caller != curator);
         vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
         vm.prank(caller);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
+        adapter.timelockOperation(Operation.Submit, abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
     }
 
     function testSetSkipBufferCheckTimelockNotExpired(uint256 timelockDuration) public {
@@ -1390,9 +1479,9 @@ contract MidnightAdapterTest is Test {
         submitTimelock(IMidnightAdapter.setSkipBufferCheck.selector, timelockDuration);
 
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
+        adapter.timelockOperation(Operation.Submit, abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
 
-        vm.expectRevert(IMidnightAdapter.TimelockNotExpired.selector);
+        vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x11));
         adapter.setSkipBufferCheck(true);
     }
 
@@ -1402,7 +1491,7 @@ contract MidnightAdapterTest is Test {
         parentVault.setTotalAssets(1e18);
 
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
+        adapter.timelockOperation(Operation.Submit, abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
         vm.expectEmit(address(adapter));
         emit IMidnightAdapter.SetSkipBufferCheck(true);
         adapter.setSkipBufferCheck(true);
@@ -1549,7 +1638,7 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.UpdateMarket(_marketId(offer.market), 1e18, 1e18);
+        emit IMidnightAdapter.UpdateMarket(_marketId(offer.market), 1e18, 0);
         take(offer);
     }
 
@@ -1562,10 +1651,21 @@ contract MidnightAdapterTest is Test {
         uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
         uint256 interest = offer.maxUnits - paid;
         assertGt(interest, 0, "bought at a discount");
+        uint256 growth = interest * 1e18 / (uint256(offer.maxUnits) * duration);
 
-        assertEq(adapter.realAssets(), paid, "at buy");
+        assertEq(
+            adapter.realAssets(), offer.maxUnits - uint256(offer.maxUnits).mulDivUp(growth * duration, 1e18), "at buy"
+        );
+        assertGe(adapter.realAssets(), paid, "rounding is realized immediately");
+        assertLt(
+            adapter.realAssets() - paid, uint256(offer.maxUnits).mulDivUp(duration, 1e18), "initial rounding is bounded"
+        );
         skip(duration / 3);
-        assertEq(adapter.realAssets(), paid + interest / 3, "a third of the way");
+        assertEq(
+            adapter.realAssets(),
+            offer.maxUnits - uint256(offer.maxUnits).mulDivUp(growth * (2 * duration / 3), 1e18),
+            "a third of the way"
+        );
         skip(2 * duration / 3);
         assertEq(adapter.realAssets(), offer.maxUnits, "net credit at maturity");
         skip(365 days);
@@ -1573,10 +1673,13 @@ contract MidnightAdapterTest is Test {
     }
 
     function testSecondBuyAccruesExistingDiscount() public {
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         Offer memory first = buy(30 days, 1e18, discountTick);
+        uint256 firstPaid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
+        uint256 firstGrowth = (first.maxUnits - firstPaid) * 1e18 / (uint256(first.maxUnits) * 30 days);
         skip(15 days);
         uint256 valueBefore = adapter.realAssets();
-        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+        vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
 
         Offer memory second = makeBuyOffer(15 days, 2e18, TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING));
         second.group = bytes32("second buy");
@@ -1586,30 +1689,39 @@ contract MidnightAdapterTest is Test {
         take(second);
 
         uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
-        uint256 valueAfter = valueBefore + paid;
         uint256 totalNetCredit = uint256(first.maxUnits) + second.maxUnits;
-        assertEq(adapter.realAssets(), valueAfter, "second purchase booked at cost");
+        uint256 boughtGrowth = (second.maxUnits - paid).mulDivDown(1e18, 15 days);
+        uint256 growth = (first.maxUnits * firstGrowth + boughtGrowth) / totalNetCredit;
+        uint256 valueAfter = totalNetCredit - totalNetCredit.mulDivUp(growth * 15 days, 1e18);
+        assertEq(adapter.realAssets(), valueAfter, "second purchase updates growth");
+        assertGe(valueAfter, valueBefore + paid, "rounding is realized immediately");
         skip(15 days / 2);
-        assertEq(adapter.realAssets(), valueAfter + (totalNetCredit - valueAfter) / 2, "combined discount accrues");
+        assertEq(
+            adapter.realAssets(),
+            totalNetCredit - totalNetCredit.mulDivUp(growth * (15 days / 2), 1e18),
+            "combined discount accrues"
+        );
         skip(15 days / 2);
         assertEq(adapter.realAssets(), totalNetCredit, "net credit at maturity");
     }
 
     function testWithdrawZeroPreservesAmortizedValue() public {
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         Offer memory offer = buy(30 days, 1e18, discountTick);
-        uint256 paid = adapter.realAssets();
+        uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
+        uint256 growth = (offer.maxUnits - paid) * 1e18 / (uint256(offer.maxUnits) * 30 days);
         skip(1 days);
         uint256 valueBefore = adapter.realAssets();
 
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.UpdateMarket(_marketId(offer.market), offer.maxUnits, valueBefore);
+        emit IMidnightAdapter.UpdateMarket(_marketId(offer.market), offer.maxUnits, growth);
         vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, 0);
         assertEq(adapter.realAssets(), valueBefore, "no discount realized by synchronization");
 
         skip(1 days);
-        uint256 expectedValue = paid + (offer.maxUnits - paid).mulDivDown(2 days, 30 days);
-        assertEq(adapter.realAssets(), expectedValue, "interpolation unchanged by synchronization");
+        uint256 expectedValue = offer.maxUnits - uint256(offer.maxUnits).mulDivUp(growth * 28 days, 1e18);
+        assertEq(adapter.realAssets(), expectedValue, "growth unchanged by synchronization");
     }
 
     function testUnearnedDiscountIsNotBuffer() public {
@@ -1632,11 +1744,13 @@ contract MidnightAdapterTest is Test {
         midnight.liquidate(offer.market, 0, 0, 0, taker, false, address(this), address(0), "");
         (uint128 credit,,) = midnight.updatePositionView(offer.market, _marketId(offer.market), address(adapter));
 
+        // Round up to a tick covering the amortized value, including growth-rounding dust.
+        uint256 sellTick = TickLib.priceToTick(adapter.realAssets().mulDivUp(1e18, credit), DEFAULT_TICK_SPACING);
         vm.expectRevert(IMidnightAdapter.BufferTooLow.selector);
-        sellUnits(offer.market, credit, discountTick);
+        sellUnits(offer.market, credit, sellTick);
 
         parentVault.setTotalAssets(adapter.realAssets() + loanToken.balanceOf(address(parentVault)));
-        sellUnits(offer.market, credit, discountTick);
+        sellUnits(offer.market, credit, sellTick);
 
         assertGe(loanToken.balanceOf(address(parentVault)), parentVault.totalAssets(), "vault assets covered");
         assertEq(adapter.realAssets(), 0, "position sold");
@@ -1684,38 +1798,43 @@ contract MidnightAdapterTest is Test {
     function testRealAssetsUsesCachedNetCredit(uint256 elapsed) public {
         elapsed = bound(elapsed, 0, 60 days);
         midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         Offer memory offer = buy(30 days, 1e18, discountTick);
         bytes32 marketId = _marketId(offer.market);
         uint128 netCredit = adapter.netCredit(marketId);
-        uint256 paid = adapter.realAssets();
+        uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
+        uint256 growth = (netCredit - paid) * 1e18 / (uint256(netCredit) * 30 days);
 
         skip(elapsed);
         (uint128 credit, uint128 pendingFee,) = midnight.updatePosition(offer.market, address(adapter));
         assertEq(credit - pendingFee, netCredit, "continuous fees preserve net credit");
 
         vm.mockCallRevert(address(midnight), abi.encodeCall(IMidnight.toMarket, (marketId)), "position read");
+        uint256 timeToMaturity = offer.market.maturity.zeroFloorSub(block.timestamp);
         assertEq(
             adapter.realAssets(),
-            paid + (netCredit - paid).mulDivDown(MathLib.min(elapsed, 30 days), 30 days),
-            "cached net credit with interpolation"
+            netCredit - uint256(netCredit).mulDivUp(growth * timeToMaturity, 1e18),
+            "growth unchanged by fee accrual"
         );
     }
 
     function testRealAssetsLossFallbackAndCacheSynchronization(uint256 units) public {
         units = bound(units, 1000, 100e18);
         midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
         Offer memory offer = buy(30 days, units, discountTick);
         bytes32 marketId = _marketId(offer.market);
         uint128 netCreditBefore = adapter.netCredit(marketId);
+        uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
+        uint256 growth = (netCreditBefore - paid) * 1e18 / (uint256(netCreditBefore) * 30 days);
         skip(15 days);
-        uint256 valueBefore = adapter.realAssets();
 
         OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE / 4);
         OracleMock(storedCollaterals[1].oracle).setPrice(ORACLE_PRICE_SCALE / 4);
         midnight.liquidate(offer.market, 0, 0, 0, taker, false, address(this), address(0), "");
 
         (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(offer.market, marketId, address(adapter));
-        uint256 expectedValue = valueBefore.mulDivDown(credit - pendingFee, netCreditBefore);
+        uint256 expectedValue = credit - pendingFee - uint256(credit - pendingFee).mulDivUp(growth * 15 days, 1e18);
         assertLt(credit - pendingFee, netCreditBefore, "loss realized");
         assertEq(adapter.realAssets(), expectedValue, "exact loss-adjusted amortized value");
         assertEq(adapter.netCredit(marketId), netCreditBefore, "view does not update the cache");
@@ -1724,7 +1843,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), expectedValue, "permissionless position update");
 
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.UpdateMarket(marketId, credit - pendingFee, expectedValue);
+        emit IMidnightAdapter.UpdateMarket(marketId, credit - pendingFee, growth);
         vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, 0);
         vm.mockCallRevert(address(midnight), abi.encodeCall(IMidnight.toMarket, (marketId)), "position read");
@@ -1736,7 +1855,6 @@ contract MidnightAdapterTest is Test {
         assertEq(reads.length, 1, "one cache slot");
         uint256 packed = uint256(vm.load(address(adapter), reads[0]));
         assertEq(uint128(packed), credit - pendingFee, "packed net credit");
-        assertEq(packed >> 128, expectedValue, "assets packed in first market slot");
     }
 
     function testLossBeforeMaturityIsVisibleWithoutPing() public {
@@ -2251,7 +2369,7 @@ contract MidnightAdapterTest is Test {
         assertEq(realVault.totalAssets(), 10e18, "market still fully valued");
 
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
+        adapter.timelockOperation(Operation.Submit, abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
         adapter.setSkipBufferCheck(true);
 
         address buyer = makeAddr("buyer");
@@ -2469,11 +2587,11 @@ contract MidnightAdapterTest is Test {
         vm.assume(caller != curator);
         vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
         vm.prank(caller);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkimRecipient, (recipient)));
+        adapter.timelockOperation(Operation.Submit, abi.encodeCall(IMidnightAdapter.setSkimRecipient, (recipient)));
     }
 
     function testSetSkimRecipientNotTimelocked() public {
-        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
+        vm.expectRevert(ITimelock.Invalid.selector);
         adapter.setSkimRecipient(recipient);
     }
 
@@ -2482,9 +2600,9 @@ contract MidnightAdapterTest is Test {
         submitTimelock(IMidnightAdapter.setSkimRecipient.selector, timelockDuration);
 
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkimRecipient, (recipient)));
+        adapter.timelockOperation(Operation.Submit, abi.encodeCall(IMidnightAdapter.setSkimRecipient, (recipient)));
 
-        vm.expectRevert(IMidnightAdapter.TimelockNotExpired.selector);
+        vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x11));
         adapter.setSkimRecipient(recipient);
     }
 
@@ -2607,6 +2725,14 @@ contract MidnightAdapterTest is Test {
 
     /* HELPERS */
 
+    function managementCall(Operation op, bytes memory data) internal pure returns (bytes memory) {
+        return abi.encodeCall(IMidnightAdapter.timelockOperation, (op, data));
+    }
+
+    function managementKey(Operation op) internal pure returns (bytes32) {
+        return bytes32(uint256(op) + 1);
+    }
+
     function makeBuyOffer(uint256 duration, uint256 assets, uint256 tick) internal view returns (Offer memory offer) {
         offer = storedOffer;
         offer.market.maturity = block.timestamp + duration;
@@ -2621,7 +2747,7 @@ contract MidnightAdapterTest is Test {
 
     function setSkimRecipient(address newSkimRecipient) internal {
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setSkimRecipient, (newSkimRecipient)));
+        adapter.timelockOperation(Operation.Submit, abi.encodeCall(IMidnightAdapter.setSkimRecipient, (newSkimRecipient)));
         vm.expectEmit(true, false, false, false, address(adapter));
         emit IMidnightAdapter.SetSkimRecipient(newSkimRecipient);
         adapter.setSkimRecipient(newSkimRecipient);
@@ -2629,13 +2755,13 @@ contract MidnightAdapterTest is Test {
 
     function submitTimelock(bytes4 selector, uint256 duration) internal {
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.increaseTimelock, (selector, duration)));
-        adapter.increaseTimelock(selector, duration);
+        adapter.timelockOperation(Operation.Submit, managementCall(Operation.IncreaseTimelock, abi.encode(selector, duration)));
+        adapter.timelockOperation(Operation.IncreaseTimelock, abi.encode(selector, duration));
     }
 
     function setMinRate(uint256 newMinRate) internal {
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setMinRate, (newMinRate)));
+        adapter.timelockOperation(Operation.Submit, abi.encodeCall(IMidnightAdapter.setMinRate, (newMinRate)));
         adapter.setMinRate(newMinRate);
     }
 
@@ -2850,12 +2976,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function assertMarketIndex(bytes32 marketId, uint256 expected) internal {
-        vm.record();
-        adapter.netCredit(marketId);
-        (bytes32[] memory reads,) = vm.accesses(address(adapter));
-        assertEq(reads.length, 1, "one cache slot");
-        uint256 packed = uint256(vm.load(address(adapter), bytes32(uint256(reads[0]) + 1)));
-        assertEq(uint8(packed >> 96), expected, "index packed in second market slot");
+        assertEq(adapter.marketIds(expected), marketId, "market at expected index");
     }
 
     function checkMarkets(bytes32[] memory expected) internal view {

@@ -9,6 +9,7 @@ interface IMidnightAdapterFactory {
 
     /* FUNCTIONS */
 
+    function timelock() external view returns (address);
     function durations(uint256 index) external view returns (uint256);
     function durationsLength() external view returns (uint256);
     function midnightAdapter(address parentVault, address midnight) external view returns (address);

@@ -6,6 +6,8 @@ import {MidnightAdapter} from "./MidnightAdapter.sol";
 import {IMidnightAdapterFactory} from "./interfaces/IMidnightAdapterFactory.sol";
 
 contract MidnightAdapterFactory is IMidnightAdapterFactory {
+    address public immutable timelock;
+
     /* STORAGE */
 
     mapping(address parentVault => mapping(address midnight => address)) public midnightAdapter;
@@ -15,7 +17,8 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* CONSTRUCTOR */
 
     /// @dev Durations are checked only when an adapter is created.
-    constructor(uint256[] memory _durations) {
+    constructor(address _timelock, uint256[] memory _durations) {
+        timelock = _timelock;
         durations = _durations;
     }
 
@@ -28,7 +31,8 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* FUNCTIONS */
 
     function createMidnightAdapter(address parentVault, address midnight) external returns (address) {
-        address _midnightAdapter = address(new MidnightAdapter{salt: bytes32(0)}(parentVault, midnight, durations));
+        address _midnightAdapter =
+            address(new MidnightAdapter{salt: bytes32(0)}(parentVault, midnight, timelock, durations));
         midnightAdapter[parentVault][midnight] = _midnightAdapter;
         isMidnightAdapter[_midnightAdapter] = true;
         emit CreateMidnightAdapter(parentVault, midnight, _midnightAdapter);

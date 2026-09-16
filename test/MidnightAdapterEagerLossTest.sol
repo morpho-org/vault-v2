@@ -527,7 +527,7 @@ contract MidnightAdapterEagerLossTest is MidnightAdapterTest {
         Offer memory initial = freshPosition(MAX_TICK);
         if (skipCheck) {
             vm.prank(curator);
-            adapter.submit(abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
+            adapter.timelockOperation(Operation.Submit, abi.encodeCall(IMidnightAdapter.setSkipBufferCheck, (true)));
             adapter.setSkipBufferCheck(true);
         }
         Offer memory offer = takerSale

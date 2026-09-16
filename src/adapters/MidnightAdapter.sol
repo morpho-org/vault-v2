@@ -13,6 +13,7 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
+import {ITimelock, Operation, TimelockStatus} from "../interfaces/ITimelock.sol";
 import {IMidnightAdapter, MarketData, MaturityData, IAdapter} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
@@ -28,7 +29,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 ///
 /// TIMELOCKS
-/// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
+/// @dev Uses a shared Timelock through timelockOperation. Authorization is read from the parent vault on every call.
 contract MidnightAdapter is IMidnightAdapter {
     using MathLib for uint256;
     using DurationsLib for bytes32;
@@ -38,17 +39,12 @@ contract MidnightAdapter is IMidnightAdapter {
     address public immutable asset;
     address public immutable parentVault;
     address public immutable midnight;
+    address public immutable timelock;
     bytes32 public immutable adapterId;
     /// @dev Durations that can be used to cap the time to maturity.
     /// @dev Sorted in ascending order.
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
-
-    /* TIMELOCKS STORAGE */
-
-    mapping(bytes4 selector => uint256) public timelock;
-    mapping(bytes4 selector => bool) public abdicated;
-    mapping(bytes data => uint256) public executableAt;
 
     /* MANAGEMENT */
 
@@ -71,10 +67,11 @@ contract MidnightAdapter is IMidnightAdapter {
     uint256 transient overridenMarketNetCredit;
     /* CONSTRUCTOR */
 
-    constructor(address _parentVault, address _midnight, uint256[] memory _durations) {
+    constructor(address _parentVault, address _midnight, address _timelock, uint256[] memory _durations) {
         asset = IVaultV2(_parentVault).asset();
         parentVault = _parentVault;
         midnight = _midnight;
+        timelock = _timelock;
         IMidnight(_midnight).setIsAuthorized(address(this), true, address(this));
         SafeERC20Lib.safeApprove(asset, _midnight, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
@@ -139,73 +136,26 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* TIMELOCKS FUNCTIONS */
 
-    /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block
-    /// timestamp.
-    function submit(bytes calldata data) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        require(executableAt[data] == 0, DataAlreadyPending());
+    function timelockOperation(Operation op, bytes calldata data) external {
+        if (op == Operation.Submit) require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        else if (op == Operation.Revoke) {
+            require(
+                msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
+                NotAuthorized()
+            );
+        } else timelocked();
+        ITimelock(timelock).operation(op, data);
+    }
 
-        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
-        bytes4 selector = bytes4(data);
-        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the second bytes4.
-        uint256 _timelock =
-            selector == IMidnightAdapter.decreaseTimelock.selector ? timelock[bytes4(data[4:8])] : timelock[selector];
-        executableAt[data] = block.timestamp + _timelock;
-        emit Submit(selector, data, executableAt[data]);
+    function timelockStatus(bytes calldata data) external view returns (TimelockStatus memory) {
+        return ITimelock(timelock).status(address(this), data);
     }
 
     function timelocked() internal {
-        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
-        bytes4 selector = bytes4(msg.data);
-        require(executableAt[msg.data] != 0, DataNotTimelocked());
-        require(block.timestamp >= executableAt[msg.data], TimelockNotExpired());
-        require(!abdicated[selector], Abdicated());
-        executableAt[msg.data] = 0;
-        emit Accept(selector, msg.data);
-    }
-
-    function revoke(bytes calldata data) external {
-        require(
-            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
-            NotAuthorized()
-        );
-        require(executableAt[data] != 0, DataNotTimelocked());
-        executableAt[data] = 0;
-        // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
-        bytes4 selector = bytes4(data);
-        emit Revoke(msg.sender, selector, data);
+        ITimelock(timelock).useTimelock(msg.data);
     }
 
     /* CURATOR FUNCTIONS */
-
-    /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
-    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
-    /// executableAt.
-    function increaseTimelock(bytes4 selector, uint256 newDuration) external {
-        timelocked();
-        require(selector != IMidnightAdapter.decreaseTimelock.selector, AutomaticallyTimelocked());
-        require(newDuration >= timelock[selector], TimelockNotIncreasing());
-
-        timelock[selector] = newDuration;
-        emit IncreaseTimelock(selector, newDuration);
-    }
-
-    function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
-        timelocked();
-        require(selector != IMidnightAdapter.decreaseTimelock.selector, AutomaticallyTimelocked());
-        require(newDuration <= timelock[selector], TimelockNotDecreasing());
-
-        timelock[selector] = newDuration;
-        emit DecreaseTimelock(selector, newDuration);
-    }
-
-    /// @dev This function requires great caution because it will irreversibly disable submit for a selector.
-    /// @dev Existing pending operations submitted before abdicating can not be executed at the initial executableAt.
-    function abdicate(bytes4 selector) external {
-        timelocked();
-        abdicated[selector] = true;
-        emit Abdicate(selector);
-    }
 
     function setSkipBufferCheck(bool newSkipBufferCheck) external {
         timelocked();
@@ -377,8 +327,7 @@ contract MidnightAdapter is IMidnightAdapter {
         (overridenMarketId, overridenMarketNetCredit) = (bytes32(0), 0);
 
         if (block.timestamp < market.maturity && boughtNetCredit > 0) {
-            uint256 boughtGrowth =
-                (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
+            uint256 boughtGrowth = (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
             require(boughtGrowth >= minRate * paidAssets, RateTooLow());
 
             MarketData storage marketData = _markets[marketId];
