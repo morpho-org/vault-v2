@@ -2510,24 +2510,14 @@ contract MidnightAdapterTest is Test {
 
     /* WITHDRAW TO VAULT */
 
-    function testWithdrawToVaultUnauthorized(address nonAllocator) public {
-        vm.assume(!parentVault.isAllocator(nonAllocator) && !parentVault.isSentinel(nonAllocator));
-        Market memory market = storedOffer.market;
-        vm.prank(nonAllocator);
-        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
-        adapter.withdrawToVault(market, 0);
-    }
-
-    function testWithdrawToVaultBySentinel(address sentinel) public {
-        vm.assume(sentinel != signerAllocator);
-        stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(sentinel).checked_write(true);
+    function testWithdrawToVaultByAnyone(address caller) public {
         Offer memory boughtOffer = buy(7 days, 1e18);
 
-        vm.prank(sentinel);
+        vm.prank(caller);
         adapter.withdrawToVault(boughtOffer.market, 0);
     }
 
-    function testWithdrawToVaultOK() public {
+    function testWithdrawToVaultOK(address caller) public {
         Offer memory boughtOffer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
         uint128 creditBefore = adapter.netCredit(marketId);
@@ -2542,7 +2532,7 @@ contract MidnightAdapterTest is Test {
         uint256 withdrawAmount = 0.5e18;
         vm.expectEmit(address(adapter));
         emit IMidnightAdapter.WithdrawToVault(marketId, withdrawAmount, withdrawAmount);
-        vm.prank(signerAllocator);
+        vm.prank(caller);
         adapter.withdrawToVault(boughtOffer.market, withdrawAmount);
 
         uint128 creditAfter = adapter.netCredit(marketId);
