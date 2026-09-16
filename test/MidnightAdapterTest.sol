@@ -1824,6 +1824,33 @@ contract MidnightAdapterTest is Test {
         );
     }
 
+    function testZeroMaturityNetCredit(uint256 units, uint256 fee, uint256 elapsed, bool fullLoss) public {
+        units = bound(units, 1000, 100e18);
+        fee = bound(fee, 0, MAX_CONTINUOUS_FEE);
+        elapsed = bound(elapsed, 0, 60 days);
+        midnight.setDefaultContinuousFee(address(loanToken), fee);
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+        Offer memory offer = buy(30 days, units, discountTick);
+        uint128 netCredit = adapter.netCredit(_marketId(offer.market));
+        uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
+        uint256 growth = (netCredit - paid) * 1e18 / (uint256(netCredit) * 30 days);
+
+        skip(elapsed);
+        assertZeroMaturityNetCredit(offer.market, growth);
+
+        uint256 price = fullLoss ? 0 : ORACLE_PRICE_SCALE / 4;
+        OracleMock(storedCollaterals[0].oracle).setPrice(price);
+        OracleMock(storedCollaterals[1].oracle).setPrice(price);
+        midnight.liquidate(offer.market, 0, 0, 0, taker, false, address(this), address(0), "");
+        assertZeroMaturityNetCredit(offer.market, growth);
+
+        midnight.updatePosition(offer.market, address(adapter));
+        assertZeroMaturityNetCredit(offer.market, growth);
+
+        skip(30 days);
+        assertZeroMaturityNetCredit(offer.market, growth);
+    }
+
     function testRealAssetsLossFallbackAndCacheSynchronization(uint256 units) public {
         units = bound(units, 1000, 100e18);
         midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
@@ -2972,6 +2999,23 @@ contract MidnightAdapterTest is Test {
             .with_key(marketId)
             .with_key(account)
             .checked_write(credit);
+    }
+
+    function assertZeroMaturityNetCredit(Market memory market, uint256 growth) internal view {
+        bytes32 marketId = _marketId(market);
+        (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(market, marketId, address(adapter));
+        Market memory dummyMarket;
+        (uint128 dummyCredit, uint128 dummyPendingFee, uint128 dummyFee) =
+            midnight.updatePositionView(dummyMarket, marketId, address(adapter));
+        assertEq(dummyFee, 0, "zero maturity skips fee accrual");
+        assertEq(dummyCredit - dummyPendingFee, credit - pendingFee, "maturity does not affect net credit");
+        uint256 netCredit = credit - pendingFee;
+        uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
+        assertEq(
+            adapter.realAssets(),
+            netCredit - netCredit.mulDivUp(growth * timeToMaturity, 1e18),
+            "real maturity still determines growth"
+        );
     }
 
     function assertMarketIndex(bytes32 marketId, uint256 expected) internal {
