@@ -287,7 +287,6 @@ contract MidnightAdapter is IMidnightAdapter {
     function realAssets() external view returns (uint256) {
         uint256 assets;
         uint256 length = marketIds.length;
-        // updatePositionView only reads market.maturity.
         Market memory dummyMarket;
         for (uint256 i = 0; i < length; i++) {
             bytes32 marketId = marketIds[i];
@@ -297,7 +296,6 @@ contract MidnightAdapter is IMidnightAdapter {
                 newNetCredit = overridenMarketNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-                dummyMarket.maturity = marketData.maturity;
                 newNetCredit = currentNetCredit(marketId, dummyMarket);
             }
             uint256 timeToMaturity = uint256(marketData.maturity).zeroFloorSub(block.timestamp);
