@@ -124,7 +124,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {
         require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
-        // Collaterals and durations will be checked through vault ids.
+        // Gates, RCF threshold, collaterals and durations will be checked through vault ids.
         require(offer.market.loanToken == asset, LoanAssetMismatch());
         require(offer.maker == address(this), IncorrectMaker());
         require(offer.callback == address(this), IncorrectCallbackAddress());
@@ -511,10 +511,12 @@ contract MidnightAdapter is IMidnightAdapter {
     function ids(Market memory market) public view returns (bytes32[] memory) {
         uint256 durationsCount = _maturities[market.maturity].durationCount;
 
-        bytes32[] memory idsArray = new bytes32[](1 + market.collateralParams.length * 2 + durationsCount);
+        bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length * 2 + durationsCount);
 
         uint256 j;
         idsArray[j++] = adapterId;
+        idsArray[j++] =
+            keccak256(abi.encode("marketConfig", market.enterGate, market.liquidatorGate, market.rcfThreshold));
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
             idsArray[j++] = keccak256(abi.encode("collateralToken", market.collateralParams[i].token));
             idsArray[j++] = keccak256(abi.encode("collateralParams", market.collateralParams[i]));
