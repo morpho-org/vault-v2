@@ -10,7 +10,7 @@ import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 struct MarketData {
     uint128 netCredit;
     /// @dev Each unit of growth represents 1/WAD of a raw asset unit accrued per second, until maturity.
-    uint192 growth;
+    uint64 growth;
     uint48 maturity;
     uint8 index;
 }
