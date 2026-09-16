@@ -1728,7 +1728,7 @@ contract MidnightAdapterTest is Test {
     function testFullSaleClearsAccrualBeforeRebuy() public {
         Offer memory first = buy(7 days, 1e18, discountTick);
         sellUnits(first.market, first.maxUnits, 0);
-        assertEq(adapter._totalAssets(), 0);
+        assertEq(adapter.realAssets(), 0);
         assertEq(adapter.totalNetCredit(), 0);
         assertEq(adapter.marketIdsLength(), 0);
         skip(365 days);
@@ -1897,6 +1897,29 @@ contract MidnightAdapterTest is Test {
         );
     }
 
+    function testNetCreditIgnoresMaturity(uint256 units, uint256 fee, uint256 elapsed, bool fullLoss) public {
+        units = bound(units, 1000, 100e18);
+        fee = bound(fee, 0, MAX_CONTINUOUS_FEE);
+        elapsed = bound(elapsed, 0, 60 days);
+        midnight.setDefaultContinuousFee(address(loanToken), fee);
+        Offer memory offer = buy(30 days, units, discountTick);
+
+        skip(elapsed);
+        assertNetCreditIgnoresMaturity(offer.market);
+
+        uint256 price = fullLoss ? 0 : ORACLE_PRICE_SCALE / 4;
+        OracleMock(storedCollaterals[0].oracle).setPrice(price);
+        OracleMock(storedCollaterals[1].oracle).setPrice(price);
+        midnight.liquidate(offer.market, 0, 0, 0, taker, false, address(this), address(0), "");
+        assertNetCreditIgnoresMaturity(offer.market);
+
+        midnight.updatePosition(offer.market, address(adapter));
+        assertNetCreditIgnoresMaturity(offer.market);
+
+        skip(30 days);
+        assertNetCreditIgnoresMaturity(offer.market);
+    }
+
     function testRealAssetsLossFallbackAndCacheSynchronization(uint256 units) public {
         units = bound(units, 1000, 100e18);
         midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
@@ -1932,7 +1955,7 @@ contract MidnightAdapterTest is Test {
         assertEq(reads.length, 1, "one cache slot");
         uint256 packed = uint256(vm.load(address(adapter), reads[0]));
         assertEq(uint128(packed), credit - pendingFee, "packed net credit");
-        assertEq(uint48(packed >> 128), offer.market.maturity, "packed maturity");
+        assertEq(uint8(packed >> 128), 0, "packed index");
     }
 
     function testLossBeforeMaturityIsVisibleWithoutPing() public {
@@ -2165,6 +2188,28 @@ contract MidnightAdapterTest is Test {
 
         uint128 marketNetCredit = adapter.netCredit(marketId);
         assertEq(marketNetCredit, 0.5e18);
+    }
+
+    /// @dev A market not in marketIds holds no credit: a zero sale is a no-op, a nonzero sale is debt and reverts.
+    function testForceDeallocateUnlistedMarket() public {
+        Offer memory boughtOffer = buy(7 days, 1e18);
+        Market memory unlisted = boughtOffer.market;
+        unlisted.maturity += 1 days;
+        midnight.touchMarket(unlisted);
+        uint256 realAssetsBefore = adapter.realAssets();
+        uint256 totalAssetsBefore = adapter._totalAssets();
+
+        (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(unlisted, 1e18);
+        bytes memory data = abi.encode(offer, abi.encode(root_, 0, proof([offer])));
+        parentVault.forceDeallocate(address(adapter), data, 0, address(this));
+
+        assertEq(adapter.marketIdsLength(), 1, "marketIds length");
+        assertEq(adapter.netCredit(_marketId(unlisted)), 0, "unlisted netCredit");
+        assertEq(adapter.realAssets(), realAssetsBefore, "realAssets");
+        assertEq(adapter._totalAssets(), totalAssetsBefore, "_totalAssets");
+
+        vm.expectRevert(IMidnight.SellerIsLiquidatable.selector);
+        parentVault.forceDeallocate(address(adapter), data, 1e18, address(this));
     }
 
     function testForceDeallocateRevertsOnSellOffer() public {
@@ -3043,6 +3088,17 @@ contract MidnightAdapterTest is Test {
             .checked_write(credit);
     }
 
+    function assertNetCreditIgnoresMaturity(Market memory market) internal view {
+        bytes32 marketId = _marketId(market);
+        (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(market, marketId, address(adapter));
+        Market memory dummyMarket;
+        (uint128 dummyCredit, uint128 dummyPendingFee, uint128 dummyFee) =
+            midnight.updatePositionView(dummyMarket, marketId, address(adapter));
+        assertEq(dummyFee, 0, "zero maturity skips fee accrual");
+        assertEq(dummyCredit - dummyPendingFee, credit - pendingFee, "maturity does not affect net credit");
+        assertEq(adapter.totalNetCredit(), credit - pendingFee, "adapter net credit");
+    }
+
     function assertMarketIndex(bytes32 marketId, uint256 expected) internal {
         assertEq(adapter.marketIds(expected), marketId, "market index");
     }
@@ -3438,6 +3494,55 @@ contract MidnightAdapterTest is Test {
         callbackSale(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
         assertEq(realVault._totalAssets(), 10e18);
         assertEq(backing(), 10e18);
+    }
+
+    /// @dev The sold market is locked but not in marketIds, so the accrual loop does not see the lock. A nested zero
+    /// sale there changes nothing.
+    /// forge-config: default.isolate = true
+    function testEagerLossUnlistedMarketZeroSaleDuringItsSale() public {
+        Offer memory initial = freshPosition(MAX_TICK);
+        Market memory unlisted = initial.market;
+        unlisted.maturity += 1 days;
+        midnight.touchMarket(unlisted);
+        EagerLossCallback callback = newCallback();
+        (Offer memory forced, bytes32 root_) = makeForceDeallocateOffer(unlisted, 1e18);
+        bytes memory data = abi.encode(forced, abi.encode(root_, 0, proof([forced])));
+        callback.push(
+            address(realVault),
+            abi.encodeCall(IVaultV2.forceDeallocate, (address(adapter), data, 0, address(callback))),
+            bytes4(0)
+        );
+        Offer memory zeroSale = makeSellOffer(unlisted, 0, MAX_TICK);
+        zeroSale.maxAssets = 1;
+        callbackSale(zeroSale, callback);
+        assertEq(realVault._totalAssets(), 10e18);
+        assertEq(backing(), 10e18);
+        assertEq(adapter.marketIdsLength(), 1);
+        assertEq(adapter.netCredit(_marketId(unlisted)), 0);
+    }
+
+    /// @dev A nested nonzero sale on the unlisted market puts the adapter in debt, which the outer take rejects.
+    /// forge-config: default.isolate = true
+    function testEagerLossUnlistedMarketDebtDuringItsSaleReverts() public {
+        Offer memory initial = freshPosition(MAX_TICK);
+        Market memory unlisted = initial.market;
+        unlisted.maturity += 1 days;
+        midnight.touchMarket(unlisted);
+        EagerLossCallback callback = newCallback();
+        vm.prank(address(callback));
+        realVault.deposit(5e18, address(callback));
+        (Offer memory forced, bytes32 root_) = makeForceDeallocateOffer(unlisted, 1e18);
+        bytes memory data = abi.encode(forced, abi.encode(root_, 0, proof([forced])));
+        callback.push(
+            address(realVault),
+            abi.encodeCall(IVaultV2.forceDeallocate, (address(adapter), data, 1e18, address(callback))),
+            bytes4(0)
+        );
+        Offer memory zeroSale = makeSellOffer(unlisted, 0, MAX_TICK);
+        zeroSale.maxAssets = 1;
+        bytes memory ratified = sign([zeroSale], signerAllocator);
+        vm.expectRevert(IMidnight.SellerIsLiquidatable.selector);
+        midnight.take(zeroSale, ratified, 0, address(callback), address(0), address(callback), "");
     }
 
     /// forge-config: default.isolate = true
