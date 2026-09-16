@@ -249,7 +249,7 @@ contract MidnightAdapter is IMidnightAdapter {
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not call back.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
         _totalAssets = uint256(_totalAssets).zeroFloorSub(withdrawnAssets).toUint128();
-        int256 change = updateMarket(marketId, market, currentNetCredit(marketId));
+        int256 change = updateNetCredit(marketId, market, currentNetCredit(marketId));
 
         // forge-lint: disable-next-item(reentrancy-no-eth) deallocate in this adapter does not make calls here
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), withdrawnAssets);
@@ -358,7 +358,7 @@ contract MidnightAdapter is IMidnightAdapter {
             // forge-lint: disable-next-item(reentrancy-no-eth) view reentry is possible through a ratifier.
             IMidnight(midnight).take(offer, ratifierData, takeUnits, address(this), address(this), address(0), hex"");
             _totalAssets = uint256(_totalAssets).zeroFloorSub(sellerAssets).toUint128();
-            int256 change = updateMarket(marketId, offer.market, currentNetCredit(marketId));
+            int256 change = updateNetCredit(marketId, offer.market, currentNetCredit(marketId));
 
             // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
             emit ForceDeallocate(marketId, sellerAssets, uint256(-change));
@@ -371,7 +371,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* MIDNIGHT CALLBACKS */
 
-    /// @dev Between updateMarket and vault.allocate's transfer, realAssets() includes the purchase but the vault has
+    /// @dev Between updateNetCredit and vault.allocate's transfer, realAssets() includes the purchase but the vault has
     /// not paid yet.
     function onBuy(
         bytes32 marketId,
@@ -403,7 +403,7 @@ contract MidnightAdapter is IMidnightAdapter {
         // forge-lint: disable-next-item(unsafe-typecast) durationCount <= MAX_DURATIONS.
         if (maturityData.netCredit == 0) maturityData.durationCount = uint8(durationCount(market.maturity));
         _totalAssets = (uint256(_totalAssets) + paidAssets).toUint128();
-        int256 change = updateMarket(marketId, market, newNetCredit);
+        int256 change = updateNetCredit(marketId, market, newNetCredit);
         uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
         if (callbackData.length > 0 && paidAssets > idleAssets) {
             (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
@@ -441,7 +441,7 @@ contract MidnightAdapter is IMidnightAdapter {
         accrueInterest(totalNetCredit(marketId) + newNetCredit + soldNetCredit);
 
         _totalAssets = uint256(_totalAssets).zeroFloorSub(sellerAssets).toUint128();
-        int256 change = updateMarket(marketId, market, newNetCredit);
+        int256 change = updateNetCredit(marketId, market, newNetCredit);
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
@@ -471,7 +471,7 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /// @dev Returns the change in net credit reported to the vault's caps.
-    function updateMarket(bytes32 marketId, Market memory market, uint128 newNetCredit)
+    function updateNetCredit(bytes32 marketId, Market memory market, uint128 newNetCredit)
         internal
         returns (int256 change)
     {
