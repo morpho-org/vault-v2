@@ -9,9 +9,9 @@ import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
 struct MarketData {
     uint128 netCredit;
-    uint128 assets;
+    /// @dev WAD-scaled increase in value per net credit per second, until maturity.
+    uint64 growth;
     uint48 maturity;
-    uint48 lastUpdate;
     uint8 index;
 }
 
@@ -39,7 +39,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event ForceDeallocate(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 netCreditLoss);
     event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
-    event UpdateMarket(bytes32 indexed marketId, uint256 netCredit, uint256 assets);
+    event UpdateMarket(bytes32 indexed marketId, uint256 netCredit, uint256 growth);
 
     /* ERRORS */
 
