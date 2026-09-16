@@ -9,8 +9,8 @@ import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
 struct MarketData {
     uint128 netCredit;
-    /// @dev WAD-scaled increase in value per net credit per second, until maturity.
-    uint64 growth;
+    /// @dev Each unit of growth represents 1/WAD of a raw asset unit accrued per second, until maturity.
+    uint192 growth;
     uint48 maturity;
     uint8 index;
 }
