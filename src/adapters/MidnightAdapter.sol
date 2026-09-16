@@ -377,8 +377,7 @@ contract MidnightAdapter is IMidnightAdapter {
         (overridenMarketId, overridenMarketNetCredit) = (bytes32(0), 0);
 
         if (block.timestamp < market.maturity && boughtNetCredit > 0) {
-            uint256 boughtGrowth =
-                (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
+            uint256 boughtGrowth = (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
             require(boughtGrowth >= minRate * paidAssets, RateTooLow());
 
             MarketData storage marketData = _markets[marketId];
