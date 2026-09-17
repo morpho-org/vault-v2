@@ -111,14 +111,17 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* RATIFIERS */
 
-    /// @dev Sub-ratifiers can approve any offer of the adapter that passes the checks of isRatified, akin to
-    /// allocators signing offer trees.
+    /// @dev Sub-ratifiers define how allocator offers are authorized.
+    /// Enabling one is timelocked; allocators and sentinels may disable it immediately.
     function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external {
-        require(
-            IVaultV2(parentVault).isAllocator(msg.sender)
-                || (!newIsSubRatifier && IVaultV2(parentVault).isSentinel(msg.sender)),
-            NotAuthorized()
-        );
+        if (newIsSubRatifier) {
+            timelocked();
+        } else {
+            require(
+                IVaultV2(parentVault).isAllocator(msg.sender) || IVaultV2(parentVault).isSentinel(msg.sender),
+                NotAuthorized()
+            );
+        }
         isSubRatifier[subRatifier] = newIsSubRatifier;
         emit SetIsSubRatifier(subRatifier, newIsSubRatifier);
     }
@@ -132,9 +135,9 @@ contract MidnightAdapter is IMidnightAdapter {
         // For buy offers, Midnight enforces receiverIfMakerIsSeller == address(0).
         require(offer.buy || offer.receiverIfMakerIsSeller == address(this), IncorrectReceiver());
 
-        (address subRatifier, bytes memory subData) = abi.decode(data, (address, bytes));
+        (address subRatifier, bytes memory subRatifierData) = abi.decode(data, (address, bytes));
         require(isSubRatifier[subRatifier], SubRatifierUnauthorized());
-        return IRatifier(subRatifier).isRatified(offer, subData, taker);
+        return IRatifier(subRatifier).isRatified(offer, subRatifierData, taker);
     }
 
     /* TIMELOCKS FUNCTIONS */
