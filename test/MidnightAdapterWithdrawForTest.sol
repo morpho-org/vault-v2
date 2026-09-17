@@ -22,6 +22,7 @@ contract MidnightAdapterWithdrawForTest is Test, IRatifier {
 
     IMidnight internal midnight;
     IMidnightAdapter internal adapter;
+    MidnightAdapterFactory internal factory;
     VaultV2Mock internal vault;
     IERC20 internal loanToken;
     IERC20 internal collateralToken;
@@ -43,7 +44,7 @@ contract MidnightAdapterWithdrawForTest is Test, IRatifier {
 
         uint256[] memory durations = new uint256[](1);
         durations[0] = 7 days;
-        MidnightAdapterFactory factory = new MidnightAdapterFactory(durations);
+        factory = new MidnightAdapterFactory(durations);
         adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault), address(midnight)));
 
         bytes memory data = abi.encodeCall(IMidnightAdapter.addSubRatifier, (address(this)));
@@ -89,6 +90,29 @@ contract MidnightAdapterWithdrawForTest is Test, IRatifier {
         assertEq(loanToken.balanceOf(address(vault)), vaultBalanceBefore + expectedVaultAssets, "vault balance");
         assertEq(loanToken.balanceOf(liquidator), 0.5e18 - expectedVaultAssets, "receiver balance");
         assertEq(midnight.credit(IdLib.toId(market), address(adapter)), 0.5e18, "adapter credit");
+    }
+
+    function testFirstAuctionDurationAppliesToStartedAuctions() public {
+        vault = new VaultV2Mock(address(loanToken), makeAddr("owner"), curator, allocator, address(0));
+        deal(address(loanToken), address(vault), 10e18);
+        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault), address(midnight)));
+        bytes memory data = abi.encodeCall(IMidnightAdapter.addSubRatifier, (address(this)));
+        vm.prank(curator);
+        adapter.submit(data);
+        adapter.addSubRatifier(address(this));
+        Market memory market = _market();
+        _lend(market);
+        vm.warp(market.maturity + TIME_TO_MAX_LIF + 12 hours);
+
+        vm.expectRevert(stdError.arithmeticError);
+        adapter.withdrawFor(market, 0.5e18, liquidator, abi.encode(borrower, _repayCall(market, 0.5e18)));
+
+        // 12 hours into an auction of 2 days, started before the configuration.
+        _setAuctionDuration(2 days);
+        assertEq(adapter.previousAuctionDuration(), 2 days);
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(vault));
+        adapter.withdrawFor(market, 0.5e18, liquidator, abi.encode(borrower, _repayCall(market, 0.5e18)));
+        assertEq(loanToken.balanceOf(address(vault)), vaultBalanceBefore + 0.375e18);
     }
 
     function testAuctionDurationChangeDoesNotApplyToStartedAuctions() public {

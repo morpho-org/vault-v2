@@ -232,7 +232,8 @@ contract MidnightAdapter is IMidnightAdapter {
                 && block.timestamp >= auctionDurationChangedAt + auctionDuration,
             LastAuctionDurationChangeTooRecent()
         );
-        previousAuctionDuration = auctionDuration;
+        // forge-lint: disable-next-item(unsafe-typecast) newAuctionDuration <= MAX_AUCTION_DURATION < 2**48.
+        previousAuctionDuration = auctionDuration == 0 ? uint48(newAuctionDuration) : auctionDuration;
         // forge-lint: disable-next-item(unsafe-typecast) block.timestamp < 2**48.
         auctionDurationChangedAt = uint48(block.timestamp);
         // forge-lint: disable-next-item(unsafe-typecast) newAuctionDuration <= MAX_AUCTION_DURATION < 2**48.
