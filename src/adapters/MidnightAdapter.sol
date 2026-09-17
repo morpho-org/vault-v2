@@ -112,18 +112,19 @@ contract MidnightAdapter is IMidnightAdapter {
     /* RATIFIERS */
 
     /// @dev Sub-ratifiers define how allocator offers are authorized.
-    /// Enabling one is timelocked; allocators and sentinels may disable it immediately.
-    function setIsSubRatifier(address subRatifier, bool newIsSubRatifier) external {
-        if (newIsSubRatifier) {
-            timelocked();
-        } else {
-            require(
-                IVaultV2(parentVault).isAllocator(msg.sender) || IVaultV2(parentVault).isSentinel(msg.sender),
-                NotAuthorized()
-            );
-        }
-        isSubRatifier[subRatifier] = newIsSubRatifier;
-        emit SetIsSubRatifier(subRatifier, newIsSubRatifier);
+    function addSubRatifier(address subRatifier) external {
+        timelocked();
+        isSubRatifier[subRatifier] = true;
+        emit AddSubRatifier(subRatifier);
+    }
+
+    function removeSubRatifier(address subRatifier) external {
+        require(
+            IVaultV2(parentVault).isAllocator(msg.sender) || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
+        isSubRatifier[subRatifier] = false;
+        emit RemoveSubRatifier(msg.sender, subRatifier);
     }
 
     function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {
