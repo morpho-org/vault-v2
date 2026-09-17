@@ -6,14 +6,21 @@ import {IMidnight, Offer, Market} from "lib/midnight/src/interfaces/IMidnight.so
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
 import {MAX_TICK} from "lib/midnight/src/libraries/TickLib.sol";
-import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
+import {CALLBACK_SUCCESS, TIME_TO_MAX_LIF} from "lib/midnight/src/libraries/ConstantsLib.sol";
 import {TakeAmountsLib} from "lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {IMidnightAdapter, MarketData, MaturityData, IAdapter} from "./interfaces/IMidnightAdapter.sol";
+import {
+    IMidnightAdapter,
+    IWithdrawForCallback,
+    MarketData,
+    MaturityData,
+    MIN_AUCTION_DURATION,
+    MAX_AUCTION_DURATION
+} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest per market.
@@ -53,10 +60,13 @@ contract MidnightAdapter is IMidnightAdapter {
     /* MANAGEMENT */
 
     address public skimRecipient;
-    bool public skipBufferCheck;
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
     uint256 public minRate;
     mapping(address subRatifier => bool) public isSubRatifier;
+    mapping(bytes32 marketId => uint256) public lossAllowance;
+    uint48 public auctionDuration;
+    uint48 public previousAuctionDuration;
+    uint48 public auctionDurationChangedAt;
 
     /* ACCOUNTING */
 
@@ -211,16 +221,46 @@ contract MidnightAdapter is IMidnightAdapter {
         emit Abdicate(selector);
     }
 
-    function setSkipBufferCheck(bool newSkipBufferCheck) external {
+    function setAuctionDuration(uint256 newAuctionDuration) external {
         timelocked();
-        skipBufferCheck = newSkipBufferCheck;
-        emit SetSkipBufferCheck(newSkipBufferCheck);
+        require(
+            newAuctionDuration >= MIN_AUCTION_DURATION && newAuctionDuration <= MAX_AUCTION_DURATION,
+            AuctionDurationOutOfBounds()
+        );
+        require(
+            block.timestamp >= auctionDurationChangedAt + previousAuctionDuration
+                && block.timestamp >= auctionDurationChangedAt + auctionDuration,
+            LastAuctionDurationChangeTooRecent()
+        );
+        previousAuctionDuration = auctionDuration;
+        // forge-lint: disable-next-item(unsafe-typecast) block.timestamp < 2**48.
+        auctionDurationChangedAt = uint48(block.timestamp);
+        // forge-lint: disable-next-item(unsafe-typecast) newAuctionDuration <= MAX_AUCTION_DURATION < 2**48.
+        auctionDuration = uint48(newAuctionDuration);
+        emit SetAuctionDuration(newAuctionDuration);
     }
 
     function setMinRate(uint256 newMinRate) external {
         timelocked();
         minRate = newMinRate;
         emit SetMinRate(newMinRate);
+    }
+
+    function increaseLossAllowance(bytes32 marketId, uint256 newLossAllowance) external {
+        timelocked();
+        require(newLossAllowance >= lossAllowance[marketId], LossAllowanceNotIncreasing());
+        lossAllowance[marketId] = newLossAllowance;
+        emit IncreaseLossAllowance(marketId, newLossAllowance);
+    }
+
+    function decreaseLossAllowance(bytes32 marketId, uint256 newLossAllowance) external {
+        require(
+            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
+        require(newLossAllowance <= lossAllowance[marketId], LossAllowanceNotDecreasing());
+        lossAllowance[marketId] = newLossAllowance;
+        emit DecreaseLossAllowance(msg.sender, marketId, newLossAllowance);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -255,6 +295,27 @@ contract MidnightAdapter is IMidnightAdapter {
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), withdrawnAssets);
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
         emit WithdrawToVault(marketId, withdrawnAssets, uint256(-change));
+    }
+
+    /// @dev Auction credit after all should have been repaid.
+    /// @dev Ignores the lossAllowance mapping.
+    function withdrawFor(Market memory market, uint256 units, address receiver, bytes memory data) external {
+        bytes32 marketId = IdLib.toId(market);
+        uint256 start = market.maturity + TIME_TO_MAX_LIF;
+        uint256 duration = start < auctionDurationChangedAt ? previousAuctionDuration : auctionDuration;
+        uint256 sellerAssets = units.mulDivUp(duration.zeroFloorSub(block.timestamp - start), duration);
+
+        (uint128 credit,,) = IMidnight(midnight).updatePositionView(market, marketId, address(this));
+        withdrawToVault(market, MathLib.min(IMidnight(midnight).withdrawable(marketId), credit));
+        IWithdrawForCallback(msg.sender).onWithdrawFor(data);
+
+        IMidnight(midnight).withdraw(market, units, address(this), address(this));
+        int256 change = updateNetCredit(marketId, market, currentNetCredit(marketId, market));
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
+        SafeERC20Lib.safeTransfer(asset, receiver, units - sellerAssets);
+
+        // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
+        emit WithdrawFor(marketId, msg.sender, receiver, units, sellerAssets, uint256(-change));
     }
 
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external {
@@ -425,20 +486,14 @@ contract MidnightAdapter is IMidnightAdapter {
         require(seller == address(this), NotSelf());
 
         uint128 newNetCredit = currentNetCredit(marketId, market);
-        if (!skipBufferCheck) {
-            (overridenMarketId, overridenMarketNetCredit) =
-            (marketId, newNetCredit + soldCredit - sellPendingFeeDecrease);
-            uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
-            overridenMarketNetCredit = newNetCredit;
-            uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(parentVault) + sellerAssets;
-            uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
-            for (uint256 i = 0; i < adaptersLength; i++) {
-                vaultRealAssetsAfter += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
-            }
-
-            (overridenMarketId, overridenMarketNetCredit) = (bytes32(0), 0);
-            require(vaultRealAssetsAfter >= vaultTotalAssetsBefore, BufferTooLow());
-        }
+        uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
+        uint256 factor = WAD - uint256(_markets[marketId].growth) * market.maturity.zeroFloorSub(block.timestamp);
+        // Match the change in realAssets rounding, excluding previously incurred credit losses.
+        uint256 bookValue =
+            (newNetCredit + soldNetCredit).mulDivDown(factor, WAD) - uint256(newNetCredit).mulDivDown(factor, WAD);
+        uint256 loss = bookValue.zeroFloorSub(sellerAssets);
+        lossAllowance[marketId] -= loss;
+        emit ConsumeLossAllowance(marketId, loss, lossAllowance[marketId]);
 
         int256 change = updateNetCredit(marketId, market, newNetCredit);
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
