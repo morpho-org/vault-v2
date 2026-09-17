@@ -486,12 +486,12 @@ contract MidnightAdapter is IMidnightAdapter {
         require(seller == address(this), NotSelf());
 
         uint128 newNetCredit = currentNetCredit(marketId, market);
-        uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        uint256 factor = WAD - uint256(_markets[marketId].growth) * market.maturity.zeroFloorSub(block.timestamp);
+        uint256 discountFactor =
+            WAD - uint256(_markets[marketId].growth) * market.maturity.zeroFloorSub(block.timestamp);
         // Match the change in realAssets rounding, excluding previously incurred credit losses.
-        uint256 bookValue =
-            (newNetCredit + soldNetCredit).mulDivDown(factor, WAD) - uint256(newNetCredit).mulDivDown(factor, WAD);
-        uint256 loss = bookValue.zeroFloorSub(sellerAssets);
+        uint256 assetsBefore = (newNetCredit + (soldCredit - sellPendingFeeDecrease)).mulDivDown(discountFactor, WAD);
+        uint256 assetsAfter = uint256(newNetCredit).mulDivDown(discountFactor, WAD);
+        uint256 loss = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
         lossAllowance[marketId] -= loss;
         emit ConsumeLossAllowance(marketId, loss, lossAllowance[marketId]);
 
