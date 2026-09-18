@@ -7,7 +7,6 @@ import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
 import {MAX_TICK} from "lib/midnight/src/libraries/TickLib.sol";
 import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
-import {TakeAmountsLib} from "lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
@@ -323,6 +322,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /// @dev Can be called by this adapter from a sell callback, a withdraw, or a duration caps update.
     /// @dev Can be called by anyone through forceDeallocate to trigger a sell take by the adapter.
+    /// @dev forceDeallocate callers must approve for asset transfer to cover the settlement fee
     function deallocate(bytes memory data, uint256 sellerAssets, bytes4 messageSig, address caller)
         external
         returns (bytes32[] memory, int256)
@@ -340,9 +340,13 @@ contract MidnightAdapter is IMidnightAdapter {
             IVaultV2(parentVault).accrueInterest();
 
             // Skip onSell since we are already in a deallocate call.
-            uint256 takeUnits = TakeAmountsLib.sellerAssetsToUnits(midnight, marketId, offer, sellerAssets);
             // forge-lint: disable-next-item(reentrancy-no-eth) view reentry is possible through a ratifier.
-            IMidnight(midnight).take(offer, ratifierData, takeUnits, address(this), address(this), address(0), hex"");
+            (, uint256 receivedAssets) = IMidnight(midnight)
+                .take(offer, ratifierData, sellerAssets, address(this), address(this), address(0), hex"");
+            uint256 settlementFee = sellerAssets - receivedAssets;
+            if (settlementFee > 0) {
+                SafeERC20Lib.safeTransferFrom(asset, caller, address(this), settlementFee);
+            }
             int256 change = updateNetCredit(marketId, offer.market, currentNetCredit(marketId, offer.market));
 
             // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
