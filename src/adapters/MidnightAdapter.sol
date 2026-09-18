@@ -308,8 +308,10 @@ contract MidnightAdapter is IMidnightAdapter {
 
         (uint128 credit,,) = IMidnight(midnight).updatePositionView(market, marketId, address(this));
         withdrawToVault(market, MathLib.min(IMidnight(midnight).withdrawable(marketId), credit));
+        // forge-lint: disable-next-item(reentrancy-no-eth) the accounting is consistent.
         IWithdrawForCallback(msg.sender).onWithdrawFor(data);
 
+        // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not call back.
         IMidnight(midnight).withdraw(market, units, address(this), address(this));
         int256 change = updateNetCredit(marketId, market, currentNetCredit(marketId, market));
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
