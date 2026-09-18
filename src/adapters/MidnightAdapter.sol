@@ -6,7 +6,7 @@ import {IMidnight, Offer, Market} from "lib/midnight/src/interfaces/IMidnight.so
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
 import {MAX_TICK} from "lib/midnight/src/libraries/TickLib.sol";
-import {CALLBACK_SUCCESS, TIME_TO_MAX_LIF} from "lib/midnight/src/libraries/ConstantsLib.sol";
+import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
 import {TakeAmountsLib} from "lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
@@ -18,8 +18,8 @@ import {
     IWithdrawForCallback,
     MarketData,
     MaturityData,
-    MIN_AUCTION_DURATION,
-    MAX_AUCTION_DURATION
+    AUCTION_DELAY,
+    AUCTION_DURATION
 } from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
@@ -64,9 +64,6 @@ contract MidnightAdapter is IMidnightAdapter {
     uint256 public minRate;
     mapping(address subRatifier => bool) public isSubRatifier;
     mapping(bytes32 marketId => uint256) public lossAllowance;
-    uint48 public auctionDuration;
-    uint48 public previousAuctionDuration;
-    uint48 public auctionDurationChangedAt;
 
     /* ACCOUNTING */
 
@@ -221,26 +218,6 @@ contract MidnightAdapter is IMidnightAdapter {
         emit Abdicate(selector);
     }
 
-    function setAuctionDuration(uint256 newAuctionDuration) external {
-        timelocked();
-        require(
-            newAuctionDuration >= MIN_AUCTION_DURATION && newAuctionDuration <= MAX_AUCTION_DURATION,
-            AuctionDurationOutOfBounds()
-        );
-        require(
-            block.timestamp >= auctionDurationChangedAt + previousAuctionDuration
-                && block.timestamp >= auctionDurationChangedAt + auctionDuration,
-            LastAuctionDurationChangeTooRecent()
-        );
-        // forge-lint: disable-next-item(unsafe-typecast) newAuctionDuration <= MAX_AUCTION_DURATION < 2**48.
-        previousAuctionDuration = auctionDuration == 0 ? uint48(newAuctionDuration) : auctionDuration;
-        // forge-lint: disable-next-item(unsafe-typecast) block.timestamp < 2**48.
-        auctionDurationChangedAt = uint48(block.timestamp);
-        // forge-lint: disable-next-item(unsafe-typecast) newAuctionDuration <= MAX_AUCTION_DURATION < 2**48.
-        auctionDuration = uint48(newAuctionDuration);
-        emit SetAuctionDuration(newAuctionDuration);
-    }
-
     function setMinRate(uint256 newMinRate) external {
         timelocked();
         minRate = newMinRate;
@@ -302,9 +279,8 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Ignores the lossAllowance mapping.
     function withdrawFor(Market memory market, uint256 units, address receiver, bytes memory data) external {
         bytes32 marketId = IdLib.toId(market);
-        uint256 start = market.maturity + TIME_TO_MAX_LIF;
-        uint256 duration = start < auctionDurationChangedAt ? previousAuctionDuration : auctionDuration;
-        uint256 sellerAssets = units.mulDivUp(duration.zeroFloorSub(block.timestamp - start), duration);
+        uint256 elapsed = block.timestamp - (market.maturity + AUCTION_DELAY);
+        uint256 sellerAssets = units.mulDivUp(AUCTION_DURATION.zeroFloorSub(elapsed), AUCTION_DURATION);
 
         (uint128 credit,,) = IMidnight(midnight).updatePositionView(market, marketId, address(this));
         withdrawToVault(market, MathLib.min(IMidnight(midnight).withdrawable(marketId), credit));

@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 
 import "../lib/forge-std/src/Test.sol";
 import {MidnightAdapterFactory} from "../src/adapters/MidnightAdapterFactory.sol";
-import {IMidnightAdapter} from "../src/adapters/interfaces/IMidnightAdapter.sol";
+import {IMidnightAdapter, AUCTION_DELAY, AUCTION_DURATION} from "../src/adapters/interfaces/IMidnightAdapter.sol";
 import {IRatifier} from "../lib/midnight/src/interfaces/IRatifier.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {MathLib} from "../src/libraries/MathLib.sol";
@@ -14,7 +14,7 @@ import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
 import {IMidnight, Offer, Market, CollateralParams} from "../lib/midnight/src/interfaces/IMidnight.sol";
 import {IdLib} from "../lib/midnight/src/libraries/IdLib.sol";
 import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
-import {CALLBACK_SUCCESS, TIME_TO_MAX_LIF, DEFAULT_TICK_SPACING} from "../lib/midnight/src/libraries/ConstantsLib.sol";
+import {CALLBACK_SUCCESS, DEFAULT_TICK_SPACING} from "../lib/midnight/src/libraries/ConstantsLib.sol";
 import {ORACLE_PRICE_SCALE} from "../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 
 contract MidnightAdapterWithdrawForTest is Test, IRatifier {
@@ -51,7 +51,6 @@ contract MidnightAdapterWithdrawForTest is Test, IRatifier {
         vm.prank(curator);
         adapter.submit(data);
         adapter.addSubRatifier(address(this));
-        _setAuctionDuration(2 days);
 
         address[] memory adapters = new address[](1);
         adapters[0] = address(adapter);
@@ -71,18 +70,18 @@ contract MidnightAdapterWithdrawForTest is Test, IRatifier {
     function testWithdrawForBeforeAuctionReverts(uint256 timestamp) public {
         Market memory market = _market();
         _lend(market);
-        vm.warp(bound(timestamp, block.timestamp, market.maturity + TIME_TO_MAX_LIF - 1));
+        vm.warp(bound(timestamp, block.timestamp, market.maturity + AUCTION_DELAY - 1));
 
         vm.expectRevert(stdError.arithmeticError);
         adapter.withdrawFor(market, 0.5e18, liquidator, abi.encode(borrower, _repayCall(market, 0.5e18)));
     }
 
     function testWithdrawForPrice(uint256 elapsed) public {
-        elapsed = bound(elapsed, 0, 3 days);
+        elapsed = bound(elapsed, 0, AUCTION_DURATION * 3 / 2);
         Market memory market = _market();
         _lend(market);
-        vm.warp(market.maturity + TIME_TO_MAX_LIF + elapsed);
-        uint256 expectedVaultAssets = uint256(0.5e18).mulDivUp(uint256(2 days).zeroFloorSub(elapsed), 2 days);
+        vm.warp(market.maturity + AUCTION_DELAY + elapsed);
+        uint256 expectedVaultAssets = uint256(0.5e18).mulDivUp(AUCTION_DURATION.zeroFloorSub(elapsed), AUCTION_DURATION);
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(vault));
 
         adapter.withdrawFor(market, 0.5e18, liquidator, abi.encode(borrower, _repayCall(market, 0.5e18)));
@@ -92,47 +91,20 @@ contract MidnightAdapterWithdrawForTest is Test, IRatifier {
         assertEq(midnight.credit(IdLib.toId(market), address(adapter)), 0.5e18, "adapter credit");
     }
 
-    function testFirstAuctionDurationAppliesToStartedAuctions() public {
-        vault = new VaultV2Mock(address(loanToken), makeAddr("owner"), curator, allocator, address(0));
-        deal(address(loanToken), address(vault), 10e18);
-        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault), address(midnight)));
-        bytes memory data = abi.encodeCall(IMidnightAdapter.addSubRatifier, (address(this)));
-        vm.prank(curator);
-        adapter.submit(data);
-        adapter.addSubRatifier(address(this));
-        Market memory market = _market();
-        _lend(market);
-        vm.warp(market.maturity + TIME_TO_MAX_LIF + 12 hours);
-
-        vm.expectRevert(stdError.arithmeticError);
-        adapter.withdrawFor(market, 0.5e18, liquidator, abi.encode(borrower, _repayCall(market, 0.5e18)));
-
-        // 12 hours into an auction of 2 days, started before the configuration.
-        _setAuctionDuration(2 days);
-        assertEq(adapter.previousAuctionDuration(), 2 days);
-        uint256 vaultBalanceBefore = loanToken.balanceOf(address(vault));
-        adapter.withdrawFor(market, 0.5e18, liquidator, abi.encode(borrower, _repayCall(market, 0.5e18)));
-        assertEq(loanToken.balanceOf(address(vault)), vaultBalanceBefore + 0.375e18);
+    function testWithdrawForAtAuctionStart() public {
+        testWithdrawForPrice(0);
     }
 
-    function testAuctionDurationChangeDoesNotApplyToStartedAuctions() public {
-        Market memory started = _market();
-        _lend(started);
-        vm.warp(started.maturity + TIME_TO_MAX_LIF + 12 hours);
-        _setAuctionDuration(6 hours);
-        Market memory notStarted = _market();
-        _lend(notStarted);
+    function testWithdrawForAtAuctionLastSecond() public {
+        testWithdrawForPrice(AUCTION_DURATION - 1);
+    }
 
-        // 12 hours into an auction of 2 days.
-        uint256 vaultBalanceBefore = loanToken.balanceOf(address(vault));
-        adapter.withdrawFor(started, 0.5e18, liquidator, abi.encode(borrower, _repayCall(started, 0.5e18)));
-        assertEq(loanToken.balanceOf(address(vault)), vaultBalanceBefore + 0.375e18, "previous duration");
+    function testWithdrawForAtAuctionEnd() public {
+        testWithdrawForPrice(AUCTION_DURATION);
+    }
 
-        // 3 hours into an auction of 6 hours.
-        vm.warp(notStarted.maturity + TIME_TO_MAX_LIF + 3 hours);
-        vaultBalanceBefore = loanToken.balanceOf(address(vault));
-        adapter.withdrawFor(notStarted, 0.5e18, liquidator, abi.encode(borrower, _repayCall(notStarted, 0.5e18)));
-        assertEq(loanToken.balanceOf(address(vault)), vaultBalanceBefore + 0.25e18, "new duration");
+    function testWithdrawForAfterAuctionEnd() public {
+        testWithdrawForPrice(AUCTION_DURATION + 1);
     }
 
     function testWithdrawForWithdrawsExistingLiquidityAtPar() public {
@@ -140,7 +112,7 @@ contract MidnightAdapterWithdrawForTest is Test, IRatifier {
         _lend(market);
         vm.prank(borrower);
         midnight.repay(market, 0.5e18, borrower, address(0), bytes(""));
-        vm.warp(market.maturity + TIME_TO_MAX_LIF + 1 days);
+        vm.warp(market.maturity + AUCTION_DELAY + AUCTION_DURATION / 2);
 
         // The existing liquidity goes to the vault at par, so nothing is left without liquidity added in the callback.
         vm.expectRevert(stdError.arithmeticError);
@@ -161,7 +133,7 @@ contract MidnightAdapterWithdrawForTest is Test, IRatifier {
         _lend(market);
 
         // Let the auction fall from par to 60%.
-        vm.warp(market.maturity + TIME_TO_MAX_LIF + adapter.auctionDuration() * 40 / 100);
+        vm.warp(market.maturity + AUCTION_DELAY + AUCTION_DURATION * 40 / 100);
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(vault));
 
         // Post-maturity liquidation repays 0.5 debt and makes 0.5 loan tokens withdrawable.
@@ -183,7 +155,7 @@ contract MidnightAdapterWithdrawForTest is Test, IRatifier {
         Market memory market = _market();
         market.enterGate = address(this);
         _lend(market);
-        vm.warp(market.maturity + TIME_TO_MAX_LIF + 1 days);
+        vm.warp(market.maturity + AUCTION_DELAY + AUCTION_DURATION / 2);
 
         Offer memory offer = _buyOffer(market);
         offer.buy = false;
@@ -220,13 +192,6 @@ contract MidnightAdapterWithdrawForTest is Test, IRatifier {
         vm.prank(sender);
         (bool success,) = address(midnight).call(midnightCall);
         require(success, "midnight call failed");
-    }
-
-    function _setAuctionDuration(uint256 duration) internal {
-        bytes memory data = abi.encodeCall(IMidnightAdapter.setAuctionDuration, (duration));
-        vm.prank(curator);
-        adapter.submit(data);
-        adapter.setAuctionDuration(duration);
     }
 
     function _repayCall(Market memory market, uint256 units) internal view returns (bytes memory) {
