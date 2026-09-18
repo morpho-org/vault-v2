@@ -12,7 +12,14 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {IMidnightAdapter, MarketData, MaturityData, IAdapter} from "./interfaces/IMidnightAdapter.sol";
+import {
+    IMidnightAdapter,
+    IWithdrawForCallback,
+    MarketData,
+    MaturityData,
+    AUCTION_DELAY,
+    AUCTION_DURATION
+} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest per market.
@@ -52,10 +59,10 @@ contract MidnightAdapter is IMidnightAdapter {
     /* MANAGEMENT */
 
     address public skimRecipient;
-    bool public skipBufferCheck;
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
     uint256 public minRate;
     mapping(address subRatifier => bool) public isSubRatifier;
+    mapping(bytes32 marketId => uint256) public lossAllowance;
 
     /* ACCOUNTING */
 
@@ -210,16 +217,27 @@ contract MidnightAdapter is IMidnightAdapter {
         emit Abdicate(selector);
     }
 
-    function setSkipBufferCheck(bool newSkipBufferCheck) external {
-        timelocked();
-        skipBufferCheck = newSkipBufferCheck;
-        emit SetSkipBufferCheck(newSkipBufferCheck);
-    }
-
     function setMinRate(uint256 newMinRate) external {
         timelocked();
         minRate = newMinRate;
         emit SetMinRate(newMinRate);
+    }
+
+    function increaseLossAllowance(bytes32 marketId, uint256 newLossAllowance) external {
+        timelocked();
+        require(newLossAllowance >= lossAllowance[marketId], LossAllowanceNotIncreasing());
+        lossAllowance[marketId] = newLossAllowance;
+        emit IncreaseLossAllowance(marketId, newLossAllowance);
+    }
+
+    function decreaseLossAllowance(bytes32 marketId, uint256 newLossAllowance) external {
+        require(
+            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
+        require(newLossAllowance <= lossAllowance[marketId], LossAllowanceNotDecreasing());
+        lossAllowance[marketId] = newLossAllowance;
+        emit DecreaseLossAllowance(msg.sender, marketId, newLossAllowance);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -254,6 +272,28 @@ contract MidnightAdapter is IMidnightAdapter {
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), withdrawnAssets);
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
         emit WithdrawToVault(marketId, withdrawnAssets, uint256(-change));
+    }
+
+    /// @dev Auction credit after all should have been repaid.
+    /// @dev Ignores the lossAllowance mapping.
+    function withdrawFor(Market memory market, uint256 units, address receiver, bytes memory data) external {
+        bytes32 marketId = IdLib.toId(market);
+        uint256 elapsed = block.timestamp - (market.maturity + AUCTION_DELAY);
+        uint256 sellerAssets = units.mulDivUp(AUCTION_DURATION.zeroFloorSub(elapsed), AUCTION_DURATION);
+
+        (uint128 credit,,) = IMidnight(midnight).updatePositionView(market, marketId, address(this));
+        withdrawToVault(market, MathLib.min(IMidnight(midnight).withdrawable(marketId), credit));
+        // forge-lint: disable-next-item(reentrancy-no-eth) the accounting is consistent.
+        IWithdrawForCallback(msg.sender).onWithdrawFor(data);
+
+        // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not call back.
+        IMidnight(midnight).withdraw(market, units, address(this), address(this));
+        int256 change = updateNetCredit(marketId, market, currentNetCredit(marketId, market));
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
+        SafeERC20Lib.safeTransfer(asset, receiver, units - sellerAssets);
+
+        // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
+        emit WithdrawFor(marketId, msg.sender, receiver, units, sellerAssets, uint256(-change));
     }
 
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external {
@@ -429,20 +469,13 @@ contract MidnightAdapter is IMidnightAdapter {
         require(seller == address(this), NotSelf());
 
         uint128 newNetCredit = currentNetCredit(marketId, market);
-        if (!skipBufferCheck) {
-            (overridenMarketId, overridenMarketNetCredit) =
-            (marketId, newNetCredit + soldCredit - sellPendingFeeDecrease);
-            uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
-            overridenMarketNetCredit = newNetCredit;
-            uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(parentVault) + sellerAssets;
-            uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
-            for (uint256 i = 0; i < adaptersLength; i++) {
-                vaultRealAssetsAfter += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
-            }
-
-            (overridenMarketId, overridenMarketNetCredit) = (bytes32(0), 0);
-            require(vaultRealAssetsAfter >= vaultTotalAssetsBefore, BufferTooLow());
-        }
+        uint256 discountFactor =
+            WAD - uint256(_markets[marketId].growth) * market.maturity.zeroFloorSub(block.timestamp);
+        uint256 assetsBefore = (newNetCredit + (soldCredit - sellPendingFeeDecrease)).mulDivDown(discountFactor, WAD);
+        uint256 assetsAfter = uint256(newNetCredit).mulDivDown(discountFactor, WAD);
+        uint256 loss = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
+        lossAllowance[marketId] -= loss;
+        emit ConsumeLossAllowance(marketId, loss, lossAllowance[marketId]);
 
         int256 change = updateNetCredit(marketId, market, newNetCredit);
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
