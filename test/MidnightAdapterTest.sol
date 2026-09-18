@@ -32,6 +32,7 @@ import {
     CALLBACK_SUCCESS,
     DEFAULT_TICK_SPACING,
     MAX_CONTINUOUS_FEE,
+    MAX_SETTLEMENT_FEE_0_DAYS,
     CBP
 } from "../lib/midnight/src/libraries/ConstantsLib.sol";
 import {TakeAmountsLib} from "../lib/midnight/src/periphery/libraries/TakeAmountsLib.sol";
@@ -1917,20 +1918,84 @@ contract MidnightAdapterTest is Test {
         take(offer);
     }
 
-    function testForceDeallocateWithSettlementFee() public {
+    function testForceDeallocateWithSettlementFee(uint256 assets, uint256 feeCbp) public {
+        assets = bound(assets, 1, 1e18);
+        feeCbp = bound(feeCbp, 0, MAX_SETTLEMENT_FEE_0_DAYS / CBP);
         for (uint256 i = 0; i <= 6; i++) {
-            midnight.setDefaultSettlementFee(address(loanToken), i, 10 * CBP);
+            midnight.setDefaultSettlementFee(address(loanToken), i, feeCbp * CBP);
         }
         Offer memory offer = buy(7 days, 1e18);
         skip(1);
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+        uint256 claimableFeeBefore = midnight.claimableSettlementFee(address(loanToken));
+        uint256 settlementFee = assets.mulDivUp(feeCbp * CBP, 1e18);
+        deal(address(loanToken), address(this), settlementFee);
+        loanToken.approve(address(adapter), settlementFee);
 
-        forceDeallocate(offer.market, 0.5e18);
+        forceDeallocate(offer.market, assets);
 
-        assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + 0.5e18, "vault balance");
-        // The fee is paid by the seller, so more than 0.5e18 of net credit is sold.
+        assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + assets, "vault balance");
         uint128 netCredit = adapter.netCredit(_marketId(offer.market));
-        assertLt(netCredit, 0.5e18, "netCredit");
+        assertEq(netCredit, 1e18 - assets, "netCredit");
+        assertEq(loanToken.balanceOf(address(this)), 0, "caller paid settlement fee");
+        assertEq(loanToken.allowance(address(this), address(adapter)), 0, "exact fee allowance consumed");
+        assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter balance");
+        assertEq(
+            midnight.claimableSettlementFee(address(loanToken)), claimableFeeBefore + settlementFee, "settlement fee"
+        );
+    }
+
+    function testForceDeallocateWithSettlementFeeReverts(bool funded) public {
+        for (uint256 i = 0; i <= 6; i++) {
+            midnight.setDefaultSettlementFee(address(loanToken), i, 10 * CBP);
+        }
+        Offer memory boughtOffer = buy(7 days, 1e18);
+        (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, 0.5e18);
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+        if (funded) deal(address(loanToken), address(this), 0.5e18);
+        else loanToken.approve(address(adapter), type(uint256).max);
+
+        vm.expectRevert(ErrorsLib.TransferFromReverted.selector);
+        parentVault.forceDeallocate(
+            address(adapter), abi.encode(offer, abi.encode(root_, 0, proof([offer]))), 0.5e18, address(this)
+        );
+
+        assertEq(adapter.netCredit(_marketId(offer.market)), 1e18, "netCredit unchanged");
+        assertEq(midnight.credit(_marketId(offer.market), address(adapter)), 1e18, "sale reverted");
+        assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore, "vault balance unchanged");
+    }
+
+    /// forge-config: default.isolate = true
+    function testForceDeallocateRealVaultWithSettlementFee() public {
+        setUpRealVault();
+        for (uint256 i = 0; i <= 6; i++) {
+            midnight.setDefaultSettlementFee(address(loanToken), i, 10 * CBP);
+        }
+        Offer memory boughtOffer = buyOnRealVault(7 days, 1e18);
+        skip(1);
+        (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, 0.5e18);
+        uint256 settlementFee = uint256(0.5e18).mulDivUp(10 * CBP, 1e18);
+        uint256 sharesBefore = realVault.balanceOf(address(this));
+        uint256 expectedPenaltyShares = realVault.previewWithdraw(0.01e18);
+        realVault.approve(taker, expectedPenaltyShares);
+        deal(address(loanToken), taker, settlementFee);
+        vm.startPrank(taker);
+        loanToken.approve(address(adapter), settlementFee);
+
+        uint256 penaltyShares = realVault.forceDeallocate(
+            address(adapter), abi.encode(offer, abi.encode(root_, 0, proof([offer]))), 0.5e18, address(this)
+        );
+        vm.stopPrank();
+
+        assertEq(penaltyShares, expectedPenaltyShares, "penalty shares");
+        assertEq(realVault.balanceOf(address(this)), sharesBefore - penaltyShares, "penalty charged to onBehalf");
+        assertEq(loanToken.balanceOf(taker), 0, "settlement fee charged to caller");
+        assertEq(loanToken.balanceOf(address(this)), 0, "onBehalf token balance");
+        assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter balance");
+        assertEq(loanToken.balanceOf(address(realVault)), 9.5e18, "vault balance");
+        assertEq(adapter.netCredit(_marketId(offer.market)), 0.5e18, "netCredit");
+        assertEq(realVault.allocation(adapter.adapterId()), 0.5e18, "allocation");
+        assertEq(realVault.totalAssets(), 10e18 - 0.01e18, "only penalty reduces totalAssets");
     }
 
     /* CALLBACKS */
@@ -2806,8 +2871,7 @@ contract MidnightAdapterTest is Test {
         offer.buy = true;
         offer.maker = buyer;
         offer.tick = MAX_TICK;
-        offer.maxUnits =
-            uint128(TakeAmountsLib.sellerAssetsToUnits(address(midnight), _marketId(market), offer, assets));
+        offer.maxUnits = uint128(assets);
         offer.expiry = block.timestamp;
         offer.callback = address(0);
         offer.callbackData = hex"";
