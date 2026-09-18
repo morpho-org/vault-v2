@@ -55,7 +55,8 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
     uint256 public minRate;
     mapping(address subRatifier => bool) public isSubRatifier;
-    mapping(bytes32 marketId => uint256) public lossAllowance;
+    /// @dev Minimum assets received per unit of net credit sold, WAD-scaled.
+    mapping(bytes32 marketId => uint256) public minSellPrice;
 
     /* ACCOUNTING */
 
@@ -216,21 +217,11 @@ contract MidnightAdapter is IMidnightAdapter {
         emit SetMinRate(newMinRate);
     }
 
-    function increaseLossAllowance(bytes32 marketId, uint256 newLossAllowance) external {
-        timelocked();
-        require(newLossAllowance >= lossAllowance[marketId], LossAllowanceNotIncreasing());
-        lossAllowance[marketId] = newLossAllowance;
-        emit IncreaseLossAllowance(marketId, newLossAllowance);
-    }
-
-    function decreaseLossAllowance(bytes32 marketId, uint256 newLossAllowance) external {
-        require(
-            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
-            NotAuthorized()
-        );
-        require(newLossAllowance <= lossAllowance[marketId], LossAllowanceNotDecreasing());
-        lossAllowance[marketId] = newLossAllowance;
-        emit DecreaseLossAllowance(msg.sender, marketId, newLossAllowance);
+    /// @dev Help prevent operational errors when selling.
+    function setMinSellPrice(bytes32 marketId, uint256 newMinSellPrice) external {
+        require( msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        minSellPrice[marketId] = newMinSellPrice;
+        emit SetMinSellPrice(msg.sender, marketId, newMinSellPrice);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -440,13 +431,10 @@ contract MidnightAdapter is IMidnightAdapter {
         require(seller == address(this), NotSelf());
 
         uint128 newNetCredit = currentNetCredit(marketId, market);
-        uint256 discountFactor =
-            WAD - uint256(_markets[marketId].growth) * market.maturity.zeroFloorSub(block.timestamp);
-        uint256 assetsBefore = (newNetCredit + (soldCredit - sellPendingFeeDecrease)).mulDivDown(discountFactor, WAD);
-        uint256 assetsAfter = uint256(newNetCredit).mulDivDown(discountFactor, WAD);
-        uint256 loss = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
-        lossAllowance[marketId] -= loss;
-        emit ConsumeLossAllowance(marketId, loss, lossAllowance[marketId]);
+        require(
+            sellerAssets >= (soldCredit - sellPendingFeeDecrease).mulDivUp(minSellPrice[marketId], WAD),
+            SellPriceTooLow()
+        );
 
         int256 change = updateNetCredit(marketId, market, newNetCredit);
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
