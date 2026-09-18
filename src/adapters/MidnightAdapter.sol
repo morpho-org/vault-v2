@@ -491,7 +491,6 @@ contract MidnightAdapter is IMidnightAdapter {
         uint128 newNetCredit = currentNetCredit(marketId, market);
         uint256 discountFactor =
             WAD - uint256(_markets[marketId].growth) * market.maturity.zeroFloorSub(block.timestamp);
-        // Match the change in realAssets rounding, excluding previously incurred credit losses.
         uint256 assetsBefore = (newNetCredit + (soldCredit - sellPendingFeeDecrease)).mulDivDown(discountFactor, WAD);
         uint256 assetsAfter = uint256(newNetCredit).mulDivDown(discountFactor, WAD);
         uint256 loss = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
