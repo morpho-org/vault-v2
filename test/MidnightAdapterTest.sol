@@ -1667,7 +1667,9 @@ contract MidnightAdapterTest is Test {
 
         sellUnits(offer.market, secondShortfall, 0);
         uint64 shortfallFraction = adapter.consumedShortfall();
-        assertEq(shortfallFraction, firstShortfall + secondShortfall.mulDivUp(1e18, remainingCredit), "fractions accumulate");
+        assertEq(
+            shortfallFraction, firstShortfall + secondShortfall.mulDivUp(1e18, remainingCredit), "fractions accumulate"
+        );
         assertEq(shortfallFraction, rate, "splitting does not renew allowance");
         assertEq(adapter.realAssets(), remainingCredit - secondShortfall);
     }
@@ -1744,9 +1746,8 @@ contract MidnightAdapterTest is Test {
         skip(elapsed);
         uint256 assetsBefore = adapter.realAssets();
         uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
-        uint256 sellTick = TickLib.priceToTick(
-            assetsBefore.mulDivDown(1e18, offer.maxUnits) - 0.002e18, DEFAULT_TICK_SPACING
-        );
+        uint256 sellTick =
+            TickLib.priceToTick(assetsBefore.mulDivDown(1e18, offer.maxUnits) - 0.002e18, DEFAULT_TICK_SPACING);
         deal(address(loanToken), taker, 2e18);
 
         sellUnits(offer.market, offer.maxUnits, sellTick);
@@ -1848,7 +1849,11 @@ contract MidnightAdapterTest is Test {
         uint64 shortfallFraction = adapter.consumedShortfall();
         assertGe(shortfallFraction, shortfall.mulDivUp(1e18, assetsBefore), "amortized value of current net credit");
         assertLe(shortfallFraction, (shortfall + 1).mulDivUp(1e18, assetsBefore), "at most one extra asset unit");
-        assertGt(shortfallFraction, shortfall.mulDivUp(1e18, assetsBefore.mulDivUp(credit, credit - pendingFee)), "not gross credit");
+        assertGt(
+            shortfallFraction,
+            shortfall.mulDivUp(1e18, assetsBefore.mulDivUp(credit, credit - pendingFee)),
+            "not gross credit"
+        );
     }
 
     function testDailyShortfallUsesCurrentCreditAfterDefault() public {

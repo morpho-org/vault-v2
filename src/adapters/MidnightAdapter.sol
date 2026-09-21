@@ -226,7 +226,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /// @dev Help prevent operational errors when selling.
     function setMinSellPrice(bytes32 marketId, uint256 newMinSellPrice) external {
-        require( msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         minSellPrice[marketId] = newMinSellPrice;
         emit SetMinSellPrice(msg.sender, marketId, newMinSellPrice);
     }
@@ -301,7 +301,11 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /// @dev Values the market overridenMarketId at overridenMarketNetCredit instead of reading its position.
-    function amortizedValue(bytes32 overridenMarketId, uint256 overridenMarketNetCredit) internal view returns (uint256) {
+    function amortizedValue(bytes32 overridenMarketId, uint256 overridenMarketNetCredit)
+        internal
+        view
+        returns (uint256)
+    {
         uint256 assets;
         uint256 length = marketIds.length;
         Market memory dummyMarket;
@@ -450,12 +454,14 @@ contract MidnightAdapter is IMidnightAdapter {
 
         MarketData storage marketData = _markets[marketId];
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        uint256 soldValue = soldNetCredit.mulDivDown(
-            WAD - marketData.growth * marketData.maturity.zeroFloorSub(block.timestamp), WAD
-        );
+        uint256 soldValue =
+            soldNetCredit.mulDivDown(WAD - marketData.growth * marketData.maturity.zeroFloorSub(block.timestamp), WAD);
         if (soldValue > sellerAssets) {
-            // forge-lint: disable-next-item(unsafe-typecast) shortfall <= pre-sale adapter value, so the fraction <= WAD < 2**64.
-            uint64 shortfallFraction = uint64((soldValue - sellerAssets).mulDivUp(WAD, amortizedValue(marketId, newNetCredit + soldNetCredit)));
+            // forge-lint: disable-next-item(unsafe-typecast) shortfall <= pre-sale adapter value, so the fraction <=
+            // WAD < 2**64.
+            uint64 shortfallFraction = uint64(
+                (soldValue - sellerAssets).mulDivUp(WAD, amortizedValue(marketId, newNetCredit + soldNetCredit))
+            );
             require(shortfallFraction <= MAX_SHORTFALL_PER_DAY, DailyShortfallExceeded());
             uint256 currentDay = block.timestamp / 1 days;
             if (lastShortfallDay != currentDay) {
