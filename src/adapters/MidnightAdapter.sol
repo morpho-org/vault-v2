@@ -220,7 +220,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /// @dev Help prevent operational errors when selling.
     function setMinSellPrice(bytes32 marketId, uint256 newMinSellPrice) external {
-        require( msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         minSellPrice[marketId] = newMinSellPrice;
         emit SetMinSellPrice(msg.sender, marketId, newMinSellPrice);
     }
@@ -445,7 +445,7 @@ contract MidnightAdapter is IMidnightAdapter {
         );
         if (!noShortfallCheck) {
             (overridenMarketId, overridenMarketNetCredit) =
-                (marketId, newNetCredit + soldCredit - sellPendingFeeDecrease);
+            (marketId, newNetCredit + soldCredit - sellPendingFeeDecrease);
             uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
             overridenMarketNetCredit = newNetCredit;
             uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(parentVault) + sellerAssets;

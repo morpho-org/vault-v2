@@ -3965,9 +3965,7 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    function testFuzzDefaultDuringSale(uint256 elapsed, uint256 fee, uint256 sold, bool updatePosition)
-        public
-    {
+    function testFuzzDefaultDuringSale(uint256 elapsed, uint256 fee, uint256 sold, bool updatePosition) public {
         midnight.setDefaultContinuousFee(address(loanToken), bound(fee, 0, MAX_CONTINUOUS_FEE));
         Offer memory initial = freshPosition(TickLib.priceToTick(0.9e18, DEFAULT_TICK_SPACING));
         skip(bound(elapsed, 0, 7 days));
