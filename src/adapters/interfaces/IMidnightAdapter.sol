@@ -32,6 +32,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event AddSubRatifier(address indexed subRatifier);
     event RemoveSubRatifier(address indexed sender, address indexed subRatifier);
     event SetSkimRecipient(address indexed newSkimRecipient);
+    event SetNoShortfallCheck(bool newNoShortfallCheck);
     event SetMinRate(uint256 newMinRate);
     event SetMinSellPrice(address indexed sender, bytes32 indexed marketId, uint256 newMinSellPrice);
     event Skim(address indexed token, uint256 assets);
@@ -46,6 +47,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
 
     error Abdicated();
     error AutomaticallyTimelocked();
+    error BufferTooLow();
     error DataAlreadyPending();
     error DataNotTimelocked();
     error BuyAtLoss();
@@ -80,6 +82,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function netCredit(bytes32 marketId) external view returns (uint128);
     function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
+    function noShortfallCheck() external view returns (bool);
     function minRate() external view returns (uint256);
     function minSellPrice(bytes32 marketId) external view returns (uint256);
     function timelock(bytes4 selector) external view returns (uint256);
@@ -90,6 +93,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function increaseTimelock(bytes4 selector, uint256 newDuration) external;
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicate(bytes4 selector) external;
+    function setNoShortfallCheck(bool newNoShortfallCheck) external;
     function setMinRate(uint256 newMinRate) external;
     function setMinSellPrice(bytes32 marketId, uint256 newMinSellPrice) external;
     function isSubRatifier(address subRatifier) external view returns (bool);

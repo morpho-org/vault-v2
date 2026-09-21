@@ -12,7 +12,7 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {IMidnightAdapter, MarketData, MaturityData} from "./interfaces/IMidnightAdapter.sol";
+import {IMidnightAdapter, MarketData, MaturityData, IAdapter} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest per market.
@@ -52,6 +52,7 @@ contract MidnightAdapter is IMidnightAdapter {
     /* MANAGEMENT */
 
     address public skimRecipient;
+    bool public noShortfallCheck;
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
     uint256 public minRate;
     mapping(address subRatifier => bool) public isSubRatifier;
@@ -222,6 +223,12 @@ contract MidnightAdapter is IMidnightAdapter {
         require( msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         minSellPrice[marketId] = newMinSellPrice;
         emit SetMinSellPrice(msg.sender, marketId, newMinSellPrice);
+    }
+
+    function setNoShortfallCheck(bool newNoShortfallCheck) external {
+        timelocked();
+        noShortfallCheck = newNoShortfallCheck;
+        emit SetNoShortfallCheck(newNoShortfallCheck);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -417,6 +424,7 @@ contract MidnightAdapter is IMidnightAdapter {
         return CALLBACK_SUCCESS;
     }
 
+    /// @dev Requires the vault's buffer to cover any sale shortfall unless the check is disabled.
     function onSell(
         bytes32 marketId,
         Market memory market,
@@ -435,6 +443,20 @@ contract MidnightAdapter is IMidnightAdapter {
             sellerAssets >= (soldCredit - sellPendingFeeDecrease).mulDivUp(minSellPrice[marketId], WAD),
             SellPriceTooLow()
         );
+        if (!noShortfallCheck) {
+            (overridenMarketId, overridenMarketNetCredit) =
+                (marketId, newNetCredit + soldCredit - sellPendingFeeDecrease);
+            uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
+            overridenMarketNetCredit = newNetCredit;
+            uint256 vaultRealAssetsAfter = IERC20(asset).balanceOf(parentVault) + sellerAssets;
+            uint256 adaptersLength = IVaultV2(parentVault).adaptersLength();
+            for (uint256 i = 0; i < adaptersLength; i++) {
+                vaultRealAssetsAfter += IAdapter(IVaultV2(parentVault).adapters(i)).realAssets();
+            }
+
+            (overridenMarketId, overridenMarketNetCredit) = (0, 0);
+            require(vaultRealAssetsAfter >= vaultTotalAssetsBefore, BufferTooLow());
+        }
 
         int256 change = updateMarket(marketId, market, newNetCredit);
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
