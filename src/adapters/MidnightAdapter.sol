@@ -465,16 +465,16 @@ contract MidnightAdapter is IMidnightAdapter {
         returns (int256 change)
     {
         MarketData storage marketData = _markets[marketId];
-        uint256 oldNetCredit = marketData.netCredit;
+        uint256 storedNetCredit = marketData.netCredit;
         marketData.netCredit = newNetCredit;
         _maturities[market.maturity].netCredit =
-            (uint256(_maturities[market.maturity].netCredit) + newNetCredit - oldNetCredit).toUint128();
-        if (newNetCredit == 0 && oldNetCredit > 0) {
+            (uint256(_maturities[market.maturity].netCredit) + newNetCredit - storedNetCredit).toUint128();
+        if (newNetCredit == 0 && storedNetCredit > 0) {
             bytes32 lastMarketId = marketIds[marketIds.length - 1];
             marketIds[marketData.index] = lastMarketId;
             _markets[lastMarketId].index = marketData.index;
             marketIds.pop();
-        } else if (oldNetCredit == 0 && newNetCredit > 0) {
+        } else if (storedNetCredit == 0 && newNetCredit > 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
             marketData.maturity = market.maturity.toUint48();
             // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
@@ -483,7 +483,7 @@ contract MidnightAdapter is IMidnightAdapter {
         }
         emit UpdateMarket(marketId, marketData.netCredit, marketData.growth);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-        change = int256(uint256(newNetCredit)) - int256(oldNetCredit);
+        change = int256(uint256(newNetCredit)) - int256(storedNetCredit);
     }
 
     /// @dev Returns the number of durations in packedDurations that are at most the time to maturity.
