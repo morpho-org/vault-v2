@@ -1774,6 +1774,23 @@ contract MidnightAdapterTest is Test {
         assertEq(shortfallFraction, 0, "sub-unit shortfalls rounded down");
     }
 
+    function testDailyShortfallRoundingUnderstatesByAtMostOne(
+        uint128 remainingNetCredit,
+        uint128 soldNetCredit,
+        uint256 discountFactor,
+        uint256 sellerAssets
+    ) public {
+        discountFactor = bound(discountFactor, 0, 1e18);
+        uint256 valueBefore = (uint256(remainingNetCredit) + soldNetCredit).mulDivDown(discountFactor, 1e18);
+        uint256 valueAfter = uint256(remainingNetCredit).mulDivDown(discountFactor, 1e18);
+        sellerAssets = bound(sellerAssets, 0, valueBefore + 1);
+        uint256 shortfall = uint256(soldNetCredit).mulDivDown(discountFactor, 1e18).zeroFloorSub(sellerAssets);
+        uint256 bookShortfall = (valueBefore - valueAfter).zeroFloorSub(sellerAssets);
+
+        assertGe(bookShortfall, shortfall);
+        assertLe(bookShortfall - shortfall, 1);
+    }
+
     function testDailyShortfallIgnoresUnearnedInterestDiscount() public {
         Offer memory offer = buy(30 days, 1e18, discountTick);
         uint256 assetsBefore = adapter.realAssets();
