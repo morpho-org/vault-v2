@@ -13,6 +13,8 @@ struct MarketData {
     uint64 growth;
     uint48 maturity;
     uint8 index;
+    uint128 allowance;
+    uint48 updatedAt;
 }
 
 struct MaturityData {
@@ -39,8 +41,8 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event UpdateDurationCaps(uint256 indexed maturity, uint256 newDurationCount, uint256 netCredit);
     event ForceDeallocate(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 netCreditLoss);
-    event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
-    event UpdateMarket(bytes32 indexed marketId, uint256 netCredit, uint256 growth);
+    event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease, uint256 saleShortfall);
+    event UpdateMarket(bytes32 indexed marketId, MarketData data);
 
     /* ERRORS */
 
@@ -54,6 +56,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error IncorrectMaker();
     error IncorrectReceiver();
     error LoanAssetMismatch();
+    error ShortfallLimitExceeded();
     error NotAuthorized();
     error NotMidnight();
     error NotSelf();
@@ -74,6 +77,8 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function marketIds(uint256) external view returns (bytes32);
     function marketIdsLength() external view returns (uint256);
     function MAX_MARKETS() external view returns (uint8);
+    function SHORTFALL_REFILL_PERIOD() external view returns (uint256);
+    function MAX_SHORTFALL_RATIO() external view returns (uint256);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
