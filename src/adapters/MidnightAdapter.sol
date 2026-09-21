@@ -250,7 +250,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not call back.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
-        int256 change = updateNetCredit(marketId, market, currentNetCredit(marketId, market));
+        int256 change = updateMarket(marketId, market, currentNetCredit(marketId, market));
 
         // forge-lint: disable-next-item(reentrancy-no-eth) deallocate in this adapter does not make calls here
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), withdrawnAssets);
@@ -304,7 +304,7 @@ contract MidnightAdapter is IMidnightAdapter {
                 newNetCredit = currentNetCredit(marketId, dummyMarket);
             }
             uint256 timeToMaturity = uint256(marketData.maturity).zeroFloorSub(block.timestamp);
-            assets += newNetCredit.mulDivDown(WAD - uint256(marketData.growth) * timeToMaturity, WAD);
+            assets += newNetCredit.mulDivDown(WAD - marketData.growth * timeToMaturity, WAD);
         }
         return assets;
     }
@@ -349,7 +349,7 @@ contract MidnightAdapter is IMidnightAdapter {
             if (settlementFee > 0) {
                 SafeERC20Lib.safeTransferFrom(asset, caller, address(this), settlementFee);
             }
-            int256 change = updateNetCredit(marketId, offer.market, currentNetCredit(marketId, offer.market));
+            int256 change = updateMarket(marketId, offer.market, currentNetCredit(marketId, offer.market));
 
             // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
             emit ForceDeallocate(marketId, sellerAssets, uint256(-change));
@@ -362,7 +362,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* MIDNIGHT CALLBACKS */
 
-    /// @dev Between updateNetCredit and vault.allocate's transfer, realAssets() includes the purchase but the vault has
+    /// @dev Between updateMarket and vault.allocate's transfer, realAssets() includes the purchase but the vault has
     /// not paid yet.
     function onBuy(
         bytes32 marketId,
@@ -382,7 +382,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint128 newNetCredit = currentNetCredit(marketId, market);
         (overridenMarketId, overridenMarketNetCredit) = (marketId, newNetCredit - boughtNetCredit);
         IVaultV2(parentVault).accrueInterest();
-        (overridenMarketId, overridenMarketNetCredit) = (bytes32(0), 0);
+        (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
         if (block.timestamp < market.maturity && boughtNetCredit > 0) {
             uint256 boughtGrowth = (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
@@ -397,7 +397,7 @@ contract MidnightAdapter is IMidnightAdapter {
         MaturityData storage maturityData = _maturities[market.maturity];
         // forge-lint: disable-next-item(unsafe-typecast) durationCount <= MAX_DURATIONS.
         if (maturityData.netCredit == 0) maturityData.durationCount = uint8(durationCount(market.maturity));
-        int256 change = updateNetCredit(marketId, market, newNetCredit);
+        int256 change = updateMarket(marketId, market, newNetCredit);
         uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
         if (callbackData.length > 0 && paidAssets > idleAssets) {
             (address fundingAdapter, bytes memory fundingData) = abi.decode(callbackData, (address, bytes));
@@ -436,7 +436,7 @@ contract MidnightAdapter is IMidnightAdapter {
             SellPriceTooLow()
         );
 
-        int256 change = updateNetCredit(marketId, market, newNetCredit);
+        int256 change = updateMarket(marketId, market, newNetCredit);
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
@@ -460,7 +460,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /// @dev Updates market and maturity net credit and inserts or removes the market from marketIds as needed.
     /// @return change The change in net credit to report to the vault's caps.
-    function updateNetCredit(bytes32 marketId, Market memory market, uint128 newNetCredit)
+    function updateMarket(bytes32 marketId, Market memory market, uint128 newNetCredit)
         internal
         returns (int256 change)
     {
