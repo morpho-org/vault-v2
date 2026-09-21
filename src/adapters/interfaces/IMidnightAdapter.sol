@@ -49,6 +49,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error DataAlreadyPending();
     error DataNotTimelocked();
     error BuyAtLoss();
+    error DailyShortfallExceeded();
     error IncorrectCallbackAddress();
     error IncorrectOffer();
     error IncorrectMaker();
@@ -74,6 +75,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function marketIds(uint256) external view returns (bytes32);
     function marketIdsLength() external view returns (uint256);
     function MAX_MARKETS() external view returns (uint8);
+    function MAX_SHORTFALL_PER_DAY() external view returns (uint256);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
@@ -82,6 +84,8 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function skimRecipient() external view returns (address);
     function minRate() external view returns (uint256);
     function minSellPrice(bytes32 marketId) external view returns (uint256);
+    function lastShortfallDay() external view returns (uint48);
+    function consumedShortfall() external view returns (uint64);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
     function executableAt(bytes memory data) external view returns (uint256);

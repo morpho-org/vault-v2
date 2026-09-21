@@ -30,6 +30,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 contract MidnightAdapter is IMidnightAdapter {
     using MathLib for uint256;
+    using MathLib for uint48;
     using DurationsLib for bytes32;
 
     /* IMMUTABLES */
@@ -63,10 +64,16 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_MARKETS = 250;
 
+    /// @dev WAD-scaled daily shortfall fraction: 1-0.98^(1/3), rounded down.
+    /// @dev It is possible to consume up to 2x that fraction over one day.
+    uint256 public constant MAX_SHORTFALL_PER_DAY = 6_711_611_620_731_333;
+
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) internal _markets;
     mapping(uint256 timestamp => MaturityData) internal _maturities;
+    uint48 public lastShortfallDay;
+    uint64 public consumedShortfall;
     bytes32 transient overridenMarketId;
     uint256 transient overridenMarketNetCredit;
     /* CONSTRUCTOR */
@@ -290,6 +297,11 @@ contract MidnightAdapter is IMidnightAdapter {
     /* ACCRUAL */
 
     function realAssets() external view returns (uint256) {
+        return amortizedValue(overridenMarketId, overridenMarketNetCredit);
+    }
+
+    /// @dev Values the market overridenMarketId at overridenMarketNetCredit instead of reading its position.
+    function amortizedValue(bytes32 overridenMarketId, uint256 overridenMarketNetCredit) internal view returns (uint256) {
         uint256 assets;
         uint256 length = marketIds.length;
         Market memory dummyMarket;
@@ -303,8 +315,8 @@ contract MidnightAdapter is IMidnightAdapter {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
                 newNetCredit = currentNetCredit(marketId, dummyMarket);
             }
-            uint256 timeToMaturity = uint256(marketData.maturity).zeroFloorSub(block.timestamp);
-            assets += newNetCredit.mulDivDown(WAD - uint256(marketData.growth) * timeToMaturity, WAD);
+            uint256 timeToMaturity = marketData.maturity.zeroFloorSub(block.timestamp);
+            assets += newNetCredit.mulDivDown(WAD - marketData.growth * timeToMaturity, WAD);
         }
         return assets;
     }
@@ -382,7 +394,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint128 newNetCredit = currentNetCredit(marketId, market);
         (overridenMarketId, overridenMarketNetCredit) = (marketId, newNetCredit - boughtNetCredit);
         IVaultV2(parentVault).accrueInterest();
-        (overridenMarketId, overridenMarketNetCredit) = (bytes32(0), 0);
+        (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
         if (block.timestamp < market.maturity && boughtNetCredit > 0) {
             uint256 boughtGrowth = (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
@@ -435,6 +447,25 @@ contract MidnightAdapter is IMidnightAdapter {
             sellerAssets >= (soldCredit - sellPendingFeeDecrease).mulDivUp(minSellPrice[marketId], WAD),
             SellPriceTooLow()
         );
+
+        MarketData storage marketData = _markets[marketId];
+        uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
+        uint256 soldValue = soldNetCredit.mulDivDown(
+            WAD - marketData.growth * marketData.maturity.zeroFloorSub(block.timestamp), WAD
+        );
+        if (soldValue > sellerAssets) {
+            // forge-lint: disable-next-item(unsafe-typecast) shortfall <= pre-sale adapter value, so the fraction <= WAD < 2**64.
+            uint64 shortfallFraction = uint64((soldValue - sellerAssets).mulDivUp(WAD, amortizedValue(marketId, newNetCredit + soldNetCredit)));
+            require(shortfallFraction <= MAX_SHORTFALL_PER_DAY, DailyShortfallExceeded());
+            uint256 currentDay = block.timestamp / 1 days;
+            if (lastShortfallDay != currentDay) {
+                lastShortfallDay = currentDay.toUint48();
+                consumedShortfall = shortfallFraction;
+            } else {
+                consumedShortfall += shortfallFraction;
+            }
+            require(consumedShortfall <= MAX_SHORTFALL_PER_DAY, DailyShortfallExceeded());
+        }
 
         int256 change = updateNetCredit(marketId, market, newNetCredit);
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
