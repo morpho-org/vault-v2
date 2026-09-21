@@ -33,7 +33,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event RemoveSubRatifier(address indexed sender, address indexed subRatifier);
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetMinRate(uint256 newMinRate);
-    event SetMinSellPrice(address indexed sender, bytes32 indexed marketId, uint256 newMinSellPrice);
+    event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
     event UpdateDurationCaps(uint256 indexed maturity, uint256 newDurationCount, uint256 netCredit);
@@ -60,7 +60,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error RateTooLow();
     error SelfAllocationOnly();
     error SellInProgress();
-    error SellPriceTooLow();
+    error SellRateTooHigh();
     error SubRatifierUnauthorized();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
@@ -81,7 +81,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
     function minRate() external view returns (uint256);
-    function minSellPrice(bytes32 marketId) external view returns (uint256);
+    function maxSellRate(bytes32 collateralParamsHash) external view returns (uint256);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);
     function executableAt(bytes memory data) external view returns (uint256);
@@ -91,7 +91,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicate(bytes4 selector) external;
     function setMinRate(uint256 newMinRate) external;
-    function setMinSellPrice(bytes32 marketId, uint256 newMinSellPrice) external;
+    function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
     function addSubRatifier(address subRatifier) external;
     function removeSubRatifier(address subRatifier) external;

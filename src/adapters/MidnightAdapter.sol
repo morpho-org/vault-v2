@@ -55,8 +55,8 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
     uint256 public minRate;
     mapping(address subRatifier => bool) public isSubRatifier;
-    /// @dev Minimum assets received per unit of net credit sold, WAD-scaled.
-    mapping(bytes32 marketId => uint256) public minSellPrice;
+    /// @dev Zero may prevent the adapter from taking buy offers on a market with a nonzero settlement fee.
+    mapping(bytes32 collateralParamsHash => uint256) public maxSellRate;
 
     /* ACCOUNTING */
 
@@ -218,10 +218,10 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /// @dev Help prevent operational errors when selling.
-    function setMinSellPrice(bytes32 marketId, uint256 newMinSellPrice) external {
-        require( msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        minSellPrice[marketId] = newMinSellPrice;
-        emit SetMinSellPrice(msg.sender, marketId, newMinSellPrice);
+    function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        maxSellRate[collateralParamsHash] = newMaxSellRate;
+        emit SetMaxSellRate(msg.sender, collateralParamsHash, newMaxSellRate);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -431,10 +431,15 @@ contract MidnightAdapter is IMidnightAdapter {
         require(seller == address(this), NotSelf());
 
         uint128 newNetCredit = currentNetCredit(marketId, market);
-        require(
-            sellerAssets >= (soldCredit - sellPendingFeeDecrease).mulDivUp(minSellPrice[marketId], WAD),
-            SellPriceTooLow()
-        );
+        uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
+        uint256 _maxSellRate = maxSellRate[keccak256(abi.encode(market.collateralParams))];
+        if (soldNetCredit > sellerAssets) {
+            require(
+                (soldNetCredit - sellerAssets).mulDivUp(WAD, (market.maturity - block.timestamp) * sellerAssets)
+                    <= _maxSellRate,
+                SellRateTooHigh()
+            );
+        }
 
         int256 change = updateNetCredit(marketId, market, newNetCredit);
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
