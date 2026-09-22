@@ -274,6 +274,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), 0, "realAssets");
         assertEq(adapter.marketIdsLength(), 0, "marketIdsLength");
         assertEq(adapter.MAX_MARKETS(), 250, "MAX_MARKETS");
+        assertEq(adapter.NO_SELL_CHECK_DELAY(), 3 days, "NO_SELL_CHECK_DELAY");
         skip(100);
         assertEq(adapter.realAssets(), 0, "realAssets after time passes");
     }
@@ -1668,7 +1669,7 @@ contract MidnightAdapterTest is Test {
 
     function testMaxSellRateDisabledThreeDaysAfterMaturity(bool takerSale, bool zeroProceeds, uint256 elapsed) public {
         Offer memory boughtOffer = buy(30 days, 1e18);
-        skip(30 days + bound(elapsed, 3 days, 365 days));
+        skip(30 days + bound(elapsed, adapter.NO_SELL_CHECK_DELAY(), 365 days));
         uint256 tick = zeroProceeds ? 0 : MAX_TICK / 2;
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
 
@@ -2672,7 +2673,7 @@ contract MidnightAdapterTest is Test {
             assertEq(realVault.allocation(marketIds[i]), 1e18, "allocation");
         }
 
-        skip(3 days - 2);
+        skip(adapter.NO_SELL_CHECK_DELAY() - 2);
         sellOffer.expiry = block.timestamp;
         vm.expectRevert(stdError.arithmeticError);
         this.takeWithAccrual(sellOffer, sign([sellOffer], signerAllocator), buyer, address(0));

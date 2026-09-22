@@ -62,6 +62,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_MARKETS = 250;
+    uint256 public constant NO_SELL_CHECK_DELAY = 3 days;
 
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
@@ -433,7 +434,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         uint128 newNetCredit = currentNetCredit(marketId, market);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        if (block.timestamp < market.maturity + 3 days && soldNetCredit > sellerAssets) {
+        if (block.timestamp < market.maturity + NO_SELL_CHECK_DELAY && soldNetCredit > sellerAssets) {
             require(
                 (soldNetCredit - sellerAssets).mulDivUp(WAD, (market.maturity - block.timestamp) * sellerAssets)
                     <= maxSellRate[keccak256(abi.encode(market.collateralParams))],
