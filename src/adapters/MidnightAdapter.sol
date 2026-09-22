@@ -282,6 +282,7 @@ contract MidnightAdapter is IMidnightAdapter {
             for (uint256 i = 0; i < zeroedDurationIds.length; i++) {
                 zeroedDurationIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
             }
+            // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
             IVaultV2(parentVault)
                 .deallocate(address(this), abi.encode(zeroedDurationIds, -int256(maturityNetCredit)), 0);
         }
