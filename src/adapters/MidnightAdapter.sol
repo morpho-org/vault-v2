@@ -452,7 +452,9 @@ contract MidnightAdapter is IMidnightAdapter {
         int256 change = updateMarket(marketId, market, newNetCredit + soldNetCredit, newNetCredit);
 
         uint256 discountFactor = WAD - _markets[marketId].growth * market.maturity.zeroFloorSub(block.timestamp);
-        uint256 saleShortfall = soldNetCredit.mulDivUp(discountFactor, WAD).zeroFloorSub(sellerAssets);
+        uint256 assetsBefore = (newNetCredit + soldNetCredit).mulDivDown(discountFactor, WAD);
+        uint256 assetsAfter = uint256(newNetCredit).mulDivDown(discountFactor, WAD);
+        uint256 saleShortfall = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
         if (block.timestamp < market.maturity + NO_SELL_CHECK_DELAY) {
             _markets[marketId].allowance -= saleShortfall.toUint128();
         }
