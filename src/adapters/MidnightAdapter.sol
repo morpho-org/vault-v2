@@ -459,8 +459,9 @@ contract MidnightAdapter is IMidnightAdapter {
         }
 
         MarketData storage marketData = _markets[marketId];
-        uint256 soldValue =
-            soldNetCredit.mulDivDown(WAD - marketData.growth * marketData.maturity.zeroFloorSub(block.timestamp), WAD);
+        uint256 discountFactor = WAD - marketData.growth * marketData.maturity.zeroFloorSub(block.timestamp);
+        uint256 soldValue = (newNetCredit + soldNetCredit).mulDivDown(discountFactor, WAD)
+            - uint256(newNetCredit).mulDivDown(discountFactor, WAD);
         if (block.timestamp < market.maturity + NO_SELL_CHECK_DELAY && soldValue > sellerAssets) {
             // forge-lint: disable-next-item(unsafe-typecast) shortfall <= pre-sale adapter value, so the fraction <=
             // WAD < 2**64.

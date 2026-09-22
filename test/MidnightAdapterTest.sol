@@ -1920,35 +1920,23 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), 0);
     }
 
-    function testDailyShortfallRoundsSoldAmortizedValueDown() public {
+    function testDailyShortfallChargesBookValueDecrease() public {
         Offer memory offer = buy(30 days, 1000, MAX_TICK / 2);
         setMaxSellRate(offer.market, type(uint256).max);
         assertEq(offer.maxUnits, 2000);
-        sellUnits(offer.market, 3, TickLib.priceToTick(0.25e18, DEFAULT_TICK_SPACING));
         uint256 assetsBefore = adapter.realAssets();
 
         sellUnits(offer.market, 3, TickLib.priceToTick(0.25e18, DEFAULT_TICK_SPACING));
 
-        assertEq(adapter.realAssets(), assetsBefore - 1, "second sale book value decrease equals proceeds");
+        assertEq(adapter.realAssets(), assetsBefore - 2, "book value decrease exceeds proceeds by one");
         uint64 shortfallFraction = adapter.consumedShortfall();
-        assertEq(shortfallFraction, 0, "sub-unit shortfalls rounded down");
-    }
+        assertEq(shortfallFraction, uint256(1).mulDivUp(1e18, assetsBefore), "one unit charged");
+        assetsBefore = adapter.realAssets();
 
-    function testDailyShortfallRoundingUnderstatesByAtMostOne(
-        uint128 remainingNetCredit,
-        uint128 soldNetCredit,
-        uint256 discountFactor,
-        uint256 sellerAssets
-    ) public {
-        discountFactor = bound(discountFactor, 0, 1e18);
-        uint256 valueBefore = (uint256(remainingNetCredit) + soldNetCredit).mulDivDown(discountFactor, 1e18);
-        uint256 valueAfter = uint256(remainingNetCredit).mulDivDown(discountFactor, 1e18);
-        sellerAssets = bound(sellerAssets, 0, valueBefore + 1);
-        uint256 shortfall = uint256(soldNetCredit).mulDivDown(discountFactor, 1e18).zeroFloorSub(sellerAssets);
-        uint256 bookShortfall = (valueBefore - valueAfter).zeroFloorSub(sellerAssets);
+        sellUnits(offer.market, 3, TickLib.priceToTick(0.25e18, DEFAULT_TICK_SPACING));
 
-        assertGe(bookShortfall, shortfall);
-        assertLe(bookShortfall - shortfall, 1);
+        assertEq(adapter.realAssets(), assetsBefore - 1, "book value decrease equals proceeds");
+        assertEq(adapter.consumedShortfall(), shortfallFraction, "nothing charged");
     }
 
     function testDailyShortfallIgnoresUnearnedInterestDiscount() public {
