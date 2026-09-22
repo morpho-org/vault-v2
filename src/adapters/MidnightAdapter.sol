@@ -212,7 +212,7 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     function setMinRate(uint256 newMinRate) external {
-        timelocked();
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         minRate = newMinRate;
         emit SetMinRate(newMinRate);
     }
