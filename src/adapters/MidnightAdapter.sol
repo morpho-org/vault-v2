@@ -295,11 +295,13 @@ contract MidnightAdapter is IMidnightAdapter {
         for (uint256 i = 0; i < length; i++) {
             bytes32 marketId = marketIds[i];
             MarketData memory marketData = _markets[marketId];
-            uint256 newNetCredit = marketId == overridenMarketId ? overridenMarketNetCredit : currentNetCredit(marketId);
-            require(
-                marketId == overridenMarketId || !IMidnight(midnight).liquidationLocked(marketId, address(this)),
-                OtherSellInProgress()
-            );
+            uint256 newNetCredit;
+            if (marketId == overridenMarketId) {
+                newNetCredit = overridenMarketNetCredit;
+            } else {
+                require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
+                newNetCredit = currentNetCredit(marketId);
+            }
             uint256 timeToMaturity = uint256(marketData.maturity).zeroFloorSub(block.timestamp);
             assets += newNetCredit.mulDivDown(WAD - marketData.growth * timeToMaturity, WAD);
         }
