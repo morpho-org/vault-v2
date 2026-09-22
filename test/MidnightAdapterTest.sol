@@ -1880,8 +1880,8 @@ contract MidnightAdapterTest is Test {
 
         uint256 paid = vaultBalanceBefore - loanToken.balanceOf(address(parentVault));
         uint256 totalNetCredit = uint256(first.maxUnits) + second.maxUnits;
-        uint256 boughtGrowth = (second.maxUnits - paid).mulDivDown(1e18, 15 days);
-        uint256 growth = (first.maxUnits * firstGrowth + boughtGrowth) / totalNetCredit;
+        uint256 addedAssetsWadPerSecond = (second.maxUnits - paid).mulDivDown(1e18, 15 days);
+        uint256 growth = (first.maxUnits * firstGrowth + addedAssetsWadPerSecond) / totalNetCredit;
         uint256 valueAfter = totalNetCredit - totalNetCredit.mulDivUp(growth * 15 days, 1e18);
         assertEq(adapter.realAssets(), valueAfter, "second purchase updates growth");
         assertGe(valueAfter, valueBefore + paid, "rounding is realized immediately");
