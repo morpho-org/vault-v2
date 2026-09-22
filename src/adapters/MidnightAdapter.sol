@@ -14,7 +14,7 @@ import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
 import {
     IMidnightAdapter,
-    IWithdrawForCallback,
+    IAuctionCreditCallback,
     MarketData,
     MaturityData,
     AUCTION_DELAY,
@@ -62,12 +62,14 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
     uint256 public minRate;
     mapping(address subRatifier => bool) public isSubRatifier;
-    mapping(bytes32 marketId => uint256) public lossAllowance;
+    /// @dev Zero may prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement fee.
+    mapping(bytes32 collateralParamsHash => uint256) public maxSellRate;
 
     /* ACCOUNTING */
 
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_MARKETS = 250;
+    uint256 public constant NO_SELL_CHECK_DELAY = 3 days;
 
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
@@ -223,21 +225,11 @@ contract MidnightAdapter is IMidnightAdapter {
         emit SetMinRate(newMinRate);
     }
 
-    function increaseLossAllowance(bytes32 marketId, uint256 newLossAllowance) external {
-        timelocked();
-        require(newLossAllowance >= lossAllowance[marketId], LossAllowanceNotIncreasing());
-        lossAllowance[marketId] = newLossAllowance;
-        emit IncreaseLossAllowance(marketId, newLossAllowance);
-    }
-
-    function decreaseLossAllowance(bytes32 marketId, uint256 newLossAllowance) external {
-        require(
-            msg.sender == IVaultV2(parentVault).curator() || IVaultV2(parentVault).isSentinel(msg.sender),
-            NotAuthorized()
-        );
-        require(newLossAllowance <= lossAllowance[marketId], LossAllowanceNotDecreasing());
-        lossAllowance[marketId] = newLossAllowance;
-        emit DecreaseLossAllowance(msg.sender, marketId, newLossAllowance);
+    /// @dev Help prevent operational errors when selling.
+    function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        maxSellRate[collateralParamsHash] = newMaxSellRate;
+        emit SetMaxSellRate(msg.sender, collateralParamsHash, newMaxSellRate);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -275,8 +267,8 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /// @dev Auction credit after all should have been repaid.
-    /// @dev Ignores the lossAllowance mapping.
-    function withdrawFor(Market memory market, uint256 units, address receiver, bytes memory data) external {
+    /// @dev Ignores the maxSellRate mapping.
+    function auctionCredit(Market memory market, uint256 units, address receiver, bytes memory data) external {
         bytes32 marketId = IdLib.toId(market);
         uint256 elapsed = block.timestamp - (market.maturity + AUCTION_DELAY);
         uint256 sellerAssets = units.mulDivUp(AUCTION_DURATION.zeroFloorSub(elapsed), AUCTION_DURATION);
@@ -284,7 +276,7 @@ contract MidnightAdapter is IMidnightAdapter {
         (uint128 credit,,) = IMidnight(midnight).updatePositionView(market, marketId, address(this));
         withdrawToVault(market, MathLib.min(IMidnight(midnight).withdrawable(marketId), credit));
         // forge-lint: disable-next-item(reentrancy-no-eth) the accounting is consistent.
-        IWithdrawForCallback(msg.sender).onWithdrawFor(data);
+        IAuctionCreditCallback(msg.sender).onAuctionCredit(data);
 
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not call back.
         IMidnight(midnight).withdraw(market, units, address(this), address(this));
@@ -293,7 +285,7 @@ contract MidnightAdapter is IMidnightAdapter {
         SafeERC20Lib.safeTransfer(asset, receiver, units - sellerAssets);
 
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
-        emit WithdrawFor(marketId, msg.sender, receiver, units, sellerAssets, uint256(-change));
+        emit AuctionCredit(marketId, msg.sender, receiver, units, sellerAssets, uint256(-change));
     }
 
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external {
@@ -470,13 +462,14 @@ contract MidnightAdapter is IMidnightAdapter {
         require(seller == address(this), NotSelf());
 
         uint128 newNetCredit = currentNetCredit(marketId, market);
-        uint256 discountFactor =
-            WAD - uint256(_markets[marketId].growth) * market.maturity.zeroFloorSub(block.timestamp);
-        uint256 assetsBefore = (newNetCredit + (soldCredit - sellPendingFeeDecrease)).mulDivDown(discountFactor, WAD);
-        uint256 assetsAfter = uint256(newNetCredit).mulDivDown(discountFactor, WAD);
-        uint256 loss = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
-        lossAllowance[marketId] -= loss;
-        emit ConsumeLossAllowance(marketId, loss, lossAllowance[marketId]);
+        uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
+        if (block.timestamp < market.maturity + NO_SELL_CHECK_DELAY && soldNetCredit > sellerAssets) {
+            require(
+                (soldNetCredit - sellerAssets).mulDivUp(WAD, (market.maturity - block.timestamp) * sellerAssets)
+                    <= maxSellRate[keccak256(abi.encode(market.collateralParams))],
+                SellRateTooHigh()
+            );
+        }
 
         int256 change = updateMarket(marketId, market, newNetCredit);
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);

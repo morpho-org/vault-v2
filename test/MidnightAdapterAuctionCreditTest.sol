@@ -17,7 +17,7 @@ import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
 import {CALLBACK_SUCCESS, DEFAULT_TICK_SPACING} from "../lib/midnight/src/libraries/ConstantsLib.sol";
 import {ORACLE_PRICE_SCALE} from "../lib/morpho-blue/src/libraries/ConstantsLib.sol";
 
-contract MidnightAdapterWithdrawForTest is Test, IRatifier {
+contract MidnightAdapterAuctionCreditTest is Test, IRatifier {
     using MathLib for uint256;
 
     IMidnight internal midnight;
@@ -67,16 +67,16 @@ contract MidnightAdapterWithdrawForTest is Test, IRatifier {
         loanToken.approve(address(midnight), type(uint256).max);
     }
 
-    function testWithdrawForBeforeAuctionReverts(uint256 timestamp) public {
+    function testAuctionCreditBeforeAuctionReverts(uint256 timestamp) public {
         Market memory market = _market();
         _lend(market);
         vm.warp(bound(timestamp, block.timestamp, market.maturity + AUCTION_DELAY - 1));
 
         vm.expectRevert(stdError.arithmeticError);
-        adapter.withdrawFor(market, 0.5e18, liquidator, abi.encode(borrower, _repayCall(market, 0.5e18)));
+        adapter.auctionCredit(market, 0.5e18, liquidator, abi.encode(borrower, _repayCall(market, 0.5e18)));
     }
 
-    function testWithdrawForPrice(uint256 elapsed) public {
+    function testAuctionCreditPrice(uint256 elapsed) public {
         elapsed = bound(elapsed, 0, AUCTION_DURATION * 3 / 2);
         Market memory market = _market();
         _lend(market);
@@ -84,30 +84,30 @@ contract MidnightAdapterWithdrawForTest is Test, IRatifier {
         uint256 expectedVaultAssets = uint256(0.5e18).mulDivUp(AUCTION_DURATION.zeroFloorSub(elapsed), AUCTION_DURATION);
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(vault));
 
-        adapter.withdrawFor(market, 0.5e18, liquidator, abi.encode(borrower, _repayCall(market, 0.5e18)));
+        adapter.auctionCredit(market, 0.5e18, liquidator, abi.encode(borrower, _repayCall(market, 0.5e18)));
 
         assertEq(loanToken.balanceOf(address(vault)), vaultBalanceBefore + expectedVaultAssets, "vault balance");
         assertEq(loanToken.balanceOf(liquidator), 0.5e18 - expectedVaultAssets, "receiver balance");
         assertEq(midnight.credit(IdLib.toId(market), address(adapter)), 0.5e18, "adapter credit");
     }
 
-    function testWithdrawForAtAuctionStart() public {
-        testWithdrawForPrice(0);
+    function testAuctionCreditAtAuctionStart() public {
+        testAuctionCreditPrice(0);
     }
 
-    function testWithdrawForAtAuctionLastSecond() public {
-        testWithdrawForPrice(AUCTION_DURATION - 1);
+    function testAuctionCreditAtAuctionLastSecond() public {
+        testAuctionCreditPrice(AUCTION_DURATION - 1);
     }
 
-    function testWithdrawForAtAuctionEnd() public {
-        testWithdrawForPrice(AUCTION_DURATION);
+    function testAuctionCreditAtAuctionEnd() public {
+        testAuctionCreditPrice(AUCTION_DURATION);
     }
 
-    function testWithdrawForAfterAuctionEnd() public {
-        testWithdrawForPrice(AUCTION_DURATION + 1);
+    function testAuctionCreditAfterAuctionEnd() public {
+        testAuctionCreditPrice(AUCTION_DURATION + 1);
     }
 
-    function testWithdrawForWithdrawsExistingLiquidityAtPar() public {
+    function testAuctionCreditWithdrawsExistingLiquidityAtPar() public {
         Market memory market = _market();
         _lend(market);
         vm.prank(borrower);
@@ -116,17 +116,17 @@ contract MidnightAdapterWithdrawForTest is Test, IRatifier {
 
         // The existing liquidity goes to the vault at par, so nothing is left without liquidity added in the callback.
         vm.expectRevert(stdError.arithmeticError);
-        adapter.withdrawFor(market, 0.25e18, liquidator, abi.encode(address(0), bytes("")));
+        adapter.auctionCredit(market, 0.25e18, liquidator, abi.encode(address(0), bytes("")));
 
         uint256 vaultBalanceBefore = loanToken.balanceOf(address(vault));
-        adapter.withdrawFor(market, 0.5e18, liquidator, abi.encode(borrower, _repayCall(market, 0.5e18)));
+        adapter.auctionCredit(market, 0.5e18, liquidator, abi.encode(borrower, _repayCall(market, 0.5e18)));
         assertEq(
             loanToken.balanceOf(address(vault)), vaultBalanceBefore + 0.5e18 + 0.25e18, "existing liquidity at par"
         );
         assertEq(loanToken.balanceOf(liquidator), 0.25e18, "rebate on added liquidity only");
     }
 
-    function testWithdrawForAfterPostMaturityLiquidation() public {
+    function testAuctionCreditAfterPostMaturityLiquidation() public {
         uint256 units = 0.5e18;
         Market memory market = _market();
         bytes32 marketId = IdLib.toId(market);
@@ -141,17 +141,17 @@ contract MidnightAdapterWithdrawForTest is Test, IRatifier {
         bytes memory liquidateCall = abi.encodeCall(
             IMidnight.liquidate, (market, 0, 0, units, borrower, true, liquidator, address(0), bytes(""))
         );
-        adapter.withdrawFor(market, units, liquidator, abi.encode(liquidator, liquidateCall));
+        adapter.auctionCredit(market, units, liquidator, abi.encode(liquidator, liquidateCall));
 
         assertEq(loanToken.balanceOf(address(vault)), vaultBalanceBefore + 0.3e18, "vault receives the auction price");
         assertEq(loanToken.balanceOf(liquidator), 0.2e18, "liquidator receives the discount");
         assertEq(midnight.credit(marketId, liquidator), 0, "entering the market was unnecessary");
         assertEq(midnight.credit(marketId, address(adapter)), 0.5e18, "adapter redeemed its own credit");
         assertEq(midnight.withdrawable(marketId), 0, "liquidation proceeds were withdrawn");
-        assertEq(adapter.lossAllowance(marketId), 0, "no allowance needed");
+        assertEq(adapter.maxSellRate(keccak256(abi.encode(market.collateralParams))), 0, "zero maximum rate");
     }
 
-    function testWithdrawForBypassesEnterGate() public {
+    function testAuctionCreditBypassesEnterGate() public {
         Market memory market = _market();
         market.enterGate = address(this);
         _lend(market);
@@ -168,7 +168,7 @@ contract MidnightAdapterWithdrawForTest is Test, IRatifier {
             offer, abi.encode(address(this), bytes("")), 0.5e18, liquidator, address(0), address(0), bytes("")
         );
 
-        adapter.withdrawFor(market, 0.5e18, liquidator, abi.encode(borrower, _repayCall(market, 0.5e18)));
+        adapter.auctionCredit(market, 0.5e18, liquidator, abi.encode(borrower, _repayCall(market, 0.5e18)));
         assertEq(loanToken.balanceOf(liquidator), 0.25e18);
     }
 
@@ -186,7 +186,7 @@ contract MidnightAdapterWithdrawForTest is Test, IRatifier {
     }
 
     /// @dev Adds liquidity with a call to Midnight.
-    function onWithdrawFor(bytes memory data) external {
+    function onAuctionCredit(bytes memory data) external {
         (address sender, bytes memory midnightCall) = abi.decode(data, (address, bytes));
         if (midnightCall.length == 0) return;
         vm.prank(sender);
