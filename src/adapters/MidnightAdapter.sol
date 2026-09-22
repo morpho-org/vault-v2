@@ -252,11 +252,11 @@ contract MidnightAdapter is IMidnightAdapter {
         bytes32 marketId = IdLib.toId(market);
 
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-        uint128 netCreditBefore = currentNetCredit(marketId, market);
+        uint128 oldNetCredit = currentNetCredit(marketId, market);
 
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not call back.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
-        int256 change = updateMarket(marketId, market, netCreditBefore, currentNetCredit(marketId, market));
+        int256 change = updateMarket(marketId, market, oldNetCredit, currentNetCredit(marketId, market));
 
         // forge-lint: disable-next-item(reentrancy-no-eth) deallocate in this adapter does not make calls here
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), withdrawnAssets);
@@ -347,7 +347,7 @@ contract MidnightAdapter is IMidnightAdapter {
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             IVaultV2(parentVault).accrueInterest();
-            uint128 netCreditBefore = currentNetCredit(marketId, offer.market);
+            uint128 oldNetCredit = currentNetCredit(marketId, offer.market);
 
             // Skip onSell since we are already in a deallocate call.
             // forge-lint: disable-next-item(reentrancy-no-eth) view reentry is possible through a ratifier.
@@ -357,8 +357,7 @@ contract MidnightAdapter is IMidnightAdapter {
             if (settlementFee > 0) {
                 SafeERC20Lib.safeTransferFrom(asset, caller, address(this), settlementFee);
             }
-            int256 change =
-                updateMarket(marketId, offer.market, netCreditBefore, currentNetCredit(marketId, offer.market));
+            int256 change = updateMarket(marketId, offer.market, oldNetCredit, currentNetCredit(marketId, offer.market));
 
             // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
             emit ForceDeallocate(marketId, sellerAssets, uint256(-change));
@@ -481,12 +480,12 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /// @dev Updates market and maturity net credit and inserts or removes the market from marketIds as needed.
     /// @return change The change in net credit to report to the vault's caps.
-    function updateMarket(bytes32 marketId, Market memory market, uint256 netCreditBefore, uint128 newNetCredit)
+    function updateMarket(bytes32 marketId, Market memory market, uint256 oldNetCredit, uint128 newNetCredit)
         internal
         returns (int256 change)
     {
         MarketData storage marketData = _markets[marketId];
-        uint256 allowanceCap = netCreditBefore.mulDivDown(MAX_SHORTFALL_RATIO, WAD);
+        uint256 allowanceCap = oldNetCredit.mulDivDown(MAX_SHORTFALL_RATIO, WAD);
         marketData.allowance = MathLib.min(
                 allowanceCap,
                 marketData.allowance
