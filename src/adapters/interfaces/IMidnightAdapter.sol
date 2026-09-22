@@ -57,11 +57,12 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error NotAuthorized();
     error NotMidnight();
     error NotSelf();
+    error OtherSellInProgress();
     error RateTooLow();
     error SelfAllocationOnly();
     error SellInProgress();
     error SellRateTooHigh();
-    error SubRatifierUnauthorized();
+    error subRatifierFailed();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();
