@@ -383,13 +383,14 @@ contract MidnightAdapter is IMidnightAdapter {
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
         if (block.timestamp < market.maturity && boughtNetCredit > 0) {
-            uint256 boughtGrowth = (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
-            require(boughtGrowth >= minRate * paidAssets, RateTooLow());
+            uint256 addedAssetsWadPerSecond =
+                (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
+            require(addedAssetsWadPerSecond >= minRate * paidAssets, RateTooLow());
 
             MarketData storage marketData = _markets[marketId];
-            uint256 remainingGrowth = (newNetCredit - boughtNetCredit) * marketData.growth;
+            uint256 oldAssetsWadPerSecond = (newNetCredit - boughtNetCredit) * marketData.growth;
             // forge-lint: disable-next-item(unsafe-typecast) growth <= WAD < 2**64.
-            marketData.growth = uint64((remainingGrowth + boughtGrowth) / newNetCredit);
+            marketData.growth = uint64((oldAssetsWadPerSecond + addedAssetsWadPerSecond) / newNetCredit);
         }
 
         MaturityData storage maturityData = _maturities[market.maturity];
