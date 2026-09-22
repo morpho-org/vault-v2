@@ -25,7 +25,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// deallocated, or to "" to take the liquidity in the vault's idle funds.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
-/// @dev Anyone can take reduce-only sell offers at par with empty ratifier data. The buyer pays settlement fees
+/// @dev Anyone can take sell offers at par with empty ratifier data. The buyer pays settlement fees
 /// on top of par, and no vault forceDeallocate penalty is charged. The adapter still needs a vault allocator or
 /// sentinel role to return the proceeds. PAR_SELL_GROUP is reserved for these permissionless offers.
 ///
@@ -143,10 +143,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(offer.buy || offer.receiverIfMakerIsSeller == address(this), IncorrectReceiver());
 
         if (data.length == 0) {
-            require(
-                !offer.buy && offer.tick == MAX_TICK && offer.reduceOnly && offer.group == PAR_SELL_GROUP,
-                IncorrectOffer()
-            );
+            require(!offer.buy && offer.tick == MAX_TICK && offer.group == PAR_SELL_GROUP, IncorrectOffer());
             return CALLBACK_SUCCESS;
         } else {
             // Permissionless sells must not consume the limits of allocator offers.

@@ -70,7 +70,6 @@ contract MidnightLossRealizer {
         offer.ratifier = address(adapter);
         offer.callback = address(adapter);
         offer.receiverIfMakerIsSeller = address(adapter);
-        offer.reduceOnly = true;
         offer.group = adapter.PAR_SELL_GROUP();
         offer.maxUnits = type(uint128).max;
         offer.continuousFeeCap = type(uint256).max;
@@ -2415,7 +2414,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testSellAtParInvalidOffer(uint8 field) public {
-        field = uint8(bound(field, 0, 7));
+        field = uint8(bound(field, 0, 6));
         Offer memory offer = makeParSellOffer(storedOffer.market);
         bytes4 expected = IMidnightAdapter.IncorrectOffer.selector;
         if (field == 0) {
@@ -2423,16 +2422,14 @@ contract MidnightAdapterTest is Test {
         } else if (field == 1) {
             offer.tick = MAX_TICK - 1;
         } else if (field == 2) {
-            offer.reduceOnly = false;
-        } else if (field == 3) {
             offer.group = bytes32(0);
-        } else if (field == 4) {
+        } else if (field == 3) {
             offer.market.loanToken = address(rewardToken);
             expected = IMidnightAdapter.LoanAssetMismatch.selector;
-        } else if (field == 5) {
+        } else if (field == 4) {
             offer.maker = taker;
             expected = IMidnightAdapter.IncorrectMaker.selector;
-        } else if (field == 6) {
+        } else if (field == 5) {
             offer.callback = address(0);
             expected = IMidnightAdapter.IncorrectCallbackAddress.selector;
         } else {
