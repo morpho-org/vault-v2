@@ -138,7 +138,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(offer.buy || offer.receiverIfMakerIsSeller == address(this), IncorrectReceiver());
 
         (address subRatifier, bytes memory subRatifierData) = abi.decode(data, (address, bytes));
-        require(isSubRatifier[subRatifier], subRatifierFailed());
+        require(isSubRatifier[subRatifier], SubRatifierFailed());
         return IRatifier(subRatifier).isRatified(offer, subRatifierData, taker);
     }
 

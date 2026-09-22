@@ -885,11 +885,11 @@ contract MidnightAdapterTest is Test {
         assertFalse(adapter.isSubRatifier(address(ecrecoverRatifier)), "removed by sentinel");
     }
 
-    function testRatifysubRatifierFailed(uint256 seed, address subRatifier) public {
+    function testRatifySubRatifierFailed(uint256 seed, address subRatifier) public {
         vm.setSeed(seed);
         vm.assume(!adapter.isSubRatifier(subRatifier));
         Offer memory offer = _ratificationSetup();
-        vm.expectRevert(IMidnightAdapter.subRatifierFailed.selector);
+        vm.expectRevert(IMidnightAdapter.SubRatifierFailed.selector);
         adapter.isRatified(offer, abi.encode(subRatifier, bytes("")), taker);
     }
 
@@ -931,7 +931,7 @@ contract MidnightAdapterTest is Test {
         vm.prank(signerAllocator);
         adapter.removeSubRatifier(address(ecrecoverRatifier));
         vm.prank(taker);
-        vm.expectRevert(IMidnightAdapter.subRatifierFailed.selector);
+        vm.expectRevert(IMidnightAdapter.SubRatifierFailed.selector);
         midnight.take(offer, data, offer.maxUnits, taker, taker, address(0), "");
 
         addSubRatifier(adapter, address(ecrecoverRatifier));
