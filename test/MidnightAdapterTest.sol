@@ -1666,6 +1666,28 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.netCredit(_marketId(offer.market)), 0, "par sale accepted");
     }
 
+    function testMaxSellRateDisabledThreeDaysAfterMaturity(bool takerSale, bool zeroProceeds, uint256 elapsed) public {
+        Offer memory boughtOffer = buy(30 days, 1e18);
+        skip(30 days + bound(elapsed, 3 days, 365 days));
+        uint256 tick = zeroProceeds ? 0 : MAX_TICK / 2;
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+
+        if (takerSale) {
+            Offer memory offer = makeExternalOffer(boughtOffer.market, true, 1e18, MAX_TICK);
+            offer.tick = tick;
+            vm.prank(signerAllocator);
+            adapter.take(offer, "", 1e18);
+        } else {
+            sellUnits(boughtOffer.market, 1e18, tick);
+        }
+
+        assertEq(adapter.netCredit(_marketId(boughtOffer.market)), 0, "position sold");
+        assertEq(adapter.marketIdsLength(), 0, "market removed");
+        assertEq(
+            loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + TickLib.tickToPrice(tick), "sale proceeds"
+        );
+    }
+
     function testMaxSellRateAllowsParAndNetPremium(bool continuousFee) public {
         if (continuousFee) midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
         Offer memory offer = buy(30 days, 1e18, discountTick);
@@ -2615,8 +2637,8 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev Maturity does not allow a zero-price sale to abandon a market whose oracle permanently reverts.
-    function testCannotAbandonMarketWithRevertingOracleAfterMaturity() public {
+    /// @dev A market whose oracle permanently reverts can be abandoned from maturity + 3 days.
+    function testCanAbandonMarketWithRevertingOracleThreeDaysAfterMaturity() public {
         setUpRealVault();
         Offer memory boughtOffer = buyOnRealVault(7 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
@@ -2648,6 +2670,24 @@ contract MidnightAdapterTest is Test {
         bytes32[] memory marketIds = adapter.ids(boughtOffer.market);
         for (uint256 i = 0; i < marketIds.length; i++) {
             assertEq(realVault.allocation(marketIds[i]), 1e18, "allocation");
+        }
+
+        skip(3 days - 2);
+        sellOffer.expiry = block.timestamp;
+        vm.expectRevert(stdError.arithmeticError);
+        this.takeWithAccrual(sellOffer, sign([sellOffer], signerAllocator), buyer, address(0));
+
+        skip(1);
+        sellOffer.expiry = block.timestamp;
+        this.takeWithAccrual(sellOffer, sign([sellOffer], signerAllocator), buyer, address(0));
+
+        assertEq(midnight.credit(marketId, address(adapter)), 0, "adapter credit cleared");
+        assertEq(midnight.credit(marketId, buyer), 1e18, "buyer received position");
+        assertEq(adapter.marketIdsLength(), 0, "market removed");
+        assertEq(adapter.realAssets(), 0, "adapter realAssets");
+        assertEq(realVault.totalAssets(), 9e18, "loss realized");
+        for (uint256 i = 0; i < marketIds.length; i++) {
+            assertEq(realVault.allocation(marketIds[i]), 0, "allocation cleared");
         }
     }
 
