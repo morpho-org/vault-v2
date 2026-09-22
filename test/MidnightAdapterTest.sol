@@ -274,6 +274,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), 0, "realAssets");
         assertEq(adapter.marketIdsLength(), 0, "marketIdsLength");
         assertEq(adapter.MAX_MARKETS(), 250, "MAX_MARKETS");
+        assertEq(adapter.NO_SELL_CHECK_DELAY(), 3 days, "NO_SELL_CHECK_DELAY");
         skip(100);
         assertEq(adapter.realAssets(), 0, "realAssets after time passes");
     }
@@ -485,36 +486,17 @@ contract MidnightAdapterTest is Test {
         vm.assume(caller != curator);
         vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
         vm.prank(caller);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setMinRate, (newMinRate)));
-    }
-
-    function testSetMinRateNotTimelocked(uint256 newMinRate) public {
-        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
         adapter.setMinRate(newMinRate);
     }
 
-    function testSetMinRateTimelocked(uint256 newMinRate, uint256 duration) public {
-        duration = bound(duration, 1, 3650 days);
-        submitTimelock(IMidnightAdapter.setMinRate.selector, duration);
-        bytes memory data = abi.encodeCall(IMidnightAdapter.setMinRate, (newMinRate));
+    function testSetMinRateAuthorized(uint256 oldMinRate, uint256 newMinRate) public {
         vm.prank(curator);
-        adapter.submit(data);
-
-        skip(duration - 1);
-        vm.expectRevert(IMidnightAdapter.TimelockNotExpired.selector);
-        adapter.setMinRate(newMinRate);
-
-        skip(1);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.Accept(IMidnightAdapter.setMinRate.selector, data);
+        adapter.setMinRate(oldMinRate);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapter.SetMinRate(newMinRate);
+        vm.prank(curator);
         adapter.setMinRate(newMinRate);
         assertEq(adapter.minRate(), newMinRate, "minRate");
-        assertEq(adapter.executableAt(data), 0, "executableAt");
-
-        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
-        adapter.setMinRate(newMinRate);
     }
 
     function testSetMinRateDecrease(uint256 oldMinRate, uint256 newMinRate) public {
@@ -522,28 +504,6 @@ contract MidnightAdapterTest is Test {
         setMinRate(oldMinRate);
         setMinRate(newMinRate);
         assertEq(adapter.minRate(), newMinRate, "minRate decreased");
-    }
-
-    function testSetMinRateRevoked() public {
-        bytes memory data = abi.encodeCall(IMidnightAdapter.setMinRate, (1));
-        vm.startPrank(curator);
-        adapter.submit(data);
-        adapter.revoke(data);
-        vm.stopPrank();
-
-        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
-        adapter.setMinRate(1);
-    }
-
-    function testSetMinRateAbdicated() public {
-        vm.startPrank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setMinRate, (1)));
-        adapter.submit(abi.encodeCall(IMidnightAdapter.abdicate, (IMidnightAdapter.setMinRate.selector)));
-        vm.stopPrank();
-        adapter.abdicate(IMidnightAdapter.setMinRate.selector);
-
-        vm.expectRevert(IMidnightAdapter.Abdicated.selector);
-        adapter.setMinRate(1);
     }
 
     function testMinRateRejectsPreviouslySignedZeroRateOffer() public {
@@ -1708,6 +1668,28 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.netCredit(_marketId(offer.market)), 0, "par sale accepted");
     }
 
+    function testMaxSellRateDisabledThreeDaysAfterMaturity(bool takerSale, bool zeroProceeds, uint256 elapsed) public {
+        Offer memory boughtOffer = buy(30 days, 1e18);
+        skip(30 days + bound(elapsed, adapter.NO_SELL_CHECK_DELAY(), 365 days));
+        uint256 tick = zeroProceeds ? 0 : MAX_TICK / 2;
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+
+        if (takerSale) {
+            Offer memory offer = makeExternalOffer(boughtOffer.market, true, 1e18, MAX_TICK);
+            offer.tick = tick;
+            vm.prank(signerAllocator);
+            adapter.take(offer, "", 1e18);
+        } else {
+            sellUnits(boughtOffer.market, 1e18, tick);
+        }
+
+        assertEq(adapter.netCredit(_marketId(boughtOffer.market)), 0, "position sold");
+        assertEq(adapter.marketIdsLength(), 0, "market removed");
+        assertEq(
+            loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + TickLib.tickToPrice(tick), "sale proceeds"
+        );
+    }
+
     function testMaxSellRateAllowsParAndNetPremium(bool continuousFee) public {
         if (continuousFee) midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
         Offer memory offer = buy(30 days, 1e18, discountTick);
@@ -2829,8 +2811,8 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev Maturity does not allow a zero-price sale to abandon a market whose oracle permanently reverts.
-    function testCannotAbandonMarketWithRevertingOracleAfterMaturity() public {
+    /// @dev A market whose oracle permanently reverts can be abandoned from maturity + 3 days.
+    function testCanAbandonMarketWithRevertingOracleThreeDaysAfterMaturity() public {
         setUpRealVault();
         Offer memory boughtOffer = buyOnRealVault(7 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
@@ -2847,9 +2829,7 @@ contract MidnightAdapterTest is Test {
             adapter.maxSellRate(keccak256(abi.encode(boughtOffer.market.collateralParams))), 0, "default maximum rate"
         );
         setMaxSellRate(boughtOffer.market, 1);
-        vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setNoShortfallCheck, (true)));
-        adapter.setNoShortfallCheck(true);
+        assertFalse(adapter.noShortfallCheck(), "shortfall check enabled");
 
         address buyer = makeAddr("buyer");
         Offer memory sellOffer = makeSellOffer(boughtOffer.market, 1e18, 0);
@@ -2865,6 +2845,24 @@ contract MidnightAdapterTest is Test {
         bytes32[] memory marketIds = adapter.ids(boughtOffer.market);
         for (uint256 i = 0; i < marketIds.length; i++) {
             assertEq(realVault.allocation(marketIds[i]), 1e18, "allocation");
+        }
+
+        skip(adapter.NO_SELL_CHECK_DELAY() - 2);
+        sellOffer.expiry = block.timestamp;
+        vm.expectRevert(stdError.arithmeticError);
+        this.takeWithAccrual(sellOffer, sign([sellOffer], signerAllocator), buyer, address(0));
+
+        skip(1);
+        sellOffer.expiry = block.timestamp;
+        this.takeWithAccrual(sellOffer, sign([sellOffer], signerAllocator), buyer, address(0));
+
+        assertEq(midnight.credit(marketId, address(adapter)), 0, "adapter credit cleared");
+        assertEq(midnight.credit(marketId, buyer), 1e18, "buyer received position");
+        assertEq(adapter.marketIdsLength(), 0, "market removed");
+        assertEq(adapter.realAssets(), 0, "adapter realAssets");
+        assertEq(realVault.totalAssets(), 9e18, "loss realized");
+        for (uint256 i = 0; i < marketIds.length; i++) {
+            assertEq(realVault.allocation(marketIds[i]), 0, "allocation cleared");
         }
     }
 
@@ -3245,7 +3243,6 @@ contract MidnightAdapterTest is Test {
 
     function setMinRate(uint256 newMinRate) internal {
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setMinRate, (newMinRate)));
         adapter.setMinRate(newMinRate);
     }
 

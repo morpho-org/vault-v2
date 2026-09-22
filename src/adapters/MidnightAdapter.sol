@@ -63,6 +63,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_MARKETS = 250;
+    uint256 public constant NO_SELL_CHECK_DELAY = 3 days;
 
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
@@ -213,7 +214,7 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     function setMinRate(uint256 newMinRate) external {
-        timelocked();
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         minRate = newMinRate;
         emit SetMinRate(newMinRate);
     }
@@ -308,6 +309,7 @@ contract MidnightAdapter is IMidnightAdapter {
                 newNetCredit = overridenMarketNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+                dummyMarket.maturity = marketData.maturity;
                 newNetCredit = currentNetCredit(marketId, dummyMarket);
             }
             uint256 timeToMaturity = uint256(marketData.maturity).zeroFloorSub(block.timestamp);
@@ -440,14 +442,14 @@ contract MidnightAdapter is IMidnightAdapter {
 
         uint128 newNetCredit = currentNetCredit(marketId, market);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        if (soldNetCredit > sellerAssets) {
+        if (block.timestamp < market.maturity + NO_SELL_CHECK_DELAY && soldNetCredit > sellerAssets) {
             require(
                 (soldNetCredit - sellerAssets).mulDivUp(WAD, (market.maturity - block.timestamp) * sellerAssets)
                     <= maxSellRate[keccak256(abi.encode(market.collateralParams))],
                 SellRateTooHigh()
             );
         }
-        if (!noShortfallCheck) {
+        if (block.timestamp < market.maturity + NO_SELL_CHECK_DELAY && !noShortfallCheck) {
             (overridenMarketId, overridenMarketNetCredit) =
             (marketId, newNetCredit + soldCredit - sellPendingFeeDecrease);
             uint256 vaultTotalAssetsBefore = IVaultV2(parentVault).totalAssets();
