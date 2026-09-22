@@ -63,6 +63,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_MARKETS = 250;
+    uint256 public constant NO_SELL_CHECK_DELAY = 3 days;
 
     /// @dev WAD-scaled daily shortfall fraction: 1-0.98^(1/3), rounded down.
     /// @dev It is possible to consume up to 2x that fraction over one day.
@@ -219,7 +220,7 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     function setMinRate(uint256 newMinRate) external {
-        timelocked();
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         minRate = newMinRate;
         emit SetMinRate(newMinRate);
     }
@@ -317,6 +318,7 @@ contract MidnightAdapter is IMidnightAdapter {
                 newNetCredit = overridenMarketNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+                dummyMarket.maturity = marketData.maturity;
                 newNetCredit = currentNetCredit(marketId, dummyMarket);
             }
             uint256 timeToMaturity = marketData.maturity.zeroFloorSub(block.timestamp);
@@ -448,7 +450,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         uint128 newNetCredit = currentNetCredit(marketId, market);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        if (soldNetCredit > sellerAssets) {
+        if (block.timestamp < market.maturity + NO_SELL_CHECK_DELAY && soldNetCredit > sellerAssets) {
             require(
                 (soldNetCredit - sellerAssets).mulDivUp(WAD, (market.maturity - block.timestamp) * sellerAssets)
                     <= maxSellRate[keccak256(abi.encode(market.collateralParams))],
@@ -459,7 +461,7 @@ contract MidnightAdapter is IMidnightAdapter {
         MarketData storage marketData = _markets[marketId];
         uint256 soldValue =
             soldNetCredit.mulDivDown(WAD - marketData.growth * marketData.maturity.zeroFloorSub(block.timestamp), WAD);
-        if (soldValue > sellerAssets) {
+        if (block.timestamp < market.maturity + NO_SELL_CHECK_DELAY && soldValue > sellerAssets) {
             // forge-lint: disable-next-item(unsafe-typecast) shortfall <= pre-sale adapter value, so the fraction <=
             // WAD < 2**64.
             uint64 shortfallFraction = uint64(
