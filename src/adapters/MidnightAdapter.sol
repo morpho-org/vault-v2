@@ -25,6 +25,9 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// deallocated, or to "" to take the liquidity in the vault's idle funds.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
+/// @dev Anyone can take reduce-only sell offers at par with empty ratifier data. The buyer pays settlement fees
+/// on top of par, and no vault forceDeallocate penalty is charged. The adapter still needs a vault allocator or
+/// sentinel role to return the proceeds. PAR_SELL_GROUP is reserved for these permissionless offers.
 ///
 /// TIMELOCKS
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
@@ -50,6 +53,8 @@ contract MidnightAdapter is IMidnightAdapter {
     mapping(bytes data => uint256) public executableAt;
 
     /* MANAGEMENT */
+
+    bytes32 public constant PAR_SELL_GROUP = keccak256("MidnightAdapter.parSell");
 
     address public skimRecipient;
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
@@ -136,9 +141,19 @@ contract MidnightAdapter is IMidnightAdapter {
         // For buy offers, Midnight enforces receiverIfMakerIsSeller == address(0).
         require(offer.buy || offer.receiverIfMakerIsSeller == address(this), IncorrectReceiver());
 
-        (address subRatifier, bytes memory subRatifierData) = abi.decode(data, (address, bytes));
-        require(isSubRatifier[subRatifier], subRatifierFailed());
-        return IRatifier(subRatifier).isRatified(offer, subRatifierData, taker);
+        if (data.length == 0) {
+            require(
+                !offer.buy && offer.tick == MAX_TICK && offer.reduceOnly && offer.group == PAR_SELL_GROUP,
+                IncorrectOffer()
+            );
+            return CALLBACK_SUCCESS;
+        } else {
+            // Permissionless sells must not consume the limits of allocator offers.
+            require(offer.group != PAR_SELL_GROUP, IncorrectOffer());
+            (address subRatifier, bytes memory subRatifierData) = abi.decode(data, (address, bytes));
+            require(isSubRatifier[subRatifier], subRatifierFailed());
+            return IRatifier(subRatifier).isRatified(offer, subRatifierData, taker);
+        }
     }
 
     /* TIMELOCKS FUNCTIONS */
@@ -281,6 +296,7 @@ contract MidnightAdapter is IMidnightAdapter {
             for (uint256 i = 0; i < durationIdsToDecrease.length; i++) {
                 durationIdsToDecrease[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
             }
+            // forge-lint: disable-next-item(unsafe-typecast) maturityNetCredit fits in uint128.
             IVaultV2(parentVault)
                 .deallocate(address(this), abi.encode(durationIdsToDecrease, -int256(maturityNetCredit)), 0);
         }
@@ -319,39 +335,14 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /// @dev Can be called by this adapter from a sell callback, a withdraw, or a duration caps update.
-    /// @dev Can be called by anyone through forceDeallocate to trigger a sell take by the adapter.
-    /// @dev forceDeallocate callers must approve for asset transfer to cover the settlement fee
-    function deallocate(bytes memory data, uint256 sellerAssets, bytes4 messageSig, address caller)
+    function deallocate(bytes memory data, uint256, bytes4, address caller)
         external
+        view
         returns (bytes32[] memory, int256)
     {
         require(msg.sender == parentVault, NotAuthorized());
-        if (messageSig == IVaultV2.forceDeallocate.selector) {
-            (Offer memory offer, bytes memory ratifierData) = abi.decode(data, (Offer, bytes));
-            require(
-                offer.buy && offer.market.loanToken == asset && offer.tick == MAX_TICK && offer.callback == address(0),
-                IncorrectOffer()
-            );
-
-            bytes32 marketId = IdLib.toId(offer.market);
-            require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-            IVaultV2(parentVault).accrueInterest();
-
-            // Skip onSell since we are already in a deallocate call.
-            // forge-lint: disable-next-item(reentrancy-no-eth) view reentry is possible through a ratifier.
-            (, uint256 receivedAssets) = IMidnight(midnight)
-                .take(offer, ratifierData, sellerAssets, address(this), address(this), address(0), hex"");
-            uint256 settlementFee = sellerAssets - receivedAssets;
-            if (settlementFee > 0) SafeERC20Lib.safeTransferFrom(asset, caller, address(this), settlementFee);
-            int256 change = updateMarket(marketId, offer.market, currentNetCredit(marketId));
-
-            // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
-            emit ForceDeallocate(marketId, sellerAssets, uint256(-change));
-            return (ids(offer.market), change);
-        } else {
-            require(caller == address(this), SelfAllocationOnly());
-            return abi.decode(data, (bytes32[], int256));
-        }
+        require(caller == address(this), SelfAllocationOnly());
+        return abi.decode(data, (bytes32[], int256));
     }
 
     /* MIDNIGHT CALLBACKS */
@@ -469,7 +460,8 @@ contract MidnightAdapter is IMidnightAdapter {
         MarketData storage marketData = _markets[marketId];
         uint256 oldNetCredit = marketData.netCredit;
         marketData.netCredit = newNetCredit;
-        _maturities[market.maturity].netCredit = (_maturities[market.maturity].netCredit + newNetCredit - oldNetCredit).toUint128();
+        _maturities[market.maturity].netCredit =
+            (uint256(_maturities[market.maturity].netCredit) + newNetCredit - oldNetCredit).toUint128();
         if (newNetCredit == 0 && oldNetCredit > 0) {
             bytes32 lastMarketId = marketIds[marketIds.length - 1];
             marketIds[marketData.index] = lastMarketId;
