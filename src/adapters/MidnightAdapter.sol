@@ -301,6 +301,7 @@ contract MidnightAdapter is IMidnightAdapter {
                 newNetCredit = overridenMarketNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+                dummyMarket.maturity = marketData.maturity;
                 newNetCredit = currentNetCredit(marketId, dummyMarket);
             }
             uint256 timeToMaturity = uint256(marketData.maturity).zeroFloorSub(block.timestamp);
