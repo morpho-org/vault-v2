@@ -62,6 +62,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_MARKETS = 250;
+    uint256 public constant NO_SELL_CHECK_DELAY = 3 days;
     // @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales
     // proceeds.
     uint256 public constant SHORTFALL_REFILL_PERIOD = 1 days;
@@ -216,7 +217,7 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     function setMinRate(uint256 newMinRate) external {
-        timelocked();
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         minRate = newMinRate;
         emit SetMinRate(newMinRate);
     }
@@ -306,6 +307,7 @@ contract MidnightAdapter is IMidnightAdapter {
                 newNetCredit = overridenMarketNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+                dummyMarket.maturity = marketData.maturity;
                 newNetCredit = currentNetCredit(marketId, dummyMarket);
             }
             uint256 timeToMaturity = uint256(marketData.maturity).zeroFloorSub(block.timestamp);
@@ -439,7 +441,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         uint128 newNetCredit = currentNetCredit(marketId, market);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        if (soldNetCredit > sellerAssets) {
+        if (block.timestamp < market.maturity + NO_SELL_CHECK_DELAY && soldNetCredit > sellerAssets) {
             require(
                 (soldNetCredit - sellerAssets).mulDivUp(WAD, (market.maturity - block.timestamp) * sellerAssets)
                     <= maxSellRate[keccak256(abi.encode(market.collateralParams))],
@@ -451,7 +453,9 @@ contract MidnightAdapter is IMidnightAdapter {
 
         uint256 discountFactor = WAD - _markets[marketId].growth * market.maturity.zeroFloorSub(block.timestamp);
         uint256 saleShortfall = soldNetCredit.mulDivUp(discountFactor, WAD).zeroFloorSub(sellerAssets);
-        _markets[marketId].allowance -= saleShortfall.toUint128();
+        if (block.timestamp < market.maturity + NO_SELL_CHECK_DELAY) {
+            _markets[marketId].allowance -= saleShortfall.toUint128();
+        }
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
