@@ -278,13 +278,13 @@ contract MidnightAdapter is IMidnightAdapter {
         if (newDurationCount < oldDurationCount && maturityNetCredit > 0) {
             maturityData.durationCount = newDurationCount;
             emit UpdateDurationCaps(maturity, newDurationCount, maturityNetCredit);
-            bytes32[] memory zeroedDurationIds = new bytes32[](oldDurationCount - newDurationCount);
-            for (uint256 i = 0; i < zeroedDurationIds.length; i++) {
-                zeroedDurationIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
+            bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationCount - newDurationCount);
+            for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
+                zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
             }
             // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
             IVaultV2(parentVault)
-                .deallocate(address(this), abi.encode(zeroedDurationIds, -int256(maturityNetCredit)), 0);
+                .deallocate(address(this), abi.encode(zeroedDurationsIds, -int256(maturityNetCredit)), 0);
         }
     }
 
@@ -319,7 +319,7 @@ contract MidnightAdapter is IMidnightAdapter {
     {
         require(msg.sender == parentVault, NotAuthorized());
         require(caller == address(this), SelfAllocationOnly());
-        return abi.decode(data, (bytes32[], int256));
+        returnExactBytes(data);
     }
 
     /// @dev Can be called by this adapter from a sell callback, a withdraw, or a duration caps update.
@@ -354,7 +354,7 @@ contract MidnightAdapter is IMidnightAdapter {
             return (ids(offer.market), change);
         } else {
             require(caller == address(this), SelfAllocationOnly());
-            return abi.decode(data, (bytes32[], int256));
+            returnExactBytes(data);
         }
     }
 
@@ -446,6 +446,13 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /* INTERNAL FUNCTIONS */
+
+    /// @dev Ends the external call, returning data without ABI encoding.
+    function returnExactBytes(bytes memory data) internal pure {
+        assembly ("memory-safe") {
+            return(add(data, 32), mload(data))
+        }
+    }
 
     /// @dev Matches Midnight's loss rounding. Fee accrual reduces credit and pending fee equally, leaving net credit
     /// unchanged.
