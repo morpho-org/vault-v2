@@ -443,36 +443,17 @@ contract MidnightAdapterTest is Test {
         vm.assume(caller != curator);
         vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
         vm.prank(caller);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setMinRate, (newMinRate)));
-    }
-
-    function testSetMinRateNotTimelocked(uint256 newMinRate) public {
-        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
         adapter.setMinRate(newMinRate);
     }
 
-    function testSetMinRateTimelocked(uint256 newMinRate, uint256 duration) public {
-        duration = bound(duration, 1, 3650 days);
-        submitTimelock(IMidnightAdapter.setMinRate.selector, duration);
-        bytes memory data = abi.encodeCall(IMidnightAdapter.setMinRate, (newMinRate));
+    function testSetMinRateAuthorized(uint256 oldMinRate, uint256 newMinRate) public {
         vm.prank(curator);
-        adapter.submit(data);
-
-        skip(duration - 1);
-        vm.expectRevert(IMidnightAdapter.TimelockNotExpired.selector);
-        adapter.setMinRate(newMinRate);
-
-        skip(1);
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.Accept(IMidnightAdapter.setMinRate.selector, data);
+        adapter.setMinRate(oldMinRate);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapter.SetMinRate(newMinRate);
+        vm.prank(curator);
         adapter.setMinRate(newMinRate);
         assertEq(adapter.minRate(), newMinRate, "minRate");
-        assertEq(adapter.executableAt(data), 0, "executableAt");
-
-        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
-        adapter.setMinRate(newMinRate);
     }
 
     function testSetMinRateDecrease(uint256 oldMinRate, uint256 newMinRate) public {
@@ -480,28 +461,6 @@ contract MidnightAdapterTest is Test {
         setMinRate(oldMinRate);
         setMinRate(newMinRate);
         assertEq(adapter.minRate(), newMinRate, "minRate decreased");
-    }
-
-    function testSetMinRateRevoked() public {
-        bytes memory data = abi.encodeCall(IMidnightAdapter.setMinRate, (1));
-        vm.startPrank(curator);
-        adapter.submit(data);
-        adapter.revoke(data);
-        vm.stopPrank();
-
-        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
-        adapter.setMinRate(1);
-    }
-
-    function testSetMinRateAbdicated() public {
-        vm.startPrank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setMinRate, (1)));
-        adapter.submit(abi.encodeCall(IMidnightAdapter.abdicate, (IMidnightAdapter.setMinRate.selector)));
-        vm.stopPrank();
-        adapter.abdicate(IMidnightAdapter.setMinRate.selector);
-
-        vm.expectRevert(IMidnightAdapter.Abdicated.selector);
-        adapter.setMinRate(1);
     }
 
     function testMinRateRejectsPreviouslySignedZeroRateOffer() public {
@@ -1455,6 +1414,33 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), expectedValue);
         uint128 marketNetCredit = adapter.netCredit(marketId);
         assertEq(marketNetCredit, 2 * units - loss);
+    }
+
+    function testSellLossChecksRemainAfterMaturity(bool takerSale, uint256 elapsed) public {
+        Offer memory boughtOffer = buy(30 days, 1e18);
+        skip(30 days + bound(elapsed, 3 days, 365 days));
+        Offer memory offer = takerSale
+            ? makeExternalOffer(boughtOffer.market, true, 1e18, MAX_TICK)
+            : makeSellOffer(boughtOffer.market, 1e18, MAX_TICK);
+        offer.tick = 0;
+
+        vm.expectRevert(stdError.arithmeticError);
+        if (takerSale) {
+            vm.prank(signerAllocator);
+            adapter.take(offer, "", 1e18);
+        } else {
+            take(offer);
+        }
+
+        increaseLossAllowance(boughtOffer.market, 1e18);
+        if (takerSale) {
+            vm.prank(signerAllocator);
+            adapter.take(offer, "", 1e18);
+        } else {
+            take(offer);
+        }
+
+        assertEq(adapter.netCredit(_marketId(boughtOffer.market)), 0, "position sold with allowance");
     }
 
     function testOnSellLossAllowanceBigEnough() public {
@@ -2793,7 +2779,6 @@ contract MidnightAdapterTest is Test {
 
     function setMinRate(uint256 newMinRate) internal {
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setMinRate, (newMinRate)));
         adapter.setMinRate(newMinRate);
     }
 
