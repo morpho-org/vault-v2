@@ -3391,7 +3391,6 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = buy(30 days, 100e18, MAX_TICK / 2);
         setMaxSellRate(offer.market, type(uint256).max);
         skip(1 days);
-        uint256 saleShortfall = uint256(2e18).mulDivUp(adapter.realAssets(), 200e18).zeroFloorSub(1e18);
         deal(address(loanToken), taker, 1e18);
         MarketData memory data;
         data.netCredit = 198e18;
@@ -3399,12 +3398,40 @@ contract MidnightAdapterTest is Test {
         data.maturity = uint48(offer.market.maturity);
         data.allowance = 1e18;
         data.updatedAt = uint48(vm.getBlockTimestamp());
+        uint256 discountFactor = 1e18 - data.growth * (offer.market.maturity - vm.getBlockTimestamp());
+        uint256 saleShortfall = (uint256(200e18).mulDivDown(discountFactor, 1e18)
+                - uint256(198e18).mulDivDown(discountFactor, 1e18))
+        .zeroFloorSub(1e18);
+        uint256 assetsBefore = adapter.realAssets();
         vm.expectEmit(address(adapter));
         emit IMidnightAdapter.UpdateMarket(_marketId(offer.market), data);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapter.Sell(_marketId(offer.market), 1e18, 2e18, saleShortfall);
         sellUnits(offer.market, 2e18, MAX_TICK / 2);
-        assertApproxEqAbs(readMarketData(_marketId(offer.market)).allowance, 1e18 - saleShortfall, 1);
+        assertEq(saleShortfall, (assetsBefore - adapter.realAssets()).zeroFloorSub(1e18), "book value decrease");
+        assertEq(readMarketData(_marketId(offer.market)).allowance, 1e18 - saleShortfall);
+    }
+
+    function testShortfallEqualsBookValueDecrease(uint256 elapsed, uint256 sold, uint256 sellPrice) public {
+        Offer memory offer = buy(30 days, 100e18, discountTick);
+        setMaxSellRate(offer.market, type(uint256).max);
+        skip(bound(elapsed, 1 days, 30 days - 1));
+        bytes32 marketId = _marketId(offer.market);
+        sold = bound(sold, 1, uint256(adapter.netCredit(marketId)).mulDivDown(adapter.MAX_SHORTFALL_RATIO(), 1e18));
+        uint256 tick = TickLib.priceToTick(bound(sellPrice, 0.5e18, 1e18), DEFAULT_TICK_SPACING);
+        deal(address(loanToken), taker, 100e18);
+
+        // Refill the allowance at this timestamp so the sale's only allowance change is its shortfall.
+        adapter.withdrawToVault(offer.market, 0);
+        uint256 allowanceBefore = readMarketData(marketId).allowance;
+        uint256 assetsBefore = adapter.realAssets();
+        uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
+
+        sellUnits(offer.market, sold, tick);
+
+        uint256 proceeds = loanToken.balanceOf(address(parentVault)) - balanceBefore;
+        uint256 bookShortfall = (assetsBefore - adapter.realAssets()).zeroFloorSub(proceeds);
+        assertEq(allowanceBefore - readMarketData(marketId).allowance, bookShortfall, "charged the book value decrease");
     }
 
     function testShortfallRefillUsesNetCredit() public {
