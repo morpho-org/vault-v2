@@ -67,6 +67,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_MARKETS = 250;
+    uint256 public constant NO_SELL_CHECK_DELAY = 3 days;
 
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
@@ -151,7 +152,7 @@ contract MidnightAdapter is IMidnightAdapter {
             // Permissionless sells must not consume the limits of allocator offers.
             require(offer.group != PAR_SELL_GROUP, IncorrectOffer());
             (address subRatifier, bytes memory subRatifierData) = abi.decode(data, (address, bytes));
-            require(isSubRatifier[subRatifier], subRatifierFailed());
+            require(isSubRatifier[subRatifier], SubRatifierFailed());
             return IRatifier(subRatifier).isRatified(offer, subRatifierData, taker);
         }
     }
@@ -227,7 +228,7 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     function setMinRate(uint256 newMinRate) external {
-        timelocked();
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         minRate = newMinRate;
         emit SetMinRate(newMinRate);
     }
@@ -292,13 +293,13 @@ contract MidnightAdapter is IMidnightAdapter {
         if (newDurationCount < oldDurationCount && maturityNetCredit > 0) {
             maturityData.durationCount = newDurationCount;
             emit UpdateDurationCaps(maturity, newDurationCount, maturityNetCredit);
-            bytes32[] memory durationIdsToDecrease = new bytes32[](oldDurationCount - newDurationCount);
-            for (uint256 i = 0; i < durationIdsToDecrease.length; i++) {
-                durationIdsToDecrease[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
+            bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationCount - newDurationCount);
+            for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
+                zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
             }
-            // forge-lint: disable-next-item(unsafe-typecast) maturityNetCredit fits in uint128.
+            // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
             IVaultV2(parentVault)
-                .deallocate(address(this), abi.encode(durationIdsToDecrease, -int256(maturityNetCredit)), 0);
+                .deallocate(address(this), abi.encode(zeroedDurationsIds, -int256(maturityNetCredit)), 0);
         }
     }
 
@@ -310,11 +311,13 @@ contract MidnightAdapter is IMidnightAdapter {
         for (uint256 i = 0; i < length; i++) {
             bytes32 marketId = marketIds[i];
             MarketData memory marketData = _markets[marketId];
-            uint256 newNetCredit = marketId == overridenMarketId ? overridenMarketNetCredit : currentNetCredit(marketId);
-            require(
-                marketId == overridenMarketId || !IMidnight(midnight).liquidationLocked(marketId, address(this)),
-                OtherSellInProgress()
-            );
+            uint256 newNetCredit;
+            if (marketId == overridenMarketId) {
+                newNetCredit = overridenMarketNetCredit;
+            } else {
+                require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
+                newNetCredit = currentNetCredit(marketId);
+            }
             uint256 timeToMaturity = uint256(marketData.maturity).zeroFloorSub(block.timestamp);
             assets += newNetCredit.mulDivDown(WAD - marketData.growth * timeToMaturity, WAD);
         }
@@ -331,7 +334,7 @@ contract MidnightAdapter is IMidnightAdapter {
     {
         require(msg.sender == parentVault, NotAuthorized());
         require(caller == address(this), SelfAllocationOnly());
-        return abi.decode(data, (bytes32[], int256));
+        returnExactBytes(data);
     }
 
     /// @dev Can be called by this adapter from a sell callback, a withdraw, or a duration caps update.
@@ -342,7 +345,7 @@ contract MidnightAdapter is IMidnightAdapter {
     {
         require(msg.sender == parentVault, NotAuthorized());
         require(caller == address(this), SelfAllocationOnly());
-        return abi.decode(data, (bytes32[], int256));
+        returnExactBytes(data);
     }
 
     /* MIDNIGHT CALLBACKS */
@@ -370,13 +373,14 @@ contract MidnightAdapter is IMidnightAdapter {
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
         if (block.timestamp < market.maturity && boughtNetCredit > 0) {
-            uint256 boughtGrowth = (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
-            require(boughtGrowth >= minRate * paidAssets, RateTooLow());
+            uint256 addedAssetsWadPerSecond =
+                (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
+            require(addedAssetsWadPerSecond >= minRate * paidAssets, RateTooLow());
 
             MarketData storage marketData = _markets[marketId];
-            uint256 remainingGrowth = (newNetCredit - boughtNetCredit) * marketData.growth;
+            uint256 oldAssetsWadPerSecond = (newNetCredit - boughtNetCredit) * marketData.growth;
             // forge-lint: disable-next-item(unsafe-typecast) growth <= WAD < 2**64.
-            marketData.growth = uint64((remainingGrowth + boughtGrowth) / newNetCredit);
+            marketData.growth = uint64((oldAssetsWadPerSecond + addedAssetsWadPerSecond) / newNetCredit);
         }
 
         MaturityData storage maturityData = _maturities[market.maturity];
@@ -416,7 +420,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        if (soldNetCredit > sellerAssets) {
+        if (block.timestamp < market.maturity + NO_SELL_CHECK_DELAY && soldNetCredit > sellerAssets) {
             require(
                 (soldNetCredit - sellerAssets).mulDivUp(WAD, (market.maturity - block.timestamp) * sellerAssets)
                     <= maxSellRate[keccak256(abi.encode(market.collateralParams))],
@@ -433,6 +437,13 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /* INTERNAL FUNCTIONS */
+
+    /// @dev Ends the external call, returning data without ABI encoding.
+    function returnExactBytes(bytes memory data) internal pure {
+        assembly ("memory-safe") {
+            return(add(data, 32), mload(data))
+        }
+    }
 
     /// @dev Matches Midnight's loss rounding. Fee accrual reduces credit and pending fee equally, leaving net credit
     /// unchanged.
@@ -458,16 +469,16 @@ contract MidnightAdapter is IMidnightAdapter {
         returns (int256 change)
     {
         MarketData storage marketData = _markets[marketId];
-        uint256 oldNetCredit = marketData.netCredit;
+        uint256 storedNetCredit = marketData.netCredit;
         marketData.netCredit = newNetCredit;
         _maturities[market.maturity].netCredit =
-            (uint256(_maturities[market.maturity].netCredit) + newNetCredit - oldNetCredit).toUint128();
-        if (newNetCredit == 0 && oldNetCredit > 0) {
+            (uint256(_maturities[market.maturity].netCredit) + newNetCredit - storedNetCredit).toUint128();
+        if (newNetCredit == 0 && storedNetCredit > 0) {
             bytes32 lastMarketId = marketIds[marketIds.length - 1];
             marketIds[marketData.index] = lastMarketId;
             _markets[lastMarketId].index = marketData.index;
             marketIds.pop();
-        } else if (oldNetCredit == 0 && newNetCredit > 0) {
+        } else if (storedNetCredit == 0 && newNetCredit > 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
             marketData.maturity = market.maturity.toUint48();
             // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
@@ -476,7 +487,7 @@ contract MidnightAdapter is IMidnightAdapter {
         }
         emit UpdateMarket(marketId, marketData.netCredit, marketData.growth);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
-        change = int256(uint256(newNetCredit)) - int256(oldNetCredit);
+        change = int256(uint256(newNetCredit)) - int256(storedNetCredit);
     }
 
     /// @dev Returns the number of durations in packedDurations that are at most the time to maturity.

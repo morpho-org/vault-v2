@@ -9,7 +9,7 @@ import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
 struct MarketData {
     uint128 netCredit;
-    /// @dev Each unit of growth represents 1/WAD of a raw asset unit accrued per second, until maturity.
+    /// @dev Each unit of growth represents 1/WAD of the net credit accrued per second, until maturity.
     uint64 growth;
     uint48 maturity;
     uint8 index;
@@ -61,7 +61,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error SelfAllocationOnly();
     error SellInProgress();
     error SellRateTooHigh();
-    error subRatifierFailed();
+    error SubRatifierFailed();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();
@@ -75,6 +75,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function marketIdsLength() external view returns (uint256);
     function MAX_MARKETS() external view returns (uint8);
     function PAR_SELL_GROUP() external view returns (bytes32);
+    function NO_SELL_CHECK_DELAY() external view returns (uint256);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
