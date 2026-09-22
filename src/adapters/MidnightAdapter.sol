@@ -278,12 +278,12 @@ contract MidnightAdapter is IMidnightAdapter {
         if (newDurationCount < oldDurationCount && maturityNetCredit > 0) {
             maturityData.durationCount = newDurationCount;
             emit UpdateDurationCaps(maturity, newDurationCount, maturityNetCredit);
-            bytes32[] memory durationIdsToDecrease = new bytes32[](oldDurationCount - newDurationCount);
-            for (uint256 i = 0; i < durationIdsToDecrease.length; i++) {
-                durationIdsToDecrease[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
+            bytes32[] memory zeroedDurationIds = new bytes32[](oldDurationCount - newDurationCount);
+            for (uint256 i = 0; i < zeroedDurationIds.length; i++) {
+                zeroedDurationIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
             }
             IVaultV2(parentVault)
-                .deallocate(address(this), abi.encode(durationIdsToDecrease, -int256(maturityNetCredit)), 0);
+                .deallocate(address(this), abi.encode(zeroedDurationIds, -int256(maturityNetCredit)), 0);
         }
     }
 
