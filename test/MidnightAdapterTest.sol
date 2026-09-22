@@ -1915,6 +1915,7 @@ contract MidnightAdapterTest is Test {
     function testTakeRoundingShortfallRequiresBuffer() public {
         deal(address(loanToken), address(parentVault), 10);
         Offer memory offer = buy(30 days, 10, discountTick);
+        setMaxSellRate(offer.market, type(uint256).max);
         assertEq(adapter.netCredit(_marketId(offer.market)), 10);
         assertEq(adapter.realAssets(), 9);
         parentVault.setTotalAssets(10);
@@ -2103,6 +2104,7 @@ contract MidnightAdapterTest is Test {
     function testUnearnedDiscountIsNotBuffer() public {
         deal(address(loanToken), address(parentVault), 1e18);
         Offer memory offer = buy(30 days, 1e18, discountTick);
+        setMaxSellRate(offer.market, type(uint256).max);
         parentVault.setTotalAssets(1e18);
         uint256 sellTick = TickLib.priceToTick(0.93e18, DEFAULT_TICK_SPACING);
 
@@ -2113,6 +2115,7 @@ contract MidnightAdapterTest is Test {
     function testSaleAtAmortizedCostRequiresVaultLossRealization() public {
         deal(address(loanToken), address(parentVault), 1e18);
         Offer memory offer = buy(30 days, 1e18, discountTick);
+        setMaxSellRate(offer.market, type(uint256).max);
         parentVault.setTotalAssets(1e18);
 
         OracleMock(storedCollaterals[0].oracle).setPrice(ORACLE_PRICE_SCALE / 4);
@@ -2126,6 +2129,7 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, credit, sellTick);
 
         parentVault.setTotalAssets(adapter.realAssets() + loanToken.balanceOf(address(parentVault)));
+        setMaxSellRate(offer.market, 0);
         vm.expectRevert(IMidnightAdapter.SellRateTooHigh.selector);
         sellUnits(offer.market, credit, sellTick);
 
@@ -3695,6 +3699,7 @@ contract MidnightAdapterTest is Test {
     /// forge-config: default.isolate = true
     function testHighRatePurchaseRoundTripPreservesVaultAssets() public {
         Offer memory initial = freshPosition(MAX_TICK / 2);
+        setMaxSellRate(initial.market, type(uint256).max);
         vm.prank(signerAllocator);
         realVault.setMaxRate(0);
         skip(7 days / 2);
@@ -3709,6 +3714,7 @@ contract MidnightAdapterTest is Test {
     /// forge-config: default.isolate = true
     function testHighRatePurchaseCoversSaleShortfall() public {
         Offer memory initial = freshPosition(MAX_TICK);
+        setMaxSellRate(initial.market, type(uint256).max);
         vm.prank(signerAllocator);
         realVault.setMaxRate(0);
         Offer memory highRate = makeBuyOffer(6 days, 2e18, MAX_TICK / 2);
@@ -3994,6 +4000,7 @@ contract MidnightAdapterTest is Test {
     /// forge-config: default.isolate = true
     function testCrossMarketSaleCannotReuseBuffer() public {
         Offer memory initial = freshPosition(MAX_TICK);
+        setMaxSellRate(initial.market, type(uint256).max);
         Offer memory second = makeBuyOffer(6 days, 1e18, MAX_TICK);
         midnight.supplyCollateral(second.market, 0, 2e18, taker);
         directTake(second);
