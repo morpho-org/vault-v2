@@ -470,7 +470,8 @@ contract MidnightAdapter is IMidnightAdapter {
         MarketData storage marketData = _markets[marketId];
         uint256 oldNetCredit = marketData.netCredit;
         marketData.netCredit = newNetCredit;
-        _maturities[market.maturity].netCredit = (_maturities[market.maturity].netCredit + newNetCredit - oldNetCredit).toUint128();
+        _maturities[market.maturity].netCredit =
+            (uint256(_maturities[market.maturity].netCredit) + newNetCredit - oldNetCredit).toUint128();
         if (newNetCredit == 0 && oldNetCredit > 0) {
             bytes32 lastMarketId = marketIds[marketIds.length - 1];
             marketIds[marketData.index] = lastMarketId;
