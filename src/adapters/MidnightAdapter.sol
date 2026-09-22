@@ -250,7 +250,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
-        int256 change = updateMarket(marketId, market, currentNetCredit(marketId));
+        int256 change = updateMarket(marketId, market, currentNetCredit(marketId, market.maturity));
 
         // forge-lint: disable-next-item(reentrancy-no-eth) deallocate in this adapter does not call withdrawToVault.
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), withdrawnAssets);
@@ -301,7 +301,7 @@ contract MidnightAdapter is IMidnightAdapter {
                 newNetCredit = overridenMarketNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
-                newNetCredit = currentNetCredit(marketId);
+                newNetCredit = currentNetCredit(marketId, marketData.maturity);
             }
             uint256 timeToMaturity = uint256(marketData.maturity).zeroFloorSub(block.timestamp);
             assets += newNetCredit.mulDivDown(WAD - marketData.growth * timeToMaturity, WAD);
@@ -347,7 +347,7 @@ contract MidnightAdapter is IMidnightAdapter {
                 .take(offer, ratifierData, sellerAssets, address(this), address(this), address(0), hex"");
             uint256 settlementFee = sellerAssets - receivedAssets;
             if (settlementFee > 0) SafeERC20Lib.safeTransferFrom(asset, caller, address(this), settlementFee);
-            int256 change = updateMarket(marketId, offer.market, currentNetCredit(marketId));
+            int256 change = updateMarket(marketId, offer.market, currentNetCredit(marketId, offer.market.maturity));
 
             // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
             emit ForceDeallocate(marketId, sellerAssets, uint256(-change));
@@ -377,7 +377,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
 
         // Cache corrected net credit before call to allocate
-        uint128 newNetCredit = currentNetCredit(marketId);
+        uint128 newNetCredit = currentNetCredit(marketId, market.maturity);
         (overridenMarketId, overridenMarketNetCredit) = (marketId, newNetCredit - boughtNetCredit);
         IVaultV2(parentVault).accrueInterest();
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
@@ -428,7 +428,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
 
-        uint128 newNetCredit = currentNetCredit(marketId);
+        uint128 newNetCredit = currentNetCredit(marketId, market.maturity);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
         if (block.timestamp < market.maturity + NO_SELL_CHECK_DELAY && soldNetCredit > sellerAssets) {
             require(
@@ -455,21 +455,13 @@ contract MidnightAdapter is IMidnightAdapter {
         }
     }
 
-    /// @dev Matches Midnight's loss rounding. Fee accrual reduces credit and pending fee equally, leaving net credit
-    /// unchanged.
-    function currentNetCredit(bytes32 marketId) internal view returns (uint128) {
-        (uint256 credit, uint256 pendingFee, uint256 lastLossFactor,,,) =
-            IMidnight(midnight).position(marketId, address(this));
-        uint256 postSlashCredit;
-        uint256 postSlashPendingFee;
-        if (credit > 0 && lastLossFactor < type(uint128).max) {
-            postSlashCredit = credit.mulDivDown(
-                type(uint128).max - IMidnight(midnight).lossFactor(marketId), type(uint128).max - lastLossFactor
-            );
-            postSlashPendingFee = pendingFee - pendingFee.mulDivUp(credit - postSlashCredit, credit);
-        }
-        // forge-lint: disable-next-item(unsafe-typecast) net credit <= original uint128 credit.
-        return uint128(postSlashCredit - postSlashPendingFee);
+    /// @dev updatePositionView only reads the market's maturity.
+    function currentNetCredit(bytes32 marketId, uint256 maturity) internal view returns (uint128) {
+        Market memory dummyMarket;
+        dummyMarket.maturity = maturity;
+        (uint128 credit, uint128 pendingFee,) =
+            IMidnight(midnight).updatePositionView(dummyMarket, marketId, address(this));
+        return credit - pendingFee;
     }
 
     /// @dev Updates market and maturity net credit and inserts or removes the market from marketIds as needed.
