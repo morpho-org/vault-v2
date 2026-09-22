@@ -1914,10 +1914,28 @@ contract MidnightAdapterTest is Test {
         uint256 shortfall = assetsBefore - receivedAssets;
         uint64 shortfallFraction = adapter.consumedShortfall();
         assertGt(shortfall, 0, "sale below amortized value");
-        assertGe(shortfallFraction, shortfall.mulDivUp(1e18, assetsBefore));
-        assertLe(shortfallFraction, (shortfall + 1).mulDivUp(1e18, assetsBefore), "at most one extra asset unit");
+        assertEq(shortfallFraction, shortfall.mulDivUp(1e18, assetsBefore), "charged the book value decrease");
         assertLt(shortfallFraction, adapter.MAX_SHORTFALL_PER_DAY());
         assertEq(adapter.realAssets(), 0);
+    }
+
+    function testDailyShortfallEqualsBookValueDecrease(uint256 elapsed, uint256 sold, uint256 sellPrice) public {
+        Offer memory offer = buy(30 days, 100e18, discountTick);
+        setMaxSellRate(offer.market, type(uint256).max);
+        skip(bound(elapsed, 0, 30 days - 1));
+        uint256 assetsBefore = adapter.realAssets();
+        sold = bound(sold, 1, assetsBefore.mulDivDown(adapter.MAX_SHORTFALL_PER_DAY(), 1e18) - 1);
+        uint256 tick = TickLib.priceToTick(bound(sellPrice, 0.5e18, 1e18), DEFAULT_TICK_SPACING);
+        uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
+        deal(address(loanToken), taker, 100e18);
+
+        sellUnits(offer.market, sold, tick);
+
+        uint256 proceeds = loanToken.balanceOf(address(parentVault)) - balanceBefore;
+        uint256 bookShortfall = (assetsBefore - adapter.realAssets()).zeroFloorSub(proceeds);
+        assertEq(
+            adapter.consumedShortfall(), bookShortfall.mulDivUp(1e18, assetsBefore), "charged the book value decrease"
+        );
     }
 
     function testDailyShortfallChargesBookValueDecrease() public {
