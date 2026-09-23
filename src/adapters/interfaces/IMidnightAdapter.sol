@@ -49,6 +49,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error DataAlreadyPending();
     error DataNotTimelocked();
     error BuyAtLoss();
+    error BuyPostMaturity();
     error IncorrectCallbackAddress();
     error IncorrectOffer();
     error IncorrectMaker();
