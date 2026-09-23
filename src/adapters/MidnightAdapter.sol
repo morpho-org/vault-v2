@@ -37,6 +37,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 contract MidnightAdapter is IMidnightAdapter {
     using MathLib for uint256;
+    using MathLib for uint48;
     using DurationsLib for bytes32;
 
     /* IMMUTABLES */
@@ -279,7 +280,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not call back.
         IMidnight(midnight).withdraw(market, units, address(this), address(this));
-        int256 change = updateMarket(marketId, market, currentNetCredit(marketId, market));
+        int256 change = updateMarket(marketId, market, currentNetCredit(marketId));
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
         SafeERC20Lib.safeTransfer(asset, receiver, units - sellerAssets);
 
@@ -332,8 +333,8 @@ contract MidnightAdapter is IMidnightAdapter {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
                 newNetCredit = currentNetCredit(marketId);
             }
-            uint256 timeToMaturity = uint256(marketData.maturity).zeroFloorSub(block.timestamp);
-            assets += newNetCredit.mulDivDown(WAD - marketData.growth * timeToMaturity, WAD);
+            uint256 discountFactor = WAD - marketData.growth * marketData.maturity.zeroFloorSub(block.timestamp);
+            assets += newNetCredit.mulDivDown(discountFactor, WAD);
         }
         return assets;
     }
