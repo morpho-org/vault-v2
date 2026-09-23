@@ -13,8 +13,6 @@ struct MarketData {
     uint64 growth;
     uint48 maturity;
     uint8 index;
-    uint128 allowance;
-    uint48 updatedAt;
 }
 
 struct MaturityData {
@@ -42,7 +40,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event ForceDeallocate(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 netCreditLoss);
     event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease, uint256 saleShortfall);
-    event UpdateMarket(bytes32 indexed marketId, MarketData data);
+    event UpdateMarket(bytes32 indexed marketId, MarketData data, uint256 shortfallAllowance);
 
     /* ERRORS */
 
@@ -85,6 +83,8 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function packedDurations() external view returns (bytes32);
     function netCredit(bytes32 marketId) external view returns (uint128);
     function maturities(uint256 date) external view returns (MaturityData memory);
+    function shortfallAllowance() external view returns (uint128);
+    function shortfallUpdatedAt() external view returns (uint48);
     function skimRecipient() external view returns (address);
     function minRate() external view returns (uint256);
     function maxSellRate(bytes32 collateralParamsHash) external view returns (uint256);

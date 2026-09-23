@@ -74,6 +74,9 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) internal _markets;
     mapping(uint256 timestamp => MaturityData) internal _maturities;
+    /// @dev Shared by all markets, capped at MAX_SHORTFALL_RATIO of the total net credit.
+    uint128 public shortfallAllowance;
+    uint48 public shortfallUpdatedAt;
     bytes32 transient overridenMarketId;
     uint256 transient overridenMarketNetCredit;
     /* CONSTRUCTOR */
@@ -453,7 +456,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 assetsAfter = newNetCredit.mulDivDown(discountFactor, WAD);
         uint256 saleShortfall = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
         if (block.timestamp < market.maturity + NO_SELL_CHECK_DELAY) {
-            _markets[marketId].allowance -= saleShortfall.toUint128();
+            shortfallAllowance -= saleShortfall.toUint128();
         }
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 
@@ -487,16 +490,17 @@ contract MidnightAdapter is IMidnightAdapter {
         returns (int256 change)
     {
         MarketData storage marketData = _markets[marketId];
-        uint256 allowanceCap = oldNetCredit.mulDivDown(MAX_SHORTFALL_RATIO, WAD);
-        marketData.allowance = MathLib.min(
+        uint256 storedNetCredit = marketData.netCredit;
+        uint256 allowanceCap = (IVaultV2(parentVault).allocation(adapterId) + oldNetCredit - storedNetCredit)
+        .mulDivDown(MAX_SHORTFALL_RATIO, WAD);
+        shortfallAllowance = MathLib.min(
                 allowanceCap,
-                marketData.allowance
-                    + allowanceCap.mulDivDown(block.timestamp - marketData.updatedAt, SHORTFALL_REFILL_PERIOD)
+                shortfallAllowance
+                    + allowanceCap.mulDivDown(block.timestamp - shortfallUpdatedAt, SHORTFALL_REFILL_PERIOD)
             )
             .toUint128();
-        marketData.updatedAt = block.timestamp.toUint48();
+        shortfallUpdatedAt = block.timestamp.toUint48();
 
-        uint256 storedNetCredit = marketData.netCredit;
         marketData.netCredit = newNetCredit;
         _maturities[market.maturity].netCredit =
             (uint256(_maturities[market.maturity].netCredit) + newNetCredit - storedNetCredit).toUint128();
@@ -512,7 +516,7 @@ contract MidnightAdapter is IMidnightAdapter {
             marketData.index = uint8(marketIds.length);
             marketIds.push(marketId);
         }
-        emit UpdateMarket(marketId, marketData);
+        emit UpdateMarket(marketId, marketData, shortfallAllowance);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         change = int256(uint256(newNetCredit)) - int256(storedNetCredit);
     }
