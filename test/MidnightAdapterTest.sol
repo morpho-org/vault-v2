@@ -2381,6 +2381,33 @@ contract MidnightAdapterTest is Test {
         parentVault.deallocate(address(adapter), "", 0);
     }
 
+    /* SET CONSUMED */
+
+    function testSetConsumedNotAuthorized(address caller) public {
+        vm.assume(!parentVault.isAllocator(caller) && !parentVault.isSentinel(caller));
+        vm.prank(caller);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.setConsumed(bytes32(0), type(uint128).max);
+    }
+
+    function testSetConsumedCancelsGroup(bool sentinel) public {
+        address caller = signerAllocator;
+        if (sentinel) {
+            caller = makeAddr("sentinel");
+            stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(caller).checked_write(true);
+        }
+        Offer memory offer = makeBuyOffer(7 days, 1e18, MAX_TICK);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.SetConsumed(caller, offer.group, type(uint128).max);
+        vm.prank(caller);
+        adapter.setConsumed(offer.group, type(uint128).max);
+        assertEq(midnight.consumed(address(adapter), offer.group), type(uint128).max, "consumed");
+
+        bytes memory data = sign([offer], signerAllocator);
+        vm.expectRevert(IMidnight.ConsumedUnits.selector);
+        this.takeWithAccrual(offer, data, taker, address(0));
+    }
+
     /* TAKE */
 
     function testTakeLoanAssetMismatch() public {
