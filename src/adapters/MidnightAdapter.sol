@@ -75,10 +75,7 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) internal _markets;
     mapping(uint256 timestamp => MaturityData) internal _maturities;
-    /// @dev Sum of the markets' net credit last reported to the vault's caps. Kept in storage rather than read from
-    /// the vault's allocation, which lags during a self-funded buy.
     uint256 public totalNetCredit;
-    /// @dev Shared by all markets, capped at MAX_SHORTFALL_RATIO of totalNetCredit.
     uint128 public shortfallAllowance;
     uint48 public shortfallUpdatedAt;
     bytes32 transient overridenMarketId;
