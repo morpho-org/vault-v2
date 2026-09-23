@@ -19,8 +19,9 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev Growth is rounded down. Interest excluded from growth is realized immediately.
 /// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be
 /// earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
-/// @dev The adapter must have the allocator role in its parent vault to buy, and the allocator or sentinel role to
-/// make sell offers, to withdraw to the vault and to update duration caps.
+/// @dev The adapter must have the allocator role in its parent vault to buy.
+/// @dev The adapter must have the allocator or sentinel role to withdraw to the vault, to update duration caps, and to
+/// sell (except through forceDeallocate).
 /// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be
 /// deallocated, or to "" to take the liquidity in the vault's idle funds.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
@@ -267,6 +268,16 @@ contract MidnightAdapter is IMidnightAdapter {
             .take(
                 offer, ratifierData, units, address(this), offer.buy ? address(this) : address(0), address(this), hex""
             );
+    }
+
+    /// @dev Setting type(uint128).max cancels all offers of the adapter in the group.
+    function setConsumed(bytes32 group, uint128 amount) external {
+        require(
+            IVaultV2(parentVault).isAllocator(msg.sender) || IVaultV2(parentVault).isSentinel(msg.sender),
+            NotAuthorized()
+        );
+        IMidnight(midnight).setConsumed(group, amount, address(this));
+        emit SetConsumed(msg.sender, group, amount);
     }
 
     /// @dev Remove the maturity allocation from the duration ids that are > its time to maturity.

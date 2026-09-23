@@ -34,6 +34,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetMinRate(uint256 newMinRate);
     event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
+    event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
     event UpdateDurationCaps(uint256 indexed maturity, uint256 newDurationCount, uint256 netCredit);
@@ -105,6 +106,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function updateDurationCaps(uint256 maturity) external;
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external;
+    function setConsumed(bytes32 group, uint128 amount) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
     function allocate(bytes memory data, uint256 assets, bytes4, address caller)
