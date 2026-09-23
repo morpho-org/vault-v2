@@ -885,11 +885,11 @@ contract MidnightAdapterTest is Test {
         assertFalse(adapter.isSubRatifier(address(ecrecoverRatifier)), "removed by sentinel");
     }
 
-    function testRatifySubRatifierUnauthorized(uint256 seed, address subRatifier) public {
+    function testRatifySubRatifierFailed(uint256 seed, address subRatifier) public {
         vm.setSeed(seed);
         vm.assume(!adapter.isSubRatifier(subRatifier));
         Offer memory offer = _ratificationSetup();
-        vm.expectRevert(IMidnightAdapter.SubRatifierUnauthorized.selector);
+        vm.expectRevert(IMidnightAdapter.SubRatifierFailed.selector);
         adapter.isRatified(offer, abi.encode(subRatifier, bytes("")), taker);
     }
 
@@ -931,7 +931,7 @@ contract MidnightAdapterTest is Test {
         vm.prank(signerAllocator);
         adapter.removeSubRatifier(address(ecrecoverRatifier));
         vm.prank(taker);
-        vm.expectRevert(IMidnightAdapter.SubRatifierUnauthorized.selector);
+        vm.expectRevert(IMidnightAdapter.SubRatifierFailed.selector);
         midnight.take(offer, data, offer.maxUnits, taker, taker, address(0), "");
 
         addSubRatifier(adapter, address(ecrecoverRatifier));
@@ -2011,7 +2011,48 @@ contract MidnightAdapterTest is Test {
         );
     }
 
-    function testZeroMaturityNetCredit(uint256 units, uint256 fee, uint256 elapsed, bool fullLoss) public {
+    function testCurrentNetCreditMatchesMidnight(
+        uint128 credit,
+        uint128 pendingFee,
+        uint128 lastLossFactor,
+        uint128 lossFactor,
+        uint256 elapsed
+    ) public {
+        pendingFee = uint128(bound(pendingFee, 0, credit));
+        lossFactor = uint128(bound(lossFactor, lastLossFactor, type(uint128).max));
+        elapsed = bound(elapsed, 0, 60 days);
+        Offer memory offer = buy(30 days, 1e18, MAX_TICK);
+        bytes32 marketId = _marketId(offer.market);
+
+        stdstore.enable_packed_slots();
+        setMidnightCredit(marketId, address(adapter), credit);
+        stdstore.enable_packed_slots()
+            .target(address(midnight))
+            .sig("pendingFee(bytes32,address)")
+            .with_key(marketId)
+            .with_key(address(adapter))
+            .checked_write(pendingFee);
+        stdstore.enable_packed_slots()
+            .target(address(midnight))
+            .sig("lastLossFactor(bytes32,address)")
+            .with_key(marketId)
+            .with_key(address(adapter))
+            .checked_write(lastLossFactor);
+        stdstore.enable_packed_slots()
+            .target(address(midnight))
+            .sig("lossFactor(bytes32)")
+            .with_key(marketId)
+            .checked_write(lossFactor);
+
+        skip(elapsed);
+        (uint128 expectedCredit, uint128 expectedPendingFee,) =
+            midnight.updatePositionView(offer.market, marketId, address(adapter));
+        assertEq(adapter.realAssets(), expectedCredit - expectedPendingFee, "same net credit as Midnight");
+    }
+
+    function testCurrentNetCreditAcrossLossAndAccrual(uint256 units, uint256 fee, uint256 elapsed, bool fullLoss)
+        public
+    {
         units = bound(units, 1000, 100e18);
         fee = bound(fee, 0, MAX_CONTINUOUS_FEE);
         elapsed = bound(elapsed, 0, 60 days);
@@ -2023,19 +2064,19 @@ contract MidnightAdapterTest is Test {
         uint256 growth = (netCredit - paid) * 1e18 / (uint256(netCredit) * 30 days);
 
         skip(elapsed);
-        assertZeroMaturityNetCredit(offer.market, growth);
+        assertCurrentNetCredit(offer.market, growth);
 
         uint256 price = fullLoss ? 0 : ORACLE_PRICE_SCALE / 4;
         OracleMock(storedCollaterals[0].oracle).setPrice(price);
         OracleMock(storedCollaterals[1].oracle).setPrice(price);
         midnight.liquidate(offer.market, 0, 0, 0, taker, false, address(this), address(0), "");
-        assertZeroMaturityNetCredit(offer.market, growth);
+        assertCurrentNetCredit(offer.market, growth);
 
         midnight.updatePosition(offer.market, address(adapter));
-        assertZeroMaturityNetCredit(offer.market, growth);
+        assertCurrentNetCredit(offer.market, growth);
 
         skip(30 days);
-        assertZeroMaturityNetCredit(offer.market, growth);
+        assertCurrentNetCredit(offer.market, growth);
     }
 
     function testRealAssetsLossFallbackAndCacheSynchronization(uint256 units) public {
@@ -2605,7 +2646,7 @@ contract MidnightAdapterTest is Test {
         returns (bytes32)
     {
         assertEq(msg.sender, address(midnight));
-        vm.expectRevert(IMidnightAdapter.SellInProgress.selector);
+        vm.expectRevert(IMidnightAdapter.OtherSellInProgress.selector);
         adapter.realAssets();
         assertEq(loanToken.balanceOf(address(realVault)), 9e18, "payment has not arrived");
         assertEq(realVault.totalAssets(), 10e18, "vault valuation fixed before the trade");
@@ -3281,14 +3322,9 @@ contract MidnightAdapterTest is Test {
             .checked_write(credit);
     }
 
-    function assertZeroMaturityNetCredit(Market memory market, uint256 growth) internal view {
+    function assertCurrentNetCredit(Market memory market, uint256 growth) internal view {
         bytes32 marketId = _marketId(market);
         (uint128 credit, uint128 pendingFee,) = midnight.updatePositionView(market, marketId, address(adapter));
-        Market memory dummyMarket;
-        (uint128 dummyCredit, uint128 dummyPendingFee, uint128 dummyFee) =
-            midnight.updatePositionView(dummyMarket, marketId, address(adapter));
-        assertEq(dummyFee, 0, "zero maturity skips fee accrual");
-        assertEq(dummyCredit - dummyPendingFee, credit - pendingFee, "maturity does not affect net credit");
         uint256 netCredit = credit - pendingFee;
         uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
         assertEq(
@@ -3526,15 +3562,17 @@ contract MidnightAdapterTest is Test {
         uint256 expected = realVault.totalAssets();
         EagerLossCallback callback = newCallback();
         callback.push(
-            address(adapter), abi.encodeCall(IAdapter.realAssets, ()), IMidnightAdapter.SellInProgress.selector
+            address(adapter), abi.encodeCall(IAdapter.realAssets, ()), IMidnightAdapter.OtherSellInProgress.selector
         );
         callback.push(
-            address(realVault), abi.encodeCall(IVaultV2.accrueInterest, ()), IMidnightAdapter.SellInProgress.selector
+            address(realVault),
+            abi.encodeCall(IVaultV2.accrueInterest, ()),
+            IMidnightAdapter.OtherSellInProgress.selector
         );
         callback.push(
             address(realVault),
             abi.encodeCall(realVault.deposit, (1e18, recipient)),
-            IMidnightAdapter.SellInProgress.selector
+            IMidnightAdapter.OtherSellInProgress.selector
         );
         callbackSale(makeSellOffer(initial.market, 2e18, MAX_TICK), callback);
         assertEq(realVault._totalAssets(), 10e18);
@@ -3548,15 +3586,17 @@ contract MidnightAdapterTest is Test {
         Offer memory initial = freshPosition(MAX_TICK);
         EagerLossCallback callback = newCallback();
         callback.push(
-            address(adapter), abi.encodeCall(IAdapter.realAssets, ()), IMidnightAdapter.SellInProgress.selector
+            address(adapter), abi.encodeCall(IAdapter.realAssets, ()), IMidnightAdapter.OtherSellInProgress.selector
         );
         callback.push(
-            address(realVault), abi.encodeCall(IVaultV2.accrueInterest, ()), IMidnightAdapter.SellInProgress.selector
+            address(realVault),
+            abi.encodeCall(IVaultV2.accrueInterest, ()),
+            IMidnightAdapter.OtherSellInProgress.selector
         );
         callback.push(
             address(realVault),
             abi.encodeCall(realVault.deposit, (1e18, recipient)),
-            IMidnightAdapter.SellInProgress.selector
+            IMidnightAdapter.OtherSellInProgress.selector
         );
         callbackSale(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
         assertEq(realVault._totalAssets(), 10e18);
@@ -3712,7 +3752,7 @@ contract MidnightAdapterTest is Test {
                     ""
                 )
             ),
-            IMidnightAdapter.SellInProgress.selector
+            IMidnightAdapter.OtherSellInProgress.selector
         );
         callbackSale(makeSellOffer(initial.market, 2e18, MAX_TICK), callback);
         assertEq(realVault._totalAssets(), 10e18);
@@ -3740,7 +3780,7 @@ contract MidnightAdapterTest is Test {
                     ""
                 )
             ),
-            accrued ? bytes4(0) : IMidnightAdapter.SellInProgress.selector
+            accrued ? bytes4(0) : IMidnightAdapter.OtherSellInProgress.selector
         );
         if (accrued) {
             this.accruedCallbackSale(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
@@ -3789,15 +3829,17 @@ contract MidnightAdapterTest is Test {
             address(this), abi.encodeCall(this.realizeDefault, (initial.market, ORACLE_PRICE_SCALE / 2)), bytes4(0)
         );
         callback.push(
-            address(adapter), abi.encodeCall(IAdapter.realAssets, ()), IMidnightAdapter.SellInProgress.selector
+            address(adapter), abi.encodeCall(IAdapter.realAssets, ()), IMidnightAdapter.OtherSellInProgress.selector
         );
         callback.push(
-            address(realVault), abi.encodeCall(IVaultV2.accrueInterest, ()), IMidnightAdapter.SellInProgress.selector
+            address(realVault),
+            abi.encodeCall(IVaultV2.accrueInterest, ()),
+            IMidnightAdapter.OtherSellInProgress.selector
         );
         callback.push(
             address(realVault),
             abi.encodeCall(realVault.deposit, (1e18, recipient)),
-            IMidnightAdapter.SellInProgress.selector
+            IMidnightAdapter.OtherSellInProgress.selector
         );
         this.saleThenDeposit(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
         assertApproxEqAbs(backing(), 9e18, 1);
@@ -3819,10 +3861,12 @@ contract MidnightAdapterTest is Test {
         EagerLossCallback callback = newCallback();
         callback.push(address(this), abi.encodeCall(this.realizeDefault, (initial.market, 0)), bytes4(0));
         callback.push(
-            address(adapter), abi.encodeCall(IAdapter.realAssets, ()), IMidnightAdapter.SellInProgress.selector
+            address(adapter), abi.encodeCall(IAdapter.realAssets, ()), IMidnightAdapter.OtherSellInProgress.selector
         );
         callback.push(
-            address(realVault), abi.encodeCall(IVaultV2.accrueInterest, ()), IMidnightAdapter.SellInProgress.selector
+            address(realVault),
+            abi.encodeCall(IVaultV2.accrueInterest, ()),
+            IMidnightAdapter.OtherSellInProgress.selector
         );
         callbackSale(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
         assertEq(realVault._totalAssets(), 10e18);
@@ -4094,7 +4138,9 @@ contract MidnightAdapterTest is Test {
                     ""
                 )
             ),
-            succeeds ? bytes4(0) : IMidnightAdapter.SellInProgress.selector
+            succeeds
+                ? bytes4(0)
+                : (accrued ? IMidnightAdapter.SellInProgress.selector : IMidnightAdapter.OtherSellInProgress.selector)
         );
         if (accrued) {
             this.accruedCallbackSale(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
