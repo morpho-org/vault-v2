@@ -374,6 +374,7 @@ contract MidnightAdapter is IMidnightAdapter {
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
+        require(block.timestamp <= market.maturity, BuyPostMaturity());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
 
