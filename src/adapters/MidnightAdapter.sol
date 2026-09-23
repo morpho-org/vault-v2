@@ -33,6 +33,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
 contract MidnightAdapter is IMidnightAdapter {
     using MathLib for uint256;
+    using MathLib for uint48;
     using DurationsLib for bytes32;
 
     /* IMMUTABLES */
@@ -315,8 +316,8 @@ contract MidnightAdapter is IMidnightAdapter {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
                 newNetCredit = currentNetCredit(marketId);
             }
-            uint256 timeToMaturity = uint256(marketData.maturity).zeroFloorSub(block.timestamp);
-            assets += newNetCredit.mulDivDown(WAD - marketData.growth * timeToMaturity, WAD);
+            uint256 discountFactor = WAD - marketData.growth * marketData.maturity.zeroFloorSub(block.timestamp);
+            assets += newNetCredit.mulDivDown(discountFactor, WAD);
         }
         return assets;
     }
