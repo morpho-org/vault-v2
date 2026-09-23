@@ -2211,6 +2211,21 @@ contract MidnightAdapterTest is Test {
         take(offer);
     }
 
+    function testBuyPostMaturityReverts(uint256 elapsed) public {
+        elapsed = bound(elapsed, 1, 365 days);
+        Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
+        offer.expiry = type(uint256).max;
+        // The taker needs credit to sell: Midnight itself refuses new debt after maturity.
+        Offer memory sellOffer = makeExternalOffer(offer.market, false, 1e18, MAX_TICK);
+        deal(address(loanToken), taker, 1e18);
+        vm.prank(taker);
+        midnight.take(sellOffer, "", sellOffer.maxUnits, taker, address(0), address(0), "");
+        skip(30 days + elapsed);
+
+        vm.expectRevert(IMidnightAdapter.BuyPostMaturity.selector);
+        take(offer);
+    }
+
     function testSellAtParWithSettlementFee(uint256 assets, uint256 feeCbp) public {
         assets = bound(assets, 1, 1e18);
         feeCbp = bound(feeCbp, 0, MAX_SETTLEMENT_FEE_0_DAYS / CBP);
