@@ -12,7 +12,7 @@ uint256 constant AUCTION_DURATION = 3 days;
 
 struct MarketData {
     uint128 netCredit;
-    /// @dev Each unit of growth represents 1/WAD of a raw asset unit accrued per second, until maturity.
+    /// @dev Each unit of growth represents 1/WAD of the net credit accrued per second, until maturity.
     uint64 growth;
     uint48 maturity;
     uint8 index;
@@ -72,11 +72,12 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error NotAuthorized();
     error NotMidnight();
     error NotSelf();
+    error OtherSellInProgress();
     error RateTooLow();
     error SelfAllocationOnly();
     error SellInProgress();
     error SellRateTooHigh();
-    error SubRatifierUnauthorized();
+    error SubRatifierFailed();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();
