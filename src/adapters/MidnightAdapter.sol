@@ -74,7 +74,10 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) internal _markets;
     mapping(uint256 timestamp => MaturityData) internal _maturities;
-    /// @dev Shared by all markets, capped at MAX_SHORTFALL_RATIO of the total net credit.
+    /// @dev Sum of the markets' net credit last reported to the vault's caps. Kept in storage rather than read from
+    /// the vault's allocation, which lags during a self-funded buy.
+    uint256 public totalNetCredit;
+    /// @dev Shared by all markets, capped at MAX_SHORTFALL_RATIO of totalNetCredit.
     uint128 public shortfallAllowance;
     uint48 public shortfallUpdatedAt;
     bytes32 transient overridenMarketId;
@@ -491,8 +494,7 @@ contract MidnightAdapter is IMidnightAdapter {
     {
         MarketData storage marketData = _markets[marketId];
         uint256 storedNetCredit = marketData.netCredit;
-        uint256 allowanceCap = (IVaultV2(parentVault).allocation(adapterId) + oldNetCredit - storedNetCredit)
-        .mulDivDown(MAX_SHORTFALL_RATIO, WAD);
+        uint256 allowanceCap = (totalNetCredit - storedNetCredit + oldNetCredit).mulDivDown(MAX_SHORTFALL_RATIO, WAD);
         shortfallAllowance = MathLib.min(
                 allowanceCap,
                 shortfallAllowance
@@ -502,6 +504,7 @@ contract MidnightAdapter is IMidnightAdapter {
         shortfallUpdatedAt = block.timestamp.toUint48();
 
         marketData.netCredit = newNetCredit;
+        totalNetCredit = totalNetCredit + newNetCredit - storedNetCredit;
         _maturities[market.maturity].netCredit =
             (uint256(_maturities[market.maturity].netCredit) + newNetCredit - storedNetCredit).toUint128();
         if (newNetCredit == 0 && storedNetCredit > 0) {
