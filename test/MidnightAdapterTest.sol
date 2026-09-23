@@ -3429,6 +3429,25 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.shortfallAllowance(), 0);
     }
 
+    function testShortfallSelfFundedRollKeepsAllowance() public {
+        Offer memory offer = buy(30 days, 100e18);
+        skip(1 days);
+        deal(address(loanToken), address(this), 50e18);
+        loanToken.approve(address(midnight), 50e18);
+        midnight.repay(offer.market, 50e18, taker, address(0), "");
+        deal(address(loanToken), address(parentVault), 0);
+
+        Offer memory roll = makeBuyOffer(31 days, 50e18, MAX_TICK);
+        roll.callbackData = abi.encode(address(adapter), abi.encode(offer.market));
+        midnight.supplyCollateral(roll.market, 0, roll.maxUnits, taker);
+        midnight.supplyCollateral(roll.market, 1, roll.maxUnits, taker);
+        take(roll);
+
+        assertEq(adapter.netCredit(_marketId(offer.market)), 50e18);
+        assertEq(adapter.netCredit(_marketId(roll.market)), 50e18);
+        assertEq(adapter.shortfallAllowance(), 0.5e18, "purchase counted before the withdrawal");
+    }
+
     function testShortfallExitClampsSharedAllowance() public {
         Offer memory first = buy(30 days, 100e18);
         setMaxSellRate(first.market, type(uint256).max);
