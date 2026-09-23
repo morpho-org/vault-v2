@@ -55,7 +55,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     address public skimRecipient;
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
-    uint256 public minRate;
+    uint256 public minBuyRate;
     mapping(address subRatifier => bool) public isSubRatifier;
     /// @dev Zero may prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement fee.
     mapping(bytes32 collateralParamsHash => uint256) public maxSellRate;
@@ -214,10 +214,10 @@ contract MidnightAdapter is IMidnightAdapter {
         emit Abdicate(selector);
     }
 
-    function setMinRate(uint256 newMinRate) external {
+    function setMinBuyRate(uint256 newMinBuyRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        minRate = newMinRate;
-        emit SetMinRate(newMinRate);
+        minBuyRate = newMinBuyRate;
+        emit SetMinBuyRate(newMinBuyRate);
     }
 
     /// @dev Help prevent operational errors when selling.
@@ -398,7 +398,7 @@ contract MidnightAdapter is IMidnightAdapter {
         if (block.timestamp < market.maturity && boughtNetCredit > 0) {
             uint256 addedAssetsWadPerSecond =
                 (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
-            require(addedAssetsWadPerSecond >= minRate * paidAssets, RateTooLow());
+            require(addedAssetsWadPerSecond >= minBuyRate * paidAssets, BuyRateTooLow());
 
             MarketData storage marketData = _markets[marketId];
             uint256 oldAssetsWadPerSecond = (newNetCredit - boughtNetCredit) * marketData.growth;
