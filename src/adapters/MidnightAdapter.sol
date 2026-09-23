@@ -262,7 +262,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
-        int256 change = updateMarket(marketId, market, currentNetCredit(marketId, market.maturity));
+        int256 change = updateMarket(marketId, market, currentNetCredit(marketId));
 
         // forge-lint: disable-next-item(reentrancy-no-eth) deallocate in this adapter does not call withdrawToVault.
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), withdrawnAssets);
@@ -313,7 +313,7 @@ contract MidnightAdapter is IMidnightAdapter {
                 newNetCredit = overridenMarketNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
-                newNetCredit = currentNetCredit(marketId, marketData.maturity);
+                newNetCredit = currentNetCredit(marketId);
             }
             uint256 timeToMaturity = uint256(marketData.maturity).zeroFloorSub(block.timestamp);
             assets += newNetCredit.mulDivDown(WAD - marketData.growth * timeToMaturity, WAD);
@@ -364,7 +364,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
 
         // Cache corrected net credit before call to allocate
-        uint128 newNetCredit = currentNetCredit(marketId, market.maturity);
+        uint128 newNetCredit = currentNetCredit(marketId);
         (overridenMarketId, overridenMarketNetCredit) = (marketId, newNetCredit - boughtNetCredit);
         IVaultV2(parentVault).accrueInterest();
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
@@ -415,7 +415,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
 
-        uint128 newNetCredit = currentNetCredit(marketId, market.maturity);
+        uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
         if (block.timestamp < market.maturity + NO_SELL_CHECK_DELAY && soldNetCredit > sellerAssets) {
             require(
@@ -442,10 +442,10 @@ contract MidnightAdapter is IMidnightAdapter {
         }
     }
 
-    /// @dev updatePositionView only reads the market's maturity.
-    function currentNetCredit(bytes32 marketId, uint256 maturity) internal view returns (uint128) {
+    /// @dev Returns the adapter's net credit position in marketId.
+    /// @dev It does not change with time, so any market struct with maturity 0 will work.
+    function currentNetCredit(bytes32 marketId) internal view returns (uint128) {
         Market memory dummyMarket;
-        dummyMarket.maturity = maturity;
         (uint128 credit, uint128 pendingFee,) =
             IMidnight(midnight).updatePositionView(dummyMarket, marketId, address(this));
         return credit - pendingFee;
