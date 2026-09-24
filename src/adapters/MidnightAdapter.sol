@@ -57,14 +57,14 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
     uint256 public minBuyRate;
     mapping(address subRatifier => bool) public isSubRatifier;
-    /// @dev Zero may prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement fee.
+    /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement fee.
+    /// @dev Enforced on maker and taker sales before maturity only.
     mapping(bytes32 collateralParamsHash => uint256) public maxSellRate;
 
     /* ACCOUNTING */
 
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_MARKETS = 250;
-    uint256 public constant NO_SELL_CHECK_DELAY = 3 days;
 
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
@@ -443,7 +443,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        if (block.timestamp < market.maturity + NO_SELL_CHECK_DELAY && soldNetCredit > sellerAssets) {
+        if (block.timestamp < market.maturity && soldNetCredit > sellerAssets) {
             require(
                 (soldNetCredit - sellerAssets).mulDivUp(WAD, (market.maturity - block.timestamp) * sellerAssets)
                     <= maxSellRate[keccak256(abi.encode(market.collateralParams))],
