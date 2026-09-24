@@ -258,17 +258,15 @@ contract MidnightAdapter is IMidnightAdapter {
         emit SetSkimRecipient(newSkimRecipient);
     }
 
-    function setMaxShortfallRatio(uint256 newMaxShortfallRatio) external {
+    function setShortfallParams(uint256 newMaxShortfallRatio, uint256 newShortfallRefillPeriod) external {
         timelocked();
         require(newMaxShortfallRatio <= WAD, MaxShortfallRatioTooHigh());
+        updateShortfallAllowance(totalNetCredit.mulDivDown(maxShortfallRatio, WAD));
         maxShortfallRatio = newMaxShortfallRatio;
-        emit SetMaxShortfallRatio(newMaxShortfallRatio);
-    }
-
-    function setShortfallRefillPeriod(uint256 newShortfallRefillPeriod) external {
-        timelocked();
         shortfallRefillPeriod = newShortfallRefillPeriod;
-        emit SetShortfallRefillPeriod(newShortfallRefillPeriod);
+        shortfallAllowance =
+            MathLib.min(shortfallAllowance, totalNetCredit.mulDivDown(newMaxShortfallRatio, WAD)).toUint128();
+        emit SetShortfallParams(newMaxShortfallRatio, newShortfallRefillPeriod);
     }
 
     /* SKIM FUNCTIONS */
@@ -525,15 +523,7 @@ contract MidnightAdapter is IMidnightAdapter {
         return credit - pendingFee;
     }
 
-    /// @dev Updates market and maturity net credit and inserts or removes the market from marketIds as needed.
-    /// @return change The change in net credit to report to the vault's caps.
-    function updateMarket(bytes32 marketId, Market memory market, uint256 oldNetCredit, uint128 newNetCredit)
-        internal
-        returns (int256 change)
-    {
-        MarketData storage _marketData = marketData[marketId];
-        uint256 storedNetCredit = _marketData.netCredit;
-        uint256 allowanceCap = (totalNetCredit - storedNetCredit + oldNetCredit).mulDivDown(maxShortfallRatio, WAD);
+    function updateShortfallAllowance(uint256 allowanceCap) internal {
         shortfallAllowance = MathLib.min(
                 allowanceCap,
                 shortfallAllowance
@@ -543,6 +533,17 @@ contract MidnightAdapter is IMidnightAdapter {
             )
             .toUint128();
         shortfallUpdatedAt = block.timestamp.toUint48();
+    }
+
+    /// @dev Updates market and maturity net credit and inserts or removes the market from marketIds as needed.
+    /// @return change The change in net credit to report to the vault's caps.
+    function updateMarket(bytes32 marketId, Market memory market, uint256 oldNetCredit, uint128 newNetCredit)
+        internal
+        returns (int256 change)
+    {
+        MarketData storage _marketData = marketData[marketId];
+        uint256 storedNetCredit = _marketData.netCredit;
+        updateShortfallAllowance((totalNetCredit - storedNetCredit + oldNetCredit).mulDivDown(maxShortfallRatio, WAD));
 
         _marketData.netCredit = newNetCredit;
         totalNetCredit = totalNetCredit + newNetCredit - storedNetCredit;

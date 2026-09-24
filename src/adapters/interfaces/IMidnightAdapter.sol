@@ -33,8 +33,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event RemoveSubRatifier(address indexed sender, address indexed subRatifier);
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetMinBuyRate(uint256 newMinBuyRate);
-    event SetMaxShortfallRatio(uint256 newMaxShortfallRatio);
-    event SetShortfallRefillPeriod(uint256 newShortfallRefillPeriod);
+    event SetShortfallParams(uint256 newMaxShortfallRatio, uint256 newShortfallRefillPeriod);
     event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
@@ -97,8 +96,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function totalNetCredit() external view returns (uint256);
     function maxShortfallRatio() external view returns (uint256);
     function shortfallRefillPeriod() external view returns (uint256);
-    function setMaxShortfallRatio(uint256 newMaxShortfallRatio) external;
-    function setShortfallRefillPeriod(uint256 newShortfallRefillPeriod) external;
+    function setShortfallParams(uint256 newMaxShortfallRatio, uint256 newShortfallRefillPeriod) external;
     function shortfallAllowance() external view returns (uint128);
     function shortfallUpdatedAt() external view returns (uint48);
     function skimRecipient() external view returns (address);
