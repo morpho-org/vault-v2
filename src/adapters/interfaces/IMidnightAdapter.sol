@@ -13,6 +13,8 @@ struct MarketData {
     uint64 growth;
     uint48 maturity;
     uint8 index;
+    uint128 allowance;
+    uint48 updatedAt;
 }
 
 struct MaturityData {
@@ -33,6 +35,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event RemoveSubRatifier(address indexed sender, address indexed subRatifier);
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetMinBuyRate(uint256 newMinBuyRate);
+    event SetShortfallParams(uint256 newMaxShortfallRatio, uint256 newShortfallRefillPeriod);
     event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
@@ -40,8 +43,8 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event UpdateDurationCaps(uint256 indexed maturity, uint256 newDurationCount, uint256 netCredit);
     event ForceDeallocate(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 netCreditLoss);
-    event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
-    event UpdateMarket(bytes32 indexed marketId, uint256 netCredit, uint256 growth);
+    event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease, uint256 saleShortfall);
+    event UpdateMarket(bytes32 indexed marketId, MarketData data);
 
     /* ERRORS */
 
@@ -64,6 +67,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error SelfAllocationOnly();
     error SellInProgress();
     error SellRateTooHigh();
+    error MaxShortfallRatioTooHigh();
     error SubRatifierFailed();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
@@ -77,17 +81,22 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function marketIds(uint256) external view returns (bytes32);
     function marketIdsLength() external view returns (uint256);
     function MAX_MARKETS() external view returns (uint8);
+    function maxShortfallRatio() external view returns (uint256);
+    function shortfallRefillPeriod() external view returns (uint256);
+    function setShortfallParams(uint256 newMaxShortfallRatio, uint256 newShortfallRefillPeriod) external;
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
     function marketData(bytes32 marketId)
         external
         view
-        returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index);
+        returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index, uint128 allowance, uint48 updatedAt);
     function netCredit(bytes32 marketId) external view returns (uint128);
     function growth(bytes32 marketId) external view returns (uint64);
     function maturity(bytes32 marketId) external view returns (uint48);
     function index(bytes32 marketId) external view returns (uint8);
+    function allowance(bytes32 marketId) external view returns (uint128);
+    function updatedAt(bytes32 marketId) external view returns (uint48);
     function maturities(uint256 date) external view returns (uint128 netCredit, uint8 durationCount);
     function maturityNetCredit(uint256 date) external view returns (uint128);
     function maturityDurationCount(uint256 date) external view returns (uint8);
