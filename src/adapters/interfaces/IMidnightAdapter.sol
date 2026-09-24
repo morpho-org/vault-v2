@@ -7,6 +7,9 @@ import {Market, Offer} from "lib/midnight/src/interfaces/IMidnight.sol";
 import {IBuyCallback, ISellCallback} from "lib/midnight/src/interfaces/ICallbacks.sol";
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 
+uint256 constant AUCTION_DELAY = 1 days;
+uint256 constant AUCTION_DURATION = 3 days;
+
 struct MarketData {
     uint128 netCredit;
     /// @dev Each unit of growth represents 1/WAD of the net credit accrued per second, until maturity.
@@ -18,6 +21,10 @@ struct MarketData {
 struct MaturityData {
     uint128 netCredit;
     uint8 durationCount;
+}
+
+interface IAuctionCreditCallback {
+    function onAuctionCredit(bytes memory data) external;
 }
 
 interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
@@ -37,6 +44,14 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
+    event AuctionCredit(
+        bytes32 indexed marketId,
+        address indexed caller,
+        address indexed receiver,
+        uint256 withdrawnAssets,
+        uint256 sellerAssets,
+        uint256 netCreditDecrease
+    );
     event UpdateDurationCaps(uint256 indexed maturity, uint256 newDurationCount, uint256 netCredit);
     event ForceDeallocate(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 netCreditLoss);
@@ -113,6 +128,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function durationsLength() external view returns (uint256);
     function updateDurationCaps(uint256 maturity) external;
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
+    function auctionCredit(Market memory market, uint256 units, address receiver, bytes memory data) external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external;
     function setConsumed(bytes32 group, uint128 amount) external;
     function ids(Market memory market) external view returns (bytes32[] memory);

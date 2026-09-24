@@ -12,7 +12,14 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {IMidnightAdapter, MarketData, MaturityData} from "./interfaces/IMidnightAdapter.sol";
+import {
+    IMidnightAdapter,
+    IAuctionCreditCallback,
+    MarketData,
+    MaturityData,
+    AUCTION_DELAY,
+    AUCTION_DURATION
+} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest per market.
@@ -275,6 +282,28 @@ contract MidnightAdapter is IMidnightAdapter {
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), withdrawnAssets);
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
         emit WithdrawToVault(marketId, withdrawnAssets, uint256(-change));
+    }
+
+    /// @dev Auction credit after all should have been repaid.
+    /// @dev Ignores the maxSellRate mapping.
+    function auctionCredit(Market memory market, uint256 units, address receiver, bytes memory data) external {
+        bytes32 marketId = IdLib.toId(market);
+        uint256 elapsed = block.timestamp - (market.maturity + AUCTION_DELAY);
+        uint256 sellerAssets = units.mulDivUp(AUCTION_DURATION.zeroFloorSub(elapsed), AUCTION_DURATION);
+
+        (uint128 credit,,) = IMidnight(midnight).updatePositionView(market, marketId, address(this));
+        withdrawToVault(market, MathLib.min(IMidnight(midnight).withdrawable(marketId), credit));
+        // forge-lint: disable-next-item(reentrancy-no-eth) the accounting is consistent.
+        IAuctionCreditCallback(msg.sender).onAuctionCredit(data);
+
+        // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not call back.
+        IMidnight(midnight).withdraw(market, units, address(this), address(this));
+        int256 change = updateMarket(marketId, market, currentNetCredit(marketId));
+        IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
+        SafeERC20Lib.safeTransfer(asset, receiver, units - sellerAssets);
+
+        // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
+        emit AuctionCredit(marketId, msg.sender, receiver, units, sellerAssets, uint256(-change));
     }
 
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external {
