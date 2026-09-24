@@ -74,8 +74,8 @@ contract MidnightAdapter is IMidnightAdapter {
 
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
-    mapping(bytes32 marketId => MarketData) internal _marketData;
-    mapping(uint256 timestamp => MaturityData) internal _maturities;
+    mapping(bytes32 marketId => MarketData) public marketData;
+    mapping(uint256 timestamp => MaturityData) public maturities;
     uint256 public totalNetCredit;
     uint128 public shortfallAllowance;
     uint48 public shortfallUpdatedAt;
@@ -98,12 +98,28 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* GETTERS */
 
-    function marketData(bytes32 marketId) external view returns (MarketData memory) {
-        return _marketData[marketId];
+    function netCredit(bytes32 marketId) external view returns (uint128) {
+        return marketData[marketId].netCredit;
     }
 
-    function maturities(uint256 date) public view returns (MaturityData memory) {
-        return _maturities[date];
+    function growth(bytes32 marketId) external view returns (uint64) {
+        return marketData[marketId].growth;
+    }
+
+    function maturity(bytes32 marketId) external view returns (uint48) {
+        return marketData[marketId].maturity;
+    }
+
+    function index(bytes32 marketId) external view returns (uint8) {
+        return marketData[marketId].index;
+    }
+
+    function maturityNetCredit(uint256 date) external view returns (uint128) {
+        return maturities[date].netCredit;
+    }
+
+    function maturityDurationCount(uint256 date) external view returns (uint8) {
+        return maturities[date].durationCount;
     }
 
     function marketIdsLength() external view returns (uint256) {
@@ -291,22 +307,22 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /// @dev Remove the maturity allocation from the duration ids that are > its time to maturity.
-    function updateDurationCaps(uint256 maturity) external {
-        MaturityData storage maturityData = _maturities[maturity];
-        uint256 maturityNetCredit = maturityData.netCredit;
-        uint256 oldDurationCount = maturityData.durationCount;
-        uint8 newDurationCount = durationCount(maturity);
+    function updateDurationCaps(uint256 _maturity) external {
+        MaturityData storage _maturityData = maturities[_maturity];
+        uint256 _maturityNetCredit = _maturityData.netCredit;
+        uint256 oldDurationCount = _maturityData.durationCount;
+        uint8 newDurationCount = durationCount(_maturity);
         // VaultV2.deallocate requires allocation > 0 for each returned id.
-        if (newDurationCount < oldDurationCount && maturityNetCredit > 0) {
-            maturityData.durationCount = newDurationCount;
-            emit UpdateDurationCaps(maturity, newDurationCount, maturityNetCredit);
+        if (newDurationCount < oldDurationCount && _maturityNetCredit > 0) {
+            _maturityData.durationCount = newDurationCount;
+            emit UpdateDurationCaps(_maturity, newDurationCount, _maturityNetCredit);
             bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationCount - newDurationCount);
             for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
                 zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
             }
             // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
             IVaultV2(parentVault)
-                .deallocate(address(this), abi.encode(zeroedDurationsIds, -int256(maturityNetCredit)), 0);
+                .deallocate(address(this), abi.encode(zeroedDurationsIds, -int256(_maturityNetCredit)), 0);
         }
     }
 
@@ -317,7 +333,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 length = marketIds.length;
         for (uint256 i = 0; i < length; i++) {
             bytes32 marketId = marketIds[i];
-            MarketData storage data = _marketData[marketId];
+            MarketData storage _marketData = marketData[marketId];
             uint256 newNetCredit;
             if (marketId == overridenMarketId) {
                 newNetCredit = overridenMarketNetCredit;
@@ -325,7 +341,7 @@ contract MidnightAdapter is IMidnightAdapter {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
                 newNetCredit = currentNetCredit(marketId);
             }
-            uint256 discountFactor = WAD - data.growth * data.maturity.zeroFloorSub(block.timestamp);
+            uint256 discountFactor = WAD - _marketData.growth * _marketData.maturity.zeroFloorSub(block.timestamp);
             assets += newNetCredit.mulDivDown(discountFactor, WAD);
         }
         return assets;
@@ -411,14 +427,14 @@ contract MidnightAdapter is IMidnightAdapter {
                 (boughtNetCredit - paidAssets).mulDivDown(WAD, market.maturity - block.timestamp);
             require(addedAssetsWadPerSecond >= minBuyRate * paidAssets, BuyRateTooLow());
 
-            MarketData storage data = _marketData[marketId];
-            uint256 oldAssetsWadPerSecond = (newNetCredit - boughtNetCredit) * data.growth;
+            MarketData storage _marketData = marketData[marketId];
+            uint256 oldAssetsWadPerSecond = (newNetCredit - boughtNetCredit) * _marketData.growth;
             // forge-lint: disable-next-item(unsafe-typecast) growth <= WAD < 2**64.
-            data.growth = uint64((oldAssetsWadPerSecond + addedAssetsWadPerSecond) / newNetCredit);
+            _marketData.growth = uint64((oldAssetsWadPerSecond + addedAssetsWadPerSecond) / newNetCredit);
         }
 
-        MaturityData storage maturityData = _maturities[market.maturity];
-        if (maturityData.netCredit == 0) maturityData.durationCount = durationCount(market.maturity);
+        MaturityData storage _maturityData = maturities[market.maturity];
+        if (_maturityData.netCredit == 0) _maturityData.durationCount = durationCount(market.maturity);
         int256 change = updateMarket(marketId, market, newNetCredit - boughtNetCredit, newNetCredit);
         uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
         if (callbackData.length > 0 && paidAssets > idleAssets) {
@@ -464,7 +480,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
         int256 change = updateMarket(marketId, market, newNetCredit + soldNetCredit, newNetCredit);
 
-        uint256 discountFactor = WAD - _marketData[marketId].growth * market.maturity.zeroFloorSub(block.timestamp);
+        uint256 discountFactor = WAD - marketData[marketId].growth * market.maturity.zeroFloorSub(block.timestamp);
         uint256 assetsBefore = (newNetCredit + soldNetCredit).mulDivDown(discountFactor, WAD);
         uint256 assetsAfter = newNetCredit.mulDivDown(discountFactor, WAD);
         uint256 saleShortfall = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
@@ -502,8 +518,8 @@ contract MidnightAdapter is IMidnightAdapter {
         internal
         returns (int256 change)
     {
-        MarketData storage data = _marketData[marketId];
-        uint256 storedNetCredit = data.netCredit;
+        MarketData storage _marketData = marketData[marketId];
+        uint256 storedNetCredit = _marketData.netCredit;
         uint256 allowanceCap = (totalNetCredit - storedNetCredit + oldNetCredit).mulDivDown(MAX_SHORTFALL_RATIO, WAD);
         shortfallAllowance = MathLib.min(
                 allowanceCap,
@@ -513,35 +529,35 @@ contract MidnightAdapter is IMidnightAdapter {
             .toUint128();
         shortfallUpdatedAt = block.timestamp.toUint48();
 
-        data.netCredit = newNetCredit;
+        _marketData.netCredit = newNetCredit;
         totalNetCredit = totalNetCredit + newNetCredit - storedNetCredit;
-        _maturities[market.maturity].netCredit =
-            (uint256(_maturities[market.maturity].netCredit) + newNetCredit - storedNetCredit).toUint128();
+        maturities[market.maturity].netCredit =
+            (uint256(maturities[market.maturity].netCredit) + newNetCredit - storedNetCredit).toUint128();
         if (newNetCredit == 0 && storedNetCredit > 0) {
             bytes32 lastMarketId = marketIds[marketIds.length - 1];
-            marketIds[data.index] = lastMarketId;
-            _marketData[lastMarketId].index = data.index;
+            marketIds[_marketData.index] = lastMarketId;
+            marketData[lastMarketId].index = _marketData.index;
             marketIds.pop();
         } else if (storedNetCredit == 0 && newNetCredit > 0) {
             require(marketIds.length < MAX_MARKETS, TooManyMarkets());
-            data.maturity = market.maturity.toUint48();
+            _marketData.maturity = market.maturity.toUint48();
             // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
-            data.index = uint8(marketIds.length);
+            _marketData.index = uint8(marketIds.length);
             marketIds.push(marketId);
         }
-        emit UpdateMarket(marketId, data, shortfallAllowance);
+        emit UpdateMarket(marketId, _marketData, shortfallAllowance);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         change = int256(uint256(newNetCredit)) - int256(storedNetCredit);
     }
 
     /// @dev Returns the number of durations in packedDurations that are at most the time to maturity.
-    function durationCount(uint256 maturity) internal view returns (uint8 count) {
-        uint256 timeToMaturity = maturity.zeroFloorSub(block.timestamp);
+    function durationCount(uint256 _maturity) internal view returns (uint8 count) {
+        uint256 timeToMaturity = _maturity.zeroFloorSub(block.timestamp);
         while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;
     }
 
     function ids(Market memory market) public view returns (bytes32[] memory) {
-        uint256 durationsCount = _maturities[market.maturity].durationCount;
+        uint256 durationsCount = maturities[market.maturity].durationCount;
 
         bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length * 2 + durationsCount);
 
