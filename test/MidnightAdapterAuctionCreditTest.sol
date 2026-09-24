@@ -44,8 +44,8 @@ contract MidnightAdapterAuctionCreditTest is Test, IRatifier {
 
         uint256[] memory durations = new uint256[](1);
         durations[0] = 7 days;
-        factory = new MidnightAdapterFactory(durations);
-        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault), address(midnight)));
+        factory = new MidnightAdapterFactory(address(midnight), durations);
+        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(vault)));
 
         bytes memory data = abi.encodeCall(IMidnightAdapter.addSubRatifier, (address(this)));
         vm.prank(curator);
