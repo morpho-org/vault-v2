@@ -33,6 +33,8 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event RemoveSubRatifier(address indexed sender, address indexed subRatifier);
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetMinBuyRate(uint256 newMinBuyRate);
+    event SetMaxShortfallRatio(uint256 newMaxShortfallRatio);
+    event SetShortfallRefillPeriod(uint256 newShortfallRefillPeriod);
     event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
@@ -64,6 +66,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error SelfAllocationOnly();
     error SellInProgress();
     error SellRateTooHigh();
+    error MaxShortfallRatioTooHigh();
     error SubRatifierFailed();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
@@ -77,8 +80,6 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function marketIds(uint256) external view returns (bytes32);
     function marketIdsLength() external view returns (uint256);
     function MAX_MARKETS() external view returns (uint8);
-    function SHORTFALL_REFILL_PERIOD() external view returns (uint256);
-    function MAX_SHORTFALL_RATIO() external view returns (uint256);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
@@ -94,6 +95,10 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function maturityNetCredit(uint256 date) external view returns (uint128);
     function maturityDurationCount(uint256 date) external view returns (uint8);
     function totalNetCredit() external view returns (uint256);
+    function maxShortfallRatio() external view returns (uint256);
+    function shortfallRefillPeriod() external view returns (uint256);
+    function setMaxShortfallRatio(uint256 newMaxShortfallRatio) external;
+    function setShortfallRefillPeriod(uint256 newShortfallRefillPeriod) external;
     function shortfallAllowance() external view returns (uint128);
     function shortfallUpdatedAt() external view returns (uint48);
     function skimRecipient() external view returns (address);

@@ -67,16 +67,16 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_MARKETS = 250;
-    // @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales
-    // proceeds.
-    uint256 public constant SHORTFALL_REFILL_PERIOD = 1 days;
-    uint256 public constant MAX_SHORTFALL_RATIO = 0.005e18; // 0.5%
 
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
     mapping(uint256 timestamp => MaturityData) public maturities;
     uint256 public totalNetCredit;
+    // @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales
+    // proceeds.
+    uint256 public shortfallRefillPeriod;
+    uint256 public maxShortfallRatio;
     uint128 public shortfallAllowance;
     uint48 public shortfallUpdatedAt;
     bytes32 transient overridenMarketId;
@@ -256,6 +256,19 @@ contract MidnightAdapter is IMidnightAdapter {
         timelocked();
         skimRecipient = newSkimRecipient;
         emit SetSkimRecipient(newSkimRecipient);
+    }
+
+    function setMaxShortfallRatio(uint256 newMaxShortfallRatio) external {
+        timelocked();
+        require(newMaxShortfallRatio <= WAD, MaxShortfallRatioTooHigh());
+        maxShortfallRatio = newMaxShortfallRatio;
+        emit SetMaxShortfallRatio(newMaxShortfallRatio);
+    }
+
+    function setShortfallRefillPeriod(uint256 newShortfallRefillPeriod) external {
+        timelocked();
+        shortfallRefillPeriod = newShortfallRefillPeriod;
+        emit SetShortfallRefillPeriod(newShortfallRefillPeriod);
     }
 
     /* SKIM FUNCTIONS */
@@ -520,11 +533,13 @@ contract MidnightAdapter is IMidnightAdapter {
     {
         MarketData storage _marketData = marketData[marketId];
         uint256 storedNetCredit = _marketData.netCredit;
-        uint256 allowanceCap = (totalNetCredit - storedNetCredit + oldNetCredit).mulDivDown(MAX_SHORTFALL_RATIO, WAD);
+        uint256 allowanceCap = (totalNetCredit - storedNetCredit + oldNetCredit).mulDivDown(maxShortfallRatio, WAD);
         shortfallAllowance = MathLib.min(
                 allowanceCap,
                 shortfallAllowance
-                    + allowanceCap.mulDivDown(block.timestamp - shortfallUpdatedAt, SHORTFALL_REFILL_PERIOD)
+                    + (shortfallRefillPeriod == 0
+                            ? allowanceCap
+                            : allowanceCap.mulDivDown(block.timestamp - shortfallUpdatedAt, shortfallRefillPeriod))
             )
             .toUint128();
         shortfallUpdatedAt = block.timestamp.toUint48();
