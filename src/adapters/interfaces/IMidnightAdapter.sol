@@ -80,8 +80,17 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
-    function marketData(bytes32 marketId) external view returns (MarketData memory);
-    function maturities(uint256 date) external view returns (MaturityData memory);
+    function marketData(bytes32 marketId)
+        external
+        view
+        returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index);
+    function netCredit(bytes32 marketId) external view returns (uint128);
+    function growth(bytes32 marketId) external view returns (uint64);
+    function maturity(bytes32 marketId) external view returns (uint48);
+    function index(bytes32 marketId) external view returns (uint8);
+    function maturities(uint256 date) external view returns (uint128 netCredit, uint8 durationCount);
+    function maturityNetCredit(uint256 date) external view returns (uint128);
+    function maturityDurationCount(uint256 date) external view returns (uint8);
     function skimRecipient() external view returns (address);
     function minBuyRate() external view returns (uint256);
     function maxSellRate(bytes32 collateralParamsHash) external view returns (uint256);
