@@ -1440,7 +1440,10 @@ contract MidnightAdapterTest is Test {
         uint256 growth = (units - paid) * 1e18 / (units * duration);
         bytes32 marketId = _marketId(offer.market);
         uint256 loss = 0.5e18;
-        stdstore.target(address(midnight)).sig("credit(bytes32,address)").with_key(marketId).with_key(address(adapter))
+        stdstore.target(address(midnight))
+            .sig("credit(bytes32,address)")
+            .with_key(marketId)
+            .with_key(address(adapter))
             .checked_write(units - loss);
 
         offer.group = bytes32("second");
@@ -2025,11 +2028,22 @@ contract MidnightAdapterTest is Test {
 
         stdstore.enable_packed_slots();
         setMidnightCredit(marketId, address(adapter), credit);
-        stdstore.enable_packed_slots().target(address(midnight)).sig("pendingFee(bytes32,address)").with_key(marketId)
-            .with_key(address(adapter)).checked_write(pendingFee);
-        stdstore.enable_packed_slots().target(address(midnight)).sig("lastLossFactor(bytes32,address)")
-            .with_key(marketId).with_key(address(adapter)).checked_write(lastLossFactor);
-        stdstore.enable_packed_slots().target(address(midnight)).sig("lossFactor(bytes32)").with_key(marketId)
+        stdstore.enable_packed_slots()
+            .target(address(midnight))
+            .sig("pendingFee(bytes32,address)")
+            .with_key(marketId)
+            .with_key(address(adapter))
+            .checked_write(pendingFee);
+        stdstore.enable_packed_slots()
+            .target(address(midnight))
+            .sig("lastLossFactor(bytes32,address)")
+            .with_key(marketId)
+            .with_key(address(adapter))
+            .checked_write(lastLossFactor);
+        stdstore.enable_packed_slots()
+            .target(address(midnight))
+            .sig("lossFactor(bytes32)")
+            .with_key(marketId)
             .checked_write(lossFactor);
 
         skip(elapsed);
@@ -3326,7 +3340,10 @@ contract MidnightAdapterTest is Test {
     }
 
     function setMidnightCredit(bytes32 marketId, address account, uint256 credit) internal {
-        stdstore.target(address(midnight)).sig("credit(bytes32,address)").with_key(marketId).with_key(account)
+        stdstore.target(address(midnight))
+            .sig("credit(bytes32,address)")
+            .with_key(marketId)
+            .with_key(account)
             .checked_write(credit);
     }
 
