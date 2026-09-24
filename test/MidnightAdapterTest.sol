@@ -187,8 +187,8 @@ contract MidnightAdapterTest is Test {
 
         parentVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
-        factory = new MidnightAdapterFactory(allDurations);
-        adapter = MidnightAdapter(factory.createMidnightAdapter(address(parentVault), address(midnight)));
+        factory = new MidnightAdapterFactory(address(midnight), allDurations);
+        adapter = MidnightAdapter(factory.createMidnightAdapter(address(parentVault)));
 
         ecrecoverRatifier = new MidnightAdapterEcrecoverRatifier();
         addSubRatifier(adapter, address(ecrecoverRatifier));
@@ -709,7 +709,7 @@ contract MidnightAdapterTest is Test {
         (address otherAllocator, uint256 otherAllocatorKey) = makeAddrAndKey("otherAllocator");
         privateKey[otherAllocator] = otherAllocatorKey;
         VaultV2Mock otherVault = new VaultV2Mock(address(loanToken), owner, curator, otherAllocator, address(0));
-        address otherAdapter = factory.createMidnightAdapter(address(otherVault), address(midnight));
+        address otherAdapter = factory.createMidnightAdapter(address(otherVault));
         Offer memory offer = _ratificationSetup();
         offer.maker = otherAdapter;
         bytes32 _root = root(offer);
@@ -955,8 +955,7 @@ contract MidnightAdapterTest is Test {
         (address otherAllocator, uint256 otherAllocatorKey) = makeAddrAndKey("otherAllocator");
         privateKey[otherAllocator] = otherAllocatorKey;
         VaultV2Mock otherVault = new VaultV2Mock(address(loanToken), owner, curator, otherAllocator, address(0));
-        IMidnightAdapter otherAdapter =
-            IMidnightAdapter(factory.createMidnightAdapter(address(otherVault), address(midnight)));
+        IMidnightAdapter otherAdapter = IMidnightAdapter(factory.createMidnightAdapter(address(otherVault)));
         addSubRatifier(otherAdapter, address(ecrecoverRatifier));
         deal(address(loanToken), address(otherVault), 1_000_000e18);
 
@@ -1047,20 +1046,28 @@ contract MidnightAdapterTest is Test {
     function testFactoryCreateMidnightAdapter() public {
         VaultV2Mock newVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
 
-        vm.expectEmit(true, true, false, false, address(factory));
-        emit IMidnightAdapterFactory.CreateMidnightAdapter(address(newVault), address(midnight), address(0));
-        address newAdapter = factory.createMidnightAdapter(address(newVault), address(midnight));
+        vm.expectEmit(true, false, false, false, address(factory));
+        emit IMidnightAdapterFactory.CreateMidnightAdapter(address(newVault), address(0));
+        address newAdapter = factory.createMidnightAdapter(address(newVault));
 
-        assertEq(factory.midnightAdapter(address(newVault), address(midnight)), newAdapter, "midnightAdapter");
+        assertEq(factory.midnightAdapter(address(newVault)), newAdapter, "midnightAdapter");
         assertTrue(factory.isMidnightAdapter(newAdapter), "isMidnightAdapter");
         assertEq(IMidnightAdapter(newAdapter).parentVault(), address(newVault), "parentVault");
         assertEq(IMidnightAdapter(newAdapter).midnight(), address(midnight), "midnight");
         assertEq(IMidnightAdapter(newAdapter).durations(), allDurations, "durations");
         assertTrue(midnight.isAuthorized(newAdapter, newAdapter), "adapter is its own ratifier");
 
-        // Fixed salt: one adapter per (vault, midnight) pair.
+        // Fixed salt: one adapter per vault.
         vm.expectRevert();
-        factory.createMidnightAdapter(address(newVault), address(midnight));
+        factory.createMidnightAdapter(address(newVault));
+    }
+
+    function testFactoryConstructor() public {
+        vm.expectEmit();
+        emit IMidnightAdapterFactory.CreateMidnightAdapterFactory(address(midnight), allDurations);
+        MidnightAdapterFactory newFactory = new MidnightAdapterFactory(address(midnight), allDurations);
+        assertEq(newFactory.midnight(), address(midnight), "midnight");
+        assertEq(newFactory.durationsLength(), allDurations.length, "durationsLength");
     }
 
     /* DURATIONS */
@@ -3275,7 +3282,7 @@ contract MidnightAdapterTest is Test {
         realVault = IVaultV2(deployCode("VaultV2.sol:VaultV2", abi.encode(owner, address(loanToken))));
         vm.prank(owner);
         realVault.setCurator(curator);
-        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(realVault), address(midnight)));
+        adapter = IMidnightAdapter(factory.createMidnightAdapter(address(realVault)));
 
         submitAndCall(realVault, abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), true)));
