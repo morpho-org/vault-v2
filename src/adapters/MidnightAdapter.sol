@@ -263,17 +263,20 @@ contract MidnightAdapter is IMidnightAdapter {
         emit SetSkimRecipient(newSkimRecipient);
     }
 
-    function setMaxShortfallRatio(uint256 newMaxShortfallRatio) external {
+    function setShortfallParams(uint256 newMaxShortfallRatio, uint256 newShortfallRefillPeriod) external {
         timelocked();
         require(newMaxShortfallRatio <= WAD, MaxShortfallRatioTooHigh());
+        for (uint256 i = 0; i < marketIds.length; i++) {
+            MarketData storage _marketData = marketData[marketIds[i]];
+            updateShortfallAllowance(_marketData, _marketData.netCredit.mulDivDown(maxShortfallRatio, WAD));
+            _marketData.allowance = MathLib.min(
+                    _marketData.allowance, _marketData.netCredit.mulDivDown(newMaxShortfallRatio, WAD)
+                )
+                .toUint128();
+        }
         maxShortfallRatio = newMaxShortfallRatio;
-        emit SetMaxShortfallRatio(newMaxShortfallRatio);
-    }
-
-    function setShortfallRefillPeriod(uint256 newShortfallRefillPeriod) external {
-        timelocked();
         shortfallRefillPeriod = newShortfallRefillPeriod;
-        emit SetShortfallRefillPeriod(newShortfallRefillPeriod);
+        emit SetShortfallParams(newMaxShortfallRatio, newShortfallRefillPeriod);
     }
 
     /* SKIM FUNCTIONS */
@@ -530,14 +533,7 @@ contract MidnightAdapter is IMidnightAdapter {
         return credit - pendingFee;
     }
 
-    /// @dev Updates market and maturity net credit and inserts or removes the market from marketIds as needed.
-    /// @return change The change in net credit to report to the vault's caps.
-    function updateMarket(bytes32 marketId, Market memory market, uint256 oldNetCredit, uint128 newNetCredit)
-        internal
-        returns (int256 change)
-    {
-        MarketData storage _marketData = marketData[marketId];
-        uint256 allowanceCap = oldNetCredit.mulDivDown(maxShortfallRatio, WAD);
+    function updateShortfallAllowance(MarketData storage _marketData, uint256 allowanceCap) internal {
         _marketData.allowance = MathLib.min(
                 allowanceCap,
                 _marketData.allowance
@@ -547,6 +543,16 @@ contract MidnightAdapter is IMidnightAdapter {
             )
             .toUint128();
         _marketData.updatedAt = block.timestamp.toUint48();
+    }
+
+    /// @dev Updates market and maturity net credit and inserts or removes the market from marketIds as needed.
+    /// @return change The change in net credit to report to the vault's caps.
+    function updateMarket(bytes32 marketId, Market memory market, uint256 oldNetCredit, uint128 newNetCredit)
+        internal
+        returns (int256 change)
+    {
+        MarketData storage _marketData = marketData[marketId];
+        updateShortfallAllowance(_marketData, oldNetCredit.mulDivDown(maxShortfallRatio, WAD));
 
         uint256 storedNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;

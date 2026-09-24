@@ -3145,34 +3145,177 @@ contract MidnightAdapterTest is Test {
         assertEq(newAdapter.shortfallRefillPeriod(), 0, "period");
     }
 
-    function testSetMaxShortfallRatio(uint256 ratio) public {
+    function testSetShortfallParams(uint256 ratio, uint256 period) public {
         ratio = bound(ratio, 0, 1e18);
         vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
-        adapter.setMaxShortfallRatio(ratio);
+        adapter.setShortfallParams(ratio, period);
 
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setMaxShortfallRatio, (1e18 + 1)));
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setShortfallParams, (1e18 + 1, period)));
         vm.expectRevert(IMidnightAdapter.MaxShortfallRatioTooHigh.selector);
-        adapter.setMaxShortfallRatio(1e18 + 1);
+        adapter.setShortfallParams(1e18 + 1, period);
 
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setMaxShortfallRatio, (ratio)));
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setShortfallParams, (ratio, period)));
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.SetMaxShortfallRatio(ratio);
-        adapter.setMaxShortfallRatio(ratio);
+        emit IMidnightAdapter.SetShortfallParams(ratio, period);
+        adapter.setShortfallParams(ratio, period);
         assertEq(adapter.maxShortfallRatio(), ratio);
+        assertEq(adapter.shortfallRefillPeriod(), period);
     }
 
-    function testSetShortfallRefillPeriod(uint256 period) public {
-        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
-        adapter.setShortfallRefillPeriod(period);
+    function testSetShortfallParamsChangesBothParameters(bool wasDisabled) public {
+        if (wasDisabled) setShortfallParams(0, 0);
+        Offer memory offer = buy(30 days, 100e18);
+        bytes32 marketId = _marketId(offer.market);
+        skip(12 hours);
+
+        setShortfallParams(0.01e18, 12 hours);
+        uint256 allowance = wasDisabled ? 0 : 0.25e18;
+        assertEq(adapter.allowance(marketId), allowance);
+        assertEq(adapter.updatedAt(marketId), vm.getBlockTimestamp());
+        adapter.withdrawToVault(offer.market, 0);
+        assertEq(adapter.allowance(marketId), allowance, "no refill under intermediate parameters");
+
+        skip(3 hours);
+        adapter.withdrawToVault(offer.market, 0);
+        assertEq(adapter.allowance(marketId), allowance + 0.25e18);
+    }
+
+    function testSetShortfallParamsRefillsWithOldRatio(bool wasDisabled) public {
+        if (wasDisabled) setShortfallParams(0, 1 days);
+        Offer memory offer = buy(30 days, 100e18);
+        bytes32 marketId = _marketId(offer.market);
+        setMaxSellRate(offer.market, type(uint256).max);
+        skip(wasDisabled ? 1 days : 12 hours);
 
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setShortfallRefillPeriod, (period)));
-        vm.expectEmit(address(adapter));
-        emit IMidnightAdapter.SetShortfallRefillPeriod(period);
-        adapter.setShortfallRefillPeriod(period);
-        assertEq(adapter.shortfallRefillPeriod(), period);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setShortfallParams, (0.01e18, 1 days)));
+        adapter.setShortfallParams(0.01e18, 1 days);
+
+        uint256 allowance = wasDisabled ? 0 : 0.25e18;
+        assertEq(adapter.allowance(marketId), allowance);
+        assertEq(adapter.updatedAt(marketId), vm.getBlockTimestamp());
+        vm.expectRevert(stdError.arithmeticError);
+        sellUnits(offer.market, 1e18, MAX_TICK / 2);
+        adapter.withdrawToVault(offer.market, 0);
+        assertEq(adapter.allowance(marketId), allowance, "no retroactive refill");
+
+        skip(6 hours);
+        adapter.withdrawToVault(offer.market, 0);
+        assertEq(adapter.allowance(marketId), allowance + 0.25e18, "new ratio applies going forward");
+    }
+
+    function testSetShortfallParamsClampsAllowance(bool disable) public {
+        Offer memory offer = buy(30 days, 100e18);
+        bytes32 marketId = _marketId(offer.market);
+        skip(1 days);
+        adapter.withdrawToVault(offer.market, 0);
+        assertEq(adapter.allowance(marketId), 0.5e18);
+
+        uint256 ratio = disable ? 0 : 0.001e18;
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setShortfallParams, (ratio, 1 days)));
+        adapter.setShortfallParams(ratio, 1 days);
+        uint256 allowance = disable ? 0 : 0.1e18;
+        assertEq(adapter.allowance(marketId), allowance);
+
+        setShortfallParams(0.005e18, 1 days);
+        adapter.withdrawToVault(offer.market, 0);
+        assertEq(adapter.allowance(marketId), allowance, "increasing the ratio cannot restore excess allowance");
+    }
+
+    function testSetShortfallParamsClampsOldCap() public {
+        Offer memory offer = buy(30 days, 100e18);
+        bytes32 marketId = _marketId(offer.market);
+        skip(1 days);
+        deal(address(loanToken), taker, 100e18);
+        sellUnits(offer.market, 80e18, MAX_TICK);
+        assertEq(adapter.allowance(marketId), 0.5e18, "stored allowance is not yet clamped");
+
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setShortfallParams, (0.01e18, 1 days)));
+        adapter.setShortfallParams(0.01e18, 1 days);
+        assertEq(adapter.allowance(marketId), 0.1e18, "clamp to old cap before increasing the ratio");
+    }
+
+    function testSetShortfallParamsRefillsWithOldPeriod(bool shorten) public {
+        Offer memory offer = buy(30 days, 100e18);
+        bytes32 marketId = _marketId(offer.market);
+        setMaxSellRate(offer.market, type(uint256).max);
+        skip(6 hours);
+
+        uint256 period = shorten ? 12 hours : 2 days;
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setShortfallParams, (0.005e18, period)));
+        adapter.setShortfallParams(0.005e18, period);
+
+        assertEq(adapter.allowance(marketId), 0.125e18);
+        assertEq(adapter.updatedAt(marketId), vm.getBlockTimestamp());
+        vm.expectRevert(stdError.arithmeticError);
+        sellUnits(offer.market, 0.5e18, MAX_TICK / 2);
+        adapter.withdrawToVault(offer.market, 0);
+        assertEq(adapter.allowance(marketId), 0.125e18, "no retroactive refill");
+
+        skip(6 hours);
+        adapter.withdrawToVault(offer.market, 0);
+        assertEq(adapter.allowance(marketId), 0.125e18 + uint256(0.5e18) * 6 hours / period);
+    }
+
+    function testSetShortfallParamsZeroPeriodTransitions(bool enableInstantRefill) public {
+        if (!enableInstantRefill) setShortfallParams(0.005e18, 0);
+        Offer memory offer = buy(30 days, 100e18);
+        bytes32 marketId = _marketId(offer.market);
+        skip(6 hours);
+
+        uint256 period = enableInstantRefill ? 0 : 1 days;
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setShortfallParams, (0.005e18, period)));
+        adapter.setShortfallParams(0.005e18, period);
+
+        assertEq(adapter.allowance(marketId), enableInstantRefill ? 0.125e18 : 0.5e18);
+        assertEq(adapter.updatedAt(marketId), vm.getBlockTimestamp());
+        adapter.withdrawToVault(offer.market, 0);
+        assertEq(adapter.allowance(marketId), 0.5e18);
+    }
+
+    function testSetShortfallParamsCheckpointsAllMarkets() public {
+        Offer memory first = buy(30 days, 100e18);
+        skip(12 hours);
+        Offer memory second = buy(31 days, 200e18);
+        skip(6 hours);
+
+        setShortfallParams(0.01e18, 12 hours);
+        assertEq(adapter.allowance(_marketId(first.market)), 0.375e18);
+        assertEq(adapter.allowance(_marketId(second.market)), 0.25e18);
+        assertEq(adapter.updatedAt(_marketId(first.market)), vm.getBlockTimestamp());
+        assertEq(adapter.updatedAt(_marketId(second.market)), vm.getBlockTimestamp());
+
+        skip(3 hours);
+        adapter.withdrawToVault(first.market, 0);
+        adapter.withdrawToVault(second.market, 0);
+        assertEq(adapter.allowance(_marketId(first.market)), 0.625e18);
+        assertEq(adapter.allowance(_marketId(second.market)), 0.75e18);
+
+        setShortfallParams(0.001e18, 1 days);
+        assertEq(adapter.allowance(_marketId(first.market)), 0.1e18);
+        assertEq(adapter.allowance(_marketId(second.market)), 0.2e18);
+    }
+
+    function testSetShortfallParamsAtMaxMarkets() public {
+        uint256 maxMarkets = adapter.MAX_MARKETS();
+        for (uint256 i = 0; i < maxMarkets; i++) {
+            buy(30 days + i, 1e18);
+        }
+        skip(12 hours);
+
+        setShortfallParams(0.01e18, 12 hours);
+        assertEq(adapter.marketIdsLength(), maxMarkets);
+        for (uint256 i = 0; i < maxMarkets; i++) {
+            bytes32 marketId = adapter.marketIds(i);
+            assertEq(adapter.allowance(marketId), 0.0025e18);
+            assertEq(adapter.updatedAt(marketId), vm.getBlockTimestamp());
+        }
     }
 
     function testShortfallZeroRefillPeriodRefillsInstantly() public {
@@ -3688,12 +3831,9 @@ contract MidnightAdapterTest is Test {
     }
 
     function setShortfallParams(uint256 ratio, uint256 period) internal {
-        vm.startPrank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setMaxShortfallRatio, (ratio)));
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setShortfallRefillPeriod, (period)));
-        vm.stopPrank();
-        adapter.setMaxShortfallRatio(ratio);
-        adapter.setShortfallRefillPeriod(period);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setShortfallParams, (ratio, period)));
+        adapter.setShortfallParams(ratio, period);
     }
 
     function submitTimelock(bytes4 selector, uint256 duration) internal {
