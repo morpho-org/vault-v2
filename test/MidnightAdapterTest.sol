@@ -55,34 +55,6 @@ contract ExtraAssetsAdapter is IAdapter {
 }
 
 /// @notice Realizes the losses of a midnight adapter in a market.
-contract MidnightLossRealizer {
-    address public immutable midnight;
-
-    constructor(address _midnight) {
-        midnight = _midnight;
-        IMidnight(_midnight).setIsAuthorized(address(this), true, address(this));
-    }
-
-    function realizeLoss(IMidnightAdapter adapter, Market memory market) external {
-        Offer memory offer;
-        offer.market = market;
-        offer.buy = true;
-        offer.maker = address(this);
-        offer.expiry = block.timestamp;
-        offer.tick = MAX_TICK;
-        offer.ratifier = address(this);
-        offer.maxUnits = 1;
-        offer.continuousFeeCap = type(uint256).max;
-
-        IVaultV2(adapter.parentVault())
-            .forceDeallocate(address(adapter), abi.encode(offer, bytes("")), 0, address(this));
-    }
-
-    function isRatified(Offer memory, bytes memory, address) external view returns (bytes32) {
-        return CALLBACK_SUCCESS;
-    }
-}
-
 contract GarbageSubRatifier {
     function isRatified(Offer memory, bytes memory, address) external pure returns (bytes32) {
         return bytes32(uint256(1));
@@ -2203,7 +2175,7 @@ contract MidnightAdapterTest is Test {
         // The fee accrues out of the credit and of the pending fee alike, so the net credit does not move.
         skip(duration / 2);
         uint256 valueBefore = adapter.realAssets();
-        new MidnightLossRealizer(address(midnight)).realizeLoss(adapter, offer.market);
+        adapter.withdrawToVault(offer.market, 0);
         assertLt(midnight.pendingFee(marketId, address(adapter)), pendingFee, "fee accrued");
         uint128 netCreditAfter = adapter.netCredit(marketId);
         assertEq(netCreditAfter, netCredit, "net credit unchanged");
@@ -2250,7 +2222,6 @@ contract MidnightAdapterTest is Test {
         uint256 claimableFeeBefore = midnight.claimableSettlementFee(address(loanToken));
         uint256 settlementFee = assets.mulDivUp(feeCbp * CBP, 1e18);
         deal(address(loanToken), address(this), settlementFee);
-        loanToken.approve(address(adapter), settlementFee);
 
         forceDeallocate(offer.market, assets);
 
@@ -2258,7 +2229,7 @@ contract MidnightAdapterTest is Test {
         uint128 netCredit = adapter.netCredit(_marketId(offer.market));
         assertEq(netCredit, 1e18 - assets, "netCredit");
         assertEq(loanToken.balanceOf(address(this)), 0, "caller paid settlement fee");
-        assertEq(loanToken.allowance(address(this), address(adapter)), 0, "exact fee allowance consumed");
+        assertEq(loanToken.allowance(address(this), address(adapter)), 0, "exact allowance consumed");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter balance");
         assertEq(
             midnight.claimableSettlementFee(address(loanToken)), claimableFeeBefore + settlementFee, "settlement fee"
@@ -2300,7 +2271,7 @@ contract MidnightAdapterTest is Test {
         realVault.approve(taker, expectedPenaltyShares);
         deal(address(loanToken), taker, settlementFee);
         vm.startPrank(taker);
-        loanToken.approve(address(adapter), settlementFee);
+        loanToken.approve(address(adapter), 0.5e18);
 
         uint256 penaltyShares = realVault.forceDeallocate(
             address(adapter), abi.encode(offer, abi.encode(root_, 0, proof([offer]))), 0.5e18, address(this)
@@ -2454,6 +2425,7 @@ contract MidnightAdapterTest is Test {
         bytes32 marketId = _marketId(boughtOffer.market);
 
         (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, 0.5e18);
+        loanToken.approve(address(adapter), 0.5e18);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapter.ForceDeallocate(marketId, 0.5e18, 0.5e18);
         parentVault.forceDeallocate(
@@ -2486,26 +2458,65 @@ contract MidnightAdapterTest is Test {
         );
     }
 
-    function testForceDeallocateRevertsOnNonMaxTick() public {
+    /// @dev Midnight takes its settlement fee out of the buyer's payment at any offer price, and rejects offers priced
+    /// below the fee. The caller gets the seller's proceeds and pays the full amount to the vault.
+    function testForceDeallocateAnyPricePaysSettlementFee(uint256 tick, uint256 feeCbp) public {
+        tick = bound(tick, 0, MAX_TICK / DEFAULT_TICK_SPACING) * DEFAULT_TICK_SPACING;
+        feeCbp = bound(feeCbp, 1, MAX_SETTLEMENT_FEE_0_DAYS / CBP);
+        for (uint256 i = 0; i <= 6; i++) {
+            midnight.setDefaultSettlementFee(address(loanToken), i, feeCbp * CBP);
+        }
         Offer memory boughtOffer = buy(7 days, 1e18);
-        (Offer memory offer,) = makeForceDeallocateOffer(boughtOffer.market, 0.5e18);
-        offer.tick = MAX_TICK - 1;
+        skip(1);
+        bytes32 marketId = _marketId(boughtOffer.market);
+        uint256 price = TickLib.tickToPrice(tick);
+        uint256 fee = midnight.settlementFee(marketId, boughtOffer.market.maturity - block.timestamp);
+        (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, 0.5e18, tick);
+        bytes memory data = abi.encode(offer, abi.encode(root_, 0, proof([offer])));
+        deal(address(loanToken), address(this), 0.5e18);
+        loanToken.approve(address(adapter), 0.5e18);
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+        uint256 claimableFeeBefore = midnight.claimableSettlementFee(address(loanToken));
 
-        vm.expectRevert(IMidnightAdapter.IncorrectOffer.selector);
-        parentVault.forceDeallocate(
-            address(adapter), abi.encode(offer, abi.encode(bytes32(0), 0, proof([offer]))), 0.5e18, address(this)
+        if (price < fee) {
+            vm.expectRevert(stdError.arithmeticError);
+            parentVault.forceDeallocate(address(adapter), data, 0.5e18, address(this));
+            return;
+        }
+        parentVault.forceDeallocate(address(adapter), data, 0.5e18, address(this));
+
+        uint256 buyerAssets = uint256(0.5e18).mulDivDown(price, 1e18);
+        uint256 sellerAssets = uint256(0.5e18).mulDivDown(price - fee, 1e18);
+        assertEq(
+            midnight.claimableSettlementFee(address(loanToken)), claimableFeeBefore + buyerAssets - sellerAssets, "fee"
         );
+        assertEq(loanToken.balanceOf(offer.maker), 0.5e18 - buyerAssets, "buyer paid the offer price");
+        assertEq(loanToken.balanceOf(address(this)), sellerAssets, "caller got the proceeds, paid the full amount");
+        assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + 0.5e18, "vault got the full amount");
+        assertEq(adapter.netCredit(marketId), 0.5e18, "netCredit");
     }
 
-    function testForceDeallocateRevertsOnCallback() public {
+    /// @dev The buyer pays the discounted price to the caller, who pays the full amount to the vault.
+    function testForceDeallocateDiscountedOffer(uint256 assets) public {
+        assets = bound(assets, 1, 1e18);
         Offer memory boughtOffer = buy(7 days, 1e18);
-        (Offer memory offer,) = makeForceDeallocateOffer(boughtOffer.market, 0.5e18);
-        offer.callback = address(this);
+        skip(1);
+        (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, assets, discountTick);
+        uint256 received = assets.mulDivDown(TickLib.tickToPrice(discountTick), 1e18);
+        uint256 vaultBalanceBefore = loanToken.balanceOf(address(parentVault));
+        deal(address(loanToken), address(this), assets - received);
+        loanToken.approve(address(adapter), assets);
 
-        vm.expectRevert(IMidnightAdapter.IncorrectOffer.selector);
         parentVault.forceDeallocate(
-            address(adapter), abi.encode(offer, abi.encode(bytes32(0), 0, proof([offer]))), 0.5e18, address(this)
+            address(adapter), abi.encode(offer, abi.encode(root_, 0, proof([offer]))), assets, address(this)
         );
+
+        assertEq(loanToken.balanceOf(address(parentVault)), vaultBalanceBefore + assets, "vault balance");
+        assertEq(adapter.netCredit(_marketId(offer.market)), 1e18 - assets, "netCredit");
+        assertEq(midnight.credit(_marketId(offer.market), offer.maker), assets, "buyer credit");
+        assertEq(loanToken.balanceOf(address(this)), 0, "caller paid the discount");
+        assertEq(loanToken.balanceOf(offer.maker), assets - received, "buyer paid the discounted price");
+        assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter balance");
     }
 
     function testForceDeallocateWithoutRole() public {
@@ -3066,6 +3077,7 @@ contract MidnightAdapterTest is Test {
         uint256 assets = uint256(type(uint128).max) - 1;
         (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(boughtOffer.market, assets);
 
+        loanToken.approve(address(adapter), assets);
         vm.expectEmit(address(adapter));
         emit IMidnightAdapter.ForceDeallocate(marketId, assets, assets);
         (, int256 change) = parentVault.forceDeallocate(
@@ -3211,6 +3223,13 @@ contract MidnightAdapterTest is Test {
         internal
         returns (Offer memory offer, bytes32 root_)
     {
+        return makeForceDeallocateOffer(market, assets, MAX_TICK);
+    }
+
+    function makeForceDeallocateOffer(Market memory market, uint256 assets, uint256 tick)
+        internal
+        returns (Offer memory offer, bytes32 root_)
+    {
         address buyer = makeAddr("buyer");
         SetterRatifier approvalRatifier = new SetterRatifier(address(midnight));
 
@@ -3218,7 +3237,7 @@ contract MidnightAdapterTest is Test {
         offer.market = market;
         offer.buy = true;
         offer.maker = buyer;
-        offer.tick = MAX_TICK;
+        offer.tick = tick;
         offer.maxUnits = uint128(assets);
         offer.expiry = block.timestamp;
         offer.callback = address(0);
@@ -3275,6 +3294,7 @@ contract MidnightAdapterTest is Test {
     function forceDeallocate(Market memory market, uint256 assets) internal {
         (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(market, assets);
         bytes memory data = abi.encode(offer, abi.encode(root_, 0, proof([offer])));
+        loanToken.approve(address(adapter), assets);
         parentVault.forceDeallocate(address(adapter), data, assets, address(this));
     }
 
@@ -3328,6 +3348,7 @@ contract MidnightAdapterTest is Test {
     function forceDeallocateOnRealVault(Market memory market, uint256 assets) internal returns (uint256) {
         (Offer memory offer, bytes32 root_) = makeForceDeallocateOffer(market, assets);
         bytes memory data = abi.encode(offer, abi.encode(root_, 0, proof([offer])));
+        loanToken.approve(address(adapter), assets);
         return realVault.forceDeallocate(address(adapter), data, assets, address(this));
     }
 
