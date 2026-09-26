@@ -353,7 +353,7 @@ contract MidnightAdapter is IMidnightAdapter {
     /// @dev Called by this adapter from a sell callback, a withdraw, or a duration caps update.
     /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as
     /// receiver and pulls the full credit value from the caller.
-    function deallocate(bytes memory data, uint256 sellerAssets, bytes4 messageSig, address caller)
+    function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
         external
         returns (bytes32[] memory, int256)
     {
@@ -368,12 +368,12 @@ contract MidnightAdapter is IMidnightAdapter {
 
             // Skip onSell since we are already in a deallocate call.
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
-            IMidnight(midnight).take(offer, ratifierData, sellerAssets, address(this), caller, address(0), hex"");
-            SafeERC20Lib.safeTransferFrom(asset, caller, address(this), sellerAssets);
+            IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
+            SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
             int256 change = updateMarket(marketId, offer.market, currentNetCredit(marketId));
 
             // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
-            emit ForceDeallocate(marketId, sellerAssets, uint256(-change));
+            emit ForceDeallocate(marketId, assets, uint256(-change));
             return (ids(offer.market), change);
         } else {
             require(caller == address(this), SelfAllocationOnly());
