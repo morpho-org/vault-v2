@@ -55,6 +55,7 @@ contract MidnightAdapter is IMidnightAdapter {
     address public skimRecipient;
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
     uint256 public minBuyRate;
+    uint256 public maxTtm;
     mapping(address subRatifier => bool) public isSubRatifier;
     /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement
     /// fee.
@@ -89,19 +90,19 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* GETTERS */
 
-    function netCredit(bytes32 marketId) external view returns (uint128) {
+    function marketDataNetCredit(bytes32 marketId) external view returns (uint128) {
         return marketData[marketId].netCredit;
     }
 
-    function growth(bytes32 marketId) external view returns (uint64) {
+    function marketDataGrowth(bytes32 marketId) external view returns (uint64) {
         return marketData[marketId].growth;
     }
 
-    function maturity(bytes32 marketId) external view returns (uint48) {
+    function marketDataMaturity(bytes32 marketId) external view returns (uint48) {
         return marketData[marketId].maturity;
     }
 
-    function index(bytes32 marketId) external view returns (uint8) {
+    function marketDataIndex(bytes32 marketId) external view returns (uint8) {
         return marketData[marketId].index;
     }
 
@@ -234,6 +235,12 @@ contract MidnightAdapter is IMidnightAdapter {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         minBuyRate = newMinBuyRate;
         emit SetMinBuyRate(newMinBuyRate);
+    }
+
+    function setMaxTtm(uint256 newMaxTtm) external {
+        timelocked();
+        maxTtm = newMaxTtm;
+        emit SetMaxTtm(newMaxTtm);
     }
 
     /// @dev Help prevent operational errors when selling.
@@ -397,6 +404,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
         require(block.timestamp <= market.maturity, BuyPostMaturity());
+        require(market.maturity - block.timestamp <= maxTtm, BuyTtmTooHigh());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
 
