@@ -33,13 +33,14 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event RemoveSubRatifier(address indexed sender, address indexed subRatifier);
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetMinBuyRate(uint256 newMinBuyRate);
+    event SetMaxTtm(uint256 newMaxTtm);
     event SetShortfallParams(uint256 newMaxShortfallRatio, uint256 newShortfallRefillPeriod);
     event SetMaxSellRate(address indexed sender, bytes32 indexed collateralParamsHash, uint256 newMaxSellRate);
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
     event UpdateDurationCaps(uint256 indexed maturity, uint256 newDurationCount, uint256 netCredit);
-    event ForceDeallocate(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
+    event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 netCreditDecrease);
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 netCreditLoss);
     event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease, uint256 saleShortfall);
     event UpdateMarket(bytes32 indexed marketId, MarketData data, uint256 shortfallAllowance);
@@ -52,6 +53,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error DataNotTimelocked();
     error BuyAtLoss();
     error BuyPostMaturity();
+    error BuyTtmTooHigh();
     error IncorrectCallbackAddress();
     error IncorrectOffer();
     error IncorrectMaker();
@@ -82,14 +84,15 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
+    function maxTtm() external view returns (uint256);
     function marketData(bytes32 marketId)
         external
         view
         returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index);
-    function netCredit(bytes32 marketId) external view returns (uint128);
-    function growth(bytes32 marketId) external view returns (uint64);
-    function maturity(bytes32 marketId) external view returns (uint48);
-    function index(bytes32 marketId) external view returns (uint8);
+    function marketDataNetCredit(bytes32 marketId) external view returns (uint128);
+    function marketDataGrowth(bytes32 marketId) external view returns (uint64);
+    function marketDataMaturity(bytes32 marketId) external view returns (uint48);
+    function marketDataIndex(bytes32 marketId) external view returns (uint8);
     function maturities(uint256 date) external view returns (uint128 netCredit, uint8 durationCount);
     function maturityNetCredit(uint256 date) external view returns (uint128);
     function maturityDurationCount(uint256 date) external view returns (uint8);
@@ -111,6 +114,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external;
     function abdicate(bytes4 selector) external;
     function setMinBuyRate(uint256 newMinBuyRate) external;
+    function setMaxTtm(uint256 newMaxTtm) external;
     function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
     function addSubRatifier(address subRatifier) external;
