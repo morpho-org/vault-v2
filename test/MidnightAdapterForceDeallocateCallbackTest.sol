@@ -175,7 +175,7 @@ contract MidnightAdapterForceDeallocateCallbackTest is MidnightAdapterTest {
         assertTrue(buyer.called(), "callback ran");
 
         bytes32 marketId = _marketId(market);
-        assertEq(adapter.netCredit(marketId), 4e18, "netCredit");
+        assertEq(adapter.marketDataNetCredit(marketId), 4e18, "netCredit");
         assertEq(realVault.allocation(adapter.adapterId()), 4e18, "adapter id");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter holds nothing");
         // 10 initial + 1 pre-deposit + 1 callback deposit - 0.5 callback withdraw + 4 sold ... - 4 credit
@@ -207,8 +207,8 @@ contract MidnightAdapterForceDeallocateCallbackTest is MidnightAdapterTest {
         callbackForceDeallocate(initial.market, 4e18, buyer);
         assertTrue(buyer.called(), "callback ran");
 
-        assertEq(adapter.netCredit(_marketId(initial.market)), 4e18, "netCredit initial");
-        assertEq(adapter.netCredit(_marketId(other.market)), 0, "netCredit other");
+        assertEq(adapter.marketDataNetCredit(_marketId(initial.market)), 4e18, "netCredit initial");
+        assertEq(adapter.marketDataNetCredit(_marketId(other.market)), 0, "netCredit other");
         assertEq(adapter.marketIdsLength(), 1, "markets");
         assertEq(realVault.allocation(adapter.adapterId()), 4e18, "adapter id");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter holds nothing");
@@ -250,8 +250,8 @@ contract MidnightAdapterForceDeallocateCallbackTest is MidnightAdapterTest {
         callbackForceDeallocate(initial.market, 4e18, buyer);
         assertTrue(buyer.called(), "callback ran");
 
-        assertEq(adapter.netCredit(_marketId(initial.market)), 4e18, "netCredit initial");
-        assertEq(adapter.netCredit(_marketId(adapterBuy.market)), longBuy ? 0 : 1e18, "netCredit bought");
+        assertEq(adapter.marketDataNetCredit(_marketId(initial.market)), 4e18, "netCredit initial");
+        assertEq(adapter.marketDataNetCredit(_marketId(adapterBuy.market)), longBuy ? 0 : 1e18, "netCredit bought");
         assertEq(realVault.allocation(adapter.adapterId()), longBuy ? 4e18 : 5e18, "adapter id");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter holds nothing");
         assertEq(loanToken.balanceOf(address(realVault)), longBuy ? 6e18 : 5e18, "idle");
@@ -284,7 +284,9 @@ contract MidnightAdapterForceDeallocateCallbackTest is MidnightAdapterTest {
         // Exited whole at the pre-loss price (minus the 1e15 paid for the credit bought).
         assertEq(loanToken.balanceOf(address(buyer)), buyerBalanceBefore + 2e18 - 1e15, "buyer proceeds");
         assertEq(realVault.totalAssets(), backing(), "loss visible after the tx");
-        assertEq(realVault.allocation(adapter.adapterId()), adapter.netCredit(_marketId(initial.market)), "caps");
+        assertEq(
+            realVault.allocation(adapter.adapterId()), adapter.marketDataNetCredit(_marketId(initial.market)), "caps"
+        );
         assertApproxEqAbs(backing(), 10e18 - 4e18 + 1e15 / 2, 2, "half of the remaining credit is lost");
     }
 
@@ -337,8 +339,8 @@ contract MidnightAdapterForceDeallocateCallbackTest is MidnightAdapterTest {
         assertTrue(buyer.called(), "callback ran");
 
         assertEq(adapter.marketIdsLength(), 0, "no markets left");
-        assertEq(adapter.netCredit(_marketId(initial.market)), 0, "netCredit initial");
-        assertEq(adapter.netCredit(_marketId(other.market)), 0, "netCredit other");
+        assertEq(adapter.marketDataNetCredit(_marketId(initial.market)), 0, "netCredit initial");
+        assertEq(adapter.marketDataNetCredit(_marketId(other.market)), 0, "netCredit other");
         assertEq(realVault.allocation(adapter.adapterId()), 0, "adapter id");
         assertEq(adapter.realAssets(), 0, "realAssets");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter holds nothing");
@@ -367,7 +369,7 @@ contract MidnightAdapterForceDeallocateCallbackTest is MidnightAdapterTest {
             loanToken.balanceOf(address(buyer)), buyerBalanceBefore - received - 1e18, "buyer paid price + deposit"
         );
         assertEq(loanToken.balanceOf(address(realVault)), 2e18 + 1e18 + 2e18, "idle");
-        assertEq(adapter.netCredit(_marketId(initial.market)), 6e18, "netCredit");
+        assertEq(adapter.marketDataNetCredit(_marketId(initial.market)), 6e18, "netCredit");
         assertEq(realVault.allocation(adapter.adapterId()), 6e18, "adapter id");
         assertEq(backing(), 11e18, "backing");
     }
