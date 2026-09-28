@@ -406,10 +406,11 @@ contract MidnightAdapter is IMidnightAdapter {
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
+        // Prevent buying into a gated market that will then block forceDeallocate.
         require(
             enterGateFactory == address(0) || market.enterGate == address(0)
                 || (IEnterGateFactory(enterGateFactory).isGate(market.enterGate)
-                    && WrapperEnterGate(market.enterGate).vault() == parentVault),
+                    && WrapperEnterGate(market.enterGate).marketId() == marketId),
             IncorrectEnterGate()
         );
         require(block.timestamp <= market.maturity, BuyPostMaturity());

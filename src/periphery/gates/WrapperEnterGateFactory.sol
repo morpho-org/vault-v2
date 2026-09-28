@@ -2,19 +2,19 @@
 // Copyright (c) 2026 Morpho Association
 pragma solidity 0.8.34;
 
-import {IMidnightAdapter} from "../../adapters/interfaces/IMidnightAdapter.sol";
+import {Market} from "lib/midnight/src/interfaces/IMidnight.sol";
 import {WrapperEnterGate} from "./WrapperEnterGate.sol";
 import {IEnterGateFactory} from "./interfaces/IEnterGateFactory.sol";
 
 contract WrapperEnterGateFactory is IEnterGateFactory {
-    event CreateWrapperEnterGate(address indexed adapter, address indexed wrapperEnterGate, address indexed gate);
+    event CreateWrapperEnterGate(address indexed wrapperEnterGate, address indexed gate, bytes32 marketId);
 
     mapping(address account => bool) public isGate;
 
-    function createWrapperEnterGate(address adapter, address gate) external returns (address) {
-        address wrapperEnterGate = address(new WrapperEnterGate(adapter, IMidnightAdapter(adapter).parentVault(), gate));
+    function createWrapperEnterGate(address gate, Market memory market) external returns (address) {
+        address wrapperEnterGate = address(new WrapperEnterGate(gate, market));
         isGate[wrapperEnterGate] = true;
-        emit CreateWrapperEnterGate(adapter, wrapperEnterGate, gate);
+        emit CreateWrapperEnterGate(wrapperEnterGate, gate, WrapperEnterGate(wrapperEnterGate).marketId());
         return wrapperEnterGate;
     }
 }
