@@ -238,7 +238,7 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     function setMaxTtm(uint256 newMaxTtm) external {
-        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        timelocked();
         maxTtm = newMaxTtm;
         emit SetMaxTtm(newMaxTtm);
     }

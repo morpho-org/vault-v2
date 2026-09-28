@@ -930,6 +930,7 @@ contract MidnightAdapterTest is Test {
         VaultV2Mock otherVault = new VaultV2Mock(address(loanToken), owner, curator, otherAllocator, address(0));
         IMidnightAdapter otherAdapter = IMidnightAdapter(factory.createMidnightAdapter(address(otherVault)));
         vm.prank(curator);
+        otherAdapter.submit(abi.encodeCall(IMidnightAdapter.setMaxTtm, (type(uint256).max)));
         otherAdapter.setMaxTtm(type(uint256).max);
         addSubRatifier(otherAdapter, address(ecrecoverRatifier));
         deal(address(loanToken), address(otherVault), 1_000_000e18);
@@ -1022,16 +1023,48 @@ contract MidnightAdapterTest is Test {
         vm.assume(caller != curator);
         vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
         vm.prank(caller);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setMaxTtm, (newMaxTtm)));
+    }
+
+    function testSetMaxTtmNotTimelocked(address caller, uint256 newMaxTtm) public {
+        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
+        vm.prank(caller);
         adapter.setMaxTtm(newMaxTtm);
     }
 
     function testSetMaxTtmAuthorized(uint256 oldMaxTtm, uint256 newMaxTtm) public {
         setUpMaxTtm(oldMaxTtm);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setMaxTtm, (newMaxTtm)));
         vm.expectEmit(address(adapter));
         emit IMidnightAdapter.SetMaxTtm(newMaxTtm);
-        vm.prank(curator);
         adapter.setMaxTtm(newMaxTtm);
         assertEq(adapter.maxTtm(), newMaxTtm, "maxTtm");
+    }
+
+    function testSetMaxTtmTimelocked(uint256 newMaxTtm, uint256 duration) public {
+        duration = bound(duration, 1, 3650 days);
+        submitTimelock(IMidnightAdapter.setMaxTtm.selector, duration);
+
+        bytes memory data = abi.encodeCall(IMidnightAdapter.setMaxTtm, (newMaxTtm));
+        vm.prank(curator);
+        adapter.submit(data);
+
+        skip(duration - 1);
+        vm.expectRevert(IMidnightAdapter.TimelockNotExpired.selector);
+        adapter.setMaxTtm(newMaxTtm);
+
+        skip(1);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.Accept(IMidnightAdapter.setMaxTtm.selector, data);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.SetMaxTtm(newMaxTtm);
+        adapter.setMaxTtm(newMaxTtm);
+        assertEq(adapter.maxTtm(), newMaxTtm, "maxTtm");
+        assertEq(adapter.executableAt(data), 0, "executableAt");
+
+        vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
+        adapter.setMaxTtm(newMaxTtm);
     }
 
     function testMaxTtmUpdatesApplyToSignedOffer() public {
@@ -3229,6 +3262,7 @@ contract MidnightAdapterTest is Test {
 
     function setUpMaxTtm(uint256 maxTtm) internal {
         vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setMaxTtm, (maxTtm)));
         adapter.setMaxTtm(maxTtm);
     }
 
