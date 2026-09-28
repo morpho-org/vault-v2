@@ -5,7 +5,6 @@ pragma solidity 0.8.34;
 import {IMidnight, Offer, Market} from "lib/midnight/src/interfaces/IMidnight.sol";
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
 import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
-import {MAX_TICK} from "lib/midnight/src/libraries/TickLib.sol";
 import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
@@ -59,6 +58,7 @@ contract MidnightAdapter is IMidnightAdapter {
     address public skimRecipient;
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
     uint256 public minBuyRate;
+    uint256 public maxTtm;
     mapping(address subRatifier => bool) public isSubRatifier;
     /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement
     /// fee.
@@ -94,19 +94,19 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* GETTERS */
 
-    function netCredit(bytes32 marketId) external view returns (uint128) {
+    function marketDataNetCredit(bytes32 marketId) external view returns (uint128) {
         return marketData[marketId].netCredit;
     }
 
-    function growth(bytes32 marketId) external view returns (uint64) {
+    function marketDataGrowth(bytes32 marketId) external view returns (uint64) {
         return marketData[marketId].growth;
     }
 
-    function maturity(bytes32 marketId) external view returns (uint48) {
+    function marketDataMaturity(bytes32 marketId) external view returns (uint48) {
         return marketData[marketId].maturity;
     }
 
-    function index(bytes32 marketId) external view returns (uint8) {
+    function marketDataIndex(bytes32 marketId) external view returns (uint8) {
         return marketData[marketId].index;
     }
 
@@ -241,6 +241,12 @@ contract MidnightAdapter is IMidnightAdapter {
         emit SetMinBuyRate(newMinBuyRate);
     }
 
+    function setMaxTtm(uint256 newMaxTtm) external {
+        timelocked();
+        maxTtm = newMaxTtm;
+        emit SetMaxTtm(newMaxTtm);
+    }
+
     /// @dev Help prevent operational errors when selling.
     function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
@@ -355,35 +361,30 @@ contract MidnightAdapter is IMidnightAdapter {
         returnExactBytes(data);
     }
 
-    /// @dev Can be called by this adapter from a sell callback, a withdraw, or a duration caps update.
-    /// @dev Can be called by anyone through forceDeallocate to trigger a sell take by the adapter.
-    /// @dev forceDeallocate callers must approve for asset transfer to cover the settlement fee
-    function deallocate(bytes memory data, uint256 sellerAssets, bytes4 messageSig, address caller)
+    /// @dev Called by this adapter from a sell callback, a withdraw, or a duration caps update.
+    /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as
+    /// receiver and pulls the full credit value from the caller.
+    function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
         external
         returns (bytes32[] memory, int256)
     {
         require(msg.sender == parentVault, NotAuthorized());
         if (messageSig == IVaultV2.forceDeallocate.selector) {
             (Offer memory offer, bytes memory ratifierData) = abi.decode(data, (Offer, bytes));
-            require(
-                offer.buy && offer.market.loanToken == asset && offer.tick == MAX_TICK && offer.callback == address(0),
-                IncorrectOffer()
-            );
+            require(offer.buy && offer.market.loanToken == asset, IncorrectOffer());
 
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             IVaultV2(parentVault).accrueInterest();
 
             // Skip onSell since we are already in a deallocate call.
-            // forge-lint: disable-next-item(reentrancy-no-eth) view reentry is possible through a ratifier.
-            (, uint256 receivedAssets) = IMidnight(midnight)
-                .take(offer, ratifierData, sellerAssets, address(this), address(this), address(0), hex"");
-            uint256 settlementFee = sellerAssets - receivedAssets;
-            if (settlementFee > 0) SafeERC20Lib.safeTransferFrom(asset, caller, address(this), settlementFee);
+            // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
+            IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
+            SafeERC20Lib.safeTransferFrom(asset, caller, address(this), assets);
             int256 change = updateMarket(marketId, offer.market, currentNetCredit(marketId));
 
             // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
-            emit ForceDeallocate(marketId, sellerAssets, uint256(-change));
+            emit ForceDeallocate(marketId, assets, uint256(-change));
             return (ids(offer.market), change);
         } else {
             require(caller == address(this), SelfAllocationOnly());
@@ -414,6 +415,7 @@ contract MidnightAdapter is IMidnightAdapter {
             IncorrectEnterGate()
         );
         require(block.timestamp <= market.maturity, BuyPostMaturity());
+        require(market.maturity - block.timestamp <= maxTtm, BuyTtmTooHigh());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
 
