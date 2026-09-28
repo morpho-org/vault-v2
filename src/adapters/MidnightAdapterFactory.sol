@@ -3,6 +3,7 @@
 pragma solidity 0.8.34;
 
 import {MidnightAdapter} from "./MidnightAdapter.sol";
+import {WrapperEnterGateFactory} from "../periphery/gates/WrapperEnterGateFactory.sol";
 import {IMidnightAdapterFactory} from "./interfaces/IMidnightAdapterFactory.sol";
 
 contract MidnightAdapterFactory is IMidnightAdapterFactory {
@@ -21,11 +22,11 @@ contract MidnightAdapterFactory is IMidnightAdapterFactory {
     /* CONSTRUCTOR */
 
     /// @dev Durations are checked only when an adapter is created.
-    constructor(address _midnight, uint256[] memory _durations, address _enterGateFactory) {
+    constructor(address _midnight, uint256[] memory _durations) {
         midnight = _midnight;
-        enterGateFactory = _enterGateFactory;
+        enterGateFactory = address(new WrapperEnterGateFactory());
         durations = _durations;
-        emit CreateMidnightAdapterFactory(_midnight, _durations, _enterGateFactory);
+        emit CreateMidnightAdapterFactory(_midnight, _durations, enterGateFactory);
     }
 
     /* GETTERS */

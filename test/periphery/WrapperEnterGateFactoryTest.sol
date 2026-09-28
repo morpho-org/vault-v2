@@ -15,9 +15,12 @@ contract WrapperEnterGateFactoryTest is Test {
     address internal midnight = makeAddr("midnight");
     Market internal market;
     address internal gate = makeAddr("gate");
+    address internal adapterFactory = makeAddr("adapterFactory");
 
     function setUp() public {
+        vm.prank(adapterFactory);
         factory = new WrapperEnterGateFactory();
+        assertEq(factory.adapterFactory(), adapterFactory);
         market.midnight = midnight;
     }
 
@@ -39,6 +42,7 @@ contract WrapperEnterGateFactoryTest is Test {
         assertEq(WrapperEnterGate(created).midnight(), midnight);
         assertEq(WrapperEnterGate(created).marketId(), IdLib.toId(expectedMarket));
         assertEq(WrapperEnterGate(created).gate(), forwardedGate);
+        assertEq(WrapperEnterGate(created).adapterFactory(), adapterFactory);
     }
 
     function testCreateMultipleIdenticalGates() public {
@@ -51,7 +55,7 @@ contract WrapperEnterGateFactoryTest is Test {
     }
 
     function testIsGateRejectsUnregisteredGates() public {
-        address direct = address(new WrapperEnterGate(gate, market));
+        address direct = address(new WrapperEnterGate(gate, adapterFactory, market));
         WrapperEnterGateFactory otherFactory = new WrapperEnterGateFactory();
         address other = otherFactory.createWrapperEnterGate(gate, market);
 

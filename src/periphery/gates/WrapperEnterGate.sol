@@ -6,30 +6,33 @@ import {IEnterGate} from "lib/midnight/src/interfaces/IGate.sol";
 import {IMidnight, Market} from "lib/midnight/src/interfaces/IMidnight.sol";
 import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
 import {IMidnightAdapter} from "../../adapters/interfaces/IMidnightAdapter.sol";
+import {IMidnightAdapterFactory} from "../../adapters/interfaces/IMidnightAdapterFactory.sol";
 import {IERC20} from "../../interfaces/IERC20.sol";
 
 /// @dev Lets in users of vaults present in a specific market.
 /// @dev Markets other than marketId should not use this gate as their enterGate.
-/// @dev Adapters with market credit are trusted to report their parent vault honestly.
 contract WrapperEnterGate is IEnterGate {
     error Unauthorized();
 
     address public immutable midnight;
     bytes32 public immutable marketId;
     address public immutable gate;
+    address public immutable adapterFactory;
 
-    constructor(address _gate, Market memory market) {
+    constructor(address _gate, address _adapterFactory, Market memory market) {
         midnight = market.midnight;
         gate = _gate;
+        adapterFactory = _adapterFactory;
         market.enterGate = address(this);
         marketId = IdLib.toId(market);
     }
 
-    /// @dev Authorization lasts until the end of the transaction, even if shares or credit are subsequently removed.
     function transientAllowIncreaseCredit(address user, address adapter) external {
         require(
-            IERC20(IMidnightAdapter(adapter).parentVault()).balanceOf(user) > 0
-                && IMidnight(midnight).credit(marketId, adapter) > 0,
+            IMidnightAdapterFactory(adapterFactory).isMidnightAdapter(adapter)
+                && !IMidnightAdapterFactory(adapterFactory).isMidnightAdapter(user)
+                && IMidnight(midnight).credit(marketId, adapter) > 0
+                && IERC20(IMidnightAdapter(adapter).parentVault()).balanceOf(user) > 0,
             Unauthorized()
         );
 

@@ -10,11 +10,13 @@ import {IMidnightAdapter} from "../../src/adapters/interfaces/IMidnightAdapter.s
 import {WrapperEnterGate} from "../../src/periphery/gates/WrapperEnterGate.sol";
 import {ERC20Mock} from "../mocks/ERC20Mock.sol";
 import {EnterGateMock} from "../mocks/EnterGateMock.sol";
+import {MidnightAdapterFactoryMock} from "../mocks/MidnightAdapterFactoryMock.sol";
 
 /// forge-config: default.isolate = false
 contract WrapperEnterGateTest is Test {
     ERC20Mock internal vault;
     EnterGateMock internal gate;
+    MidnightAdapterFactoryMock internal adapterFactory;
     WrapperEnterGate internal wrapper;
     address internal midnight = makeAddr("midnight");
     Market internal market;
@@ -27,7 +29,9 @@ contract WrapperEnterGateTest is Test {
         gate = new EnterGateMock();
         market.midnight = midnight;
         vm.mockCall(adapter, abi.encodeCall(IMidnightAdapter.parentVault, ()), abi.encode(address(vault)));
-        wrapper = new WrapperEnterGate(address(gate), market);
+        adapterFactory = new MidnightAdapterFactoryMock();
+        adapterFactory.setIsMidnightAdapter(adapter, true);
+        wrapper = new WrapperEnterGate(address(gate), address(adapterFactory), market);
         vm.mockCall(midnight, abi.encodeCall(IMidnight.credit, (wrapper.marketId(), adapter)), abi.encode(uint128(1)));
     }
 
@@ -37,6 +41,7 @@ contract WrapperEnterGateTest is Test {
         expectedMarket.enterGate = address(wrapper);
         assertEq(wrapper.marketId(), IdLib.toId(expectedMarket));
         assertEq(wrapper.gate(), address(gate));
+        assertEq(wrapper.adapterFactory(), address(adapterFactory));
     }
 
     function testAdapterCreditForwarded(bool allowed) public {
@@ -124,6 +129,7 @@ contract WrapperEnterGateTest is Test {
         ERC20Mock otherVault = new ERC20Mock(18);
         address otherAdapter = makeAddr("otherAdapter");
         vm.mockCall(otherAdapter, abi.encodeCall(IMidnightAdapter.parentVault, ()), abi.encode(address(otherVault)));
+        adapterFactory.setIsMidnightAdapter(otherAdapter, true);
         vm.mockCall(
             midnight, abi.encodeCall(IMidnight.credit, (wrapper.marketId(), otherAdapter)), abi.encode(uint128(1))
         );
@@ -134,6 +140,37 @@ contract WrapperEnterGateTest is Test {
         wrapper.transientAllowIncreaseCredit(recipient, otherAdapter);
         assertTrue(wrapper.canIncreaseCredit(depositor));
         assertTrue(wrapper.canIncreaseCredit(recipient));
+    }
+
+    function testOnlyAdaptersCanAllow() public {
+        address creditor = makeAddr("creditor");
+        vm.mockCall(creditor, abi.encodeCall(IMidnightAdapter.parentVault, ()), abi.encode(address(vault)));
+        vm.mockCall(midnight, abi.encodeCall(IMidnight.credit, (wrapper.marketId(), creditor)), abi.encode(uint128(1)));
+        deal(address(vault), depositor, 1);
+        vm.expectRevert(WrapperEnterGate.Unauthorized.selector);
+        wrapper.transientAllowIncreaseCredit(depositor, creditor);
+        assertFalse(wrapper.canIncreaseCredit(depositor));
+
+        adapterFactory.setIsMidnightAdapter(creditor, true);
+        wrapper.transientAllowIncreaseCredit(depositor, creditor);
+        assertTrue(wrapper.canIncreaseCredit(depositor));
+    }
+
+    function testAdaptersCannotBeAllowed() public {
+        address otherAdapter = makeAddr("otherAdapter");
+        adapterFactory.setIsMidnightAdapter(otherAdapter, true);
+        deal(address(vault), otherAdapter, 1);
+        deal(address(vault), adapter, 1);
+        vm.expectRevert(WrapperEnterGate.Unauthorized.selector);
+        wrapper.transientAllowIncreaseCredit(otherAdapter, adapter);
+        vm.expectRevert(WrapperEnterGate.Unauthorized.selector);
+        wrapper.transientAllowIncreaseCredit(adapter, adapter);
+        assertFalse(wrapper.canIncreaseCredit(otherAdapter));
+        assertFalse(wrapper.canIncreaseCredit(adapter));
+
+        adapterFactory.setIsMidnightAdapter(otherAdapter, false);
+        wrapper.transientAllowIncreaseCredit(otherAdapter, adapter);
+        assertTrue(wrapper.canIncreaseCredit(otherAdapter));
     }
 
     function testDepositorCreditBypassesGate(uint256 shares) public {
@@ -235,8 +272,8 @@ contract WrapperEnterGateTest is Test {
 
     function testDebtBubblesGateRevertForDepositorAndAdapter(bool isAdapter) public {
         address account = isAdapter ? adapter : depositor;
-        deal(address(vault), account, 1);
-        wrapper.transientAllowIncreaseCredit(account, adapter);
+        deal(address(vault), depositor, 1);
+        wrapper.transientAllowIncreaseCredit(depositor, adapter);
         vm.mockCallRevert(address(gate), abi.encodeCall(IEnterGate.canIncreaseDebt, (account)), "gate reverted");
 
         vm.expectRevert(bytes("gate reverted"));
