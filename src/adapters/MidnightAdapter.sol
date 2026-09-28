@@ -75,8 +75,8 @@ contract MidnightAdapter is IMidnightAdapter {
     uint256 public totalNetCredit;
     // @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales
     // proceeds.
-    uint256 public shortfallRefillPeriod;
-    uint256 public maxShortfallRatio;
+    uint128 public shortfallRefillPeriod;
+    uint128 public maxShortfallRatio;
     uint128 public shortfallAllowance;
     uint48 public shortfallUpdatedAt;
     bytes32 transient overridenMarketId;
@@ -262,8 +262,8 @@ contract MidnightAdapter is IMidnightAdapter {
         timelocked();
         require(newMaxShortfallRatio <= WAD, MaxShortfallRatioTooHigh());
         updateShortfallAllowance(totalNetCredit.mulDivDown(maxShortfallRatio, WAD));
-        maxShortfallRatio = newMaxShortfallRatio;
-        shortfallRefillPeriod = newShortfallRefillPeriod;
+        maxShortfallRatio = newMaxShortfallRatio.toUint128();
+        shortfallRefillPeriod = newShortfallRefillPeriod.toUint128();
         shortfallAllowance =
             MathLib.min(shortfallAllowance, totalNetCredit.mulDivDown(newMaxShortfallRatio, WAD)).toUint128();
         emit SetShortfallParams(newMaxShortfallRatio, newShortfallRefillPeriod);

@@ -3144,6 +3144,7 @@ contract MidnightAdapterTest is Test {
 
     function testSetShortfallParams(uint256 ratio, uint256 period) public {
         ratio = bound(ratio, 0, 1e18);
+        period = bound(period, 0, type(uint128).max);
         vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
         adapter.setShortfallParams(ratio, period);
 
@@ -3159,6 +3160,14 @@ contract MidnightAdapterTest is Test {
         adapter.setShortfallParams(ratio, period);
         assertEq(adapter.maxShortfallRatio(), ratio);
         assertEq(adapter.shortfallRefillPeriod(), period);
+    }
+
+    function testSetShortfallParamsRefillPeriodOverflow(uint256 period) public {
+        period = bound(period, uint256(type(uint128).max) + 1, type(uint256).max);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setShortfallParams, (0.005e18, period)));
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        adapter.setShortfallParams(0.005e18, period);
     }
 
     function testSetShortfallParamsChangesBothParameters(bool wasDisabled) public {
@@ -3284,7 +3293,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testShortfallMaxRefillPeriodNeverRefills() public {
-        setShortfallParams(0.005e18, type(uint256).max);
+        setShortfallParams(0.005e18, type(uint128).max);
         Offer memory offer = buy(3650 days, 100e18);
         skip(3649 days);
         adapter.withdrawToVault(offer.market, 0);
