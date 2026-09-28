@@ -89,19 +89,19 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* GETTERS */
 
-    function netCredit(bytes32 marketId) external view returns (uint128) {
+    function marketDataNetCredit(bytes32 marketId) external view returns (uint128) {
         return marketData[marketId].netCredit;
     }
 
-    function growth(bytes32 marketId) external view returns (uint64) {
+    function marketDataGrowth(bytes32 marketId) external view returns (uint64) {
         return marketData[marketId].growth;
     }
 
-    function maturity(bytes32 marketId) external view returns (uint48) {
+    function marketDataMaturity(bytes32 marketId) external view returns (uint48) {
         return marketData[marketId].maturity;
     }
 
-    function index(bytes32 marketId) external view returns (uint8) {
+    function marketDataIndex(bytes32 marketId) external view returns (uint8) {
         return marketData[marketId].index;
     }
 
