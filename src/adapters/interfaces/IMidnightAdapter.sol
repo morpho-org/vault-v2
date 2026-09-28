@@ -38,7 +38,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
     event UpdateDurationCaps(uint256 indexed maturity, uint256 newDurationCount, uint256 netCredit);
-    event ForceDeallocate(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
+    event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 netCreditDecrease);
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 netCreditLoss);
     event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
     event UpdateMarket(bytes32 indexed marketId, uint256 netCredit, uint256 growth);
