@@ -55,6 +55,7 @@ contract MidnightAdapter is IMidnightAdapter {
     address public skimRecipient;
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
     uint256 public minBuyRate;
+    uint256 public maxTtm;
     mapping(address subRatifier => bool) public isSubRatifier;
     /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement
     /// fee.
@@ -236,6 +237,12 @@ contract MidnightAdapter is IMidnightAdapter {
         emit SetMinBuyRate(newMinBuyRate);
     }
 
+    function setMaxTtm(uint256 newMaxTtm) external {
+        require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
+        maxTtm = newMaxTtm;
+        emit SetMaxTtm(newMaxTtm);
+    }
+
     /// @dev Help prevent operational errors when selling.
     function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
@@ -397,6 +404,7 @@ contract MidnightAdapter is IMidnightAdapter {
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
         require(block.timestamp <= market.maturity, BuyPostMaturity());
+        require(market.maturity - block.timestamp <= maxTtm, BuyTtmTooHigh());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
 
