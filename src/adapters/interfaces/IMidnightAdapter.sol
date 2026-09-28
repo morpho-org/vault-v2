@@ -15,11 +15,6 @@ struct MarketData {
     uint8 index;
 }
 
-struct MaturityData {
-    uint128 netCredit;
-    uint8 durationCount;
-}
-
 interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     /* EVENTS */
 
@@ -37,7 +32,6 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
-    event UpdateDurationCaps(uint256 indexed maturity, uint256 newDurationCount, uint256 netCredit);
     event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 netCreditDecrease);
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 netCreditLoss);
     event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
@@ -69,6 +63,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error TimelockNotExpired();
     error TimelockNotIncreasing();
     error TooManyMarkets();
+    error DurationCapExceeded();
     error VaultNotAccrued();
 
     /* FUNCTIONS */
@@ -88,9 +83,6 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function growth(bytes32 marketId) external view returns (uint64);
     function maturity(bytes32 marketId) external view returns (uint48);
     function index(bytes32 marketId) external view returns (uint8);
-    function maturities(uint256 date) external view returns (uint128 netCredit, uint8 durationCount);
-    function maturityNetCredit(uint256 date) external view returns (uint128);
-    function maturityDurationCount(uint256 date) external view returns (uint8);
     function skimRecipient() external view returns (address);
     function minBuyRate() external view returns (uint256);
     function maxSellRate(bytes32 collateralParamsHash) external view returns (uint256);
@@ -111,7 +103,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
-    function updateDurationCaps(uint256 maturity) external;
+    function durationAllocations() external view returns (uint256[] memory);
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external;
     function setConsumed(bytes32 group, uint128 amount) external;

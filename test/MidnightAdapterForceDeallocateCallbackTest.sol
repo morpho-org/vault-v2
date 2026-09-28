@@ -170,7 +170,6 @@ contract MidnightAdapterForceDeallocateCallbackTest is MidnightAdapterTest {
             ),
             IMidnightAdapter.SellInProgress.selector
         );
-        buyer.push(address(adapter), abi.encodeCall(IMidnightAdapter.updateDurationCaps, (market.maturity)), bytes4(0));
 
         callbackForceDeallocate(market, 4e18, buyer);
         assertTrue(buyer.called(), "callback ran");
@@ -178,8 +177,6 @@ contract MidnightAdapterForceDeallocateCallbackTest is MidnightAdapterTest {
         bytes32 marketId = _marketId(market);
         assertEq(adapter.netCredit(marketId), 4e18, "netCredit");
         assertEq(realVault.allocation(adapter.adapterId()), 4e18, "adapter id");
-        assertEq(realVault.allocation(durationId(1 days)), 4e18, "1 day");
-        assertEq(realVault.allocation(durationId(7 days)), 4e18, "7 days");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter holds nothing");
         // 10 initial + 1 pre-deposit + 1 callback deposit - 0.5 callback withdraw + 4 sold ... - 4 credit
         assertEq(backing(), 11.5e18, "backing");
@@ -214,8 +211,6 @@ contract MidnightAdapterForceDeallocateCallbackTest is MidnightAdapterTest {
         assertEq(adapter.netCredit(_marketId(other.market)), 0, "netCredit other");
         assertEq(adapter.marketIdsLength(), 1, "markets");
         assertEq(realVault.allocation(adapter.adapterId()), 4e18, "adapter id");
-        assertEq(realVault.allocation(durationId(1 days)), 4e18, "1 day");
-        assertEq(realVault.allocation(durationId(7 days)), 4e18, "7 days");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter holds nothing");
         assertEq(loanToken.balanceOf(address(realVault)), 1e18 + 1e18 + 1e18 + 4e18, "idle");
         assertEq(backing(), 11e18, "backing");
@@ -224,10 +219,12 @@ contract MidnightAdapterForceDeallocateCallbackTest is MidnightAdapterTest {
 
     /// forge-config: default.isolate = true
     /// @dev The adapter can buy on another market inside the callback (the vault is already accrued).
-    function testCbNestedAdapterBuyOtherMarket() public {
+    function testCbNestedAdapterBuyOtherMarket(bool longBuy) public {
         Offer memory initial = freshPosition(MAX_TICK);
+        decreaseDurationCap(1, 0.8e18);
         ForceDeallocateBuyer buyer = newBuyer();
-        Offer memory adapterBuy = makeBuyOffer(6 days, 1e18, MAX_TICK);
+        buyer.push(address(this), abi.encodeCall(this.assertDurationAllocation, (1, 8e18)), bytes4(0));
+        Offer memory adapterBuy = makeBuyOffer(longBuy ? 8 days : 6 days, 1e18, MAX_TICK);
         deal(storedCollaterals[0].token, address(buyer), 10e18);
         buyer.exec(storedCollaterals[0].token, abi.encodeCall(IERC20.approve, (address(midnight), type(uint256).max)));
         buyer.exec(
@@ -247,19 +244,18 @@ contract MidnightAdapterForceDeallocateCallbackTest is MidnightAdapterTest {
                     ""
                 )
             ),
-            bytes4(0)
+            longBuy ? IMidnightAdapter.DurationCapExceeded.selector : bytes4(0)
         );
 
         callbackForceDeallocate(initial.market, 4e18, buyer);
         assertTrue(buyer.called(), "callback ran");
 
         assertEq(adapter.netCredit(_marketId(initial.market)), 4e18, "netCredit initial");
-        assertEq(adapter.netCredit(_marketId(adapterBuy.market)), 1e18, "netCredit bought");
-        assertEq(realVault.allocation(adapter.adapterId()), 5e18, "adapter id");
-        assertEq(realVault.allocation(durationId(1 days)), 5e18, "1 day");
-        assertEq(realVault.allocation(durationId(7 days)), 4e18, "7 days");
+        assertEq(adapter.netCredit(_marketId(adapterBuy.market)), longBuy ? 0 : 1e18, "netCredit bought");
+        assertEq(realVault.allocation(adapter.adapterId()), longBuy ? 4e18 : 5e18, "adapter id");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter holds nothing");
-        assertEq(loanToken.balanceOf(address(realVault)), 2e18 - 1e18 + 4e18, "idle");
+        assertEq(loanToken.balanceOf(address(realVault)), longBuy ? 6e18 : 5e18, "idle");
+        assertEq(adapter.durationAllocations()[1], 4e18, "completed sale releases capacity");
         assertEq(backing(), 10e18, "backing");
     }
 
@@ -320,27 +316,6 @@ contract MidnightAdapterForceDeallocateCallbackTest is MidnightAdapterTest {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev Dropping a stale duration id inside the callback: the outer sale then reports ids without it.
-    function testCbUpdateDurationCapsDuringSale() public {
-        Offer memory initial = freshPosition(MAX_TICK);
-        skip(1);
-        ForceDeallocateBuyer buyer = newBuyer();
-        buyer.push(
-            address(adapter), abi.encodeCall(IMidnightAdapter.updateDurationCaps, (initial.market.maturity)), bytes4(0)
-        );
-
-        callbackForceDeallocate(initial.market, 4e18, buyer);
-        assertTrue(buyer.called(), "callback ran");
-
-        assertEq(adapter.netCredit(_marketId(initial.market)), 4e18, "netCredit");
-        assertEq(adapter.maturityDurationCount(initial.market.maturity), 1, "duration count");
-        assertEq(realVault.allocation(adapter.adapterId()), 4e18, "adapter id");
-        assertEq(realVault.allocation(durationId(1 days)), 4e18, "1 day");
-        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days dropped");
-        assertEq(backing(), 10e18, "backing");
-    }
-
-    /// forge-config: default.isolate = true
     /// @dev Full sales on both markets, the nested one first: both markets leave the adapter's list.
     function testCbFullSalesPopMarkets() public {
         Offer memory initial = freshPosition(MAX_TICK);
@@ -365,8 +340,6 @@ contract MidnightAdapterForceDeallocateCallbackTest is MidnightAdapterTest {
         assertEq(adapter.netCredit(_marketId(initial.market)), 0, "netCredit initial");
         assertEq(adapter.netCredit(_marketId(other.market)), 0, "netCredit other");
         assertEq(realVault.allocation(adapter.adapterId()), 0, "adapter id");
-        assertEq(realVault.allocation(durationId(1 days)), 0, "1 day");
-        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days");
         assertEq(adapter.realAssets(), 0, "realAssets");
         assertEq(loanToken.balanceOf(address(adapter)), 0, "adapter holds nothing");
         assertEq(loanToken.balanceOf(address(realVault)), 11e18, "everything is idle");
