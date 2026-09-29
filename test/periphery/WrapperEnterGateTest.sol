@@ -253,6 +253,7 @@ contract WrapperEnterGateTest is Test {
     }
 
     function testDebtForwarded(address account, uint256 shares, bool allowed) public {
+        vm.assume(account != adapter);
         shares = bound(shares, 0, type(uint128).max);
         deal(address(vault), account, shares);
         if (shares > 0) wrapper.transientAllowIncreaseCredit(account, adapter);
