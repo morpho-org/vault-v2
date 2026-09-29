@@ -20,7 +20,9 @@ struct MaturityData {
     uint8 durationCount;
 }
 
-interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
+/// @dev This interface is used for factorizing IMidnightAdapterStaticTyping and IMidnightAdapter.
+/// @dev Consider using the IMidnightAdapter interface instead of this one.
+interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     /* EVENTS */
 
     event Submit(bytes4 indexed selector, bytes data, uint256 executableAt);
@@ -83,8 +85,6 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
     function maxTtm() external view returns (uint256);
-    function marketData(bytes32 marketId) external view returns (MarketData memory);
-    function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
     function minBuyRate() external view returns (uint256);
     function maxSellRate(bytes32 collateralParamsHash) external view returns (uint256);
@@ -139,4 +139,21 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
         address receiver,
         bytes memory data
     ) external returns (bytes32);
+}
+
+/// @dev This interface is inherited by MidnightAdapter so that function signatures are checked by the compiler.
+/// @dev Consider using the IMidnightAdapter interface instead of this one.
+interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
+    function marketData(bytes32 marketId)
+        external
+        view
+        returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index);
+    function maturities(uint256 date) external view returns (uint128 netCredit, uint8 durationCount);
+}
+
+/// @dev Use this interface for MidnightAdapter to have access to all the functions with the appropriate function
+/// signatures.
+interface IMidnightAdapter is IMidnightAdapterBase {
+    function marketData(bytes32 marketId) external view returns (MarketData memory);
+    function maturities(uint256 date) external view returns (MaturityData memory);
 }
