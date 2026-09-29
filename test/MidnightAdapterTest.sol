@@ -3599,7 +3599,7 @@ contract MidnightAdapterTest is Test {
         );
     }
 
-    function assertMarketIndex(bytes32 marketId, uint256 expected) internal {
+    function assertMarketIndex(bytes32 marketId, uint256 expected) internal view {
         assertEq(adapter.marketIds(expected), marketId, "market at expected index");
     }
 
