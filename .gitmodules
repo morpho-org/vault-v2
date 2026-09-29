@@ -16,3 +16,6 @@
 [submodule "lib/morpho-blue"]
 	path = lib/morpho-blue
 	url = https://github.com/morpho-org/morpho-blue
+[submodule "lib/midnight"]
+	path = lib/midnight
+	url = https://github.com/morpho-org/midnight
