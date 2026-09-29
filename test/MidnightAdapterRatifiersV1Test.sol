@@ -59,7 +59,7 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         offer.expiry = offer.market.maturity;
     }
 
-    function leaf(Offer memory _offer, uint256 rate, address allowedTaker) external view returns (bytes32) {
+    function leaf(Offer memory _offer, uint256 rate, address allowedTaker) external pure returns (bytes32) {
         return isRate()
             ? HashLib.hashRateRatifierV1Offer(_offer, rate, allowedTaker)
             : HashLib.hashPriceRatifierV1Offer(_offer, allowedTaker);
@@ -67,7 +67,7 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
 
     function data(bytes32 root, uint256 index, bytes32[] memory proof, uint256 rate, address allowedTaker)
         internal
-        view
+        pure
         returns (bytes memory)
     {
         return isRate()
