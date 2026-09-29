@@ -148,12 +148,12 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
         external
         view
         returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index);
-    function maturities(uint256 date) external view returns (uint128 netCredit, uint8 durationCount);
+    function maturityData(uint256 maturity) external view returns (uint128 netCredit, uint8 durationCount);
 }
 
 /// @dev Use this interface for MidnightAdapter to have access to all the functions with the appropriate function
 /// signatures.
 interface IMidnightAdapter is IMidnightAdapterBase {
     function marketData(bytes32 marketId) external view returns (MarketData memory);
-    function maturities(uint256 date) external view returns (MaturityData memory);
+    function maturityData(uint256 maturity) external view returns (MaturityData memory);
 }

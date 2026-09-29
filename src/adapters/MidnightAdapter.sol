@@ -75,7 +75,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
-    mapping(uint256 timestamp => MaturityData) public maturities;
+    mapping(uint256 maturity => MaturityData) public maturityData;
     bytes32 transient overridenMarketId;
     uint256 transient overridenMarketNetCredit;
     /* CONSTRUCTOR */
@@ -286,22 +286,22 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Remove the maturity allocation from the duration ids that are > its time to maturity.
-    function updateDurationCaps(uint256 _maturity) external {
-        MaturityData storage _maturities = maturities[_maturity];
-        uint256 _maturityNetCredit = _maturities.netCredit;
-        uint256 oldDurationCount = _maturities.durationCount;
-        uint8 newDurationCount = durationCount(_maturity);
+    function updateDurationCaps(uint256 maturity) external {
+        MaturityData storage _maturityData = maturityData[maturity];
+        uint256 maturityNetCredit = _maturityData.netCredit;
+        uint256 oldDurationCount = _maturityData.durationCount;
+        uint8 newDurationCount = durationCount(maturity);
         // VaultV2.deallocate requires allocation > 0 for each returned id.
-        if (newDurationCount < oldDurationCount && _maturityNetCredit > 0) {
-            _maturities.durationCount = newDurationCount;
-            emit UpdateDurationCaps(_maturity, newDurationCount, _maturityNetCredit);
+        if (newDurationCount < oldDurationCount && maturityNetCredit > 0) {
+            _maturityData.durationCount = newDurationCount;
+            emit UpdateDurationCaps(maturity, newDurationCount, maturityNetCredit);
             bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationCount - newDurationCount);
             for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
                 zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
             }
             // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
             IVaultV2(parentVault)
-                .deallocate(address(this), abi.encode(zeroedDurationsIds, -int256(_maturityNetCredit)), 0);
+                .deallocate(address(this), abi.encode(zeroedDurationsIds, -int256(maturityNetCredit)), 0);
         }
     }
 
@@ -407,8 +407,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             _marketData.growth = uint64((oldAssetsWadPerSecond + addedAssetsWadPerSecond) / newNetCredit);
         }
 
-        MaturityData storage _maturities = maturities[market.maturity];
-        if (_maturities.netCredit == 0) _maturities.durationCount = durationCount(market.maturity);
+        MaturityData storage _maturityData = maturityData[market.maturity];
+        if (_maturityData.netCredit == 0) _maturityData.durationCount = durationCount(market.maturity);
         int256 change = updateMarket(marketId, market, newNetCredit);
         uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
         if (callbackData.length > 0 && paidAssets > idleAssets) {
@@ -487,8 +487,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         MarketData storage _marketData = marketData[marketId];
         uint256 storedNetCredit = _marketData.netCredit;
         _marketData.netCredit = newNetCredit;
-        maturities[market.maturity].netCredit =
-            (uint256(maturities[market.maturity].netCredit) + newNetCredit - storedNetCredit).toUint128();
+        maturityData[market.maturity].netCredit =
+            (uint256(maturityData[market.maturity].netCredit) + newNetCredit - storedNetCredit).toUint128();
         if (newNetCredit == 0 && storedNetCredit > 0) {
             bytes32 lastMarketId = marketIds[marketIds.length - 1];
             marketIds[_marketData.index] = lastMarketId;
@@ -507,13 +507,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Returns the number of durations in packedDurations that are at most the time to maturity.
-    function durationCount(uint256 _maturity) internal view returns (uint8 count) {
-        uint256 timeToMaturity = _maturity.zeroFloorSub(block.timestamp);
+    function durationCount(uint256 maturity) internal view returns (uint8 count) {
+        uint256 timeToMaturity = maturity.zeroFloorSub(block.timestamp);
         while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;
     }
 
     function ids(Market memory market) public view returns (bytes32[] memory) {
-        uint256 durationsCount = maturities[market.maturity].durationCount;
+        uint256 durationsCount = maturityData[market.maturity].durationCount;
 
         bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length * 2 + durationsCount);
 
