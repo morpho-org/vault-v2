@@ -20,6 +20,8 @@ import {IMidnightAdapter} from "../interfaces/IMidnightAdapter.sol";
 /// @dev Allocators and sentinels of the parent vault can ratify or unratify roots. The address that ratifies a root is
 /// stored as its authorizer.
 /// @dev A ratified root must be unratified before it can be ratified again.
+/// @dev Allocators and sentinels can front-run each other's ratification of a root. A sentinel front-running an
+/// allocator makes the root sell-only.
 /// @dev An offer is ratified only if its root's authorizer is currently an allocator, or currently a sentinel and the
 /// offer is a sell. Removing an allocator invalidates the roots it ratified.
 /// @dev The ratifier data must contain the root, the leaf index, the Merkle proof and the offer's allowed taker (or
