@@ -14,6 +14,7 @@ bytes32 constant EIP712_DOMAIN_TYPEHASH = 0x47e79534a245952e8b16893a336b85a3d9ea
 
 interface IMidnightAdapterRateRatifierV1 is IRatifiersV1Common {
     /// ERRORS ///
+    error AllocatorRatified();
     error DeadlineExpired();
     error InvalidAuthorizer();
     error InvalidNonce();

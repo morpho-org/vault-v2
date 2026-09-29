@@ -21,6 +21,7 @@ import {IMidnightAdapter} from "../interfaces/IMidnightAdapter.sol";
 /// that the offer is a leaf in that tree.
 /// @dev Allocators and sentinels of the parent vault can ratify or unratify roots. The last address to ratify a root is
 /// stored as its authorizer.
+/// @dev A sentinel cannot ratify a root whose authorizer is currently an allocator.
 /// @dev An offer is ratified only if its root's authorizer is currently an allocator, or currently a sentinel and the
 /// offer is a sell. Removing an allocator invalidates the roots it ratified.
 /// @dev The ratifier data must contain the root, the leaf index, the Merkle proof and the offer's rate and allowed
@@ -59,6 +60,13 @@ contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
             IVaultV2(parentVault).isAllocator(msg.sender) || IVaultV2(parentVault).isSentinel(msg.sender),
             Unauthorized()
         );
+        if (newIsRootRatified) {
+            require(
+                IVaultV2(parentVault).isAllocator(msg.sender)
+                    || !IVaultV2(parentVault).isAllocator(authorizer[maker][root]),
+                AllocatorRatified()
+            );
+        }
         ratification[maker][root].isRootRatified = newIsRootRatified;
         authorizer[maker][root] = newIsRootRatified ? msg.sender : address(0);
         emit SetIsRootRatified(msg.sender, maker, root, newIsRootRatified);
@@ -94,6 +102,13 @@ contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
         require(IVaultV2(parentVault).isAllocator(_signer) || IVaultV2(parentVault).isSentinel(_signer), Unauthorized());
         Ratification memory _ratification = ratification[maker][root];
         if (nonce == _ratification.rootNonce) {
+            if (newIsRootRatified) {
+                require(
+                    IVaultV2(parentVault).isAllocator(_signer)
+                        || !IVaultV2(parentVault).isAllocator(authorizer[maker][root]),
+                    AllocatorRatified()
+                );
+            }
             ratification[maker][root] = Ratification({isRootRatified: newIsRootRatified, rootNonce: nonce + 1});
             authorizer[maker][root] = newIsRootRatified ? _signer : address(0);
         } else {
