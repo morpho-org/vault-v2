@@ -70,7 +70,7 @@ contract MidnightAdapter is IMidnightAdapter {
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) internal _marketData;
-    mapping(uint256 timestamp => MaturityData) internal _maturityData;
+    mapping(uint256 maturity => MaturityData) internal _maturityData;
     bytes32 transient overridenMarketId;
     uint256 transient overridenMarketNetCredit;
     /* CONSTRUCTOR */
@@ -94,8 +94,8 @@ contract MidnightAdapter is IMidnightAdapter {
         return _marketData[marketId];
     }
 
-    function maturities(uint256 date) external view returns (MaturityData memory) {
-        return _maturityData[date];
+    function maturityData(uint256 maturity) external view returns (MaturityData memory) {
+        return _maturityData[maturity];
     }
 
     function marketIdsLength() external view returns (uint256) {
@@ -288,22 +288,22 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /// @dev Remove the maturity allocation from the duration ids that are > its time to maturity.
-    function updateDurationCaps(uint256 _maturity) external {
-        MaturityData storage storedMaturityData = _maturityData[_maturity];
-        uint256 _maturityNetCredit = storedMaturityData.netCredit;
+    function updateDurationCaps(uint256 maturity) external {
+        MaturityData storage storedMaturityData = _maturityData[maturity];
+        uint256 maturityNetCredit = storedMaturityData.netCredit;
         uint256 oldDurationCount = storedMaturityData.durationCount;
-        uint8 newDurationCount = durationCount(_maturity);
+        uint8 newDurationCount = durationCount(maturity);
         // VaultV2.deallocate requires allocation > 0 for each returned id.
-        if (newDurationCount < oldDurationCount && _maturityNetCredit > 0) {
+        if (newDurationCount < oldDurationCount && maturityNetCredit > 0) {
             storedMaturityData.durationCount = newDurationCount;
-            emit UpdateDurationCaps(_maturity, newDurationCount, _maturityNetCredit);
+            emit UpdateDurationCaps(maturity, newDurationCount, maturityNetCredit);
             bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationCount - newDurationCount);
             for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
                 zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
             }
             // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
             IVaultV2(parentVault)
-                .deallocate(address(this), abi.encode(zeroedDurationsIds, -int256(_maturityNetCredit)), 0);
+                .deallocate(address(this), abi.encode(zeroedDurationsIds, -int256(maturityNetCredit)), 0);
         }
     }
 
@@ -510,8 +510,8 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /// @dev Returns the number of durations in packedDurations that are at most the time to maturity.
-    function durationCount(uint256 _maturity) internal view returns (uint8 count) {
-        uint256 timeToMaturity = _maturity.zeroFloorSub(block.timestamp);
+    function durationCount(uint256 maturity) internal view returns (uint8 count) {
+        uint256 timeToMaturity = maturity.zeroFloorSub(block.timestamp);
         while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;
     }
 

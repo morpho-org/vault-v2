@@ -319,7 +319,7 @@ contract MidnightAdapterTest is Test {
         assertEq(marketData.maturity, 0, "maturity");
         assertEq(marketData.index, 0, "index");
 
-        MaturityData memory maturityData = adapter.maturities(maturity);
+        MaturityData memory maturityData = adapter.maturityData(maturity);
         assertEq(maturityData.netCredit, 0, "maturity netCredit");
         assertEq(maturityData.durationCount, 0, "durationCount");
     }
@@ -343,13 +343,13 @@ contract MidnightAdapterTest is Test {
     function testGetMaturityData() public {
         Offer memory offer = buy(7 days, 1e18);
 
-        MaturityData memory maturityData = adapter.maturities(offer.market.maturity);
+        MaturityData memory maturityData = adapter.maturityData(offer.market.maturity);
         assertEq(maturityData.netCredit, offer.maxUnits, "netCredit");
         assertEq(maturityData.durationCount, 2, "durationCount");
 
         skip(1);
         adapter.updateDurationCaps(offer.market.maturity);
-        maturityData = adapter.maturities(offer.market.maturity);
+        maturityData = adapter.maturityData(offer.market.maturity);
         assertEq(maturityData.netCredit, offer.maxUnits, "unchanged netCredit");
         assertEq(maturityData.durationCount, 1, "updated durationCount");
     }
@@ -1679,7 +1679,7 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 1, units, taker);
         take(offer);
 
-        assertEq(adapter.maturities(offer.market.maturity).netCredit, 2 * units - loss);
+        assertEq(adapter.maturityData(offer.market.maturity).netCredit, 2 * units - loss);
         uint256 expectedValue = 2 * units - loss - (2 * units - loss).mulDivUp(growth * duration, 1e18);
         assertEq(adapter.realAssets(), expectedValue);
         uint128 marketNetCredit = adapter.marketData(marketId).netCredit;
@@ -2036,7 +2036,7 @@ contract MidnightAdapterTest is Test {
         uint128 netCreditB = adapter.marketData(_marketId(offerB.market)).netCredit;
         assertEq(netCreditA, assetsA, "netCredit A");
         assertEq(netCreditB, assetsB, "netCredit B");
-        assertEq(adapter.maturities(block.timestamp).netCredit, assetsA + assetsB, "shared netCredit");
+        assertEq(adapter.maturityData(block.timestamp).netCredit, assetsA + assetsB, "shared netCredit");
         assertEq(adapter.realAssets(), assetsA + assetsB, "realAssets");
         assertMarkets([_marketId(offerA.market), _marketId(offerB.market)]);
     }
@@ -2404,7 +2404,7 @@ contract MidnightAdapterTest is Test {
 
         assertEq(adapter.marketIdsLength(), 0, "market removed");
         assertEq(adapter.marketData(marketId).netCredit, 0, "netCredit");
-        assertEq(adapter.maturities(offer.market.maturity).netCredit, 0, "maturity netCredit");
+        assertEq(adapter.maturityData(offer.market.maturity).netCredit, 0, "maturity netCredit");
         assertEq(parentVault.allocation(adapter.adapterId()), 0, "allocation");
     }
 
@@ -3299,7 +3299,7 @@ contract MidnightAdapterTest is Test {
         take(offer);
 
         assertEq(adapter.marketData(marketId).netCredit, expectedNetCredit, "market netCredit");
-        assertEq(adapter.maturities(offer.market.maturity).netCredit, expectedNetCredit, "maturity netCredit");
+        assertEq(adapter.maturityData(offer.market.maturity).netCredit, expectedNetCredit, "maturity netCredit");
         assertEq(adapter.realAssets(), expectedNetCredit, "realAssets");
         assertEq(parentVault.allocation(adapter.adapterId()), expectedNetCredit, "allocation");
     }
@@ -3314,7 +3314,7 @@ contract MidnightAdapterTest is Test {
         sell(offer.market, assets);
 
         assertEq(adapter.marketData(marketId).netCredit, 1, "market netCredit");
-        assertEq(adapter.maturities(offer.market.maturity).netCredit, 1, "maturity netCredit");
+        assertEq(adapter.maturityData(offer.market.maturity).netCredit, 1, "maturity netCredit");
         assertEq(adapter.realAssets(), 1, "realAssets");
         assertEq(parentVault.allocation(adapter.adapterId()), 1, "allocation");
         assertEq(loanToken.balanceOf(address(parentVault)), assets, "vault balance");
@@ -3335,7 +3335,7 @@ contract MidnightAdapterTest is Test {
 
         assertEq(change, -int256(assets), "change");
         assertEq(adapter.marketData(marketId).netCredit, 1, "market netCredit");
-        assertEq(adapter.maturities(offer.market.maturity).netCredit, 1, "maturity netCredit");
+        assertEq(adapter.maturityData(offer.market.maturity).netCredit, 1, "maturity netCredit");
         assertEq(adapter.realAssets(), 1, "realAssets");
         assertEq(parentVault.allocation(adapter.adapterId()), 1, "allocation");
         assertEq(loanToken.balanceOf(address(parentVault)), assets, "vault balance");
@@ -3355,7 +3355,7 @@ contract MidnightAdapterTest is Test {
         adapter.withdrawToVault(offer.market, assets);
 
         assertEq(adapter.marketData(marketId).netCredit, 1, "market netCredit");
-        assertEq(adapter.maturities(offer.market.maturity).netCredit, 1, "maturity netCredit");
+        assertEq(adapter.maturityData(offer.market.maturity).netCredit, 1, "maturity netCredit");
         assertEq(adapter.realAssets(), 1, "realAssets");
         assertEq(parentVault.allocation(adapter.adapterId()), 1, "allocation");
         assertEq(loanToken.balanceOf(address(parentVault)), assets, "vault balance");
@@ -4738,7 +4738,7 @@ contract MidnightAdapterTest is Test {
         assertTrue(buyer.called(), "callback ran");
 
         assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 4e18, "netCredit");
-        assertEq(adapter.maturities(initial.market.maturity).durationCount, 1, "duration count");
+        assertEq(adapter.maturityData(initial.market.maturity).durationCount, 1, "duration count");
         assertEq(realVault.allocation(adapter.adapterId()), 4e18, "adapter id");
         assertEq(realVault.allocation(durationId(1 days)), 4e18, "1 day");
         assertEq(realVault.allocation(durationId(7 days)), 0, "7 days dropped");
