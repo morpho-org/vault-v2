@@ -113,9 +113,12 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         assertEq(ratifier.setIsRootRatified(maker, root, status), SET_IS_ROOT_RATIFIED_SUCCESS);
         assertEq(ratifier.isRootRatified(maker, root), status);
         assertEq(ratifier.rootNonce(maker, root), 0);
-        (address authorizer, uint96 nonce) =
+        (bool isRootRatified, uint128 nonce) =
             IMidnightAdapterPriceRatifierV1(address(ratifier)).ratification(maker, root);
-        assertEq(authorizer, status ? allocator : address(0));
+        assertEq(isRootRatified, status);
+        assertEq(
+            IMidnightAdapterPriceRatifierV1(address(ratifier)).authorizer(maker, root), status ? allocator : address(0)
+        );
         assertEq(nonce, 0);
     }
 
@@ -131,16 +134,18 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         vm.prank(sentinel);
         ratifier.setIsRootRatified(maker, root, true);
         assertTrue(ratifier.isRootRatified(maker, root));
-        (address authorizer, uint96 nonce) =
+        (bool isRootRatified, uint128 nonce) =
             IMidnightAdapterPriceRatifierV1(address(ratifier)).ratification(maker, root);
-        assertEq(authorizer, sentinel);
+        assertTrue(isRootRatified);
+        assertEq(IMidnightAdapterPriceRatifierV1(address(ratifier)).authorizer(maker, root), sentinel);
         assertEq(nonce, 0);
 
         vm.prank(sentinel);
         ratifier.setIsRootRatified(maker, root, false);
         assertFalse(ratifier.isRootRatified(maker, root));
-        (authorizer, nonce) = IMidnightAdapterPriceRatifierV1(address(ratifier)).ratification(maker, root);
-        assertEq(authorizer, address(0));
+        (isRootRatified, nonce) = IMidnightAdapterPriceRatifierV1(address(ratifier)).ratification(maker, root);
+        assertFalse(isRootRatified);
+        assertEq(IMidnightAdapterPriceRatifierV1(address(ratifier)).authorizer(maker, root), address(0));
         assertEq(nonce, 0);
     }
 
@@ -188,14 +193,16 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         setRoot(root, true);
         vm.prank(sentinel);
         ratifier.setIsRootRatified(maker, root, true);
-        (address authorizer,) = IMidnightAdapterPriceRatifierV1(address(ratifier)).ratification(maker, root);
-        assertEq(authorizer, sentinel);
+        (bool isRootRatified,) = IMidnightAdapterPriceRatifierV1(address(ratifier)).ratification(maker, root);
+        assertTrue(isRootRatified);
+        assertEq(IMidnightAdapterPriceRatifierV1(address(ratifier)).authorizer(maker, root), sentinel);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.InvalidAuthorizer.selector);
         ratifier.isRatified(offer, data(root, 0, new bytes32[](0), 0, address(0)), taker);
 
         setRoot(root, true);
-        (authorizer,) = IMidnightAdapterPriceRatifierV1(address(ratifier)).ratification(maker, root);
-        assertEq(authorizer, allocator);
+        (isRootRatified,) = IMidnightAdapterPriceRatifierV1(address(ratifier)).ratification(maker, root);
+        assertTrue(isRootRatified);
+        assertEq(IMidnightAdapterPriceRatifierV1(address(ratifier)).authorizer(maker, root), allocator);
         assertEq(ratifier.isRatified(offer, data(root, 0, new bytes32[](0), 0, address(0)), taker), CALLBACK_SUCCESS);
     }
 
@@ -269,6 +276,9 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         assertEq(submitSignature(root, status, 0, block.timestamp, sig), SET_IS_ROOT_RATIFIED_SUCCESS);
         assertEq(ratifier.isRootRatified(maker, root), status);
         assertEq(ratifier.rootNonce(maker, root), 1);
+        assertEq(
+            IMidnightAdapterPriceRatifierV1(address(ratifier)).authorizer(maker, root), status ? allocator : address(0)
+        );
     }
 
     function testSignedRatificationUnauthorizedCaller() public {
@@ -277,8 +287,11 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         vm.prank(sentinel);
         submitSignature(root, true, 0, block.timestamp, sig);
         assertTrue(ratifier.isRootRatified(maker, root));
-        (address authorizer,) = IMidnightAdapterPriceRatifierV1(address(ratifier)).ratification(maker, root);
-        assertEq(authorizer, allocator);
+        (bool isRootRatified, uint128 nonce) =
+            IMidnightAdapterPriceRatifierV1(address(ratifier)).ratification(maker, root);
+        assertTrue(isRootRatified);
+        assertEq(nonce, 1);
+        assertEq(IMidnightAdapterPriceRatifierV1(address(ratifier)).authorizer(maker, root), allocator);
         vm.prank(taker);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
         submitSignature(root, true, 0, block.timestamp, sig);
@@ -314,17 +327,19 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         vm.prank(sentinel);
         submitSignature(root, true, 0, block.timestamp, sig);
         assertTrue(ratifier.isRootRatified(maker, root));
-        (address authorizer, uint96 nonce) =
+        (bool isRootRatified, uint128 nonce) =
             IMidnightAdapterPriceRatifierV1(address(ratifier)).ratification(maker, root);
-        assertEq(authorizer, sentinel);
+        assertTrue(isRootRatified);
+        assertEq(IMidnightAdapterPriceRatifierV1(address(ratifier)).authorizer(maker, root), sentinel);
         assertEq(nonce, 1);
 
         sig = signature(root, false, 1, block.timestamp, sentinelKey);
         vm.prank(sentinel);
         submitSignature(root, false, 1, block.timestamp, sig);
         assertFalse(ratifier.isRootRatified(maker, root));
-        (authorizer, nonce) = IMidnightAdapterPriceRatifierV1(address(ratifier)).ratification(maker, root);
-        assertEq(authorizer, address(0));
+        (isRootRatified, nonce) = IMidnightAdapterPriceRatifierV1(address(ratifier)).ratification(maker, root);
+        assertFalse(isRootRatified);
+        assertEq(IMidnightAdapterPriceRatifierV1(address(ratifier)).authorizer(maker, root), address(0));
         assertEq(nonce, 2);
     }
 

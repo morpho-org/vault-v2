@@ -43,9 +43,10 @@ contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
     using UtilsLib for uint256;
 
     mapping(address maker => mapping(bytes32 root => Ratification)) public ratification;
+    mapping(address maker => mapping(bytes32 root => address)) public authorizer;
 
     function isRootRatified(address maker, bytes32 root) external view returns (bool) {
-        return ratification[maker][root].authorizer != address(0);
+        return ratification[maker][root].isRootRatified;
     }
 
     function rootNonce(address maker, bytes32 root) external view returns (uint128) {
@@ -58,7 +59,8 @@ contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
             IVaultV2(parentVault).isAllocator(msg.sender) || IVaultV2(parentVault).isSentinel(msg.sender),
             Unauthorized()
         );
-        ratification[maker][root].authorizer = newIsRootRatified ? msg.sender : address(0);
+        ratification[maker][root].isRootRatified = newIsRootRatified;
+        authorizer[maker][root] = newIsRootRatified ? msg.sender : address(0);
         emit SetIsRootRatified(msg.sender, maker, root, newIsRootRatified);
         return SET_IS_ROOT_RATIFIED_SUCCESS;
     }
@@ -92,12 +94,11 @@ contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
         require(IVaultV2(parentVault).isAllocator(_signer) || IVaultV2(parentVault).isSentinel(_signer), Unauthorized());
         Ratification memory _ratification = ratification[maker][root];
         if (nonce == _ratification.rootNonce) {
-            // forge-lint: disable-next-item(unsafe-typecast) wraparound requires 2^96 sequential signed updates.
-            ratification[maker][root] =
-                Ratification({authorizer: newIsRootRatified ? _signer : address(0), rootNonce: uint96(nonce + 1)});
+            ratification[maker][root] = Ratification({isRootRatified: newIsRootRatified, rootNonce: nonce + 1});
+            authorizer[maker][root] = newIsRootRatified ? _signer : address(0);
         } else {
             require(nonce < _ratification.rootNonce, InvalidNonce());
-            require((_ratification.authorizer != address(0)) == newIsRootRatified, RatifiedStatusChanged());
+            require(_ratification.isRootRatified == newIsRootRatified, RatifiedStatusChanged());
         }
         emit SetIsRootRatifiedWithSig(
             msg.sender, _signer, maker, root, height, newIsRootRatified, nonce, _ratification.rootNonce
@@ -122,12 +123,12 @@ contract MidnightAdapterRateRatifierV1 is IMidnightAdapterRateRatifierV1 {
             HashLib.isLeaf(root, HashLib.hashRateRatifierV1Offer(offer, rate, allowedTaker), leafIndex, proof),
             InvalidProof()
         );
-        address authorizer = ratification[offer.maker][root].authorizer;
-        require(authorizer != address(0), NotRatified());
+        require(ratification[offer.maker][root].isRootRatified, NotRatified());
+        address _authorizer = authorizer[offer.maker][root];
         address parentVault = IMidnightAdapter(offer.maker).parentVault();
         require(
-            IVaultV2(parentVault).isAllocator(authorizer)
-                || (!offer.buy && IVaultV2(parentVault).isSentinel(authorizer)),
+            IVaultV2(parentVault).isAllocator(_authorizer)
+                || (!offer.buy && IVaultV2(parentVault).isSentinel(_authorizer)),
             InvalidAuthorizer()
         );
         return CALLBACK_SUCCESS;

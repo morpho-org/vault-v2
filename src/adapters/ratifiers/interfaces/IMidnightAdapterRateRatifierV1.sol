@@ -5,8 +5,8 @@ pragma solidity >=0.5.0;
 import {IRatifiersV1Common} from "lib/midnight/src/ratifiers/interfaces/IRatifiersV1Common.sol";
 
 struct Ratification {
-    address authorizer;
-    uint96 rootNonce;
+    bool isRootRatified;
+    uint128 rootNonce;
 }
 
 /// @dev keccak256("EIP712Domain(uint256 chainId,address verifyingContract)").
@@ -44,5 +44,7 @@ interface IMidnightAdapterRateRatifierV1 is IRatifiersV1Common {
     function DOMAIN_SEPARATOR() external view returns (bytes32);
 
     /// STORAGE GETTERS ///
-    function ratification(address maker, bytes32 root) external view returns (address authorizer, uint96 rootNonce);
+    function ratification(address maker, bytes32 root) external view returns (bool isRootRatified, uint128 rootNonce);
+
+    function authorizer(address maker, bytes32 root) external view returns (address);
 }
