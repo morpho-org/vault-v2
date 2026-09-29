@@ -31,6 +31,9 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration);
     event AddSubRatifier(address indexed subRatifier);
     event RemoveSubRatifier(address indexed sender, address indexed subRatifier);
+    event SetIsRootRatified(
+        address indexed sender, address indexed subRatifier, bytes32 indexed root, bool newIsRootRatified
+    );
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetMinBuyRate(uint256 newMinBuyRate);
     event SetMaxTtm(uint256 newMaxTtm);
@@ -111,6 +114,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function isSubRatifier(address subRatifier) external view returns (bool);
     function addSubRatifier(address subRatifier) external;
     function removeSubRatifier(address subRatifier) external;
+    function setIsRootRatified(address subRatifier, bytes32 root, bool newIsRootRatified) external;
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);

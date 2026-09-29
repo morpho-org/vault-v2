@@ -12,10 +12,6 @@ import {AdapterMock} from "./mocks/AdapterMock.sol";
 import {IERC20} from "../src/interfaces/IERC20.sol";
 import {IAdapter} from "../src/interfaces/IAdapter.sol";
 import {IMidnightAdapter} from "../src/adapters/interfaces/IMidnightAdapter.sol";
-import {MidnightAdapterPriceRatifierV1} from "../src/adapters/ratifiers/MidnightAdapterPriceRatifierV1.sol";
-import {
-    IMidnightAdapterPriceRatifierV1
-} from "../src/adapters/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
 import {IVaultV2} from "../src/interfaces/IVaultV2.sol";
 import {ISendSharesGate} from "../src/interfaces/IGate.sol";
 import {ErrorsLib} from "../src/libraries/ErrorsLib.sol";
@@ -27,6 +23,10 @@ import {TickLib, MAX_TICK} from "../lib/midnight/src/libraries/TickLib.sol";
 import {IdLib} from "../lib/midnight/src/libraries/IdLib.sol";
 import {stdStorage, StdStorage} from "../lib/forge-std/src/Test.sol";
 import {ORACLE_PRICE_SCALE} from "../lib/morpho-blue/src/libraries/ConstantsLib.sol";
+import {PriceRatifierV1} from "../lib/midnight/src/ratifiers/PriceRatifierV1.sol";
+import {RateRatifierV1} from "../lib/midnight/src/ratifiers/RateRatifierV1.sol";
+import {IPriceRatifierV1} from "../lib/midnight/src/ratifiers/interfaces/IPriceRatifierV1.sol";
+import {IRatifiersV1Common} from "../lib/midnight/src/ratifiers/interfaces/IRatifiersV1Common.sol";
 import {
     CALLBACK_SUCCESS,
     DEFAULT_TICK_SPACING,
@@ -170,7 +170,7 @@ contract MidnightAdapterTest is Test {
     IMidnight internal midnight;
     IMidnightAdapterFactory internal factory;
     IMidnightAdapter internal adapter;
-    MidnightAdapterPriceRatifierV1 internal priceRatifier;
+    PriceRatifierV1 internal priceRatifier;
     VaultV2Mock internal parentVault;
     IVaultV2 internal realVault;
     IERC20 internal loanToken;
@@ -217,7 +217,7 @@ contract MidnightAdapterTest is Test {
         adapter = MidnightAdapter(factory.createMidnightAdapter(address(parentVault)));
         setUpMaxTtm(type(uint256).max);
 
-        priceRatifier = new MidnightAdapterPriceRatifierV1();
+        priceRatifier = new PriceRatifierV1(address(midnight));
         addSubRatifier(adapter, address(priceRatifier));
 
         address collToken0 = address(new ERC20Mock(18));
@@ -735,15 +735,21 @@ contract MidnightAdapterTest is Test {
         vm.setSeed(seed);
         address otherAllocator = makeAddr("otherAllocator");
         VaultV2Mock otherVault = new VaultV2Mock(address(loanToken), owner, curator, otherAllocator, address(0));
-        address otherAdapter = factory.createMidnightAdapter(address(otherVault));
+        IMidnightAdapter otherAdapter = IMidnightAdapter(factory.createMidnightAdapter(address(otherVault)));
+        addSubRatifier(otherAdapter, address(priceRatifier));
         Offer memory offer = _ratificationSetup();
-        offer.maker = otherAdapter;
+        offer.maker = address(otherAdapter);
+        offer.callback = address(otherAdapter);
+        offer.ratifier = address(otherAdapter);
         bytes32 _root = root(offer);
         vm.prank(signerAllocator);
-        vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
-        priceRatifier.setIsRootRatified(otherAdapter, _root, true);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        otherAdapter.setIsRootRatified(address(priceRatifier), _root, true);
+        vm.prank(signerAllocator);
+        vm.expectRevert(IPriceRatifierV1.Unauthorized.selector);
+        priceRatifier.setIsRootRatified(address(adapter), _root, true);
         vm.prank(otherAllocator);
-        priceRatifier.setIsRootRatified(otherAdapter, _root, true);
+        otherAdapter.setIsRootRatified(address(priceRatifier), _root, true);
         bytes memory data = abi.encode(_root, uint256(0), proof([offer]), address(0));
         assertEq(priceRatifier.isRatified(offer, data, taker), CALLBACK_SUCCESS);
     }
@@ -781,7 +787,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.isRatified(sibling, data, taker), CALLBACK_SUCCESS, "second leaf");
 
         data = ratifierData(_root, signerAllocator, 0, siblingProof);
-        vm.expectRevert(IMidnightAdapterPriceRatifierV1.InvalidProof.selector);
+        vm.expectRevert(IPriceRatifierV1.InvalidProof.selector);
         adapter.isRatified(sibling, data, taker);
     }
 
@@ -791,7 +797,7 @@ contract MidnightAdapterTest is Test {
         bytes32 wrongRoot = keccak256("wrong root");
         bytes32[] memory emptyProof = new bytes32[](0);
         bytes memory data = ratifierData(wrongRoot, signerAllocator, 0, emptyProof);
-        vm.expectRevert(IMidnightAdapterPriceRatifierV1.InvalidProof.selector);
+        vm.expectRevert(IPriceRatifierV1.InvalidProof.selector);
         adapter.isRatified(offer, data, taker);
     }
 
@@ -804,7 +810,7 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = _ratificationSetup();
         bytes32 _root = HashLib.hashPriceRatifierV1Offer(offer, address(0));
         vm.prank(otherSigner);
-        vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
+        vm.expectRevert(IPriceRatifierV1.Unauthorized.selector);
         priceRatifier.setIsRootRatified(address(adapter), _root, true);
     }
 
@@ -841,18 +847,67 @@ contract MidnightAdapterTest is Test {
         adapter.isRatified(offer, data, taker);
     }
 
+    function testSetIsRootRatifiedByAllocator(bytes32 root_, bool status) public {
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.SetIsRootRatified(signerAllocator, address(priceRatifier), root_, status);
+        vm.prank(signerAllocator);
+        adapter.setIsRootRatified(address(priceRatifier), root_, status);
+        assertEq(priceRatifier.isRootRatified(address(adapter), root_), status);
+    }
+
+    function testSetIsRootRatifiedBySentinel(address sentinel, bytes32 root_) public {
+        vm.assume(sentinel != signerAllocator && !parentVault.isAllocator(sentinel));
+        stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(sentinel).checked_write(true);
+
+        vm.prank(signerAllocator);
+        adapter.setIsRootRatified(address(priceRatifier), root_, true);
+        vm.prank(sentinel);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.setIsRootRatified(address(priceRatifier), root_, true);
+        vm.prank(sentinel);
+        adapter.setIsRootRatified(address(priceRatifier), root_, false);
+
+        assertFalse(priceRatifier.isRootRatified(address(adapter), root_));
+    }
+
+    function testSetIsRootRatifiedUnauthorized(address caller) public {
+        vm.assume(!parentVault.isAllocator(caller) && !parentVault.isSentinel(caller));
+        for (uint256 i; i < 2; i++) {
+            vm.prank(caller);
+            vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+            adapter.setIsRootRatified(address(priceRatifier), bytes32(0), i == 0);
+        }
+    }
+
+    function testSetIsRootRatifiedNonSubRatifier(bytes32 root_, bool status) public {
+        vm.prank(signerAllocator);
+        vm.expectRevert(IMidnightAdapter.SubRatifierFailed.selector);
+        adapter.setIsRootRatified(address(0), root_, status);
+    }
+
+    function testSetIsRootRatifiedWrongReturnValue(bytes32 root_, bool status) public {
+        vm.mockCall(
+            address(priceRatifier),
+            abi.encodeCall(IRatifiersV1Common.setIsRootRatified, (address(adapter), root_, status)),
+            abi.encode(bytes32(0))
+        );
+        vm.prank(signerAllocator);
+        vm.expectRevert(IMidnightAdapter.SubRatifierFailed.selector);
+        adapter.setIsRootRatified(address(priceRatifier), root_, status);
+    }
+
     function testUnratifyRootByAllocator(uint256 seed) public {
         vm.setSeed(seed);
         Offer memory offer = _ratificationSetup();
         bytes32 _root = root(offer);
         bytes memory data = ratifierData(_root, signerAllocator);
         assertEq(adapter.isRatified(offer, data, taker), CALLBACK_SUCCESS, "ratifies before cancel");
-        vm.expectEmit(address(priceRatifier));
-        emit IMidnightAdapterPriceRatifierV1.SetIsRootRatified(signerAllocator, address(adapter), _root, false);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.SetIsRootRatified(signerAllocator, address(priceRatifier), _root, false);
         vm.prank(signerAllocator);
-        priceRatifier.setIsRootRatified(address(adapter), _root, false);
+        adapter.setIsRootRatified(address(priceRatifier), _root, false);
         assertFalse(priceRatifier.isRootRatified(address(adapter), _root), "root unratified");
-        vm.expectRevert(IMidnightAdapterPriceRatifierV1.NotRatified.selector);
+        vm.expectRevert(IPriceRatifierV1.NotRatified.selector);
         adapter.isRatified(offer, data, taker);
     }
 
@@ -864,17 +919,20 @@ contract MidnightAdapterTest is Test {
         bytes32 _root = root(offer);
         bytes memory data = ratifierData(_root, signerAllocator);
         vm.prank(sentinel);
-        priceRatifier.setIsRootRatified(address(adapter), _root, false);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.setIsRootRatified(address(priceRatifier), _root, true);
+        vm.prank(sentinel);
+        adapter.setIsRootRatified(address(priceRatifier), _root, false);
         assertFalse(priceRatifier.isRootRatified(address(adapter), _root), "root unratified");
-        vm.expectRevert(IMidnightAdapterPriceRatifierV1.NotRatified.selector);
+        vm.expectRevert(IPriceRatifierV1.NotRatified.selector);
         adapter.isRatified(offer, data, taker);
     }
 
     function testUnratifyRootUnauthorized(address caller) public {
         vm.assume(!parentVault.isAllocator(caller) && !parentVault.isSentinel(caller));
         vm.prank(caller);
-        vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
-        priceRatifier.setIsRootRatified(address(adapter), keccak256("some root"), false);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.setIsRootRatified(address(priceRatifier), keccak256("some root"), false);
     }
 
     function testAddSubRatifierNotTimelocked(address caller, address subRatifier) public {
@@ -972,8 +1030,8 @@ contract MidnightAdapterTest is Test {
         bytes32 _root = root(offer);
         stdstore.target(address(parentVault)).sig("isAllocator(address)").with_key(signerAllocator).checked_write(false);
         vm.prank(signerAllocator);
-        vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
-        priceRatifier.setIsRootRatified(address(adapter), _root, true);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.setIsRootRatified(address(priceRatifier), _root, true);
     }
 
     function testSharedRatifierTwoAdapters() public {
@@ -996,12 +1054,12 @@ contract MidnightAdapterTest is Test {
 
         // A's allocator cannot act on B's roots.
         vm.prank(signerAllocator);
-        vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
+        vm.expectRevert(IPriceRatifierV1.Unauthorized.selector);
         priceRatifier.setIsRootRatified(address(otherAdapter), root(offerB), false);
 
         // Canceling A's root value on B does not affect A.
         vm.prank(otherAllocator);
-        priceRatifier.setIsRootRatified(address(otherAdapter), root(offerA), false);
+        otherAdapter.setIsRootRatified(address(priceRatifier), root(offerA), false);
         bytes memory dataA = ratify([offerA], signerAllocator);
         vm.prank(taker);
         midnight.take(offerA, dataA, offerA.maxUnits, taker, taker, address(0), "");
@@ -1009,7 +1067,7 @@ contract MidnightAdapterTest is Test {
 
         // B takes with its own allocator through the same ratifier deployment.
         vm.prank(otherAllocator);
-        priceRatifier.setIsRootRatified(address(otherAdapter), root(offerB), true);
+        otherAdapter.setIsRootRatified(address(priceRatifier), root(offerB), true);
         bytes memory dataB =
             abi.encode(address(priceRatifier), abi.encode(root(offerB), 0, proof([offerB]), address(0)));
         vm.prank(taker);
@@ -3635,7 +3693,7 @@ contract MidnightAdapterTest is Test {
         returns (bytes memory)
     {
         vm.prank(signer);
-        priceRatifier.setIsRootRatified(address(adapter), _root, true);
+        adapter.setIsRootRatified(address(priceRatifier), _root, true);
         return abi.encode(address(priceRatifier), abi.encode(_root, leafIndex, _proof, address(0)));
     }
 
@@ -4752,5 +4810,77 @@ contract MidnightAdapterTest is Test {
         (Offer memory offer, bytes memory ratifierData_) = callbackOffer(initial.market, 9e18, buyer);
         vm.expectRevert(IMidnight.SellerIsLiquidatable.selector);
         realVault.forceDeallocate(address(adapter), abi.encode(offer, ratifierData_), 9e18, address(this));
+    }
+}
+
+contract MidnightAdapterRateIntegrationTest is Test {
+    function testBuyAndSell() public {
+        vm.setEvmVersion("osaka");
+        IMidnight midnight = IMidnight(deployCode("Midnight.sol:Midnight"));
+        midnight.enableLltv(1e18);
+        midnight.enableLiquidationCursor(0.25e18);
+        ERC20Mock loanToken = new ERC20Mock(18);
+        ERC20Mock collateralToken = new ERC20Mock(18);
+        OracleMock oracle = new OracleMock();
+        oracle.setPrice(1e36);
+        VaultV2Mock vault = new VaultV2Mock(address(loanToken), address(this), address(this), address(this), address(0));
+        uint256[] memory durations = new uint256[](1);
+        durations[0] = 1 days;
+        MidnightAdapter adapter = new MidnightAdapter(address(vault), address(midnight), durations);
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setMaxTtm, (30 days)));
+        adapter.setMaxTtm(30 days);
+        RateRatifierV1 ratifier = new RateRatifierV1(address(midnight));
+        adapter.submit(abi.encodeCall(IMidnightAdapter.addSubRatifier, (address(ratifier))));
+        adapter.addSubRatifier(address(ratifier));
+        deal(address(loanToken), address(vault), 1e24);
+        deal(address(loanToken), address(this), 1e24);
+        deal(address(collateralToken), address(this), 1e24);
+        loanToken.approve(address(midnight), type(uint256).max);
+        collateralToken.approve(address(midnight), type(uint256).max);
+
+        CollateralParams[] memory collaterals = new CollateralParams[](1);
+        collaterals[0] = CollateralParams(address(collateralToken), 1e18, 0.25e18, address(oracle));
+        Offer memory offer;
+        offer.market = Market(
+            block.chainid,
+            address(midnight),
+            address(loanToken),
+            collaterals,
+            block.timestamp + 30 days,
+            0,
+            address(0),
+            address(0)
+        );
+        offer.buy = true;
+        offer.maker = address(adapter);
+        offer.callback = address(adapter);
+        offer.ratifier = address(adapter);
+        offer.tick = TickLib.priceToTick(0.95e18, DEFAULT_TICK_SPACING);
+        offer.expiry = offer.market.maturity;
+        offer.maxUnits = 1e18;
+        offer.continuousFeeCap = type(uint256).max;
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, address(this));
+        take(midnight, adapter, ratifier, offer);
+        bytes32 marketId = IdLib.toId(offer.market);
+        uint256 netCreditBefore = adapter.marketDataNetCredit(marketId);
+        assertGt(netCreditBefore, 0, "position opened");
+
+        offer.buy = false;
+        offer.receiverIfMakerIsSeller = address(adapter);
+        offer.group = bytes32("sell");
+        offer.tick = MAX_TICK;
+        offer.maxUnits = 1e17;
+        take(midnight, adapter, ratifier, offer);
+        assertLt(adapter.marketDataNetCredit(marketId), netCreditBefore, "position reduced");
+    }
+
+    function take(IMidnight midnight, MidnightAdapter adapter, RateRatifierV1 ratifier, Offer memory offer) internal {
+        uint256 rate = 1e9;
+        bytes32 root_ = HashLib.hashRateRatifierV1Offer(offer, rate, address(this));
+        adapter.setIsRootRatified(address(ratifier), root_, true);
+        bytes memory data = abi.encode(address(ratifier), abi.encode(root_, 0, new bytes32[](0), rate, address(this)));
+        midnight.take(
+            offer, data, offer.maxUnits, address(this), offer.buy ? address(this) : address(0), address(0), ""
+        );
     }
 }

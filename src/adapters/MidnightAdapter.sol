@@ -4,6 +4,10 @@ pragma solidity 0.8.34;
 
 import {IMidnight, Offer, Market} from "lib/midnight/src/interfaces/IMidnight.sol";
 import {IRatifier} from "lib/midnight/src/interfaces/IRatifier.sol";
+import {
+    IRatifiersV1Common,
+    SET_IS_ROOT_RATIFIED_SUCCESS
+} from "lib/midnight/src/ratifiers/interfaces/IRatifiersV1Common.sol";
 import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
 import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
@@ -145,6 +149,24 @@ contract MidnightAdapter is IMidnightAdapter {
         );
         isSubRatifier[subRatifier] = false;
         emit RemoveSubRatifier(msg.sender, subRatifier);
+    }
+
+    /// @dev Sets the ratification of a root on a sub-ratifier implementing IRatifiersV1Common, with the adapter as
+    /// maker.
+    /// @dev Allocators can ratify or unratify roots; sentinels can only unratify.
+    function setIsRootRatified(address subRatifier, bytes32 root, bool newIsRootRatified) external {
+        require(
+            IVaultV2(parentVault).isAllocator(msg.sender)
+                || (!newIsRootRatified && IVaultV2(parentVault).isSentinel(msg.sender)),
+            NotAuthorized()
+        );
+        require(isSubRatifier[subRatifier], SubRatifierFailed());
+        require(
+            IRatifiersV1Common(subRatifier).setIsRootRatified(address(this), root, newIsRootRatified)
+                == SET_IS_ROOT_RATIFIED_SUCCESS,
+            SubRatifierFailed()
+        );
+        emit SetIsRootRatified(msg.sender, subRatifier, root, newIsRootRatified);
     }
 
     function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {
