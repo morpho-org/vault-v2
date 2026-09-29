@@ -413,8 +413,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 totalAssets = IVaultV2(parentVault).firstTotalAssets();
         for (uint256 i; i < durationsLength; i++) {
             bytes32 id = keccak256(abi.encode("duration", address(this), packedDurations.get(i)));
-            uint256 cap = IVaultV2(parentVault).relativeCap(id);
-            require(cap == WAD || allocations[i] <= totalAssets.mulDivDown(cap, WAD), DurationCapExceeded());
+            require(allocations[i] <= IVaultV2(parentVault).absoluteCap(id), DurationCapExceeded());
+            uint256 relativeCap = IVaultV2(parentVault).relativeCap(id);
+            require(
+                relativeCap == WAD || allocations[i] <= totalAssets.mulDivDown(relativeCap, WAD), DurationCapExceeded()
+            );
         }
 
         // forge-lint: disable-next-item(reentrancy-no-eth) reentry is expected.

@@ -1296,6 +1296,7 @@ contract MidnightAdapterTest is Test {
         IMidnightAdapter fresh = IMidnightAdapter(factory.createMidnightAdapter(address(vault)));
         for (uint256 i; i < allDurations.length; i++) {
             assertEq(vault.relativeCap(keccak256(durationIdData(fresh, allDurations[i]))), 0);
+            assertEq(vault.absoluteCap(keccak256(durationIdData(fresh, allDurations[i]))), 0);
         }
         assertEq(fresh.durationAllocations(), new uint256[](allDurations.length));
     }
@@ -1328,7 +1329,7 @@ contract MidnightAdapterTest is Test {
         buyOnRealVault(7 days, 1e18);
         assertEq(adapter.durationAllocations()[1], 1e18);
         assertEq(realVault.allocation(id), 0, "duration exposure is internal to the adapter");
-        assertEq(realVault.absoluteCap(id), 0, "duration absolute caps are not used");
+        assertEq(realVault.absoluteCap(id), type(uint128).max, "duration absolute cap disabled");
 
         address sentinel = makeAddr("duration sentinel");
         vm.prank(owner);
@@ -1339,6 +1340,30 @@ contract MidnightAdapterTest is Test {
         blocked = fundedDurationOffer(8 days, 1e18);
         vm.expectRevert(IMidnightAdapterBase.DurationCapExceeded.selector);
         take(blocked);
+    }
+
+    /// forge-config: default.isolate = true
+    function testDurationAbsoluteCapExceeded() public {
+        setUpRealVault();
+        decreaseDurationAbsoluteCap(1, 1e18);
+
+        Offer memory overCap = fundedDurationOffer(7 days, 1.1e18);
+        vm.expectRevert(IMidnightAdapterBase.DurationCapExceeded.selector);
+        take(overCap);
+
+        take(fundedDurationOffer(7 days, 1e18));
+        take(fundedDurationOffer(6 days, 2e18));
+        assertEq(adapter.durationAllocations()[1], 1e18, "7 day absolute cap");
+    }
+
+    /// forge-config: default.isolate = true
+    function testDurationAbsoluteCapZeroDoesNotBlockShorterBuys() public {
+        setUpRealVault();
+        uint256 longestDurationIndex = allDurations.length - 1;
+        decreaseDurationAbsoluteCap(longestDurationIndex, 0);
+
+        buyOnRealVault(allDurations[longestDurationIndex - 1], 1e18);
+        assertEq(adapter.durationAllocations()[longestDurationIndex], 0, "longest duration");
     }
 
     /// forge-config: default.isolate = true
@@ -1355,7 +1380,6 @@ contract MidnightAdapterTest is Test {
                 IVaultV2.increaseRelativeCap, (abi.encode("duration", makeAddr("other adapter"), uint256(7 days)), 1e18)
             )
         );
-        submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
         Offer memory offer = fundedDurationOffer(7 days, 1e18);
         vm.expectRevert(IMidnightAdapterBase.DurationCapExceeded.selector);
         take(offer);
@@ -3386,8 +3410,10 @@ contract MidnightAdapterTest is Test {
             bytes memory idData = durationIdData(target, allDurations[i]);
             if (address(vault) == address(realVault)) {
                 submitAndCall(vault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
+                submitAndCall(vault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
             } else {
                 VaultV2Mock(address(vault)).setRelativeCap(keccak256(idData), 1e18);
+                VaultV2Mock(address(vault)).setAbsoluteCap(keccak256(idData), type(uint128).max);
             }
         }
     }
@@ -3399,6 +3425,16 @@ contract MidnightAdapterTest is Test {
             realVault.decreaseRelativeCap(idData, cap);
         } else {
             VaultV2Mock(adapter.parentVault()).setRelativeCap(keccak256(idData), cap);
+        }
+    }
+
+    function decreaseDurationAbsoluteCap(uint256 index, uint256 cap) internal {
+        bytes memory idData = durationIdData(adapter, allDurations[index]);
+        if (adapter.parentVault() == address(realVault)) {
+            vm.prank(curator);
+            realVault.decreaseAbsoluteCap(idData, cap);
+        } else {
+            VaultV2Mock(adapter.parentVault()).setAbsoluteCap(keccak256(idData), cap);
         }
     }
 
