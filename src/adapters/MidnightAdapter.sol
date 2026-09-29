@@ -11,7 +11,7 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {IMidnightAdapter, MarketData} from "./interfaces/IMidnightAdapter.sol";
+import {IMidnightAdapterBase, IMidnightAdapterStaticTyping, MarketData} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest per market.
@@ -28,7 +28,7 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 ///
 /// TIMELOCKS
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
-contract MidnightAdapter is IMidnightAdapter {
+contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
     using MathLib for uint48;
     using DurationsLib for bytes32;
@@ -88,22 +88,6 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /* GETTERS */
-
-    function marketDataNetCredit(bytes32 marketId) external view returns (uint128) {
-        return marketData[marketId].netCredit;
-    }
-
-    function marketDataGrowth(bytes32 marketId) external view returns (uint64) {
-        return marketData[marketId].growth;
-    }
-
-    function marketDataMaturity(bytes32 marketId) external view returns (uint48) {
-        return marketData[marketId].maturity;
-    }
-
-    function marketDataIndex(bytes32 marketId) external view returns (uint8) {
-        return marketData[marketId].index;
-    }
 
     function marketIdsLength() external view returns (uint256) {
         return marketIds.length;
@@ -177,8 +161,9 @@ contract MidnightAdapter is IMidnightAdapter {
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(data);
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the second bytes4.
-        uint256 _timelock =
-            selector == IMidnightAdapter.decreaseTimelock.selector ? timelock[bytes4(data[4:8])] : timelock[selector];
+        uint256 _timelock = selector == IMidnightAdapterBase.decreaseTimelock.selector
+            ? timelock[bytes4(data[4:8])]
+            : timelock[selector];
         executableAt[data] = block.timestamp + _timelock;
         emit Submit(selector, data, executableAt[data]);
     }
@@ -212,7 +197,7 @@ contract MidnightAdapter is IMidnightAdapter {
     /// executableAt.
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
-        require(selector != IMidnightAdapter.decreaseTimelock.selector, AutomaticallyTimelocked());
+        require(selector != IMidnightAdapterBase.decreaseTimelock.selector, AutomaticallyTimelocked());
         require(newDuration >= timelock[selector], TimelockNotIncreasing());
 
         timelock[selector] = newDuration;
@@ -221,7 +206,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
-        require(selector != IMidnightAdapter.decreaseTimelock.selector, AutomaticallyTimelocked());
+        require(selector != IMidnightAdapterBase.decreaseTimelock.selector, AutomaticallyTimelocked());
         require(newDuration <= timelock[selector], TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
