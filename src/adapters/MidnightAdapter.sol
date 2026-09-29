@@ -287,13 +287,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Remove the maturity allocation from the duration ids that are > its time to maturity.
     function updateDurationCaps(uint256 _maturity) external {
-        MaturityData storage _maturityData = maturities[_maturity];
-        uint256 _maturityNetCredit = _maturityData.netCredit;
-        uint256 oldDurationCount = _maturityData.durationCount;
+        MaturityData storage _maturities = maturities[_maturity];
+        uint256 _maturityNetCredit = _maturities.netCredit;
+        uint256 oldDurationCount = _maturities.durationCount;
         uint8 newDurationCount = durationCount(_maturity);
         // VaultV2.deallocate requires allocation > 0 for each returned id.
         if (newDurationCount < oldDurationCount && _maturityNetCredit > 0) {
-            _maturityData.durationCount = newDurationCount;
+            _maturities.durationCount = newDurationCount;
             emit UpdateDurationCaps(_maturity, newDurationCount, _maturityNetCredit);
             bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationCount - newDurationCount);
             for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
@@ -407,8 +407,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             _marketData.growth = uint64((oldAssetsWadPerSecond + addedAssetsWadPerSecond) / newNetCredit);
         }
 
-        MaturityData storage _maturityData = maturities[market.maturity];
-        if (_maturityData.netCredit == 0) _maturityData.durationCount = durationCount(market.maturity);
+        MaturityData storage _maturities = maturities[market.maturity];
+        if (_maturities.netCredit == 0) _maturities.durationCount = durationCount(market.maturity);
         int256 change = updateMarket(marketId, market, newNetCredit);
         uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
         if (callbackData.length > 0 && paidAssets > idleAssets) {
