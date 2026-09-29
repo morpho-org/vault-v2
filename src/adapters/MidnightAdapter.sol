@@ -498,6 +498,7 @@ contract MidnightAdapter is IMidnightAdapter {
         uint256 assetsAfter = newNetCredit.mulDivDown(discountFactor, WAD);
         uint256 saleShortfall = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
         if (block.timestamp < market.maturity) {
+            require(saleShortfall <= shortfallAllowance, MaxShortfallExceeded());
             shortfallAllowance -= saleShortfall.toUint128();
         }
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);

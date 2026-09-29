@@ -67,6 +67,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error SelfAllocationOnly();
     error SellInProgress();
     error SellRateTooHigh();
+    error MaxShortfallExceeded();
     error MaxShortfallRatioTooHigh();
     error SubRatifierFailed();
     error TimelockNotDecreasing();

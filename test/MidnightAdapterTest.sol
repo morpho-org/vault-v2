@@ -1638,7 +1638,7 @@ contract MidnightAdapterTest is Test {
         adapter.take(buyOffer, "", 5);
 
         setMaxSellRate(offer.market, maxSellRate);
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         vm.prank(signerAllocator);
         adapter.take(buyOffer, "", 5);
 
@@ -3358,7 +3358,7 @@ contract MidnightAdapterTest is Test {
         uint256 allowance = wasDisabled ? 0 : 0.25e18;
         assertEq(adapter.shortfallAllowance(), allowance);
         assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 1e18, MAX_TICK / 2);
         adapter.withdrawToVault(offer.market, 0);
         assertEq(adapter.shortfallAllowance(), allowance, "no retroactive refill");
@@ -3411,7 +3411,7 @@ contract MidnightAdapterTest is Test {
 
         assertEq(adapter.shortfallAllowance(), 0.125e18);
         assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 0.5e18, MAX_TICK / 2);
         adapter.withdrawToVault(offer.market, 0);
         assertEq(adapter.shortfallAllowance(), 0.125e18, "no retroactive refill");
@@ -3492,7 +3492,7 @@ contract MidnightAdapterTest is Test {
             ? makeExternalOffer(initial.market, true, 1e18, MAX_TICK / 2)
             : makeSellOffer(initial.market, 1e18, MAX_TICK / 2);
 
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         if (takerSale) {
             vm.prank(signerAllocator);
             adapter.take(offer, "", 1e18);
@@ -3521,7 +3521,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.shortfallAllowance(), 0);
         assertEq(adapter.marketDataNetCredit(marketId), 99e18);
 
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         sellUnits(initial.market, 2, MAX_TICK / 2);
         sellUnits(initial.market, 99e18, MAX_TICK);
         assertEq(adapter.marketDataNetCredit(marketId), 0, "zero-shortfall exit remains possible");
@@ -3537,7 +3537,7 @@ contract MidnightAdapterTest is Test {
         uint256 limit = position.mulDivDown(adapter.maxShortfallRatio(), 1e18);
         limit = limit.mulDivDown(MathLib.min(elapsed, 1 days), 1 days);
 
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 2 * (limit + 1), MAX_TICK / 2);
         if (limit > 0) sellAndRebuyWithShortfall(offer.market, limit);
 
@@ -3563,7 +3563,7 @@ contract MidnightAdapterTest is Test {
         sellUnits(offer.market, 0.5e18, MAX_TICK / 2);
         assertEq(adapter.shortfallAllowance(), 0.25e18);
 
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 0.5e18 + 2, MAX_TICK / 2);
         sellUnits(offer.market, 0.5e18, MAX_TICK / 2);
         assertEq(adapter.shortfallAllowance(), 0);
@@ -3579,7 +3579,7 @@ contract MidnightAdapterTest is Test {
 
         vm.warp(2 days);
         uint256 refill = uint256(0.4975e18) / 1 days;
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 2 * (refill + 1), MAX_TICK / 2);
         sellAndRebuyWithShortfall(offer.market, refill);
         assertEq(adapter.shortfallAllowance(), 0);
@@ -3607,7 +3607,7 @@ contract MidnightAdapterTest is Test {
         setMaxSellRate(offer.market, type(uint256).max);
         skip(elapsed);
 
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 2 * (0.5e18 + 1), MAX_TICK / 2);
         sellAndRebuyWithShortfall(offer.market, 0.5e18);
         skip(elapsed);
@@ -3634,7 +3634,7 @@ contract MidnightAdapterTest is Test {
         buyAdditionalCredit(offer.market, 900e18);
         bytes32 marketId = _marketId(offer.market);
 
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 2 * (0.25e18 + 1), MAX_TICK / 2);
         deal(address(loanToken), taker, 900e18);
         sellUnits(offer.market, 900e18, MAX_TICK);
@@ -3655,10 +3655,10 @@ contract MidnightAdapterTest is Test {
 
         sellUnits(offer.market, 80e18, MAX_TICK);
         assertEq(adapter.shortfallAllowance(), 0.25e18, "stored allowance is not yet clamped");
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 2 * (0.05e18 + 1), MAX_TICK / 2);
         skip(6 hours);
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 2 * (0.05e18 + 1), MAX_TICK / 2);
         sellAndRebuyWithShortfall(offer.market, 0.05e18);
         assertEq(adapter.shortfallAllowance(), 0);
@@ -3676,7 +3676,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.shortfallAllowance(), 0.25e18, "refill precedes withdrawal");
         adapter.withdrawToVault(offer.market, 80e18);
         assertEq(adapter.shortfallAllowance(), 0.25e18, "stored allowance is not yet clamped");
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 2 * (0.05e18 + 1), MAX_TICK / 2);
         sellAndRebuyWithShortfall(offer.market, 0.05e18);
         assertEq(adapter.shortfallAllowance(), 0);
@@ -3691,7 +3691,7 @@ contract MidnightAdapterTest is Test {
 
         forceDeallocate(initial.market, 80e18);
         assertEq(adapter.shortfallAllowance(), 0.25e18, "stored allowance is not yet clamped");
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         sellUnits(initial.market, 2 * (0.05e18 + 1), MAX_TICK / 2);
         sellAndRebuyWithShortfall(initial.market, 0.05e18);
         assertEq(adapter.shortfallAllowance(), 0);
@@ -3707,7 +3707,7 @@ contract MidnightAdapterTest is Test {
 
         buyAdditionalCredit(offer.market, 90e18);
         assertEq(adapter.shortfallAllowance(), 0.05e18, "clamp uses pre-purchase credit");
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 2 * (0.05e18 + 1), MAX_TICK / 2);
         sellAndRebuyWithShortfall(offer.market, 0.05e18);
         assertEq(adapter.shortfallAllowance(), 0);
@@ -3739,7 +3739,7 @@ contract MidnightAdapterTest is Test {
         uint256 remaining = adapter.realAssets();
         uint256 limit = remaining.mulDivDown(adapter.maxShortfallRatio(), 1e18);
 
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 2 * (limit + 1), MAX_TICK / 2);
         sellUnits(offer.market, 2 * limit, MAX_TICK / 2);
         assertEq(adapter.marketDataNetCredit(_marketId(offer.market)), remaining - 2 * limit);
@@ -3760,7 +3760,7 @@ contract MidnightAdapterTest is Test {
         skip(1 days);
         buyAdditionalCredit(offer.market, 100e18);
         assertEq(adapter.shortfallAllowance(), 0);
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 2, MAX_TICK / 2);
     }
 
@@ -3774,7 +3774,7 @@ contract MidnightAdapterTest is Test {
         skip(12 hours);
         sellAndRebuyWithShortfall(first.market, 1e18);
         assertEq(adapter.shortfallAllowance(), 0);
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         sellUnits(second.market, 2, MAX_TICK / 2);
     }
 
@@ -3815,7 +3815,7 @@ contract MidnightAdapterTest is Test {
         deal(address(loanToken), taker, 101e18);
         sellUnits(second.market, 100e18, MAX_TICK);
         assertEq(adapter.shortfallAllowance(), 1e18, "stored allowance is not yet clamped");
-        vm.expectRevert(stdError.arithmeticError);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
         sellUnits(first.market, 2 * (0.5e18 + 1), MAX_TICK / 2);
         sellAndRebuyWithShortfall(first.market, 0.5e18);
         assertEq(adapter.shortfallAllowance(), 0);
