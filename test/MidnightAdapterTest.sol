@@ -546,7 +546,7 @@ contract MidnightAdapterTest is Test {
         assertEq(midnight.consumed(address(adapter), offer.group), 0, "offer not consumed");
 
         setMinBuyRate(0);
-        take(offer);
+        this.takeWithAccrual(offer, data, taker, address(0));
         assertEq(adapter.marketDataNetCredit(_marketId(offer.market)), offer.maxUnits, "zero rate accepted");
     }
 
@@ -777,10 +777,10 @@ contract MidnightAdapterTest is Test {
 
         bytes32[] memory siblingProof = new bytes32[](1);
         siblingProof[0] = HashLib.hashPriceRatifierV1Offer(offer, address(0));
-        data = ratifierData(_root, signerAllocator, 1, siblingProof);
+        data = abi.encode(address(priceRatifier), abi.encode(_root, uint256(1), siblingProof, address(0)));
         assertEq(adapter.isRatified(sibling, data, taker), CALLBACK_SUCCESS, "second leaf");
 
-        data = ratifierData(_root, signerAllocator, 0, siblingProof);
+        data = abi.encode(address(priceRatifier), abi.encode(_root, uint256(0), siblingProof, address(0)));
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.InvalidProof.selector);
         adapter.isRatified(sibling, data, taker);
     }

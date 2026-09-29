@@ -141,6 +141,7 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         assertEq(nonce, 0);
 
         vm.prank(sentinel);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.AlreadyRatified.selector);
         ratifier.setIsRootRatified(maker, root, true);
         assertEq(IMidnightAdapterPriceRatifierV1(address(ratifier)).authorizer(maker, root), sentinel);
 
@@ -153,19 +154,42 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         assertEq(nonce, 0);
     }
 
-    function testSentinelCannotOverwriteAllocatorAuthorizer() public {
+    function testAllocatorCannotReRatifyAllocatorAuthorizedRoot() public {
+        bytes32 root = this.leaf(offer, 0, address(0));
+        setRoot(root, true);
+
+        vm.prank(allocator);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.AlreadyRatified.selector);
+        ratifier.setIsRootRatified(maker, root, true);
+
+        assertEq(IMidnightAdapterPriceRatifierV1(address(ratifier)).authorizer(maker, root), allocator);
+    }
+
+    function testSentinelCannotReRatifyAllocatorAuthorizedRoot() public {
         bytes32 root = this.leaf(offer, 0, address(0));
         setRoot(root, true);
 
         vm.prank(sentinel);
-        vm.expectRevert(IMidnightAdapterPriceRatifierV1.AllocatorRatified.selector);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.AlreadyRatified.selector);
         ratifier.setIsRootRatified(maker, root, true);
 
         assertTrue(ratifier.isRootRatified(maker, root));
         assertEq(IMidnightAdapterPriceRatifierV1(address(ratifier)).authorizer(maker, root), allocator);
     }
 
-    function testSentinelCanReplaceRemovedAllocatorAuthorizer() public {
+    function testAllocatorCannotReRatifySentinelAuthorizedRoot() public {
+        bytes32 root = this.leaf(offer, 0, address(0));
+        vm.prank(sentinel);
+        ratifier.setIsRootRatified(maker, root, true);
+
+        vm.prank(allocator);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.AlreadyRatified.selector);
+        ratifier.setIsRootRatified(maker, root, true);
+
+        assertEq(IMidnightAdapterPriceRatifierV1(address(ratifier)).authorizer(maker, root), sentinel);
+    }
+
+    function testSentinelCanReRatifyRemovedAllocatorRootAfterUnratifying() public {
         Offer memory sellOffer = offer;
         sellOffer.buy = false;
         bytes32 root = this.leaf(sellOffer, 0, address(0));
@@ -173,12 +197,26 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         vm.mockCall(address(vault), abi.encodeWithSignature("isAllocator(address)", allocator), abi.encode(false));
 
         vm.prank(sentinel);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.AlreadyRatified.selector);
         ratifier.setIsRootRatified(maker, root, true);
 
+        vm.prank(sentinel);
+        ratifier.setIsRootRatified(maker, root, false);
+        assertFalse(ratifier.isRootRatified(maker, root));
+        assertEq(IMidnightAdapterPriceRatifierV1(address(ratifier)).authorizer(maker, root), address(0));
+
+        vm.prank(sentinel);
+        ratifier.setIsRootRatified(maker, root, true);
         assertEq(IMidnightAdapterPriceRatifierV1(address(ratifier)).authorizer(maker, root), sentinel);
         assertEq(
             ratifier.isRatified(sellOffer, data(root, 0, new bytes32[](0), 0, address(0)), taker), CALLBACK_SUCCESS
         );
+
+        bytes32 buyRoot = this.leaf(offer, 0, address(0));
+        vm.prank(sentinel);
+        ratifier.setIsRootRatified(maker, buyRoot, true);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.InvalidAuthorizer.selector);
+        ratifier.isRatified(offer, data(buyRoot, 0, new bytes32[](0), 0, address(0)), taker);
     }
 
     function testSentinelCanUnratifyAllocatorAuthorizedRoot() public {
@@ -231,8 +269,11 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         ratifier.isRatified(offer, buyData, taker);
     }
 
-    function testLastRatifierBecomesAuthorizer() public {
+    function testRatifyAfterUnratifyChangesAuthorizer() public {
         bytes32 root = this.leaf(offer, 0, address(0));
+        setRoot(root, true);
+        setRoot(root, false);
+
         vm.prank(sentinel);
         ratifier.setIsRootRatified(maker, root, true);
         (bool isRootRatified,) = IMidnightAdapterPriceRatifierV1(address(ratifier)).ratification(maker, root);
@@ -241,6 +282,8 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.InvalidAuthorizer.selector);
         ratifier.isRatified(offer, data(root, 0, new bytes32[](0), 0, address(0)), taker);
 
+        vm.prank(sentinel);
+        ratifier.setIsRootRatified(maker, root, false);
         setRoot(root, true);
         (isRootRatified,) = IMidnightAdapterPriceRatifierV1(address(ratifier)).ratification(maker, root);
         assertTrue(isRootRatified);
@@ -363,18 +406,47 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         submitSignature(bytes32(0), true, 0, block.timestamp, sig);
     }
 
-    function testSentinelSignatureCannotOverwriteAllocatorAuthorizer() public {
+    function testAllocatorSignatureCannotReRatifyAllocatorAuthorizedRoot() public {
         bytes32 root = this.leaf(offer, 0, address(0));
         setRoot(root, true);
-        Signature memory sig = signature(root, true, 0, block.timestamp, sentinelKey);
+        Signature memory sig = signature(root, true, 0, block.timestamp, allocatorKey);
 
-        vm.prank(sentinel);
-        vm.expectRevert(IMidnightAdapterPriceRatifierV1.AllocatorRatified.selector);
+        vm.prank(allocator);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.AlreadyRatified.selector);
         submitSignature(root, true, 0, block.timestamp, sig);
 
         assertTrue(ratifier.isRootRatified(maker, root));
         assertEq(ratifier.rootNonce(maker, root), 0);
         assertEq(IMidnightAdapterPriceRatifierV1(address(ratifier)).authorizer(maker, root), allocator);
+    }
+
+    function testSentinelSignatureCannotReRatifyAllocatorAuthorizedRoot() public {
+        bytes32 root = this.leaf(offer, 0, address(0));
+        setRoot(root, true);
+        Signature memory sig = signature(root, true, 0, block.timestamp, sentinelKey);
+
+        vm.prank(sentinel);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.AlreadyRatified.selector);
+        submitSignature(root, true, 0, block.timestamp, sig);
+
+        assertTrue(ratifier.isRootRatified(maker, root));
+        assertEq(ratifier.rootNonce(maker, root), 0);
+        assertEq(IMidnightAdapterPriceRatifierV1(address(ratifier)).authorizer(maker, root), allocator);
+    }
+
+    function testAllocatorSignatureCannotReRatifySentinelAuthorizedRoot() public {
+        bytes32 root = this.leaf(offer, 0, address(0));
+        vm.prank(sentinel);
+        ratifier.setIsRootRatified(maker, root, true);
+        Signature memory sig = signature(root, true, 0, block.timestamp, allocatorKey);
+
+        vm.prank(allocator);
+        vm.expectRevert(IMidnightAdapterPriceRatifierV1.AlreadyRatified.selector);
+        submitSignature(root, true, 0, block.timestamp, sig);
+
+        assertTrue(ratifier.isRootRatified(maker, root));
+        assertEq(ratifier.rootNonce(maker, root), 0);
+        assertEq(IMidnightAdapterPriceRatifierV1(address(ratifier)).authorizer(maker, root), sentinel);
     }
 
     function testSentinelSignatureCanRatifyAndUnratify() public {
