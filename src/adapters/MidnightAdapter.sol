@@ -313,13 +313,13 @@ contract MidnightAdapter is IMidnightAdapter {
         if (newDurationCount < oldDurationCount && _maturityNetCredit > 0) {
             _maturityData.durationCount = newDurationCount;
             emit UpdateDurationCaps(_maturity, newDurationCount, _maturityNetCredit);
-            bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationCount - newDurationCount);
-            for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
-                zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
+            bytes32[] memory durationIdsToDecrease = new bytes32[](oldDurationCount - newDurationCount);
+            for (uint256 i = 0; i < durationIdsToDecrease.length; i++) {
+                durationIdsToDecrease[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
             }
             // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
             IVaultV2(parentVault)
-                .deallocate(address(this), abi.encode(zeroedDurationsIds, -int256(_maturityNetCredit)), 0);
+                .deallocate(address(this), abi.encode(durationIdsToDecrease, -int256(_maturityNetCredit)), 0);
         }
     }
 
