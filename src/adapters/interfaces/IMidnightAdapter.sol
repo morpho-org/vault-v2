@@ -20,7 +20,6 @@ struct MaturityData {
     uint8 durationCount;
 }
 
-/// @dev Implemented by MidnightAdapter. Use IMidnightAdapter for external calls and selectors.
 interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     /* EVENTS */
 
