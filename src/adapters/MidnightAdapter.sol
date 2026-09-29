@@ -8,6 +8,8 @@ import {
     IRatifiersV1Common,
     SET_IS_ROOT_RATIFIED_SUCCESS
 } from "lib/midnight/src/ratifiers/interfaces/IRatifiersV1Common.sol";
+import {EIP712_DOMAIN_TYPEHASH} from "lib/midnight/src/ratifiers/interfaces/IRateRatifierV1.sol";
+import {HashLib} from "lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {IdLib} from "lib/midnight/src/libraries/IdLib.sol";
 import {CALLBACK_SUCCESS} from "lib/midnight/src/libraries/ConstantsLib.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
@@ -61,6 +63,7 @@ contract MidnightAdapter is IMidnightAdapter {
     uint256 public minBuyRate;
     uint256 public maxTtm;
     mapping(address subRatifier => bool) public isSubRatifier;
+    mapping(address subRatifier => mapping(bytes32 root => uint128)) public override rootNonce;
     /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement
     /// fee.
     /// @dev Enforced on maker and taker sales before maturity only.
@@ -161,12 +164,70 @@ contract MidnightAdapter is IMidnightAdapter {
             NotAuthorized()
         );
         require(isSubRatifier[subRatifier], SubRatifierFailed());
+        _setIsRootRatified(subRatifier, root, newIsRootRatified);
+        emit SetIsRootRatified(msg.sender, subRatifier, root, newIsRootRatified);
+    }
+
+    /// @dev Signed by an allocator, or a sentinel to unratify, using the V1 ratifiers' digest with the adapter as
+    /// maker. isRateRatifier selects the offer-tree type; nonces are stored per sub-ratifier and root.
+    /// @dev An incorrect isRateRatifier value changes the signer recovered from the digest.
+    /// @dev Permissioned to prevent extracting a batch's signature and taking before the batch lands or even though the
+    /// batch reverted.
+    function setIsRootRatifiedWithSig(
+        address subRatifier,
+        bool isRateRatifier,
+        bytes32 root,
+        uint256 height,
+        bool newIsRootRatified,
+        uint128 nonce,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external {
+        require(
+            IVaultV2(parentVault).isAllocator(msg.sender)
+                || (!newIsRootRatified && IVaultV2(parentVault).isSentinel(msg.sender)),
+            NotAuthorized()
+        );
+        require(isSubRatifier[subRatifier], SubRatifierFailed());
+        require(deadline >= block.timestamp, DeadlineExpired());
+        bytes32 typeHash = isRateRatifier
+            ? HashLib.rateRatifierV1OfferTreeTypeHash(height)
+            : HashLib.priceRatifierV1OfferTreeTypeHash(height);
+        bytes32 hashStruct = keccak256(abi.encode(typeHash, address(this), root, newIsRootRatified, nonce, deadline));
+        bytes32 domainSeparator = keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, block.chainid, subRatifier));
+        bytes32 digest = keccak256(bytes.concat("\x19\x01", domainSeparator, hashStruct));
+        // forge-lint: disable-next-item(ecrecover) malleability is ok thanks to the nonce.
+        address signer = ecrecover(digest, v, r, s);
+        require(signer != address(0), InvalidSignature());
+        require(
+            IVaultV2(parentVault).isAllocator(signer)
+                || (!newIsRootRatified && IVaultV2(parentVault).isSentinel(signer)),
+            NotAuthorized()
+        );
+        uint128 _rootNonce = rootNonce[subRatifier][root];
+        if (nonce == _rootNonce) {
+            rootNonce[subRatifier][root] = nonce + 1;
+            _setIsRootRatified(subRatifier, root, newIsRootRatified);
+        } else {
+            require(nonce < _rootNonce, InvalidNonce());
+            require(
+                IRatifiersV1Common(subRatifier).isRootRatified(address(this), root) == newIsRootRatified,
+                RatifiedStatusChanged()
+            );
+        }
+        emit SetIsRootRatifiedWithSig(
+            msg.sender, signer, subRatifier, root, height, newIsRootRatified, nonce, _rootNonce
+        );
+    }
+
+    function _setIsRootRatified(address subRatifier, bytes32 root, bool newIsRootRatified) internal {
         require(
             IRatifiersV1Common(subRatifier).setIsRootRatified(address(this), root, newIsRootRatified)
                 == SET_IS_ROOT_RATIFIED_SUCCESS,
             SubRatifierFailed()
         );
-        emit SetIsRootRatified(msg.sender, subRatifier, root, newIsRootRatified);
     }
 
     function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {

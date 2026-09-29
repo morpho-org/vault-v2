@@ -34,6 +34,16 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     event SetIsRootRatified(
         address indexed sender, address indexed subRatifier, bytes32 indexed root, bool newIsRootRatified
     );
+    event SetIsRootRatifiedWithSig(
+        address sender,
+        address indexed signer,
+        address indexed subRatifier,
+        bytes32 indexed root,
+        uint256 height,
+        bool newIsRootRatified,
+        uint128 nonce,
+        uint128 previousRootNonce
+    );
     event SetSkimRecipient(address indexed newSkimRecipient);
     event SetMinBuyRate(uint256 newMinBuyRate);
     event SetMaxTtm(uint256 newMaxTtm);
@@ -53,6 +63,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error AutomaticallyTimelocked();
     error DataAlreadyPending();
     error DataNotTimelocked();
+    error DeadlineExpired();
     error BuyAtLoss();
     error BuyPostMaturity();
     error BuyTtmTooHigh();
@@ -60,6 +71,8 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error IncorrectOffer();
     error IncorrectMaker();
     error IncorrectReceiver();
+    error InvalidNonce();
+    error InvalidSignature();
     error LoanAssetMismatch();
     error NotAuthorized();
     error NotMidnight();
@@ -70,6 +83,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     error SellInProgress();
     error SellRateTooHigh();
     error SubRatifierFailed();
+    error RatifiedStatusChanged();
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();
@@ -115,6 +129,19 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function addSubRatifier(address subRatifier) external;
     function removeSubRatifier(address subRatifier) external;
     function setIsRootRatified(address subRatifier, bytes32 root, bool newIsRootRatified) external;
+    function rootNonce(address subRatifier, bytes32 root) external view returns (uint128);
+    function setIsRootRatifiedWithSig(
+        address subRatifier,
+        bool isRateRatifier,
+        bytes32 root,
+        uint256 height,
+        bool newIsRootRatified,
+        uint128 nonce,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external;
     function setSkimRecipient(address newSkimRecipient) external;
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);

@@ -26,6 +26,7 @@ import {ORACLE_PRICE_SCALE} from "../lib/morpho-blue/src/libraries/ConstantsLib.
 import {PriceRatifierV1} from "../lib/midnight/src/ratifiers/PriceRatifierV1.sol";
 import {RateRatifierV1} from "../lib/midnight/src/ratifiers/RateRatifierV1.sol";
 import {IPriceRatifierV1} from "../lib/midnight/src/ratifiers/interfaces/IPriceRatifierV1.sol";
+import {EIP712_DOMAIN_TYPEHASH} from "../lib/midnight/src/ratifiers/interfaces/IRateRatifierV1.sol";
 import {IRatifiersV1Common} from "../lib/midnight/src/ratifiers/interfaces/IRatifiersV1Common.sol";
 import {
     CALLBACK_SUCCESS,
@@ -853,6 +854,248 @@ contract MidnightAdapterTest is Test {
         vm.prank(signerAllocator);
         adapter.setIsRootRatified(address(priceRatifier), root_, status);
         assertEq(priceRatifier.isRootRatified(address(adapter), root_), status);
+    }
+
+    function testSetIsRootRatifiedWithSigPriceRatifier() public {
+        (address signer, uint256 privateKey) = _makeAllocatorSigner("price ratification signer");
+        bytes32 root_ = keccak256("signed price root");
+        uint256 height = 5;
+        uint256 deadline = block.timestamp + 1 days;
+        (uint8 v, bytes32 r, bytes32 s) = _signRootRatification(
+            privateKey, address(adapter), address(priceRatifier), false, root_, height, true, 0, deadline
+        );
+
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.SetIsRootRatifiedWithSig(
+            signer, signer, address(priceRatifier), root_, height, true, 0, 0
+        );
+        vm.prank(signer);
+        adapter.setIsRootRatifiedWithSig(address(priceRatifier), false, root_, height, true, 0, deadline, v, r, s);
+        assertTrue(priceRatifier.isRootRatified(address(adapter), root_));
+        assertEq(adapter.rootNonce(address(priceRatifier), root_), 1);
+
+        (v, r, s) = _signRootRatification(
+            privateKey, address(adapter), address(priceRatifier), false, root_, height, false, 1, deadline
+        );
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.SetIsRootRatifiedWithSig(
+            signer, signer, address(priceRatifier), root_, height, false, 1, 1
+        );
+        vm.prank(signer);
+        adapter.setIsRootRatifiedWithSig(address(priceRatifier), false, root_, height, false, 1, deadline, v, r, s);
+        assertFalse(priceRatifier.isRootRatified(address(adapter), root_));
+        assertEq(adapter.rootNonce(address(priceRatifier), root_), 2);
+    }
+
+    function testSetIsRootRatifiedWithSigRateRatifier() public {
+        (address signer, uint256 privateKey) = _makeAllocatorSigner("rate ratification signer");
+        RateRatifierV1 rateRatifier = new RateRatifierV1(address(midnight));
+        addSubRatifier(adapter, address(rateRatifier));
+        bytes32 root_ = keccak256("signed rate root");
+        uint256 height = 7;
+        uint256 deadline = block.timestamp + 1 days;
+        (uint8 v, bytes32 r, bytes32 s) = _signRootRatification(
+            privateKey, address(adapter), address(rateRatifier), true, root_, height, true, 0, deadline
+        );
+
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapter.SetIsRootRatifiedWithSig(signer, signer, address(rateRatifier), root_, height, true, 0, 0);
+        vm.prank(signer);
+        adapter.setIsRootRatifiedWithSig(address(rateRatifier), true, root_, height, true, 0, deadline, v, r, s);
+        assertTrue(rateRatifier.isRootRatified(address(adapter), root_));
+        assertEq(adapter.rootNonce(address(rateRatifier), root_), 1);
+
+        (v, r, s) = _signRootRatification(
+            privateKey, address(adapter), address(rateRatifier), true, root_, height, false, 1, deadline
+        );
+        vm.prank(signer);
+        adapter.setIsRootRatifiedWithSig(address(rateRatifier), true, root_, height, false, 1, deadline, v, r, s);
+        assertFalse(rateRatifier.isRootRatified(address(adapter), root_));
+        assertEq(adapter.rootNonce(address(rateRatifier), root_), 2);
+    }
+
+    function testSetIsRootRatifiedWithSigMatchesCanonicalDigest() public {
+        (address signer, uint256 privateKey) = _makeAllocatorSigner("canonical ratification signer");
+        bytes32 root_ = keccak256("canonical digest root");
+        uint256 height = 3;
+        uint256 deadline = block.timestamp + 1 days;
+        (uint8 v, bytes32 r, bytes32 s) = _signRootRatification(
+            privateKey, address(adapter), address(priceRatifier), false, root_, height, true, 0, deadline
+        );
+
+        vm.prank(signerAllocator);
+        adapter.setIsRootRatifiedWithSig(address(priceRatifier), false, root_, height, true, 0, deadline, v, r, s);
+
+        vm.prank(address(adapter));
+        vm.expectRevert(IPriceRatifierV1.Unauthorized.selector);
+        priceRatifier.setIsRootRatifiedWithSig(address(adapter), root_, height, true, 0, deadline, v, r, s);
+
+        vm.prank(address(adapter));
+        midnight.setIsAuthorized(signer, true, address(adapter));
+        vm.prank(address(adapter));
+        priceRatifier.setIsRootRatifiedWithSig(address(adapter), root_, height, true, 0, deadline, v, r, s);
+        assertTrue(priceRatifier.isRootRatified(address(adapter), root_));
+        assertEq(priceRatifier.rootNonce(address(adapter), root_), 1);
+    }
+
+    function testSetIsRootRatifiedWithSigWrongRatifierType() public {
+        (, uint256 privateKey) = _makeAllocatorSigner("wrong ratifier type signer");
+        bytes32 root_ = keccak256("wrong ratifier type root");
+        uint256 deadline = block.timestamp + 1 days;
+        (uint8 v, bytes32 r, bytes32 s) = _signRootRatification(
+            privateKey, address(adapter), address(priceRatifier), false, root_, 4, true, 0, deadline
+        );
+
+        vm.prank(signerAllocator);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.setIsRootRatifiedWithSig(address(priceRatifier), true, root_, 4, true, 0, deadline, v, r, s);
+    }
+
+    function testSetIsRootRatifiedWithSigSentinelPermissions() public {
+        (address signer, uint256 privateKey) = _makeSentinelSigner("sentinel ratification signer");
+        (, uint256 allocatorPrivateKey) = _makeAllocatorSigner("sentinel caller allocator");
+        bytes32 root_ = keccak256("sentinel ratification root");
+        uint256 deadline = block.timestamp + 1 days;
+        vm.prank(signerAllocator);
+        adapter.setIsRootRatified(address(priceRatifier), root_, true);
+
+        (uint8 v, bytes32 r, bytes32 s) = _signRootRatification(
+            privateKey, address(adapter), address(priceRatifier), false, root_, 1, false, 0, deadline
+        );
+        vm.prank(signerAllocator);
+        adapter.setIsRootRatifiedWithSig(address(priceRatifier), false, root_, 1, false, 0, deadline, v, r, s);
+        assertFalse(priceRatifier.isRootRatified(address(adapter), root_));
+
+        (v, r, s) = _signRootRatification(
+            allocatorPrivateKey, address(adapter), address(priceRatifier), false, root_, 1, false, 1, deadline
+        );
+        vm.prank(signer);
+        adapter.setIsRootRatifiedWithSig(address(priceRatifier), false, root_, 1, false, 1, deadline, v, r, s);
+
+        (v, r, s) = _signRootRatification(
+            privateKey, address(adapter), address(priceRatifier), false, root_, 1, true, 2, deadline
+        );
+        vm.prank(signerAllocator);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.setIsRootRatifiedWithSig(address(priceRatifier), false, root_, 1, true, 2, deadline, v, r, s);
+
+        (v, r, s) = _signRootRatification(
+            allocatorPrivateKey, address(adapter), address(priceRatifier), false, root_, 1, true, 2, deadline
+        );
+        vm.prank(signer);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.setIsRootRatifiedWithSig(address(priceRatifier), false, root_, 1, true, 2, deadline, v, r, s);
+        assertEq(adapter.rootNonce(address(priceRatifier), root_), 2);
+    }
+
+    function testSetIsRootRatifiedWithSigUnauthorizedCallerAndSigner() public {
+        (, uint256 allocatorPrivateKey) = _makeAllocatorSigner("authorized signature signer");
+        (, uint256 unauthorizedPrivateKey) = makeAddrAndKey("unauthorized signature signer");
+        bytes32 root_ = keccak256("unauthorized signature root");
+        uint256 deadline = block.timestamp + 1 days;
+        (uint8 v, bytes32 r, bytes32 s) = _signRootRatification(
+            allocatorPrivateKey, address(adapter), address(priceRatifier), false, root_, 2, true, 0, deadline
+        );
+
+        vm.prank(address(0xdead));
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.setIsRootRatifiedWithSig(address(priceRatifier), false, root_, 2, true, 0, deadline, v, r, s);
+
+        (v, r, s) = _signRootRatification(
+            unauthorizedPrivateKey, address(adapter), address(priceRatifier), false, root_, 2, true, 0, deadline
+        );
+        vm.prank(signerAllocator);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        adapter.setIsRootRatifiedWithSig(address(priceRatifier), false, root_, 2, true, 0, deadline, v, r, s);
+    }
+
+    function testSetIsRootRatifiedWithSigDeadlineAndSubRatifier() public {
+        vm.warp(block.timestamp + 1);
+        uint256 deadline = block.timestamp - 1;
+        vm.prank(signerAllocator);
+        vm.expectRevert(IMidnightAdapter.DeadlineExpired.selector);
+        adapter.setIsRootRatifiedWithSig(
+            address(priceRatifier), false, bytes32(0), 1, true, 0, deadline, 0, bytes32(0), bytes32(0)
+        );
+
+        vm.prank(signerAllocator);
+        vm.expectRevert(IMidnightAdapter.SubRatifierFailed.selector);
+        adapter.setIsRootRatifiedWithSig(
+            address(0), false, bytes32(0), 1, true, 0, block.timestamp, 0, bytes32(0), bytes32(0)
+        );
+    }
+
+    function testSetIsRootRatifiedWithSigInvalidSignature() public {
+        vm.prank(signerAllocator);
+        vm.expectRevert(IMidnightAdapter.InvalidSignature.selector);
+        adapter.setIsRootRatifiedWithSig(
+            address(priceRatifier), false, bytes32(0), 1, true, 0, block.timestamp, 0, bytes32(0), bytes32(0)
+        );
+    }
+
+    function testSetIsRootRatifiedWithSigReplayAndNonceValidation() public {
+        (, uint256 privateKey) = _makeAllocatorSigner("replay signature signer");
+        bytes32 root_ = keccak256("replay signature root");
+        uint256 deadline = block.timestamp + 1 days;
+        (uint8 v, bytes32 r, bytes32 s) = _signRootRatification(
+            privateKey, address(adapter), address(priceRatifier), false, root_, 8, true, 0, deadline
+        );
+
+        vm.prank(signerAllocator);
+        adapter.setIsRootRatifiedWithSig(address(priceRatifier), false, root_, 8, true, 0, deadline, v, r, s);
+        vm.prank(signerAllocator);
+        adapter.setIsRootRatifiedWithSig(address(priceRatifier), false, root_, 8, true, 0, deadline, v, r, s);
+        assertTrue(priceRatifier.isRootRatified(address(adapter), root_));
+        assertEq(adapter.rootNonce(address(priceRatifier), root_), 1);
+
+        vm.prank(signerAllocator);
+        adapter.setIsRootRatified(address(priceRatifier), root_, false);
+        vm.prank(signerAllocator);
+        vm.expectRevert(IMidnightAdapter.RatifiedStatusChanged.selector);
+        adapter.setIsRootRatifiedWithSig(address(priceRatifier), false, root_, 8, true, 0, deadline, v, r, s);
+
+        (v, r, s) = _signRootRatification(
+            privateKey, address(adapter), address(priceRatifier), false, root_, 8, true, 2, deadline
+        );
+        vm.prank(signerAllocator);
+        vm.expectRevert(IMidnightAdapter.InvalidNonce.selector);
+        adapter.setIsRootRatifiedWithSig(address(priceRatifier), false, root_, 8, true, 2, deadline, v, r, s);
+    }
+
+    function testSetIsRootRatifiedWithSigCannotBeReplayedOnAnotherAdapter() public {
+        (, uint256 privateKey) = _makeAllocatorSigner("cross adapter signature signer");
+        address otherAllocator = makeAddr("other adapter allocator");
+        VaultV2Mock otherVault = new VaultV2Mock(address(loanToken), owner, curator, otherAllocator, address(0));
+        MidnightAdapter otherAdapter = new MidnightAdapter(address(otherVault), address(midnight), allDurations);
+        addSubRatifier(IMidnightAdapter(address(otherAdapter)), address(priceRatifier));
+        bytes32 root_ = keccak256("cross adapter root");
+        uint256 deadline = block.timestamp + 1 days;
+        (uint8 v, bytes32 r, bytes32 s) = _signRootRatification(
+            privateKey, address(adapter), address(priceRatifier), false, root_, 2, true, 0, deadline
+        );
+
+        vm.prank(otherAllocator);
+        vm.expectRevert(IMidnightAdapter.NotAuthorized.selector);
+        otherAdapter.setIsRootRatifiedWithSig(address(priceRatifier), false, root_, 2, true, 0, deadline, v, r, s);
+    }
+
+    function testSignedPriceRatificationEnablesTake() public {
+        (address signer, uint256 privateKey) = _makeAllocatorSigner("take signature signer");
+        Offer memory offer = makeBuyOffer(7 days, 1e18, discountTick);
+        bytes32 root_ = root(offer);
+        uint256 deadline = block.timestamp + 1 days;
+        (uint8 v, bytes32 r, bytes32 s) = _signRootRatification(
+            privateKey, address(adapter), address(priceRatifier), false, root_, 1, true, 0, deadline
+        );
+        vm.prank(signer);
+        adapter.setIsRootRatifiedWithSig(address(priceRatifier), false, root_, 1, true, 0, deadline, v, r, s);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+        bytes memory ratifierData_ =
+            abi.encode(address(priceRatifier), abi.encode(root_, 0, new bytes32[](0), address(0)));
+
+        this.takeWithAccrual(offer, ratifierData_, taker, address(0));
+        assertEq(adapter.marketDataNetCredit(_marketId(offer.market)), offer.maxUnits);
     }
 
     function testSetIsRootRatifiedBySentinel(address sentinel, bytes32 root_) public {
@@ -3695,6 +3938,36 @@ contract MidnightAdapterTest is Test {
         vm.prank(signer);
         adapter.setIsRootRatified(address(priceRatifier), _root, true);
         return abi.encode(address(priceRatifier), abi.encode(_root, leafIndex, _proof, address(0)));
+    }
+
+    function _makeAllocatorSigner(string memory name) internal returns (address signer, uint256 privateKey) {
+        (signer, privateKey) = makeAddrAndKey(name);
+        stdstore.target(address(parentVault)).sig("isAllocator(address)").with_key(signer).checked_write(true);
+    }
+
+    function _makeSentinelSigner(string memory name) internal returns (address signer, uint256 privateKey) {
+        (signer, privateKey) = makeAddrAndKey(name);
+        stdstore.target(address(parentVault)).sig("isSentinel(address)").with_key(signer).checked_write(true);
+    }
+
+    function _signRootRatification(
+        uint256 privateKey,
+        address adapter_,
+        address subRatifier,
+        bool isRateRatifier,
+        bytes32 root_,
+        uint256 height,
+        bool newIsRootRatified,
+        uint128 nonce,
+        uint256 deadline
+    ) internal returns (uint8 v, bytes32 r, bytes32 s) {
+        bytes32 typeHash = isRateRatifier
+            ? HashLib.rateRatifierV1OfferTreeTypeHash(height)
+            : HashLib.priceRatifierV1OfferTreeTypeHash(height);
+        bytes32 hashStruct = keccak256(abi.encode(typeHash, adapter_, root_, newIsRootRatified, nonce, deadline));
+        bytes32 domainSeparator = keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, block.chainid, subRatifier));
+        bytes32 digest = keccak256(bytes.concat("\x19\x01", domainSeparator, hashStruct));
+        return vm.sign(privateKey, digest);
     }
 
     function freshPosition(uint256 tick) internal returns (Offer memory offer) {
