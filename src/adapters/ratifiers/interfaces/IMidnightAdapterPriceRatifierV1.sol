@@ -5,7 +5,7 @@ pragma solidity >=0.5.0;
 import {IRatifiersV1Common} from "lib/midnight/src/ratifiers/interfaces/IRatifiersV1Common.sol";
 
 struct Ratification {
-    address signer;
+    address authorizer;
     uint96 rootNonce;
 }
 
@@ -15,13 +15,13 @@ bytes32 constant EIP712_DOMAIN_TYPEHASH = 0x47e79534a245952e8b16893a336b85a3d9ea
 interface IMidnightAdapterPriceRatifierV1 is IRatifiersV1Common {
     /// ERRORS ///
     error DeadlineExpired();
+    error InvalidAuthorizer();
     error InvalidNonce();
     error InvalidProof();
     error InvalidSignature();
     error NotRatified();
     error RatifiedStatusChanged();
     error Unauthorized();
-    error UnauthorizedSigner();
     error UnauthorizedTaker();
 
     /// EVENTS ///
@@ -44,5 +44,5 @@ interface IMidnightAdapterPriceRatifierV1 is IRatifiersV1Common {
     function DOMAIN_SEPARATOR() external view returns (bytes32);
 
     /// STORAGE GETTERS ///
-    function ratification(address maker, bytes32 root) external view returns (address signer, uint96 rootNonce);
+    function ratification(address maker, bytes32 root) external view returns (address authorizer, uint96 rootNonce);
 }

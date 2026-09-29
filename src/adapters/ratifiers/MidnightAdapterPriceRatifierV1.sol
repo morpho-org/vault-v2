@@ -18,9 +18,9 @@ import {IMidnightAdapter} from "../interfaces/IMidnightAdapter.sol";
 /// @dev This ratifier checks that an authorized address has ratified the root of a Merkle tree of offers, and that the
 /// offer is a leaf in that tree.
 /// @dev Allocators and sentinels of the parent vault can ratify or unratify roots. The last address to ratify a root is
-/// stored as its signer.
-/// @dev An offer is ratified only if its root's signer is currently an allocator, or currently a sentinel and the offer
-/// is a sell. Removing an allocator invalidates the roots it ratified.
+/// stored as its authorizer.
+/// @dev An offer is ratified only if its root's authorizer is currently an allocator, or currently a sentinel and the
+/// offer is a sell. Removing an allocator invalidates the roots it ratified.
 /// @dev The ratifier data must contain the root, the leaf index, the Merkle proof and the offer's allowed taker (or
 /// address(0)).
 /// @dev The leaf index determines each sibling's left/right position during Merkle proof verification.
@@ -37,7 +37,7 @@ contract MidnightAdapterPriceRatifierV1 is IMidnightAdapterPriceRatifierV1 {
     mapping(address maker => mapping(bytes32 root => Ratification)) public ratification;
 
     function isRootRatified(address maker, bytes32 root) external view returns (bool) {
-        return ratification[maker][root].signer != address(0);
+        return ratification[maker][root].authorizer != address(0);
     }
 
     function rootNonce(address maker, bytes32 root) external view returns (uint128) {
@@ -50,7 +50,7 @@ contract MidnightAdapterPriceRatifierV1 is IMidnightAdapterPriceRatifierV1 {
             IVaultV2(parentVault).isAllocator(msg.sender) || IVaultV2(parentVault).isSentinel(msg.sender),
             Unauthorized()
         );
-        ratification[maker][root].signer = newIsRootRatified ? msg.sender : address(0);
+        ratification[maker][root].authorizer = newIsRootRatified ? msg.sender : address(0);
         emit SetIsRootRatified(msg.sender, maker, root, newIsRootRatified);
         return SET_IS_ROOT_RATIFIED_SUCCESS;
     }
@@ -88,10 +88,10 @@ contract MidnightAdapterPriceRatifierV1 is IMidnightAdapterPriceRatifierV1 {
         if (nonce == _ratification.rootNonce) {
             // forge-lint: disable-next-item(unsafe-typecast) wraparound requires 2^96 sequential signed updates.
             ratification[maker][root] =
-                Ratification({signer: newIsRootRatified ? _signer : address(0), rootNonce: uint96(nonce + 1)});
+                Ratification({authorizer: newIsRootRatified ? _signer : address(0), rootNonce: uint96(nonce + 1)});
         } else {
             require(nonce < _ratification.rootNonce, InvalidNonce());
-            require((_ratification.signer != address(0)) == newIsRootRatified, RatifiedStatusChanged());
+            require((_ratification.authorizer != address(0)) == newIsRootRatified, RatifiedStatusChanged());
         }
         emit SetIsRootRatifiedWithSig(
             msg.sender, _signer, maker, root, height, newIsRootRatified, nonce, _ratification.rootNonce
@@ -112,12 +112,13 @@ contract MidnightAdapterPriceRatifierV1 is IMidnightAdapterPriceRatifierV1 {
             HashLib.isLeaf(root, HashLib.hashPriceRatifierV1Offer(offer, allowedTaker), leafIndex, proof),
             InvalidProof()
         );
-        address signer = ratification[offer.maker][root].signer;
-        require(signer != address(0), NotRatified());
+        address authorizer = ratification[offer.maker][root].authorizer;
+        require(authorizer != address(0), NotRatified());
         address parentVault = IMidnightAdapter(offer.maker).parentVault();
         require(
-            IVaultV2(parentVault).isAllocator(signer) || (!offer.buy && IVaultV2(parentVault).isSentinel(signer)),
-            UnauthorizedSigner()
+            IVaultV2(parentVault).isAllocator(authorizer)
+                || (!offer.buy && IVaultV2(parentVault).isSentinel(authorizer)),
+            InvalidAuthorizer()
         );
         return CALLBACK_SUCCESS;
     }
