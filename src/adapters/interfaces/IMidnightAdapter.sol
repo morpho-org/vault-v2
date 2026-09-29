@@ -20,6 +20,7 @@ struct MaturityData {
     uint8 durationCount;
 }
 
+/// @dev Implemented by MidnightAdapter. Use IMidnightAdapter for external calls and selectors.
 interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     /* EVENTS */
 
@@ -83,17 +84,8 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
     function maxTtm() external view returns (uint256);
-    function marketData(bytes32 marketId)
-        external
-        view
-        returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index);
-    function marketDataNetCredit(bytes32 marketId) external view returns (uint128);
-    function marketDataGrowth(bytes32 marketId) external view returns (uint64);
-    function marketDataMaturity(bytes32 marketId) external view returns (uint48);
-    function marketDataIndex(bytes32 marketId) external view returns (uint8);
-    function maturities(uint256 date) external view returns (uint128 netCredit, uint8 durationCount);
-    function maturityNetCredit(uint256 date) external view returns (uint128);
-    function maturityDurationCount(uint256 date) external view returns (uint8);
+    function marketData(bytes32 marketId) external view returns (MarketData memory);
+    function maturities(uint256 date) external view returns (MaturityData memory);
     function skimRecipient() external view returns (address);
     function minBuyRate() external view returns (uint256);
     function maxSellRate(bytes32 collateralParamsHash) external view returns (uint256);
@@ -121,6 +113,8 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function setConsumed(bytes32 group, uint128 amount) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
     function parentVault() external view returns (address);
+    function realAssets() external view returns (uint256 assets);
+    function isRatified(Offer memory offer, bytes memory ratifierData, address taker) external view returns (bytes32);
     function allocate(bytes memory data, uint256 assets, bytes4, address caller)
         external
         returns (bytes32[] memory, int256);
