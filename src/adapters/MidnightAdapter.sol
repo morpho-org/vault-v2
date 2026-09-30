@@ -293,8 +293,7 @@ contract MidnightAdapter is IMidnightAdapter {
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) public {
         bytes32 marketId = IdLib.toId(market);
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-        uint128 oldNetCredit = currentNetCredit(marketId);
-        updateShortfallAllowance(totalNetCredit - marketData[marketId].netCredit + oldNetCredit);
+        updateShortfallAllowance(totalNetCredit - marketData[marketId].netCredit + currentNetCredit(marketId));
 
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
@@ -395,8 +394,7 @@ contract MidnightAdapter is IMidnightAdapter {
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             IVaultV2(parentVault).accrueInterest();
-            uint128 oldNetCredit = currentNetCredit(marketId);
-            updateShortfallAllowance(totalNetCredit - marketData[marketId].netCredit + oldNetCredit);
+            updateShortfallAllowance(totalNetCredit - marketData[marketId].netCredit + currentNetCredit(marketId));
 
             // Skip onSell since we are already in a deallocate call.
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
