@@ -99,7 +99,8 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// TIMELOCKS
 /// @dev The timelock duration of decreaseTimelock is the timelock duration of the function whose timelock is being decreased (e.g. the timelock of decreaseTimelock(addAdapter, ...) is timelock[addAdapter]).
 /// @dev It is still possible to submit changes of the timelock duration of decreaseTimelock, but it won't have any effect (and trying to execute this change will revert).
-/// @dev If a function is abdicated, it cannot be called no matter its timelock and what executableAt[data] contains. Otherwise, the minimum time at which a function can be called is the following: min(
+/// @dev If a function is abdicated, it cannot be called no matter its timelock and what executableAt[data] contains. Otherwise, the minimum time at which a function can be called is the following:
+/// min(
 ///     block.timestamp + timelock[selector],
 ///     executableAt[selector::_],
 ///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock
