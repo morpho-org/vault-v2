@@ -19,7 +19,7 @@ import {
     EIP712_DOMAIN_TYPEHASH
 } from "../src/adapters/ratifiers/interfaces/IMidnightAdapterPriceRatifierV1.sol";
 import {IMidnightAdapterRateRatifierV1} from "../src/adapters/ratifiers/interfaces/IMidnightAdapterRateRatifierV1.sol";
-import {IMidnightAdapter} from "../src/adapters/interfaces/IMidnightAdapter.sol";
+import {IMidnightAdapter, IMidnightAdapterBase} from "../src/adapters/interfaces/IMidnightAdapter.sol";
 import {MidnightAdapter} from "../src/adapters/MidnightAdapter.sol";
 import {ERC20Mock} from "./mocks/ERC20Mock.sol";
 import {OracleMock} from "../lib/morpho-blue/src/mocks/OracleMock.sol";
@@ -45,7 +45,7 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         maker = makeAddr("adapter");
         taker = makeAddr("taker");
         vault = new VaultV2Mock(address(0), address(this), address(this), allocator, sentinel);
-        vm.mockCall(maker, abi.encodeCall(IMidnightAdapter.parentVault, ()), abi.encode(address(vault)));
+        vm.mockCall(maker, abi.encodeCall(IMidnightAdapterBase.parentVault, ()), abi.encode(address(vault)));
         ratifier = isRate()
             ? IRatifiersV1Common(address(new MidnightAdapterRateRatifierV1()))
             : IRatifiersV1Common(address(new MidnightAdapterPriceRatifierV1()));
@@ -181,7 +181,7 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
     function testRootsArePerAdapter() public {
         address otherMaker = makeAddr("otherAdapter");
         VaultV2Mock otherVault = new VaultV2Mock(address(0), address(this), address(this), taker, sentinel);
-        vm.mockCall(otherMaker, abi.encodeCall(IMidnightAdapter.parentVault, ()), abi.encode(address(otherVault)));
+        vm.mockCall(otherMaker, abi.encodeCall(IMidnightAdapterBase.parentVault, ()), abi.encode(address(otherVault)));
         bytes32 root = this.leaf(offer, 0, address(0));
         setRoot(root, true);
         vm.prank(allocator);
@@ -315,7 +315,7 @@ abstract contract MidnightAdapterRatifiersV1Test is Test {
         field = uint8(bound(field, 0, 5));
         Signature memory sig = signature(bytes32(0), true, 0, block.timestamp, allocatorKey);
         address otherMaker = makeAddr("otherAdapter");
-        vm.mockCall(otherMaker, abi.encodeCall(IMidnightAdapter.parentVault, ()), abi.encode(address(vault)));
+        vm.mockCall(otherMaker, abi.encodeCall(IMidnightAdapterBase.parentVault, ()), abi.encode(address(vault)));
         vm.prank(allocator);
         vm.expectRevert(IMidnightAdapterPriceRatifierV1.Unauthorized.selector);
         ratifier.setIsRootRatifiedWithSig(
@@ -405,11 +405,12 @@ contract MidnightAdapterRateRatifierV1IntegrationTest is Test {
         VaultV2Mock vault = new VaultV2Mock(address(loanToken), address(this), address(this), address(this), address(0));
         uint256[] memory durations = new uint256[](1);
         durations[0] = 1 days;
-        MidnightAdapter adapter = new MidnightAdapter(address(vault), address(midnight), durations);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setMaxTtm, (30 days)));
+        IMidnightAdapter adapter =
+            IMidnightAdapter(address(new MidnightAdapter(address(vault), address(midnight), durations)));
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxTtm, (30 days)));
         adapter.setMaxTtm(30 days);
         MidnightAdapterRateRatifierV1 ratifier = new MidnightAdapterRateRatifierV1();
-        adapter.submit(abi.encodeCall(IMidnightAdapter.addSubRatifier, (address(ratifier))));
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.addSubRatifier, (address(ratifier))));
         adapter.addSubRatifier(address(ratifier));
         deal(address(loanToken), address(vault), 1e24);
         deal(address(loanToken), address(this), 1e24);
@@ -441,7 +442,7 @@ contract MidnightAdapterRateRatifierV1IntegrationTest is Test {
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, address(this));
         take(midnight, ratifier, offer);
         bytes32 marketId = IdLib.toId(offer.market);
-        uint256 netCreditBefore = adapter.marketDataNetCredit(marketId);
+        uint256 netCreditBefore = adapter.marketData(marketId).netCredit;
         assertGt(netCreditBefore, 0, "position opened");
 
         offer.buy = false;
@@ -450,7 +451,7 @@ contract MidnightAdapterRateRatifierV1IntegrationTest is Test {
         offer.tick = MAX_TICK;
         offer.maxUnits = 1e17;
         take(midnight, ratifier, offer);
-        assertLt(adapter.marketDataNetCredit(marketId), netCreditBefore, "position reduced");
+        assertLt(adapter.marketData(marketId).netCredit, netCreditBefore, "position reduced");
     }
 
     function take(IMidnight midnight, MidnightAdapterRateRatifierV1 ratifier, Offer memory offer) internal {
