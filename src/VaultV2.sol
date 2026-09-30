@@ -15,42 +15,30 @@ import {SafeERC20Lib} from "./libraries/SafeERC20Lib.sol";
 import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate} from "./interfaces/IGate.sol";
 
 /// ERC4626
-/// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension). Though the vault has a
-/// non-conventional behaviour on max functions: they always return zero.
-/// @dev totalSupply is not updated to include shares minted to fee recipients. One can call accrueInterestView to
-/// compute the updated totalSupply.
+/// @dev The vault is compliant with ERC-4626 and with ERC-2612 (permit extension). Though the vault has a non-conventional behaviour on max functions: they always return zero.
+/// @dev totalSupply is not updated to include shares minted to fee recipients. One can call accrueInterestView to compute the updated totalSupply.
 ///
 /// TOTAL ASSETS
-/// @dev Adapters are responsible for reporting to the vault how much their investments are worth at any time, so that
-/// the vault can accrue interest or realize losses.
+/// @dev Adapters are responsible for reporting to the vault how much their investments are worth at any time, so that the vault can accrue interest or realize losses.
 /// @dev _totalAssets stores the last recorded total assets. Use totalAssets() for the updated total assets.
-/// @dev Upon interest accrual, the vault loops through adapters' realAssets(). If there are too many adapters and/or
-/// they consume too much gas on realAssets(), it could cause issues such as expensive interactions, even DOS.
+/// @dev Upon interest accrual, the vault loops through adapters' realAssets(). If there are too many adapters and/or they consume too much gas on realAssets(), it could cause issues such as expensive interactions, even DOS.
 ///
 /// LOSS REALIZATION
 /// @dev Loss realization occurs in accrueInterest and decreases the total assets, causing shares to lose value.
-/// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable
-/// because flashloan-based shorting is prevented as interests and losses are only accounted once per transaction.
+/// @dev Vault shares should not be loanable to prevent shares shorting on loss realization. Shares can be flashloanable because flashloan-based shorting is prevented as interests and losses are only accounted once per transaction.
 ///
 /// SHARE PRICE
 /// @dev The share price can go down if the vault incurs some losses.
 /// @dev To get some additional bounds on the share price upon interactions, a check must be performed on top.
 /// @dev Interest/loss are accounted only once per transaction (at the first interaction with the vault).
 /// @dev Donations increase the share price but not faster than the maxRate.
-/// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). In order to protect against
-/// inflation attacks, the vault might need to be seeded with an initial deposit. See
-/// https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
-/// @dev Adapters may incur small dust losses due to rounding errors. If repeated, and the vault has very few assets,
-/// these could potentially lead to an abnormal deflation of the share price. To mitigate this risk, the vault should be
-/// seeded with a sufficient amount of assets to ensure that each interaction results in very small relative changes to
-/// the share price.
-/// @dev Donations and forceDeallocate penalties increase the rate, which can attract opportunistic depositors which
-/// will dilute interest. This fact can be mitigated by reducing the maxRate.
+/// @dev The vault has 1 virtual asset and a decimal offset of max(0, 18 - assetDecimals). In order to protect against inflation attacks, the vault might need to be seeded with an initial deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack
+/// @dev Adapters may incur small dust losses due to rounding errors. If repeated, and the vault has very few assets, these could potentially lead to an abnormal deflation of the share price. To mitigate this risk, the vault should be seeded with a sufficient amount of assets to ensure that each interaction results in very small relative changes to the share price.
+/// @dev Donations and forceDeallocate penalties increase the rate, which can attract opportunistic depositors which will dilute interest. This fact can be mitigated by reducing the maxRate.
 ///
 /// CAPS
 /// @dev Ids have an asset allocation, and can be absolutely capped and/or relatively capped.
-/// @dev The allocation is not always up to date, because interest and losses are accounted only when (de)allocating in
-/// the corresponding markets.
+/// @dev The allocation is not always up to date, because interest and losses are accounted only when (de)allocating in the corresponding markets.
 /// @dev The caps are checked on allocate (where allocations can increase) for the ids returned by the adapter.
 /// @dev Relative caps are "soft" in the sense that they are not checked on exit.
 /// @dev Caps can be exceeded because of interest and donations in adapters (if adapters do not prevent them).
@@ -60,12 +48,10 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 ///
 /// FIRST TOTAL ASSETS
 /// @dev The variable firstTotalAssets tracks the total assets after the first interest accrual of the transaction.
-/// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans. This mechanism makes the
-/// caps conservative and can generate false positives, notably for big deposits that go through the liquidity adapter.
+/// @dev Used to implement a mechanism that prevents bypassing relative caps with flashloans. This mechanism makes the caps conservative and can generate false positives, notably for big deposits that go through the liquidity adapter.
 /// @dev Also used to accrue interest only once per transaction (see the "share price" section).
 /// @dev Relative caps can still be manipulated by allocators (with short-term deposits), but it requires capital.
-/// @dev The behavior of firstTotalAssets is different when the vault has totalAssets=0, but it does not matter
-/// internally because in this case there are no investments to cap.
+/// @dev The behavior of firstTotalAssets is different when the vault has totalAssets=0, but it does not matter internally because in this case there are no investments to cap.
 ///
 /// ADAPTERS
 /// @dev Loose specification of adapters:
@@ -75,49 +61,31 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// - After a call to deallocate, the vault must have an approval to transfer at least `assets` from the adapter.
 /// - They must make it possible to make deallocate possible (for in-kind redemptions).
 /// - The totalAssets() calculation ignores markets for which the vault has no allocation.
-/// - They must not re-enter (directly or indirectly) the vault. They might not statically prevent it, but the curator
-/// must not interact with markets that can re-enter the vault.
-/// - After an update, the sum of the changes returned after interactions with a given market must be exactly the
-/// current estimated position.
+/// - They must not re-enter (directly or indirectly) the vault. They might not statically prevent it, but the curator must not interact with markets that can re-enter the vault.
+/// - After an update, the sum of the changes returned after interactions with a given market must be exactly the current estimated position.
 /// @dev Ids being reused are useful to cap multiple investments that have a common property.
-/// @dev Allocating is prevented if one of the ids' absolute cap is zero and deallocating is prevented if the id's
-/// allocation is zero. This prevents interactions with zero assets with unknown markets. For markets that share all
-/// their ids, it will be impossible to "disable" them (preventing any interaction) without disabling the others using
-/// the same ids.
-/// @dev On allocate or deallocate, the adapters might lose some assets (total realAssets decreases), for instance due
-/// to roundings or entry/exit fees. This loss should stay negligible compared to gas. Adapters might not statically
-/// ensure this, but the curators should not interact with markets that can create big entry/exit losses.
-/// @dev Except particular scenarios, adapters should be removed only if they have no assets. In order to ensure no
-/// allocator can allocate some assets in an adapter being removed, there should be an id exclusive to the adapter with
-/// its cap set to zero.
+/// @dev Allocating is prevented if one of the ids' absolute cap is zero and deallocating is prevented if the id's allocation is zero. This prevents interactions with zero assets with unknown markets. For markets that share all their ids, it will be impossible to "disable" them (preventing any interaction) without disabling the others using the same ids.
+/// @dev On allocate or deallocate, the adapters might lose some assets (total realAssets decreases), for instance due to roundings or entry/exit fees. This loss should stay negligible compared to gas. Adapters might not statically ensure this, but the curators should not interact with markets that can create big entry/exit losses.
+/// @dev Except particular scenarios, adapters should be removed only if they have no assets. In order to ensure no allocator can allocate some assets in an adapter being removed, there should be an id exclusive to the adapter with its cap set to zero.
 ///
 /// ADAPTER REGISTRY
-/// @dev An adapter registry can be added to restrict the adapters. This is useful to commit to using only a certain
-/// type of adapters for example.
+/// @dev An adapter registry can be added to restrict the adapters. This is useful to commit to using only a certain type of adapters for example.
 /// @dev If adapterRegistry is set to address(0), the vault can have any adapters.
 /// @dev When an adapterRegistry is set, it retroactively checks already added adapters.
-/// @dev If the adapterRegistry now returns false for an already added adapter, it doesn't impact the vault's
-/// functioning.
-/// @dev The invariant that adapters of the vault are all in the registry holds only if the registry cannot remove
-/// adapters (is "add only").
+/// @dev If the adapterRegistry now returns false for an already added adapter, it doesn't impact the vault's functioning.
+/// @dev The invariant that adapters of the vault are all in the registry holds only if the registry cannot remove adapters (is "add only").
 ///
 /// LIQUIDITY ADAPTER
-/// @dev Liquidity is allocated to the liquidityAdapter on deposit/mint, and deallocated from the liquidityAdapter on
-/// withdraw/redeem if idle assets don't cover the withdrawal.
-/// @dev The liquidity adapter is useful on exit, so that exit liquidity is available in addition to the idle assets.
-/// But the same adapter/data is used for both entry and exit to have the property that in the general case looping
-/// supply-withdraw or withdraw-supply should not change the allocation.
-/// @dev If a cap (absolute or relative) associated with the ids returned by the liquidity adapter on the liquidity data
-/// is reached, deposit/mint will revert. In particular, when the vault is empty or almost empty, the relative cap check
-/// is likely to make deposits revert.
+/// @dev Liquidity is allocated to the liquidityAdapter on deposit/mint, and deallocated from the liquidityAdapter on withdraw/redeem if idle assets don't cover the withdrawal.
+/// @dev The liquidity adapter is useful on exit, so that exit liquidity is available in addition to the idle assets. But the same adapter/data is used for both entry and exit to have the property that in the general case looping supply-withdraw or withdraw-supply should not change the allocation.
+/// @dev If a cap (absolute or relative) associated with the ids returned by the liquidity adapter on the liquidity data is reached, deposit/mint will revert. In particular, when the vault is empty or almost empty, the relative cap check is likely to make deposits revert.
 ///
 /// TOKEN REQUIREMENTS
 /// @dev List of assumptions on the token that guarantees that the vault behaves as expected:
 /// - It should be ERC-20 compliant, except that it can omit return values on transfer and transferFrom.
 /// - The balance of the vault should only decrease on transfer and transferFrom.
 /// - It should not re-enter the vault on transfer or transferFrom.
-/// - The balance of the sender (resp. receiver) should decrease (resp. increase) by exactly the given amount on
-/// transfer and transferFrom. In particular, tokens with fees on transfer are not supported.
+/// - The balance of the sender (resp. receiver) should decrease (resp. increase) by exactly the given amount on transfer and transferFrom. In particular, tokens with fees on transfer are not supported.
 ///
 /// LIVENESS REQUIREMENTS
 /// @dev List of assumptions that guarantees the vault's liveness properties:
@@ -129,20 +97,15 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// - Adapters must not revert on deallocate if the underlying markets are liquid.
 ///
 /// TIMELOCKS
-/// @dev The timelock duration of decreaseTimelock is the timelock duration of the function whose timelock is being
-/// decreased (e.g. the timelock of decreaseTimelock(addAdapter, ...) is timelock[addAdapter]).
-/// @dev It is still possible to submit changes of the timelock duration of decreaseTimelock, but it won't have any
-/// effect (and trying to execute this change will revert).
-/// @dev If a function is abdicated, it cannot be called no matter its timelock and what executableAt[data] contains.
-/// Otherwise, the minimum time at which a function can be called is the following:
+/// @dev The timelock duration of decreaseTimelock is the timelock duration of the function whose timelock is being decreased (e.g. the timelock of decreaseTimelock(addAdapter, ...) is timelock[addAdapter]).
+/// @dev It is still possible to submit changes of the timelock duration of decreaseTimelock, but it won't have any effect (and trying to execute this change will revert).
+/// @dev If a function is abdicated, it cannot be called no matter its timelock and what executableAt[data] contains. Otherwise, the minimum time at which a function can be called is the following:
 /// min(
 ///     block.timestamp + timelock[selector],
 ///     executableAt[selector::_],
 ///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock
 /// ).
-/// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist, argument
-/// encoding is wrong, function' conditions are not met, etc.), or clashing (e.g. increaseTimelock and
-/// decreaseTimelock for the same selector).
+/// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist, argument encoding is wrong, function' conditions are not met, etc.), or clashing (e.g. increaseTimelock and decreaseTimelock for the same selector).
 ///
 /// ABDICATION
 /// @dev When a timelocked function is abdicated, it can't be called anymore.
@@ -172,9 +135,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// ROLES
 /// @dev The owner cannot do actions that can directly hurt depositors. Though it can set the curator and sentinels.
 /// @dev The curator cannot do actions that can directly hurt depositors without going through a timelock.
-/// @dev Allocators can move funds between markets in the boundaries set by caps without going through timelocks. They
-/// can also set the liquidity adapter and data, which can prevent deposits and/or withdrawals (it cannot prevent
-/// "in-kind redemptions" with forceDeallocate though). Allocators also set the maxRate.
+/// @dev Allocators can move funds between markets in the boundaries set by caps without going through timelocks. They can also set the liquidity adapter and data, which can prevent deposits and/or withdrawals (it cannot prevent "in-kind redemptions" with forceDeallocate though). Allocators also set the maxRate.
 /// @dev Warning: if setIsAllocator is timelocked, removing an allocator will take time.
 /// @dev Roles are not "two-step", so anyone can give a role to anyone, but it does not mean that they will exercise it.
 ///
@@ -184,9 +145,7 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// @dev NatSpec comments are included only when they bring clarity.
 /// @dev The contract uses transient storage.
 /// @dev View calls made by this contract should not rely on the executableAt values.
-/// @dev At creation, all settings are set to their default values. Notably, timelocks are zero which is useful to set
-/// up the vault quickly. Also, there are no gates so anybody can interact with the vault. To prevent that, the gates
-/// configuration can be batched with the vault creation.
+/// @dev At creation, all settings are set to their default values. Notably, timelocks are zero which is useful to set up the vault quickly. Also, there are no gates so anybody can interact with the vault. To prevent that, the gates configuration can be batched with the vault creation.
 contract VaultV2 is IVaultV2 {
     using MathLib for uint256;
     using MathLib for uint128;
@@ -282,8 +241,7 @@ contract VaultV2 is IVaultV2 {
     /* MULTICALL */
 
     /// @dev Useful for EOAs to batch admin calls.
-    /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do
-    /// the multicall themselves.
+    /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do the multicall themselves.
     function multicall(bytes[] calldata data) external {
         for (uint256 i = 0; i < data.length; i++) {
             (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
@@ -344,8 +302,7 @@ contract VaultV2 is IVaultV2 {
 
     /* TIMELOCKS FOR CURATOR FUNCTIONS */
 
-    /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block
-    /// timestamp.
+    /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block timestamp.
     function submit(bytes calldata data) external {
         require(msg.sender == curator, ErrorsLib.Unauthorized());
         require(executableAt[data] == 0, ErrorsLib.DataAlreadyPending());
@@ -455,8 +412,7 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
-    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
-    /// executableAt.
+    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial executableAt.
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
         require(selector != IVaultV2.decreaseTimelock.selector, ErrorsLib.AutomaticallyTimelocked());
@@ -665,8 +621,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev The management fee is not bound to the interest, so it can make the share price go down.
     /// @dev The management fees is taken even if the vault incurs some losses.
     /// @dev Both fees are rounded down, so fee recipients could receive less than expected.
-    /// @dev The performance fee is taken on the "distributed interest" (which differs from the "real interest" because
-    /// of the max rate).
+    /// @dev The performance fee is taken on the "distributed interest" (which differs from the "real interest" because of the max rate).
     function accrueInterestView() public view returns (uint256, uint256, uint256) {
         if (firstTotalAssets != 0) return (_totalAssets, 0, 0);
         uint256 elapsed = block.timestamp - lastUpdate;
@@ -682,8 +637,7 @@ contract VaultV2 is IVaultV2 {
         uint256 performanceFeeAssets = interest > 0 && performanceFee > 0 && canReceiveShares(performanceFeeRecipient)
             ? interest.mulDivDown(performanceFee, WAD)
             : 0;
-        // The management fee is taken on newTotalAssets to make all approximations consistent (interacting less
-        // increases fees).
+        // The management fee is taken on newTotalAssets to make all approximations consistent (interacting less increases fees).
         uint256 managementFeeAssets = elapsed > 0 && managementFee > 0 && canReceiveShares(managementFeeRecipient)
             ? (newTotalAssets * elapsed).mulDivDown(managementFee, WAD)
             : 0;
@@ -829,14 +783,9 @@ contract VaultV2 is IVaultV2 {
     }
 
     /// @dev Returns shares withdrawn as penalty.
-    /// @dev When calling this function, a penalty is taken from onBehalf, in order to discourage allocation
-    /// manipulations.
-    /// @dev The penalty is taken as a withdrawal for which assets are returned to the vault. In consequence,
-    /// totalAssets is decreased normally along with totalSupply (the share price doesn't change except because of
-    /// rounding errors), but the amount of assets actually controlled by the vault is not decreased.
-    /// @dev If a user has A assets in the vault, and that the vault is already fully illiquid, the optimal amount to
-    /// force deallocate in order to exit the vault is min(liquidity_of_market, A / (1 + penalty)).
-    /// This ensures that either the market is empty or that it leaves no shares nor liquidity after exiting.
+    /// @dev When calling this function, a penalty is taken from onBehalf, in order to discourage allocation manipulations.
+    /// @dev The penalty is taken as a withdrawal for which assets are returned to the vault. In consequence, totalAssets is decreased normally along with totalSupply (the share price doesn't change except because of rounding errors), but the amount of assets actually controlled by the vault is not decreased.
+    /// @dev If a user has A assets in the vault, and that the vault is already fully illiquid, the optimal amount to force deallocate in order to exit the vault is min(liquidity_of_market, A / (1 + penalty)). This ensures that either the market is empty or that it leaves no shares nor liquidity after exiting.
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256)

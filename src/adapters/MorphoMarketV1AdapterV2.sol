@@ -14,17 +14,12 @@ import {
 } from "../../lib/morpho-blue-irm/src/adaptive-curve-irm/libraries/periphery/AdaptiveCurveIrmLib.sol";
 
 /// @dev Morpho Blue is also known as Morpho Market V1; this adapter's name uses the latter.
-/// @dev This adapter must be used with Morpho Blue markets that are protected against inflation attacks with an initial
-/// supply. Following resource is relevant: https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
+/// @dev This adapter must be used with Morpho Blue markets that are protected against inflation attacks with an initial supply. Following resource is relevant: https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
 /// @dev Rounding error losses on supply/withdraw are realizable.
-/// @dev If expectedSupplyAssets reverts for a market of the marketIds, realAssets will revert and the vault will not be
-/// able to accrueInterest.
-/// @dev Upon interest accrual, the vault calls realAssets(). If there are too many markets, it could cause issues such
-/// as expensive interactions, even DOS, because of the gas.
-/// @dev Shouldn't be used alongside another adapter that re-uses the last id (abi.encode("this/marketParams",
-/// address(this), marketParams)).
-/// @dev Markets get removed from the marketIds when the allocation is zero, but it doesn't mean that the adapter has
-/// zero shares on the market.
+/// @dev If expectedSupplyAssets reverts for a market of the marketIds, realAssets will revert and the vault will not be able to accrueInterest.
+/// @dev Upon interest accrual, the vault calls realAssets(). If there are too many markets, it could cause issues such as expensive interactions, even DOS, because of the gas.
+/// @dev Shouldn't be used alongside another adapter that re-uses the last id (abi.encode("this/marketParams", address(this), marketParams)).
+/// @dev Markets get removed from the marketIds when the allocation is zero, but it doesn't mean that the adapter has zero shares on the market.
 /// @dev This adapter can only be used for markets with the adaptive curve irm.
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 /// @dev Donated shares are lost forever.
@@ -83,8 +78,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
     /* TIMELOCKS FUNCTIONS */
 
-    /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block
-    /// timestamp.
+    /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block timestamp.
     function submit(bytes calldata data) external {
         require(msg.sender == IVaultV2(parentVault).curator(), Unauthorized());
         require(executableAt[data] == 0, DataAlreadyPending());
@@ -124,8 +118,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
     /* CURATOR FUNCTIONS */
 
     /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
-    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
-    /// executableAt.
+    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial executableAt.
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
         require(selector != IMorphoMarketV1AdapterV2.decreaseTimelock.selector, AutomaticallyTimelocked());
@@ -198,8 +191,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
         emit Allocate(marketId, newAllocation, mintedShares);
 
-        // forge-lint: disable-next-item(unsafe-typecast) safe because Blue bounds the total supply of the
-        // underlying token, and allocation is less than the max total assets of the vault.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because Blue bounds the total supply of the underlying token, and allocation is less than the max total assets of the vault.
         return (ids(marketParams), int256(newAllocation) - int256(oldAllocation));
     }
 
@@ -226,8 +218,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
         emit Deallocate(marketId, newAllocation, burnedShares);
 
-        // forge-lint: disable-next-item(unsafe-typecast) safe because Blue bounds the total supply of the
-        // underlying token, and allocation is less than the max total assets of the vault.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because Blue bounds the total supply of the underlying token, and allocation is less than the max total assets of the vault.
         return (ids(marketParams), int256(newAllocation) - int256(oldAllocation));
     }
 
