@@ -13,6 +13,8 @@ contract VaultV2Mock {
     mapping(address => bool) public isAllocator;
     mapping(address => bool) public isSentinel;
     mapping(bytes32 => uint256) public allocation;
+    mapping(bytes32 => uint256) public absoluteCap;
+    mapping(bytes32 => uint256) public relativeCap;
     uint256 public totalAssets;
     /// @dev This stub is always accrued; real-vault tests cover transaction-scoped accrual.
     uint256 public firstTotalAssets = 1;
@@ -70,6 +72,18 @@ contract VaultV2Mock {
             allocation[ids[i]] = uint256(int256(allocation[ids[i]]) + change);
         }
         return (ids, change);
+    }
+
+    function setAbsoluteCap(bytes32 id, uint256 newAbsoluteCap) external {
+        absoluteCap[id] = newAbsoluteCap;
+    }
+
+    function setRelativeCap(bytes32 id, uint256 newRelativeCap) external {
+        relativeCap[id] = newRelativeCap;
+    }
+
+    function setFirstTotalAssets(uint256 newFirstTotalAssets) external {
+        firstTotalAssets = newFirstTotalAssets;
     }
 
     function setTotalAssets(uint256 newTotalAssets) external {
