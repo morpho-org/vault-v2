@@ -115,6 +115,43 @@ contract EagerLossCallback {
     }
 }
 
+/// @dev Holds adapter shares and redeems them without market liquidity: sells credit to a buyer, repays the resulting
+/// debt with assets borrowed from lender, redeems, and returns the borrowed assets, all within the sell callback.
+contract SellRepayRedeemer {
+    IMidnight internal immutable midnight;
+    IMidnightAdapter internal immutable adapter;
+    IERC20 internal immutable token;
+    address internal immutable lender;
+
+    constructor(IMidnight _midnight, IMidnightAdapter _adapter, IERC20 _token, address _lender) {
+        midnight = _midnight;
+        adapter = _adapter;
+        token = _token;
+        lender = _lender;
+        _token.approve(address(_midnight), type(uint256).max);
+        _token.approve(address(_adapter), type(uint256).max);
+    }
+
+    function forceDeallocate(Market memory market, uint256 assets) external {
+        IVaultV2(adapter.parentVault()).forceDeallocate(address(adapter), abi.encode(market), assets, address(this));
+    }
+
+    function exit(Offer memory buyOffer, uint256 units) external returns (uint256 buyerAssets, uint256 sellerAssets) {
+        return midnight.take(buyOffer, "", units, address(this), address(this), address(this), "");
+    }
+
+    function onSell(bytes32 id, Market memory market, uint256, uint256 units, uint256, address, address, bytes memory)
+        external
+        returns (bytes32)
+    {
+        token.transferFrom(lender, address(this), units);
+        midnight.repay(market, units, address(this), address(0), "");
+        adapter.redeemSharesByWithdraw(market, uint128(adapter.shares(id, address(this))), address(this));
+        token.transfer(lender, units);
+        return CALLBACK_SUCCESS;
+    }
+}
+
 /// @dev Maker of a forceDeallocate buy offer that is also its own onBuy callback (and thus the payer). Runs a list
 /// of actions inside the callback; each action either must succeed (expectedRevert 0) or must revert with the
 /// given selector.
@@ -3061,7 +3098,7 @@ contract MidnightAdapterTest is Test {
 
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Redeem(marketId, address(this), address(this), 0.5e18, 0.5e18);
-        adapter.redeemShares(boughtOffer.market, 0.5e18, address(this));
+        adapter.redeemSharesByWithdraw(boughtOffer.market, 0.5e18, address(this));
 
         assertEq(loanToken.balanceOf(address(this)), 0.5e18, "assets redeemed");
         assertEq(adapter.shares(marketId, address(this)), 0, "shares burned");
@@ -3093,7 +3130,7 @@ contract MidnightAdapterTest is Test {
 
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Redeem(marketId, address(this), address(this), redeemedShares, expectedAssets);
-        adapter.redeemShares(boughtOffer.market, redeemedShares.toUint128(), address(this));
+        adapter.redeemSharesByWithdraw(boughtOffer.market, redeemedShares.toUint128(), address(this));
 
         (uint128 creditAfter, uint128 pendingFeeAfter,) =
             midnight.updatePositionView(boughtOffer.market, marketId, address(adapter));
@@ -3103,7 +3140,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketId).totalShares, usersNetCredit - redeemedShares, "remaining shares");
         assertEq(adapter.realAssets(), vaultAssets, "vault untouched by partial redemption");
 
-        adapter.redeemShares(boughtOffer.market, (usersNetCredit - redeemedShares).toUint128(), address(this));
+        adapter.redeemSharesByWithdraw(boughtOffer.market, (usersNetCredit - redeemedShares).toUint128(), address(this));
 
         assertEq(adapter.marketData(marketId).usersNetCredit, 0, "no leftover user credit");
         assertEq(adapter.marketData(marketId).totalShares, 0, "all shares burned");
@@ -3132,14 +3169,14 @@ contract MidnightAdapterTest is Test {
         midnight.repay(boughtOffer.market, 1, taker, address(0), "");
 
         vm.expectRevert(stdError.arithmeticError);
-        adapter.redeemShares(boughtOffer.market, 1, address(this));
+        adapter.redeemSharesByWithdraw(boughtOffer.market, 1, address(this));
         assertEq(adapter.shares(marketId, address(this)), 1, "shares unchanged without gross liquidity");
         assertEq(adapter.marketData(marketId).usersNetCredit, 1, "users' credit unchanged");
 
         midnight.repay(boughtOffer.market, 2, taker, address(0), "");
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Redeem(marketId, address(this), address(this), 1, 2);
-        adapter.redeemShares(boughtOffer.market, 1, address(this));
+        adapter.redeemSharesByWithdraw(boughtOffer.market, 1, address(this));
 
         assertEq(loanToken.balanceOf(address(this)), 2, "one net credit redeems two gross credit");
         assertEq(midnight.credit(marketId, address(adapter)), 1, "vault credit remains");
@@ -3155,9 +3192,9 @@ contract MidnightAdapterTest is Test {
         forceDeallocate(boughtOffer.market, 0.5e18);
         this.realizeDefault(boughtOffer.market, 0);
 
-        adapter.redeemShares(boughtOffer.market, 0, address(this));
+        adapter.redeemSharesByWithdraw(boughtOffer.market, 0, address(this));
         assertEq(adapter.marketData(marketId).lastLossFactor, type(uint128).max, "total loss checkpointed");
-        adapter.redeemShares(boughtOffer.market, 0.5e18, address(this));
+        adapter.redeemSharesByWithdraw(boughtOffer.market, 0.5e18, address(this));
 
         assertEq(adapter.marketData(marketId).totalShares, 0, "shares burned");
         assertEq(adapter.marketData(marketId).usersNetCredit, 0, "users' tranche empty");
@@ -3188,7 +3225,7 @@ contract MidnightAdapterTest is Test {
         vm.prank(taker);
         midnight.repay(market, 197, taker, address(0), "");
 
-        adapter.redeemShares(market, 100, address(this));
+        adapter.redeemSharesByWithdraw(market, 100, address(this));
 
         assertEq(loanToken.balanceOf(address(this)), 97, "shortfall reconciled before redemption");
         assertEq(adapter.marketData(marketId).usersNetCredit, 0, "users' tranche empty");
@@ -3200,11 +3237,138 @@ contract MidnightAdapterTest is Test {
         forceDeallocate(boughtOffer.market, 0.5e18);
 
         vm.expectRevert(stdError.arithmeticError);
-        adapter.redeemShares(boughtOffer.market, 0.5e18, address(this));
+        adapter.redeemSharesByWithdraw(boughtOffer.market, 0.5e18, address(this));
     }
 
-    // redeemShares never calls the parent vault, so shares stay redeemable once the adapter has lost its role or has
-    // been removed from the vault.
+    // The liquidity is created in the same transaction: the shareholder sells credit, and the repayment of the
+    // resulting debt makes the redeemed assets withdrawable.
+    function testRedeemSharesWithoutLiquidityBySellingCredit() public {
+        Offer memory boughtOffer = buy(7 days, 1e18);
+        bytes32 marketId = _marketId(boughtOffer.market);
+        address lender = makeAddr("lender");
+        SellRepayRedeemer redeemer = new SellRepayRedeemer(midnight, adapter, loanToken, lender);
+        deal(address(loanToken), lender, 0.5e18);
+        vm.prank(lender);
+        loanToken.approve(address(redeemer), 0.5e18);
+        deal(address(loanToken), address(redeemer), 0.5e18);
+        redeemer.forceDeallocate(boughtOffer.market, 0.5e18);
+        assertEq(midnight.withdrawable(marketId), 0, "no liquidity");
+
+        Offer memory buyOffer = makeExternalOffer(boughtOffer.market, true, 0.5e18, discountTick);
+        (, uint256 sellerAssets) = redeemer.exit(buyOffer, 0.5e18);
+
+        assertGt(sellerAssets, 0, "sale proceeds");
+        assertEq(loanToken.balanceOf(lender), 0.5e18, "lender repaid");
+        assertEq(loanToken.balanceOf(address(redeemer)), sellerAssets, "redeemer keeps the sale proceeds");
+        assertEq(adapter.shares(marketId, address(redeemer)), 0, "shares burned");
+        assertEq(adapter.marketData(marketId).usersNetCredit, 0, "users' tranche emptied");
+        assertEq(midnight.debt(marketId, address(redeemer)), 0, "no debt left");
+        assertEq(midnight.credit(marketId, address(redeemer)), 0, "no credit left");
+        assertEq(midnight.credit(marketId, buyOffer.maker), 0.5e18, "buyer holds the sold credit");
+        assertEq(midnight.credit(marketId, address(adapter)), 0.5e18, "adapter position");
+        assertEq(adapter.marketData(marketId).netCredit, 0.5e18, "vault untouched");
+        assertEq(midnight.withdrawable(marketId), 0, "no liquidity left");
+    }
+
+    function testRedeemSharesByTake(bool afterMaturity) public {
+        Offer memory boughtOffer = buy(7 days, 1e18);
+        bytes32 marketId = _marketId(boughtOffer.market);
+        forceDeallocate(boughtOffer.market, 0.5e18);
+        if (afterMaturity) skip(7 days + 1);
+        Offer memory buyOffer = makeExternalOffer(boughtOffer.market, true, 0.5e18, discountTick);
+        uint256 timeToMaturity = boughtOffer.market.maturity.zeroFloorSub(block.timestamp);
+        uint256 expectedAssets = uint256(0.5e18)
+            .mulDivDown(TickLib.tickToPrice(discountTick) - midnight.settlementFee(marketId, timeToMaturity), 1e18);
+        uint256 vaultAssets = adapter.realAssets();
+        uint256 allocationBefore = parentVault.allocation(adapter.adapterId());
+        assertEq(midnight.withdrawable(marketId), 0, "no liquidity");
+
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.Redeem(marketId, address(this), recipient, 0.5e18, expectedAssets);
+        adapter.redeemSharesByTake(buyOffer, "", 0.5e18, recipient);
+
+        assertEq(loanToken.balanceOf(recipient), expectedAssets, "sale proceeds");
+        assertEq(adapter.shares(marketId, address(this)), 0, "shares burned");
+        assertEq(adapter.marketData(marketId).totalShares, 0, "total shares");
+        assertEq(adapter.marketData(marketId).usersNetCredit, 0, "users' tranche emptied");
+        assertEq(midnight.credit(marketId, buyOffer.maker), 0.5e18, "buyer holds the sold credit");
+        assertEq(midnight.credit(marketId, address(adapter)), 0.5e18, "adapter position");
+        assertEq(adapter.marketData(marketId).netCredit, 0.5e18, "netCredit");
+        assertEq(adapter.realAssets(), vaultAssets, "vault untouched");
+        assertEq(parentVault.allocation(adapter.adapterId()), allocationBefore, "caps untouched");
+    }
+
+    function testRedeemSharesByTakeWithPendingFees(uint256 elapsed) public {
+        midnight.setDefaultContinuousFee(address(loanToken), MAX_CONTINUOUS_FEE);
+        Offer memory boughtOffer = buy(30 days, 1e18, discountTick);
+        bytes32 marketId = _marketId(boughtOffer.market);
+        uint256 netCredit = adapter.marketData(marketId).netCredit;
+        uint256 usersNetCredit = netCredit / 2;
+        forceDeallocate(boughtOffer.market, usersNetCredit);
+
+        skip(bound(elapsed, 0, 30 days));
+        (uint128 credit, uint128 pendingFee,) =
+            midnight.updatePositionView(boughtOffer.market, marketId, address(adapter));
+        uint256 expectedUnits = usersNetCredit.mulDivUp(credit, credit - pendingFee);
+        Offer memory buyOffer = makeExternalOffer(boughtOffer.market, true, expectedUnits, discountTick);
+        uint256 vaultAssets = adapter.realAssets();
+
+        adapter.redeemSharesByTake(buyOffer, "", usersNetCredit.toUint128(), recipient);
+
+        (uint128 creditAfter, uint128 pendingFeeAfter,) =
+            midnight.updatePositionView(boughtOffer.market, marketId, address(adapter));
+        assertEq(credit - pendingFee - (creditAfter - pendingFeeAfter), usersNetCredit, "exact net credit removed");
+        assertEq(midnight.credit(marketId, buyOffer.maker), expectedUnits, "gross credit sold");
+        assertEq(adapter.marketData(marketId).usersNetCredit, 0, "users' tranche emptied");
+        assertEq(adapter.marketData(marketId).totalShares, 0, "all shares burned");
+        assertEq(adapter.realAssets(), vaultAssets, "vault untouched");
+        assertEq(adapter.marketData(marketId).netCredit, netCredit - usersNetCredit, "reported credit unchanged");
+    }
+
+    function testRedeemSharesByTakeSellOfferReverts() public {
+        Offer memory boughtOffer = buy(7 days, 1e18);
+        forceDeallocate(boughtOffer.market, 0.5e18);
+        Offer memory sellOffer = makeExternalOffer(boughtOffer.market, false, 0.5e18, discountTick);
+
+        vm.expectRevert(IMidnightAdapterBase.IncorrectOffer.selector);
+        adapter.redeemSharesByTake(sellOffer, "", 0.5e18, recipient);
+    }
+
+    // The users' tranche is updated before the sale, so a default in the buyer's callback only hits the remaining
+    // credit, split between the tranches at the next update.
+    function testRedeemSharesByTakeDefaultDuringBuyerCallback() public {
+        Offer memory initial = freshPosition(MAX_TICK);
+        bytes32 marketId = _marketId(initial.market);
+        forceDeallocateOnRealVault(initial.market, 4e18);
+        EagerLossCallback callback = newCallback();
+        callback.push(
+            address(adapter),
+            abi.encodeCall(IMidnightAdapterBase.redeemSharesByWithdraw, (initial.market, 0, address(callback))),
+            IMidnightAdapterBase.SellInProgress.selector
+        );
+        callback.push(
+            address(this), abi.encodeCall(this.realizeDefault, (initial.market, ORACLE_PRICE_SCALE / 2)), bytes4(0)
+        );
+        Offer memory buyOffer = storedOffer;
+        buyOffer.market = initial.market;
+        buyOffer.maker = address(callback);
+        buyOffer.callback = address(callback);
+        buyOffer.ratifier = address(this);
+        buyOffer.tick = MAX_TICK;
+        buyOffer.maxUnits = 1e18;
+        buyOffer.expiry = block.timestamp;
+
+        adapter.redeemSharesByTake(buyOffer, "", 1e18, recipient);
+        adapter.redeemSharesByWithdraw(initial.market, 0, address(this));
+
+        assertEq(loanToken.balanceOf(recipient), 1e18, "sold before the default");
+        assertEq(adapter.shares(marketId, address(this)), 3e18, "remaining shares");
+        assertApproxEqAbs(adapter.marketData(marketId).usersNetCredit, 1.5e18, 1, "remaining users' credit loses half");
+        assertApproxEqAbs(adapter.realAssets(), 2e18, 1, "vault credit loses half");
+    }
+
+    // redeemSharesByWithdraw never calls the parent vault, so shares stay redeemable once the adapter has lost its role
+    // or has been removed from the vault.
     function testRedeemSharesAfterAdapterRemoved() public {
         Offer memory boughtOffer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
@@ -3217,13 +3381,13 @@ contract MidnightAdapterTest is Test {
         vm.mockCallRevert(address(parentVault), abi.encodeWithSelector(VaultV2Mock.deallocate.selector), "no role");
         vm.mockCallRevert(address(parentVault), abi.encodeWithSelector(VaultV2Mock.accrueInterest.selector), "removed");
 
-        adapter.redeemShares(boughtOffer.market, 0.5e18, address(this));
+        adapter.redeemSharesByWithdraw(boughtOffer.market, 0.5e18, address(this));
 
         assertEq(loanToken.balanceOf(address(this)), 0.5e18, "assets redeemed");
         assertEq(adapter.shares(marketId, address(this)), 0, "shares burned");
     }
 
-    // A vault loss realized inside redeemShares is reported at the next update.
+    // A vault loss realized inside redeemSharesByWithdraw is reported at the next update.
     function testRedeemSharesDefersVaultLoss() public {
         Offer memory boughtOffer = buy(7 days, 1e18);
         bytes32 marketId = _marketId(boughtOffer.market);
@@ -3238,7 +3402,7 @@ contract MidnightAdapterTest is Test {
         this.realizeDefault(boughtOffer.market, 0);
 
         uint256 allocationBefore = parentVault.allocation(adapter.adapterId());
-        adapter.redeemShares(boughtOffer.market, 0.5e18, address(this));
+        adapter.redeemSharesByWithdraw(boughtOffer.market, 0.5e18, address(this));
 
         assertEq(loanToken.balanceOf(address(this)), 0.3e18, "slashed shares redeemed");
         assertEq(adapter.marketData(marketId).netCredit, 0.5e18, "vault loss not reported yet");
@@ -3267,7 +3431,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketId).netCredit, 0.5e18, "cap accounting not updated");
         uint256 vaultAssets = adapter.realAssets();
 
-        adapter.redeemShares(boughtOffer.market, 0.5e18, address(this));
+        adapter.redeemSharesByWithdraw(boughtOffer.market, 0.5e18, address(this));
         assertApproxEqAbs(loanToken.balanceOf(address(this)), 0.35e18, 1, "slashed shares redeemed");
         assertEq(adapter.marketData(marketId).totalShares, 0, "shares burned");
         assertEq(adapter.realAssets(), vaultAssets, "vault untouched by the redemption");
@@ -3282,14 +3446,14 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketId).lastLossFactor, midnight.lossFactor(marketId), "initial checkpoint");
         assertEq(adapter.marketData(marketId).usersNetCredit, 1e18, "past loss not charged to new shares");
         this.realizeDefault(initial.market, ORACLE_PRICE_SCALE / 4);
-        adapter.redeemShares(initial.market, 0, address(this));
+        adapter.redeemSharesByWithdraw(initial.market, 0, address(this));
 
         assertEq(adapter.marketData(marketId).lastLossFactor, midnight.lossFactor(marketId), "checkpoint updated");
         uint256 usersNetCredit = adapter.marketData(marketId).usersNetCredit;
         uint256 vaultNetCredit = adapter.realAssets();
         assertApproxEqAbs(usersNetCredit, 0.5e18, 1, "only subsequent loss charged to users");
         assertApproxEqAbs(vaultNetCredit, 1.5e18, 2, "vault slashed");
-        adapter.redeemShares(initial.market, 0, address(this));
+        adapter.redeemSharesByWithdraw(initial.market, 0, address(this));
         assertEq(adapter.marketData(marketId).usersNetCredit, usersNetCredit, "user loss not applied twice");
         assertEq(adapter.realAssets(), vaultNetCredit, "vault loss not applied twice");
     }
@@ -3387,7 +3551,7 @@ contract MidnightAdapterTest is Test {
 
         assertEq(adapter.marketData(marketId).netCredit, 0, "vault withdrawn");
         assertEq(midnight.credit(marketId, address(adapter)), 0.5e18, "position covers the users' tranche");
-        adapter.redeemShares(boughtOffer.market, 0.5e18, address(this));
+        adapter.redeemSharesByWithdraw(boughtOffer.market, 0.5e18, address(this));
         assertEq(loanToken.balanceOf(address(this)), 0.5e18, "shares redeemed");
     }
 
@@ -4198,7 +4362,7 @@ contract MidnightAdapterTest is Test {
         EagerLossCallback callback = newCallback();
         callback.push(
             address(adapter),
-            abi.encodeCall(IMidnightAdapterBase.redeemShares, (initial.market, 0, address(callback))),
+            abi.encodeCall(IMidnightAdapterBase.redeemSharesByWithdraw, (initial.market, 0, address(callback))),
             IMidnightAdapterBase.SellInProgress.selector
         );
 

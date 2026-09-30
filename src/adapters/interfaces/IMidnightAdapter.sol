@@ -66,6 +66,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error BuyTtmTooHigh();
     error IncorrectCallbackAddress();
     error IncorrectMaker();
+    error IncorrectOffer();
     error IncorrectReceiver();
     error LoanAssetMismatch();
     error NotAuthorized();
@@ -117,7 +118,9 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function durationsLength() external view returns (uint256);
     function updateDurationCaps(uint256 maturity) external;
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
-    function redeemShares(Market memory market, uint128 shares, address receiver) external;
+    function redeemSharesByWithdraw(Market memory market, uint128 shares, address receiver) external;
+    function redeemSharesByTake(Offer memory offer, bytes memory ratifierData, uint128 shares, address receiver)
+        external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external;
     function setConsumed(bytes32 group, uint128 amount) external;
     function ids(Market memory market) external view returns (bytes32[] memory);

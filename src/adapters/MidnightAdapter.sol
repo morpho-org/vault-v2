@@ -309,21 +309,23 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
     }
 
-    function redeemShares(Market memory market, uint128 redeemedShares, address receiver) external {
-        bytes32 marketId = IdLib.toId(market);
-        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-        (uint128 credit, uint128 pendingFee,) = IMidnight(midnight).updatePositionView(market, marketId, address(this));
-        realizeLoss(marketId, credit - pendingFee);
-        MarketData storage _marketData = marketData[marketId];
-        uint256 redeemedNetCredit =
-            redeemedShares.mulDivDown(uint256(_marketData.usersNetCredit) + 1, uint256(_marketData.totalShares) + 1);
-        uint256 withdrawnAssets = redeemedNetCredit == 0 ? 0 : redeemedNetCredit.mulDivUp(credit, credit - pendingFee);
-        shares[marketId][msg.sender] -= redeemedShares;
-        _marketData.totalShares -= redeemedShares;
-        // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
+    function redeemSharesByWithdraw(Market memory market, uint128 redeemedShares, address receiver) external {
+        (bytes32 marketId, uint256 withdrawnAssets) = burnShares(market, redeemedShares);
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), receiver);
-        _marketData.usersNetCredit -= redeemedNetCredit.toUint128();
         emit Redeem(marketId, msg.sender, receiver, redeemedShares, withdrawnAssets);
+    }
+
+    function redeemSharesByTake(
+        Offer memory offer,
+        bytes memory ratifierData,
+        uint128 redeemedShares,
+        address receiver
+    ) external {
+        require(offer.buy, IncorrectOffer());
+        (bytes32 marketId, uint256 soldUnits) = burnShares(offer.market, redeemedShares);
+        (, uint256 sellerAssets) =
+            IMidnight(midnight).take(offer, ratifierData, soldUnits, address(this), receiver, address(0), hex"");
+        emit Redeem(marketId, msg.sender, receiver, redeemedShares, sellerAssets);
     }
 
     /* ACCRUAL */
@@ -529,6 +531,20 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         _marketData.usersNetCredit = _usersNetCredit.toUint128();
         _marketData.lastLossFactor = IMidnight(midnight).lossFactor(marketId);
         return _totalNetCredit - _usersNetCredit;
+    }
+
+    function burnShares(Market memory market, uint128 redeemedShares) internal returns (bytes32 marketId, uint256) {
+        marketId = IdLib.toId(market);
+        require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
+        (uint128 credit, uint128 pendingFee,) = IMidnight(midnight).updatePositionView(market, marketId, address(this));
+        realizeLoss(marketId, credit - pendingFee);
+        MarketData storage _marketData = marketData[marketId];
+        uint256 redeemedNetCredit =
+            redeemedShares.mulDivDown(uint256(_marketData.usersNetCredit) + 1, uint256(_marketData.totalShares) + 1);
+        shares[marketId][msg.sender] -= redeemedShares;
+        _marketData.totalShares -= redeemedShares;
+        _marketData.usersNetCredit -= redeemedNetCredit.toUint128();
+        return (marketId, redeemedNetCredit == 0 ? 0 : redeemedNetCredit.mulDivUp(credit, credit - pendingFee));
     }
 
     /// @dev Updates market and maturity net credit and inserts or removes the market from marketIds as needed.
