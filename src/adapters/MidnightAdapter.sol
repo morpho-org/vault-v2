@@ -21,13 +21,10 @@ import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest per market.
 /// @dev Growth is rounded down. Interest excluded from growth is realized immediately.
-/// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be
-/// earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
+/// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev The adapter must have the allocator role in its parent vault to buy.
-/// @dev The adapter must have the allocator or sentinel role to withdraw to the vault, to update duration caps, and to
-/// sell (except through forceDeallocate).
-/// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be
-/// deallocated, or to "" to take the liquidity in the vault's idle funds.
+/// @dev The adapter must have the allocator or sentinel role to withdraw to the vault, to update duration caps, and to sell (except through forceDeallocate).
+/// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to take the liquidity in the vault's idle funds.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 ///
@@ -62,8 +59,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint256 public minBuyRate;
     uint256 public maxTtm;
     mapping(address subRatifier => bool) public isSubRatifier;
-    /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement
-    /// fee.
+    /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement fee.
     /// @dev Enforced on maker and taker sales before maturity only.
     mapping(bytes32 collateralParamsHash => uint256) public maxSellRate;
 
@@ -100,8 +96,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Returns the durations that can be capped.
-    /// @dev A market position fills the cap of any duration that was <= its time to maturity at the first buy of its
-    /// maturity, or at the last updateDurationCaps call for its maturity.
+    /// @dev A market position fills the cap of any duration that was <= its time to maturity at the first buy of its maturity, or at the last updateDurationCaps call for its maturity.
     function durations() public view returns (uint256[] memory) {
         uint256[] memory _durations = new uint256[](durationsLength);
         for (uint256 i = 0; i < durationsLength; i++) {
@@ -144,8 +139,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* TIMELOCKS FUNCTIONS */
 
-    /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block
-    /// timestamp.
+    /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block timestamp.
     function submit(bytes calldata data) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         require(executableAt[data] == 0, DataAlreadyPending());
@@ -185,8 +179,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* CURATOR FUNCTIONS */
 
     /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
-    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
-    /// executableAt.
+    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial executableAt.
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
         require(selector != IMidnightAdapterBase.decreaseTimelock.selector, AutomaticallyTimelocked());
@@ -340,8 +333,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Called by this adapter from a sell callback, a withdraw, or a duration caps update.
-    /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as
-    /// receiver and pulls the full credit value from the caller.
+    /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as receiver and pulls the full credit value from the caller.
     function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
         external
         returns (bytes32[] memory, int256)
@@ -372,8 +364,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /* MIDNIGHT CALLBACKS */
 
-    /// @dev Between updateMarket and vault.allocate's transfer, realAssets() includes the purchase but the vault has
-    /// not paid yet.
+    /// @dev Between updateMarket and vault.allocate's transfer, realAssets() includes the purchase but the vault has not paid yet.
     function onBuy(
         bytes32 marketId,
         Market memory market,

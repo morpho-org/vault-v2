@@ -6,10 +6,8 @@ import {IWhitelistReceiveSharesGate, SET_IS_WHITELISTED_TYPEHASH} from "./interf
 import {DOMAIN_TYPEHASH} from "../../libraries/ConstantsLib.sol";
 
 /// @dev Using this gate allows to restrict who can own shares of a vault.
-/// @dev As with any receive shares gates, a whitelisted account could own shares to let other accounts access the
-/// vault's payoff.
-/// @dev CRITICAL NOTE: if a depositor transfers their shares (typically to deposit them on a DeFi protocol), they might
-/// not be able to get their shares back (typically to withdraw them) if they get un-whitelisted afterwards.
+/// @dev As with any receive shares gates, a whitelisted account could own shares to let other accounts access the vault's payoff.
+/// @dev CRITICAL NOTE: if a depositor transfers their shares (typically to deposit them on a DeFi protocol), they might not be able to get their shares back (typically to withdraw them) if they get un-whitelisted afterwards.
 /// @dev No-ops are allowed.
 /// @dev Zero checks are not systematically performed.
 contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
@@ -24,8 +22,7 @@ contract WhitelistReceiveSharesGate is IWhitelistReceiveSharesGate {
     }
 
     /// @dev Useful for EOAs to batch privileged calls.
-    /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do
-    /// the multicall themselves.
+    /// @dev Does not return anything, because accounts who would use the return data would be contracts, which can do the multicall themselves.
     function multicall(bytes[] calldata data) external {
         for (uint256 i = 0; i < data.length; i++) {
             (bool success, bytes memory returnData) = address(this).delegatecall(data[i]);
