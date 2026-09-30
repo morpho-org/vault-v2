@@ -104,6 +104,7 @@ interface IMidnightAdapter is IAdapter, IBuyCallback, ISellCallback, IRatifier {
     function setShortfallParams(uint256 newMaxShortfallRatio, uint256 newShortfallRefillPeriod) external;
     function shortfallAllowance() external view returns (uint128);
     function shortfallUpdatedAt() external view returns (uint48);
+    function lastTotalAssets() external view returns (uint256);
     function skimRecipient() external view returns (address);
     function minBuyRate() external view returns (uint256);
     function maxSellRate(bytes32 collateralParamsHash) external view returns (uint256);

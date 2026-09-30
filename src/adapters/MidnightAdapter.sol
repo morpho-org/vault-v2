@@ -81,6 +81,7 @@ contract MidnightAdapter is IMidnightAdapter {
     uint128 public maxShortfallRatio;
     uint128 public shortfallAllowance;
     uint48 public shortfallUpdatedAt;
+    uint256 public lastTotalAssets;
     bytes32 transient overridenMarketId;
     uint256 transient overridenMarketNetCredit;
     /* CONSTRUCTOR */
@@ -496,7 +497,6 @@ contract MidnightAdapter is IMidnightAdapter {
             );
         }
 
-        // Value the pre-sale position while proceeds are still in the adapter.
         (overridenMarketId, overridenMarketNetCredit) = (marketId, newNetCredit + soldNetCredit);
         updateShortfallAllowance();
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
@@ -538,7 +538,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     function updateShortfallAllowance() internal {
         uint256 totalAssets = IVaultV2(parentVault).totalAssets();
-        uint256 allowanceCap = totalAssets.mulDivDown(maxShortfallRatio, WAD);
+        uint256 allowanceCap = MathLib.min(totalAssets, lastTotalAssets).mulDivDown(maxShortfallRatio, WAD);
         shortfallAllowance = MathLib.min(
                 allowanceCap,
                 shortfallAllowance
@@ -548,6 +548,7 @@ contract MidnightAdapter is IMidnightAdapter {
             )
             .toUint128();
         shortfallUpdatedAt = block.timestamp.toUint48();
+        lastTotalAssets = totalAssets;
     }
 
     /// @dev Updates market and maturity net credit and inserts or removes the market from marketIds as needed.
