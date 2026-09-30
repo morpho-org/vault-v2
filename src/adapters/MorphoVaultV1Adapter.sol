@@ -9,8 +9,7 @@ import {IMorphoVaultV1Adapter} from "./interfaces/IMorphoVaultV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
 /// @dev Designed, developed and audited for Morpho Vaults V1 (V1.0 and V1.1) (also known as MetaMorpho). Integration with other vaults must be carefully assessed from a security standpoint.
-/// @dev One of the considerations when using it with other vaults is the underlying vault's gating: a gated vault
-/// might break in-kind redemptions by preventing the parent vault's depositors from depositing in the underlying vault.
+/// @dev One of the considerations when using it with other vaults is the underlying vault's gating: a gated vault might break in-kind redemptions by preventing the parent vault's depositors from depositing in the underlying vault.
 /// @dev This adapter must be used with Morpho Vaults V1 that are protected against inflation attacks with an initial deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
 /// @dev Must not be used with a Morpho Vault V1 which has a market with an Irm that can re-enter the parent vault or the adapter.
 /// @dev Morpho Vaults V1.1 do not realize bad debt, so Morpho Vaults V2 supplying in them will not realize the corresponding bad debt.
@@ -69,8 +68,7 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         uint256 oldAllocation = allocation();
         uint256 newAllocation = IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)));
 
-        // forge-lint: disable-next-item(unsafe-typecast) safe because Blue bounds the total supply per market to
-        // uint128, and the vault's allocation is a sum of Blue market positions.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because Blue bounds the total supply per market to uint128, and the vault's allocation is a sum of Blue market positions.
         return (ids(), int256(newAllocation) - int256(oldAllocation));
     }
 
@@ -87,8 +85,7 @@ contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
         uint256 oldAllocation = allocation();
         uint256 newAllocation = IERC4626(morphoVaultV1).previewRedeem(IERC4626(morphoVaultV1).balanceOf(address(this)));
 
-        // forge-lint: disable-next-item(unsafe-typecast) safe because Blue bounds the total supply per market to
-        // uint128, and the vault's allocation is a sum of Blue market positions.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because Blue bounds the total supply per market to uint128, and the vault's allocation is a sum of Blue market positions.
         return (ids(), int256(newAllocation) - int256(oldAllocation));
     }
 

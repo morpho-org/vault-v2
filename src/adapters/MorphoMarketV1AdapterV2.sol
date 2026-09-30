@@ -191,8 +191,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
         emit Allocate(marketId, newAllocation, mintedShares);
 
-        // forge-lint: disable-next-item(unsafe-typecast) safe because Blue bounds the total supply of the
-        // underlying token, and allocation is less than the max total assets of the vault.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because Blue bounds the total supply of the underlying token, and allocation is less than the max total assets of the vault.
         return (ids(marketParams), int256(newAllocation) - int256(oldAllocation));
     }
 
@@ -219,8 +218,7 @@ contract MorphoMarketV1AdapterV2 is IMorphoMarketV1AdapterV2 {
 
         emit Deallocate(marketId, newAllocation, burnedShares);
 
-        // forge-lint: disable-next-item(unsafe-typecast) safe because Blue bounds the total supply of the
-        // underlying token, and allocation is less than the max total assets of the vault.
+        // forge-lint: disable-next-item(unsafe-typecast) safe because Blue bounds the total supply of the underlying token, and allocation is less than the max total assets of the vault.
         return (ids(marketParams), int256(newAllocation) - int256(oldAllocation));
     }
 

@@ -37,7 +37,9 @@ function summaryBalanceOf() returns uint256 {
     return balance;
 }
 
-// newTotalAssets returned by accrueInterestView is not proven to be < 10 ^ 35. We add it as an an explicit assumption required. In accrueInterestViewRevertConditions in AccrueInterestReverts.spec, we only show that the newTotalAssets is 2 ^ 128, given _totalAssets < 10 ^ 35. The bounds on performanceFeeShares and managementFeeShares are proven in the rule accrueInterestViewRevertConditions in AccrueInterestReverts.spec.
+// newTotalAssets returned by accrueInterestView is not proven to be < 10 ^ 35. We add it as an an explicit assumption required.
+// In accrueInterestViewRevertConditions in AccrueInterestReverts.spec, we only show that the newTotalAssets is 2 ^ 128, given _totalAssets < 10 ^ 35.
+// The bounds on performanceFeeShares and managementFeeShares are proven in the rule accrueInterestViewRevertConditions in AccrueInterestReverts.spec.
 function summaryAccrueInterestView() returns (uint256, uint256, uint256) {
     uint256 newTotalAssets;
     uint256 performanceFeeShares;
@@ -94,7 +96,8 @@ invariant virtualSharesBounds()
 
 // forceDeallocate with assets=0 triggers the adapter to update the allocation tracking in caps.
 // We assume the asset token is ERC20Standard.
-// This rule verifies the liveness property that `forceDeallocate()` can be called with assets=0 with the following pre-conditions: 1. The `onBehalf` address passes the sendShares gate check.
+// This rule verifies the liveness property that `forceDeallocate()` can be called with assets=0 with the following pre-conditions:
+//   1. The `onBehalf` address passes the sendShares gate check.
 //   2. The vault itself passes the receiveAssets gate check.
 //   3. totalSupply is bounded by 10 ^ 35.
 //   4. Assumptions on the adapter's deallocate as specified in summaryDeallocate.

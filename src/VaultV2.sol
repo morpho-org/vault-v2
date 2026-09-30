@@ -99,14 +99,12 @@ import {IReceiveSharesGate, ISendSharesGate, IReceiveAssetsGate, ISendAssetsGate
 /// TIMELOCKS
 /// @dev The timelock duration of decreaseTimelock is the timelock duration of the function whose timelock is being decreased (e.g. the timelock of decreaseTimelock(addAdapter, ...) is timelock[addAdapter]).
 /// @dev It is still possible to submit changes of the timelock duration of decreaseTimelock, but it won't have any effect (and trying to execute this change will revert).
-/// @dev If a function is abdicated, it cannot be called no matter its timelock and what executableAt[data] contains. Otherwise, the minimum time at which a function can be called is the following:
-/// min(
+/// @dev If a function is abdicated, it cannot be called no matter its timelock and what executableAt[data] contains. Otherwise, the minimum time at which a function can be called is the following: min(
 ///     block.timestamp + timelock[selector],
 ///     executableAt[selector::_],
 ///     executableAt[decreaseTimelock::selector::newTimelock] + newTimelock
 /// ).
-/// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist, argument encoding is wrong, function' conditions are not met, etc.), or clashing (e.g. increaseTimelock and
-/// decreaseTimelock for the same selector).
+/// @dev Nothing is checked on the timelocked data, so it could be not executable (function does not exist, argument encoding is wrong, function' conditions are not met, etc.), or clashing (e.g. increaseTimelock and decreaseTimelock for the same selector).
 ///
 /// ABDICATION
 /// @dev When a timelocked function is abdicated, it can't be called anymore.
@@ -786,8 +784,7 @@ contract VaultV2 is IVaultV2 {
     /// @dev Returns shares withdrawn as penalty.
     /// @dev When calling this function, a penalty is taken from onBehalf, in order to discourage allocation manipulations.
     /// @dev The penalty is taken as a withdrawal for which assets are returned to the vault. In consequence, totalAssets is decreased normally along with totalSupply (the share price doesn't change except because of rounding errors), but the amount of assets actually controlled by the vault is not decreased.
-    /// @dev If a user has A assets in the vault, and that the vault is already fully illiquid, the optimal amount to force deallocate in order to exit the vault is min(liquidity_of_market, A / (1 + penalty)).
-    /// This ensures that either the market is empty or that it leaves no shares nor liquidity after exiting.
+    /// @dev If a user has A assets in the vault, and that the vault is already fully illiquid, the optimal amount to force deallocate in order to exit the vault is min(liquidity_of_market, A / (1 + penalty)). This ensures that either the market is empty or that it leaves no shares nor liquidity after exiting.
     function forceDeallocate(address adapter, bytes memory data, uint256 assets, address onBehalf)
         external
         returns (uint256)

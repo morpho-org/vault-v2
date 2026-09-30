@@ -15,13 +15,11 @@ import {IMidnightAdapterEcrecoverRatifier} from "./interfaces/IMidnightAdapterEc
 /// @dev The leaf index determines each sibling's left/right position.
 /// @dev Hashing offers as in EIP-712, which allows clear signing of the tree, credits to Seaport for this mechanism.
 /// @dev Same tree format and signing scheme as Midnight's EcrecoverRatifier.
-/// @dev If block.chainid changes (hard fork), the EIP-712 domain separator changes and previously signed offers are
-/// no longer valid.
+/// @dev If block.chainid changes (hard fork), the EIP-712 domain separator changes and previously signed offers are no longer valid.
 contract MidnightAdapterEcrecoverRatifier is IMidnightAdapterEcrecoverRatifier {
     mapping(address adapter => mapping(bytes32 root => bool)) public isRootCanceled;
 
-    /// @dev All offers in a tree are expected to share the same maker adapter. Otherwise all offers in a tree might
-    /// not be cancelled by a single call to this function.
+    /// @dev All offers in a tree are expected to share the same maker adapter. Otherwise all offers in a tree might not be cancelled by a single call to this function.
     function cancelRoot(address adapter, bytes32 root) external {
         address parentVault = IMidnightAdapter(adapter).parentVault();
         require(
