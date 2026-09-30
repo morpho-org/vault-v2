@@ -517,7 +517,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 storedMaturityNetCredit = _maturityData.netCredit;
         uint256 newMaturityNetCredit = storedMaturityNetCredit + newNetCredit - storedNetCredit;
         _maturityData.netCredit = newMaturityNetCredit.toUint128();
-        // Net credit is never negative, so a maturity holds net credit iff at least one of its markets does.
         if (newMaturityNetCredit == 0 && storedMaturityNetCredit > 0) {
             uint48 lastMaturity = maturities[maturities.length - 1];
             maturities[_maturityData.index] = lastMaturity;
