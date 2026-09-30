@@ -15,16 +15,9 @@ import {HashLib} from "lib/midnight/src/ratifiers/libraries/HashLib.sol";
 import {IVaultV2} from "../../interfaces/IVaultV2.sol";
 import {IMidnightAdapter} from "../interfaces/IMidnightAdapter.sol";
 
-/// @dev This ratifier checks that an authorized address has ratified the root of a Merkle tree of offers, and that the offer is a leaf in that tree.
+/// @dev See comments in lib/midnight/src/ratifiers/PriceRatifierV1.sol. The difference is that roots are ratified by the parent vault's allocators and sentinels instead of the maker's authorized addresses.
 /// @dev Allocators of the adapter's parent vault can ratify or unratify roots; sentinels can only unratify.
 /// @dev Approved roots remain ratified after an allocator is removed, until explicitly unratified.
-/// @dev The ratifier data must contain the root, the leaf index, the Merkle proof and the offer's allowed taker (or address(0)).
-/// @dev The leaf index determines each sibling's left/right position during Merkle proof verification.
-/// @dev A root can also be ratified with a signature.
-/// @dev The nonce is per (maker, root) and shared by all allocators and sentinels of the parent vault, instead of being per signer, so that a ratification stays within a single storage slot.
-/// @dev Hashing offers as in EIP-712, which allows clear signing of the tree in setIsRootRatifiedWithSig, credits to Seaport for this mechanism.
-/// @dev If block.chainid changes (hard fork), the EIP-712 domain separator changes and previously signed ratifications are no longer valid.
-/// @dev All offers in a tree are expected to share the same maker adapter and ratifier. Otherwise all offers in a tree might not be ratified or unratified by a single call to either root setter.
 contract MidnightAdapterPriceRatifierV1 is IMidnightAdapterPriceRatifierV1 {
     mapping(address maker => mapping(bytes32 root => Ratification)) public ratification;
 
