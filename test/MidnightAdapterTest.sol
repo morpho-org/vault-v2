@@ -3630,6 +3630,23 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.shortfallAllowance(), 0.25e18 + uint256(5e18) / 24);
     }
 
+    function testShortfallRefillUsesMinStoredAndCurrentCredit(uint256 credit) public {
+        credit = bound(credit, 1, 1_000e18);
+        Offer memory offer = buy(30 days, 100e18);
+        skip(12 hours);
+        setMidnightCredit(_marketId(offer.market), address(adapter), credit);
+
+        adapter.withdrawToVault(offer.market, 0);
+        uint256 limit = MathLib.min(100e18, credit).mulDivDown(adapter.maxShortfallRatio(), 1e18);
+        assertEq(adapter.shortfallAllowance(), limit / 2);
+        assertEq(adapter.totalNetCredit(), credit);
+
+        skip(12 hours);
+        adapter.withdrawToVault(offer.market, 0);
+        uint256 newLimit = credit.mulDivDown(adapter.maxShortfallRatio(), 1e18);
+        assertEq(adapter.shortfallAllowance(), MathLib.min(newLimit, limit / 2 + newLimit / 2));
+    }
+
     function testShortfallSameBlockCreditCannotInflateAllowance() public {
         Offer memory offer = buy(30 days, 100e18);
         setMaxSellRate(offer.market, type(uint256).max);

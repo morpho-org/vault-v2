@@ -547,7 +547,9 @@ contract MidnightAdapter is IMidnightAdapter {
     {
         MarketData storage _marketData = marketData[marketId];
         uint256 storedNetCredit = _marketData.netCredit;
-        updateShortfallAllowance((totalNetCredit - storedNetCredit + oldNetCredit).mulDivDown(maxShortfallRatio, WAD));
+        updateShortfallAllowance(
+            (totalNetCredit - storedNetCredit + oldNetCredit).min(totalNetCredit).mulDivDown(maxShortfallRatio, WAD)
+        );
 
         _marketData.netCredit = newNetCredit;
         totalNetCredit = totalNetCredit + newNetCredit - storedNetCredit;
