@@ -269,11 +269,13 @@ contract MidnightAdapter is IMidnightAdapter {
     function setShortfallParams(uint256 newMaxShortfallRatio, uint256 newShortfallRefillPeriod) external {
         timelocked();
         require(newMaxShortfallRatio <= MAX_MAX_SHORTFALL_RATIO, MaxShortfallRatioTooHigh());
-        updateShortfallAllowance(totalNetCredit.mulDivDown(maxShortfallRatio, WAD));
+        updateShortfallAllowance();
         maxShortfallRatio = newMaxShortfallRatio.toUint128();
         shortfallRefillPeriod = newShortfallRefillPeriod.toUint128();
-        shortfallAllowance =
-            MathLib.min(shortfallAllowance, totalNetCredit.mulDivDown(newMaxShortfallRatio, WAD)).toUint128();
+        shortfallAllowance = MathLib.min(
+                shortfallAllowance, IVaultV2(parentVault).totalAssets().mulDivDown(newMaxShortfallRatio, WAD)
+            )
+            .toUint128();
         emit SetShortfallParams(newMaxShortfallRatio, newShortfallRefillPeriod);
     }
 
@@ -528,7 +530,9 @@ contract MidnightAdapter is IMidnightAdapter {
         return credit - pendingFee;
     }
 
-    function updateShortfallAllowance(uint256 allowanceCap) internal {
+    function updateShortfallAllowance() internal {
+        uint256 totalAssets = IVaultV2(parentVault).totalAssets();
+        uint256 allowanceCap = totalAssets.mulDivDown(maxShortfallRatio, WAD);
         shortfallAllowance = MathLib.min(
                 allowanceCap,
                 shortfallAllowance
@@ -548,9 +552,10 @@ contract MidnightAdapter is IMidnightAdapter {
     {
         MarketData storage _marketData = marketData[marketId];
         uint256 storedNetCredit = _marketData.netCredit;
-        updateShortfallAllowance(
-            (totalNetCredit - storedNetCredit + oldNetCredit).min(totalNetCredit).mulDivDown(maxShortfallRatio, WAD)
-        );
+        // Value the pre-operation position while assets are still in transit to or from the vault.
+        (overridenMarketId, overridenMarketNetCredit) = (marketId, oldNetCredit);
+        updateShortfallAllowance();
+        (overridenMarketId, overridenMarketNetCredit) = (0, 0);
 
         _marketData.netCredit = newNetCredit;
         totalNetCredit = totalNetCredit + newNetCredit - storedNetCredit;
