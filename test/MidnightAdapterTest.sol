@@ -1260,7 +1260,7 @@ contract MidnightAdapterTest is Test {
         bytes32 id = keccak256(idData);
         decreaseDurationCap(1, 0);
         Offer memory blocked = fundedDurationOffer(7 days, 1e18);
-        vm.expectRevert(IMidnightAdapterBase.DurationCapExceeded.selector);
+        vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
         take(blocked);
 
         vm.expectRevert(ErrorsLib.Unauthorized.selector);
@@ -1290,7 +1290,7 @@ contract MidnightAdapterTest is Test {
         realVault.decreaseRelativeCap(idData, 0);
         assertEq(realVault.relativeCap(id), 0);
         blocked = fundedDurationOffer(8 days, 1e18);
-        vm.expectRevert(IMidnightAdapterBase.DurationCapExceeded.selector);
+        vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
         take(blocked);
     }
 
@@ -1300,7 +1300,7 @@ contract MidnightAdapterTest is Test {
         decreaseDurationAbsoluteCap(1, 1e18);
 
         Offer memory overCap = fundedDurationOffer(7 days, 1.1e18);
-        vm.expectRevert(IMidnightAdapterBase.DurationCapExceeded.selector);
+        vm.expectRevert(IMidnightAdapterBase.DurationAbsoluteCapExceeded.selector);
         take(overCap);
 
         take(fundedDurationOffer(7 days, 1e18));
@@ -1333,7 +1333,7 @@ contract MidnightAdapterTest is Test {
             )
         );
         Offer memory offer = fundedDurationOffer(7 days, 1e18);
-        vm.expectRevert(IMidnightAdapterBase.DurationCapExceeded.selector);
+        vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
         take(offer);
 
         submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 0.1e18)));
@@ -1374,10 +1374,10 @@ contract MidnightAdapterTest is Test {
         assertEq(allocations[3], 2e18);
 
         Offer memory tooLong = fundedDurationOffer(91 days, 2);
-        vm.expectRevert(IMidnightAdapterBase.DurationCapExceeded.selector);
+        vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
         take(tooLong);
         Offer memory tooMuch = fundedDurationOffer(31 days, 2);
-        vm.expectRevert(IMidnightAdapterBase.DurationCapExceeded.selector);
+        vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
         take(tooMuch);
         assertEq(adapter.durationAllocations(), allocations, "failed buys roll back");
         buyOnRealVault(29 days, 1e18);
@@ -1391,7 +1391,7 @@ contract MidnightAdapterTest is Test {
         Market memory market = makeBuyOffer(7 days, 1e18, MAX_TICK).market;
         Offer memory offer = makeExternalOffer(market, false, 1e18, MAX_TICK);
         vm.prank(signerAllocator);
-        vm.expectRevert(IMidnightAdapterBase.DurationCapExceeded.selector);
+        vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
         adapter.take(offer, "", offer.maxUnits);
         assertEq(adapter.marketIdsLength(), 0);
 
@@ -1413,7 +1413,7 @@ contract MidnightAdapterTest is Test {
         offer.ratifier = address(adapter);
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
         assertGt(offer.maxUnits, 1e18);
-        vm.expectRevert(IMidnightAdapterBase.DurationCapExceeded.selector);
+        vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
         take(offer);
         assertEq(adapter.marketIdsLength(), 0);
     }
@@ -1424,7 +1424,7 @@ contract MidnightAdapterTest is Test {
         decreaseDurationCap(1, 0.1e18);
         buyOnRealVault(7 days, 1e18);
         Offer memory next = fundedDurationOffer(8 days, 1e18);
-        vm.expectRevert(IMidnightAdapterBase.DurationCapExceeded.selector);
+        vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
         take(next);
         skip(1);
         next.expiry = block.timestamp;
@@ -1446,7 +1446,7 @@ contract MidnightAdapterTest is Test {
         Offer memory next = fundedDurationOffer(sameMarket ? 30 days : 31 days, 1e18);
         next.group = bytes32("purchase after duration loss");
         if (!sameMarket) {
-            vm.expectRevert(IMidnightAdapterBase.DurationCapExceeded.selector);
+            vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
             take(next);
             midnight.updatePosition(initial.market, address(adapter));
             assertEq(adapter.durationAllocations()[2], 2e18, "Midnight update alone does not synchronize caps");
@@ -1501,7 +1501,7 @@ contract MidnightAdapterTest is Test {
         next.group = bytes32("funded duration buy");
         next.callbackData = abi.encode(address(adapter), abi.encode(initial.market));
         // The seven-day exposure falls from 12 to 10 during funding: still above 80%.
-        vm.expectRevert(IMidnightAdapterBase.DurationCapExceeded.selector);
+        vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
         take(next);
         assertEq(adapter.durationAllocations()[1], 8e18);
 
@@ -1520,7 +1520,7 @@ contract MidnightAdapterTest is Test {
         decreaseDurationCap(1, 0.1e18);
         Offer memory offer = fundedDurationOffer(7 days, 2e18);
         deal(address(loanToken), address(this), 10e18);
-        vm.expectRevert(IMidnightAdapterBase.DurationCapExceeded.selector);
+        vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
         this.depositThenDurationBuy(offer);
         assertEq(adapter.marketIdsLength(), 0);
         // A deposit settled in an earlier transaction does expand the cap.
@@ -1557,7 +1557,7 @@ contract MidnightAdapterTest is Test {
                     ""
                 )
             ),
-            longBuy ? IMidnightAdapterBase.DurationCapExceeded.selector : bytes4(0)
+            longBuy ? IMidnightAdapterBase.DurationRelativeCapExceeded.selector : bytes4(0)
         );
         this.accruedCallbackSale(makeSellOffer(initial.market, 4e18, MAX_TICK), callback);
         assertEq(adapter.durationAllocations()[1], 4e18);
@@ -1576,7 +1576,7 @@ contract MidnightAdapterTest is Test {
         uint256 limit = uint256(10e18).mulDivDown(cap, 1e18);
         buyOnRealVault(30 days, limit);
         Offer memory extra = fundedDurationOffer(31 days, 2);
-        vm.expectRevert(IMidnightAdapterBase.DurationCapExceeded.selector);
+        vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
         take(extra);
         assertEq(adapter.durationAllocations()[2], limit);
     }
@@ -4659,7 +4659,7 @@ contract MidnightAdapterTest is Test {
                     ""
                 )
             ),
-            longBuy ? IMidnightAdapterBase.DurationCapExceeded.selector : bytes4(0)
+            longBuy ? IMidnightAdapterBase.DurationRelativeCapExceeded.selector : bytes4(0)
         );
 
         callbackForceDeallocate(initial.market, 4e18, buyer);
