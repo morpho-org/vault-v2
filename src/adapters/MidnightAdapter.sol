@@ -76,6 +76,7 @@ contract MidnightAdapter is IMidnightAdapter {
     uint256 public totalNetCredit;
     // @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales
     // proceeds.
+    // @dev The adapter's allocation cap bounds exposure.
     uint128 public shortfallRefillPeriod;
     uint128 public maxShortfallRatio;
     uint128 public shortfallAllowance;
