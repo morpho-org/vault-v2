@@ -13,6 +13,10 @@ struct MarketData {
     uint64 growth;
     uint48 maturity;
     uint8 index;
+    /// @dev Net credit of the users' tranche at the last update.
+    uint128 usersNetCredit;
+    uint128 totalShares;
+    uint128 lastLossFactor;
 }
 
 struct MaturityData {
@@ -41,7 +45,12 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
     event UpdateDurationCaps(uint256 indexed maturity, uint256 newDurationCount, uint256 netCredit);
-    event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 netCreditDecrease);
+    event ForceDeallocate(
+        bytes32 indexed marketId, address indexed user, uint256 assets, uint256 shares, uint256 netCreditDecrease
+    );
+    event Redeem(
+        bytes32 indexed marketId, address indexed user, address indexed receiver, uint256 shares, uint256 assets
+    );
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 netCreditLoss);
     event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
     event UpdateMarket(bytes32 indexed marketId, uint256 netCredit, uint256 growth);
@@ -56,8 +65,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error BuyPostMaturity();
     error BuyTtmTooHigh();
     error IncorrectCallbackAddress();
-    error IncorrectOffer();
     error IncorrectMaker();
+    error IncorrectOffer();
     error IncorrectReceiver();
     error LoanAssetMismatch();
     error NotAuthorized();
@@ -80,6 +89,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function asset() external view returns (address);
     function marketIds(uint256) external view returns (bytes32);
     function marketIdsLength() external view returns (uint256);
+    function shares(bytes32 marketId, address user) external view returns (uint256);
     function MAX_MARKETS() external view returns (uint8);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
@@ -108,6 +118,9 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function durationsLength() external view returns (uint256);
     function updateDurationCaps(uint256 maturity) external;
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
+    function redeemSharesByWithdraw(Market memory market, uint128 shares, address receiver) external;
+    function redeemSharesByTake(Offer memory offer, bytes memory ratifierData, uint128 shares, address receiver)
+        external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external;
     function setConsumed(bytes32 group, uint128 amount) external;
     function ids(Market memory market) external view returns (bytes32[] memory);
@@ -147,7 +160,15 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
     function marketData(bytes32 marketId)
         external
         view
-        returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index);
+        returns (
+            uint128 netCredit,
+            uint64 growth,
+            uint48 maturity,
+            uint8 index,
+            uint128 usersNetCredit,
+            uint128 totalShares,
+            uint128 lastLossFactor
+        );
     function maturityData(uint256 maturity) external view returns (uint128 netCredit, uint8 durationCount);
 }
 
