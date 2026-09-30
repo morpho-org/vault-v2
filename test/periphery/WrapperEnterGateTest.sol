@@ -6,7 +6,7 @@ import {Test} from "forge-std/Test.sol";
 import {IEnterGate} from "../../lib/midnight/src/interfaces/IGate.sol";
 import {IMidnight, Market} from "../../lib/midnight/src/interfaces/IMidnight.sol";
 import {IdLib} from "../../lib/midnight/src/libraries/IdLib.sol";
-import {IMidnightAdapter} from "../../src/adapters/interfaces/IMidnightAdapter.sol";
+import {IMidnightAdapterBase} from "../../src/adapters/interfaces/IMidnightAdapter.sol";
 import {WrapperEnterGate} from "../../src/periphery/gates/WrapperEnterGate.sol";
 import {ERC20Mock} from "../mocks/ERC20Mock.sol";
 import {EnterGateMock} from "../mocks/EnterGateMock.sol";
@@ -28,7 +28,7 @@ contract WrapperEnterGateTest is Test {
         vault = new ERC20Mock(18);
         gate = new EnterGateMock();
         market.midnight = midnight;
-        vm.mockCall(adapter, abi.encodeCall(IMidnightAdapter.parentVault, ()), abi.encode(address(vault)));
+        vm.mockCall(adapter, abi.encodeCall(IMidnightAdapterBase.parentVault, ()), abi.encode(address(vault)));
         adapterFactory = new MidnightAdapterFactoryMock();
         adapterFactory.setIsMidnightAdapter(adapter, true);
         wrapper = new WrapperEnterGate(address(gate), address(adapterFactory), market);
@@ -87,7 +87,7 @@ contract WrapperEnterGateTest is Test {
         wrapper.transientAllowIncreaseCredit(depositor, adapter);
         assertFalse(wrapper.isTransientlyAllowed(depositor));
 
-        vm.mockCall(adapter, abi.encodeCall(IMidnightAdapter.parentVault, ()), abi.encode(address(otherVault)));
+        vm.mockCall(adapter, abi.encodeCall(IMidnightAdapterBase.parentVault, ()), abi.encode(address(otherVault)));
         wrapper.transientAllowIncreaseCredit(depositor, adapter);
         assertTrue(wrapper.isTransientlyAllowed(depositor));
     }
@@ -128,7 +128,7 @@ contract WrapperEnterGateTest is Test {
     function testMultipleVaults() public {
         ERC20Mock otherVault = new ERC20Mock(18);
         address otherAdapter = makeAddr("otherAdapter");
-        vm.mockCall(otherAdapter, abi.encodeCall(IMidnightAdapter.parentVault, ()), abi.encode(address(otherVault)));
+        vm.mockCall(otherAdapter, abi.encodeCall(IMidnightAdapterBase.parentVault, ()), abi.encode(address(otherVault)));
         adapterFactory.setIsMidnightAdapter(otherAdapter, true);
         vm.mockCall(
             midnight, abi.encodeCall(IMidnight.credit, (wrapper.marketId(), otherAdapter)), abi.encode(uint128(1))
@@ -144,7 +144,7 @@ contract WrapperEnterGateTest is Test {
 
     function testOnlyAdaptersCanAllow() public {
         address creditor = makeAddr("creditor");
-        vm.mockCall(creditor, abi.encodeCall(IMidnightAdapter.parentVault, ()), abi.encode(address(vault)));
+        vm.mockCall(creditor, abi.encodeCall(IMidnightAdapterBase.parentVault, ()), abi.encode(address(vault)));
         vm.mockCall(midnight, abi.encodeCall(IMidnight.credit, (wrapper.marketId(), creditor)), abi.encode(uint128(1)));
         deal(address(vault), depositor, 1);
         vm.expectRevert(WrapperEnterGate.Unauthorized.selector);
