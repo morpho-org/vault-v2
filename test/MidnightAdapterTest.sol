@@ -104,9 +104,7 @@ contract EagerLossCallback {
     }
 }
 
-/// @dev Maker of a forceDeallocate buy offer that is also its own onBuy callback (and thus the payer). Runs a list
-/// of actions inside the callback; each action either must succeed (expectedRevert 0) or must revert with the
-/// given selector.
+/// @dev Maker of a forceDeallocate buy offer that is also its own onBuy callback (and thus the payer). Runs a list of actions inside the callback; each action either must succeed (expectedRevert 0) or must revert with the given selector.
 contract ForceDeallocateBuyer {
     struct Action {
         address target;
@@ -2938,8 +2936,7 @@ contract MidnightAdapterTest is Test {
         );
     }
 
-    /// @dev Midnight takes its settlement fee out of the buyer's payment at any offer price, and rejects offers priced
-    /// below the fee. The caller gets the seller's proceeds and pays the full amount to the vault.
+    /// @dev Midnight takes its settlement fee out of the buyer's payment at any offer price, and rejects offers priced below the fee. The caller gets the seller's proceeds and pays the full amount to the vault.
     function testForceDeallocateAnyPricePaysSettlementFee(uint256 tick, uint256 feeCbp) public {
         tick = bound(tick, 0, MAX_TICK / DEFAULT_TICK_SPACING) * DEFAULT_TICK_SPACING;
         feeCbp = bound(feeCbp, 1, MAX_SETTLEMENT_FEE_0_DAYS / CBP);
@@ -3013,8 +3010,7 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev Runs on a real VaultV2, with a non-zero penalty, fees and maxRate, and with the adapter's allocator role
-    /// revoked before the exit.
+    /// @dev Runs on a real VaultV2, with a non-zero penalty, fees and maxRate, and with the adapter's allocator role revoked before the exit.
     function testForceDeallocateRealVaultWithPenalty() public {
         setUpRealVault();
         Offer memory offer = buyOnRealVault(7 days, 1e18);
@@ -3057,8 +3053,7 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev An allocator takes external offers directly: taking a sell offer buys credit, taking a buy offer
-    /// sells it. Both route through the same onBuy/onSell accounting as the maker flows.
+    /// @dev An allocator takes external offers directly: taking a sell offer buys credit, taking a buy offer sells it. Both route through the same onBuy/onSell accounting as the maker flows.
     function testAllocatorTakeRealVault() public {
         setUpRealVault();
         Market memory market = makeBuyOffer(7 days, 1e18, MAX_TICK).market;
@@ -3584,8 +3579,7 @@ contract MidnightAdapterTest is Test {
         vm.stopPrank();
     }
 
-    /// @dev Builds an external offer at `tick`, ratified by this contract. Buy offers get a funded maker, sell
-    /// offers get a collateralized one.
+    /// @dev Builds an external offer at `tick`, ratified by this contract. Buy offers get a funded maker, sell offers get a collateralized one.
     function makeExternalOffer(Market memory market, bool isBuy, uint256 assets, uint256 tick)
         internal
         returns (Offer memory offer)
@@ -4592,8 +4586,7 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev Valuation is a no-op (the adapter accrued the vault before the take), the adapter cannot be valued on
-    /// its own, deposits and withdrawals go through at the snapshot price, same-market mutations are blocked.
+    /// @dev Valuation is a no-op (the adapter accrued the vault before the take), the adapter cannot be valued on its own, deposits and withdrawals go through at the snapshot price, same-market mutations are blocked.
     function testCbVaultAndAdapterReentry() public {
         Offer memory initial = freshPosition(MAX_TICK);
         Market memory market = initial.market;
@@ -4730,8 +4723,7 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev Realizing a default inside the callback and exiting at the snapshot price gives the same result as
-    /// doing it without any callback (see testNoCbAccrueLiquidateRedeem): the callback adds nothing.
+    /// @dev Realizing a default inside the callback and exiting at the snapshot price gives the same result as doing it without any callback (see testNoCbAccrueLiquidateRedeem): the callback adds nothing.
     function testCbLossDuringForceDeallocateThenRedeem() public {
         Offer memory initial = freshPosition(MAX_TICK);
         ForceDeallocateBuyer buyer = newBuyer();
@@ -4761,8 +4753,7 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev Baseline without any callback: accrue, realize a default, redeem in one transaction exits at the pre-loss
-    /// price. This is a property of the vault's once-per-transaction accrual, not of callbacks.
+    /// @dev Baseline without any callback: accrue, realize a default, redeem in one transaction exits at the pre-loss price. This is a property of the vault's once-per-transaction accrual, not of callbacks.
     function testNoCbAccrueLiquidateRedeem() public {
         Offer memory initial = freshPosition(MAX_TICK);
         address exiter = makeAddr("exiter");
@@ -4819,8 +4810,7 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev A discounted offer with a callback: the buyer pays the discounted price to the caller, the caller pays
-    /// the full amount to the vault.
+    /// @dev A discounted offer with a callback: the buyer pays the discounted price to the caller, the caller pays the full amount to the vault.
     function testCbDiscountedOffer() public {
         Offer memory initial = freshPosition(MAX_TICK);
         ForceDeallocateBuyer buyer = newBuyer();
@@ -4845,8 +4835,7 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev The callback is the payer, and the adapter has a max approval to Midnight: it must refuse to be the
-    /// callback of an offer it did not make.
+    /// @dev The callback is the payer, and the adapter has a max approval to Midnight: it must refuse to be the callback of an offer it did not make.
     function testCbAdapterAsCallbackReverts() public {
         Offer memory initial = freshPosition(MAX_TICK);
         ForceDeallocateBuyer buyer = newBuyer();
@@ -4863,8 +4852,7 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev The callback cannot collateralize or repay on behalf of the adapter, so overselling still leaves the
-    /// adapter unhealthy at the end of the take.
+    /// @dev The callback cannot collateralize or repay on behalf of the adapter, so overselling still leaves the adapter unhealthy at the end of the take.
     function testCbOversellStillReverts() public {
         Offer memory initial = freshPosition(MAX_TICK);
         ForceDeallocateBuyer buyer = newBuyer();
