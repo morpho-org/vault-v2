@@ -248,6 +248,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         bytes32 marketId = IdLib.toId(market);
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
 
+        updateDurationCaps(market.maturity);
+
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
         int256 change = updateMarket(marketId, market, currentNetCredit(marketId));
@@ -278,23 +280,29 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetConsumed(msg.sender, group, amount);
     }
 
-    /// @dev Remove the maturity allocation from the duration ids that are > its time to maturity.
-    function updateDurationCaps(uint256 maturity) external {
-        MaturityData storage _maturityData = maturityData[maturity];
-        uint256 maturityNetCredit = _maturityData.netCredit;
-        uint256 oldDurationCount = _maturityData.durationCount;
-        uint8 newDurationCount = durationCount(maturity);
-        // VaultV2.deallocate requires allocation > 0 for each returned id.
-        if (newDurationCount < oldDurationCount && maturityNetCredit > 0) {
-            _maturityData.durationCount = newDurationCount;
-            emit UpdateDurationCaps(maturity, newDurationCount, maturityNetCredit);
-            bytes32[] memory durationIdsToDecrease = new bytes32[](oldDurationCount - newDurationCount);
-            for (uint256 i = 0; i < durationIdsToDecrease.length; i++) {
-                durationIdsToDecrease[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
+    /// @dev Remove the maturity allocation from the duration ids that are > its time to maturity, unless the adapter is no longer a vault allocator or a vault sentinel.
+    /// @dev Returns false if the adapter is no longer a vault allocator or a vault sentinel and thus cannot update its duration caps.
+    function updateDurationCaps(uint256 maturity) public returns (bool) {
+        if (!IVaultV2(parentVault).isAllocator(address(this)) && !IVaultV2(parentVault).isSentinel(address(this))) {
+            return false;
+        } else {
+            MaturityData storage _maturityData = maturityData[maturity];
+            uint256 maturityNetCredit = _maturityData.netCredit;
+            uint256 oldDurationCount = _maturityData.durationCount;
+            uint8 newDurationCount = durationCount(maturity);
+            // VaultV2.deallocate requires allocation > 0 for each returned id.
+            if (newDurationCount < oldDurationCount && maturityNetCredit > 0) {
+                _maturityData.durationCount = newDurationCount;
+                emit UpdateDurationCaps(maturity, newDurationCount, maturityNetCredit);
+                bytes32[] memory durationIdsToDecrease = new bytes32[](oldDurationCount - newDurationCount);
+                for (uint256 i = 0; i < durationIdsToDecrease.length; i++) {
+                    durationIdsToDecrease[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
+                }
+                // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
+                IVaultV2(parentVault)
+                    .deallocate(address(this), abi.encode(durationIdsToDecrease, -int256(maturityNetCredit)), 0);
             }
-            // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
-            IVaultV2(parentVault)
-                .deallocate(address(this), abi.encode(durationIdsToDecrease, -int256(maturityNetCredit)), 0);
+            return true;
         }
     }
 
@@ -347,6 +355,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             IVaultV2(parentVault).accrueInterest();
 
+            updateDurationCaps(offer.market.maturity);
+
             // Skip onSell since we are already in a deallocate call.
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
@@ -398,6 +408,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             _marketData.growth = uint64((oldAssetsWadPerSecond + addedAssetsWadPerSecond) / newNetCredit);
         }
 
+        updateDurationCaps(market.maturity);
         MaturityData storage _maturityData = maturityData[market.maturity];
         if (_maturityData.netCredit == 0) _maturityData.durationCount = durationCount(market.maturity);
         int256 change = updateMarket(marketId, market, newNetCredit);
@@ -443,6 +454,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
         }
 
+        updateDurationCaps(market.maturity);
         int256 change = updateMarket(marketId, market, newNetCredit);
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 

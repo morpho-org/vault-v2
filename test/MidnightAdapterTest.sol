@@ -223,6 +223,7 @@ contract MidnightAdapterTest is Test {
 
         factory = new MidnightAdapterFactory(address(midnight), allDurations);
         adapter = IMidnightAdapter(factory.createMidnightAdapter(address(parentVault)));
+        stdstore.target(address(parentVault)).sig("isAllocator(address)").with_key(address(adapter)).checked_write(true);
         setUpMaxTtm(type(uint256).max);
 
         ecrecoverRatifier = new MidnightAdapterEcrecoverRatifier();
@@ -1457,7 +1458,7 @@ contract MidnightAdapterTest is Test {
         assertEq(parentVault.allocation(durationId(duration)), savedAllocation);
     }
 
-    function testWithdrawThenUpdateDurationCaps() public {
+    function testWithdrawUpdatesDurationCaps() public {
         Offer memory offer = buy(7 days, 1e18);
         assertEq(parentVault.allocation(durationId(1 days)), 1e18, "1 day, before");
         assertEq(parentVault.allocation(durationId(7 days)), 1e18, "7 days, before");
@@ -1469,16 +1470,11 @@ contract MidnightAdapterTest is Test {
         vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, 0.5e18);
 
-        assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day, stale");
-        assertEq(parentVault.allocation(durationId(7 days)), 0.5e18, "7 days, stale");
-
-        adapter.updateDurationCaps(offer.market.maturity);
-
         assertEq(parentVault.allocation(durationId(1 days)), 0, "1 day");
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
     }
 
-    function testSellThenUpdateDurationCaps() public {
+    function testSellUpdatesDurationCaps() public {
         Offer memory offer = buy(7 days, 1e18);
         assertEq(parentVault.allocation(durationId(1 days)), 1e18, "1 day, before");
         assertEq(parentVault.allocation(durationId(7 days)), 1e18, "7 days, before");
@@ -1489,11 +1485,6 @@ contract MidnightAdapterTest is Test {
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.Sell(_marketId(offer.market), 0.5e18, 0.5e18);
         sell(offer.market, 0.5e18);
-
-        assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day, stale");
-        assertEq(parentVault.allocation(durationId(7 days)), 0.5e18, "7 days, stale");
-
-        adapter.updateDurationCaps(offer.market.maturity);
 
         assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day");
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
@@ -1603,7 +1594,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketId).netCredit, 0.5e18, "synchronized without refetching the market");
     }
 
-    function testForceDeallocateThenUpdateDurationCaps() public {
+    function testForceDeallocateUpdatesDurationCaps() public {
         Offer memory offer = buy(7 days, 1e18);
         assertEq(parentVault.allocation(durationId(1 days)), 1e18, "1 day, before");
         assertEq(parentVault.allocation(durationId(7 days)), 1e18, "7 days, before");
@@ -1611,11 +1602,6 @@ contract MidnightAdapterTest is Test {
         skip(1);
 
         forceDeallocate(offer.market, 0.5e18);
-
-        assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day, stale");
-        assertEq(parentVault.allocation(durationId(7 days)), 0.5e18, "7 days, stale");
-
-        adapter.updateDurationCaps(offer.market.maturity);
 
         assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day");
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
@@ -2775,6 +2761,10 @@ contract MidnightAdapterTest is Test {
         skip(1);
 
         // Simulate the adapter having no role: any vault.deallocate call from the adapter reverts.
+        stdstore.target(address(parentVault))
+            .sig("isAllocator(address)")
+            .with_key(address(adapter))
+            .checked_write(false);
         vm.mockCallRevert(address(parentVault), abi.encodeWithSelector(VaultV2Mock.deallocate.selector), "no role");
 
         forceDeallocate(boughtOffer.market, 0.5e18);
@@ -2784,8 +2774,8 @@ contract MidnightAdapterTest is Test {
         uint128 marketNetCredit = adapter.marketData(_marketId(boughtOffer.market)).netCredit;
         assertEq(marketNetCredit, 0.5e18, "netCredit");
 
-        vm.expectRevert(bytes("no role"));
         adapter.updateDurationCaps(boughtOffer.market.maturity);
+        assertEq(parentVault.allocation(durationId(7 days)), 0.5e18, "7 days still stale");
     }
 
     /// forge-config: default.isolate = true
@@ -2813,9 +2803,12 @@ contract MidnightAdapterTest is Test {
 
     /// forge-config: default.isolate = true
     /// @dev A sendSharesGate blocking the adapter affects neither exits nor duration caps updates.
-    function testForceDeallocateRealVaultWithGate() public {
+    function testForceDeallocateRealVaultWithGate(bool allocatorRole, bool sentinelRole) public {
         setUpRealVault();
         Offer memory offer = buyOnRealVault(7 days, 1e18);
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), allocatorRole)));
+        vm.prank(owner);
+        realVault.setIsSentinel(address(adapter), sentinelRole);
 
         address gate = makeAddr("gate");
         vm.etch(gate, hex"01");
@@ -2828,11 +2821,12 @@ contract MidnightAdapterTest is Test {
         skip(1);
 
         forceDeallocateOnRealVault(offer.market, 0.5e18);
-        assertEq(realVault.allocation(durationId(7 days)), 0.5e18, "7 days stale");
-
-        adapter.updateDurationCaps(offer.market.maturity);
-        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days zeroed");
+        assertEq(realVault.allocation(durationId(7 days)), allocatorRole || sentinelRole ? 0 : 0.5e18, "7 days");
+        assertEq(adapter.maturityData(offer.market.maturity).durationCount, allocatorRole || sentinelRole ? 1 : 2);
         assertEq(realVault.allocation(durationId(1 days)), 0.5e18, "1 day");
+
+        realVault.withdraw(0.5e18, address(this), address(this));
+        assertEq(loanToken.balanceOf(address(this)), 0.5e18, "withdrawn assets");
     }
 
     /// forge-config: default.isolate = true
@@ -2844,8 +2838,9 @@ contract MidnightAdapterTest is Test {
 
         skip(7 days + 1);
 
-        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         adapter.updateDurationCaps(offer.market.maturity);
+        assertEq(realVault.allocation(durationId(1 days)), 1e18, "1 day unchanged");
+        assertEq(realVault.allocation(durationId(7 days)), 1e18, "7 days unchanged");
 
         vm.prank(owner);
         realVault.setIsSentinel(address(adapter), true);
@@ -2868,9 +2863,6 @@ contract MidnightAdapterTest is Test {
         skip(1);
 
         forceDeallocateOnRealVault(offerA.market, 0.5e18);
-        assertEq(realVault.allocation(durationId(7 days)), 1.5e18, "7 days stale");
-
-        adapter.updateDurationCaps(offerA.market.maturity);
 
         assertEq(realVault.allocation(durationId(7 days)), 1e18, "7 days keeps the other maturity's part");
         assertEq(realVault.allocation(durationId(1 days)), 1.5e18, "1 day");
@@ -3063,9 +3055,10 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    function testStaleDurationIdsSyncedOnFullForceDeallocate() public {
+    function testStaleDurationIdsSyncedOnFullForceDeallocate(bool allocatorRole) public {
         setUpRealVault();
         Offer memory offer = buyOnRealVault(7 days, 1e18);
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), allocatorRole)));
 
         skip(6 days + 1);
         assertEq(realVault.allocation(durationId(1 days)), 1e18, "1 day stale before exit");
@@ -3079,19 +3072,15 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev Partial exits decrease stale ids too, so they stay consistent with the stored duration count.
-    function testStaleDurationIdsPartialSellThenUpdateThenFullSell() public {
+    /// @dev Partial exits update duration ids before reporting the sale.
+    function testDurationIdsUpdatedOnPartialSells() public {
         setUpRealVault();
         Offer memory offer = buyOnRealVault(7 days, 1e18);
 
         skip(1 days);
         sellUnits(offer.market, 0.25e18, MAX_TICK);
         assertEq(realVault.allocation(durationId(1 days)), 0.75e18, "1 day after partial sell");
-        assertEq(realVault.allocation(durationId(7 days)), 0.75e18, "7 days stale after partial sell");
-
-        adapter.updateDurationCaps(offer.market.maturity);
-        assertEq(realVault.allocation(durationId(1 days)), 0.75e18, "1 day after update");
-        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days after update");
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days after partial sell");
 
         sellUnits(offer.market, 0.25e18, MAX_TICK);
         assertEq(realVault.allocation(durationId(1 days)), 0.5e18, "1 day after second partial sell");
@@ -3105,15 +3094,15 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev A buy on a maturity with stale ids is counted on them too, so that a full exit zeroes them.
-    function testStaleDurationIdsSecondBuyThenFullSell() public {
+    /// @dev A buy removes existing credit from stale duration ids before reporting the new credit.
+    function testDurationIdsUpdatedOnSecondBuy() public {
         setUpRealVault();
         Offer memory offer = buyOnRealVault(7 days, 1e18);
 
         skip(1 days);
         buyOnRealVault(6 days, 1e18);
         assertEq(realVault.allocation(durationId(1 days)), 2e18, "1 day counts both buys");
-        assertEq(realVault.allocation(durationId(7 days)), 2e18, "7 days stale counts both buys");
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days cleared before buy");
 
         sellUnits(offer.market, 2e18, MAX_TICK);
 
@@ -4354,6 +4343,27 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
+    function testBuyUpdatesDurationCapsBeforeSelfFunding() public {
+        Offer memory initial = freshPosition(MAX_TICK);
+        vm.prank(taker);
+        midnight.repay(initial.market, 1e18, taker, address(0), "");
+        skip(1);
+
+        Offer memory offer = makeBuyOffer(7 days - 1, 3e18, MAX_TICK);
+        offer.group = bytes32("self-funded purchase");
+        offer.callbackData = abi.encode(address(adapter), abi.encode(initial.market));
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        directTake(offer);
+
+        assertEq(adapter.marketData(_marketId(initial.market)).netCredit, 10e18);
+        assertEq(realVault.allocation(adapter.adapterId()), 10e18);
+        assertEq(realVault.allocation(durationId(1 days)), 10e18);
+        assertEq(realVault.allocation(durationId(7 days)), 0);
+        assertEq(loanToken.balanceOf(address(realVault)), 0);
+        assertEq(backing(), 10e18);
+    }
+
+    /// forge-config: default.isolate = true
     function testEagerLossSelfFundingAfterLoss(bool sameMarket) public {
         Offer memory initial = freshPosition(MAX_TICK);
         vm.prank(taker);
@@ -4724,7 +4734,7 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev Dropping a stale duration id inside the callback: the outer sale then reports ids without it.
+    /// @dev Repeating the automatic duration update inside the callback leaves the outer sale's accounting unchanged.
     function testCbUpdateDurationCapsDuringSale() public {
         Offer memory initial = freshPosition(MAX_TICK);
         skip(1);
