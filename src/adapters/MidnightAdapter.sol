@@ -73,7 +73,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint48[] public maturities;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
-    /// @dev Net credit last reported to the vault's caps, aggregated per maturity.
     mapping(uint256 maturity => MaturityData) public maturityData;
     bytes32 transient overridenMarketId;
     uint256 transient overridenMarketNetCredit;
