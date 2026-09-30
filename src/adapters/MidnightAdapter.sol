@@ -288,7 +288,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             MarketData storage _marketData = marketData[marketIds[i]];
             for (uint256 j = 0; j < durationsLength; j++) {
                 uint256 duration = _durations[j];
-                if (previousUpdate + duration <= _marketData.maturity && _marketData.maturity < block.timestamp + duration) {
+                if (
+                    previousUpdate + duration <= _marketData.maturity
+                        && _marketData.maturity < block.timestamp + duration
+                ) {
                     netCreditDecreases[j] += _marketData.netCredit;
                 }
             }

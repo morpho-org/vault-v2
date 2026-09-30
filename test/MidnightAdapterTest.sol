@@ -342,7 +342,7 @@ contract MidnightAdapterTest is Test {
 
         skip(1);
         assertEq(adapter.lastDurationUpdate(), block.timestamp - 1, "unchanged timestamp");
-        assertTrue(adapter.updateDurationCaps());
+        adapter.updateDurationCaps();
         assertEq(adapter.lastDurationUpdate(), block.timestamp, "updated timestamp");
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "unchanged netCredit");
     }
@@ -1463,7 +1463,7 @@ contract MidnightAdapterTest is Test {
         assertEq(parentVault.allocation(durationId(30 days)), 3e18, "30 days before");
 
         skip(elapsed);
-        assertTrue(adapter.updateDurationCaps());
+        adapter.updateDurationCaps();
         assertEq(adapter.lastDurationUpdate(), block.timestamp, "lastDurationUpdate");
         for (uint256 i; i < allDurations.length; i++) {
             uint256 expected;
@@ -1475,7 +1475,7 @@ contract MidnightAdapterTest is Test {
         assertEq(parentVault.allocation(adapter.adapterId()), 6e18, "adapter allocation unchanged");
 
         vm.mockCallRevert(address(parentVault), abi.encodeWithSelector(VaultV2Mock.deallocate.selector), "no update");
-        assertTrue(adapter.updateDurationCaps());
+        adapter.updateDurationCaps();
     }
 
     function testUpdateDurationCapsUsesReportedNetCredit() public {
@@ -1484,7 +1484,7 @@ contract MidnightAdapterTest is Test {
         setMidnightCredit(_marketId(offer.market), address(adapter), 0.4e18);
 
         skip(1);
-        assertTrue(adapter.updateDurationCaps());
+        adapter.updateDurationCaps();
         assertEq(parentVault.allocation(durationId(7 days)), 2e18, "reported credit removed");
         assertEq(parentVault.allocation(durationId(1 days)), 3e18, "loss not yet reported");
         assertEq(parentVault.allocation(adapter.adapterId()), 3e18, "adapter allocation unchanged");
@@ -1516,7 +1516,7 @@ contract MidnightAdapterTest is Test {
         assertEq(parentVault.allocation(durationId(7 days)), 1e18, "7 days unchanged");
 
         vm.clearMockedCalls();
-        assertTrue(adapter.updateDurationCaps());
+        adapter.updateDurationCaps();
         assertEq(adapter.lastDurationUpdate(), block.timestamp, "timestamp advanced");
         assertEq(parentVault.allocation(durationId(1 days)), 0, "1 day");
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
@@ -1539,9 +1539,9 @@ contract MidnightAdapterTest is Test {
         assertEq(parentVault.allocation(durationId(7 days)), 3e18, "shared duration allocation");
 
         skip(1);
-        assertTrue(firstAdapter.updateDurationCaps());
+        firstAdapter.updateDurationCaps();
         assertEq(parentVault.allocation(durationId(7 days)), 2e18, "second adapter untouched");
-        assertTrue(adapter.updateDurationCaps());
+        adapter.updateDurationCaps();
         assertEq(parentVault.allocation(durationId(7 days)), 0, "both adapters updated");
         assertEq(parentVault.allocation(durationId(1 days)), 3e18, "1 day unchanged");
     }
@@ -2117,7 +2117,7 @@ contract MidnightAdapterTest is Test {
         assertMarkets([_marketId(offerA.market), _marketId(offerB.market)]);
 
         skip(1);
-        assertTrue(adapter.updateDurationCaps());
+        adapter.updateDurationCaps();
         assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
         assertEq(parentVault.allocation(durationId(1 days)), assetsA + assetsB, "1 day");
     }
@@ -2865,6 +2865,7 @@ contract MidnightAdapterTest is Test {
         uint128 marketNetCredit = adapter.marketData(_marketId(boughtOffer.market)).netCredit;
         assertEq(marketNetCredit, 0.5e18, "netCredit");
 
+        vm.expectRevert(bytes("no role"));
         adapter.updateDurationCaps();
         assertEq(parentVault.allocation(durationId(7 days)), 0.5e18, "7 days still stale");
     }
@@ -2932,6 +2933,7 @@ contract MidnightAdapterTest is Test {
 
         skip(7 days + 1);
 
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
         adapter.updateDurationCaps();
         assertEq(realVault.allocation(durationId(1 days)), 1e18, "1 day unchanged");
         assertEq(realVault.allocation(durationId(7 days)), 1e18, "7 days unchanged");
@@ -2957,13 +2959,14 @@ contract MidnightAdapterTest is Test {
 
         skip(1);
         forceDeallocateOnRealVault(offer.market, 0.5e18);
-        assertFalse(adapter.updateDurationCaps());
+        vm.expectRevert(ErrorsLib.Unauthorized.selector);
+        adapter.updateDurationCaps();
         assertEq(adapter.lastDurationUpdate(), previousUpdate, "timestamp unchanged");
         assertEq(realVault.allocation(durationId(7 days)), 2.5e18, "7 days stale");
 
         vm.prank(owner);
         realVault.setIsSentinel(address(adapter), true);
-        assertTrue(adapter.updateDurationCaps());
+        adapter.updateDurationCaps();
         assertEq(adapter.lastDurationUpdate(), block.timestamp, "timestamp advanced");
         assertEq(realVault.allocation(durationId(7 days)), 2e18, "only remaining credit removed");
         assertEq(realVault.allocation(durationId(1 days)), 2.5e18, "1 day unchanged");
