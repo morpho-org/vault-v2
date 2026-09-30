@@ -58,6 +58,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
     uint256 public minBuyRate;
     uint256 public maxTtm;
+    /// @dev Lowering it below marketIdsLength() only prevents entering new markets.
+    uint256 public maxMarkets;
     mapping(address subRatifier => bool) public isSubRatifier;
     /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement fee.
     /// @dev Enforced on maker and taker sales before maturity only.
@@ -66,6 +68,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* ACCOUNTING */
 
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
+    /// @dev Upper bound of maxMarkets.
     uint8 public constant MAX_MARKETS = 250;
 
     bytes32[] public marketIds;
@@ -216,6 +219,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         timelocked();
         maxTtm = newMaxTtm;
         emit SetMaxTtm(newMaxTtm);
+    }
+
+    function setMaxMarkets(uint256 newMaxMarkets) external {
+        timelocked();
+        require(newMaxMarkets <= MAX_MARKETS, MaxMarketsTooHigh());
+        maxMarkets = newMaxMarkets;
+        emit SetMaxMarkets(newMaxMarkets);
     }
 
     /// @dev Help prevent operational errors when selling.
@@ -486,9 +496,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             marketData[lastMarketId].index = _marketData.index;
             marketIds.pop();
         } else if (storedNetCredit == 0 && newNetCredit > 0) {
-            require(marketIds.length < MAX_MARKETS, TooManyMarkets());
+            require(marketIds.length < maxMarkets, TooManyMarkets());
             _marketData.maturity = market.maturity.toUint48();
-            // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < MAX_MARKETS.
+            // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < maxMarkets <= MAX_MARKETS.
             _marketData.index = uint8(marketIds.length);
             marketIds.push(marketId);
         }

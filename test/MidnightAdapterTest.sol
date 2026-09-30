@@ -219,6 +219,7 @@ contract MidnightAdapterTest is Test {
         factory = new MidnightAdapterFactory(address(midnight), allDurations);
         adapter = IMidnightAdapter(factory.createMidnightAdapter(address(parentVault)));
         setUpMaxTtm(type(uint256).max);
+        setUpMaxMarkets(250);
 
         priceRatifier = new MidnightAdapterPriceRatifierV1();
         addSubRatifier(adapter, address(priceRatifier));
@@ -304,6 +305,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.realAssets(), 0, "realAssets");
         assertEq(adapter.marketIdsLength(), 0, "marketIdsLength");
         assertEq(adapter.MAX_MARKETS(), 250, "MAX_MARKETS");
+        assertEq(adapter.maxMarkets(), 250, "maxMarkets");
         skip(100);
         assertEq(adapter.realAssets(), 0, "realAssets after time passes");
     }
@@ -1030,6 +1032,9 @@ contract MidnightAdapterTest is Test {
         vm.prank(curator);
         otherAdapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxTtm, (type(uint256).max)));
         otherAdapter.setMaxTtm(type(uint256).max);
+        vm.prank(curator);
+        otherAdapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxMarkets, (250)));
+        otherAdapter.setMaxMarkets(250);
         addSubRatifier(otherAdapter, address(priceRatifier));
         deal(address(loanToken), address(otherVault), 1_000_000e18);
 
@@ -1125,6 +1130,65 @@ contract MidnightAdapterTest is Test {
 
         vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
         adapter.setMaxTtm(newMaxTtm);
+    }
+
+    function testSetMaxMarketsNotAuthorized(address caller, uint256 newMaxMarkets) public {
+        vm.assume(caller != curator);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxMarkets, (newMaxMarkets)));
+    }
+
+    function testSetMaxMarketsNotTimelocked(address caller, uint256 newMaxMarkets) public {
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        vm.prank(caller);
+        adapter.setMaxMarkets(newMaxMarkets);
+    }
+
+    function testSetMaxMarketsAuthorized(uint256 oldMaxMarkets, uint256 newMaxMarkets) public {
+        oldMaxMarkets = bound(oldMaxMarkets, 0, 250);
+        newMaxMarkets = bound(newMaxMarkets, 0, 250);
+        setUpMaxMarkets(oldMaxMarkets);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxMarkets, (newMaxMarkets)));
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.SetMaxMarkets(newMaxMarkets);
+        adapter.setMaxMarkets(newMaxMarkets);
+        assertEq(adapter.maxMarkets(), newMaxMarkets, "maxMarkets");
+    }
+
+    function testSetMaxMarketsTimelocked(uint256 newMaxMarkets, uint256 duration) public {
+        newMaxMarkets = bound(newMaxMarkets, 0, 250);
+        duration = bound(duration, 1, 3650 days);
+        submitTimelock(IMidnightAdapterBase.setMaxMarkets.selector, duration);
+
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.setMaxMarkets, (newMaxMarkets));
+        vm.prank(curator);
+        adapter.submit(data);
+
+        skip(duration - 1);
+        vm.expectRevert(IMidnightAdapterBase.TimelockNotExpired.selector);
+        adapter.setMaxMarkets(newMaxMarkets);
+
+        skip(1);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.setMaxMarkets.selector, data);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.SetMaxMarkets(newMaxMarkets);
+        adapter.setMaxMarkets(newMaxMarkets);
+        assertEq(adapter.maxMarkets(), newMaxMarkets, "maxMarkets");
+        assertEq(adapter.executableAt(data), 0, "executableAt");
+
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        adapter.setMaxMarkets(newMaxMarkets);
+    }
+
+    function testSetMaxMarketsTooHigh(uint256 newMaxMarkets) public {
+        newMaxMarkets = bound(newMaxMarkets, 251, type(uint256).max);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxMarkets, (newMaxMarkets)));
+        vm.expectRevert(IMidnightAdapterBase.MaxMarketsTooHigh.selector);
+        adapter.setMaxMarkets(newMaxMarkets);
     }
 
     function testMaxTtmUpdatesApplyToSignedOffer() public {
@@ -1232,6 +1296,7 @@ contract MidnightAdapterTest is Test {
         assertEq(IMidnightAdapter(newAdapter).midnight(), address(midnight), "midnight");
         assertEq(IMidnightAdapter(newAdapter).durations(), allDurations, "durations");
         assertEq(IMidnightAdapter(newAdapter).maxTtm(), 0, "default maxTtm");
+        assertEq(IMidnightAdapter(newAdapter).maxMarkets(), 0, "default maxMarkets");
         assertTrue(midnight.isAuthorized(newAdapter, newAdapter), "adapter is its own ratifier");
 
         // Fixed salt: one adapter per vault.
@@ -1576,6 +1641,62 @@ contract MidnightAdapterTest is Test {
     }
 
     /* MARKETS */
+
+    function testMaxMarketsDefaultZero() public {
+        VaultV2Mock newVault = new VaultV2Mock(address(loanToken), owner, curator, signerAllocator, address(0));
+        IMidnightAdapter newAdapter = IMidnightAdapter(factory.createMidnightAdapter(address(newVault)));
+        assertEq(newAdapter.maxMarkets(), 0, "maxMarkets");
+    }
+
+    function testMaxMarketsZeroBlocksBuys() public {
+        setUpMaxMarkets(0);
+        Offer memory offer = makeBuyOffer(1, 1e18, MAX_TICK);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+        vm.expectRevert(IMidnightAdapterBase.TooManyMarkets.selector);
+        take(offer);
+    }
+
+    function testMaxMarketsCap(uint256 maxMarkets_) public {
+        maxMarkets_ = bound(maxMarkets_, 1, 20);
+        setUpMaxMarkets(maxMarkets_);
+        for (uint256 i = 0; i < maxMarkets_; i++) {
+            buy(i + 1, 1e18);
+        }
+
+        Offer memory offer = makeBuyOffer(maxMarkets_ + 1, 1e18, MAX_TICK);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
+        vm.expectRevert(IMidnightAdapterBase.TooManyMarkets.selector);
+        take(offer);
+    }
+
+    function testMaxMarketsLoweredBelowLength() public {
+        Offer memory first = buy(1, 1e18);
+        Offer memory second = buy(2, 1e18);
+        buy(3, 1e18);
+        uint256 realAssetsBefore = adapter.realAssets();
+
+        setUpMaxMarkets(1);
+        assertEq(adapter.realAssets(), realAssetsBefore, "realAssets unchanged");
+
+        Offer memory newMarket = makeBuyOffer(4, 1e18, MAX_TICK);
+        midnight.supplyCollateral(newMarket.market, 0, newMarket.maxUnits, taker);
+        midnight.supplyCollateral(newMarket.market, 1, newMarket.maxUnits, taker);
+        vm.expectRevert(IMidnightAdapterBase.TooManyMarkets.selector);
+        take(newMarket);
+
+        Offer memory existingMarket = makeBuyOffer(1, 0.5e18, MAX_TICK);
+        existingMarket.group = bytes32("existingMarket");
+        midnight.supplyCollateral(existingMarket.market, 0, existingMarket.maxUnits, taker);
+        midnight.supplyCollateral(existingMarket.market, 1, existingMarket.maxUnits, taker);
+        take(existingMarket);
+
+        sellUnits(second.market, second.maxUnits, MAX_TICK);
+        assertEq(adapter.marketIdsLength(), 2, "fully sold market removed");
+        assertEq(adapter.marketData(_marketId(second.market)).netCredit, 0, "fully sold market net credit");
+        assertGt(adapter.marketData(_marketId(first.market)).netCredit, first.maxUnits, "existing market buy accepted");
+    }
 
     function testMarketsCap() public {
         for (uint256 i = 1; i <= 250; i++) {
@@ -3322,6 +3443,12 @@ contract MidnightAdapterTest is Test {
         adapter.setMaxTtm(maxTtm);
     }
 
+    function setUpMaxMarkets(uint256 maxMarkets_) internal {
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxMarkets, (maxMarkets_)));
+        adapter.setMaxMarkets(maxMarkets_);
+    }
+
     function makeBuyOffer(uint256 duration, uint256 assets, uint256 tick) internal view returns (Offer memory offer) {
         offer = storedOffer;
         offer.market.maturity = block.timestamp + duration;
@@ -3512,6 +3639,7 @@ contract MidnightAdapterTest is Test {
         realVault.setCurator(curator);
         adapter = IMidnightAdapter(factory.createMidnightAdapter(address(realVault)));
         setUpMaxTtm(type(uint256).max);
+        setUpMaxMarkets(250);
 
         submitAndCall(realVault, abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), true)));

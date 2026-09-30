@@ -409,6 +409,8 @@ contract MidnightAdapterRateRatifierV1IntegrationTest is Test {
             IMidnightAdapter(address(new MidnightAdapter(address(vault), address(midnight), durations)));
         adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxTtm, (30 days)));
         adapter.setMaxTtm(30 days);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxMarkets, (250)));
+        adapter.setMaxMarkets(250);
         MidnightAdapterRateRatifierV1 ratifier = new MidnightAdapterRateRatifierV1();
         adapter.submit(abi.encodeCall(IMidnightAdapterBase.addSubRatifier, (address(ratifier))));
         adapter.addSubRatifier(address(ratifier));
