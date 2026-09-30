@@ -10,8 +10,7 @@ methods {
     function VaultV2.owner() external returns (address) envfree;
     function Utils.id(MetaMorphoHarness.MarketParams) external returns (MetaMorphoHarness.Id) envfree;
 
-    // expectedSupplyAssets summarised as an uninterpreted ghost. Avoids modeling the full Morpho Blue interest accrual logic.
-    // Returns an uninterpreted value for expectedSupplyAssets, parameterized by market params fields and user.
+    // expectedSupplyAssets summarised as an uninterpreted ghost. Avoids modeling the full Morpho Blue interest accrual logic. Returns an uninterpreted value for expectedSupplyAssets, parameterized by market params fields and user.
     function _.expectedSupplyAssets(MetaMorphoHarness.MarketParams marketParams, address user) external => ghostExpectedSupply(marketParams.loanToken, marketParams.collateralToken, marketParams.oracle, marketParams.irm, marketParams.lltv, user) expect(uint256);
 
     // idToMarketParams summarised to return market params that are constrained to the hash of the

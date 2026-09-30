@@ -10,9 +10,7 @@ import {IVaultV2} from "../../interfaces/IVaultV2.sol";
 import {IMidnightAdapter} from "../interfaces/IMidnightAdapter.sol";
 import {IMidnightAdapterEcrecoverRatifier} from "./interfaces/IMidnightAdapterEcrecoverRatifier.sol";
 
-/// @dev Sub-ratifier for MidnightAdapter offers: checks that the offer has been signed by an allocator of the maker
-/// adapter's parent vault in a Merkle tree of offers. To that end, it expects the ratifier data to contain the
-/// signature, the root of the tree, the leaf index of the offer, and the proof of the offer in the tree.
+/// @dev Sub-ratifier for MidnightAdapter offers: checks that the offer has been signed by an allocator of the maker adapter's parent vault in a Merkle tree of offers. To that end, it expects the ratifier data to contain the signature, the root of the tree, the leaf index of the offer, and the proof of the offer in the tree.
 /// @dev The root should correspond to the root of the offer tree, which is a Merkle tree of offers.
 /// @dev The leaf index determines each sibling's left/right position.
 /// @dev Hashing offers as in EIP-712, which allows clear signing of the tree, credits to Seaport for this mechanism.

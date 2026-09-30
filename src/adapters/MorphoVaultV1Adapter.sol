@@ -8,20 +8,15 @@ import {IERC20} from "../interfaces/IERC20.sol";
 import {IMorphoVaultV1Adapter} from "./interfaces/IMorphoVaultV1Adapter.sol";
 import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 
-/// @dev Designed, developed and audited for Morpho Vaults V1 (V1.0 and V1.1) (also known as MetaMorpho). Integration
-/// with other vaults must be carefully assessed from a security standpoint.
+/// @dev Designed, developed and audited for Morpho Vaults V1 (V1.0 and V1.1) (also known as MetaMorpho). Integration with other vaults must be carefully assessed from a security standpoint.
 /// @dev One of the considerations when using it with other vaults is the underlying vault's gating: a gated vault
 /// might break in-kind redemptions by preventing the parent vault's depositors from depositing in the underlying vault.
-/// @dev This adapter must be used with Morpho Vaults V1 that are protected against inflation attacks with an initial
-/// deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
-/// @dev Must not be used with a Morpho Vault V1 which has a market with an Irm that can re-enter the parent vault or
-/// the adapter.
-/// @dev Morpho Vaults V1.1 do not realize bad debt, so Morpho Vaults V2 supplying in them will not realize the
-/// corresponding bad debt.
+/// @dev This adapter must be used with Morpho Vaults V1 that are protected against inflation attacks with an initial deposit. See https://docs.openzeppelin.com/contracts/5.x/erc4626#inflation-attack.
+/// @dev Must not be used with a Morpho Vault V1 which has a market with an Irm that can re-enter the parent vault or the adapter.
+/// @dev Morpho Vaults V1.1 do not realize bad debt, so Morpho Vaults V2 supplying in them will not realize the corresponding bad debt.
 /// @dev Losses that correspond to rounding errors are realizable.
 /// @dev Shares of the Morpho Vault V1 cannot be skimmed (unlike any other token).
-/// @dev If expectedSupplyAssets reverts for a market of the morphoVaultV1, realAssets will revert and the vault will
-/// not be able to accrueInterest.
+/// @dev If expectedSupplyAssets reverts for a market of the morphoVaultV1, realAssets will revert and the vault will not be able to accrueInterest.
 /// @dev Shouldn't be used alongside another adapter that re-uses the id (abi.encode("this", address(this)).
 contract MorphoVaultV1Adapter is IMorphoVaultV1Adapter {
     /* IMMUTABLES */
