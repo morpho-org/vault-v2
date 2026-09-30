@@ -3301,15 +3301,17 @@ contract MidnightAdapterTest is Test {
     }
 
     function testSetShortfallParams(uint256 ratio, uint256 period) public {
-        ratio = bound(ratio, 0, 1e18);
+        uint256 maxRatio = adapter.MAX_MAX_SHORTFALL_RATIO();
+        assertEq(maxRatio, 0.1e18);
+        ratio = bound(ratio, 0, maxRatio);
         period = bound(period, 0, type(uint128).max);
         vm.expectRevert(IMidnightAdapter.DataNotTimelocked.selector);
         adapter.setShortfallParams(ratio, period);
 
         vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapter.setShortfallParams, (1e18 + 1, period)));
+        adapter.submit(abi.encodeCall(IMidnightAdapter.setShortfallParams, (maxRatio + 1, period)));
         vm.expectRevert(IMidnightAdapter.MaxShortfallRatioTooHigh.selector);
-        adapter.setShortfallParams(1e18 + 1, period);
+        adapter.setShortfallParams(maxRatio + 1, period);
 
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMidnightAdapter.setShortfallParams, (ratio, period)));
@@ -3458,13 +3460,14 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.shortfallAllowance(), 0);
     }
 
-    function testShortfallFullRatioAllowsSellingEverything() public {
-        setShortfallParams(1e18, 0);
+    function testShortfallMaxRatio() public {
+        setShortfallParams(adapter.MAX_MAX_SHORTFALL_RATIO(), 0);
         Offer memory offer = buy(30 days, 100e18);
         setMaxSellRate(offer.market, type(uint256).max);
         deal(address(loanToken), taker, 50e18);
-        sellUnits(offer.market, 100e18, MAX_TICK / 2);
-        assertEq(adapter.marketDataNetCredit(_marketId(offer.market)), 0);
+        sellUnits(offer.market, 19e18, MAX_TICK / 2);
+        vm.expectRevert(IMidnightAdapter.MaxShortfallExceeded.selector);
+        sellUnits(offer.market, 18e18, MAX_TICK / 2);
     }
 
     function testShortfallRefillsLinearly(uint256 elapsed, uint256 offset) public {

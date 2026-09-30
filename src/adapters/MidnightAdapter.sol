@@ -67,6 +67,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     uint8 public constant MAX_MARKETS = 250;
+    uint256 public constant MAX_MAX_SHORTFALL_RATIO = 0.1e18; // 10%
 
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
@@ -266,7 +267,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     function setShortfallParams(uint256 newMaxShortfallRatio, uint256 newShortfallRefillPeriod) external {
         timelocked();
-        require(newMaxShortfallRatio <= WAD, MaxShortfallRatioTooHigh());
+        require(newMaxShortfallRatio <= MAX_MAX_SHORTFALL_RATIO, MaxShortfallRatioTooHigh());
         updateShortfallAllowance(totalNetCredit.mulDivDown(maxShortfallRatio, WAD));
         maxShortfallRatio = newMaxShortfallRatio.toUint128();
         shortfallRefillPeriod = newShortfallRefillPeriod.toUint128();
