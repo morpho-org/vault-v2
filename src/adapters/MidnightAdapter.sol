@@ -81,6 +81,7 @@ contract MidnightAdapter is IMidnightAdapter {
     uint128 public maxShortfallRatio;
     uint128 public shortfallAllowance;
     uint48 public shortfallUpdatedAt;
+    uint256 public lastTotalAssets;
     bytes32 transient overridenMarketId;
     uint256 transient overridenMarketNetCredit;
     /* CONSTRUCTOR */
@@ -269,11 +270,13 @@ contract MidnightAdapter is IMidnightAdapter {
     function setShortfallParams(uint256 newMaxShortfallRatio, uint256 newShortfallRefillPeriod) external {
         timelocked();
         require(newMaxShortfallRatio <= MAX_MAX_SHORTFALL_RATIO, MaxShortfallRatioTooHigh());
-        updateShortfallAllowance(totalNetCredit);
+        updateShortfallAllowance();
         maxShortfallRatio = newMaxShortfallRatio.toUint128();
         shortfallRefillPeriod = newShortfallRefillPeriod.toUint128();
-        shortfallAllowance =
-            MathLib.min(shortfallAllowance, totalNetCredit.mulDivDown(newMaxShortfallRatio, WAD)).toUint128();
+        shortfallAllowance = MathLib.min(
+                shortfallAllowance, IVaultV2(parentVault).totalAssets().mulDivDown(newMaxShortfallRatio, WAD)
+            )
+            .toUint128();
         emit SetShortfallParams(newMaxShortfallRatio, newShortfallRefillPeriod);
     }
 
@@ -293,7 +296,7 @@ contract MidnightAdapter is IMidnightAdapter {
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) public {
         bytes32 marketId = IdLib.toId(market);
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
-        updateShortfallAllowance(totalNetCredit - marketData[marketId].netCredit + currentNetCredit(marketId));
+        updateShortfallAllowance();
 
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
@@ -394,7 +397,7 @@ contract MidnightAdapter is IMidnightAdapter {
             bytes32 marketId = IdLib.toId(offer.market);
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             IVaultV2(parentVault).accrueInterest();
-            updateShortfallAllowance(totalNetCredit - marketData[marketId].netCredit + currentNetCredit(marketId));
+            updateShortfallAllowance();
 
             // Skip onSell since we are already in a deallocate call.
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
@@ -436,7 +439,7 @@ contract MidnightAdapter is IMidnightAdapter {
         (overridenMarketId, overridenMarketNetCredit) = (marketId, newNetCredit - boughtNetCredit);
         IVaultV2(parentVault).accrueInterest();
         (overridenMarketId, overridenMarketNetCredit) = (0, 0);
-        updateShortfallAllowance(totalNetCredit - marketData[marketId].netCredit + (newNetCredit - boughtNetCredit));
+        updateShortfallAllowance();
 
         if (block.timestamp < market.maturity && boughtNetCredit > 0) {
             uint256 addedAssetsWadPerSecond =
@@ -494,7 +497,10 @@ contract MidnightAdapter is IMidnightAdapter {
             );
         }
 
-        updateShortfallAllowance(totalNetCredit - marketData[marketId].netCredit + (newNetCredit + soldNetCredit));
+        (overridenMarketId, overridenMarketNetCredit) = (marketId, newNetCredit + soldNetCredit);
+        updateShortfallAllowance();
+        (overridenMarketId, overridenMarketNetCredit) = (0, 0);
+
         int256 change = updateMarket(marketId, market, newNetCredit);
 
         uint256 discountFactor = WAD - marketData[marketId].growth * market.maturity.zeroFloorSub(block.timestamp);
@@ -530,8 +536,9 @@ contract MidnightAdapter is IMidnightAdapter {
         return credit - pendingFee;
     }
 
-    function updateShortfallAllowance(uint256 netCredit) internal {
-        uint256 allowanceCap = netCredit.min(totalNetCredit).mulDivDown(maxShortfallRatio, WAD);
+    function updateShortfallAllowance() internal {
+        uint256 totalAssets = IVaultV2(parentVault).totalAssets();
+        uint256 allowanceCap = MathLib.min(totalAssets, lastTotalAssets).mulDivDown(maxShortfallRatio, WAD);
         shortfallAllowance = MathLib.min(
                 allowanceCap,
                 shortfallAllowance
@@ -541,6 +548,7 @@ contract MidnightAdapter is IMidnightAdapter {
             )
             .toUint128();
         shortfallUpdatedAt = block.timestamp.toUint48();
+        lastTotalAssets = totalAssets;
     }
 
     /// @dev Updates market and maturity net credit and inserts or removes the market from marketIds as needed.
