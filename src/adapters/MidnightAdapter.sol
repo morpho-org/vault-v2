@@ -18,6 +18,8 @@ import {
     MaturityData
 } from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
+import {WrapperEnterGate} from "../periphery/gates/WrapperEnterGate.sol";
+import {IEnterGateFactory} from "../periphery/gates/interfaces/IEnterGateFactory.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest per market.
 /// @dev Growth is rounded down. Interest excluded from growth is realized immediately.
@@ -43,6 +45,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     address public immutable asset;
     address public immutable parentVault;
     address public immutable midnight;
+    address public immutable enterGateFactory;
     bytes32 public immutable adapterId;
     /// @dev Durations that can be used to cap the time to maturity.
     /// @dev Sorted in ascending order.
@@ -80,10 +83,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint256 transient overridenMarketNetCredit;
     /* CONSTRUCTOR */
 
-    constructor(address _parentVault, address _midnight, uint256[] memory _durations) {
+    constructor(address _parentVault, address _midnight, uint256[] memory _durations, address _enterGateFactory) {
         asset = IVaultV2(_parentVault).asset();
         parentVault = _parentVault;
         midnight = _midnight;
+        enterGateFactory = _enterGateFactory;
         IMidnight(_midnight).setIsAuthorized(address(this), true, address(this));
         SafeERC20Lib.safeApprove(asset, _midnight, type(uint256).max);
         SafeERC20Lib.safeApprove(asset, _parentVault, type(uint256).max);
@@ -385,6 +389,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(buyer == address(this), NotSelf());
+        // Prevent buying into a gated market that will then block forceDeallocate.
+        require(
+            enterGateFactory == address(0) || market.enterGate == address(0)
+                || (IEnterGateFactory(enterGateFactory).isGate(market.enterGate)
+                    && WrapperEnterGate(market.enterGate).marketId() == marketId),
+            IncorrectEnterGate()
+        );
         require(block.timestamp <= market.maturity, BuyPostMaturity());
         require(market.maturity - block.timestamp <= maxTtm, BuyTtmTooHigh());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
