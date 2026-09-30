@@ -3215,11 +3215,18 @@ contract MidnightAdapterTest is Test {
 
     /// @dev Duration ids are scoped to the adapter, so neither the unscoped id nor another adapter's id applies.
     function testDurationIdIsScopedToAdapter() public {
-        assertEq(adapter.durationId(7 days), keccak256(abi.encode("duration", address(adapter), uint256(7 days))));
-        assertNotEq(adapter.durationId(7 days), keccak256(abi.encode("duration", uint256(7 days))));
-        assertNotEq(
-            adapter.durationId(7 days), keccak256(abi.encode("duration", makeAddr("other adapter"), uint256(7 days)))
-        );
+        setDurationCaps(7 days, 0, 1e18);
+        bytes32 unscopedId = keccak256(abi.encode("duration", uint256(7 days)));
+        bytes32 otherAdapterId = keccak256(abi.encode("duration", makeAddr("other adapter"), uint256(7 days)));
+        parentVault.setAbsoluteCap(unscopedId, type(uint128).max);
+        parentVault.setRelativeCap(unscopedId, 1e18);
+        parentVault.setAbsoluteCap(otherAdapterId, type(uint128).max);
+        parentVault.setRelativeCap(otherAdapterId, 1e18);
+
+        buyExpectRevert(7 days, 1e18, IMidnightAdapterBase.DurationAbsoluteCapExceeded.selector);
+
+        setDurationCaps(7 days, type(uint128).max, 1e18);
+        buy(7 days, 1e18);
     }
 
     /// @dev Worst case for the scan: the cap check walks maturities, not markets.
@@ -3738,7 +3745,7 @@ contract MidnightAdapterTest is Test {
 
     function setUpUnlimitedDurationCaps(VaultV2Mock vault, IMidnightAdapter _adapter) internal {
         for (uint256 i = 0; i < allDurations.length; i++) {
-            bytes32 id = _adapter.durationId(allDurations[i]);
+            bytes32 id = keccak256(abi.encode("duration", address(_adapter), allDurations[i]));
             vault.setAbsoluteCap(id, type(uint128).max);
             vault.setRelativeCap(id, 1e18);
         }

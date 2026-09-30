@@ -112,12 +112,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return _durations;
     }
 
-    /// @dev Id of the vault cap limiting the adapter's exposure to positions with at least `duration` left to maturity.
-    /// @dev The vault stores the caps of these ids, so they keep its timelocks and roles, but it never records allocation for them: the adapter checks them itself in onBuy.
-    function durationId(uint256 duration) public view returns (bytes32) {
-        return keccak256(abi.encode("duration", address(this), duration));
-    }
-
     /// @dev Returns the net credit held at or beyond each duration, using the current times to maturity.
     /// @dev Entry i sums the net credit of the maturities that are at least durations()[i] away, so entries are non-increasing.
     /// @dev Losses and pending sales stay counted until the corresponding market is updated, so entries are an upper bound of the adapter's exposure.
@@ -425,7 +419,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256[] memory allocations = durationAllocations();
         uint256 totalAssets = IVaultV2(parentVault).firstTotalAssets();
         for (uint256 i = 0; i < checkedDurations; i++) {
-            bytes32 id = durationId(packedDurations.get(i));
+            bytes32 id = keccak256(abi.encode("duration", address(this), packedDurations.get(i)));
             require(allocations[i] <= IVaultV2(parentVault).absoluteCap(id), DurationAbsoluteCapExceeded());
             uint256 relativeCap = IVaultV2(parentVault).relativeCap(id);
             require(
