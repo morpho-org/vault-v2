@@ -283,8 +283,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint256[] memory _durations = durations();
         uint256[] memory targetAllocations = new uint256[](durationsLength);
-        uint256 length = marketIds.length;
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < marketIds.length; i++) {
             MarketData storage _marketData = marketData[marketIds[i]];
             uint256 timeToMaturity = _marketData.maturity.zeroFloorSub(block.timestamp);
             for (uint256 j = 0; j < durationsLength && _durations[j] <= timeToMaturity; j++) {
