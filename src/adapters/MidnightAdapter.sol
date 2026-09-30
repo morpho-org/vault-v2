@@ -276,39 +276,37 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetConsumed(msg.sender, group, amount);
     }
 
-    /// @dev Remove all markets' allocations from duration ids that are > their time to maturity, unless the adapter is no longer a vault allocator or a vault sentinel.
-    /// @dev Returns false if the adapter is no longer a vault allocator or a vault sentinel and thus cannot update its duration caps.
-    function updateDurationCaps() public returns (bool) {
-        if (!IVaultV2(parentVault).isAllocator(address(this)) && !IVaultV2(parentVault).isSentinel(address(this))) {
-            return false;
-        } else {
-            uint256 previousUpdate = lastDurationUpdate;
-            if (previousUpdate == block.timestamp) return true;
+    /// @dev Removes all markets' allocations from the duration ids that are > their time to maturity.
+    function updateDurationCaps() public {
+        uint256 previousUpdate = lastDurationUpdate;
+        if (previousUpdate == block.timestamp) return;
+        lastDurationUpdate = block.timestamp;
 
-            uint256[] memory netCreditDecreases = new uint256[](durationsLength);
-            uint256 length = marketIds.length;
-            for (uint256 i = 0; i < length; i++) {
-                MarketData storage _marketData = marketData[marketIds[i]];
-                uint256 oldDurationCount = durationCount(_marketData.maturity, previousUpdate);
-                uint256 newDurationCount = durationCount(_marketData.maturity, block.timestamp);
-                for (uint256 j = newDurationCount; j < oldDurationCount; j++) {
+        uint256[] memory _durations = durations();
+        uint256[] memory netCreditDecreases = new uint256[](durationsLength);
+        uint256 length = marketIds.length;
+        for (uint256 i = 0; i < length; i++) {
+            MarketData storage _marketData = marketData[marketIds[i]];
+            uint256 maturity = _marketData.maturity;
+            for (uint256 j = 0; j < durationsLength; j++) {
+                uint256 duration = _durations[j];
+                if (previousUpdate + duration <= maturity && maturity < block.timestamp + duration) {
                     netCreditDecreases[j] += _marketData.netCredit;
                 }
             }
+        }
 
-            lastDurationUpdate = block.timestamp;
-            emit UpdateDurationCaps(block.timestamp);
-            bytes32[] memory durationIdsToDecrease = new bytes32[](1);
-            for (uint256 i = 0; i < durationsLength; i++) {
-                // VaultV2.deallocate requires allocation > 0 for each returned id.
-                if (netCreditDecreases[i] == 0) continue;
-                durationIdsToDecrease[0] = keccak256(abi.encode("duration", packedDurations.get(i)));
+        bytes32[] memory durationIdsToDecrease = new bytes32[](1);
+        for (uint256 i = 0; i < durationsLength; i++) {
+            // VaultV2.deallocate requires allocation > 0 for each returned id.
+            if (netCreditDecreases[i] > 0) {
+                durationIdsToDecrease[0] = keccak256(abi.encode("duration", _durations[i]));
                 // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS uint128 net credits fit in int256.
                 IVaultV2(parentVault)
                     .deallocate(address(this), abi.encode(durationIdsToDecrease, -int256(netCreditDecreases[i])), 0);
             }
-            return true;
         }
+        emit UpdateDurationCaps(block.timestamp);
     }
 
     /* ACCRUAL */
@@ -360,7 +358,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             IVaultV2(parentVault).accrueInterest();
 
-            updateDurationCaps();
+            // Anyone can forceDeallocate, so it must not revert when the adapter has no vault role.
+            if (IVaultV2(parentVault).isAllocator(address(this)) || IVaultV2(parentVault).isSentinel(address(this))) {
+                updateDurationCaps();
+            }
 
             // Skip onSell since we are already in a deallocate call.
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
@@ -510,14 +511,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         change = int256(uint256(newNetCredit)) - int256(storedNetCredit);
     }
 
-    /// @dev Returns the number of durations in packedDurations that are at most the time to maturity.
-    function durationCount(uint256 maturity, uint256 timestamp) internal view returns (uint8 count) {
-        uint256 timeToMaturity = maturity.zeroFloorSub(timestamp);
-        while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;
-    }
-
     function ids(Market memory market) public view returns (bytes32[] memory) {
-        uint256 durationsCount = durationCount(market.maturity, lastDurationUpdate);
+        uint256 timeToMaturity = market.maturity.zeroFloorSub(lastDurationUpdate);
+        uint256 durationsCount;
+        while (durationsCount < durationsLength && timeToMaturity >= packedDurations.get(durationsCount)) {
+            durationsCount++;
+        }
 
         bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length * 2 + durationsCount);
 
