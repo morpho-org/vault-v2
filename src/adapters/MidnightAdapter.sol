@@ -278,19 +278,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Removes all markets' allocations from the duration ids that are > their time to maturity.
     function updateDurationCaps() public {
+        if (lastDurationUpdate == block.timestamp) return;
         uint256 previousUpdate = lastDurationUpdate;
-        if (previousUpdate == block.timestamp) return;
         lastDurationUpdate = block.timestamp;
 
         uint256[] memory _durations = durations();
         uint256[] memory netCreditDecreases = new uint256[](durationsLength);
-        uint256 length = marketIds.length;
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < marketIds.length; i++) {
             MarketData storage _marketData = marketData[marketIds[i]];
-            uint256 maturity = _marketData.maturity;
             for (uint256 j = 0; j < durationsLength; j++) {
                 uint256 duration = _durations[j];
-                if (previousUpdate + duration <= maturity && maturity < block.timestamp + duration) {
+                if (previousUpdate + duration <= _marketData.maturity && _marketData.maturity < block.timestamp + duration) {
                     netCreditDecreases[j] += _marketData.netCredit;
                 }
             }
