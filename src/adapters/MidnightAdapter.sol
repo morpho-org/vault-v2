@@ -66,6 +66,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
+    /// @dev Only used to skip repeated duration caps updates within a block.
     uint256 public lastDurationUpdate;
     bytes32 transient overridenMarketId;
     uint256 transient overridenMarketNetCredit;
@@ -82,7 +83,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         packedDurations = DurationsLib.pack(_durations);
         durationsLength = _durations.length;
-        lastDurationUpdate = block.timestamp;
     }
 
     /* GETTERS */
@@ -92,7 +92,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Returns the durations that can be capped.
-    /// @dev A market position fills the cap of any duration that was <= its time to maturity at lastDurationUpdate.
+    /// @dev A market position fills the cap of any duration that was <= its time to maturity at the last duration caps update.
     function durations() public view returns (uint256[] memory) {
         uint256[] memory _durations = new uint256[](durationsLength);
         for (uint256 i = 0; i < durationsLength; i++) {
@@ -278,32 +278,28 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Removes all markets' allocations from the duration ids that are > their time to maturity.
     function updateDurationCaps() public {
-        uint256 previousUpdate = lastDurationUpdate;
-        if (previousUpdate == block.timestamp) return;
+        if (lastDurationUpdate == block.timestamp) return;
         lastDurationUpdate = block.timestamp;
 
         uint256[] memory _durations = durations();
-        uint256[] memory netCreditDecreases = new uint256[](durationsLength);
+        uint256[] memory targetAllocations = new uint256[](durationsLength);
         uint256 length = marketIds.length;
         for (uint256 i = 0; i < length; i++) {
             MarketData storage _marketData = marketData[marketIds[i]];
-            uint256 maturity = _marketData.maturity;
-            for (uint256 j = 0; j < durationsLength; j++) {
-                uint256 duration = _durations[j];
-                if (previousUpdate + duration <= maturity && maturity < block.timestamp + duration) {
-                    netCreditDecreases[j] += _marketData.netCredit;
-                }
+            uint256 timeToMaturity = _marketData.maturity.zeroFloorSub(block.timestamp);
+            for (uint256 j = 0; j < durationsLength && _durations[j] <= timeToMaturity; j++) {
+                targetAllocations[j] += _marketData.netCredit;
             }
         }
 
         bytes32[] memory durationIdsToDecrease = new bytes32[](1);
         for (uint256 i = 0; i < durationsLength; i++) {
+            durationIdsToDecrease[0] = keccak256(abi.encode("duration", address(this), _durations[i]));
+            uint256 decrease = IVaultV2(parentVault).allocation(durationIdsToDecrease[0]) - targetAllocations[i];
             // VaultV2.deallocate requires allocation > 0 for each returned id.
-            if (netCreditDecreases[i] > 0) {
-                durationIdsToDecrease[0] = keccak256(abi.encode("duration", _durations[i]));
+            if (decrease > 0) {
                 // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS uint128 net credits fit in int256.
-                IVaultV2(parentVault)
-                    .deallocate(address(this), abi.encode(durationIdsToDecrease, -int256(netCreditDecreases[i])), 0);
+                IVaultV2(parentVault).deallocate(address(this), abi.encode(durationIdsToDecrease, -int256(decrease)), 0);
             }
         }
         emit UpdateDurationCaps(block.timestamp);
@@ -512,7 +508,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     function ids(Market memory market) public view returns (bytes32[] memory) {
-        uint256 timeToMaturity = market.maturity.zeroFloorSub(lastDurationUpdate);
+        uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
         uint256 durationsCount;
         while (durationsCount < durationsLength && timeToMaturity >= packedDurations.get(durationsCount)) {
             durationsCount++;
@@ -529,7 +525,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             idsArray[j++] = keccak256(abi.encode("collateralParams", market.collateralParams[i]));
         }
         for (uint256 i = 0; i < durationsCount; i++) {
-            idsArray[j++] = keccak256(abi.encode("duration", packedDurations.get(i)));
+            idsArray[j++] = keccak256(abi.encode("duration", address(this), packedDurations.get(i)));
         }
 
         return idsArray;
