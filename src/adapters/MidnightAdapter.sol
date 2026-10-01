@@ -109,20 +109,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         allocations = new uint256[](length);
         bytes32 _packedDurations = packedDurations;
         uint256 marketCount = marketIds.length;
-        // Unchecked: bucket <= length <= MAX_DURATIONS, and sums of at most MAX_MARKETS uint128 values fit in uint256.
-        unchecked {
-            for (uint256 i; i < marketCount; ++i) {
-                MarketData storage _marketData = marketData[marketIds[i]];
-                uint256 ttm = uint256(_marketData.maturity).zeroFloorSub(block.timestamp);
-                uint256 bucket;
-                // forge-lint: disable-next-item(unsafe-typecast) durations fit on 32 bits
-                while (bucket < length && uint32(uint256(_packedDurations >> (bucket << 5))) <= ttm) ++bucket;
-                if (bucket > 0) allocations[bucket - 1] += _marketData.netCredit;
-            }
-            if (length > 0) {
-                for (uint256 j = length - 1; j > 0; --j) {
-                    allocations[j - 1] += allocations[j];
-                }
+        for (uint256 i; i < marketCount; i++) {
+            MarketData storage _marketData = marketData[marketIds[i]];
+            uint256 ttm = uint256(_marketData.maturity).zeroFloorSub(block.timestamp);
+            uint256 bucket;
+            // forge-lint: disable-next-item(unsafe-typecast) durations fit on 32 bits
+            while (bucket < length && uint32(uint256(_packedDurations >> (bucket << 5))) <= ttm) bucket++;
+            if (bucket > 0) allocations[bucket - 1] += _marketData.netCredit;
+        }
+        if (length > 0) {
+            for (uint256 j = length - 1; j > 0; j--) {
+                allocations[j - 1] += allocations[j];
             }
         }
     }
