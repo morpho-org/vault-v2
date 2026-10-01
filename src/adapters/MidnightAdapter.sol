@@ -244,8 +244,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         bytes32 marketId = IdLib.toId(market);
         require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
 
-        updateDurationCaps();
-
         // forge-lint: disable-next-item(reentrancy-no-eth) withdraw does not reenter.
         IMidnight(midnight).withdraw(market, withdrawnAssets, address(this), address(this));
         int256 change = updateMarket(marketId, market, currentNetCredit(marketId));
@@ -359,11 +357,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), SellInProgress());
             IVaultV2(parentVault).accrueInterest();
 
-            // Anyone can forceDeallocate, so it must not revert when the adapter has no vault role.
-            if (IVaultV2(parentVault).isAllocator(address(this)) || IVaultV2(parentVault).isSentinel(address(this))) {
-                updateDurationCaps();
-            }
-
             // Skip onSell since we are already in a deallocate call.
             // forge-lint: disable-next-item(reentrancy-no-eth) the buyer's callback cannot touch this locked market.
             IMidnight(midnight).take(offer, ratifierData, assets, address(this), caller, address(0), hex"");
@@ -459,7 +452,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
         }
 
-        updateDurationCaps();
         int256 change = updateMarket(marketId, market, newNetCredit);
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 
