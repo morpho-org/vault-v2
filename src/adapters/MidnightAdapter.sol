@@ -107,17 +107,22 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function _durationAllocations(uint256 length) internal view returns (uint256[] memory allocations) {
         allocations = new uint256[](length);
+        bytes32 _packedDurations = packedDurations;
         uint256 marketCount = marketIds.length;
-        for (uint256 i; i < marketCount; i++) {
-            MarketData memory _marketData = marketData[marketIds[i]];
-            uint256 remaining = _marketData.maturity.zeroFloorSub(block.timestamp);
-            uint256 bucket;
-            while (bucket < length && packedDurations.get(bucket) <= remaining) bucket++;
-            if (bucket > 0) allocations[bucket - 1] += _marketData.netCredit;
-        }
-        if (length > 0) {
-            for (uint256 j = length - 1; j > 0; j--) {
-                allocations[j - 1] += allocations[j];
+        // Unchecked: bucket <= length <= MAX_DURATIONS, and sums of at most MAX_MARKETS uint128 values fit in uint256.
+        unchecked {
+            for (uint256 i; i < marketCount; ++i) {
+                MarketData storage _marketData = marketData[marketIds[i]];
+                uint256 ttm = uint256(_marketData.maturity).zeroFloorSub(block.timestamp);
+                uint256 bucket;
+                // forge-lint: disable-next-item(unsafe-typecast) durations fit on 32 bits
+                while (bucket < length && uint32(uint256(_packedDurations >> (bucket << 5))) <= ttm) ++bucket;
+                if (bucket > 0) allocations[bucket - 1] += _marketData.netCredit;
+            }
+            if (length > 0) {
+                for (uint256 j = length - 1; j > 0; --j) {
+                    allocations[j - 1] += allocations[j];
+                }
             }
         }
     }
@@ -413,18 +418,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 ttm = market.maturity - block.timestamp;
         uint256 affected;
         while (affected < durationsLength && packedDurations.get(affected) <= ttm) affected++;
-        if (affected > 0) {
-            uint256[] memory allocations = _durationAllocations(affected);
-            uint256 totalAssets = IVaultV2(parentVault).firstTotalAssets();
-            for (uint256 i; i < affected; i++) {
-                bytes32 id = keccak256(abi.encode("duration", address(this), packedDurations.get(i)));
-                require(allocations[i] <= IVaultV2(parentVault).absoluteCap(id), DurationAbsoluteCapExceeded());
-                uint256 relativeCap = IVaultV2(parentVault).relativeCap(id);
-                require(
-                    relativeCap == WAD || allocations[i] <= totalAssets.mulDivDown(relativeCap, WAD),
-                    DurationRelativeCapExceeded()
-                );
-            }
+        uint256[] memory allocations = _durationAllocations(affected);
+        uint256 totalAssets = IVaultV2(parentVault).firstTotalAssets();
+        for (uint256 i; i < affected; i++) {
+            bytes32 id = keccak256(abi.encode("duration", address(this), packedDurations.get(i)));
+            require(allocations[i] <= IVaultV2(parentVault).absoluteCap(id), DurationAbsoluteCapExceeded());
+            uint256 relativeCap = IVaultV2(parentVault).relativeCap(id);
+            require(
+                relativeCap == WAD || allocations[i] <= totalAssets.mulDivDown(relativeCap, WAD),
+                DurationRelativeCapExceeded()
+            );
         }
 
         // forge-lint: disable-next-item(reentrancy-no-eth) reentry is expected.
