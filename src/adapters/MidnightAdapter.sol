@@ -110,12 +110,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         bytes32 _packedDurations = packedDurations;
         uint256 marketCount = marketIds.length;
         for (uint256 i; i < marketCount; i++) {
-            (uint256 netCredit, uint256 maturity) = _netCreditAndMaturityAt(i);
-            uint256 ttm = maturity.zeroFloorSub(block.timestamp);
+            MarketData storage _marketData = marketData[_marketIdAt(i)];
+            uint256 ttm = uint256(_marketData.maturity).zeroFloorSub(block.timestamp);
             uint256 bucket;
             // forge-lint: disable-next-item(unsafe-typecast) durations fit on 32 bits
             while (bucket < length && uint32(uint256(_packedDurations >> (bucket << 5))) <= ttm) bucket++;
-            if (bucket > 0) allocations[bucket - 1] += netCredit;
+            if (bucket > 0) allocations[bucket - 1] += _marketData.netCredit;
         }
         if (length > 0) {
             for (uint256 j = length - 1; j > 0; j--) {
@@ -124,15 +124,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         }
     }
 
-    /// @dev Returns the net credit and maturity of marketData[marketIds[i]], skipping the bounds check. Requires i < marketIds.length.
-    function _netCreditAndMaturityAt(uint256 i) internal view returns (uint256 netCredit, uint256 maturity) {
+    /// @dev Returns marketIds[i], skipping the bounds check. Requires i < marketIds.length.
+    function _marketIdAt(uint256 i) internal view returns (bytes32 marketId) {
         assembly ("memory-safe") {
             mstore(0, marketIds.slot)
-            mstore(0, sload(add(keccak256(0, 32), i)))
-            mstore(32, marketData.slot)
-            let data := sload(keccak256(0, 64))
-            netCredit := and(data, 0xffffffffffffffffffffffffffffffff)
-            maturity := and(shr(192, data), 0xffffffffffff)
+            marketId := sload(add(keccak256(0, 32), i))
         }
     }
 
