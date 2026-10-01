@@ -303,7 +303,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function realAssets() external view returns (uint256) {
         uint256 assets;
         uint256 length = marketIds.length;
-        Market memory dummyMarket;
         for (uint256 i = 0; i < length; i++) {
             bytes32 marketId = marketIds[i];
             MarketData memory _marketData = marketData[marketId];
@@ -312,7 +311,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 newNetCredit = overridenMarketNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
-                newNetCredit = currentNetCredit(dummyMarket, marketId);
+                newNetCredit = currentNetCredit(marketId);
             }
             uint256 discountFactor = WAD - _marketData.growth * _marketData.maturity.zeroFloorSub(block.timestamp);
             assets += newNetCredit.mulDivDown(discountFactor, WAD);
@@ -463,14 +462,18 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Returns the adapter's net credit position in marketId.
     /// @dev It does not change with time, so any market struct with maturity 0 will work.
+    /// @dev Frees the memory it allocates, since nothing it allocates outlives the call.
     function currentNetCredit(bytes32 marketId) internal view returns (uint128) {
+        uint256 freeMemoryPointer;
+        assembly ("memory-safe") {
+            freeMemoryPointer := mload(0x40)
+        }
         Market memory dummyMarket;
-        return currentNetCredit(dummyMarket, marketId);
-    }
-
-    function currentNetCredit(Market memory dummyMarket, bytes32 marketId) internal view returns (uint128) {
         (uint128 credit, uint128 pendingFee,) =
             IMidnight(midnight).updatePositionView(dummyMarket, marketId, address(this));
+        assembly ("memory-safe") {
+            mstore(0x40, freeMemoryPointer)
+        }
         return credit - pendingFee;
     }
 
