@@ -303,6 +303,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function realAssets() external view returns (uint256) {
         uint256 assets;
         uint256 length = marketIds.length;
+        Market memory dummyMarket;
         for (uint256 i = 0; i < length; i++) {
             bytes32 marketId = marketIds[i];
             MarketData memory _marketData = marketData[marketId];
@@ -311,7 +312,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 newNetCredit = overridenMarketNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
-                newNetCredit = currentNetCredit(marketId);
+                (uint128 credit, uint128 pendingFee,) =
+                    IMidnight(midnight).updatePositionView(dummyMarket, marketId, address(this));
+                newNetCredit = credit - pendingFee;
             }
             uint256 discountFactor = WAD - _marketData.growth * _marketData.maturity.zeroFloorSub(block.timestamp);
             assets += newNetCredit.mulDivDown(discountFactor, WAD);
