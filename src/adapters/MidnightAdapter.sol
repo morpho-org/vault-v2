@@ -117,13 +117,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function durationAllocations() public view returns (uint256[] memory allocations) {
         allocations = new uint256[](durationsLength);
         uint256 length = maturities.length;
+        // Count each maturity in the longest duration it reaches only, so that one pass per maturity is enough.
         for (uint256 i = 0; i < length; i++) {
             uint256 maturity = maturities[i];
-            uint256 netCredit = maturityData[maturity].netCredit;
             uint256 count = durationCount(maturity);
-            for (uint256 j = 0; j < count; j++) {
-                allocations[j] += netCredit;
-            }
+            if (count > 0) allocations[count - 1] += maturityData[maturity].netCredit;
+        }
+        // A maturity reaching a duration reaches all the shorter ones, so the entries are the suffix sums.
+        uint256 netCreditAtOrBeyond;
+        for (uint256 j = durationsLength; j > 0; j--) {
+            netCreditAtOrBeyond += allocations[j - 1];
+            allocations[j - 1] = netCreditAtOrBeyond;
         }
     }
 
