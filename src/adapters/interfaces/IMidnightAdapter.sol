@@ -15,6 +15,11 @@ struct MarketData {
     uint8 index;
 }
 
+struct MaturityData {
+    uint128 netCredit;
+    uint8 index;
+}
+
 /// @dev This interface is used for factorizing IMidnightAdapterStaticTyping and IMidnightAdapter.
 /// @dev Consider using the IMidnightAdapter interface instead of this one.
 interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifier {
@@ -75,6 +80,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function asset() external view returns (address);
     function marketIds(uint256) external view returns (bytes32);
     function marketIdsLength() external view returns (uint256);
+    function maturities(uint256) external view returns (uint48);
+    function maturitiesLength() external view returns (uint256);
     function MAX_MARKETS() external view returns (uint8);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
@@ -144,9 +151,11 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
         external
         view
         returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index);
+    function maturityData(uint256 maturity) external view returns (uint128 netCredit, uint8 index);
 }
 
 /// @dev Use this interface for MidnightAdapter to have access to all the functions with the appropriate function signatures.
 interface IMidnightAdapter is IMidnightAdapterBase {
     function marketData(bytes32 marketId) external view returns (MarketData memory);
+    function maturityData(uint256 maturity) external view returns (MaturityData memory);
 }
