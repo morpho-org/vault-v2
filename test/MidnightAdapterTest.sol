@@ -1503,7 +1503,7 @@ contract MidnightAdapterTest is Test {
         assertEq(parentVault.allocation(durationId(1 days)), 2e18, "1 day unchanged");
     }
 
-    function testWithdrawUpdatesDurationCaps() public {
+    function testWithdrawKeepsStaleDurationCaps() public {
         Offer memory offer = buy(7 days, 1e18);
         assertEq(parentVault.allocation(durationId(1 days)), 1e18, "1 day, before");
         assertEq(parentVault.allocation(durationId(7 days)), 1e18, "7 days, before");
@@ -1515,11 +1515,15 @@ contract MidnightAdapterTest is Test {
         vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, 0.5e18);
 
-        assertEq(parentVault.allocation(durationId(1 days)), 0, "1 day");
-        assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
+        assertEq(parentVault.allocation(durationId(1 days)), 1e18, "1 day, stale");
+        assertEq(parentVault.allocation(durationId(7 days)), 1e18, "7 days, stale");
+
+        adapter.updateDurationCaps();
+        assertEq(parentVault.allocation(durationId(1 days)), 0, "1 day, updated");
+        assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days, updated");
     }
 
-    function testSellUpdatesDurationCaps() public {
+    function testSellKeepsStaleDurationCaps() public {
         Offer memory offer = buy(7 days, 1e18);
         assertEq(parentVault.allocation(durationId(1 days)), 1e18, "1 day, before");
         assertEq(parentVault.allocation(durationId(7 days)), 1e18, "7 days, before");
@@ -1532,7 +1536,10 @@ contract MidnightAdapterTest is Test {
         sell(offer.market, 0.5e18);
 
         assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day");
-        assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
+        assertEq(parentVault.allocation(durationId(7 days)), 1e18, "7 days, stale");
+
+        adapter.updateDurationCaps();
+        assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days, updated");
     }
 
     function testOnBuyAfterFullLossKeepsMarketTracked() public {
@@ -1639,7 +1646,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.marketData(marketId).netCredit, 0.5e18, "synchronized without refetching the market");
     }
 
-    function testForceDeallocateUpdatesDurationCaps() public {
+    function testForceDeallocateKeepsStaleDurationCaps() public {
         Offer memory offer = buy(7 days, 1e18);
         assertEq(parentVault.allocation(durationId(1 days)), 1e18, "1 day, before");
         assertEq(parentVault.allocation(durationId(7 days)), 1e18, "7 days, before");
@@ -1649,7 +1656,10 @@ contract MidnightAdapterTest is Test {
         forceDeallocate(offer.market, 0.5e18);
 
         assertEq(parentVault.allocation(durationId(1 days)), 0.5e18, "1 day");
-        assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days");
+        assertEq(parentVault.allocation(durationId(7 days)), 1e18, "7 days, stale");
+
+        adapter.updateDurationCaps();
+        assertEq(parentVault.allocation(durationId(7 days)), 0, "7 days, updated");
     }
 
     /* MARKETS */
@@ -2870,11 +2880,8 @@ contract MidnightAdapterTest is Test {
         skip(1);
 
         forceDeallocateOnRealVault(offer.market, 0.5e18);
-        assertEq(realVault.allocation(durationId(7 days)), allocatorRole || sentinelRole ? 0 : 1e18, "7 days");
-        assertEq(
-            adapter.lastDurationUpdate(),
-            allocatorRole || sentinelRole ? block.timestamp : offer.market.maturity - 7 days
-        );
+        assertEq(realVault.allocation(durationId(7 days)), 1e18, "7 days, stale");
+        assertEq(adapter.lastDurationUpdate(), offer.market.maturity - 7 days, "no update");
         assertEq(realVault.allocation(durationId(1 days)), 0.5e18, "1 day");
 
         realVault.withdraw(0.5e18, address(this), address(this));
@@ -2941,9 +2948,12 @@ contract MidnightAdapterTest is Test {
 
         forceDeallocateOnRealVault(offerA.market, 0.5e18);
 
-        assertEq(realVault.allocation(durationId(7 days)), 1e18, "7 days keeps the other maturity's part");
+        assertEq(realVault.allocation(durationId(7 days)), 2e18, "7 days stale");
         assertEq(realVault.allocation(durationId(1 days)), 1.5e18, "1 day");
         assertEq(realVault.allocation(adapter.adapterId()), 1.5e18, "adapter id");
+
+        adapter.updateDurationCaps();
+        assertEq(realVault.allocation(durationId(7 days)), 1e18, "7 days keeps the other maturity's part");
     }
 
     /// forge-config: default.isolate = true
@@ -3107,9 +3117,13 @@ contract MidnightAdapterTest is Test {
 
         sellUnits(offer.market, 1e18, MAX_TICK);
 
-        assertEq(realVault.allocation(durationId(1 days)), 0, "1 day");
-        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days");
+        assertEq(realVault.allocation(durationId(1 days)), elapsed <= 6 days ? 0 : 1e18, "1 day");
+        assertEq(realVault.allocation(durationId(7 days)), 1e18, "7 days stale");
         assertEq(realVault.allocation(adapter.adapterId()), 0, "adapter id");
+
+        adapter.updateDurationCaps();
+        assertEq(realVault.allocation(durationId(1 days)), 0, "1 day after update");
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days after update");
     }
 
     /// forge-config: default.isolate = true
@@ -3126,9 +3140,13 @@ contract MidnightAdapterTest is Test {
         vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, 1e18);
 
-        assertEq(realVault.allocation(durationId(1 days)), 0, "1 day");
-        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days");
+        assertEq(realVault.allocation(durationId(1 days)), 1e18, "1 day stale");
+        assertEq(realVault.allocation(durationId(7 days)), 1e18, "7 days stale");
         assertEq(realVault.allocation(adapter.adapterId()), 0, "adapter id");
+
+        adapter.updateDurationCaps();
+        assertEq(realVault.allocation(durationId(1 days)), 0, "1 day after update");
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days after update");
     }
 
     /// forge-config: default.isolate = true
@@ -3143,8 +3161,8 @@ contract MidnightAdapterTest is Test {
 
         forceDeallocateOnRealVault(offer.market, 1e18);
 
-        assertEq(realVault.allocation(durationId(1 days)), allocatorRole ? 0 : 1e18, "1 day");
-        assertEq(realVault.allocation(durationId(7 days)), allocatorRole ? 0 : 1e18, "7 days");
+        assertEq(realVault.allocation(durationId(1 days)), 1e18, "1 day stale");
+        assertEq(realVault.allocation(durationId(7 days)), 1e18, "7 days stale");
         assertEq(realVault.allocation(adapter.adapterId()), 0, "adapter id");
 
         if (!allocatorRole) vm.expectRevert(ErrorsLib.Unauthorized.selector);
@@ -3155,24 +3173,28 @@ contract MidnightAdapterTest is Test {
 
     /// forge-config: default.isolate = true
     /// @dev Partial exits update duration ids before reporting the sale.
-    function testDurationIdsUpdatedOnPartialSells() public {
+    function testStaleDurationIdsOnPartialSells() public {
         setUpRealVault();
         Offer memory offer = buyOnRealVault(7 days, 1e18);
 
         skip(1 days);
         sellUnits(offer.market, 0.25e18, MAX_TICK);
         assertEq(realVault.allocation(durationId(1 days)), 0.75e18, "1 day after partial sell");
-        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days after partial sell");
+        assertEq(realVault.allocation(durationId(7 days)), 1e18, "7 days stale after partial sell");
 
         sellUnits(offer.market, 0.25e18, MAX_TICK);
         assertEq(realVault.allocation(durationId(1 days)), 0.5e18, "1 day after second partial sell");
-        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days after second partial sell");
+        assertEq(realVault.allocation(durationId(7 days)), 1e18, "7 days stale after second partial sell");
 
         skip(5 days + 1);
         sellUnits(offer.market, 0.5e18, MAX_TICK);
-        assertEq(realVault.allocation(durationId(1 days)), 0, "1 day");
-        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days");
+        assertEq(realVault.allocation(durationId(1 days)), 0.5e18, "1 day stale");
+        assertEq(realVault.allocation(durationId(7 days)), 1e18, "7 days stale");
         assertEq(realVault.allocation(adapter.adapterId()), 0, "adapter id");
+
+        adapter.updateDurationCaps();
+        assertEq(realVault.allocation(durationId(1 days)), 0, "1 day after update");
+        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days after update");
     }
 
     /// forge-config: default.isolate = true
@@ -3226,7 +3248,7 @@ contract MidnightAdapterTest is Test {
 
         skip(1 days);
         sellUnits(offer.market, 1e18, MAX_TICK);
-        assertEq(realVault.allocation(durationId(7 days)), 0, "7 days after full sell");
+        assertEq(realVault.allocation(durationId(7 days)), 1e18, "7 days stale after full sell");
 
         adapter.updateDurationCaps();
         buyOnRealVault(6 days, 1e18);
@@ -3235,8 +3257,8 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
-    /// @dev A sale refreshes duration ids for other maturities too, without changing their credit.
-    function testFullSellUpdatesOtherMaturityDurationCaps() public {
+    /// @dev A sale does not refresh duration ids; the next update refreshes other maturities too.
+    function testFullSellThenUpdateOtherMaturityDurationCaps() public {
         setUpRealVault();
         bytes memory idData = abi.encode("duration", address(adapter), uint256(30 days));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
@@ -3247,12 +3269,13 @@ contract MidnightAdapterTest is Test {
         skip(6 days + 1);
         sellUnits(offerA.market, 1e18, MAX_TICK);
 
-        assertEq(realVault.allocation(durationId(1 days)), 2e18, "1 day");
-        assertEq(realVault.allocation(durationId(7 days)), 2e18, "7 days");
-        assertEq(realVault.allocation(durationId(30 days)), 0, "30 days updated for the other maturity");
+        assertEq(realVault.allocation(durationId(1 days)), 3e18, "1 day stale");
+        assertEq(realVault.allocation(durationId(7 days)), 3e18, "7 days stale");
+        assertEq(realVault.allocation(durationId(30 days)), 2e18, "30 days stale");
         assertEq(realVault.allocation(adapter.adapterId()), 2e18, "adapter id");
 
         adapter.updateDurationCaps();
+        assertEq(realVault.allocation(durationId(1 days)), 2e18, "1 day after update");
         assertEq(realVault.allocation(durationId(7 days)), 2e18, "7 days after update");
         assertEq(realVault.allocation(durationId(30 days)), 0, "30 days after update");
     }
