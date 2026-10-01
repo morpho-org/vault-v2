@@ -100,7 +100,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Stored net credit at or beyond each configured duration, using current remaining maturities.
-    /// @dev Losses and pending sales remain counted until updateMarket records them. Purchases are recorded before checking caps, so stored credit conservatively bounds exposure at each check.
+    /// @dev Losses and pending sales only taken into account when updateMarket records them. Purchases are recorded before checking caps, so stored credit conservatively bounds exposure at each check.
     function durationAllocations() public view returns (uint256[] memory allocations) {
         return _durationAllocations(durationsLength);
     }
@@ -113,8 +113,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             MarketData storage _marketData = marketData[_marketIdAt(i)];
             uint256 ttm = uint256(_marketData.maturity).zeroFloorSub(block.timestamp);
             uint256 bucket;
-            // forge-lint: disable-next-item(unsafe-typecast) durations fit on 32 bits
-            while (bucket < length && uint32(uint256(_packedDurations >> (bucket << 5))) <= ttm) bucket++;
+            while (bucket < length && _packedDurations.getUnchecked(bucket) <= ttm) bucket++;
             if (bucket > 0) allocations[bucket - 1] += _marketData.netCredit;
         }
         if (length > 0) {

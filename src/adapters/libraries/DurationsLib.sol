@@ -17,6 +17,12 @@ library DurationsLib {
         }
     }
 
+    /// @dev Same as get, without the bounds check. Requires index < MAX_DURATIONS.
+    function getUnchecked(bytes32 durations, uint256 index) internal pure returns (uint256) {
+        // forge-lint: disable-next-item(unsafe-typecast) durations fit on 32 bits
+        return uint32(uint256(durations >> (index << 5)));
+    }
+
     function pack(uint256[] memory durations) internal pure returns (bytes32) {
         require(durations.length <= MAX_DURATIONS, IndexOutOfBounds());
         unchecked {

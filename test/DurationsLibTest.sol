@@ -66,4 +66,9 @@ contract DurationsLibTest is Test {
             assertEq(packedDurations.get(i), i < length ? i + 1 : 0);
         }
     }
+
+    function testGetUnchecked(bytes32 durations, uint256 index) public pure {
+        index = bound(index, 0, MAX_DURATIONS - 1);
+        assertEq(durations.getUnchecked(index), durations.get(index));
+    }
 }
