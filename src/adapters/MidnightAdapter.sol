@@ -506,12 +506,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function ids(Market memory market) public view returns (bytes32[] memory) {
         uint256 timeToMaturity = market.maturity.zeroFloorSub(lastDurationUpdate);
-        uint256 durationsCount;
-        while (durationsCount < durationsLength && timeToMaturity >= packedDurations.get(durationsCount)) {
-            durationsCount++;
-        }
+        uint256 count;
+        while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;
 
-        bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length * 2 + durationsCount);
+        bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length * 2 + count);
 
         uint256 j;
         idsArray[j++] = adapterId;
@@ -521,7 +519,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             idsArray[j++] = keccak256(abi.encode("collateralToken", market.collateralParams[i].token));
             idsArray[j++] = keccak256(abi.encode("collateralParams", market.collateralParams[i]));
         }
-        for (uint256 i = 0; i < durationsCount; i++) {
+        for (uint256 i = 0; i < count; i++) {
             idsArray[j++] = keccak256(abi.encode("duration", packedDurations.get(i)));
         }
 
