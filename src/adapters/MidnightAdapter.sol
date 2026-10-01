@@ -112,10 +112,16 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         for (uint256 i; i < marketCount; i++) {
             MarketData storage _marketData = marketData[marketIds[i]];
             uint256 ttm = uint256(_marketData.maturity).zeroFloorSub(block.timestamp);
-            uint256 bucket;
-            // forge-lint: disable-next-item(unsafe-typecast) durations fit on 32 bits
-            while (bucket < length && uint32(uint256(_packedDurations >> (bucket << 5))) <= ttm) bucket++;
-            if (bucket > 0) allocations[bucket - 1] += _marketData.netCredit;
+            // Binary search for the number of durations <= ttm (durations are strictly increasing).
+            uint256 low;
+            uint256 high = length;
+            while (low < high) {
+                uint256 mid = (low + high) / 2;
+                // forge-lint: disable-next-item(unsafe-typecast) durations fit on 32 bits
+                if (uint32(uint256(_packedDurations >> (mid << 5))) <= ttm) low = mid + 1;
+                else high = mid;
+            }
+            if (low > 0) allocations[low - 1] += _marketData.netCredit;
         }
         if (length > 0) {
             for (uint256 j = length - 1; j > 0; j--) {
