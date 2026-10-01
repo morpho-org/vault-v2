@@ -11,24 +11,26 @@ import {SafeERC20Lib} from "../libraries/SafeERC20Lib.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {WAD} from "../libraries/ConstantsLib.sol";
 import {IVaultV2} from "../interfaces/IVaultV2.sol";
-import {IMidnightAdapter, MarketData, MaturityData} from "./interfaces/IMidnightAdapter.sol";
+import {
+    IMidnightAdapterBase,
+    IMidnightAdapterStaticTyping,
+    MarketData,
+    MaturityData
+} from "./interfaces/IMidnightAdapter.sol";
 import {DurationsLib} from "./libraries/DurationsLib.sol";
 
 /// @dev Approximates held assets by linearly accounting for interest per market.
 /// @dev Growth is rounded down. Interest excluded from growth is realized immediately.
-/// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be
-/// earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
+/// @dev Losses are immediately accounted in realAssets() minus a discount applied to the remaining interest to be earned, in proportion to the relative sizes of the loss and the adapter's position in the market hit by the loss.
 /// @dev The adapter must have the allocator role in its parent vault to buy.
-/// @dev The adapter must have the allocator or sentinel role to withdraw to the vault, to update duration caps, and to
-/// sell (except through forceDeallocate).
-/// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be
-/// deallocated, or to "" to take the liquidity in the vault's idle funds.
+/// @dev The adapter must have the allocator or sentinel role to withdraw to the vault, to update duration caps, and to sell (except through forceDeallocate).
+/// @dev Buy offers must set callbackData to abi.encode(adapter, data) to select where the liquidity will be deallocated, or to "" to take the liquidity in the vault's idle funds.
 /// @dev For self-funding, data is abi.encode(fundingMarket).
 /// @dev Before adding the adapter to the vault, its timelocks must be properly set.
 ///
 /// TIMELOCKS
 /// @dev The system is the same as the one used in VaultV2. Dev comments in VaultV2.sol on timelocks also apply here.
-contract MidnightAdapter is IMidnightAdapter {
+contract MidnightAdapter is IMidnightAdapterStaticTyping {
     using MathLib for uint256;
     using MathLib for uint128;
     using MathLib for uint48;
@@ -58,8 +60,7 @@ contract MidnightAdapter is IMidnightAdapter {
     uint256 public minBuyRate;
     uint256 public maxTtm;
     mapping(address subRatifier => bool) public isSubRatifier;
-    /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement
-    /// fee.
+    /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement fee.
     /// @dev Enforced on maker and taker sales before maturity only.
     mapping(bytes32 collateralParamsHash => uint256) public maxSellRate;
 
@@ -72,7 +73,7 @@ contract MidnightAdapter is IMidnightAdapter {
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
-    mapping(uint256 timestamp => MaturityData) public maturities;
+    mapping(uint256 maturity => MaturityData) public maturityData;
     uint256 public totalNetCredit;
     // @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales
     // proceeds.
@@ -100,37 +101,12 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* GETTERS */
 
-    function marketDataNetCredit(bytes32 marketId) external view returns (uint128) {
-        return marketData[marketId].netCredit;
-    }
-
-    function marketDataGrowth(bytes32 marketId) external view returns (uint64) {
-        return marketData[marketId].growth;
-    }
-
-    function marketDataMaturity(bytes32 marketId) external view returns (uint48) {
-        return marketData[marketId].maturity;
-    }
-
-    function marketDataIndex(bytes32 marketId) external view returns (uint8) {
-        return marketData[marketId].index;
-    }
-
-    function maturityNetCredit(uint256 date) external view returns (uint128) {
-        return maturities[date].netCredit;
-    }
-
-    function maturityDurationCount(uint256 date) external view returns (uint8) {
-        return maturities[date].durationCount;
-    }
-
     function marketIdsLength() external view returns (uint256) {
         return marketIds.length;
     }
 
     /// @dev Returns the durations that can be capped.
-    /// @dev A market position fills the cap of any duration that was <= its time to maturity at the first buy of its
-    /// maturity, or at the last updateDurationCaps call for its maturity.
+    /// @dev A market position fills the cap of any duration that was <= its time to maturity at the first buy of its maturity, or at the last updateDurationCaps call for its maturity.
     function durations() public view returns (uint256[] memory) {
         uint256[] memory _durations = new uint256[](durationsLength);
         for (uint256 i = 0; i < durationsLength; i++) {
@@ -173,8 +149,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* TIMELOCKS FUNCTIONS */
 
-    /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block
-    /// timestamp.
+    /// @dev Will revert if the timelock value is type(uint256).max or any value that overflows when added to the block timestamp.
     function submit(bytes calldata data) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         require(executableAt[data] == 0, DataAlreadyPending());
@@ -182,8 +157,9 @@ contract MidnightAdapter is IMidnightAdapter {
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the first bytes4.
         bytes4 selector = bytes4(data);
         // forge-lint: disable-next-item(unsafe-typecast) we explicitly want only the second bytes4.
-        uint256 _timelock =
-            selector == IMidnightAdapter.decreaseTimelock.selector ? timelock[bytes4(data[4:8])] : timelock[selector];
+        uint256 _timelock = selector == IMidnightAdapterBase.decreaseTimelock.selector
+            ? timelock[bytes4(data[4:8])]
+            : timelock[selector];
         executableAt[data] = block.timestamp + _timelock;
         emit Submit(selector, data, executableAt[data]);
     }
@@ -213,11 +189,10 @@ contract MidnightAdapter is IMidnightAdapter {
     /* CURATOR FUNCTIONS */
 
     /// @dev This function requires great caution because it can irreversibly disable submit for a selector.
-    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial
-    /// executableAt.
+    /// @dev Existing pending operations submitted before increasing a timelock can still be executed at the initial executableAt.
     function increaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
-        require(selector != IMidnightAdapter.decreaseTimelock.selector, AutomaticallyTimelocked());
+        require(selector != IMidnightAdapterBase.decreaseTimelock.selector, AutomaticallyTimelocked());
         require(newDuration >= timelock[selector], TimelockNotIncreasing());
 
         timelock[selector] = newDuration;
@@ -226,7 +201,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     function decreaseTimelock(bytes4 selector, uint256 newDuration) external {
         timelocked();
-        require(selector != IMidnightAdapter.decreaseTimelock.selector, AutomaticallyTimelocked());
+        require(selector != IMidnightAdapterBase.decreaseTimelock.selector, AutomaticallyTimelocked());
         require(newDuration <= timelock[selector], TimelockNotDecreasing());
 
         timelock[selector] = newDuration;
@@ -326,22 +301,22 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /// @dev Remove the maturity allocation from the duration ids that are > its time to maturity.
-    function updateDurationCaps(uint256 _maturity) external {
-        MaturityData storage _maturityData = maturities[_maturity];
-        uint256 _maturityNetCredit = _maturityData.netCredit;
+    function updateDurationCaps(uint256 maturity) external {
+        MaturityData storage _maturityData = maturityData[maturity];
+        uint256 maturityNetCredit = _maturityData.netCredit;
         uint256 oldDurationCount = _maturityData.durationCount;
-        uint8 newDurationCount = durationCount(_maturity);
+        uint8 newDurationCount = durationCount(maturity);
         // VaultV2.deallocate requires allocation > 0 for each returned id.
-        if (newDurationCount < oldDurationCount && _maturityNetCredit > 0) {
+        if (newDurationCount < oldDurationCount && maturityNetCredit > 0) {
             _maturityData.durationCount = newDurationCount;
-            emit UpdateDurationCaps(_maturity, newDurationCount, _maturityNetCredit);
-            bytes32[] memory zeroedDurationsIds = new bytes32[](oldDurationCount - newDurationCount);
-            for (uint256 i = 0; i < zeroedDurationsIds.length; i++) {
-                zeroedDurationsIds[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
+            emit UpdateDurationCaps(maturity, newDurationCount, maturityNetCredit);
+            bytes32[] memory durationIdsToDecrease = new bytes32[](oldDurationCount - newDurationCount);
+            for (uint256 i = 0; i < durationIdsToDecrease.length; i++) {
+                durationIdsToDecrease[i] = keccak256(abi.encode("duration", packedDurations.get(newDurationCount + i)));
             }
             // forge-lint: disable-next-item(unsafe-typecast) net credit fits in uint128.
             IVaultV2(parentVault)
-                .deallocate(address(this), abi.encode(zeroedDurationsIds, -int256(_maturityNetCredit)), 0);
+                .deallocate(address(this), abi.encode(durationIdsToDecrease, -int256(maturityNetCredit)), 0);
         }
     }
 
@@ -380,8 +355,7 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /// @dev Called by this adapter from a sell callback, a withdraw, or a duration caps update.
-    /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as
-    /// receiver and pulls the full credit value from the caller.
+    /// @dev Called by anyone through forceDeallocate. The adapter sells to the given buy offer, with the caller as receiver and pulls the full credit value from the caller.
     function deallocate(bytes memory data, uint256 assets, bytes4 messageSig, address caller)
         external
         returns (bytes32[] memory, int256)
@@ -413,8 +387,7 @@ contract MidnightAdapter is IMidnightAdapter {
 
     /* MIDNIGHT CALLBACKS */
 
-    /// @dev Between updateMarket and vault.allocate's transfer, realAssets() includes the purchase but the vault has
-    /// not paid yet.
+    /// @dev Between updateMarket and vault.allocate's transfer, realAssets() includes the purchase but the vault has not paid yet.
     function onBuy(
         bytes32 marketId,
         Market memory market,
@@ -449,7 +422,7 @@ contract MidnightAdapter is IMidnightAdapter {
             _marketData.growth = uint64((oldAssetsWadPerSecond + addedAssetsWadPerSecond) / newNetCredit);
         }
 
-        MaturityData storage _maturityData = maturities[market.maturity];
+        MaturityData storage _maturityData = maturityData[market.maturity];
         if (_maturityData.netCredit == 0) _maturityData.durationCount = durationCount(market.maturity);
         int256 change = updateMarket(marketId, market, newNetCredit);
         uint256 idleAssets = IERC20(asset).balanceOf(parentVault);
@@ -554,8 +527,8 @@ contract MidnightAdapter is IMidnightAdapter {
 
         _marketData.netCredit = newNetCredit;
         totalNetCredit = totalNetCredit + newNetCredit - storedNetCredit;
-        maturities[market.maturity].netCredit =
-            (uint256(maturities[market.maturity].netCredit) + newNetCredit - storedNetCredit).toUint128();
+        maturityData[market.maturity].netCredit =
+            (uint256(maturityData[market.maturity].netCredit) + newNetCredit - storedNetCredit).toUint128();
         if (newNetCredit == 0 && storedNetCredit > 0) {
             bytes32 lastMarketId = marketIds[marketIds.length - 1];
             marketIds[_marketData.index] = lastMarketId;
@@ -574,13 +547,13 @@ contract MidnightAdapter is IMidnightAdapter {
     }
 
     /// @dev Returns the number of durations in packedDurations that are at most the time to maturity.
-    function durationCount(uint256 _maturity) internal view returns (uint8 count) {
-        uint256 timeToMaturity = _maturity.zeroFloorSub(block.timestamp);
+    function durationCount(uint256 maturity) internal view returns (uint8 count) {
+        uint256 timeToMaturity = maturity.zeroFloorSub(block.timestamp);
         while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;
     }
 
     function ids(Market memory market) public view returns (bytes32[] memory) {
-        uint256 durationsCount = maturities[market.maturity].durationCount;
+        uint256 durationsCount = maturityData[market.maturity].durationCount;
 
         bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length * 2 + durationsCount);
 
