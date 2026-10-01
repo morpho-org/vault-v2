@@ -111,7 +111,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             MarketData storage _marketData = marketData[_marketIdAt(i)];
             uint256 ttm = uint256(_marketData.maturity).zeroFloorSub(block.timestamp);
             uint256 bucket;
-            while (bucket < length && packedDurations.getUnchecked(bucket) <= ttm) bucket++;
+            while (bucket < length && packedDurations.get(bucket) <= ttm) bucket++;
             if (bucket > 0) allocations[bucket - 1] += _marketData.netCredit;
         }
         if (length > 0) {

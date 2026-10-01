@@ -10,13 +10,6 @@ contract DurationsLibTest is Test {
     using DurationsLib for uint256[];
 
     /// forge-config: default.allow_internal_expect_revert = true
-    function testGetInvalidIndex(bytes32 durations, uint256 index) public {
-        index = bound(index, MAX_DURATIONS, type(uint256).max);
-        vm.expectRevert(DurationsLib.IndexOutOfBounds.selector);
-        durations.get(index);
-    }
-
-    /// forge-config: default.allow_internal_expect_revert = true
     function testPackInvalidLength() public {
         uint256[] memory durations = new uint256[](MAX_DURATIONS + 1);
         vm.expectRevert(DurationsLib.IndexOutOfBounds.selector);
@@ -65,10 +58,5 @@ contract DurationsLibTest is Test {
         for (uint256 i = 0; i < MAX_DURATIONS; i++) {
             assertEq(packedDurations.get(i), i < length ? i + 1 : 0);
         }
-    }
-
-    function testGetUnchecked(bytes32 durations, uint256 index) public pure {
-        index = bound(index, 0, MAX_DURATIONS - 1);
-        assertEq(durations.getUnchecked(index), durations.get(index));
     }
 }
