@@ -312,9 +312,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                 newNetCredit = overridenMarketNetCredit;
             } else {
                 require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
-                (uint128 credit, uint128 pendingFee,) =
-                    IMidnight(midnight).updatePositionView(dummyMarket, marketId, address(this));
-                newNetCredit = credit - pendingFee;
+                newNetCredit = currentNetCredit(dummyMarket, marketId);
             }
             uint256 discountFactor = WAD - _marketData.growth * _marketData.maturity.zeroFloorSub(block.timestamp);
             assets += newNetCredit.mulDivDown(discountFactor, WAD);
@@ -467,6 +465,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev It does not change with time, so any market struct with maturity 0 will work.
     function currentNetCredit(bytes32 marketId) internal view returns (uint128) {
         Market memory dummyMarket;
+        return currentNetCredit(dummyMarket, marketId);
+    }
+
+    function currentNetCredit(Market memory dummyMarket, bytes32 marketId) internal view returns (uint128) {
         (uint128 credit, uint128 pendingFee,) =
             IMidnight(midnight).updatePositionView(dummyMarket, marketId, address(this));
         return credit - pendingFee;
