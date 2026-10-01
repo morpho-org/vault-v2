@@ -76,15 +76,17 @@ filtered {
     uint256 blockTimestampBefore;
     require blockTimestampBefore <= e.block.timestamp, "timestamps are not decreasing";
 
-    // The data that f reads and writes in executableAt: the argument of submit and revoke (data itself or another data), the calldata of f otherwise.
-    bytes argument;
-    bool argumentIsData;
+    // Replaces args for revoke/submit.
     bytes submitted;
-    if (argumentIsData) {
+
+    // Separate the case where submitted is the data itself from the case where it is another data, which allows to require different hashes in the latter case.
+    bool submittedIsData;
+    if (submittedIsData) {
         submitted = data;
     } else {
-        require EarliestTime.hash(argument) != EarliestTime.hash(data), "argument is another data";
+        bytes argument;
         submitted = argument;
+        require EarliestTime.hash(submitted) != EarliestTime.hash(data), "submitted is another data";
     }
 
     // Its hash and executableAt before the call.
