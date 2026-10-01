@@ -415,7 +415,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         // Only durations up to the bought market's time to maturity can increase. Check those after the buy
         // and any funding withdrawals.
-        // Duration ids store configuration in the vault only; they are not returned by ids(market).
+        // Duration ids store configuration in the vault only; they are not returned by this adapter's ids(market), so
+        // the vault does not track their allocations.
         uint256 ttm = market.maturity - block.timestamp;
         uint256 affectedDurationCount;
         while (affectedDurationCount < durationsLength && packedDurations.get(affectedDurationCount) <= ttm) {
