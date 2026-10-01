@@ -15,11 +15,6 @@ struct MarketData {
     uint8 index;
 }
 
-struct MaturityData {
-    uint128 netCredit;
-    uint8 durationCount;
-}
-
 /// @dev This interface is used for factorizing IMidnightAdapterStaticTyping and IMidnightAdapter.
 /// @dev Consider using the IMidnightAdapter interface instead of this one.
 interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifier {
@@ -40,7 +35,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     event SetConsumed(address indexed sender, bytes32 indexed group, uint256 amount);
     event Skim(address indexed token, uint256 assets);
     event WithdrawToVault(bytes32 indexed marketId, uint256 withdrawnAssets, uint256 netCreditDecrease);
-    event UpdateDurationCaps(uint256 indexed maturity, uint256 newDurationCount, uint256 netCredit);
     event ForceDeallocate(bytes32 indexed marketId, uint256 assets, uint256 netCreditDecrease);
     event Buy(bytes32 indexed marketId, uint256 paidAssets, uint256 boughtNetCredit, uint256 netCreditLoss);
     event Sell(bytes32 indexed marketId, uint256 sellerAssets, uint256 netCreditDecrease);
@@ -52,6 +46,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error AutomaticallyTimelocked();
     error DataAlreadyPending();
     error DataNotTimelocked();
+    error DurationAbsoluteCapExceeded();
+    error DurationRelativeCapExceeded();
     error BuyAtLoss();
     error BuyPostMaturity();
     error BuyTtmTooHigh();
@@ -106,7 +102,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function skim(address token) external;
     function durations() external view returns (uint256[] memory);
     function durationsLength() external view returns (uint256);
-    function updateDurationCaps(uint256 maturity) external;
+    function durationAllocations() external view returns (uint256[] memory);
     function withdrawToVault(Market memory market, uint256 withdrawnAssets) external;
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external;
     function setConsumed(bytes32 group, uint128 amount) external;
@@ -148,11 +144,9 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
         external
         view
         returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index);
-    function maturityData(uint256 maturity) external view returns (uint128 netCredit, uint8 durationCount);
 }
 
 /// @dev Use this interface for MidnightAdapter to have access to all the functions with the appropriate function signatures.
 interface IMidnightAdapter is IMidnightAdapterBase {
     function marketData(bytes32 marketId) external view returns (MarketData memory);
-    function maturityData(uint256 maturity) external view returns (MaturityData memory);
 }
