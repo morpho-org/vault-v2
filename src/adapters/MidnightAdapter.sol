@@ -66,7 +66,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bytes32[] public marketIds;
     /// @dev Net credit last reported to the vault's caps.
     mapping(bytes32 marketId => MarketData) public marketData;
-    /// @dev Only used to skip repeated duration caps updates within a block.
     uint256 public lastDurationUpdate;
     bytes32 transient overridenMarketId;
     uint256 transient overridenMarketNetCredit;
@@ -83,6 +82,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         packedDurations = DurationsLib.pack(_durations);
         durationsLength = _durations.length;
+        lastDurationUpdate = block.timestamp;
     }
 
     /* GETTERS */
@@ -92,7 +92,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Returns the durations that can be capped.
-    /// @dev A market position fills the cap of any duration that was <= its time to maturity at the last duration caps update.
+    /// @dev A market position fills the cap of any duration that was <= its time to maturity at lastDurationUpdate.
     function durations() public view returns (uint256[] memory) {
         uint256[] memory _durations = new uint256[](durationsLength);
         for (uint256 i = 0; i < durationsLength; i++) {
