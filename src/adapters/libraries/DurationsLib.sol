@@ -9,7 +9,7 @@ library DurationsLib {
     error IncorrectDuration();
     error ValueOutOfBounds();
 
-    /// @dev Requires index < MAX_DURATIONS.
+    /// @dev Assumes index < MAX_DURATIONS. Otherwise the return value is unspecified.
     function get(bytes32 durations, uint256 index) internal pure returns (uint256) {
         unchecked {
             // forge-lint: disable-next-item(unsafe-typecast) durations fit on 32 bits

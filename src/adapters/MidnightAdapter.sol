@@ -38,6 +38,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bytes32 public immutable adapterId;
     /// @dev Durations that can be used to cap the time to maturity.
     /// @dev Sorted in ascending order.
+    /// @dev The caps of a duration are the vault's caps of the id keccak256(abi.encode("duration", adapter, duration)).
+    /// @dev The vault's allocation of this id stays zero: the adapter enforces these caps itself on buys.
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
 
@@ -99,8 +101,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return _durations;
     }
 
-    /// @dev Stored net credit at or beyond each configured duration, using current remaining maturities.
-    /// @dev Losses and pending sales only taken into account when updateMarket records them. Purchases are recorded before checking caps, so stored credit conservatively bounds exposure at each check.
+    /// @dev Returns, for each duration, the stored net credit of the markets with at least that duration left to maturity.
+    /// @dev Losses and pending sales are only taken into account when updateMarket records them. Purchases are recorded before checking caps, so stored net credit is an upper bound of the exposure at each check.
     function durationAllocations() public view returns (uint256[] memory allocations) {
         return _durationAllocations(durationsLength);
     }
@@ -148,7 +150,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {
         require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
-        // Gates, RCF threshold, collaterals and durations will be checked through vault ids.
+        // Gates, RCF threshold, collaterals and durations will be checked in onBuy.
         require(offer.market.loanToken == asset, LoanAssetMismatch());
         require(offer.maker == address(this), IncorrectMaker());
         require(offer.callback == address(this), IncorrectCallbackAddress());

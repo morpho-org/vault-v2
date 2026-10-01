@@ -46,6 +46,8 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error AutomaticallyTimelocked();
     error DataAlreadyPending();
     error DataNotTimelocked();
+    error DurationAbsoluteCapExceeded();
+    error DurationRelativeCapExceeded();
     error BuyAtLoss();
     error BuyPostMaturity();
     error BuyTtmTooHigh();
@@ -67,8 +69,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error TimelockNotExpired();
     error TimelockNotIncreasing();
     error TooManyMarkets();
-    error DurationAbsoluteCapExceeded();
-    error DurationRelativeCapExceeded();
     error VaultNotAccrued();
 
     /* FUNCTIONS */
