@@ -107,13 +107,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function _durationAllocations(uint256 length) internal view returns (uint256[] memory allocations) {
         allocations = new uint256[](length);
-        bytes32 _packedDurations = packedDurations;
-        uint256 marketCount = marketIds.length;
-        for (uint256 i; i < marketCount; i++) {
+        for (uint256 i; i < marketIds.length; i++) {
             MarketData storage _marketData = marketData[_marketIdAt(i)];
             uint256 ttm = uint256(_marketData.maturity).zeroFloorSub(block.timestamp);
             uint256 bucket;
-            while (bucket < length && _packedDurations.getUnchecked(bucket) <= ttm) bucket++;
+            while (bucket < length && packedDurations.getUnchecked(bucket) <= ttm) bucket++;
             if (bucket > 0) allocations[bucket - 1] += _marketData.netCredit;
         }
         if (length > 0) {
