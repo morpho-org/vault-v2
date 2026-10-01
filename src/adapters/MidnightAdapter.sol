@@ -78,7 +78,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     // @dev A shortfall is the negative delta if any between the amortized value of sold credit and the actual sales
     // proceeds.
     // @dev The adapter's allocation cap bounds exposure.
-    uint128 public shortfallRefillPeriod;
+    /// @dev Fraction of net credit refilled per second, WAD-scaled.
+    uint128 public shortfallRefillSpeed;
     uint128 public maxShortfallRatio;
     uint128 public shortfallAllowance;
     uint48 public shortfallUpdatedAt;
@@ -241,15 +242,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetSkimRecipient(newSkimRecipient);
     }
 
-    function setShortfallParams(uint256 newMaxShortfallRatio, uint256 newShortfallRefillPeriod) external {
+    function setShortfallParams(uint256 newMaxShortfallRatio, uint256 newShortfallRefillSpeed) external {
         timelocked();
         require(newMaxShortfallRatio <= MAX_MAX_SHORTFALL_RATIO, MaxShortfallRatioTooHigh());
         updateShortfallAllowance(totalNetCredit);
         maxShortfallRatio = newMaxShortfallRatio.toUint128();
-        shortfallRefillPeriod = newShortfallRefillPeriod.toUint128();
+        shortfallRefillSpeed = newShortfallRefillSpeed.toUint128();
         shortfallAllowance =
             MathLib.min(shortfallAllowance, totalNetCredit.mulDivDown(newMaxShortfallRatio, WAD)).toUint128();
-        emit SetShortfallParams(newMaxShortfallRatio, newShortfallRefillPeriod);
+        emit SetShortfallParams(newMaxShortfallRatio, newShortfallRefillSpeed);
     }
 
     /* SKIM FUNCTIONS */
@@ -508,9 +509,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         shortfallAllowance = MathLib.min(
                 allowanceCap,
                 shortfallAllowance
-                    + (shortfallRefillPeriod == 0
-                            ? allowanceCap
-                            : allowanceCap.mulDivDown(block.timestamp - shortfallUpdatedAt, shortfallRefillPeriod))
+                    + netCredit.min(totalNetCredit)
+                        .mulDivDown(
+                            (shortfallRefillSpeed * (block.timestamp - shortfallUpdatedAt)).min(maxShortfallRatio), WAD
+                        )
             )
             .toUint128();
         shortfallUpdatedAt = block.timestamp.toUint48();
