@@ -303,7 +303,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function realAssets() external view returns (uint256) {
         uint256 assets;
         uint256 length = marketIds.length;
+        address _midnight = midnight;
         Market memory dummyMarket;
+        bytes memory lockedCall = abi.encodeCall(IMidnight.liquidationLocked, (bytes32(0), address(this)));
+        bytes memory positionCall =
+            abi.encodeCall(IMidnight.updatePositionView, (dummyMarket, bytes32(0), address(this)));
         for (uint256 i = 0; i < length; i++) {
             bytes32 marketId = marketIds[i];
             MarketData memory _marketData = marketData[marketId];
@@ -311,9 +315,37 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             if (marketId == overridenMarketId) {
                 newNetCredit = overridenMarketNetCredit;
             } else {
-                require(!IMidnight(midnight).liquidationLocked(marketId, address(this)), OtherSellInProgress());
-                (uint128 credit, uint128 pendingFee,) =
-                    IMidnight(midnight).updatePositionView(dummyMarket, marketId, address(this));
+                bool locked;
+                uint256 credit;
+                uint256 pendingFee;
+                assembly ("memory-safe") {
+                    // The market id is the first argument of liquidationLocked and the second of updatePositionView.
+                    mstore(add(lockedCall, 0x24), marketId)
+                    mstore(add(positionCall, 0x44), marketId)
+                    let ptr := mload(0x40)
+                    if iszero(
+                        and(
+                            gt(returndatasize(), 0x1f),
+                            staticcall(gas(), _midnight, add(lockedCall, 0x20), mload(lockedCall), 0, 0x20)
+                        )
+                    ) {
+                        returndatacopy(ptr, 0, returndatasize())
+                        revert(ptr, returndatasize())
+                    }
+                    locked := mload(0)
+                    if iszero(
+                        and(
+                            gt(returndatasize(), 0x5f),
+                            staticcall(gas(), _midnight, add(positionCall, 0x20), mload(positionCall), ptr, 0x60)
+                        )
+                    ) {
+                        returndatacopy(ptr, 0, returndatasize())
+                        revert(ptr, returndatasize())
+                    }
+                    credit := mload(ptr)
+                    pendingFee := mload(add(ptr, 0x20))
+                }
+                require(!locked, OtherSellInProgress());
                 newNetCredit = credit - pendingFee;
             }
             uint256 discountFactor = WAD - _marketData.growth * _marketData.maturity.zeroFloorSub(block.timestamp);
