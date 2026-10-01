@@ -3524,7 +3524,7 @@ contract MidnightAdapterTest is Test {
         idDatas[4] = abi.encode("collateralParams", storedCollaterals[1]);
         idDatas[5] = abi.encode("duration", uint256(1 days));
         idDatas[6] = abi.encode("duration", uint256(7 days));
-        idDatas[7] = abi.encode("marketConfig", address(0), address(0), uint256(0));
+        idDatas[7] = abi.encode("marketConfig", address(0), address(0));
         for (uint256 i = 0; i < idDatas.length; i++) {
             submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idDatas[i], type(uint128).max)));
             submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idDatas[i], 1e18)));
