@@ -278,22 +278,21 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         if (lastDurationUpdate == block.timestamp) return;
         lastDurationUpdate = block.timestamp;
 
-        uint256[] memory _durations = durations();
-        uint256[] memory targetAllocations = new uint256[](durationsLength);
+        uint256[] memory buckets = new uint256[](durationsLength + 1);
         for (uint256 i = 0; i < marketIds.length; i++) {
             MarketData storage _marketData = marketData[marketIds[i]];
-            uint256 timeToMaturity = _marketData.maturity.zeroFloorSub(block.timestamp);
-            for (uint256 j = 0; j < durationsLength && _durations[j] <= timeToMaturity; j++) {
-                targetAllocations[j] += _marketData.netCredit;
-            }
+            buckets[durationCount(_marketData.maturity)] += _marketData.netCredit;
         }
 
         bytes32[] memory durationIdsToDecrease = new bytes32[](1);
-        for (uint256 i = 0; i < durationsLength; i++) {
-            durationIdsToDecrease[0] = keccak256(abi.encode("duration", address(this), _durations[i]));
-            uint256 decrease = IVaultV2(parentVault).allocation(durationIdsToDecrease[0]) - targetAllocations[i];
+        uint256 targetAllocation;
+        for (uint256 i = durationsLength; i > 0; i--) {
+            targetAllocation += buckets[i];
+            durationIdsToDecrease[0] = keccak256(abi.encode("duration", address(this), packedDurations.get(i - 1)));
+            uint256 decrease = IVaultV2(parentVault).allocation(durationIdsToDecrease[0]) - targetAllocation;
             // VaultV2.deallocate requires allocation > 0 for each returned id.
             if (decrease > 0) {
+                // forge-lint: disable-next-item(reentrancy-no-eth) deallocate in this adapter does not update markets.
                 // forge-lint: disable-next-item(unsafe-typecast) at most MAX_MARKETS uint128 net credits fit in int256.
                 IVaultV2(parentVault).deallocate(address(this), abi.encode(durationIdsToDecrease, -int256(decrease)), 0);
             }
@@ -497,10 +496,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         change = int256(uint256(newNetCredit)) - int256(storedNetCredit);
     }
 
-    function ids(Market memory market) public view returns (bytes32[] memory) {
-        uint256 timeToMaturity = market.maturity.zeroFloorSub(block.timestamp);
-        uint256 count;
+    function durationCount(uint256 maturity) internal view returns (uint256 count) {
+        uint256 timeToMaturity = maturity.zeroFloorSub(block.timestamp);
         while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;
+    }
+
+    function ids(Market memory market) public view returns (bytes32[] memory) {
+        uint256 count = durationCount(market.maturity);
 
         bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length * 2 + count);
 
