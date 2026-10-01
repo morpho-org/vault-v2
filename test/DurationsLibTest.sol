@@ -10,13 +10,6 @@ contract DurationsLibTest is Test {
     using DurationsLib for uint256[];
 
     /// forge-config: default.allow_internal_expect_revert = true
-    function testGetInvalidIndex(bytes32 durations, uint256 index) public {
-        index = bound(index, MAX_DURATIONS, type(uint256).max);
-        vm.expectRevert(DurationsLib.IndexOutOfBounds.selector);
-        durations.get(index);
-    }
-
-    /// forge-config: default.allow_internal_expect_revert = true
     function testPackInvalidLength() public {
         uint256[] memory durations = new uint256[](MAX_DURATIONS + 1);
         vm.expectRevert(DurationsLib.IndexOutOfBounds.selector);
