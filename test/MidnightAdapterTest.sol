@@ -1265,13 +1265,7 @@ contract MidnightAdapterTest is Test {
 
     /* IDS */
 
-    function testIds(
-        uint256 collateralCount,
-        uint256 maturity,
-        address enterGate,
-        address liquidatorGate,
-        uint256 rcfThreshold
-    ) public view {
+    function testIds(uint256 collateralCount, uint256 maturity, address enterGate, address liquidatorGate) public view {
         collateralCount = bound(collateralCount, 0, 5);
 
         Market memory market;
@@ -1287,11 +1281,10 @@ contract MidnightAdapterTest is Test {
         market.maturity = bound(maturity, 1, 700 days);
         market.enterGate = enterGate;
         market.liquidatorGate = liquidatorGate;
-        market.rcfThreshold = rcfThreshold;
 
         bytes32[] memory ids = adapter.ids(market);
         assertEq(ids[0], adapter.adapterId());
-        assertEq(ids[1], keccak256(abi.encode("marketConfig", enterGate, liquidatorGate, rcfThreshold)));
+        assertEq(ids[1], keccak256(abi.encode("marketConfig", enterGate, liquidatorGate)));
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
             assertEq(ids[i * 2 + 2], keccak256(abi.encode("collateralToken", market.collateralParams[i].token)));
             assertEq(
@@ -1335,7 +1328,7 @@ contract MidnightAdapterTest is Test {
     /* ALLOCATION UPDATES */
 
     function testMarketConfigCaps(uint256 configField) public {
-        configField = bound(configField, 0, 2);
+        configField = bound(configField, 0, 1);
         setUpRealVault();
         address gate = makeAddr("marketGate");
         vm.etch(gate, hex"01");
@@ -1345,13 +1338,11 @@ contract MidnightAdapterTest is Test {
         offer.maker = address(adapter);
         offer.ratifier = address(adapter);
         if (configField == 0) offer.market.enterGate = gate;
-        else if (configField == 1) offer.market.liquidatorGate = gate;
-        else offer.market.rcfThreshold = 1e18;
+        else offer.market.liquidatorGate = gate;
         midnight.supplyCollateral(offer.market, 0, 0.5e18, taker);
         midnight.supplyCollateral(offer.market, 1, 0.5e18, taker);
 
-        bytes memory idData =
-            abi.encode("marketConfig", offer.market.enterGate, offer.market.liquidatorGate, offer.market.rcfThreshold);
+        bytes memory idData = abi.encode("marketConfig", offer.market.enterGate, offer.market.liquidatorGate);
         bytes memory data = ratify([offer], signerAllocator);
         vm.expectRevert(ErrorsLib.ZeroAbsoluteCap.selector);
         this.takeWithAccrual(offer, data, taker, address(0));
