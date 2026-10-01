@@ -60,7 +60,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     uint256 public maxTtm;
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     /// @dev Lowering it below marketIdsLength() only prevents entering new markets.
-    uint8 public maxMarkets;
+    uint16 public maxMarkets;
     mapping(address subRatifier => bool) public isSubRatifier;
     /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement fee.
     /// @dev Enforced on maker and taker sales before maturity only.
@@ -218,7 +218,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetMaxTtm(newMaxTtm);
     }
 
-    function setMaxMarkets(uint8 newMaxMarkets) external {
+    function setMaxMarkets(uint16 newMaxMarkets) external {
         timelocked();
         maxMarkets = newMaxMarkets;
         emit SetMaxMarkets(newMaxMarkets);
@@ -495,7 +495,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             require(marketIds.length < maxMarkets, TooManyMarkets());
             _marketData.maturity = market.maturity.toUint48();
             // forge-lint: disable-next-item(unsafe-typecast) marketIds.length < maxMarkets.
-            _marketData.index = uint8(marketIds.length);
+            _marketData.index = uint16(marketIds.length);
             marketIds.push(marketId);
         }
         emit UpdateMarket(marketId, _marketData.netCredit, _marketData.growth);

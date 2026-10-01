@@ -12,7 +12,7 @@ struct MarketData {
     /// @dev Each unit of growth represents 1/WAD of the net credit accrued per second, until maturity.
     uint64 growth;
     uint48 maturity;
-    uint8 index;
+    uint16 index;
 }
 
 struct MaturityData {
@@ -85,7 +85,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
     function maxTtm() external view returns (uint256);
-    function maxMarkets() external view returns (uint8);
+    function maxMarkets() external view returns (uint16);
     function skimRecipient() external view returns (address);
     function minBuyRate() external view returns (uint256);
     function maxSellRate(bytes32 collateralParamsHash) external view returns (uint256);
@@ -99,7 +99,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function abdicate(bytes4 selector) external;
     function setMinBuyRate(uint256 newMinBuyRate) external;
     function setMaxTtm(uint256 newMaxTtm) external;
-    function setMaxMarkets(uint8 newMaxMarkets) external;
+    function setMaxMarkets(uint16 newMaxMarkets) external;
     function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
     function addSubRatifier(address subRatifier) external;
@@ -149,7 +149,7 @@ interface IMidnightAdapterStaticTyping is IMidnightAdapterBase {
     function marketData(bytes32 marketId)
         external
         view
-        returns (uint128 netCredit, uint64 growth, uint48 maturity, uint8 index);
+        returns (uint128 netCredit, uint64 growth, uint48 maturity, uint16 index);
     function maturityData(uint256 maturity) external view returns (uint128 netCredit, uint8 durationCount);
 }
 
