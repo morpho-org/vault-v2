@@ -74,7 +74,6 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error TimelockNotExpired();
     error TimelockNotIncreasing();
     error TooManyMarkets();
-    error MaxMarketsTooHigh();
     error VaultNotAccrued();
 
     /* FUNCTIONS */
@@ -82,12 +81,11 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function asset() external view returns (address);
     function marketIds(uint256) external view returns (bytes32);
     function marketIdsLength() external view returns (uint256);
-    function MAX_MARKETS() external view returns (uint8);
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
     function maxTtm() external view returns (uint256);
-    function maxMarkets() external view returns (uint256);
+    function maxMarkets() external view returns (uint8);
     function skimRecipient() external view returns (address);
     function minBuyRate() external view returns (uint256);
     function maxSellRate(bytes32 collateralParamsHash) external view returns (uint256);
@@ -101,7 +99,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function abdicate(bytes4 selector) external;
     function setMinBuyRate(uint256 newMinBuyRate) external;
     function setMaxTtm(uint256 newMaxTtm) external;
-    function setMaxMarkets(uint256 newMaxMarkets) external;
+    function setMaxMarkets(uint8 newMaxMarkets) external;
     function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external;
     function isSubRatifier(address subRatifier) external view returns (bool);
     function addSubRatifier(address subRatifier) external;

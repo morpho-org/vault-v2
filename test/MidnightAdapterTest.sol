@@ -304,7 +304,6 @@ contract MidnightAdapterTest is Test {
     function testEmptyAdapter() public {
         assertEq(adapter.realAssets(), 0, "realAssets");
         assertEq(adapter.marketIdsLength(), 0, "marketIdsLength");
-        assertEq(adapter.MAX_MARKETS(), 250, "MAX_MARKETS");
         assertEq(adapter.maxMarkets(), 250, "maxMarkets");
         skip(100);
         assertEq(adapter.realAssets(), 0, "realAssets after time passes");
@@ -1033,7 +1032,7 @@ contract MidnightAdapterTest is Test {
         otherAdapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxTtm, (type(uint256).max)));
         otherAdapter.setMaxTtm(type(uint256).max);
         vm.prank(curator);
-        otherAdapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxMarkets, (250)));
+        otherAdapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxMarkets, (uint8(250))));
         otherAdapter.setMaxMarkets(250);
         addSubRatifier(otherAdapter, address(priceRatifier));
         deal(address(loanToken), address(otherVault), 1_000_000e18);
@@ -1132,22 +1131,20 @@ contract MidnightAdapterTest is Test {
         adapter.setMaxTtm(newMaxTtm);
     }
 
-    function testSetMaxMarketsNotAuthorized(address caller, uint256 newMaxMarkets) public {
+    function testSetMaxMarketsNotAuthorized(address caller, uint8 newMaxMarkets) public {
         vm.assume(caller != curator);
         vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
         vm.prank(caller);
         adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxMarkets, (newMaxMarkets)));
     }
 
-    function testSetMaxMarketsNotTimelocked(address caller, uint256 newMaxMarkets) public {
+    function testSetMaxMarketsNotTimelocked(address caller, uint8 newMaxMarkets) public {
         vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
         vm.prank(caller);
         adapter.setMaxMarkets(newMaxMarkets);
     }
 
-    function testSetMaxMarketsAuthorized(uint256 oldMaxMarkets, uint256 newMaxMarkets) public {
-        oldMaxMarkets = bound(oldMaxMarkets, 0, 250);
-        newMaxMarkets = bound(newMaxMarkets, 0, 250);
+    function testSetMaxMarketsAuthorized(uint8 oldMaxMarkets, uint8 newMaxMarkets) public {
         setUpMaxMarkets(oldMaxMarkets);
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxMarkets, (newMaxMarkets)));
@@ -1157,8 +1154,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.maxMarkets(), newMaxMarkets, "maxMarkets");
     }
 
-    function testSetMaxMarketsTimelocked(uint256 newMaxMarkets, uint256 duration) public {
-        newMaxMarkets = bound(newMaxMarkets, 0, 250);
+    function testSetMaxMarketsTimelocked(uint8 newMaxMarkets, uint256 duration) public {
         duration = bound(duration, 1, 3650 days);
         submitTimelock(IMidnightAdapterBase.setMaxMarkets.selector, duration);
 
@@ -1180,14 +1176,6 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.executableAt(data), 0, "executableAt");
 
         vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
-        adapter.setMaxMarkets(newMaxMarkets);
-    }
-
-    function testSetMaxMarketsTooHigh(uint256 newMaxMarkets) public {
-        newMaxMarkets = bound(newMaxMarkets, 251, type(uint256).max);
-        vm.prank(curator);
-        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxMarkets, (newMaxMarkets)));
-        vm.expectRevert(IMidnightAdapterBase.MaxMarketsTooHigh.selector);
         adapter.setMaxMarkets(newMaxMarkets);
     }
 
@@ -1659,7 +1647,7 @@ contract MidnightAdapterTest is Test {
 
     function testMaxMarketsCap(uint256 maxMarkets_) public {
         maxMarkets_ = bound(maxMarkets_, 1, 20);
-        setUpMaxMarkets(maxMarkets_);
+        setUpMaxMarkets(uint8(maxMarkets_));
         for (uint256 i = 0; i < maxMarkets_; i++) {
             buy(i + 1, 1e18);
         }
@@ -3443,7 +3431,7 @@ contract MidnightAdapterTest is Test {
         adapter.setMaxTtm(maxTtm);
     }
 
-    function setUpMaxMarkets(uint256 maxMarkets_) internal {
+    function setUpMaxMarkets(uint8 maxMarkets_) internal {
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxMarkets, (maxMarkets_)));
         adapter.setMaxMarkets(maxMarkets_);
