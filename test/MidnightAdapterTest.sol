@@ -1291,11 +1291,13 @@ contract MidnightAdapterTest is Test {
 
         bytes32[] memory ids = adapter.ids(market);
         assertEq(ids[0], adapter.adapterId());
-        assertEq(ids[1], keccak256(abi.encode("marketConfig", enterGate, liquidatorGate, rcfThreshold)));
+        assertEq(ids[1], keccak256(abi.encode("market", market)));
+        assertEq(ids[2], keccak256(abi.encode("enterGate", enterGate)));
+        assertEq(ids[3], keccak256(abi.encode("liquidatorGate", liquidatorGate)));
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
-            assertEq(ids[i * 2 + 2], keccak256(abi.encode("collateralToken", market.collateralParams[i].token)));
+            assertEq(ids[i * 2 + 4], keccak256(abi.encode("collateralToken", market.collateralParams[i].token)));
             assertEq(
-                ids[i * 2 + 3],
+                ids[i * 2 + 5],
                 keccak256(
                     abi.encode(
                         "collateralParams",
@@ -1309,7 +1311,7 @@ contract MidnightAdapterTest is Test {
         }
 
         // Duration ids come from the stored duration count: none for a maturity that was never bought.
-        assertEq(ids.length, 2 + market.collateralParams.length * 2);
+        assertEq(ids.length, 4 + market.collateralParams.length * 2);
     }
 
     function testIdsDurations(uint256 durationIndex, uint256 elapsed) public {
@@ -1317,7 +1319,7 @@ contract MidnightAdapterTest is Test {
         uint256 duration = allDurations[durationIndex];
         elapsed = bound(elapsed, 0, duration);
         Offer memory offer = buy(duration, 1e18);
-        uint256 fixedIds = 2 + offer.market.collateralParams.length * 2;
+        uint256 fixedIds = 4 + offer.market.collateralParams.length * 2;
 
         skip(elapsed);
         bytes32[] memory ids = adapter.ids(offer.market);
@@ -1334,7 +1336,7 @@ contract MidnightAdapterTest is Test {
 
     /* ALLOCATION UPDATES */
 
-    function testMarketConfigCaps(uint256 configField) public {
+    function testMarketAndGateCaps(uint256 configField) public {
         configField = bound(configField, 0, 2);
         setUpRealVault();
         address gate = makeAddr("marketGate");
@@ -1350,8 +1352,11 @@ contract MidnightAdapterTest is Test {
         midnight.supplyCollateral(offer.market, 0, 0.5e18, taker);
         midnight.supplyCollateral(offer.market, 1, 0.5e18, taker);
 
-        bytes memory idData =
-            abi.encode("marketConfig", offer.market.enterGate, offer.market.liquidatorGate, offer.market.rcfThreshold);
+        bytes memory idData;
+        if (configField == 0) idData = abi.encode("enterGate", gate);
+        else if (configField == 1) idData = abi.encode("liquidatorGate", gate);
+        else idData = abi.encode("market", offer.market);
+        if (configField != 2) capMarket(offer.market);
         bytes memory data = ratify([offer], signerAllocator);
         vm.expectRevert(ErrorsLib.ZeroAbsoluteCap.selector);
         this.takeWithAccrual(offer, data, taker, address(0));
@@ -1366,10 +1371,10 @@ contract MidnightAdapterTest is Test {
 
         submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
         this.takeWithAccrual(offer, data, taker, address(0));
-        assertEq(realVault.allocation(keccak256(idData)), 1e18, "market config allocation after buy");
+        assertEq(realVault.allocation(keccak256(idData)), 1e18, "allocation after buy");
 
         sellUnits(offer.market, 1e18, MAX_TICK);
-        assertEq(realVault.allocation(keccak256(idData)), 0, "market config allocation after sell");
+        assertEq(realVault.allocation(keccak256(idData)), 0, "allocation after sell");
     }
 
     function testExactDuration(uint32 durationIndex) public {
@@ -3322,7 +3327,7 @@ contract MidnightAdapterTest is Test {
         adapter.setMaxTtm(maxTtm);
     }
 
-    function makeBuyOffer(uint256 duration, uint256 assets, uint256 tick) internal view returns (Offer memory offer) {
+    function makeBuyOffer(uint256 duration, uint256 assets, uint256 tick) internal returns (Offer memory offer) {
         offer = storedOffer;
         offer.market.maturity = block.timestamp + duration;
         offer.buy = true;
@@ -3332,6 +3337,13 @@ contract MidnightAdapterTest is Test {
         offer.expiry = block.timestamp;
         offer.callback = address(adapter);
         offer.callbackData = hex"";
+        if (address(realVault) != address(0)) capMarket(offer.market);
+    }
+
+    function capMarket(Market memory market) internal {
+        bytes memory idData = abi.encode("market", market);
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idData, type(uint128).max)));
+        submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idData, 1e18)));
     }
 
     function setSkimRecipient(address newSkimRecipient) internal {
@@ -3525,7 +3537,7 @@ contract MidnightAdapterTest is Test {
         vm.prank(signerAllocator);
         realVault.setMaxRate(1e18 / uint256(365 days));
 
-        bytes[] memory idDatas = new bytes[](8);
+        bytes[] memory idDatas = new bytes[](9);
         idDatas[0] = abi.encode("this", address(adapter));
         idDatas[1] = abi.encode("collateralToken", storedCollaterals[0].token);
         idDatas[2] = abi.encode("collateralParams", storedCollaterals[0]);
@@ -3533,7 +3545,8 @@ contract MidnightAdapterTest is Test {
         idDatas[4] = abi.encode("collateralParams", storedCollaterals[1]);
         idDatas[5] = abi.encode("duration", uint256(1 days));
         idDatas[6] = abi.encode("duration", uint256(7 days));
-        idDatas[7] = abi.encode("marketConfig", address(0), address(0), uint256(0));
+        idDatas[7] = abi.encode("enterGate", address(0));
+        idDatas[8] = abi.encode("liquidatorGate", address(0));
         for (uint256 i = 0; i < idDatas.length; i++) {
             submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idDatas[i], type(uint128).max)));
             submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idDatas[i], 1e18)));

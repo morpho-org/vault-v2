@@ -125,7 +125,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {
         require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
-        // Gates, RCF threshold, collaterals and durations will be checked through vault ids.
+        // Market, gates, collaterals and durations will be checked through vault ids.
         require(offer.market.loanToken == asset, LoanAssetMismatch());
         require(offer.maker == address(this), IncorrectMaker());
         require(offer.callback == address(this), IncorrectCallbackAddress());
@@ -506,12 +506,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     function ids(Market memory market) public view returns (bytes32[] memory) {
         uint256 durationsCount = maturityData[market.maturity].durationCount;
 
-        bytes32[] memory idsArray = new bytes32[](2 + market.collateralParams.length * 2 + durationsCount);
+        bytes32[] memory idsArray = new bytes32[](4 + market.collateralParams.length * 2 + durationsCount);
 
         uint256 j;
         idsArray[j++] = adapterId;
-        idsArray[j++] =
-            keccak256(abi.encode("marketConfig", market.enterGate, market.liquidatorGate, market.rcfThreshold));
+        idsArray[j++] = keccak256(abi.encode("market", market));
+        idsArray[j++] = keccak256(abi.encode("enterGate", market.enterGate));
+        idsArray[j++] = keccak256(abi.encode("liquidatorGate", market.liquidatorGate));
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
             idsArray[j++] = keccak256(abi.encode("collateralToken", market.collateralParams[i].token));
             idsArray[j++] = keccak256(abi.encode("collateralParams", market.collateralParams[i]));
