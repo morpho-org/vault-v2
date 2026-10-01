@@ -1319,6 +1319,32 @@ contract MidnightAdapterTest is Test {
     }
 
     /// forge-config: default.isolate = true
+    function testDurationCapsOnlyCheckAffectedDurations() public {
+        setUpRealVault();
+        buyOnRealVault(90 days, 2e18);
+        decreaseDurationCap(2, 0.1e18);
+
+        take(fundedDurationOffer(7 days, 1e18));
+        assertEq(adapter.durationAllocations()[2], 2e18, "long duration remains over cap");
+
+        Offer memory overCap = fundedDurationOffer(30 days, 1e18);
+        vm.expectRevert(IMidnightAdapterBase.DurationRelativeCapExceeded.selector);
+        take(overCap);
+    }
+
+    /// forge-config: default.isolate = true
+    function testDurationCapsAllowBuyBelowSmallestDuration() public {
+        setUpRealVault();
+        for (uint256 i; i < allDurations.length; i++) {
+            decreaseDurationCap(i, 0);
+            decreaseDurationAbsoluteCap(i, 0);
+        }
+
+        buyOnRealVault(allDurations[0] - 1, 1e18);
+        assertEq(adapter.durationAllocations(), new uint256[](allDurations.length));
+    }
+
+    /// forge-config: default.isolate = true
     function testDurationCapsUseScopedVaultIds() public {
         setUpRealVault();
         decreaseDurationCap(1, 0);
@@ -1360,6 +1386,30 @@ contract MidnightAdapterTest is Test {
             assertEq(parentVault.allocation(keccak256(durationIdData(adapter, allDurations[i]))), 0);
         }
         assertEq(adapter.ids(offer.market), initialIds, "ids do not change with time");
+    }
+
+    function testDurationAllocationsMatchesNaiveSumAcrossMarkets() public {
+        Offer[4] memory offers;
+        uint256 start = block.timestamp;
+        offers[0] = buy(12 hours, 1e18);
+        offers[1] = buy(3 days, 2e18);
+        offers[2] = buy(10 days, 3e18);
+        offers[3] = buy(200 days, 4e18);
+        assertEq(offers[0].market.maturity - start, 12 hours, "first market is below the smallest duration");
+
+        skip(12 hours + 1);
+        assertGt(block.timestamp, offers[0].market.maturity, "first market is past maturity");
+        uint256[] memory allocations = adapter.durationAllocations();
+        for (uint256 i; i < allDurations.length; i++) {
+            uint256 expected;
+            for (uint256 j; j < offers.length; j++) {
+                uint256 remaining = offers[j].market.maturity.zeroFloorSub(block.timestamp);
+                if (allDurations[i] <= remaining) {
+                    expected += adapter.marketData(_marketId(offers[j].market)).netCredit;
+                }
+            }
+            assertEq(allocations[i], expected, "duration allocation");
+        }
     }
 
     /// forge-config: default.isolate = true

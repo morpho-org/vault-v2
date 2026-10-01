@@ -102,13 +102,22 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Stored net credit at or beyond each configured duration, using current remaining maturities.
     /// @dev Losses and pending sales remain counted until updateMarket records them. Purchases are recorded before checking caps, so stored credit conservatively bounds exposure at each check.
     function durationAllocations() public view returns (uint256[] memory allocations) {
-        allocations = new uint256[](durationsLength);
-        uint256 length = marketIds.length;
-        for (uint256 i; i < length; i++) {
+        return _durationAllocations(durationsLength);
+    }
+
+    function _durationAllocations(uint256 length) internal view returns (uint256[] memory allocations) {
+        allocations = new uint256[](length);
+        uint256 marketCount = marketIds.length;
+        for (uint256 i; i < marketCount; i++) {
             MarketData memory _marketData = marketData[marketIds[i]];
             uint256 remaining = _marketData.maturity.zeroFloorSub(block.timestamp);
-            for (uint256 j; j < durationsLength && packedDurations.get(j) <= remaining; j++) {
-                allocations[j] += _marketData.netCredit;
+            uint256 bucket;
+            while (bucket < length && packedDurations.get(bucket) <= remaining) bucket++;
+            if (bucket > 0) allocations[bucket - 1] += _marketData.netCredit;
+        }
+        if (length > 0) {
+            for (uint256 j = length - 1; j > 0; j--) {
+                allocations[j - 1] += allocations[j];
             }
         }
     }
@@ -398,18 +407,24 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
         }
 
-        // Check the resulting exposure after the buy and any funding withdrawals.
+        // Only durations up to the bought market's time to maturity can increase. Check those after the buy
+        // and any funding withdrawals.
         // Duration ids store configuration in the vault only; they are not returned by ids(market).
-        uint256[] memory allocations = durationAllocations();
-        uint256 totalAssets = IVaultV2(parentVault).firstTotalAssets();
-        for (uint256 i; i < durationsLength; i++) {
-            bytes32 id = keccak256(abi.encode("duration", address(this), packedDurations.get(i)));
-            require(allocations[i] <= IVaultV2(parentVault).absoluteCap(id), DurationAbsoluteCapExceeded());
-            uint256 relativeCap = IVaultV2(parentVault).relativeCap(id);
-            require(
-                relativeCap == WAD || allocations[i] <= totalAssets.mulDivDown(relativeCap, WAD),
-                DurationRelativeCapExceeded()
-            );
+        uint256 ttm = market.maturity - block.timestamp;
+        uint256 affected;
+        while (affected < durationsLength && packedDurations.get(affected) <= ttm) affected++;
+        if (affected > 0) {
+            uint256[] memory allocations = _durationAllocations(affected);
+            uint256 totalAssets = IVaultV2(parentVault).firstTotalAssets();
+            for (uint256 i; i < affected; i++) {
+                bytes32 id = keccak256(abi.encode("duration", address(this), packedDurations.get(i)));
+                require(allocations[i] <= IVaultV2(parentVault).absoluteCap(id), DurationAbsoluteCapExceeded());
+                uint256 relativeCap = IVaultV2(parentVault).relativeCap(id);
+                require(
+                    relativeCap == WAD || allocations[i] <= totalAssets.mulDivDown(relativeCap, WAD),
+                    DurationRelativeCapExceeded()
+                );
+            }
         }
 
         // forge-lint: disable-next-item(reentrancy-no-eth) reentry is expected.
