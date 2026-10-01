@@ -418,11 +418,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         // and any funding withdrawals.
         // Duration ids store configuration in the vault only; they are not returned by ids(market).
         uint256 ttm = market.maturity - block.timestamp;
-        uint256 affected;
-        while (affected < durationsLength && packedDurations.get(affected) <= ttm) affected++;
-        uint256[] memory allocations = _durationAllocations(affected);
+        uint256 affectedDurationCount;
+        while (affectedDurationCount < durationsLength && packedDurations.get(affectedDurationCount) <= ttm) {
+            affectedDurationCount++;
+        }
+        uint256[] memory allocations = _durationAllocations(affectedDurationCount);
         uint256 totalAssets = IVaultV2(parentVault).firstTotalAssets();
-        for (uint256 i; i < affected; i++) {
+        for (uint256 i; i < affectedDurationCount; i++) {
             bytes32 id = keccak256(abi.encode("duration", address(this), packedDurations.get(i)));
             require(allocations[i] <= IVaultV2(parentVault).absoluteCap(id), DurationAbsoluteCapExceeded());
             uint256 relativeCap = IVaultV2(parentVault).relativeCap(id);
