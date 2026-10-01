@@ -82,7 +82,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         packedDurations = DurationsLib.pack(_durations);
         durationsLength = _durations.length;
-        lastDurationUpdate = block.timestamp;
     }
 
     /* GETTERS */
