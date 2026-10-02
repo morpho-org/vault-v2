@@ -80,10 +80,10 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function midnight() external view returns (address);
     function adapterId() external view returns (bytes32);
     function packedDurations() external view returns (bytes32);
-    function maxTtm() external view returns (uint256);
+    function maxTtm() external view returns (uint128);
     function maxMarkets() external view returns (uint16);
     function skimRecipient() external view returns (address);
-    function minBuyRate() external view returns (uint256);
+    function minBuyRate() external view returns (uint128);
     function maxSellRate(bytes32 collateralParamsHash) external view returns (uint256);
     function timelock(bytes4 selector) external view returns (uint256);
     function abdicated(bytes4 selector) external view returns (bool);

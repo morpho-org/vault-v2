@@ -53,8 +53,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     address public skimRecipient;
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
-    uint256 public minBuyRate;
-    uint256 public maxTtm;
+    uint128 public minBuyRate;
+    uint128 public maxTtm;
     /// @dev Takers of offers of the adapter can fill slots with dust takes.
     /// @dev Lowering it below marketIdsLength() only prevents entering new markets.
     uint16 public maxMarkets;
@@ -233,13 +233,13 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function setMinBuyRate(uint256 newMinBuyRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
-        minBuyRate = newMinBuyRate;
+        minBuyRate = newMinBuyRate.toUint128();
         emit SetMinBuyRate(newMinBuyRate);
     }
 
     function setMaxTtm(uint256 newMaxTtm) external {
         timelocked();
-        maxTtm = newMaxTtm;
+        maxTtm = newMaxTtm.toUint128();
         emit SetMaxTtm(newMaxTtm);
     }
 
@@ -460,7 +460,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
 
-        uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
         if (block.timestamp < market.maturity && soldNetCredit > sellerAssets) {
             require(
@@ -470,7 +469,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
         }
 
-        int256 change = updateMarket(marketId, market, newNetCredit);
+        int256 change = updateMarket(marketId, market, currentNetCredit(marketId));
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
