@@ -75,9 +75,9 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     // proceeds.
     // @dev The adapter's allocation cap bounds exposure.
     /// @dev Refill period in seconds. Zero disables the shortfall limit.
-    uint128 public shortfallRefillPeriod;
-    uint128 public maxShortfallRatio;
-    uint128 public shortfallAllowance;
+    uint32 public shortfallRefillPeriod;
+    uint64 public maxShortfallRatio;
+    uint112 public shortfallAllowance;
     uint48 public shortfallUpdatedAt;
     bytes32 transient overridenMarketId;
     uint256 transient overridenMarketNetCredit;
@@ -271,10 +271,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         timelocked();
         require(newMaxShortfallRatio <= MAX_MAX_SHORTFALL_RATIO, MaxShortfallRatioTooHigh());
         updateShortfallAllowance(totalNetCredit);
-        maxShortfallRatio = newMaxShortfallRatio.toUint128();
-        shortfallRefillPeriod = newShortfallRefillPeriod.toUint128();
+        // forge-lint: disable-next-item(unsafe-typecast) newMaxShortfallRatio <= MAX_MAX_SHORTFALL_RATIO < 2**64.
+        maxShortfallRatio = uint64(newMaxShortfallRatio);
+        shortfallRefillPeriod = newShortfallRefillPeriod.toUint32();
         shortfallAllowance =
-            MathLib.min(shortfallAllowance, totalNetCredit.mulDivDown(newMaxShortfallRatio, WAD)).toUint128();
+            MathLib.min(shortfallAllowance, totalNetCredit.mulDivDown(newMaxShortfallRatio, WAD)).toUint112();
         emit SetShortfallParams(newMaxShortfallRatio, newShortfallRefillPeriod, shortfallAllowance);
     }
 
@@ -498,7 +499,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 saleShortfall = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
         if (block.timestamp < market.maturity && shortfallRefillPeriod != 0) {
             require(saleShortfall <= shortfallAllowance, MaxShortfallExceeded());
-            shortfallAllowance -= saleShortfall.toUint128();
+            shortfallAllowance -= saleShortfall.toUint112();
         }
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 
@@ -534,7 +535,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
                     shortfallAllowance
                         + allowanceCap.mulDivDown(block.timestamp - shortfallUpdatedAt, shortfallRefillPeriod)
                 )
-                .toUint128();
+                .toUint112();
         }
         shortfallUpdatedAt = block.timestamp.toUint48();
     }

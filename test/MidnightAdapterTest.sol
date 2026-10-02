@@ -3420,6 +3420,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testWithdrawToVaultMaxNetCredit() public {
+        setShortfallParams(1e12, 1 days);
         Offer memory offer = buyMaxNetCredit();
         bytes32 marketId = _marketId(offer.market);
         uint256 assets = uint256(type(uint128).max) - 1;
@@ -3429,7 +3430,7 @@ contract MidnightAdapterTest is Test {
         midnight.repay(offer.market, type(uint128).max, taker, address(0), "");
         vm.expectEmit(address(adapter));
         emit IMidnightAdapterBase.WithdrawToVault(
-            marketId, assets, assets, uint256(type(uint128).max).mulDivDown(0.005e18, 1e18)
+            marketId, assets, assets, uint256(type(uint128).max).mulDivDown(1e12, 1e18)
         );
         vm.prank(signerAllocator);
         adapter.withdrawToVault(offer.market, assets);
@@ -3453,7 +3454,7 @@ contract MidnightAdapterTest is Test {
         uint256 maxRatio = adapter.MAX_MAX_SHORTFALL_RATIO();
         assertEq(maxRatio, 0.1e18);
         ratio = bound(ratio, 0, maxRatio);
-        period = bound(period, 0, type(uint128).max);
+        period = bound(period, 0, type(uint32).max);
         vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
         adapter.setShortfallParams(ratio, period);
 
@@ -3472,7 +3473,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testSetShortfallParamsRefillPeriodOverflow(uint256 period) public {
-        period = bound(period, uint256(type(uint128).max) + 1, type(uint256).max);
+        period = bound(period, uint256(type(uint32).max) + 1, type(uint256).max);
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallParams, (0.005e18, period)));
         vm.expectRevert(ErrorsLib.CastOverflow.selector);
@@ -3660,12 +3661,12 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.shortfallAllowance(), 0.05e18);
     }
 
-    function testShortfallMaxRefillPeriodNeverRefills() public {
-        setShortfallParams(0.005e18, type(uint128).max);
+    function testShortfallMaxRefillPeriod() public {
+        setShortfallParams(0.005e18, type(uint32).max);
         Offer memory offer = buy(3650 days, 100e18);
         skip(3649 days);
         adapter.withdrawToVault(offer.market, 0);
-        assertEq(adapter.shortfallAllowance(), 0);
+        assertEq(adapter.shortfallAllowance(), uint256(0.5e18).mulDivDown(3649 days, type(uint32).max));
     }
 
     function testShortfallMaxRatio() public {
@@ -3759,6 +3760,7 @@ contract MidnightAdapterTest is Test {
     }
 
     function testShortfallMaxNetCredit() public {
+        setShortfallParams(1e12, 1 days);
         Offer memory offer = buyMaxNetCredit();
         setMaxSellRate(offer.market, type(uint256).max);
         skip(1 days);
@@ -3766,6 +3768,26 @@ contract MidnightAdapterTest is Test {
         sellAndRebuyWithShortfall(offer.market, limit);
         assertEq(adapter.shortfallAllowance(), 0);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, type(uint128).max - limit);
+    }
+
+    function testShortfallAllowanceBounds(bool overflow) public {
+        uint256 allowance = uint256(type(uint112).max) + (overflow ? 1 : 0);
+        uint256 assets = 10 * allowance;
+        setShortfallParams(adapter.MAX_MAX_SHORTFALL_RATIO(), 1 days);
+        deal(address(loanToken), address(parentVault), assets);
+        deal(storedCollaterals[0].token, address(this), assets);
+        deal(storedCollaterals[1].token, address(this), assets);
+        Offer memory offer = buy(30 days, assets);
+        skip(1 days);
+
+        if (overflow) vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        adapter.withdrawToVault(offer.market, 0);
+        if (!overflow) {
+            assertEq(adapter.shortfallAllowance(), allowance);
+            setMaxSellRate(offer.market, type(uint256).max);
+            sellUnits(offer.market, 2 * allowance, MAX_TICK / 2);
+        }
+        assertEq(adapter.shortfallAllowance(), 0);
     }
 
     function testShortfallAccumulatesAcrossSales() public {

@@ -22,11 +22,25 @@ library MathLib {
         }
     }
 
+    /// @dev Casts from uint256 to uint32, reverting if input number is too large.
+    function toUint32(uint256 x) internal pure returns (uint32) {
+        require(x <= type(uint32).max, ErrorsLib.CastOverflow());
+        // forge-lint: disable-next-item(unsafe-typecast) safe because x <= type(uint32).max.
+        return uint32(x);
+    }
+
     /// @dev Casts from uint256 to uint48, reverting if input number is too large.
     function toUint48(uint256 x) internal pure returns (uint48) {
         require(x <= type(uint48).max, ErrorsLib.CastOverflow());
         // forge-lint: disable-next-item(unsafe-typecast) safe because x <= type(uint48).max.
         return uint48(x);
+    }
+
+    /// @dev Casts from uint256 to uint112, reverting if input number is too large.
+    function toUint112(uint256 x) internal pure returns (uint112) {
+        require(x <= type(uint112).max, ErrorsLib.CastOverflow());
+        // forge-lint: disable-next-item(unsafe-typecast) safe because x <= type(uint112).max.
+        return uint112(x);
     }
 
     /// @dev Casts from uint256 to uint120, reverting if input number is too large.
