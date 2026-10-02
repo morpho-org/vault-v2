@@ -482,10 +482,18 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     /// @dev Returns the adapter's net credit position in marketId.
     /// @dev It does not change with time, so any market struct with maturity 0 will work.
+    /// @dev Frees the memory it allocates, since nothing it allocates outlives the call.
     function currentNetCredit(bytes32 marketId) internal view returns (uint128) {
+        uint256 freeMemoryPointer;
+        assembly ("memory-safe") {
+            freeMemoryPointer := mload(0x40)
+        }
         Market memory dummyMarket;
         (uint128 credit, uint128 pendingFee,) =
             IMidnight(midnight).updatePositionView(dummyMarket, marketId, address(this));
+        assembly ("memory-safe") {
+            mstore(0x40, freeMemoryPointer)
+        }
         return credit - pendingFee;
     }
 
