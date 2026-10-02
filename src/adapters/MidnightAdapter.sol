@@ -503,7 +503,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 assetsBefore = (newNetCredit + soldNetCredit).mulDivDown(discountFactor, WAD);
         uint256 assetsAfter = newNetCredit.mulDivDown(discountFactor, WAD);
         uint256 saleShortfall = (assetsBefore - assetsAfter).zeroFloorSub(sellerAssets);
-        if (block.timestamp < market.maturity && shortfallRefillPeriod != 0) {
+        if (shortfallRefillPeriod != 0) {
             require(saleShortfall <= shortfallAllowance, MaxShortfallExceeded());
             shortfallAllowance -= saleShortfall.toUint128();
         }
