@@ -105,10 +105,10 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     function maxTtm() external view returns (uint256);
     function totalNetCredit() external view returns (uint256);
     function maxShortfallRatio() external view returns (uint64);
-    function shortfallRefillPeriod() external view returns (uint32);
+    function shortfallRefillPeriod() external view returns (uint24);
     function setShortfallParams(uint256 newMaxShortfallRatio, uint256 newShortfallRefillPeriod) external;
-    function shortfallAllowance() external view returns (uint112);
-    function shortfallUpdatedAt() external view returns (uint48);
+    function shortfallAllowance() external view returns (uint128);
+    function shortfallUpdatedAt() external view returns (uint40);
     function skimRecipient() external view returns (address);
     function minBuyRate() external view returns (uint256);
     function maxSellRate(bytes32 collateralParamsHash) external view returns (uint256);
