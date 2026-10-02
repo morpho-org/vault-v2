@@ -1216,6 +1216,75 @@ contract MidnightAdapterTest is Test {
         assertEq(parentVault.allocation(adapter.adapterId()), 0, "allocation cleared");
     }
 
+    /* MIN RCF THRESHOLD */
+
+    function testSetMinRcfThresholdNotAuthorized(address caller, uint256 newMinRcfThreshold) public {
+        vm.assume(caller != curator);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMinRcfThreshold, (newMinRcfThreshold)));
+    }
+
+    function testSetMinRcfThresholdNotTimelocked(address caller, uint256 newMinRcfThreshold) public {
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        vm.prank(caller);
+        adapter.setMinRcfThreshold(newMinRcfThreshold);
+    }
+
+    function testSetMinRcfThresholdTimelocked(uint256 newMinRcfThreshold, uint256 duration) public {
+        duration = bound(duration, 1, 3650 days);
+        submitTimelock(IMidnightAdapterBase.setMinRcfThreshold.selector, duration);
+
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.setMinRcfThreshold, (newMinRcfThreshold));
+        vm.prank(curator);
+        adapter.submit(data);
+
+        skip(duration - 1);
+        vm.expectRevert(IMidnightAdapterBase.TimelockNotExpired.selector);
+        adapter.setMinRcfThreshold(newMinRcfThreshold);
+
+        skip(1);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.setMinRcfThreshold.selector, data);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.SetMinRcfThreshold(newMinRcfThreshold);
+        adapter.setMinRcfThreshold(newMinRcfThreshold);
+        assertEq(adapter.minRcfThreshold(), newMinRcfThreshold, "minRcfThreshold");
+        assertEq(adapter.executableAt(data), 0, "executableAt");
+    }
+
+    function testMinRcfThresholdBoundary(uint256 minRcfThreshold, bool takerBuy) public {
+        minRcfThreshold = bound(minRcfThreshold, 1, type(uint128).max);
+        setUpMinRcfThreshold(minRcfThreshold);
+        Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
+        offer.market.rcfThreshold = minRcfThreshold - 1;
+        if (takerBuy) {
+            offer = makeExternalOffer(offer.market, false, 1e18, MAX_TICK);
+        } else {
+            midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        }
+
+        if (takerBuy) {
+            vm.prank(signerAllocator);
+            vm.expectRevert(IMidnightAdapterBase.RcfThresholdTooLow.selector);
+            adapter.take(offer, "", offer.maxUnits);
+        } else {
+            vm.expectRevert(IMidnightAdapterBase.RcfThresholdTooLow.selector);
+            take(offer);
+        }
+
+        offer.market.rcfThreshold = minRcfThreshold;
+        if (takerBuy) {
+            offer = makeExternalOffer(offer.market, false, 1e18, MAX_TICK);
+            vm.prank(signerAllocator);
+            adapter.take(offer, "", offer.maxUnits);
+        } else {
+            midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+            take(offer);
+        }
+        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "threshold accepted");
+    }
+
     /* FACTORY */
 
     function testFactoryCreateMidnightAdapter() public {
@@ -1231,6 +1300,7 @@ contract MidnightAdapterTest is Test {
         assertEq(IMidnightAdapter(newAdapter).midnight(), address(midnight), "midnight");
         assertEq(IMidnightAdapter(newAdapter).durations(), allDurations, "durations");
         assertEq(IMidnightAdapter(newAdapter).maxTtm(), 0, "default maxTtm");
+        assertEq(IMidnightAdapter(newAdapter).minRcfThreshold(), 0, "default minRcfThreshold");
         assertTrue(midnight.isAuthorized(newAdapter, newAdapter), "adapter is its own ratifier");
 
         // Fixed salt: one adapter per vault.
@@ -1685,13 +1755,7 @@ contract MidnightAdapterTest is Test {
 
     /* IDS */
 
-    function testIds(
-        uint256 collateralCount,
-        uint256 maturity,
-        address enterGate,
-        address liquidatorGate,
-        uint256 rcfThreshold
-    ) public view {
+    function testIds(uint256 collateralCount, uint256 maturity, address enterGate, address liquidatorGate) public view {
         collateralCount = bound(collateralCount, 0, 5);
 
         Market memory market;
@@ -1707,11 +1771,10 @@ contract MidnightAdapterTest is Test {
         market.maturity = bound(maturity, 1, 700 days);
         market.enterGate = enterGate;
         market.liquidatorGate = liquidatorGate;
-        market.rcfThreshold = rcfThreshold;
 
         bytes32[] memory ids = adapter.ids(market);
         assertEq(ids[0], adapter.adapterId());
-        assertEq(ids[1], keccak256(abi.encode("marketConfig", enterGate, liquidatorGate, rcfThreshold)));
+        assertEq(ids[1], keccak256(abi.encode("marketConfig", enterGate, liquidatorGate)));
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
             assertEq(ids[i * 2 + 2], keccak256(abi.encode("collateralToken", market.collateralParams[i].token)));
             assertEq(
@@ -1734,7 +1797,7 @@ contract MidnightAdapterTest is Test {
     /* ALLOCATION UPDATES */
 
     function testMarketConfigCaps(uint256 configField) public {
-        configField = bound(configField, 0, 2);
+        configField = bound(configField, 0, 1);
         setUpRealVault();
         address gate = makeAddr("marketGate");
         vm.etch(gate, hex"01");
@@ -1744,13 +1807,11 @@ contract MidnightAdapterTest is Test {
         offer.maker = address(adapter);
         offer.ratifier = address(adapter);
         if (configField == 0) offer.market.enterGate = gate;
-        else if (configField == 1) offer.market.liquidatorGate = gate;
-        else offer.market.rcfThreshold = 1e18;
+        else offer.market.liquidatorGate = gate;
         midnight.supplyCollateral(offer.market, 0, 0.5e18, taker);
         midnight.supplyCollateral(offer.market, 1, 0.5e18, taker);
 
-        bytes memory idData =
-            abi.encode("marketConfig", offer.market.enterGate, offer.market.liquidatorGate, offer.market.rcfThreshold);
+        bytes memory idData = abi.encode("marketConfig", offer.market.enterGate, offer.market.liquidatorGate);
         bytes memory data = ratify([offer], signerAllocator);
         vm.expectRevert(ErrorsLib.ZeroAbsoluteCap.selector);
         this.takeWithAccrual(offer, data, taker, address(0));
@@ -3458,6 +3519,12 @@ contract MidnightAdapterTest is Test {
         }
     }
 
+    function setUpMinRcfThreshold(uint256 minRcfThreshold) internal {
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMinRcfThreshold, (minRcfThreshold)));
+        adapter.setMinRcfThreshold(minRcfThreshold);
+    }
+
     function setUpMaxTtm(uint256 maxTtm) internal {
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxTtm, (maxTtm)));
@@ -3674,7 +3741,7 @@ contract MidnightAdapterTest is Test {
         idDatas[2] = abi.encode("collateralParams", storedCollaterals[0]);
         idDatas[3] = abi.encode("collateralToken", storedCollaterals[1].token);
         idDatas[4] = abi.encode("collateralParams", storedCollaterals[1]);
-        idDatas[5] = abi.encode("marketConfig", address(0), address(0), uint256(0));
+        idDatas[5] = abi.encode("marketConfig", address(0), address(0));
         for (uint256 i = 0; i < idDatas.length; i++) {
             submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseAbsoluteCap, (idDatas[i], type(uint128).max)));
             submitAndCall(realVault, abi.encodeCall(IVaultV2.increaseRelativeCap, (idDatas[i], 1e18)));

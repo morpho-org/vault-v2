@@ -57,6 +57,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
     uint128 public minBuyRate;
     uint128 public maxTtm;
+    uint256 public minRcfThreshold;
     mapping(address subRatifier => bool) public isSubRatifier;
     /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement fee.
     /// @dev Enforced on maker and taker sales before maturity only.
@@ -149,7 +150,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {
         require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
-        // Gates, RCF threshold, collaterals and durations will be checked in onBuy.
+        // Gates, collaterals and durations caps will be checked in onBuy.
         require(offer.market.loanToken == asset, LoanAssetMismatch());
         require(offer.maker == address(this), IncorrectMaker());
         require(offer.callback == address(this), IncorrectCallbackAddress());
@@ -240,6 +241,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         timelocked();
         maxTtm = newMaxTtm.toUint128();
         emit SetMaxTtm(newMaxTtm);
+    }
+
+    function setMinRcfThreshold(uint256 newMinRcfThreshold) external {
+        timelocked();
+        minRcfThreshold = newMinRcfThreshold;
+        emit SetMinRcfThreshold(newMinRcfThreshold);
     }
 
     /// @dev Help prevent operational errors when selling.
@@ -382,6 +389,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(buyer == address(this), NotSelf());
         require(block.timestamp <= market.maturity, BuyPostMaturity());
         require(market.maturity - block.timestamp <= maxTtm, BuyTtmTooHigh());
+        require(market.rcfThreshold >= minRcfThreshold, RcfThresholdTooLow());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
 
@@ -519,8 +527,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
         uint256 j;
         idsArray[j++] = adapterId;
-        idsArray[j++] =
-            keccak256(abi.encode("marketConfig", market.enterGate, market.liquidatorGate, market.rcfThreshold));
+        idsArray[j++] = keccak256(abi.encode("marketConfig", market.enterGate, market.liquidatorGate));
         for (uint256 i = 0; i < market.collateralParams.length; i++) {
             idsArray[j++] = keccak256(abi.encode("collateralToken", market.collateralParams[i].token));
             idsArray[j++] = keccak256(abi.encode("collateralParams", market.collateralParams[i]));
