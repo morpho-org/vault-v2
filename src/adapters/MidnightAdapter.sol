@@ -460,7 +460,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
-        require(forceRemovable[marketId] || block.timestamp < market.maturity, SellPostMaturity());
+        require(forceRemovable[marketId] || block.timestamp < market.maturity, UnauthorizedSell());
 
         uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
