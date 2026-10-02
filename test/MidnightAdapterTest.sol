@@ -1959,31 +1959,29 @@ contract MidnightAdapterTest is Test {
         take(offer);
     }
 
-    function testMaxMarketsLoweredBelowLength() public {
-        Offer memory first = buy(1, 1e18);
-        Offer memory second = buy(2, 1e18);
-        buy(3, 1e18);
-        uint256 realAssetsBefore = adapter.realAssets();
+    function testSetMaxMarketsBelowLength(uint256 newMaxMarkets) public {
+        for (uint256 i = 1; i <= 3; i++) {
+            buy(i, 1e18);
+        }
+        newMaxMarkets = bound(newMaxMarkets, 0, 2);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxMarkets, (uint16(newMaxMarkets))));
+        vm.expectRevert(IMidnightAdapterBase.MaxMarketsTooLow.selector);
+        adapter.setMaxMarkets(uint16(newMaxMarkets));
+    }
 
-        setUpMaxMarkets(1);
-        assertEq(adapter.realAssets(), realAssetsBefore, "realAssets unchanged");
+    function testSetMaxMarketsToLength() public {
+        for (uint256 i = 1; i <= 3; i++) {
+            buy(i, 1e18);
+        }
+        setUpMaxMarkets(3);
+        assertEq(adapter.maxMarkets(), 3, "maxMarkets");
 
-        Offer memory newMarket = makeBuyOffer(4, 1e18, MAX_TICK);
-        midnight.supplyCollateral(newMarket.market, 0, newMarket.maxUnits, taker);
-        midnight.supplyCollateral(newMarket.market, 1, newMarket.maxUnits, taker);
+        Offer memory offer = makeBuyOffer(4, 1e18, MAX_TICK);
+        midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        midnight.supplyCollateral(offer.market, 1, offer.maxUnits, taker);
         vm.expectRevert(IMidnightAdapterBase.TooManyMarkets.selector);
-        take(newMarket);
-
-        Offer memory existingMarket = makeBuyOffer(1, 0.5e18, MAX_TICK);
-        existingMarket.group = bytes32("existingMarket");
-        midnight.supplyCollateral(existingMarket.market, 0, existingMarket.maxUnits, taker);
-        midnight.supplyCollateral(existingMarket.market, 1, existingMarket.maxUnits, taker);
-        take(existingMarket);
-
-        sellUnits(second.market, second.maxUnits, MAX_TICK);
-        assertEq(adapter.marketIdsLength(), 2, "fully sold market removed");
-        assertEq(adapter.marketData(_marketId(second.market)).netCredit, 0, "fully sold market net credit");
-        assertGt(adapter.marketData(_marketId(first.market)).netCredit, first.maxUnits, "existing market buy accepted");
+        take(offer);
     }
 
     function testMarketsCap() public {

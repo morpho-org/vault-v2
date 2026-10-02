@@ -52,12 +52,11 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /* MANAGEMENT */
 
     address public skimRecipient;
+    /// @dev Takers of offers of the adapter can fill slots with dust takes.
+    uint16 public maxMarkets;
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
     uint128 public minBuyRate;
     uint128 public maxTtm;
-    /// @dev Takers of offers of the adapter can fill slots with dust takes.
-    /// @dev Lowering it below marketIdsLength() only prevents entering new markets.
-    uint16 public maxMarkets;
     mapping(address subRatifier => bool) public isSubRatifier;
     /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement fee.
     /// @dev Enforced on maker and taker sales before maturity only.
@@ -245,6 +244,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function setMaxMarkets(uint16 newMaxMarkets) external {
         timelocked();
+        require(newMaxMarkets >= marketIds.length, MaxMarketsTooLow());
         maxMarkets = newMaxMarkets;
         emit SetMaxMarkets(newMaxMarkets);
     }

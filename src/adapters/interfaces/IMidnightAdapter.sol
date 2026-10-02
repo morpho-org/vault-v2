@@ -69,6 +69,7 @@ interface IMidnightAdapterBase is IAdapter, IBuyCallback, ISellCallback, IRatifi
     error TimelockNotDecreasing();
     error TimelockNotExpired();
     error TimelockNotIncreasing();
+    error MaxMarketsTooLow();
     error TooManyMarkets();
     error VaultNotAccrued();
 
