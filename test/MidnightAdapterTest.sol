@@ -213,7 +213,7 @@ contract MidnightAdapterTest is Test {
         factory = new MidnightAdapterFactory(address(midnight), allDurations);
         adapter = IMidnightAdapter(factory.createMidnightAdapter(address(parentVault)));
         disableDurationCaps(adapter);
-        setUpMaxTtm(type(uint256).max);
+        setUpMaxTtm(type(uint128).max);
 
         priceRatifier = new MidnightAdapterPriceRatifierV1();
         addSubRatifier(adapter, address(priceRatifier));
@@ -540,6 +540,8 @@ contract MidnightAdapterTest is Test {
     }
 
     function testSetMinBuyRateAuthorized(uint256 oldMinBuyRate, uint256 newMinBuyRate) public {
+        oldMinBuyRate = bound(oldMinBuyRate, 0, type(uint128).max);
+        newMinBuyRate = bound(newMinBuyRate, 0, type(uint128).max);
         vm.prank(curator);
         adapter.setMinBuyRate(oldMinBuyRate);
         vm.expectEmit(address(adapter));
@@ -549,7 +551,15 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.minBuyRate(), newMinBuyRate, "minBuyRate");
     }
 
+    function testSetMinBuyRateOverflow(uint256 newMinBuyRate) public {
+        newMinBuyRate = bound(newMinBuyRate, uint256(type(uint128).max) + 1, type(uint256).max);
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        vm.prank(curator);
+        adapter.setMinBuyRate(newMinBuyRate);
+    }
+
     function testSetMinBuyRateDecrease(uint256 oldMinBuyRate, uint256 newMinBuyRate) public {
+        oldMinBuyRate = bound(oldMinBuyRate, 0, type(uint128).max);
         newMinBuyRate = bound(newMinBuyRate, 0, oldMinBuyRate);
         setMinBuyRate(oldMinBuyRate);
         setMinBuyRate(newMinBuyRate);
@@ -616,7 +626,7 @@ contract MidnightAdapterTest is Test {
         Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
         offer.tick = 0;
         midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
-        setMinBuyRate(type(uint256).max);
+        setMinBuyRate(type(uint128).max);
         uint256 balanceBefore = loanToken.balanceOf(address(parentVault));
 
         take(offer);
@@ -626,14 +636,14 @@ contract MidnightAdapterTest is Test {
     }
 
     function testMinBuyRateAtMaturity() public {
-        setMinBuyRate(type(uint256).max);
+        setMinBuyRate(type(uint128).max);
         Offer memory offer = buy(0, 1e18);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "matured credit accepted");
     }
 
     function testMinBuyRateDoesNotRestrictSells() public {
         Offer memory offer = buy(30 days, 1e18);
-        setMinBuyRate(type(uint256).max);
+        setMinBuyRate(type(uint128).max);
         sell(offer.market, offer.maxUnits);
         assertEq(adapter.marketData(_marketId(offer.market)).netCredit, 0, "sell accepted");
     }
@@ -1005,8 +1015,8 @@ contract MidnightAdapterTest is Test {
         VaultV2Mock otherVault = new VaultV2Mock(address(loanToken), owner, curator, otherAllocator, address(0));
         IMidnightAdapter otherAdapter = IMidnightAdapter(factory.createMidnightAdapter(address(otherVault)));
         vm.prank(curator);
-        otherAdapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxTtm, (type(uint256).max)));
-        otherAdapter.setMaxTtm(type(uint256).max);
+        otherAdapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxTtm, (type(uint128).max)));
+        otherAdapter.setMaxTtm(type(uint128).max);
         addSubRatifier(otherAdapter, address(priceRatifier));
         disableDurationCaps(otherAdapter);
         deal(address(loanToken), address(otherVault), 1_000_000e18);
@@ -1071,6 +1081,8 @@ contract MidnightAdapterTest is Test {
     }
 
     function testSetMaxTtmAuthorized(uint256 oldMaxTtm, uint256 newMaxTtm) public {
+        oldMaxTtm = bound(oldMaxTtm, 0, type(uint128).max);
+        newMaxTtm = bound(newMaxTtm, 0, type(uint128).max);
         setUpMaxTtm(oldMaxTtm);
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxTtm, (newMaxTtm)));
@@ -1080,7 +1092,16 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.maxTtm(), newMaxTtm, "maxTtm");
     }
 
+    function testSetMaxTtmOverflow(uint256 newMaxTtm) public {
+        newMaxTtm = bound(newMaxTtm, uint256(type(uint128).max) + 1, type(uint256).max);
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMaxTtm, (newMaxTtm)));
+        vm.expectRevert(ErrorsLib.CastOverflow.selector);
+        adapter.setMaxTtm(newMaxTtm);
+    }
+
     function testSetMaxTtmTimelocked(uint256 newMaxTtm, uint256 duration) public {
+        newMaxTtm = bound(newMaxTtm, 0, type(uint128).max);
         duration = bound(duration, 1, 3650 days);
         submitTimelock(IMidnightAdapterBase.setMaxTtm.selector, duration);
 
@@ -1231,7 +1252,7 @@ contract MidnightAdapterTest is Test {
         assertEq(adapter.asset(), address(loanToken), "asset");
         assertEq(adapter.parentVault(), address(parentVault), "parentVault");
         assertEq(adapter.midnight(), address(midnight), "midnight");
-        assertEq(adapter.maxTtm(), type(uint256).max, "maxTtm");
+        assertEq(adapter.maxTtm(), type(uint128).max, "maxTtm");
         assertEq(adapter.skimRecipient(), address(0), "skimRecipient");
         assertEq(adapter.durationsLength(), allDurations.length, "durationsLength");
         bytes32 expectedPackedDurations;
@@ -3633,7 +3654,7 @@ contract MidnightAdapterTest is Test {
         realVault.setCurator(curator);
         adapter = IMidnightAdapter(factory.createMidnightAdapter(address(realVault)));
         disableDurationCaps(adapter);
-        setUpMaxTtm(type(uint256).max);
+        setUpMaxTtm(type(uint128).max);
 
         submitAndCall(realVault, abi.encodeCall(IVaultV2.addAdapter, (address(adapter))));
         submitAndCall(realVault, abi.encodeCall(IVaultV2.setIsAllocator, (address(adapter), true)));
