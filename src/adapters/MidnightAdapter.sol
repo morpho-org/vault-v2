@@ -453,7 +453,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
 
-        uint128 newNetCredit = currentNetCredit(marketId);
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
         if (block.timestamp < market.maturity && soldNetCredit > sellerAssets) {
             require(
@@ -463,7 +462,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             );
         }
 
-        int256 change = updateMarket(marketId, market, newNetCredit);
+        int256 change = updateMarket(marketId, market, currentNetCredit(marketId));
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
