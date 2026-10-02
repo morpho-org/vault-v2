@@ -43,6 +43,8 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     bytes32 public immutable adapterId;
     /// @dev Durations that can be used to cap the time to maturity.
     /// @dev Sorted in ascending order.
+    /// @dev The caps of a duration are the vault's caps of the id keccak256(abi.encode("duration", adapter, duration)).
+    /// @dev The vault's allocation of this id stays zero: the adapter enforces these caps itself on buys.
     bytes32 public immutable packedDurations;
     uint256 public immutable durationsLength;
 
@@ -102,7 +104,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     }
 
     /// @dev Returns the durations that can be capped.
-    /// @dev A market position fills the cap of every duration <= its current time to maturity, so it stops filling a duration's cap as soon as it falls below it.
+    /// @dev A position counts toward every duration <= its current remaining time to maturity.
     function durations() public view returns (uint256[] memory) {
         uint256[] memory _durations = new uint256[](durationsLength);
         for (uint256 i = 0; i < durationsLength; i++) {
@@ -111,23 +113,25 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return _durations;
     }
 
-    /// @dev Returns the net credit held at or beyond each duration, using the current times to maturity.
-    /// @dev Entry i sums the net credit of the maturities that are at least durations()[i] away, so entries are non-increasing.
-    /// @dev Losses and pending sales stay counted until the corresponding market is updated, so entries are an upper bound of the adapter's exposure.
+    /// @dev Returns, for each duration, the stored net credit of the markets with at least that duration left to maturity.
+    /// @dev Losses and pending sales are only taken into account when updateMarket records them. Purchases are recorded before checking caps, so stored net credit is an upper bound of the exposure at each check.
     function durationAllocations() public view returns (uint256[] memory allocations) {
-        allocations = new uint256[](durationsLength);
-        uint256 length = maturities.length;
-        // Count each maturity in the longest duration it reaches only, so that one pass per maturity is enough.
-        for (uint256 i = 0; i < length; i++) {
+        return _durationAllocations(durationsLength);
+    }
+
+    /// @dev Walks maturities rather than markets: markets sharing a maturity reach the same durations, so updateMarket sums their net credit per maturity.
+    function _durationAllocations(uint256 length) internal view returns (uint256[] memory allocations) {
+        allocations = new uint256[](length);
+        if (length == 0) return allocations;
+        for (uint256 i; i < maturities.length; i++) {
             uint256 maturity = maturities[i];
-            uint256 count = durationCount(maturity);
-            if (count > 0) allocations[count - 1] += maturityData[maturity].netCredit;
+            uint256 ttm = maturity.zeroFloorSub(block.timestamp);
+            uint256 bucket;
+            while (bucket < length && packedDurations.get(bucket) <= ttm) bucket++;
+            if (bucket > 0) allocations[bucket - 1] += maturityData[maturity].netCredit;
         }
-        // A maturity reaching a duration reaches all the shorter ones, so the entries are the suffix sums.
-        uint256 netCreditAtOrBeyond;
-        for (uint256 j = durationsLength; j > 0; j--) {
-            netCreditAtOrBeyond += allocations[j - 1];
-            allocations[j - 1] = netCreditAtOrBeyond;
+        for (uint256 j = length - 1; j > 0; j--) {
+            allocations[j - 1] += allocations[j];
         }
     }
 
@@ -151,7 +155,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {
         require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
-        // Gates, RCF threshold and collaterals will be checked through vault ids, durations against their caps in onBuy.
+        // Gates, RCF threshold, collaterals and durations will be checked in onBuy.
         require(offer.market.loanToken == asset, LoanAssetMismatch());
         require(offer.maker == address(this), IncorrectMaker());
         require(offer.callback == address(this), IncorrectCallbackAddress());
@@ -416,12 +420,15 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             }
         }
 
-        // Check the resulting exposure after the buy and any funding withdrawal, on the durations it reaches: exposure to the others only decreases with time.
-        // Duration ids store configuration in the vault only; they are not returned by ids(market).
-        uint256 checkedDurations = durationCount(market.maturity);
-        uint256[] memory allocations = durationAllocations();
+        // Only durations up to the bought market's time to maturity can have its allocation increased.
+        uint256 ttm = market.maturity - block.timestamp;
+        uint256 affectedDurationCount;
+        while (affectedDurationCount < durationsLength && packedDurations.get(affectedDurationCount) <= ttm) {
+            affectedDurationCount++;
+        }
+        uint256[] memory allocations = _durationAllocations(affectedDurationCount);
         uint256 totalAssets = IVaultV2(parentVault).firstTotalAssets();
-        for (uint256 i = 0; i < checkedDurations; i++) {
+        for (uint256 i; i < affectedDurationCount; i++) {
             bytes32 id = keccak256(abi.encode("duration", address(this), packedDurations.get(i)));
             require(allocations[i] <= IVaultV2(parentVault).absoluteCap(id), DurationAbsoluteCapExceeded());
             uint256 relativeCap = IVaultV2(parentVault).relativeCap(id);
@@ -514,6 +521,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         uint256 storedMaturityNetCredit = _maturityData.netCredit;
         uint256 newMaturityNetCredit = storedMaturityNetCredit + newNetCredit - storedNetCredit;
         _maturityData.netCredit = newMaturityNetCredit.toUint128();
+        // Net credit is never negative, so a maturity holds net credit iff at least one of its markets does.
         if (newMaturityNetCredit == 0 && storedMaturityNetCredit > 0) {
             uint48 lastMaturity = maturities[maturities.length - 1];
             maturities[_maturityData.index] = lastMaturity;
@@ -528,12 +536,6 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit UpdateMarket(marketId, _marketData.netCredit, _marketData.growth);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         change = int256(uint256(newNetCredit)) - int256(storedNetCredit);
-    }
-
-    /// @dev Returns the number of durations in packedDurations that are at most the time to maturity.
-    function durationCount(uint256 maturity) internal view returns (uint8 count) {
-        uint256 timeToMaturity = maturity.zeroFloorSub(block.timestamp);
-        while (count < durationsLength && timeToMaturity >= packedDurations.get(count)) count++;
     }
 
     function ids(Market memory market) public view returns (bytes32[] memory) {
