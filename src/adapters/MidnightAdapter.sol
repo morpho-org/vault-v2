@@ -274,7 +274,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         shortfallRefillPeriod = newShortfallRefillPeriod.toUint128();
         shortfallAllowance =
             MathLib.min(shortfallAllowance, totalNetCredit.mulDivDown(newMaxShortfallRatio, WAD)).toUint128();
-        emit SetShortfallParams(newMaxShortfallRatio, newShortfallRefillPeriod);
+        emit SetShortfallParams(newMaxShortfallRatio, newShortfallRefillPeriod, shortfallAllowance);
     }
 
     /* SKIM FUNCTIONS */
@@ -302,7 +302,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         // forge-lint: disable-next-item(reentrancy-no-eth) deallocate in this adapter does not call withdrawToVault.
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), withdrawnAssets);
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
-        emit WithdrawToVault(marketId, withdrawnAssets, uint256(-change));
+        emit WithdrawToVault(marketId, withdrawnAssets, uint256(-change), shortfallAllowance);
     }
 
     function take(Offer memory offer, bytes memory ratifierData, uint256 units) external {
@@ -382,7 +382,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             int256 change = updateMarket(marketId, offer.market, currentNetCredit(marketId));
 
             // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
-            emit ForceDeallocate(marketId, assets, uint256(-change));
+            emit ForceDeallocate(marketId, assets, uint256(-change), shortfallAllowance);
             return (ids(offer.market), change);
         } else {
             require(caller == address(this), SelfAllocationOnly());
@@ -461,7 +461,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IVaultV2(parentVault).allocate(address(this), abi.encode(ids(market), change), paidAssets);
 
         // forge-lint: disable-next-item(unsafe-typecast) boughtNetCredit and the credit loss fit in uint128.
-        emit Buy(marketId, paidAssets, boughtNetCredit, uint256(int256(boughtNetCredit) - change));
+        emit Buy(marketId, paidAssets, boughtNetCredit, uint256(int256(boughtNetCredit) - change), shortfallAllowance);
         return CALLBACK_SUCCESS;
     }
 
@@ -502,7 +502,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         IVaultV2(parentVault).deallocate(address(this), abi.encode(ids(market), change), sellerAssets);
 
         // forge-lint: disable-next-item(unsafe-typecast) change <= 0 when no credit is bought.
-        emit Sell(marketId, sellerAssets, uint256(-change), saleShortfall);
+        emit Sell(marketId, sellerAssets, uint256(-change), saleShortfall, shortfallAllowance);
         return CALLBACK_SUCCESS;
     }
 
@@ -560,7 +560,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
             _marketData.index = uint8(marketIds.length);
             marketIds.push(marketId);
         }
-        emit UpdateMarket(marketId, _marketData, shortfallAllowance);
+        emit UpdateMarket(marketId, _marketData);
         // forge-lint: disable-next-item(unsafe-typecast) both net credit values fit in uint128.
         change = int256(uint256(newNetCredit)) - int256(storedNetCredit);
     }
