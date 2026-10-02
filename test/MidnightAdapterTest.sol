@@ -3584,16 +3584,28 @@ contract MidnightAdapterTest is Test {
         vm.prank(curator);
         adapter.submit(abi.encodeCall(IMidnightAdapterBase.setShortfallParams, (0.005e18, period)));
         vm.expectEmit(address(adapter));
-        emit IMidnightAdapterBase.SetShortfallParams(0.005e18, period, disableLimit ? 0.125e18 : 0.5e18);
+        emit IMidnightAdapterBase.SetShortfallParams(0.005e18, period, disableLimit ? 0.125e18 : 0);
         adapter.setShortfallParams(0.005e18, period);
 
-        assertEq(adapter.shortfallAllowance(), disableLimit ? 0.125e18 : 0.5e18);
+        assertEq(adapter.shortfallAllowance(), disableLimit ? 0.125e18 : 0);
         assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
         adapter.withdrawToVault(offer.market, 0);
-        assertEq(adapter.shortfallAllowance(), 0.5e18);
+        assertEq(adapter.shortfallAllowance(), disableLimit ? 0.125e18 : 0);
 
         if (!disableLimit) vm.expectRevert(IMidnightAdapterBase.MaxShortfallExceeded.selector);
         sellUnits(offer.market, 2e18, MAX_TICK / 2);
+
+        skip(6 hours);
+        adapter.withdrawToVault(offer.market, 0);
+        assertEq(adapter.shortfallAllowance(), 0.125e18);
+
+        setShortfallParams(0.005e18, 1 days);
+        adapter.withdrawToVault(offer.market, 0);
+        assertEq(adapter.shortfallAllowance(), 0.125e18, "no refill for time spent disabled");
+
+        skip(6 hours);
+        adapter.withdrawToVault(offer.market, 0);
+        assertEq(adapter.shortfallAllowance(), disableLimit ? 0.2475e18 : 0.25e18);
     }
 
     function testShortfallZeroRefillPeriodDisablesLimit(uint256 ratio, bool takerSale) public {
@@ -3610,23 +3622,42 @@ contract MidnightAdapterTest is Test {
                 ? makeExternalOffer(initial.market, true, 40e18, MAX_TICK / 2)
                 : makeSellOffer(initial.market, 40e18, MAX_TICK / 2);
             uint256 netCredit = 100e18 - 40e18 * i;
-            uint256 allowance = netCredit.mulDivDown(ratio, 1e18);
             vm.expectEmit(address(adapter));
-            emit IMidnightAdapterBase.Sell(_marketId(initial.market), 20e18, 40e18, 20e18, allowance);
+            emit IMidnightAdapterBase.Sell(_marketId(initial.market), 20e18, 40e18, 20e18, 0);
             if (takerSale) {
                 vm.prank(signerAllocator);
                 adapter.take(offer, "", 40e18);
             } else {
                 take(offer);
             }
-            assertEq(adapter.shortfallAllowance(), allowance, "disabled limit does not spend allowance");
+            assertEq(adapter.shortfallAllowance(), 0, "disabled limit does not refill allowance");
             assertEq(adapter.marketData(_marketId(initial.market)).netCredit, netCredit - 40e18);
         }
 
+        skip(1 days);
         setShortfallParams(ratio, 1 days);
-        assertEq(adapter.shortfallAllowance(), uint256(20e18).mulDivDown(ratio, 1e18));
+        assertEq(adapter.shortfallAllowance(), 0);
+        assertEq(adapter.shortfallUpdatedAt(), vm.getBlockTimestamp());
+        adapter.withdrawToVault(initial.market, 0);
+        assertEq(adapter.shortfallAllowance(), 0, "no refill for time spent disabled");
         vm.expectRevert(IMidnightAdapterBase.MaxShortfallExceeded.selector);
         sellUnits(initial.market, 10e18, MAX_TICK / 2);
+    }
+
+    function testShortfallReenableClampsFrozenAllowance() public {
+        Offer memory offer = buy(30 days, 100e18);
+        skip(1 days);
+        setShortfallParams(0.005e18, 0);
+        assertEq(adapter.shortfallAllowance(), 0.5e18);
+
+        sellUnits(offer.market, 90e18, MAX_TICK);
+        assertEq(adapter.shortfallAllowance(), 0.5e18);
+        skip(1 days);
+        adapter.withdrawToVault(offer.market, 0);
+        assertEq(adapter.shortfallAllowance(), 0.5e18, "disabled limit does not clamp allowance");
+
+        setShortfallParams(0.005e18, 1 days);
+        assertEq(adapter.shortfallAllowance(), 0.05e18);
     }
 
     function testShortfallMaxRefillPeriodNeverRefills() public {

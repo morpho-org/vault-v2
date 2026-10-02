@@ -525,16 +525,17 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         return credit - pendingFee;
     }
 
+    /// @dev shortfallAllowance is ignored while shortfallRefillPeriod is zero.
     function updateShortfallAllowance(uint256 netCredit) internal {
-        uint256 allowanceCap = netCredit.min(totalNetCredit).mulDivDown(maxShortfallRatio, WAD);
-        shortfallAllowance = MathLib.min(
-                allowanceCap,
-                shortfallAllowance
-                    + (shortfallRefillPeriod == 0
-                            ? allowanceCap
-                            : allowanceCap.mulDivDown(block.timestamp - shortfallUpdatedAt, shortfallRefillPeriod))
-            )
-            .toUint128();
+        if (shortfallRefillPeriod != 0) {
+            uint256 allowanceCap = netCredit.min(totalNetCredit).mulDivDown(maxShortfallRatio, WAD);
+            shortfallAllowance = MathLib.min(
+                    allowanceCap,
+                    shortfallAllowance
+                        + allowanceCap.mulDivDown(block.timestamp - shortfallUpdatedAt, shortfallRefillPeriod)
+                )
+                .toUint128();
+        }
         shortfallUpdatedAt = block.timestamp.toUint48();
     }
 
