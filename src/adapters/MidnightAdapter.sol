@@ -150,7 +150,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
 
     function isRatified(Offer memory offer, bytes memory data, address taker) external view returns (bytes32) {
         require(!IMidnight(midnight).liquidationLocked(IdLib.toId(offer.market), address(this)), SellInProgress());
-        // Gates, collaterals and durations will be checked in onBuy.
+        // Gates, collaterals and durations caps will be checked in onBuy.
         require(offer.market.loanToken == asset, LoanAssetMismatch());
         require(offer.maker == address(this), IncorrectMaker());
         require(offer.callback == address(this), IncorrectCallbackAddress());
