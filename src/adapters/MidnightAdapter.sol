@@ -55,6 +55,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Minimum net simple interest rate per second, WAD-scaled, enforced on maker and taker buys before maturity.
     uint256 public minBuyRate;
     uint256 public maxTtm;
+    uint256 public minRcfThreshold;
     mapping(address subRatifier => bool) public isSubRatifier;
     /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement fee.
     /// @dev Enforced on maker and taker sales before maturity only.
@@ -243,6 +244,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         emit SetMaxTtm(newMaxTtm);
     }
 
+    function setMinRcfThreshold(uint256 newMinRcfThreshold) external {
+        timelocked();
+        minRcfThreshold = newMinRcfThreshold;
+        emit SetMinRcfThreshold(newMinRcfThreshold);
+    }
+
     /// @dev Help prevent operational errors when selling.
     function setMaxSellRate(bytes32 collateralParamsHash, uint256 newMaxSellRate) external {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
@@ -383,6 +390,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(buyer == address(this), NotSelf());
         require(block.timestamp <= market.maturity, BuyPostMaturity());
         require(market.maturity - block.timestamp <= maxTtm, BuyTtmTooHigh());
+        require(market.rcfThreshold >= minRcfThreshold, RcfThresholdTooLow());
         uint256 boughtNetCredit = boughtCredit - buyPendingFeeIncrease;
         require(boughtNetCredit >= paidAssets, BuyAtLoss());
 

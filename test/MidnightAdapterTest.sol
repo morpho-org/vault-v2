@@ -1195,6 +1195,75 @@ contract MidnightAdapterTest is Test {
         assertEq(parentVault.allocation(adapter.adapterId()), 0, "allocation cleared");
     }
 
+    /* MIN RCF THRESHOLD */
+
+    function testSetMinRcfThresholdNotAuthorized(address caller, uint256 newMinRcfThreshold) public {
+        vm.assume(caller != curator);
+        vm.expectRevert(IMidnightAdapterBase.NotAuthorized.selector);
+        vm.prank(caller);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMinRcfThreshold, (newMinRcfThreshold)));
+    }
+
+    function testSetMinRcfThresholdNotTimelocked(address caller, uint256 newMinRcfThreshold) public {
+        vm.expectRevert(IMidnightAdapterBase.DataNotTimelocked.selector);
+        vm.prank(caller);
+        adapter.setMinRcfThreshold(newMinRcfThreshold);
+    }
+
+    function testSetMinRcfThresholdTimelocked(uint256 newMinRcfThreshold, uint256 duration) public {
+        duration = bound(duration, 1, 3650 days);
+        submitTimelock(IMidnightAdapterBase.setMinRcfThreshold.selector, duration);
+
+        bytes memory data = abi.encodeCall(IMidnightAdapterBase.setMinRcfThreshold, (newMinRcfThreshold));
+        vm.prank(curator);
+        adapter.submit(data);
+
+        skip(duration - 1);
+        vm.expectRevert(IMidnightAdapterBase.TimelockNotExpired.selector);
+        adapter.setMinRcfThreshold(newMinRcfThreshold);
+
+        skip(1);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.Accept(IMidnightAdapterBase.setMinRcfThreshold.selector, data);
+        vm.expectEmit(address(adapter));
+        emit IMidnightAdapterBase.SetMinRcfThreshold(newMinRcfThreshold);
+        adapter.setMinRcfThreshold(newMinRcfThreshold);
+        assertEq(adapter.minRcfThreshold(), newMinRcfThreshold, "minRcfThreshold");
+        assertEq(adapter.executableAt(data), 0, "executableAt");
+    }
+
+    function testMinRcfThresholdBoundary(uint256 minRcfThreshold, bool takerBuy) public {
+        minRcfThreshold = bound(minRcfThreshold, 1, type(uint128).max);
+        setUpMinRcfThreshold(minRcfThreshold);
+        Offer memory offer = makeBuyOffer(30 days, 1e18, MAX_TICK);
+        offer.market.rcfThreshold = minRcfThreshold - 1;
+        if (takerBuy) {
+            offer = makeExternalOffer(offer.market, false, 1e18, MAX_TICK);
+        } else {
+            midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+        }
+
+        if (takerBuy) {
+            vm.prank(signerAllocator);
+            vm.expectRevert(IMidnightAdapterBase.RcfThresholdTooLow.selector);
+            adapter.take(offer, "", offer.maxUnits);
+        } else {
+            vm.expectRevert(IMidnightAdapterBase.RcfThresholdTooLow.selector);
+            take(offer);
+        }
+
+        offer.market.rcfThreshold = minRcfThreshold;
+        if (takerBuy) {
+            offer = makeExternalOffer(offer.market, false, 1e18, MAX_TICK);
+            vm.prank(signerAllocator);
+            adapter.take(offer, "", offer.maxUnits);
+        } else {
+            midnight.supplyCollateral(offer.market, 0, offer.maxUnits, taker);
+            take(offer);
+        }
+        assertEq(adapter.marketData(_marketId(offer.market)).netCredit, offer.maxUnits, "threshold accepted");
+    }
+
     /* FACTORY */
 
     function testFactoryCreateMidnightAdapter() public {
@@ -1210,6 +1279,7 @@ contract MidnightAdapterTest is Test {
         assertEq(IMidnightAdapter(newAdapter).midnight(), address(midnight), "midnight");
         assertEq(IMidnightAdapter(newAdapter).durations(), allDurations, "durations");
         assertEq(IMidnightAdapter(newAdapter).maxTtm(), 0, "default maxTtm");
+        assertEq(IMidnightAdapter(newAdapter).minRcfThreshold(), 0, "default minRcfThreshold");
         assertTrue(midnight.isAuthorized(newAdapter, newAdapter), "adapter is its own ratifier");
 
         // Fixed salt: one adapter per vault.
@@ -3426,6 +3496,12 @@ contract MidnightAdapterTest is Test {
         } else {
             VaultV2Mock(adapter.parentVault()).setAbsoluteCap(keccak256(idData), cap);
         }
+    }
+
+    function setUpMinRcfThreshold(uint256 minRcfThreshold) internal {
+        vm.prank(curator);
+        adapter.submit(abi.encodeCall(IMidnightAdapterBase.setMinRcfThreshold, (minRcfThreshold)));
+        adapter.setMinRcfThreshold(minRcfThreshold);
     }
 
     function setUpMaxTtm(uint256 maxTtm) internal {
