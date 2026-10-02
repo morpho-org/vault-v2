@@ -61,6 +61,7 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     /// @dev Zero may still prevent the adapter from taking buy offers priced at 1 on a market with a nonzero settlement fee.
     /// @dev Enforced on maker and taker sales before maturity only.
     mapping(bytes32 collateralParamsHash => uint256) public maxSellRate;
+    mapping(bytes32 marketId => bool) public forceRemovable;
 
     /* ACCOUNTING */
 
@@ -247,6 +248,12 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
         require(msg.sender == IVaultV2(parentVault).curator(), NotAuthorized());
         maxSellRate[collateralParamsHash] = newMaxSellRate;
         emit SetMaxSellRate(msg.sender, collateralParamsHash, newMaxSellRate);
+    }
+
+    function setForceRemovable(bytes32 marketId, bool newForceRemovable) external {
+        timelocked();
+        forceRemovable[marketId] = newForceRemovable;
+        emit SetForceRemovable(marketId, newForceRemovable);
     }
 
     function setSkimRecipient(address newSkimRecipient) external {
@@ -452,9 +459,10 @@ contract MidnightAdapter is IMidnightAdapterStaticTyping {
     ) external returns (bytes32) {
         require(msg.sender == midnight, NotMidnight());
         require(seller == address(this), NotSelf());
+        require(forceRemovable[marketId] || block.timestamp < market.maturity, UnauthorizedSell());
 
         uint256 soldNetCredit = soldCredit - sellPendingFeeDecrease;
-        if (block.timestamp < market.maturity && soldNetCredit > sellerAssets) {
+        if (!forceRemovable[marketId] && soldNetCredit > sellerAssets) {
             require(
                 (soldNetCredit - sellerAssets).mulDivUp(WAD, (market.maturity - block.timestamp) * sellerAssets)
                     <= maxSellRate[keccak256(abi.encode(market.collateralParams))],
